@@ -1232,3 +1232,7 @@ crafting". No rules changed this round - the table is the deliverable, and `chec
 
 **Round 1297 ported the overkill rule** (`mondeath.cpp:58-68`) as `creature::death_remains` / `DeathRemains`, and established by sweep that the reference's `pulverized` conjunction has a
 **redundant second half**.
+
+**Round 1298 wired the overkill rule into reaping** and found a real divergence: the reference dies **inside** `deal_damage`, so the port's deferred reaping let dead bodies absorb later blows and turn
+corpses into splatters - which broke the crowbar zombie's revival scenario. `creature::hurt` now refuses a body at or below zero, and four fixtures whose 1-health monsters took five damage were
+corrected to real kills.

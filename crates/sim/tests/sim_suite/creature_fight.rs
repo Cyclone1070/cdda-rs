@@ -2636,3 +2636,70 @@ fn overkill_decides_what_is_left_of_a_body() {
         }
     }
 }
+
+/// A corpse carries the overkill that made it, and a pulverised body leaves no corpse at all.
+///
+/// Reference: `monster::die` -> `mdeath::normal` (`monster.cpp:3098`, `mondeath.cpp:58-68`) writes the corpse's damage as `floor( corpse_damage * damage_scale )`, and a `pulverized` body
+/// goes to `mdeath::splatter` instead, which returns no corpse item. **The overkill is information the world keeps**: a body killed for twice its health over is a damaged corpse a
+/// repairer can read, not a pristine one.
+#[test]
+fn a_corpse_carries_the_overkill_that_made_it() {
+    let mut world = World::new();
+    let shambler = cdda_sim::creature::spawn_creature(&mut world, "a shambler", (1, 0, 0));
+    cdda_sim::creature::set_kind(&mut world, shambler, cdda_sim::MonsterKindId(42));
+    let mut health = cdda_sim::creature::Health { hp: 0, max_hp: 40 };
+    world.entity_mut(shambler).insert(health);
+    cdda_sim::creature::set_health(&mut world, shambler, 40);
+    assert_eq!(world.get::<cdda_sim::creature::Health>(shambler).map(|h| h.max_hp), Some(40), "the ceiling is forty");
+    health.hp = -40;
+    world.entity_mut(shambler).insert(health);
+
+    let corpse_kind = cdda_sim::ItemTypeId(7);
+    let cleared = cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
+    assert_eq!(cleared, 1, "the body was cleared");
+
+    let corpse = cdda_sim::items_at(&mut world, (1, 0))
+        .into_iter()
+        .next()
+        .expect("**a twice-over corpse is still a corpse**");
+    assert_eq!(
+        world.get::<cdda_sim::GroundItem>(corpse).map(|item| item.damage),
+        Some(2500),
+        "and it carries 2,500 damage from the overkill"
+    );
+
+    // The same body killed three times its health over is a splatter, and leaves nothing whole.
+    let other = cdda_sim::creature::spawn_creature(&mut world, "another shambler", (2, 0, 0));
+    cdda_sim::creature::set_kind(&mut world, other, cdda_sim::MonsterKindId(42));
+    world.entity_mut(other).insert(cdda_sim::creature::Health { hp: -120, max_hp: 40 });
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (2, 0)).len(),
+        0,
+        "**three times over is a splatter, not a corpse**"
+    );
+}
+
+/// A dead body takes no further blows, so the overkill a corpse carries is the overkill that killed it.
+///
+/// Reference: `Creature::deal_damage` calls `monster::die` the moment health reaches zero, so later blows in the same turn are struck at a monster that no longer exists. The port
+/// reaps at the turn's end instead, which makes the guard in `hurt` the thing that keeps the reference's arithmetic: **without it a body soaks every remaining attack and its corpse
+/// is pulverised by damage nobody dealt to a living thing.**
+#[test]
+fn a_dead_body_takes_no_further_blows() {
+    let mut world = World::new();
+    let shambler = cdda_sim::creature::spawn_creature(&mut world, "a shambler", (1, 0, 0));
+    world.entity_mut(shambler).insert(cdda_sim::creature::Health { hp: -10, max_hp: 40 });
+
+    cdda_sim::creature::hurt(&mut world, shambler, 30.0);
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, shambler),
+        Some(-10),
+        "**the blow is not struck**: health stays where the killing blow left it"
+    );
+
+    let alive = cdda_sim::creature::spawn_creature(&mut world, "a living one", (2, 0, 0));
+    world.entity_mut(alive).insert(cdda_sim::creature::Health { hp: 40, max_hp: 40 });
+    cdda_sim::creature::hurt(&mut world, alive, 15.0);
+    assert_eq!(cdda_sim::creature::health_of(&world, alive), Some(25), "while a living body still takes its damage");
+}

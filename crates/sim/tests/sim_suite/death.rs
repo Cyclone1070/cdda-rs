@@ -62,8 +62,9 @@ fn a_living_creature_is_left_alone() {
 #[test]
 fn reaping_twice_does_not_duplicate_the_corpse() {
     let mut world = World::new();
-    let zombie = spawn_monster(&mut world, (1, 1), MonsterKindId(7), 1);
-    strike(&mut world, zombie, 5, 0);
+    let zombie = spawn_monster(&mut world, (1, 1), MonsterKindId(7), 40);
+    // **A kill, not an overkill**: a body killed for twice its health over is a splatter in the reference, and this test is about the corpse, so the blow lands exactly.
+    strike(&mut world, zombie, 40, 0);
     reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert_eq!(
         reap_dead_monsters(&mut world, CORPSE, |_| 62_499),
@@ -80,8 +81,8 @@ fn reaping_twice_does_not_duplicate_the_corpse() {
 #[test]
 fn the_corpse_remembers_what_it_was() {
     let mut world = World::new();
-    let zombie = spawn_monster(&mut world, (2, 2), MonsterKindId(42), 1);
-    strike(&mut world, zombie, 5, 0);
+    let zombie = spawn_monster(&mut world, (2, 2), MonsterKindId(42), 40);
+    strike(&mut world, zombie, 40, 0);
     reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert_eq!(
         corpse_kind_at(&mut world, (2, 2)),

@@ -278,7 +278,14 @@ pub fn set_health_left(world: &mut World, entity: Entity, hp: i32) {
 ///
 /// The reference's own arithmetic is `hp -= damage` on an int with the damage rounded down
 /// (`Creature::deal_damage`), and `is_dead_state` reads `hp <= 0`.
+///
+/// **A creature already dead takes nothing further.** The reference dies **inside** `deal_damage` (`monster::die` is called the moment `hp <= 0`), so no later blow can be struck at
+/// it; the port reaps in the turn instead, and without this guard a body would keep absorbing hits until the turn ended - which is not just wasted damage but **overkill the corpse
+/// would carry**, turning a body that should leave a corpse into a splatter.
 pub fn hurt(world: &mut World, entity: Entity, damage: f32) {
+    if health_of(world, entity).is_some_and(|hp| hp <= 0) {
+        return;
+    }
     #[allow(clippy::cast_possible_truncation)]
     let whole = damage as i32;
     if let Some(mut health) = world.get_mut::<Health>(entity) {
@@ -1803,7 +1810,7 @@ pub fn reap_dead_creatures_as_corpses(
     corpse_kind: crate::ItemTypeId,
     volume_of: impl Fn(crate::MonsterKindId) -> i64,
 ) -> usize {
-    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool);
+    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32);
     let dead: Vec<Dead> = world
         .query::<(
             Entity,
@@ -1814,21 +1821,31 @@ pub fn reap_dead_creatures_as_corpses(
         )>()
         .iter(world)
         .filter(|(_, health, _, _, _)| health.hp <= 0)
-        .map(|(entity, _, position, kind, flags)| {
+        .map(|(entity, health, position, kind, flags)| {
             (
                 entity,
                 (position.x, position.y, position.z),
                 kind.map(|kind| kind.0),
                 flags.is_some_and(|carried| carried.0.contains("REVIVES")),
+                health.hp,
+                health.max_hp,
             )
         })
         .collect();
-    for (entity, square, kind, revives) in &dead {
+    for (entity, square, kind, revives, hp, max_hp) in &dead {
         crate::singletons::index_mut(world).remove(*entity, *square);
         world.despawn(*entity);
         if let Some(kind) = kind {
+            // Reference: `mdeath::normal` (`mondeath.cpp:58-68`) - a body pulverised by its overkill is a **splatter** and leaves no corpse item, and an ordinary one carries
+            // `floor( corpse_damage * damage_scale )` of damage, which is the overkill written into the thing the world keeps.
+            let DeathRemains::Corpse { damage } = death_remains(*hp, *max_hp) else {
+                continue;
+            };
             let died_on = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
             let corpse = crate::drop_item(world, (square.0, square.1), corpse_kind, 1);
+            if let Some(mut item) = world.get_mut::<crate::GroundItem>(corpse) {
+                item.damage = damage;
+            }
             world.entity_mut(corpse).insert(crate::CorpseOf {
                 kind: *kind,
                 died_on,

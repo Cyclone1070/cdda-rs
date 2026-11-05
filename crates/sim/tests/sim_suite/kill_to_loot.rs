@@ -184,8 +184,8 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
 #[test]
 fn a_reaped_body_that_is_never_butchered_stays_a_corpse() {
     let mut world = World::new();
-    let zombie = spawn_monster(&mut world, (2, 2), MonsterKindId(7), 1);
-    strike(&mut world, zombie, 5, 0);
+    let zombie = spawn_monster(&mut world, (2, 2), MonsterKindId(7), 40);
+    strike(&mut world, zombie, 40, 0);
     reap_dead_monsters(&mut world, CORPSE, |_| 62_499);
     assert_eq!(corpses_at(&mut world, (2, 2)), 1, "still lying there");
     assert!(items_at(&mut world, (2, 2)).len() == 1, "and nothing else");

@@ -15518,3 +15518,24 @@ port keeps the reference's expression but knows which half decides.
 
 **Named, not invented:** the gibs themselves (`mdeath::splatter`'s `number_of_gibs` and its `rng( 1, 6 )` for a medium body) and the corpse item's own damage write, which belong to the reaping step;
 `monster::die`'s `death_drops` flag and its `corpse_type` switch are named in the parity record and are what `DeathRemains` will hang on when the reaping step is wired to it.
+
+## A corpse carries the overkill, and a dead body takes no further blows (round 1298)
+
+| Piece | Reference | Port |
+|---|---|---|
+the corpse's damage | `monster::die` -> `mdeath::normal` (`monster.cpp:3098`, `mondeath.cpp:58-68`) | `reap_dead_creatures_as_corpses` writes `GroundItem::damage` |
+the splatter | `mdeath::splatter` returning no corpse | a pulverised body leaves nothing |
+the guard | `monster::die` inside `deal_damage` | `creature::hurt` refuses a body already at or below zero |
+Gates | - | `creature_fight::a_corpse_carries_the_overkill_that_made_it`, `creature_fight::a_dead_body_takes_no_further_blows` |
+
+**The port found a real divergence by wiring the rule in.** The reference dies **inside** `deal_damage`, so no later blow in the same turn is struck at a dead monster. The port reaps at the turn's end, so
+every remaining attack landed on the corpse-to-be - and with the overkill rule wired, that turned ordinary kills into splatters and **broke a scenario**: the zombie killed with a crowbar stopped
+reviving because there was no corpse left.
+
+**The fix is the reference's own timing**, not a tweak to the overkill: `hurt` now refuses a body already at or below zero, so the corpse carries exactly the overkill that killed it.
+
+**Four fixtures were wrong in the same way** - `spawn_monster(..., 1)` followed by `strike(..., 5)` is a **1-health monster hit for five times its life**, which the reference splatters. They now spawn a
+forty-health body and strike it for forty: **a kill, not an overkill**, which is what those tests were always about.
+
+**Named, not invented:** the gibs and the splatter's blood fields (`mdeath::splatter`'s `number_of_gibs`, `add_splatter`), and `death_drops`/`corpse_type`'s choice between normal, broken and
+splatter - the port applies the normal branch's damage rule to every corpse it makes.
