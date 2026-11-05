@@ -1205,7 +1205,9 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
             if !making.recipe.skill.is_empty() {
                 let ticks = done_now / 100 - done_before / 100;
                 if ticks > 0 {
-                    let cap = crate::skills_of::craft_skill_cap(making.recipe.difficulty);
+                    // **The recipe answers its own cap**: a practice recipe stops at its `skill_limit - 1`, an ordinary one at `difficulty * 1.25`
+                    // (`recipe.cpp:70-77`). Asking the difficulty directly would let a practice recipe train past the limit its own data sets.
+                    let cap = making.recipe.teaching_cap();
                     let _ = crate::skills_of::practice(world, creature, &making.recipe.skill, ticks, cap);
                 }
             }

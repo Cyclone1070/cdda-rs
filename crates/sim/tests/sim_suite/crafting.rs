@@ -1425,3 +1425,67 @@ fn a_craft_hands_out_one_practice_tick_per_turn_of_work() {
     );
     assert_eq!(practice_ticks(0, 0, 10_000_000), 0, "and a recipe with no time cannot divide by zero: the port answers none");
 }
+
+/// A practice recipe's craft stops teaching at its own skill limit, not at the ordinary cap.
+///
+/// Reference: `Character::craft_skill_gain` (`crafting.cpp:1032`) practises to `making.get_skill_cap()`, and `recipe::get_skill_cap` (`recipe.cpp:70-77`) answers `skill_limit - 1` for a practice recipe
+/// and `difficulty * 1.25` otherwise. The craft turn hook must therefore ask **the recipe**, not its difficulty - a practice recipe with a limit of four caps at three however high its difficulty is.
+#[test]
+fn a_practice_recipe_caps_its_craft_at_its_own_limit() {
+    use cdda_content::recipes::{Practice, Recipe};
+
+    let mut practice = recipe(60, "", 1);
+    practice.practice = Some(Practice {
+        min_difficulty: 0,
+        max_difficulty: 5,
+        skill_limit: 4,
+    });
+    practice.difficulty = 9;
+    assert_eq!(practice.teaching_cap(), 3, "**the limit minus one wins over the difficulty**");
+
+    let ordinary = recipe(60, "", 1);
+    assert_eq!(ordinary.teaching_cap(), (f64::from(ordinary.difficulty) * 1.25) as i32, "and an ordinary recipe keeps its 1.25 cap");
+}
+
+/// A finished practice craft stops practising at the recipe's own limit, however hard the recipe says it is.
+///
+/// Reference: `craft_skill_gain` (`crafting.cpp:1032`) practises to `making.get_skill_cap()`, and `recipe::get_skill_cap` (`recipe.cpp:70-77`) answers **`skill_limit - 1`** for a practice recipe.
+/// The craft's turn hook therefore has to ask **the recipe**; asking its `difficulty` would let a practice recipe train past the limit the data set.
+#[test]
+fn a_finished_practice_craft_stops_at_its_limit() {
+    use cdda_content::recipes::Practice;
+
+    let mut world = World::new();
+    let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let mut practice = recipe(200_000, "", 0);
+    practice.skill = "fabrication".to_owned();
+    practice.difficulty = 9;
+    practice.practice = Some(Practice {
+        min_difficulty: 0,
+        max_difficulty: 9,
+        skill_limit: 2,
+    });
+    cdda_sim::recipes_known::learn(&mut world, crafter, &practice.id, false, false);
+    let supplies = supplies_with(|_| 0);
+    assert_eq!(
+        cdda_sim::crafting::begin_craft(&mut world, crafter, &practice, 1, &supplies),
+        Craft::Started,
+        "a practice craft starts"
+    );
+
+    // Two hundred thousand moves is two thousand practice ticks - far more than enough practice to pass level two if nothing stopped it. Each turn is a hundred
+    // moves, granted by hand because the turn loop that would grant them is the reference's `game::do_turn`, which the port's tests drive directly.
+    for _ in 0..4_000 {
+        cdda_sim::creature::give_moves(&mut world, crafter, 100);
+        if cdda_sim::creature::spend_a_turn_on(&mut world, crafter) {
+            break;
+        }
+    }
+
+    // `practice` refuses once the level is **above** the cap, so a limit of two lets a crafter reach two and no further.
+    assert_eq!(
+        cdda_sim::skills_of::level_of(&world, crafter, "fabrication"),
+        2,
+        "**the craft stops at the recipe's limit**, where the difficulty's own cap would have let it climb"
+    );
+}

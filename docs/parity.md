@@ -15443,3 +15443,21 @@ division by zero through data is a rule that will.
 
 **Named, not invented:** `roll_remainder`'s share for helpers (ported in round 1292), the proficiency step's separate 5% cadence (`craft_proficiency_gain`), and the `set_moves( 0 )` the reference does
 alongside - all of those belong to the activity's turn, which is P6.
+
+## A finished practice craft stops at its limit (round 1294)
+
+| Piece | Reference | Port |
+|---|---|---|
+the cap the craft practises to | `craft_skill_gain` (`crafting.cpp:1032`) over `recipe::get_skill_cap` (`recipe.cpp:70-77`) | the turn hook now asks `Recipe::teaching_cap` |
+Gate | - | `crafting::a_finished_practice_craft_stops_at_its_limit` |
+
+**The gate is differential, and its first two runs were both wrong in instructive ways.** With a two-thousand-move fixture the craft never left level 0 - the fixture was **vacuous**, because a test that
+drives `spend_a_turn_on` has to **grant the moves** the turn loop would; with the moves granted and the old cap, the crafter climbed to **level 3** where its recipe's limit was 2. That third run is the
+red gate, and the wiring that turns it green is one line.
+
+**The recipe answers its own cap.** Asking `difficulty` directly capped at `9 * 1.25 = 11`, letting a practice recipe train far past the limit its data sets; `Recipe::teaching_cap` answers `skill_limit - 1`
+for a practice recipe and the `1.25` cap otherwise.
+
+**`practice` refuses above the cap, not at it** (`level > cap`), so a limit of two lets a crafter reach two and no further - the reason the gate asserts exactly two rather than "at most two".
+
+**Named, not invented:** `craft_skill_cap`, a port-side helper that duplicated the ordinary branch, is gone - one rule, one place.

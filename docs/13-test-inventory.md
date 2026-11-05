@@ -1220,3 +1220,6 @@ draw appearing on both sides across 200 seeds.
 
 **Round 1293 ported the craft's practice-tick count** as `crafting::practice_ticks` (`activity_actor.cpp:4229-4240`), gated on the three divisions - including the truncation that makes an hour's craft worth
 3,601 ticks.
+
+**Round 1294 wired `Recipe::teaching_cap` into the craft turn hook** (`crafting.cpp:1032`, `recipe.cpp:70-77`), gated differentially: with the old difficulty-based cap the crafter reached level 3 against a
+recipe limit of 2. The duplicate `craft_skill_cap` helper was deleted. The gate took three runs to become non-vacuous, because a turn-driven test must **grant the moves** the turn loop would.

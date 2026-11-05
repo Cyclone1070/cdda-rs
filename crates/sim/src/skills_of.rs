@@ -96,13 +96,3 @@ pub fn practice(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelud
     scaled
 }
 
-/// How much the practice a craft is worth has been laid on, before focus.
-///
-/// The highest level a recipe's practice can raise a skill to.
-///
-/// Reference: `recipe::get_skill_cap` (`recipe.cpp:70-77`): `difficulty * 1.25` for an ordinary recipe, truncated to a whole level by the integer return.
-#[must_use]
-#[allow(clippy::cast_possible_truncation)]
-pub fn craft_skill_cap(difficulty: i32) -> i32 {
-    (f64::from(difficulty) * 1.25) as i32
-}
