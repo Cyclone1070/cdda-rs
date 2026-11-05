@@ -2418,3 +2418,20 @@ fn a_weapon_that_breaks_drops_what_was_inside_it() {
         "it is on the square the survivor stood on"
     );
 }
+
+/// What a thing in hand is worth as a block: ten, six or four for a technique, two for something worn, nothing otherwise.
+///
+/// Reference: `melee::blocking_ability` (`melee.cpp:1950-1965`) - an `if / else if` chain **in that order**, so a thing with several technique flags gets the **best** of them, and a thing with no
+/// technique but the `BLOCK_WHILE_WORN` flag is worth two. **The two is the trap**: a worn item is worth something in the hand and nothing at all when `best_shield` looks at the weapon (`:1970`),
+/// because the flag's bonus only counts when the thing is actually worn.
+#[test]
+fn what_a_thing_is_worth_as_a_block() {
+    use cdda_sim::melee::blocking_ability;
+
+    assert_eq!(blocking_ability(&["WBLOCK_3"], false), 10, "the best technique");
+    assert_eq!(blocking_ability(&["WBLOCK_2"], false), 6, "then six");
+    assert_eq!(blocking_ability(&["WBLOCK_1"], false), 4, "then four");
+    assert_eq!(blocking_ability(&[], true), 2, "and two for something worn with no technique");
+    assert_eq!(blocking_ability(&[], false), 0, "nothing else blocks");
+    assert_eq!(blocking_ability(&["WBLOCK_1", "WBLOCK_3"], false), 10, "**the chain takes the best**, whatever the order of the list");
+}

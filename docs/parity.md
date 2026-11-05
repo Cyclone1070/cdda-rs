@@ -14790,3 +14790,18 @@ answer without inventing a pocket field: **a battery that breaks does not spill 
 
 **The gate proves both sides in one fixture:** nothing comes out of the sealed container, and the very next block spills one item out of an ordinary container - so the assertion is about the flag and not
 about the fixture never spilling at all.
+
+## What a thing is worth as a block (round 1256)
+
+| Piece | Reference | Port |
+|---|---|---|
+the chain | `WBLOCK_3/2/1` then `BLOCK_WHILE_WORN` (`melee.cpp:1950-1965`) | `melee::blocking_ability(techniques, block_while_worn)` |
+Gate | - | `what_a_thing_is_worth_as_a_block` |
+
+**The `if / else if` chain is the rule.** A thing carrying several techniques is worth the **best** of them - ten, then six, then four - and the worn bonus of two is reached **only when there is no
+technique at all**. The gate asserts the chain from both ends: each technique alone, the flag alone, nothing, and a thing carrying `WBLOCK_1` **and** `WBLOCK_3` answering **ten**.
+
+**The two is worth knowing about for the next step:** `best_shield` (`melee.cpp:1967-1976`) throws a **weapon's** two away - `best_value = best_value == 2 ? 0 : best_value` - because that bonus only counts
+on something actually worn, and then picks the best worn shield when its value is `>=` the weapon's. That comparison is `>=` and not `>`, so **a worn shield ties the weapon and wins**.
+
+**Named, not invented:** `block_hit` itself, which needs martial arts, limbs, `blocks_left` and shields; and the technique tables, which the port reads as plain name lists until the martial-arts data lands.

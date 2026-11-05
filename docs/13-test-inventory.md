@@ -1112,3 +1112,6 @@ found the dangling link**: the flask survived but still pointed at a despawned w
 
 **Round 1255 closed the `NO_UNLOAD` exemption in `spill_contents`**: the pocket field `_no_unload` is **derived from the item type's `NO_UNLOAD` flag** (`item_factory.cpp:892-896`), so the port asks the
 flag rather than inventing a pocket field. Gated by `ground_items::a_no_unload_container_keeps_what_it_holds`, which spills an ordinary container in the same fixture.
+
+**Round 1256 ported `melee::blocking_ability`** (`melee.cpp:1950-1965`): the `WBLOCK_3/2/1` chain at ten, six and four, then two for `BLOCK_WHILE_WORN`. Gated by
+`creature_fight::what_a_thing_is_worth_as_a_block`, which asserts the chain's fall-through order and that several techniques give the **best**.

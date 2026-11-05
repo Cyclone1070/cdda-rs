@@ -561,3 +561,30 @@ pub fn fragile_material_factor(parts: &[PartFacts<'_>], own_chip_resistance: f64
     let (weak, _) = weak_and_big(parts);
     weak.map_or(own_chip_resistance, |part| f64::from(part.chip_resistance) / FRAGILE_FACTOR)
 }
+
+/// What a thing is worth as a block, from the techniques it carries.
+///
+/// Reference: `melee::blocking_ability` (`melee.cpp:1950-1965`):
+///
+/// ```text
+/// if( shield.has_technique( WBLOCK_3 ) )      block_bonus = 10;
+/// else if( shield.has_technique( WBLOCK_2 ) ) block_bonus = 6;
+/// else if( shield.has_technique( WBLOCK_1 ) ) block_bonus = 4;
+/// else if( shield.has_flag( flag_BLOCK_WHILE_WORN ) ) block_bonus = 2;
+/// ```
+///
+/// **The chain is the rule**: a thing carrying several techniques is worth the **best** of them, and the flag is only reached when there is no technique at all. **The two is worth knowing about**:
+/// `best_shield` (`:1967-1976`) throws a weapon's two away - `best_value = best_value == 2 ? 0 : best_value` - because the worn bonus only counts on something actually worn.
+#[must_use]
+pub fn blocking_ability(techniques: &[&str], block_while_worn: bool) -> i32 {
+    if techniques.contains(&"WBLOCK_3") {
+        return 10;
+    }
+    if techniques.contains(&"WBLOCK_2") {
+        return 6;
+    }
+    if techniques.contains(&"WBLOCK_1") {
+        return 4;
+    }
+    if block_while_worn { 2 } else { 0 }
+}
