@@ -14434,3 +14434,23 @@ That somebody is this function: **sorted ids, deduplicated, numbered from zero**
 by position would pass the first half and fail the second**, and a loader that sorted but did not deduplicate would shift every number after a repeated id.
 
 **Named, not invented:** the caller. `kind_numbers` has none yet - round 1213's CLI loader is what consumes it, and this function exists so that loader is a merge rather than a decision.
+
+## The data now reaches the tables (round 1218)
+
+Round 1210 found the kind tables were installed **only by tests**. This round found the caller that already existed and was only doing half its job: `install_item_data`
+(`crates/cli/src/lib.rs:713`) loads the game's item records and calls `item_data::install`, and **that installed the kinds and their qualities and nothing else** - a world with 9,912 item types
+answered **no flags, chip resistance 2 and no faults** for every one of them.
+
+| Table | Before | Now |
+|---|---|---|
+kinds, volumes, weights, pockets, melee | installed | installed |
+qualities | installed | installed |
+flags | **missing-table answer** | from the type records |
+fault weights | **missing-table answer** | from the type records |
+chip resistance | **missing-table answer** | still 2 - it lives in the dump, not the records |
+
+**The gate loads the real data and asks the store what it learned:** `bio_adrenaline` answers `fault_bionic_salvaged` at weight **100**, and a kind whose data names a flag answers that flag. **Neither
+assertion could have passed before this round**, and both are about the *data path* rather than a rule - which is what round 1210 said the port was missing.
+
+**Named, not invented:** the **chip resistance merge**. The figure is `item::chip_resistance()`, which depends on the type's **materials and their portions**, and the port reads it from the prototypes
+dump's `chip_resistance` column (round 1191) rather than recomputing it - so the merge needs the dump's map joined by id to the numbering `kind_numbers` assigns. **One join, and it is the last link.**

@@ -85,4 +85,23 @@ pub fn install(world: &mut World, kinds: &[ItemType]) {
         .map(|(kind, qualities)| (*kind, qualities.as_slice()))
         .collect();
     item_registry::set_item_qualities(world, &borrowed);
+    // **The other three kind tables, in one pass** (round 1211's seam): a kind's flags, its chip resistance and the faults it can catch are all questions asked of the same number, and until this
+    // ran the store answered every one of them with the missing-table answer - no flags, chip resistance 2, no faults - whatever the data said. Chip resistance is still the fallback here: it lives in
+    // the prototypes dump rather than in the type records, and the dump's merge is the next slice.
+    let mut facts: Vec<(crate::ItemTypeId, item_registry::KindFacts)> = Vec::new();
+    for kind in kinds {
+        let Some(number) = item_registry::id_of(world, &kind.id) else {
+            continue;
+        };
+        facts.push((
+            number,
+            item_registry::KindFacts {
+                flags: kind.flags.iter().cloned().collect(),
+                qualities: kind.qualities.iter().map(|(quality, level)| (quality.clone(), *level)).collect(),
+                chip_resistance: 2,
+                faults: kind.faults.clone(),
+            },
+        ));
+    }
+    item_registry::install_kind_facts(world, &facts);
 }

@@ -195,3 +195,37 @@ fn one_pass_fills_every_kind_table() {
     assert_eq!(cdda_sim::item_registry::chip_resistance_of(&mut world, ItemTypeId(9)), 2, "and the reference's fallback of two");
     assert!(cdda_sim::item_registry::fault_weights_of(&mut world, ItemTypeId(9)).is_empty(), "and no faults");
 }
+
+/// Loading the game's item data fills the kind tables, not just the kinds.
+///
+/// Reference: `item_factory` keeps a type's flags, qualities and faults on the `itype` itself, so a game that loaded the data can answer all three. **Before round 1218 the port installed
+/// only the types and the qualities**, and a rock's flags, chip resistance and faults were all the missing-table answers however much data had been loaded.
+#[test]
+fn loading_the_item_data_fills_the_kind_tables() {
+    use bevy_ecs::prelude::World;
+
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !data.is_dir() {
+        return;
+    }
+    let kinds = cdda_content::items::load_paths(&[&data]).expect("the game data loads");
+    let mut world = World::new();
+    cdda_sim::item_data::install(&mut world, &kinds);
+
+    // A bionic catches the salvaged fault at full weight, which is data the type records carry and the tables did not.
+    let bionic = cdda_sim::item_registry::id_of(&mut world, "bio_adrenaline").expect("the bionic is a kind");
+    let faults = cdda_sim::item_registry::fault_weights_of(&mut world, bionic);
+    assert!(
+        faults.iter().any(|(fault, weight)| fault == "fault_bionic_salvaged" && *weight == 100),
+        "the bionic's fault is installed: {faults:?}"
+    );
+    // And the flags came with it: a kind whose data names a flag answers it.
+    let flagged = kinds
+        .iter()
+        .find(|kind| !kind.flags.is_empty())
+        .and_then(|kind| kind.flags.iter().next().map(|flag| (kind.id.clone(), flag.clone())));
+    if let Some((id, flag)) = flagged {
+        let number = cdda_sim::item_registry::id_of(&mut world, &id).expect("the kind is installed");
+        assert!(cdda_sim::item_registry::kind_has_flag(&world, number, &flag), "{id} answers {flag}");
+    }
+}

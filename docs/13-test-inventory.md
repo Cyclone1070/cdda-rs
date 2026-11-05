@@ -1035,3 +1035,8 @@ whose chip resistance reads **20** instead of the fallback **2**. Design recorde
 
 **Round 1214 ported the numbering rule the port needs and the reference does not**: `items::kind_numbers` (sorted, deduplicated, numbered from zero), gated by
 `content_suite::ammo_rules::kinds_are_numbered_from_the_sorted_ids`, which proves **file order cannot change a kind's number**. Its caller - the CLI loader - is named in `docs/parity.md`.
+
+**Round 1218 wired the kind tables to the caller that already existed**: `item_data::install` now fills a kind's **flags** and **fault weights** from the type records through
+`install_kind_facts` (the seam of round 1211), instead of installing only the kinds and their qualities. Gated by `ground_items::loading_the_item_data_fills_the_kind_tables`, which loads the real
+game data and asks the store for `bio_adrenaline`'s `fault_bionic_salvaged` (weight **100**). The chip-resistance merge from the prototypes dump is the one remaining link, named in
+`docs/parity.md`.
