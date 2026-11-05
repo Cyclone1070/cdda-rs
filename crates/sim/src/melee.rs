@@ -452,3 +452,37 @@ pub fn wear_damages(chance: i32, dice: &mut cdda_core_types::rng::Rolls) -> bool
     // `chance <= 0 || dice.one_in( chance )`, written the way the reference's guard reads.
     chance <= 0 || dice.one_in(chance)
 }
+
+/// Splits a broken `FRAGILE_MELEE` weapon into the parts that survived and the ones the blow destroyed.
+///
+/// Reference: `Character::handle_melee_wear`'s fragile branch (`melee.cpp:301-330`):
+///
+/// ```text
+/// for( item &comp : tvp.second ) {
+///     int break_chance = comp.typeId() == weak_comp ? 2 : 8;
+///     if( one_in( break_chance ) ) { "The %s is destroyed!"; continue; }
+///     ... wield the biggest one, drop the rest ...
+/// }
+/// ```
+///
+/// **The weakest part is rolled against `one_in( 2 )` and every other part against `one_in( 8 )`** - four times as likely to be lost. The reference picks `weak_comp` as the component with the
+/// **lowest chip resistance** and `big_comp` as the one with the largest volume; the caller decides which is which, because that needs the component list this port does not keep.
+///
+/// Returns `(kept, destroyed)`, both in the data's own order.
+#[must_use]
+pub fn break_apart(
+    parts: &[(String, bool)],
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> (Vec<String>, Vec<String>) {
+    let mut kept = Vec::new();
+    let mut destroyed = Vec::new();
+    for (part, is_weakest) in parts {
+        let chance = if *is_weakest { 2 } else { 8 };
+        if dice.one_in(chance) {
+            destroyed.push(part.clone());
+        } else {
+            kept.push(part.clone());
+        }
+    }
+    (kept, destroyed)
+}

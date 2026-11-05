@@ -14596,3 +14596,20 @@ gate that counts.
 
 **Named, not invented:** the **`MESSAGE_LIMIT` option**. The port has no options table, so the limit is the option's **default** as a constant, and the doc comment says so at the place a reader will look -
 **a constant that stands in for an option is honest only when it says it is standing in.**
+
+## A fragile weapon comes apart in its parts (round 1245)
+
+| Piece | Reference | Port |
+|---|---|---|
+the breakdown | `handle_melee_wear`'s `FRAGILE_MELEE` branch (`melee.cpp:301-330`) | `melee::break_apart(parts, dice)` |
+Gate | - | `a_broken_fragile_weapon_loses_its_weakest_part_four_times_as_often` |
+
+**Two die rolls, and the ratio between them is the rule.** The **weakest** component is rolled against `one_in( 2 )`, every other component against `one_in( 8 )` - **four times as likely to be lost** -
+which is the whole reason the data marks a weak part at all. The gate draws 4,000 breakdowns from one advancing `Rolls` and asserts **both** rates: about half for the weak part and about one in eight
+for the others, so a port that rolled everything at the same rate fails whichever half it picked.
+
+**The reference's two named parts are the caller's job.** `weak_comp` is the component with the **lowest chip resistance** and `big_comp` the one with the **largest volume** - both computed from the
+item's component list, which the port does not keep. The port takes `is_weakest` per part so the rule is exact and the data model stays the missing piece instead of being guessed at.
+
+**Named, not invented:** the component list itself (`item::components`), the "The %s is destroyed!" line, the `wield`-the-biggest-one step, and the `has_wield_conflicts` check that decides between
+wielding and dropping a survivor.

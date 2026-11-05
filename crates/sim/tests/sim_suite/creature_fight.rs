@@ -2029,3 +2029,38 @@ fn a_worn_weapon_says_so_in_the_log() {
         "and the last one breaks it: {said:?}"
     );
 }
+
+/// A fragile weapon that breaks apart yields most of its parts and destroys the weakest half of the time.
+///
+/// Reference: `Character::handle_melee_wear`'s `FRAGILE_MELEE` branch (`melee.cpp:301-330`): every component of the broken weapon is rolled, and the roll is `one_in( 2 )` for the **weakest**
+/// component and `one_in( 8 )` for the rest - **the weak part is four times as likely to be lost as any other**, which is the whole reason the data marks a weakest part at all.
+#[test]
+fn a_broken_fragile_weapon_loses_its_weakest_part_four_times_as_often() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::melee::break_apart;
+
+    let parts = vec![
+        ("handle".to_owned(), false),
+        ("string".to_owned(), true),
+        ("limb".to_owned(), false),
+    ];
+    let mut dice = Rolls::new(4242);
+    let (mut weak_lost, mut others_lost, mut others_total) = (0, 0, 0);
+    for _ in 0..4_000 {
+        let (kept, destroyed) = break_apart(&parts, &mut dice);
+        assert_eq!(kept.len() + destroyed.len(), 3, "every part is either kept or destroyed");
+        if destroyed.contains(&"string".to_owned()) {
+            weak_lost += 1;
+        }
+        for part in ["handle", "limb"] {
+            others_total += 1;
+            if destroyed.contains(&part.to_owned()) {
+                others_lost += 1;
+            }
+        }
+    }
+    // One in two against one in eight: about 2000 of 4000 against about 1000 of 8000.
+    assert!((1_800..2_200).contains(&weak_lost), "the weakest part goes about half the time: {weak_lost} of 4000");
+    let ratio = f64::from(others_lost) / f64::from(others_total);
+    assert!((0.10..0.15).contains(&ratio), "the others go about one in eight: {ratio:.3} of {others_total}");
+}

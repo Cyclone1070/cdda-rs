@@ -1073,3 +1073,7 @@ install replaces the old table - which the comment now records.
 
 **Round 1233 gave `MessageLog` its trim** (`messages.cpp:203-206`), with `MESSAGE_LIMIT` as the option's default (255 - the port has no options table, which the doc says). Gated by
 `sounds::the_message_log_drops_the_oldest_lines_first`, whose **first run found the off-by-one**: the reference trims *before* pushing, so a full log holds **limit + 1**.
+
+**Round 1245 ported the `FRAGILE_MELEE` breakdown roll**: `melee::break_apart` (`melee.cpp:301-330`), the weakest component at `one_in(2)` and the rest at `one_in(8)`. Gated by
+`creature_fight::a_broken_fragile_weapon_loses_its_weakest_part_four_times_as_often`, which asserts **both** rates over 4,000 draws. The component list, the message and the wield-the-biggest step are
+named in `docs/parity.md`.
