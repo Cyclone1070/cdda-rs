@@ -1685,3 +1685,35 @@ fn an_effect_the_creature_wears_changes_its_strength() {
         "and the strength that is read is the one carrying capacity uses: {plain_kilos} g then {hopped_kilos} g"
     );
 }
+
+/// A weapon's wear chance, and the inverted guard that makes a low chance the worst case.
+///
+/// Reference: `Character::handle_melee_wear` (`melee.cpp:271-293`). Three claims, each one a different way to get it wrong: **strength divides** the chance, **`DURABLE_MELEE` multiplies** it by
+/// four (a bigger `one_in` denominator is a tougher weapon), and a **chance of zero or below damages the weapon every time** - because the reference only returns early when there is a chance
+/// *and* the die misses it.
+#[test]
+fn a_weapon_wears_by_its_own_arithmetic_and_a_zero_chance_is_the_worst_case() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::melee::{melee_wear_chance, wear_damages};
+
+    // A dexterous, skilled, strong fighter with a chipping-resistant weapon: 10/2 + 3 + 64/max(12, 4) = 5 + 3 + 5.33 = 13.33, times 20 = 266.
+    let strong = melee_wear_chance(10.0, 3, 12.0, 20.0, 1.0, 1.0, false);
+    assert_eq!(strong, 266, "the arithmetic, truncated to an int");
+    // A stronger arm **lowers** the chance, because the strength term is 64 over it.
+    let stronger = melee_wear_chance(10.0, 3, 24.0, 20.0, 1.0, 1.0, false);
+    assert!(stronger < strong, "a stronger arm divides the chance: {stronger} against {strong}");
+    // A durable weapon multiplies it by four, which is the opposite direction from the way it reads.
+    assert_eq!(melee_wear_chance(10.0, 3, 12.0, 20.0, 1.0, 1.0, true), strong * 4, "DURABLE_MELEE is four times tougher");
+    // A wear multiplier divides, and a zero multiplier means the weapon cannot wear at all.
+    assert!(melee_wear_chance(10.0, 3, 12.0, 20.0, 2.0, 1.0, false) < strong, "a higher wear multiplier is a softer weapon");
+    assert_eq!(melee_wear_chance(10.0, 3, 12.0, 20.0, 0.0, 1.0, false), 0, "no wear multiplier, no chance");
+
+    // The guard: a large chance almost never damages, a chance of one always does, and a chance of zero always does too.
+    let mut dice = Rolls::new(1234);
+    let broken = (0..2_000).filter(|_| wear_damages(500, &mut dice)).count();
+    assert!(broken < 40, "one in five hundred: {broken} of 2000");
+    let mut dice = Rolls::new(1234);
+    assert!((0..200).all(|_| wear_damages(1, &mut dice)), "a chance of one damages every time");
+    let mut dice = Rolls::new(1234);
+    assert!((0..200).all(|_| wear_damages(0, &mut dice)), "and so does a chance of zero, which is the reference's own quirk");
+}

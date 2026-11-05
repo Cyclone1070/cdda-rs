@@ -14066,3 +14066,31 @@ touching anything: `spawn_monster_of_type` sets all four (`creature.rs:1716-1752
 
 **Named, not invented:** `is_immune_effect( effect_deaf )` for the **character** half of the reference's deafness (`character.cpp:5867`), the `DEAF`/`PARTIAL_DEAF` worn flags, and
 `Creature::can_hear`'s other callers - the monster's `hear_sound` and the character's own.
+
+## A weapon wears by its own arithmetic (round 1191)
+
+| Piece | Reference | Port |
+|---|---|---|
+the chance | `Character::handle_melee_wear` (`melee.cpp:271-289`) | `melee::melee_wear_chance(dex, melee_skill, arm_str, chip_resistance, wear_multiplier, enchant_multiplier, durable_melee)` |
+the guard | `if( damage_chance > 0 && !one_in( chance ) ) return false;` (`:291-293`) | `melee::wear_damages(chance, dice)` |
+the data | `item::chip_resistance()` (`item.cpp:9375-9409`) | prototypes dump **version 2**, read by `items::chip_resistance` |
+Gate | - | `a_weapon_wears_by_its_own_arithmetic_and_a_zero_chance_is_the_worst_case` and `every_prototype_states_its_chip_resistance` |
+
+**Three sign traps in nine lines, and the port keeps all three.** The **strength term is inverted** - `64 / arm_str` shrinks as the arm grows, and the reference's own annotation calls it
+`NEGATIVE`, so a *stronger* fighter wears a weapon **less**. `DURABLE_MELEE` **multiplies the chance by four**, which reads backwards until one remembers the chance is a `one_in` denominator:
+**a bigger number is a tougher weapon**. And the result is **truncated to an int**, so a fractional chance becomes zero.
+
+**The zero is the quirk worth the round.** The reference only bails out of damaging the weapon when there *is* a chance **and** the die misses it - so **a chance of zero or below damages the
+weapon every single time**, and so does a chance of one, because `one_in( 1 )` always succeeds. **A weapon whose arithmetic said "indestructible" therefore breaks fastest.** The gate asserts both
+ends, because "no chance of damage" is exactly what a reader would assume and exactly what the code does not say.
+
+**The dump grew a column for it.** `chip_resistance` was not in the prototypes dump at all, so the rule had no data; version 2 carries `item::chip_resistance()` per prototype - **a rock 20, a
+Mini-14 10, a combat knife 9**, with the softest items at zero and the hardest at twenty or more.
+
+**An overwritten module, and the lesson the port keeps paying for.** I created `crates/content/src/items.rs` with `cat >` and **destroyed a 2,122-line loader that already lived there** -
+`monsters.rs` and `comestible.rs` failed to build within seconds. `git checkout --` restored it and the new function was appended instead. **Read before writing: the rule was in my own notes and I
+broke it anyway.**
+
+**Named, not invented:** `FRAGILE_MELEE`'s component-by-component breakdown (which needs an item's component list, a structure the port does not keep), `UNBREAKABLE`/`UNBREAKABLE_MELEE`,
+`EQUIPMENT_DAMAGE_CHANCE` enchantments, the weapon's destruction and the "your %s is damaged" messages, and **the wiring into a swing** - the arithmetic and the data are ported and gated, and the
+swing does not call them yet.

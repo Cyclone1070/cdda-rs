@@ -405,3 +405,50 @@ pub fn stamina_cost(weight_g: i64, melee_skill: i32, stance_malus: i32) -> i32 {
     let total = i32::try_from(standard).unwrap_or(i32::MIN / 2) + melee_skill - stance_malus;
     total.min(-50)
 }
+
+/// How likely a weapon is to be damaged by a blow: `Character::handle_melee_wear`'s arithmetic (`melee.cpp:214-289`).
+///
+/// Reference:
+///
+/// ```text
+/// const float stat_factor = dex_cur / 2.0f + get_skill_level( skill_melee ) + ( 64.0f / std::max( get_arm_str(), 4 ) );
+/// int damage_chance = static_cast<int>( ( stat_factor * material_factor / ( wear_multiplier * enchant_multiplier ) ) );
+/// if( shield->has_flag( DURABLE_MELEE ) ) damage_chance *= 4;
+/// ```
+///
+/// **Four things a reader gets wrong here.** The **strength term is inverted** - a stronger arm *divides* the chance, because `64 / arm_str` shrinks as the arm grows, and the reference's own
+/// annotation calls it `NEGATIVE`. **Dexterity halves** and **melee skill counts whole**. `DURABLE_MELEE` **multiplies the chance by four**, which looks backwards until one remembers the
+/// chance is a `one_in` denominator: **a bigger number is a tougher weapon**. And the result is **truncated to an int**, so a chance of 0.9 becomes zero - which the reference then reads as
+/// "damage it every time", the quirk the caller's guard carries.
+#[must_use]
+pub fn melee_wear_chance(
+    dexterity: f64,
+    melee_skill: i32,
+    arm_strength: f64,
+    chip_resistance: f64,
+    wear_multiplier: f64,
+    enchant_multiplier: f64,
+    durable_melee: bool,
+) -> i32 {
+    if wear_multiplier <= 0.0 || enchant_multiplier <= 0.0 {
+        return 0;
+    }
+    let stat_factor = dexterity / 2.0 + f64::from(melee_skill) + (64.0 / arm_strength.max(4.0));
+    #[allow(clippy::cast_possible_truncation)]
+    let mut chance = (stat_factor * chip_resistance / (wear_multiplier * enchant_multiplier)) as i32;
+    if durable_melee {
+        chance *= 4;
+    }
+    chance
+}
+
+/// Whether a blow damages the weapon that made it, given the chance [`melee_wear_chance`] returned.
+///
+/// Reference: `if( damage_chance > 0 && !one_in( damage_chance ) ) return false;` (`melee.cpp:291-293`) - **the guard is inverted from the way it reads**: a chance of **zero or below** does
+/// not save the weapon, it **damages it every time**, because the reference only bails out when there *is* a chance and the die misses it. The same is true of a chance of one, since
+/// `one_in( 1 )` always succeeds. **A weapon whose arithmetic said "indestructible" therefore breaks fastest**, which is the reference's behaviour and not a bug in the port.
+#[must_use]
+pub fn wear_damages(chance: i32, dice: &mut cdda_core_types::rng::Rolls) -> bool {
+    // `chance <= 0 || dice.one_in( chance )`, written the way the reference's guard reads.
+    chance <= 0 || dice.one_in(chance)
+}

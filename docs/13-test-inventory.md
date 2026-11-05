@@ -958,3 +958,8 @@ not the rule, was the thing at fault.
 
 **Round 1190 ported `monster::can_hear`**: `hearing::can_hear` (`monster.cpp:1318-1321` - the `HEARS` flag **and** the absence of the `deaf` effect), which the hearing rule now asks instead of the
 flag alone. Gated by `sounds::a_deaf_monster_hears_nothing_though_its_type_says_it_has_ears`, which deafens the **same** monster between assertions so a missing effect check cannot pass.
+
+**Round 1191 ported the melee wear arithmetic**: `melee::melee_wear_chance` and `melee::wear_damages` (`Character::handle_melee_wear`, `melee.cpp:271-293`), and `items::chip_resistance` reading
+the **prototypes dump version 2** column of the same name (`item::chip_resistance()`, `item.cpp:9375-9409`). Gated by
+`creature_fight::a_weapon_wears_by_its_own_arithmetic_and_a_zero_chance_is_the_worst_case` (the inverted strength term, the four-times durable multiplier, and the zero-chance quirk) and
+`content_suite::ammo_rules::every_prototype_states_its_chip_resistance` (9,912 prototypes, rock **20**, Mini-14 **10**, knife **9**). The swing does not call the rule yet, which the docs say.

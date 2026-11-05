@@ -2120,3 +2120,29 @@ pub fn nutrition_from_dump(
     }
     out
 }
+
+/// Every prototype's `chip_resistance`, by id: `item::chip_resistance()` (`item.cpp:9375-9409`), which `Character::handle_melee_wear` divides a weapon's wear chance by.
+///
+/// **The figure is the item's, not its material's**: the reference weights each material's resistance by that material's portion, and falls back to **2** for anything with no materials at
+/// all. A weapon that resists chipping badly breaks sooner, which is the whole point of the column.
+#[must_use]
+pub fn chip_resistance(dump: &Value) -> BTreeMap<String, i32> {
+    let mut found = BTreeMap::new();
+    let Value::Object(root) = dump else {
+        return found;
+    };
+    let Some(Value::Array(prototypes)) = root.get("prototypes") else {
+        return found;
+    };
+    for prototype in prototypes {
+        let Value::Object(object) = prototype else {
+            continue;
+        };
+        let (Some(Value::Str(id)), Some(Value::Int(resistance))) = (object.get("id"), object.get("chip_resistance")) else {
+            continue;
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        found.insert(id.clone(), *resistance as i32);
+    }
+    found
+}

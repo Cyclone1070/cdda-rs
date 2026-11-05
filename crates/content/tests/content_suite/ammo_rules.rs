@@ -56,3 +56,23 @@ fn every_round_states_the_ammunition_effects_it_carries() {
         "a .223 is not black powder"
     );
 }
+
+/// Every prototype states how well it resists being chipped, and the values are the item's own.
+///
+/// Reference: `item::chip_resistance()` (`item.cpp:9375-9409`). **The column is what `handle_melee_wear` divides by**, so a dump without it cannot price a weapon's wear at all - which is why
+/// the prototypes dump went to version 2 for it. The gate counts rather than samples: the set spans zero to twenty and most items sit in the low single digits.
+#[test]
+fn every_prototype_states_its_chip_resistance() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let bytes = std::fs::read(path).expect("the prototypes dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let resistance = cdda_content::items::chip_resistance(&value);
+
+    assert!(resistance.len() > 9_000, "the dump covers the catalogue: {}", resistance.len());
+    assert_eq!(resistance.get("rock").copied(), Some(20), "a rock resists chipping well");
+    assert_eq!(resistance.get("ruger_mini").copied(), Some(10), "and a rifle moderately");
+    assert_eq!(resistance.get("knife_combat").copied(), Some(9), "a combat knife a little less");
+    // The spread is real: something in the catalogue is as soft as it gets, and something is twice the rock.
+    assert!(resistance.values().any(|value| *value == 0), "the softest items are zero");
+    assert!(resistance.values().any(|value| *value >= 20), "and the hardest are twenty or more");
+}
