@@ -31,6 +31,8 @@ pub struct Fault {
     pub name: String,
     /// Its description.
     pub description: String,
+    /// The line the game prints when an item catches this fault: `Fault::message()`, read by `item::set_fault` when it is told to speak (`item.cpp:7840-7842`).
+    pub message: String,
     /// Its `fault_type`, which is the key `faults::all_of_type` and `random_of_type` are asked with — `mechanical_damage` for the ones a hit adds.
     pub fault_type: String,
     /// The prefix the item's displayed name takes (`"cracked "`), empty when the fault has none.
@@ -64,6 +66,14 @@ impl Fault {
     pub fn read(object: &Object) -> Result<Self, LoadError> {
         // **A fault's name is a translation object, its description a plain string.** `{ "str": "Blown fuse" }` is how the data spells a translatable name
         // (`fault_electronic_blown_fuse`), and a plain string is how it spells everything else, so the reader takes both for every text field.
+        let message = match object.get("message") {
+            Some(Value::Str(value)) => value.clone(),
+            Some(Value::Object(value)) => match value.get("str") {
+                Some(Value::Str(value)) => value.clone(),
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
         let text = |key: &str| match object.get(key) {
             Some(Value::Str(value)) => value.clone(),
             Some(Value::Object(value)) => match value.get("str") {
@@ -81,6 +91,7 @@ impl Fault {
             id: text("id"),
             name: text("name"),
             description: text("description"),
+            message,
             fault_type: text("fault_type"),
             item_prefix: text("item_prefix"),
             item_suffix: text("item_suffix"),

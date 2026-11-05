@@ -128,3 +128,31 @@ fn kinds_are_numbered_from_the_sorted_ids() {
     let reordered = vec!["knife".to_owned(), "rock".to_owned(), "arrow".to_owned()];
     assert_eq!(cdda_content::items::kind_numbers(&reordered), expected, "file order cannot change a kind's number");
 }
+
+/// A fault carries the line the game prints when an item catches it.
+///
+/// Reference: `Fault::message()`, printed by `item::set_fault` when it is told to speak (`item.cpp:7840-7842`, `add_msg( m_bad, f_id.obj().message() )`). The data writes it as a translation
+/// object or a plain string, and **a fault with no message is silent rather than absent** - the text is empty and the fault still exists.
+#[test]
+fn a_fault_carries_the_line_it_prints() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !path.is_dir() {
+        return;
+    }
+    let faults = cdda_content::faults::load_paths(&[&path]).expect("the fault data loads");
+    assert!(faults.len() > 50, "the catalogue is large: {}", faults.len());
+    // **The data in this version names no fault message at all**, which is why the field is proved from a record instead of from the catalogue: a fault that does name one is read, and a fault that
+    // does not is silent rather than missing.
+    let speaking = cdda_json::parse(br#"{"id":"test_fault","message":"Your %s has a bad case of the dents.","type":"fault"}"#).expect("valid json");
+    let cdda_json::Value::Object(object) = speaking else {
+        panic!("a fault is an object")
+    };
+    let read = cdda_content::faults::Fault::read(&object).expect("a fault reads");
+    assert_eq!(read.message, "Your %s has a bad case of the dents.", "the line is read from the record");
+    assert!(faults.iter().all(|fault| fault.message.is_empty()), "and no fault in the catalogue names one here");
+    // And the faults a blow adds are in the catalogue with their types, which is what the pick filters on.
+    assert!(
+        faults.iter().any(|fault| fault.fault_type == "mechanical_damage"),
+        "there is at least one mechanical-damage fault to catch"
+    );
+}

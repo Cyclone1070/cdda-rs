@@ -84,7 +84,8 @@ fn dump() -> Vec<Fault> {
             Fault {
                 id: text("id"),
                 name: text("name"),
-                description: text("description"),
+                message: String::new(),
+            description: text("description"),
                 fault_type: text("type"),
                 item_prefix: text("item_prefix"),
                 item_suffix: text("item_suffix"),

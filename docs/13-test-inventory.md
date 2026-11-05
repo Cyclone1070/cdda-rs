@@ -1063,3 +1063,6 @@ side effect. Recorded in `docs/parity.md`; no code changed.
 **Round 1228 wired the two wear messages through the `MessageLog` that already existed** (`messages::push`, from `melee.cpp:295-297` and `:328-330`), gated by
 `creature_fight::a_worn_weapon_says_so_in_the_log`, which reads the log rather than stdout and asserts the damaged line first and the destroyed line after five swings. **Round 1227's "no message
 channel" was wrong** - the third wrong blocker in seven rounds, all dissolved by one grep.
+
+**Round 1229 read `Fault::message` into the catalogue type** (`fault.cpp:186`, `:251`). Gated by `content_suite::ammo_rules::a_fault_carries_the_line_it_prints`, which proves the field from a record and
+then asserts that **no fault in this data version names one** - honest about a field the loader supports and the data leaves empty. The push into the log is named in `docs/parity.md`.

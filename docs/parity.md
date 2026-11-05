@@ -14548,3 +14548,18 @@ Gate | - | `a_worn_weapon_says_so_in_the_log` |
 **That is the third wrong blocker in seven rounds** - 1192's "no place for a held item's damage", 1204's "the fault catalogue is not loaded", 1227's "there is no message channel" - and all three
 dissolved under **one grep for the behaviour's word**. The habit recorded in round 1204 was not enough, because I recorded it as a sentence instead of running it. **The check is a command, and it is now
 run before every blocker claim in this session's rounds.**
+
+## A fault's own line (round 1229)
+
+| Piece | Reference | Port |
+|---|---|---|
+the text | `Fault::message()` (`fault.cpp:186`, `:251`; printed at `item.cpp:7840-7842`) | `content::faults::Fault::message` |
+Gate | - | `a_fault_carries_the_line_it_prints` |
+
+**The data in this version names no fault message at all**, and the gate says so instead of pretending otherwise: it proves the field from a **record**, then asserts that **every fault in the
+catalogue has an empty one**. That is the honest shape for a field the loader must support and the data does not use - **a port that dropped the field would be right for this data and wrong for the
+next**.
+
+**Named, not invented:** the **push into the log**. `set_fault` prints the line when it is told to speak, and the port's `set_fault` takes no message flag - so the swing catches a fault silently today,
+even when the record names a line. **One `messages::push` away, and it needs the message carried from the catalogue into the store beside the types and blocks** - the same pattern as rounds 1221 and
+1223.
