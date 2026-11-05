@@ -14260,3 +14260,30 @@ along with everything else - `python3 tools/remote_test.py` runs the suite, the 
 
 **A gate belongs in the command people type.** Anything else is a gate that depends on somebody remembering, and the whole of round 1200 is what that costs: eleven thousand lines of harness patch
 drifting away from the dump columns three rounds of behaviour were built on.
+
+## Where the weapon-wear thread stands (round 1203)
+
+Five rounds went into the melee-wear thread, and this is the whole of it in one place, because the pieces landed in five different files and the next reader should not have to reconstruct the
+chain:
+
+```mermaid
+graph LR
+  A[The blow lands or misses] --> B[The weapon is asked how soft it is]
+  B --> C[The chance is drawn]
+  C --> D{Worn past its maximum?}
+  D -- no --> E[Damage and degradation rise]
+  D -- yes --> F[The weapon is destroyed and the hand is empty]
+```
+
+| Piece | Where | Gate |
+|---|---|---|
+the chance and the inverted guard | `melee::melee_wear_chance`, `melee::wear_damages` | `a_weapon_wears_by_its_own_arithmetic_and_a_zero_chance_is_the_worst_case` |
+the chip figure, in the dump and in the registry | `items::chip_resistance`, `item_registry::chip_resistance_of` | `every_prototype_states_its_chip_resistance` |
+the call, and the entity it damages | `creature::wear_the_wielded_weapon` | `a_swing_dents_the_thing_in_the_hand` |
+the destruction boundary | `ItemDamage::mod_damage` | `a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow` |
+the repair arithmetic | `repairable_levels`, `relative_health` | `repair_levels_fall_back_to_a_yes_or_no`, `item_health_is_a_fraction_and_a_stack_has_none_to_lose` |
+the fault pick and its removal | `pick_fault`, `remove_one_fault_of_type` | `fault_pick.rs`, `one_fault_of_a_type_comes_off_per_call` |
+
+**What is still missing from the thread, in the reference's own order:** `set_random_fault_of_type` **called from `mod_damage`** (the pick is ported, the caller is not, because the swing does
+not know a kind's fault list - the fault catalogue's `type` field is not loaded), the **destruction message and the contents spill**, `FRAGILE_MELEE`'s **component breakdown**, and
+`EQUIPMENT_DAMAGE_CHANCE` enchantments. **Four named pieces, none of them invented elsewhere.**
