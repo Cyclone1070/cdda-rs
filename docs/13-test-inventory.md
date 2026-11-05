@@ -1139,3 +1139,6 @@ remains, not the damage stopped.
 
 **Round 1264 ported `Character::read_speed`** as `reading::read_speed_percent` (`character.cpp:3669-3684`), gated against the reference's own five-datapoint comment, truncation included. Its fixture's
 first run aimed the clamp test at intelligence 400, which never reaches the clamp.
+
+**Round 1265 ported `Character::time_to_read`'s numeric steps** as `reading::time_to_read` + `reading::skimmed` (`character.cpp:12411-12436`), gated on the whole-minute intelligence penalty (30 adds
+nothing, 90 adds the same as 60) and the worse-eyes doubling.

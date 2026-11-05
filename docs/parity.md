@@ -14942,3 +14942,18 @@ midpoint to check first.
 names is the vacuous gate again**, one branch down.
 
 **Named, not invented:** `READING_SPEED_MULTIPLIER` from the enchantment cache, which sits between the duration and the clamp in the reference and needs P5.
+
+## A book takes the time the book, the reader and their eyes say (round 1265)
+
+| Piece | Reference | Port |
+|---|---|---|
+the three scalings | `Character::time_to_read` (`character.cpp:12411-12436`) | `reading::time_to_read` and `reading::skimmed` |
+Gate | - | `reading::a_book_takes_the_time_the_book_the_reader_and_their_eyes_say` |
+
+**The intelligence penalty is counted in whole minutes**, because the shortfall in seconds is divided by `1_minutes` **before** it multiplies the book's time. So **a shortfall of 30 seconds adds
+nothing**, 60 adds a whole book's worth, and **90 adds the same as 60** - three cases the gate asserts, because a hand-written "a bit per point" would be generous where the reference is not.
+
+**The worse eyes win:** the caller passes the **smaller** of the two vision modifiers; the gate shows a modifier of two doubling the time.
+
+**Named, not invented:** `try_understand` and the `fun_to_read` that decides it (which needs P5's fun), the `PROF_DICEMASTER` exemption, and `has_identified`, which needs book identification - the
+skim step is ported as its own one-line rule so the missing half is visible rather than folded in.
