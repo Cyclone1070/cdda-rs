@@ -76,3 +76,25 @@ fn every_prototype_states_its_chip_resistance() {
     assert!(resistance.values().any(|value| *value == 0), "the softest items are zero");
     assert!(resistance.values().any(|value| *value >= 20), "and the hardest are twenty or more");
 }
+
+/// Every prototype that can catch a fault says which ones, in the data's own order.
+///
+/// Reference: `itype::faults`. **The order is part of the answer** - the weighted pick walks the list from the front, so sorting it would change which fault an identical die chooses.
+#[test]
+fn the_dump_carries_each_kinds_faults_with_weights() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let bytes = std::fs::read(path).expect("the prototypes dump exists");
+    let value = cdda_json::parse(&bytes).expect("valid JSON");
+    let weights = cdda_content::items::fault_weights(&value);
+
+    assert!(weights.len() > 500, "hundreds of prototypes catch faults: {}", weights.len());
+    // The salvaged bionic fault every bionic carries, at full weight.
+    assert_eq!(
+        weights.get("bio_adrenaline").and_then(|list| list.first()).map(|(fault, weight)| (fault.as_str(), *weight)),
+        Some(("fault_bionic_salvaged", 100)),
+        "a bionic catches the salvaged fault, weight one hundred"
+    );
+    // Some prototypes list more than one, which is what makes the pick a pick.
+    assert!(weights.values().any(|list| list.len() > 1), "some types catch several faults");
+    assert!(weights.values().all(|list| list.iter().all(|(_, weight)| *weight > 0)), "and every weight is positive");
+}

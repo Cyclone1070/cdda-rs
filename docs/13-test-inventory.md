@@ -1016,3 +1016,7 @@ three pieces that unblock the pick are named in `docs/parity.md`: dump column, i
 
 **Round 1208 added the faults column to the prototypes dump** (version 3, emitted by its own writer so it cannot misalign the vararg list - round 1191's mistake). The corpus now carries
 `itype::faults` for all 9,912 prototypes, e.g. every bionic with `fault_bionic_salvaged` at weight 100. The harness patch was regenerated and verifies byte for byte.
+
+**Round 1209 added `items::fault_weights`**, reading prototypes dump version 3's `faults` column back into a per-kind weighted list **in the data's order**, gated by
+`content_suite::ammo_rules::the_dump_carries_each_kinds_faults_with_weights` (over 500 kinds, `bio_adrenaline` → `fault_bionic_salvaged` at 100, some kinds with several). Open ends named in
+`docs/parity.md`: the installer and the swing's call.

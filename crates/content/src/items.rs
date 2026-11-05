@@ -2146,3 +2146,41 @@ pub fn chip_resistance(dump: &Value) -> BTreeMap<String, i32> {
     }
     found
 }
+
+/// Every prototype's weighted fault list, by id: `itype::faults`, which `item::set_random_fault_of_type` filters by fault type and picks from (`item.cpp:7854-7868`).
+///
+/// The dump carries it as `[ [ fault id, weight ], ... ]` in the data's own order, and **the order is kept**: the reference's weighted pick walks the list from the front, so a port that sorted it
+/// would choose differently on the same die.
+#[must_use]
+pub fn fault_weights(dump: &Value) -> BTreeMap<String, Vec<(String, i32)>> {
+    let mut found = BTreeMap::new();
+    let Value::Object(root) = dump else {
+        return found;
+    };
+    let Some(Value::Array(prototypes)) = root.get("prototypes") else {
+        return found;
+    };
+    for prototype in prototypes {
+        let Value::Object(object) = prototype else {
+            continue;
+        };
+        let (Some(Value::Str(id)), Some(Value::Array(faults))) = (object.get("id"), object.get("faults")) else {
+            continue;
+        };
+        let mut weights = Vec::new();
+        for fault in faults {
+            let Value::Array(pair) = fault else {
+                continue;
+            };
+            let (Some(Value::Str(name)), Some(Value::Int(weight))) = (pair.first(), pair.get(1)) else {
+                continue;
+            };
+            #[allow(clippy::cast_possible_truncation)]
+            weights.push((name.clone(), *weight as i32));
+        }
+        if !weights.is_empty() {
+            found.insert(id.clone(), weights);
+        }
+    }
+    found
+}

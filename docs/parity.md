@@ -14353,3 +14353,16 @@ how this one is written.
 
 **The data proves itself on the first three rows:** `bio_adrenaline`, `bio_ads` and `bio_alarm` each carry `fault_bionic_salvaged` at weight **100** - the salvaged-bionic fault every bionic in the game
 can catch. That is the shape the pick was waiting for, and the installer is now a table fill rather than a question.
+
+## The dump's faults, read back (round 1209)
+
+| Piece | Reference | Port |
+|---|---|---|
+the reader | `itype::faults` → the pick's candidate list | `items::fault_weights(dump)` |
+Gate | - | `the_dump_carries_each_kinds_faults_with_weights` |
+
+**The order is part of the answer.** The reference's `weighted_int_list::pick` walks the list **from the front**, so a loader that sorted the entries - by name, by weight, by anything - would make
+the same die choose a different fault. The reader keeps the data's order, and the gate says so in its doc comment as well as its assertion.
+
+**Two links of the chain are now closed** - the dump carries the column, and the port can read it back for **over five hundred** prototypes, with `bio_adrenaline` catching `fault_bionic_salvaged` at
+weight **100**. **What is still open is the two ends:** nothing installs the table into the store (`set_item_fault_weights` has no production caller), and the swing does not ask it.
