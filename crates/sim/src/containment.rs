@@ -113,3 +113,22 @@ pub fn weight_of(
     }
     total
 }
+
+/// Empties a container onto a square and answers how many things came out.
+///
+/// Reference: `item_contents::spill_contents( pos )` (`item_contents.cpp:1228-1237`), which walks the pockets and spills each one that is not marked `_no_unload`. The port walks the container's
+/// **contents query** instead, which is the same set by construction - a thing is inside because it holds the link - so **spilling is taking each link out**, and "the container is empty afterwards"
+/// is a consequence rather than a second step that could forget one.
+///
+/// **Named, not invented:** the `NO_UNLOAD` pocket exemption. The port's pocket facts carry capacity, weight and shape but not that flag, so every pocket spills today; the reference keeps the contents
+/// of a `NO_UNLOAD` pocket in place.
+#[must_use]
+pub fn spill_contents(world: &mut World, container: Entity, square: (i32, i32, i32)) -> usize {
+    let mut spilled = 0;
+    for thing in contents_of(world, container) {
+        if take_out(world, thing, square) {
+            spilled += 1;
+        }
+    }
+    spilled
+}

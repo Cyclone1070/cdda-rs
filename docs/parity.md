@@ -14744,3 +14744,18 @@ or fail on the seed rather than on the rule.**
 the biggest survivor was never chosen. It grows the table now, and the comment says why - **a silently skipped kind is a zero, not an error**, the same failure shape recorded in round 1198.
 
 **Named, not invented:** dropping a non-big survivor on the map (it is detached and unparented here, not placed), `can_unwield`, and the irremovable-gunmod destruction that precedes the branch.
+
+## Emptying a container is taking the links out (round 1253)
+
+| Piece | Reference | Port |
+|---|---|---|
+the spill | `item_contents::spill_contents( pos )` (`item_contents.cpp:1228-1237`) | `containment::spill_contents(world, container, square)` |
+Gate | - | `emptying_a_container_puts_what_it_held_on_the_floor` |
+
+**The port does not empty a container, it takes the links out.** A thing is inside because it carries `ContainedIn`, so `contents_of` **is** the contents - and "the container is empty afterwards" is a
+consequence, not a second cleanup that could forget one. The gate asserts all three: both links gone, both on the container's square, and the container's own contents empty.
+
+**Named, not invented:** the **`NO_UNLOAD` pocket exemption** (`if( !pocket.get_pocket_data()->_no_unload )`), which the port's pocket facts do not carry yet - so every pocket spills today, including the
+ones the reference would keep shut.
+
+**Named, not invented:** the caller. `handle_melee_wear` spills a destroyed weapon's contents before breaking it apart (`melee.cpp:305-312`), and the swing does not call this yet.

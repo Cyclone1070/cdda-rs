@@ -369,3 +369,41 @@ fn a_thing_knows_the_parts_it_is_made_of() {
     world.entity_mut(handle).despawn();
     assert_eq!(parts_of(&world, weapon), vec![blade, string], "**a destroyed part leaves no ghost**: the list is a query, not a copy");
 }
+
+/// Emptying a container puts what it held on the square it stands on, and nothing is left inside it.
+///
+/// Reference: `item_contents::spill_contents( pos )` (`item_contents.cpp:1228-1237`), called when a weapon is destroyed so its contents are not destroyed with it. The port's container holds
+/// **links**, so spilling is taking each link out - and **the container's own contents become empty as a consequence**, not by a second cleanup step that could forget one.
+#[test]
+fn emptying_a_container_puts_what_it_held_on_the_floor() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    let square = (3, 4, 0);
+    let bag = world
+        .spawn((
+            cdda_sim::GroundItem { kind: cdda_sim::ItemTypeId(1), charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::Position { x: square.0, y: square.1, z: square.2 },
+        ))
+        .id();
+    let mut held = Vec::new();
+    for kind in 2..4 {
+        let thing = world
+            .spawn(cdda_sim::GroundItem { kind: cdda_sim::ItemTypeId(kind), charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+            .id();
+        assert!(cdda_sim::containment::put_inside(&mut world, thing, bag), "the fixture's thing goes in");
+        held.push(thing);
+    }
+    assert_eq!(cdda_sim::containment::contents_of(&world, bag).len(), 2, "two things are inside");
+
+    assert_eq!(cdda_sim::containment::spill_contents(&mut world, bag, square), 2, "**both spill**, and the count says so");
+    assert!(cdda_sim::containment::contents_of(&world, bag).is_empty(), "and nothing is left inside");
+    for thing in held {
+        assert!(world.get::<cdda_sim::containment::ContainedIn>(thing).is_none(), "**the link is gone**, not hidden");
+        assert_eq!(
+            world.get::<cdda_sim::Position>(thing).map(|at| (at.x, at.y, at.z)),
+            Some(square),
+            "and it is on the square the container stood on"
+        );
+    }
+}

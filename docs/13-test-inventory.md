@@ -1103,3 +1103,6 @@ before.
 **Round 1252 wired the biggest survivor into the hand**: `break_apart_the_weapon` now takes the holder and wields the biggest surviving part when `has_wield_conflicts` allows (`melee.cpp:327-330`). Gated by
 `creature_fight::the_biggest_part_of_a_broken_weapon_goes_into_the_hand`, whose fixture **probes the seed** so the survival is proved, not hoped for. The new `item_registry::set_item_volumes` grew a
 table it used to skip, which the gate caught.
+
+**Round 1253 ported `item_contents::spill_contents`** as `containment::spill_contents` (`item_contents.cpp:1228-1237`), walking the contents **query** instead of pockets so "empty afterwards" is a
+consequence. Gated by `ground_items::emptying_a_container_puts_what_it_held_on_the_floor`. The `NO_UNLOAD` exemption and the swing's call are named in `docs/parity.md`.
