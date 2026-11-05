@@ -1252,3 +1252,6 @@ on the rate then takes the first species that bleeds. `fd_null` becomes `None`, 
 **Round 1303 ported `monster::die`'s hallucination branch** (`monster.cpp:3046-3050`): a `Hallucination` component, and a reaping step that leaves no corpse, no blood and no gibs.
 
 **Round 1304 wired the death line**: `creature::death_message` (`mondeath.cpp:50-56`) pushed as good news by the reaping step, gated both on the rule and on the **log** it reaches.
+
+**Round 1305 dumped and ported the monster's own death sentence and `corpse_type`** (`mtype.h:274-285`), gated on the corpus counts (321 sentences, 199 "leaves nothing"). `corpse_type` is loaded but
+not obeyed yet, and that is written down rather than left to be discovered.

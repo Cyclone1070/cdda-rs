@@ -37,6 +37,8 @@ pub struct MonsterTypes {
     blood: Vec<Option<String>>,
     /// What each kind splatters into, by registry order (`mtype::gibType`, `mtype.cpp:456-470`).
     gibs: Vec<Option<String>>,
+    /// Each kind's own death sentence, or empty (`mdeath_effect::death_message`, `mtype.h:280`).
+    death_messages: Vec<String>,
 }
 
 impl MonsterTypes {
@@ -73,6 +75,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         by_name,
         blood: Vec::new(),
         gibs: Vec::new(),
+        death_messages: Vec::new(),
     });
 }
 
@@ -148,4 +151,30 @@ pub fn gibs_of(world: &mut World, kind: MonsterKindId) -> Option<String> {
     world
         .get::<MonsterTypes>(entity)
         .and_then(|registry| registry.gibs.get(kind.0 as usize).cloned().flatten())
+}
+
+/// Says what a kind's data writes when it dies.
+///
+/// Reference: `mdeath_effect::death_message` (`mtype.h:280`), printed by `monster::die` (`monster.cpp:3086`) **before** the normal branch's own line. Most kinds state nothing, which is
+/// why the registry stores an empty string rather than an `Option` - absent and empty are the same thing here, and the reference treats them the same way.
+pub fn set_death_message(world: &mut World, kind: MonsterKindId, message: &str) {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    let at = kind.0 as usize;
+    if registry.death_messages.len() <= at {
+        registry.death_messages.resize(at + 1, String::new());
+    }
+    registry.death_messages[at] = message.to_owned();
+}
+
+/// What a kind's data writes when it dies, or empty.
+#[must_use]
+pub fn death_message_of(world: &mut World, kind: MonsterKindId) -> String {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.death_messages.get(kind.0 as usize).cloned())
+        .unwrap_or_default()
 }

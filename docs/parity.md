@@ -15651,3 +15651,24 @@ is what says the quiet body stayed quiet.
 **Named, not invented:** `monster::quiet_death`, the other half of the reference's test, which is a monster field the dump does not carry yet; `add_msg_if_player_sees`' visibility test (the port
 has no per-creature sight of the player yet, so the line is written when the reap runs); and `type->mdeath_effect.death_message`, the data's own sentence, which needs the monster's death-effect block
 in the dump.
+
+## A type can have its own death sentence (round 1305)
+
+| Piece | Reference | Port |
+|---|---|---|
+the data's line | `mdeath_effect::death_message` (`mtype.h:280`), printed at `monster.cpp:3086` | dumped, `MonsterType::death_message`, `typed_death_message`, pushed as `Info` |
+what it leaves | `mdeath_effect::corpse_type` (`mtype.h:285`) | dumped as `MonsterType::corpse_type` |
+Gates | - | `creature_fight::a_type_can_have_its_own_death_sentence`, `crafting::the_monster_dump_carries_its_death_data` |
+
+**Two death lines, from two places**, and the reference's own comment admits a body can produce several: the **data's** sentence (`monster::die`, before everything) and the normal branch's
+"The %s dies!" (`mdeath::normal`). The port prints both, the data's first.
+
+**The oracle took three attempts**, and the third was the honest one: the first emission put the new `%s` arguments in the wrong order against a **printf** format, which crashed the dump
+mid-write and left a zero-byte file that briefly overwrote the corpus (restored from git, then re-dumped). A format string is a parser with no type checker - the reference's own build caught it as
+a *runtime* backtrace rather than a compile error.
+
+**The counts are the gate**: 321 of 1,154 types state a sentence, 199 leave nothing at all, 49 leave a broken one. **`%s` is where the name goes**, and a sentence without a placeholder is
+printed as it stands.
+
+**Named, not invented:** `corpse_type` is **loaded** and **not yet obeyed** - the reaping step still makes a normal corpse for every kind, so `none` and `broken` are the next wiring step and are
+recorded here rather than half-honoured; `mdeath_effect.has_effect`, its `fake_spell` and its `eoc` are the death effects, which wait on spells and dialogue P5/P6.

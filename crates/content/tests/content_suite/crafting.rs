@@ -196,3 +196,36 @@ fn a_monster_falls_through_to_its_species_blood() {
     );
     assert!(rate_zero > 0, "while a bleed rate of zero stops the fall-through: {rate_zero}");
 }
+
+/// The monster dump carries each type's own death sentence and what it leaves, and most types state neither.
+///
+/// Reference: `monster_death_effect` (`mtype.h:274-285`). **321 of the 1,154 types state a sentence** and **199 say they leave nothing at all**, so a loader that dropped either field would
+/// give every monster the same death - which is the sort of flattening a corpus count catches and a fixture does not.
+#[test]
+fn the_monster_dump_carries_its_death_data() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let value = cdda_json::parse(text.as_bytes()).expect("the monster dump parses");
+    let cdda_json::Value::Object(root) = &value else {
+        return;
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        return;
+    };
+    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+
+    let with_message = monsters.iter().filter(|monster| !monster.death_message.is_empty()).count();
+    assert_eq!(with_message, 321, "**321 types state their own death sentence**");
+    assert!(
+        monsters.iter().any(|monster| monster.death_message.contains("%s")),
+        "and at least one of them has a placeholder for the name"
+    );
+    let nothing = monsters.iter().filter(|monster| monster.corpse_type == "none").count();
+    assert_eq!(nothing, 199, "while 199 say they leave nothing at all");
+    assert!(
+        monsters.iter().any(|monster| monster.corpse_type == "normal"),
+        "and the ordinary type still leaves a corpse"
+    );
+}

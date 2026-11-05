@@ -68,6 +68,13 @@ pub struct MonsterType {
     pub morale: i32,
     /// Whether the monster gets its nerve back at all (`mtype::regen_morale`). 23 of the corpus's 1,154 types say yes.
     pub regen_morale: bool,
+    /// What the data says when this monster dies, or empty when it says nothing.
+    ///
+    /// Reference: `monster_death_effect::death_message` (`mtype.h:280`). **It is not the only death line**: `mdeath::normal` prints "The %s dies!" of its own (`mondeath.cpp:50-56`), and the
+    /// reference's own comment admits a body can produce several. The port keeps them apart for the same reason - one is data, the other is the normal branch's own sentence.
+    pub death_message: String,
+    /// What it leaves behind, from the data's `corpse_type` (`mtype.h:272-285`): `normal`, `broken`, `splatter` or `none`.
+    pub corpse_type: String,
     /// How readily it bleeds (`mtype::bleed_rate`, `mtype.h:486`).
     ///
     /// `mtype::get_bleed_type` (`mtype.cpp:412-422`) checks this **before** it looks at a species at all: a rate of zero means the monster never bleeds its species' blood, however the
@@ -352,6 +359,13 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
         monster.regen_morale = *said;
     }
     monster.bleed_rate = count(object, "bleed_rate", monster.bleed_rate)?;
+    // The two strings the death path reads, with the reference's own defaults: no message, and a normal corpse.
+    if let Some(cdda_json::Value::Str(said)) = object.get("death_message") {
+        monster.death_message.clone_from(said);
+    }
+    if let Some(cdda_json::Value::Str(kind)) = object.get("corpse_type") {
+        monster.corpse_type.clone_from(kind);
+    }
     monster.weight = assigned(object, "weight", monster.weight, Unit::Mass, 1);
     monster.volume = assigned(object, "volume", monster.volume, Unit::Volume, 1);
     species_and_categories(monster, object);
@@ -576,6 +590,9 @@ impl MonsterType {
             regen_morale: false,
             // `mtype::bleed_rate` starts at a hundred (`mtype.h:486`), which is the ordinary case: a species' bleed type is used unless the data says otherwise.
             bleed_rate: 100,
+            // `monster_death_effect` starts with no message and a normal corpse (`mtype.h:274-285`).
+            death_message: String::new(),
+            corpse_type: "normal".to_owned(),
             aggression: 0,
             // The reference's own defaults: no dice (`mtype::melee_dice` starts at zero) and no armour.
             melee_dice: 0,

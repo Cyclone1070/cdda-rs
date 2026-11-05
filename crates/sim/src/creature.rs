@@ -1854,6 +1854,14 @@ pub fn reap_dead_creatures_as_corpses(
         if let Some(line) = death_message(&name, quiet) {
             crate::messages::push_kind(world, &line, crate::messages::MessageKind::Good);
         }
+        // Reference: `monster::die` prints the **data's** sentence first (`monster.cpp:3086`) and the normal branch prints its own after (`mondeath.cpp:50-56`). The quiet flag does not
+        // suppress this one in the reference - it is a different line from a different place - so the port prints it whatever the flag says.
+        if let Some(kind) = kind {
+            let typed = crate::monster_registry::death_message_of(world, *kind);
+            if let Some(line) = typed_death_message(&typed, &name) {
+                crate::messages::push_kind(world, &line, crate::messages::MessageKind::Info);
+            }
+        }
         if let Some(kind) = kind {
             // Reference: `mdeath::normal` (`mondeath.cpp:58-68`) - a body pulverised by its overkill is a **splatter** and leaves no corpse item, and an ordinary one carries
             // `floor( corpse_damage * damage_scale )` of damage, which is the overkill written into the thing the world keeps.
@@ -3253,6 +3261,18 @@ pub fn death_message(name: &str, quiet: bool) -> Option<String> {
         return None;
     }
     Some(format!("The {name} dies!"))
+}
+
+/// The data's own death line, with the monster's name in it, or nothing when the type states none.
+///
+/// Reference: `monster::die` (`monster.cpp:3086`) prints `type->mdeath_effect.death_message` **before** the normal branch prints its own "The %s dies!", and the reference's own comment
+/// admits a body can produce several lines. **`%s` is where the name goes** - 321 of the 1,154 types state a sentence, so this is not a rare case to be skipped.
+#[must_use]
+pub fn typed_death_message(data_message: &str, name: &str) -> Option<String> {
+    if data_message.is_empty() {
+        return None;
+    }
+    Some(data_message.replacen("%s", name, 1))
 }
 
 /// What a monster's death leaves on the ground.

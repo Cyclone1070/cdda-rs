@@ -2895,3 +2895,25 @@ fn the_game_log_says_that_a_body_died() {
         "and the quiet one wrote nothing, so there is exactly one line"
     );
 }
+
+/// The type's own death sentence is printed before the normal branch's, and only when the data states one.
+///
+/// Reference: `monster::die` (`monster.cpp:3086`) prints `type->mdeath_effect.death_message.translated()` with the monster's name, and `mdeath::normal` then prints "The %s dies!"
+/// (`mondeath.cpp:50-56`) - the reference's own comment says a body can produce several lines. **321 of the 1,154 types state a sentence**, so the port has to print it, and the `%s` is
+/// where the name goes.
+#[test]
+fn a_type_can_have_its_own_death_sentence() {
+    use cdda_sim::creature::typed_death_message;
+
+    assert_eq!(
+        typed_death_message("The %s becomes part of the endless chamber.", "shoggoth"),
+        Some("The shoggoth becomes part of the endless chamber.".to_owned()),
+        "**the name goes where the data put the placeholder**"
+    );
+    assert_eq!(typed_death_message("", "shambler"), None, "a type with no sentence adds nothing");
+    assert_eq!(
+        typed_death_message("It is gone.", "shambler"),
+        Some("It is gone.".to_owned()),
+        "and one with no placeholder is printed as it stands"
+    );
+}
