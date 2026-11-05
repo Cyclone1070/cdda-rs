@@ -527,3 +527,38 @@ pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i
     });
     Craft::Started
 }
+
+/// How much a crafter's mood slows their work.
+///
+/// Reference: `Character::morale_crafting_speed_multiplier` (`crafting.cpp:209-233`):
+///
+/// ```text
+/// if( morale >= 0 ) return 1.0f;                                   // no bonus for being happy yet
+/// float morale_mult = max( 1.0f, 2.0f * rec.difficulty / max( 1.0f, get_skill_level( rec.skill_used ) ) );
+/// for( const auto &pr : rec.required_skills )
+///     morale_mult *= max( 1.0f, 2.0f * pr.second / max( 1.0f, get_skill_level( pr.first ) ) );
+/// float morale_effect = 1.0f + ( morale_mult * morale ) / -50.0f;
+/// return 1.0f / morale_effect;
+/// ```
+///
+/// **The reference's comment states the ladder** - *"Halve speed at -50 effective morale, quarter at -150"* - and the arithmetic reaches it from two sides: a crafter whose skill **meets** the
+/// difficulty has `morale_mult` of one and the same −50 halves their speed, while a crafter whose skill is **below** it has a multiplier above one, so **the same misery costs them more**. That is
+/// why being bad at a job while unhappy is worse than either alone, and it is the half a port would lose by only reading the comment.
+///
+/// `required_skills` is the recipe's other skills as **(difficulty, the crafter's level)** pairs, in the data's order - the products do not care which is which, but the caller does.
+#[must_use]
+pub fn morale_speed_multiplier(morale: i32, difficulty: i32, skill_level: i32, required_skills: &[(i32, i32)]) -> f32 {
+    /// The reference's `-50.0f`: the drop that halves the speed at a multiplier of one.
+    const HALVING_MORALE: f32 = -50.0;
+    if morale >= 0 {
+        return 1.0;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let as_float = |value: i32| value as f32;
+    let mut morale_mult = (2.0 * as_float(difficulty) / as_float(skill_level.max(1))).max(1.0);
+    for &(required_difficulty, level) in required_skills {
+        morale_mult *= (2.0 * as_float(required_difficulty) / as_float(level.max(1))).max(1.0);
+    }
+    let morale_effect = 1.0 + (morale_mult * as_float(morale)) / HALVING_MORALE;
+    1.0 / morale_effect
+}

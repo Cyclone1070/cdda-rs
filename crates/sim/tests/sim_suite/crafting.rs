@@ -1137,3 +1137,44 @@ fn tool_charges_are_spent_a_twentieth_at_a_time() {
         "the craft has finished and paid for every charge it owed"
     );
 }
+
+/// A miserable crafter is slower, and *harder* work is more frustrating rather than less.
+///
+/// Reference: `Character::morale_crafting_speed_multiplier` (`crafting.cpp:209-233`):
+///
+/// ```text
+/// if( morale >= 0 ) return 1.0f;                                   // no bonus for being happy
+/// float morale_mult = max( 1.0f, 2.0f * rec.difficulty / max( 1.0f, skill_level ) );
+/// for( each required skill ) morale_mult *= max( 1.0f, 2.0f * difficulty / max( 1.0f, level ) );
+/// float morale_effect = 1.0f + ( morale_mult * morale ) / -50.0f;
+/// return 1.0f / morale_effect;
+/// ```
+///
+/// **The comment states the ladder - "Halve speed at -50 effective morale, quarter at -150"** - and the arithmetic arrives there from two sides: a crafter whose skill meets the difficulty has
+/// `morale_mult` 1, and the same −50 then halves their speed; a crafter whose skill is *below* the difficulty has `morale_mult` above 1, so **the same misery costs them more**. The gate asserts both.
+#[test]
+fn a_miserable_crafter_is_slower_and_harder_work_costs_more() {
+    use cdda_sim::crafting::morale_speed_multiplier;
+
+    assert!((morale_speed_multiplier(0, 5, 5, &[]) - 1.0).abs() < 1e-6, "**no bonus for being happy**: at zero morale the multiplier is one");
+    assert!((morale_speed_multiplier(50, 5, 5, &[]) - 1.0).abs() < 1e-6, "and none at +50 either");
+
+    // The multiplier is `2 * difficulty / skill`, so it reaches one only when the skill is **twice** the difficulty - not merely at it.
+    assert!(
+        (morale_speed_multiplier(-50, 5, 5, &[]) - 1.0 / 3.0).abs() < 1e-6,
+        "**skill equal to the difficulty gives a multiplier of two, so -50 costs more than half**: 1 / ( 1 + 2 )"
+    );
+    assert!(
+        (morale_speed_multiplier(-50, 5, 10, &[]) - 0.5).abs() < 1e-6,
+        "**halve speed at -50** with the skill twice the difficulty, which is where the reference's comment holds exactly"
+    );
+    assert!((morale_speed_multiplier(-150, 5, 10, &[]) - 0.25).abs() < 1e-6, "and quarter at -150");
+
+    // Skill below the difficulty: 2 * 5 / 2 = 5, so the same -50 costs five times as much.
+    let under_skilled = morale_speed_multiplier(-50, 5, 2, &[]);
+    assert!(under_skilled < 0.2, "**harder work is more frustrating**: the same -50 leaves {under_skilled} of the speed");
+
+    // A required skill carries the same term, so a recipe with one adds to the frustration.
+    let with_extra = morale_speed_multiplier(-50, 5, 6, &[(5, 5)]);
+    assert!(with_extra < 0.5, "a second required skill at the difficulty doubles the multiplier: {with_extra}");
+}

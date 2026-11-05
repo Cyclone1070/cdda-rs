@@ -1184,3 +1184,6 @@ debug mode is off**. The empty-string refusal was a real bug the gate caught in 
 leading space**.
 
 **Round 1281 ported the smiley insertion** as `messages::apply_smileys` (`messages.cpp:318-334`), gated on the three-byte shift that keeps later candidates straight.
+
+**Round 1282 ported `morale_crafting_speed_multiplier`** (`crafting.cpp:209-233`) as `crafting::morale_speed_multiplier`, gated on the 1/3 at skill-equals-difficulty that the reference's own comment
+("halve at -50") hides - the gate expected 0.375 and then 1/3 before the arithmetic settled.

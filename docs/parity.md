@@ -15232,3 +15232,20 @@ which no count-based assertion would notice. The gate asserts the finished strin
 
 **Named, not invented:** `random_entry_removed`, which decides **which** candidates are drawn and removes each as it is used; `one_in( 5 )` for the `:D` variant on good and critical messages; and the
 `msg.size() > 16` exclamation tail.
+
+## A miserable crafter is slower, and hard work costs more (round 1282)
+
+| Piece | Reference | Port |
+|---|---|---|
+the multiplier | `Character::morale_crafting_speed_multiplier` (`crafting.cpp:209-233`) | `crafting::morale_speed_multiplier` |
+Gate | - | `crafting::a_miserable_crafter_is_slower_and_harder_work_costs_more` |
+
+**The reference's comment says "halve speed at -50, quarter at -150", and that is only exactly true when the skill is *twice* the difficulty** - the multiplier is `max( 1, 2 * difficulty / skill )`, so a
+crafter whose skill merely **equals** the difficulty has a multiplier of two and loses **two thirds** of their speed at −50. This is the half a port loses by reading the comment instead of the code, and
+the gate's first two runs both got it wrong in the generous direction before the arithmetic was followed through.
+
+**Harder work is more frustrating, and that is the point of the term**: it is not a difficulty penalty bolted on, it is the multiplier the morale is applied through, so being bad at a job while unhappy is
+worse than either alone.
+
+**Named, not invented:** the **brightness** multiplier that sits beside this one (`light_level_crafting_speed_multiplier`, whose darkness penalty depends on `exceeds_recipe_requirements`), the workbench
+multiplier with its 25% floor, and `add_msg_debug`'s debug line.
