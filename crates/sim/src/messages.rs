@@ -128,3 +128,23 @@ pub fn clear(world: &mut World) {
         log.entries.clear();
     }
 }
+
+/// How many smileys one message may get from a character's high, as a function of how long they have been high.
+///
+/// Reference: `modify_msg_with_exclamations` (`messages.cpp:255-268`):
+///
+/// ```text
+/// // Slowly rises. 0 at 0, 1 at 22.5, 2 at 45 mins. Asymptote at 3.
+/// const float max_per_msg = 3 - 3 / ( 1 + 0.001 * in_minutes * in_minutes );
+/// ```
+///
+/// **The reference's comment is the oracle**, and the curve is not the straight line a "a smiley every so often" would be: it rises slowly at first and then flattens, so a character who has been high
+/// for a quarter of an hour sees about one smiley per message and never more than three however long it lasts.
+#[must_use]
+pub fn weed_smiley_cap(minutes: f64) -> f64 {
+    /// The reference's own three-point ceiling: `max_per_msg` approaches this and never reaches it.
+    const ASYMPTOTE: f64 = 3.0;
+    /// The reference's `0.001`, which sets where the curve turns over.
+    const CURVE: f64 = 0.001;
+    ASYMPTOTE - ASYMPTOTE / CURVE.mul_add(minutes * minutes, 1.0)
+}

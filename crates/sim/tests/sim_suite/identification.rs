@@ -173,3 +173,25 @@ fn a_message_has_a_severity_and_empty_or_debug_lines_are_not_stored() {
     assert_eq!(entries[1].text, "you are hurt");
     assert_eq!(entries[1].kind, MessageKind::Bad, "and the severity is the one the caller chose");
 }
+
+/// A high character gets smileys in their messages, on a curve that rises slowly and never reaches three.
+///
+/// Reference: `modify_msg_with_exclamations` (`messages.cpp:255-268`), whose comment states the curve outright: *"Slowly rises. 0 at 0, 1 at 22.5, 2 at 45 mins. Asymptote at 3."* -
+///
+/// ```text
+/// const float max_per_msg = 3 - 3 / ( 1 + 0.001 * in_minutes * in_minutes );
+/// ```
+///
+/// **The comment is the oracle**, which is why the gate asserts the three datapoints it names rather than a value picked from the formula's shape: 22.5 minutes is **just over** one smiley and 45
+/// **just over** two, and the cap approaches three without ever reaching it.
+#[test]
+fn a_high_character_gets_smileys_on_a_slowly_rising_curve() {
+    use cdda_sim::messages::weed_smiley_cap;
+
+    assert!((weed_smiley_cap(0.0) - 0.0).abs() < 1e-6, "**zero minutes, no smileys**");
+    assert!((weed_smiley_cap(22.5) - 1.0).abs() < 0.02, "the reference's own first datapoint: about one at 22.5 minutes");
+    assert!((weed_smiley_cap(45.0) - 2.0).abs() < 0.02, "and about two at 45");
+    assert!(weed_smiley_cap(450.0) < 3.0, "**the asymptote is three and is never reached**");
+    assert!(weed_smiley_cap(450.0) > 2.9, "though at 450 minutes it is already 2.97");
+    assert!(weed_smiley_cap(45.0) > weed_smiley_cap(22.5), "and the curve only rises");
+}

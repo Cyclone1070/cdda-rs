@@ -15181,3 +15181,19 @@ player sees and the **turn digest counts** - which is exactly the sort of invisi
 
 **Named, not invented:** `modify_msg_with_exclamations`, which appends `!` and `!!` by severity; the `refresh_cooldown` / `coalesce_messages` pair, which merges repeated lines; `gmf_*` flags; and
 `MESSAGE_LIMIT` as a real option table rather than a constant.
+
+## A high character gets smileys, on a curve that flattens (round 1279)
+
+| Piece | Reference | Port |
+|---|---|---|
+the cap | `modify_msg_with_exclamations` (`messages.cpp:255-268`) | `messages::weed_smiley_cap(minutes)` |
+Gate | - | `identification::a_high_character_gets_smileys_on_a_slowly_rising_curve` |
+
+**The reference's comment is the oracle**: *"Slowly rises. 0 at 0, 1 at 22.5, 2 at 45 mins. Asymptote at 3."* The gate asserts the three datapoints it names rather than a number picked from the
+formula's shape - 22.5 minutes is **just over** one smiley, 45 **just over** two, and the cap approaches three and never reaches it.
+
+**The curve is not a straight line**, which is the whole point of the formula: `3 - 3 / ( 1 + 0.001 * minutes² )` rises slowly and then flattens, so a quarter of an hour high is about one smiley per
+message and no length of high ever gives four.
+
+**Named, not invented:** the smiley's **placement** (the reference collects every space and the message's end as candidate positions and refuses certain words), the `rng_normal( 0, max_per_msg )`
+draw that decides how many of the cap a message gets, and the `effect_weed_high` duration that supplies `minutes` - the port has effects but has not wired this one.

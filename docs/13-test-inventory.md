@@ -1177,3 +1177,5 @@ seconds reading as "1 minute".
 
 **Round 1278 gave the message log severities** (`messages::MessageKind`, `enums.h:361-379`) and the reference's two pre-storage refusals (`messages.cpp:182-205`): **an empty message and `m_debug` while
 debug mode is off**. The empty-string refusal was a real bug the gate caught in the port's own log.
+
+**Round 1279 ported the weed-high smiley curve** as `messages::weed_smiley_cap` (`messages.cpp:255-268`), gated on the reference's own three datapoints (0 at 0, ~1 at 22.5, ~2 at 45, asymptote 3).
