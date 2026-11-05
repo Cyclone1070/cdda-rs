@@ -2960,14 +2960,22 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     let Some(current) = world.get::<crate::ItemDamage>(held).copied() else {
         return;
     };
+    // The weapon's own name, for the two messages the reference prints around this damage (`melee.cpp:295-300`).
+    let name = kind
+        .and_then(|kind| crate::item_registry::name_of(world, kind))
+        .unwrap_or_else(|| "weapon".to_owned());
     let (after, destroyed) = current.mod_damage(crate::DAMAGE_SCALE, &limits);
     if destroyed {
         // Reference: `Character::handle_melee_wear`'s destruction branch - the item "is destroyed by the blow" and leaves the hand (`melee.cpp:293-330`). The port
         // despawns the entity, which is what "the thing is gone" means in one store; the message and the contents spill are named, not invented.
         world.entity_mut(held).despawn();
+        // Reference: `add_msg_player_or_npc( m_bad, _( "Your %s is destroyed by the blow!" ), ... )` (`melee.cpp:328-330`).
+        crate::messages::push(world, &format!("Your {name} is destroyed by the blow!"));
         return;
     }
     world.entity_mut(held).insert(after);
+    // Reference: the same function's other message, for a weapon that survived the blow (`melee.cpp:295-297`).
+    crate::messages::push(world, &format!("Your {name} is damaged by the force of the blow!"));
     // A thing that has taken a blow can now carry faults, which is where the reference's `set_random_fault_of_type( "mechanical_damage" )` writes (`item.cpp:9458-9461`). **The step that picks
     // one is not ported to the swing yet** - it needs the kind's weighted fault list in the registry, which round 1205 added and nothing installs - so what happens here is only that the item gains
     // the place a fault would live. **An empty `ItemFaults` is not an invented value: it is the reference's own starting state for an undamaged item.**

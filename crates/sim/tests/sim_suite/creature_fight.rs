@@ -1972,3 +1972,60 @@ fn a_damaged_weapon_catches_a_mechanical_fault() {
     let none = swing_once(&[("dented", "mechanical_damage")], Vec::new());
     assert!(none.is_empty(), "no list, no fault: {none:?}");
 }
+
+/// A worn weapon says so, in the log the store keeps - once when it is damaged and once when it breaks.
+///
+/// Reference: `Character::handle_melee_wear` prints `"Your %s is damaged by the force of the blow!"` for a weapon that survives (`melee.cpp:295-297`) and
+/// `"Your %s is destroyed by the blow!"` when it does not (`:328-330`). The port keeps both in `messages::MessageLog`, which is the component a rule writes and the interface drains - **not a
+/// `println!`**, because a rule that prints cannot be asserted on.
+#[test]
+fn a_worn_weapon_says_so_in_the_log() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(8));
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    for _ in 0..2 {
+        cdda_sim::creature::bank_a_turn(&mut world);
+    }
+    let weapon = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::ItemDamage::default(),
+            cdda_sim::creature::Carried(survivor),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::creature::wield(&mut world, survivor, weapon, 250),
+        cdda_sim::creature::Wielded::Done
+    );
+    cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 0)]);
+
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    let said = cdda_sim::messages::lines(&world);
+    assert!(
+        said.iter().any(|line| line.contains("damaged by the force of the blow")),
+        "the first swing only damages it: {said:?}"
+    );
+
+    // Three more swings take it to its maximum and the fifth destroys it, which is the other message.
+    for _ in 0..4 {
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    }
+    let said = cdda_sim::messages::lines(&world);
+    assert!(
+        said.iter().any(|line| line.contains("destroyed by the blow")),
+        "and the last one breaks it: {said:?}"
+    );
+}

@@ -1059,3 +1059,7 @@ while `can_have_fault` asks each *present* fault what it prevents, so a blocked 
 **Round 1227 corrected round 1225's claim that "the message channel exists".** It does not: `crates/sim` has no message, log or event component, and every user-visible line today is a CLI outcome rather
 than something a rule emits. The wear path's two messages are therefore **P10 work** - a component a rule writes and the CLI reads - and printing from inside the rule would be the port's first hidden
 side effect. Recorded in `docs/parity.md`; no code changed.
+
+**Round 1228 wired the two wear messages through the `MessageLog` that already existed** (`messages::push`, from `melee.cpp:295-297` and `:328-330`), gated by
+`creature_fight::a_worn_weapon_says_so_in_the_log`, which reads the log rather than stdout and asserts the damaged line first and the destroyed line after five swings. **Round 1227's "no message
+channel" was wrong** - the third wrong blocker in seven rounds, all dissolved by one grep.

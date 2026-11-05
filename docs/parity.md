@@ -14531,3 +14531,20 @@ produces today is **an outcome the CLI prints**, not a message a rule emits into
 **So the two messages are not a wiring job; they are P10 work.** `add_msg_player_or_npc` is a UI-text call, and the port's answer to it has to be a **component on the world that a rule writes and the CLI reads** - the same shape every other system's output takes. **Doing it as a one-off print inside `wear_the_wielded_weapon` would be the port's first hidden side effect**, which the architecture forbids more explicitly than it forbids a missing message.
 
 **What is therefore recorded, not written:** the destruction message, the fault-catching message, and with them every other `add_msg` the wear path carries. **They go together, once, when the message component is designed** - and that design is the next slice that is actually about the port's shape rather than about a rule.
+
+## The messages were already there (round 1228)
+
+Round 1227 said the port had no message channel and that the wear messages were P10 work. **Wrong again, and one grep found it: `crates/sim/src/messages.rs` has had `MessageLog` - a singleton
+component with `push`, `lines` and `clear` - all along**, written for exactly this: *"a `println!` inside a rule is a side effect no test can see."*
+
+| Message | Reference | Port |
+|---|---|---|
+damaged | `"Your %s is damaged by the force of the blow!"` (`melee.cpp:295-297`) | `messages::push` at the end of the wear step |
+destroyed | `"Your %s is destroyed by the blow!"` (`:328-330`) | `messages::push` in the destruction branch |
+Gate | - | `a_worn_weapon_says_so_in_the_log` |
+
+**The gate reads the log rather than a stdout**, and asserts both lines in the order the reference prints them: the first swing only damages, the fifth destroys.
+
+**That is the third wrong blocker in seven rounds** - 1192's "no place for a held item's damage", 1204's "the fault catalogue is not loaded", 1227's "there is no message channel" - and all three
+dissolved under **one grep for the behaviour's word**. The habit recorded in round 1204 was not enough, because I recorded it as a sentence instead of running it. **The check is a command, and it is now
+run before every blocker claim in this session's rounds.**
