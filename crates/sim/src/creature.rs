@@ -2918,6 +2918,36 @@ pub fn heat_sets_alight(damage: i32, dice: &mut cdda_core_types::rng::Rolls) -> 
 ///
 /// Reference: `Character::handle_melee_wear( cur_weapon )` (`melee.cpp:214-300`), called from `melee_attack` after the blow is resolved and before the messages. `item::inc_damage` raises the
 /// damage by **one thousandth scale** (`item.cpp:9467-9470`, `itype::damage_scale`), and the port keeps that unit rather than inventing a friendlier one.
+/// The material factor a blow wears a weapon at: its weakest counted part for a fragile weapon, its own chip resistance otherwise.
+///
+/// Reference: `Character::handle_melee_wear` (`melee.cpp:246-274`). The two branches are one assignment in the reference and **two different questions here**, because a fragile weapon needs its part
+/// list read and every other weapon does not - so the function says which of the two it answered.
+#[must_use]
+pub fn weapon_material_factor(world: &mut World, weapon: Entity) -> f64 {
+    let Some(kind) = world.get::<crate::GroundItem>(weapon).map(|ground| ground.kind) else {
+        return f64::from(2);
+    };
+    let own = f64::from(crate::item_registry::chip_resistance_of(world, kind));
+    if !crate::item_registry::kind_has_flag(&*world, kind, "FRAGILE_MELEE") {
+        return own;
+    }
+    let parts = crate::item_parts::parts_of(world, weapon);
+    let mut owned: Vec<(String, i32, i32)> = Vec::with_capacity(parts.len());
+    for part in parts {
+        let Some(part_kind) = world.get::<crate::GroundItem>(part).map(|ground| ground.kind) else {
+            continue;
+        };
+        let chip = crate::item_registry::chip_resistance_of(world, part_kind);
+        let volume = crate::item_registry::volume_of(world, part_kind);
+        owned.push((crate::item_registry::name_of(world, part_kind).unwrap_or_default(), chip, volume));
+    }
+    let borrowed: Vec<crate::melee::PartFacts<'_>> = owned
+        .iter()
+        .map(|(name, chip, volume)| crate::melee::PartFacts { kind: name.as_str(), chip_resistance: *chip, volume_ml: *volume })
+        .collect();
+    crate::melee::fragile_material_factor(&borrowed, own)
+}
+
 pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i32, dexterity: i32) {
     // **The thing in the hand is an entity**, and its damage is that entity's own `ItemDamage` - which is where the reference keeps it too (`item::damage_`). A character with empty hands
     // wears nothing, which is the reference's own first check (`if( !shield ) return false;`).
@@ -2928,13 +2958,15 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
         .get::<crate::GroundItem>(held)
         .map_or_else(|| world.get::<Wielding>(holder).map(|carried| carried.0), |ground| Some(ground.kind));
     let chip_resistance = kind.map_or(2, |kind| crate::item_registry::chip_resistance_of(world, kind));
+    // **A fragile weapon wears at its weakest part**, which is the only reason the part list exists on this path (`melee.cpp:246-274`).
+    let material_factor = weapon_material_factor(world, held);
     let durable_melee = kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "DURABLE_MELEE"));
     let arm_strength = f64::from(effective_strength(world, holder));
     let chance = crate::melee::melee_wear_chance(
         f64::from(dexterity),
         melee_skill,
         arm_strength,
-        f64::from(chip_resistance),
+        material_factor,
         1.0,
         1.0,
         durable_melee,

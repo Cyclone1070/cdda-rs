@@ -14668,3 +14668,23 @@ part blacklisted. It is not a tie-breaker and not an average. The gate proves bo
 
 **Named, not invented:** the *wiring* into `melee_wear_chance` - the port computes the chance from a caller-supplied chip resistance today, and the caller has yet to pass a part list's factor in; and the
 volumes and chip resistances themselves, which come from the kind tables.
+
+## The swing asks a fragile weapon what it is made of (round 1249)
+
+| Piece | Reference | Port |
+|---|---|---|
+the branch | `material_factor` fragile-or-own (`melee.cpp:246-274`) | `creature::weapon_material_factor`, called by `wear_the_wielded_weapon` |
+Gate | - | `a_fragile_weapon_wears_at_its_weakest_part_when_it_is_swung` |
+
+**A part list that is never read changes nothing.** Rounds 1245-1248 built the breakdown, the choice and the factor; until this round the swing still handed `melee_wear_chance` the weapon's **own**
+chip resistance, so every fragile weapon wore exactly like a sound one and the whole machinery was decoration. The gate closes that: a fragile weapon of resistance **30** with a **6**-resistance part
+answers **1.0**, and the same weapon with no parts answers **30**.
+
+**The wiring is a function and not three lines in the swing**, because it answers two different questions - does this weapon need its parts read, and if so which part wins - and a swing that did both
+inline would hide the second behind the first.
+
+**A fixture lesson recorded where it bit:** the first run answered `2/6` because `install_kind_facts` writes the **chip table too**, so setting chip resistances before installing the kinds silently
+undid them. The gate now installs **one** fact list for all three kinds.
+
+**Named, not invented:** the breakdown messages ("Your %s breaks apart!", "The %s is destroyed!"), the `wield`-the-biggest step, the `has_wield_conflicts` check, and the `EQUIPMENT_DAMAGE_CHANCE`
+enchantment multiplier that still needs P5.

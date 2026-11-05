@@ -2116,3 +2116,50 @@ fn a_fragile_weapon_wears_at_its_weakest_part_six_times_over() {
     assert!((fragile_material_factor(&only_cloth, 30.0) - 30.0).abs() < 1e-9, "cloth gives no factor, so the weapon answers for itself");
     assert!((fragile_material_factor(&[], 30.0) - 30.0).abs() < 1e-9, "and so does a weapon with no parts at all");
 }
+
+/// The swing uses the weapon's weakest part when the weapon is fragile, and its own material when it is not.
+///
+/// Reference: `Character::handle_melee_wear` (`melee.cpp:246-274`): `material_factor` is the `FRAGILE_MELEE` computation for a fragile weapon and the weapon's own `chip_resistance()` otherwise.
+/// **A part list that is never read changes nothing**: before this gate, a fragile weapon wore at its own resistance and the whole breakdown machinery was decoration.
+#[test]
+fn a_fragile_weapon_wears_at_its_weakest_part_when_it_is_swung() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    let whatever = cdda_sim::ItemTypeId(1);
+    let weak = cdda_sim::ItemTypeId(2);
+    let strong = cdda_sim::ItemTypeId(3);
+    // **One installer for all three kinds**: `install_kind_facts` writes the chip table too, so setting it first would be undone.
+    let facts = |flags: Vec<String>, chip: i32| cdda_sim::item_registry::KindFacts {
+        flags,
+        qualities: Vec::new(),
+        chip_resistance: chip,
+        faults: Vec::new(),
+    };
+    cdda_sim::item_registry::install_kind_facts(
+        &mut world,
+        &[
+            (whatever, facts(vec!["FRAGILE_MELEE".to_owned()], 30)),
+            (weak, facts(Vec::new(), 6)),
+            (strong, facts(Vec::new(), 40)),
+        ],
+    );
+    assert!(cdda_sim::item_registry::kind_has_flag(&world, whatever, "FRAGILE_MELEE"), "the weapon's kind is the fragile one");
+    let weapon = world.spawn(cdda_sim::GroundItem { kind: whatever, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
+    let weak_part = world.spawn(cdda_sim::GroundItem { kind: weak, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
+    let strong_part = world.spawn(cdda_sim::GroundItem { kind: strong, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
+    cdda_sim::item_parts::add_part(&mut world, weapon, weak_part);
+    cdda_sim::item_parts::add_part(&mut world, weapon, strong_part);
+
+    assert!(
+        (cdda_sim::creature::weapon_material_factor(&mut world, weapon) - 1.0).abs() < 1e-9,
+        "6 / 6: the weakest part is what it wears at, not the weapon's own 30"
+    );
+
+    // The same weapon without parts answers for itself, which is the reference's `weak_chip == INT_MAX` fallback.
+    let bare = world.spawn(cdda_sim::GroundItem { kind: whatever, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
+    assert!(
+        (cdda_sim::creature::weapon_material_factor(&mut world, bare) - 30.0).abs() < 1e-9,
+        "no parts, no factor"
+    );
+}
