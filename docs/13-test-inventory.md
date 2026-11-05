@@ -930,3 +930,7 @@ was right. The turn-loop wiring is named as missing.
 **Round 1183 wired the fire**: `burn_whoever_stands_in_fire` in the **fields stage** of `crates/sim/src/turn.rs` (`map_field.cpp:1626-1702`), burning every creature on a square with `fd_fire`
 and lighting it with `creature::heat_sets_alight`. Gated by `shot_rules::a_creature_standing_in_fire_is_burnt_every_turn`, which runs **real turns through the schedule** - the guard against a
 rule with no caller - and asserts the burn, that it repeats, and that a creature elsewhere is untouched. The per-part draws are **summed** onto the single hit point pool, which the docs name.
+
+**Round 1184 ported what a gunshot sounds like**: `shot::gun_noise_word` (`item::gun_noise`, `ranged.cpp:2395-2482`) - four special volumes (grenade launcher **8**, railgun **24**, rocket **4**,
+arrow/bolt keeping the gun's own), the laser/lightning/whip effect ladders, and the ordinary ladder with its **burst words** - and `make_the_gun_s_sound`, so the shot makes its sound at the
+reference's volume. Gated by `shot_rules::a_gunshot_says_its_own_word_and_a_grenade_launcher_is_quiet`.

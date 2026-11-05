@@ -1334,3 +1334,39 @@ fn a_creature_standing_in_fire_is_burnt_every_turn() {
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(cdda_sim::creature::health_of(&world, safe), Some(100), "nothing burnt a creature with no fire under it");
 }
+
+/// A gunshot's own word and volume, and the special rounds that ignore the gun's loudness.
+///
+/// Reference: `item::gun_noise` (`ranged.cpp:2395-2482`). **Two claims a port gets wrong**: the four special volumes - a grenade launcher carries **eight** squares and a railgun **twenty-four**,
+/// neither derived from the weapon - and the **burst ladder**, where the same volume says a different word for a burst and a single shot.
+#[test]
+fn a_gunshot_says_its_own_word_and_a_grenade_launcher_is_quiet() {
+    use cdda_sim::shot::gun_noise_word;
+
+    let none: Vec<String> = Vec::new();
+    // The special rounds, whose volumes are the reference's own numbers and not the gun's loudness.
+    assert_eq!(gun_noise_word(154, "40x46mm", &none, false), (8, "Thunk!"), "a grenade launcher is quiet");
+    assert_eq!(gun_noise_word(154, "12mm", &none, false), (24, "tz-CRACKck!"), "a railgun is not");
+    assert_eq!(gun_noise_word(154, "RPG_7", &none, false), (4, "Fwoosh!"), "and a rocket is quieter still");
+    assert_eq!(gun_noise_word(154, "arrow", &none, false), (154, "whizz!"), "an arrow keeps the gun's own noise");
+    assert_eq!(gun_noise_word(154, "bolt", &none, false), (154, "thonk!"), "and so does a bolt");
+
+    // The laser ladder, on the round's effects rather than its ammunition type.
+    let laser = vec!["LASER".to_owned()];
+    assert_eq!(gun_noise_word(15, "223", &laser, false).1, "Fzzt!");
+    assert_eq!(gun_noise_word(25, "223", &laser, false).1, "Pew!");
+    assert_eq!(gun_noise_word(45, "223", &laser, false).1, "Tsewww!");
+    assert_eq!(gun_noise_word(65, "223", &laser, false).1, "Kra-kow!");
+    let lightning = vec!["LIGHTNING".to_owned()];
+    assert_eq!(gun_noise_word(65, "223", &lightning, false).1, "Kra-koom!", "lightning has its own words");
+
+    // The ordinary ladder, and the burst that says something else at the same volume.
+    assert_eq!(gun_noise_word(5, "223", &none, false), (5, "plink!"));
+    assert_eq!(gun_noise_word(5, "223", &none, true), (5, "Brrrip!"), "a burst says a different word for the same noise");
+    assert_eq!(gun_noise_word(100, "223", &none, false).1, "bang!");
+    assert_eq!(gun_noise_word(160, "223", &none, false).1, "blam!");
+    assert_eq!(gun_noise_word(200, "223", &none, false).1, "kerblam!");
+    assert_eq!(gun_noise_word(200, "223", &none, true).1, "Kaboom!", "and the burst ladder runs all the way up");
+    // A silent weapon says nothing at all, which is the branch that returns zero.
+    assert_eq!(gun_noise_word(0, "223", &none, false), (0, ""), "a silent weapon");
+}

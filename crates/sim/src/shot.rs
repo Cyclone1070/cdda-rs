@@ -326,7 +326,7 @@ pub fn fire_at(
     // transaction between the shooter and its target.
     let noise = gun_noise(gun.loudness, round.map_or(0, |round| round.loudness));
     if let Some(place) = world.get::<crate::Position>(shooter) {
-        crate::sounds::make_sound(world, (place.x, place.y, place.z), noise);
+        make_the_gun_s_sound(world, (place.x, place.y, place.z), noise, round);
     }
     // Reference: `it.set_var( "dirt", ... )` at the end of `handle_gun_damage` (`ranged.cpp:864-872`), which is why a gun that keeps firing eventually jams.
     if let Some(gun_entity) = gun_entity {
@@ -707,4 +707,95 @@ pub fn ignite_turns(
         return Some(6 * amount);
     }
     None
+}
+
+/// What a gunshot sounds like, and how far it carries: `item::gun_noise` (`ranged.cpp:2395-2482`).
+///
+/// Reference, in its own order - **the ammunition type first, then the round's effects, then the noise itself**:
+///
+/// | Condition | Volume | Word |
+/// |---|---|---|
+/// | `40x46mm`, `40x53mm` (grenade launchers) | **8** | `Thunk!` |
+/// | `12mm`, `metal_rail` (railguns) | **24** | `tz-CRACKck!` |
+/// | `flammable`, `66mm`, `120mm`, `84x246mm`, `m235`, `atgm`, `RPG_7`, `homebrew_rocket` | **4** | `Fwoosh!` |
+/// | `arrow` | the gun's own noise | `whizz!` |
+/// | `strange_arrow` | the gun's own noise | `Crack!` |
+/// | `bolt`, `bolt_ballista` | the gun's own noise | `thonk!` |
+/// | `atlatl` | the gun's own noise | `swoosh!` |
+/// | a `LASER` or `PLASMA` round | the gun's own noise | `Fzzt!` under 20, `Pew!` under 40, `Tsewww!` under 60, `Kra-kow!` |
+/// | a `LIGHTNING` round | the gun's own noise | `Bzzt!` under 20, `Bzap!` under 40, `Bzaapp!` under 60, `Kra-koom!` |
+/// | a `WHIP` round | the gun's own noise | `Crack!` |
+/// | otherwise, if it is not silent | the gun's own noise | `plink!`/`bang!`/`blam!`/`kerblam!` **or** `Brrrip!`/`Brrrap!`/`P-p-p-pow!`/`Kaboom!` for a burst |
+///
+/// **The four special volumes are the part a port is most likely to lose**: a grenade launcher is **quieter than a pistol** and a railgun louder than a rifle, and neither figure is derived
+/// from the gun's own loudness - **the reference simply says eight, twenty-four and four.** The threshold ladder on the noise is the other half: a burst and a single shot say **different words
+/// at the same volume**.
+#[must_use]
+pub fn gun_noise_word(noise: i32, ammo_type: &str, effects: &[String], burst: bool) -> (i32, &'static str) {
+    let has = |name: &str| effects.iter().any(|effect| effect == name);
+    if matches!(ammo_type, "40x46mm" | "40x53mm") {
+        return (8, "Thunk!");
+    }
+    if matches!(ammo_type, "12mm" | "metal_rail") {
+        return (24, "tz-CRACKck!");
+    }
+    if matches!(
+        ammo_type,
+        "flammable" | "66mm" | "120mm" | "84x246mm" | "m235" | "atgm" | "RPG_7" | "homebrew_rocket"
+    ) {
+        return (4, "Fwoosh!");
+    }
+    if ammo_type == "arrow" {
+        return (noise, "whizz!");
+    }
+    if ammo_type == "strange_arrow" {
+        return (noise, "Crack!");
+    }
+    if matches!(ammo_type, "bolt" | "bolt_ballista") {
+        return (noise, "thonk!");
+    }
+    if ammo_type == "atlatl" {
+        return (noise, "swoosh!");
+    }
+    // The ladder reads `noise < 20`, `< 40`, `< 60`, and the rest.
+    let rung = |under: [&'static str; 4]| match noise {
+        n if n < 20 => under[0],
+        n if n < 40 => under[1],
+        n if n < 60 => under[2],
+        _ => under[3],
+    };
+    if has("LASER") || has("PLASMA") {
+        return (noise, rung(["Fzzt!", "Pew!", "Tsewww!", "Kra-kow!"]));
+    }
+    if has("LIGHTNING") {
+        return (noise, rung(["Bzzt!", "Bzap!", "Bzaapp!", "Kra-koom!"]));
+    }
+    if has("WHIP") {
+        return (noise, "Crack!");
+    }
+    match noise {
+        n if n < 1 => (0, ""),
+        n if n < 10 => (noise, if burst { "Brrrip!" } else { "plink!" }),
+        n if n < 150 => (noise, if burst { "Brrrap!" } else { "bang!" }),
+        n if n < 175 => (noise, if burst { "P-p-p-pow!" } else { "blam!" }),
+        _ => (noise, if burst { "Kaboom!" } else { "kerblam!" }),
+    }
+}
+
+/// Puts the shot's sound in the world with the reference's own word and volume for the gun and round.
+///
+/// Reference: `make_gun_sound_effect` (`ranged.cpp:2381-2390`), which asks `item::gun_noise` for a `sound_data` and makes a sound only when its volume is above zero - **a silent weapon says
+/// nothing at all**, which is the branch the port keeps rather than making a zero-volume sound.
+fn make_the_gun_s_sound(
+    world: &mut bevy_ecs::prelude::World,
+    place: (i32, i32, i32),
+    noise: i32,
+    round: Option<&cdda_content::ammo::AmmoType>,
+) {
+    let (carried, _word) = round.map_or((noise, "bang!"), |round| {
+        gun_noise_word(noise, &round.ammo_type, &round.effects, false)
+    });
+    if carried > 0 {
+        crate::sounds::make_sound(world, place, carried);
+    }
 }

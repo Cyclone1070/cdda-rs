@@ -13913,3 +13913,27 @@ paragraph is that.**
 **Named, not invented:** per-part hit points, `HEATSINK` and the RM13 armour's immunity, the vehicle adjustment, the quadruped bundle, the **messages**, `is_prone`/`on_ground` (the port has no
 prone state, so every creature is treated as standing - **and the reference's own comment says the ground case is much worse**), and the fire field's own growth and spread, which the sweep
 already does.
+
+## What a gunshot sounds like (round 1184)
+
+| Piece | Reference | Port |
+|---|---|---|
+the word and volume | `item::gun_noise` (`ranged.cpp:2395-2482`) | `shot::gun_noise_word(noise, ammo_type, effects, burst)` |
+the sound | `make_gun_sound_effect` (`ranged.cpp:2381-2390`) | `make_the_gun_s_sound`, called by the shot |
+Gate | - | `a_gunshot_says_its_own_word_and_a_grenade_launcher_is_quiet` |
+
+**Three rounds of the same rules, and the volumes are the reference's own**: a grenade launcher carries **eight** squares, a railgun **twenty-four**, a rocket **four** - **none of them derived
+from the weapon's loudness**, and each smaller or larger than the gun that fires it. A port that multiplied the gun's loudness by anything would get all three wrong.
+
+**Two different ladders at the same time.** The **ammunition type** decides the special cases; the **round's effects** decide the laser, lightning and whip words; and the **noise itself** decides
+the ordinary ladder - `plink!`/`bang!`/`blam!`/`kerblam!` for a single shot and `Brrrip!`/`Brrrap!`/`P-p-p-pow!`/`Kaboom!` for a burst. **The same volume says a different word depending on
+whether it was a burst**, which is what the gate pins in one line.
+
+**The order is the rule.** An arrow round is checked **before** the effect ladder and after the special types, so a laser arrow would still say `whizz!` - and the reference's chain is exactly that:
+the ammunition type first, then the effects, then the noise. **Reordering it would change which word wins without failing any single-case test.**
+
+**A silent weapon makes no sound at all** rather than a zero-volume one, which is `make_gun_sound_effect`'s `if( data.volume > 0 )` and why the port's sound call sits behind a branch.
+
+**Named, not invented:** the sound's **description text** reaching the world (`Sound` carries position and volume; the word is computed and dropped at the boundary - **the next step, not a
+claim**), gunmods' `loudness` and `loudness_multiplier` in the composition, `sfx::generate_gun_sound` (the reference's audio, which a headless port has nothing to do with), and the
+`You shoot your %s` message.
