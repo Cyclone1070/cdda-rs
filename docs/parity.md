@@ -14908,3 +14908,19 @@ Gate | - | `a_counter_attack_needs_stamina_and_a_weapon_that_is_not_mostly_glass
 integer division is the rule** - it is what makes the boundary land on 33 rather than 33.3 - and the fixture now says so in a comment.
 
 **Named, not invented:** the two messages ("too exhausted!", "too fragile to counterattack with!"), the martial-arts technique that decides whether a counter exists at all, and `melee_attack` itself.
+
+## Bionics read their own rules (round 1263)
+
+| Piece | Reference | Port |
+|---|---|---|
+the list | `Character::add_bionic`, a **set** of ids | `bionics::Bionics(Vec<String>)` + `install` / `has` / `bionics_of` |
+Gates | - | `bionics::a_bionic_installed_twice_is_still_one_bionic`, `bionics::any_asks_whether_there_is_a_bionic_and_a_name_asks_for_that_one` |
+
+**The roadmap said `bionics.rs` was "ported, thinly gated - covered only through dialogue effects", and this closes that.** The two gates ask the module's own questions, which is the point: a dialogue
+that happens to install one bionic exercises one path and leaves the list's rules - deduplication and exact naming - unproven.
+
+**The one thing a list allows and a set cannot is a duplicate**, so the first gate installs the same id twice and asserts **one** entry, in install order. The second asserts the two ways `has` can be
+wrong: `ANY` on a creature with nothing, and a name that answers for a **different** bionic because the check was written as a substring or a keyword match.
+
+**Named, not invented:** `ANY` also holds for a **full power store** (`condition.cpp:946-949`); the port has no power store, so `ANY` asks only about the list - the divergence the module's doc comment
+already records.

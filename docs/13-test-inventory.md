@@ -1133,3 +1133,6 @@ remains, not the damage stopped.
 
 **Round 1262 ported `block_hit`'s counter-attack guards** as `melee::counter_attack` (`melee.cpp:2190-2198`): a third of stamina (integer division, strict) and a rounded fifth of glass. Gated by
 `creature_fight::a_counter_attack_needs_stamina_and_a_weapon_that_is_not_mostly_glass`, whose first run corrected the gate's own fractional reading of an integer line.
+
+**Round 1263 gave `bionics.rs` its own gates** - the roadmap's "thinly gated" note, closed: `bionics::a_bionic_installed_twice_is_still_one_bionic` (dedupe and order) and
+`bionics::any_asks_whether_there_is_a_bionic_and_a_name_asks_for_that_one` (`ANY` vs exact naming).
