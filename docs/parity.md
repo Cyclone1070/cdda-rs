@@ -14454,3 +14454,22 @@ assertion could have passed before this round**, and both are about the *data pa
 
 **Named, not invented:** the **chip resistance merge**. The figure is `item::chip_resistance()`, which depends on the type's **materials and their portions**, and the port reads it from the prototypes
 dump's `chip_resistance` column (round 1191) rather than recomputing it - so the merge needs the dump's map joined by id to the numbering `kind_numbers` assigns. **One join, and it is the last link.**
+
+## The last table is filled from the dump (round 1219)
+
+| Piece | Reference | Port |
+|---|---|---|
+the figure | `item::chip_resistance()` - materials weighed by their portions | the prototypes dump's column (round 1191), joined by id |
+the join | - | `item_data::install(world, kinds, chip_resistance)` |
+Gate | - | `loading_the_item_data_fills_the_kind_tables` now asserts **rock = 20** |
+
+**All four kind tables are now installed from the game's own data**, in one pass, from the same numbering: kinds and qualities from the type records, flags and fault weights from the same records,
+and chip resistance from the dump **joined by id**. The gate asks the store three things it could not answer four rounds ago - `bio_adrenaline`'s salvaged fault at weight **100**, a named flag, and
+**rock's chip resistance of 20 rather than the fallback 2**.
+
+**The join is why the numbering mattered.** The dump is keyed by **id string**, the store by **number**, and `item_data::install` is handed both - **a mismatched numbering would fill kind seven's chips
+from kind nine's data and no assertion about a single item would notice**, because the rock would still answer twenty; a *different* item would answer it. That is the class of bug the round-1214
+numbering rule exists to make impossible.
+
+**Named, not invented:** `item::chip_resistance()`'s own **recomputation** from materials and the `FRAGILE_MELEE` worst-component variant - the port takes the reference's answer from the dump rather than
+recomputing it, which is honest as long as the dump keeps being regenerated (it is, and `--verify` now runs with the suite).

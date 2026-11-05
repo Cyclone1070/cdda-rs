@@ -209,8 +209,14 @@ fn loading_the_item_data_fills_the_kind_tables() {
         return;
     }
     let kinds = cdda_content::items::load_paths(&[&data]).expect("the game data loads");
+    // The chip figures, from the prototypes dump, exactly as the binary joins them.
+    let dump = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let chip = std::fs::read(dump)
+        .ok()
+        .and_then(|bytes| cdda_json::parse(&bytes).ok())
+        .map_or_else(std::collections::BTreeMap::new, |value| cdda_content::items::chip_resistance(&value));
     let mut world = World::new();
-    cdda_sim::item_data::install(&mut world, &kinds);
+    cdda_sim::item_data::install(&mut world, &kinds, &chip);
 
     // A bionic catches the salvaged fault at full weight, which is data the type records carry and the tables did not.
     let bionic = cdda_sim::item_registry::id_of(&mut world, "bio_adrenaline").expect("the bionic is a kind");
@@ -218,6 +224,13 @@ fn loading_the_item_data_fills_the_kind_tables() {
     assert!(
         faults.iter().any(|(fault, weight)| fault == "fault_bionic_salvaged" && *weight == 100),
         "the bionic's fault is installed: {faults:?}"
+    );
+    // And the chip figure came from the dump: a rock resists chipping at twenty, not at the fallback two.
+    let rock = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock is a kind");
+    assert_eq!(
+        cdda_sim::item_registry::chip_resistance_of(&mut world, rock),
+        20,
+        "the dump's figure reached the store"
     );
     // And the flags came with it: a kind whose data names a flag answers it.
     let flagged = kinds

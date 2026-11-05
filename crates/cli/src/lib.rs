@@ -717,7 +717,14 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         return None;
     }
     let items = cdda_content::items::load_paths(&[&data]).ok()?;
-    cdda_sim::item_data::install(world, &items);
+    // The chip figures come from the prototypes dump, not from the type records: the figure is `item::chip_resistance()`, which weighs a type's materials by their portions, and the
+    // dump computed it once with the reference's own code (round 1191). Joined here by id, against the same records the numbering came from.
+    let chip = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let chip_resistance = std::fs::read(chip)
+        .ok()
+        .and_then(|bytes| cdda_json::parse(&bytes).ok())
+        .map_or_else(std::collections::BTreeMap::new, |value| cdda_content::items::chip_resistance(&value));
+    cdda_sim::item_data::install(world, &items, &chip_resistance);
     Some(items.len())
 }
 

@@ -27,7 +27,7 @@ fn the_games_items() -> &'static Vec<items::ItemType> {
 fn every_item_the_game_has_can_be_looked_up_by_name_and_number() {
     let kinds = the_games_items();
     let mut world = World::new();
-    cdda_sim::item_data::install(&mut world, kinds);
+    cdda_sim::item_data::install(&mut world, kinds, &std::collections::BTreeMap::new());
 
     assert!(
         kinds.len() > 9_000,
@@ -59,7 +59,7 @@ fn every_item_the_game_has_can_be_looked_up_by_name_and_number() {
 fn an_items_weight_and_volume_cross_over_unchanged() {
     let kinds = the_games_items();
     let mut world = World::new();
-    cdda_sim::item_data::install(&mut world, kinds);
+    cdda_sim::item_data::install(&mut world, kinds, &std::collections::BTreeMap::new());
 
     // Every single-charge item keeps its weight and volume. Items that come in charges are exempt: their stated volume
     // is for one charge and the registry stores one, which is the same number.
@@ -88,7 +88,7 @@ fn an_items_weight_and_volume_cross_over_unchanged() {
 fn the_things_that_hold_things_still_hold_them() {
     let kinds = the_games_items();
     let mut world = World::new();
-    cdda_sim::item_data::install(&mut world, kinds);
+    cdda_sim::item_data::install(&mut world, kinds, &std::collections::BTreeMap::new());
 
     let mut with_pockets = 0;
     let mut biggest: Option<(String, i32)> = None;

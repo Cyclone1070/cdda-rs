@@ -39,7 +39,7 @@ pub fn pockets_of(specs: &[PocketSpec]) -> Vec<Pocket> {
 ///
 /// The ids are numbers in the order the data lists them, which is the reference's own scheme (`itype_id`), and the
 /// pockets of each are kept so a survivor can put something in them.
-pub fn install(world: &mut World, kinds: &[ItemType]) {
+pub fn install(world: &mut World, kinds: &[ItemType], chip_resistance: &std::collections::BTreeMap<String, i32>) {
     // The pockets have to outlive the borrowed `Kind` list, so they are built first and held in one place.
     let pockets: Vec<Vec<Pocket>> = kinds
         .iter()
@@ -98,7 +98,8 @@ pub fn install(world: &mut World, kinds: &[ItemType]) {
             item_registry::KindFacts {
                 flags: kind.flags.iter().cloned().collect(),
                 qualities: kind.qualities.iter().map(|(quality, level)| (quality.clone(), *level)).collect(),
-                chip_resistance: 2,
+                // The dump's own figure, joined by id to the number the registry gave this kind; the reference's fallback of 2 when the dump does not mention it.
+                chip_resistance: chip_resistance.get(&kind.id).copied().unwrap_or(2),
                 faults: kind.faults.clone(),
             },
         ));

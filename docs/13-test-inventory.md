@@ -1040,3 +1040,6 @@ whose chip resistance reads **20** instead of the fallback **2**. Design recorde
 `install_kind_facts` (the seam of round 1211), instead of installing only the kinds and their qualities. Gated by `ground_items::loading_the_item_data_fills_the_kind_tables`, which loads the real
 game data and asks the store for `bio_adrenaline`'s `fault_bionic_salvaged` (weight **100**). The chip-resistance merge from the prototypes dump is the one remaining link, named in
 `docs/parity.md`.
+
+**Round 1219 closed the kind-table chain**: `item_data::install` now takes the prototypes dump's chip figures and joins them by id, so **all four tables** (flags, qualities, chip resistance, fault
+weights) are installed from the game's own data in one pass. `ground_items::loading_the_item_data_fills_the_kind_tables` gained the assertion that **rock answers 20, not the fallback 2**.
