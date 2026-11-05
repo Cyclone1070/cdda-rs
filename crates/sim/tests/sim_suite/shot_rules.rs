@@ -721,3 +721,39 @@ fn a_burst_trains_the_skills_it_should_and_a_flagged_weapon_trains_none() {
     assert_eq!(flagged_gun, 0, "a weapon flagged WONT_TRAIN_MARKSMANSHIP trains no gun skill");
     assert!(flagged_rifle > 0, "but its own weapon skill still trains, because that rule is not the flagged one: {flagged_rifle}");
 }
+
+/// A filthy gun misfires and a badly made one can too, and a `NEVER_JAMS` gun never does.
+///
+/// Reference: `Character::handle_gun_damage` (`ranged.cpp:700-800`) - the dirt branch `x_in_y( dirt^3, 10^12 )` and the mechanical one `one_in( ( 2 << durability ) * 3 )`. **The gate counts
+/// draws rather than trusting one**: a rule that returns false always would pass a single-shot check, so the counts are what make the claim.
+#[test]
+fn a_filthy_gun_misfires_and_a_never_jams_gun_never_does() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::shot::misfires;
+
+    // Dirt at the reference's maximum of ten thousand is a **certainty**: 10,000^3 over 10^12 is one.
+    let mut dice = Rolls::new(5);
+    assert!(misfires(10_000, 8, false, &mut dice), "dirt at the cap misfires every time");
+    // No dirt at all leaves only the mechanical dice, and a durable gun rarely rolls it: count a thousand.
+    let mut dice = Rolls::new(5);
+    let mut jams = 0;
+    for _ in 0..1_000 {
+        if misfires(0, 8, false, &mut dice) {
+            jams += 1;
+        }
+    }
+    assert!(jams > 0, "a durability-8 gun still misfires sometimes in a thousand shots: {jams}");
+    assert!(jams < 50, "but rarely: {jams} in a thousand, against the one in 1,536 the shift says");
+    // A worse made gun jams more often, and the two runs differ only in durability.
+    let mut dice = Rolls::new(5);
+    let mut rough = 0;
+    for _ in 0..1_000 {
+        if misfires(0, 3, false, &mut dice) {
+            rough += 1;
+        }
+    }
+    assert!(rough > jams, "a durability-3 gun is worse: {rough} against {jams}");
+    // And the flag skips both branches, even at maximum dirt.
+    let mut dice = Rolls::new(5);
+    assert!(!misfires(10_000, 8, true, &mut dice), "NEVER_JAMS ignores the dirt entirely");
+}

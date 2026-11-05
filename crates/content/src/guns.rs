@@ -42,6 +42,9 @@ pub struct GunType {
     /// How many shots one trigger pull makes: the `qty` of the gun's `DEFAULT` firing mode (`islot_gun::modes`, `itype.h:826`; `item::burst_size`, `item.cpp:11640-11650`). **One for a
     /// single-shot weapon**, and the data goes as high as fifty.
     pub burst: i32,
+    /// How well made the weapon is: `gun_type::durability`, which `Character::handle_gun_damage` reads as `one_in( ( 2 << durability ) * 3 )` for a mechanical malfunction
+    /// (`ranged.cpp:790`). **The data's range is narrow and the chance moves by factors of two across it**, which is why it is a column rather than a constant.
+    pub durability: i32,
 }
 
 
@@ -65,6 +68,7 @@ pub fn read_one(id: &str, object: &Object) -> Result<GunType, String> {
     gun.sight_dispersion = number(object, "sight_dispersion", gun.sight_dispersion)?;
     gun.loudness = number(object, "loudness", gun.loudness)?;
     gun.burst = number(object, "burst", gun.burst)?;
+    gun.durability = number(object, "durability", gun.durability)?;
     if let Some(Value::Float(damage)) = object.get("damage") {
         gun.damage = *damage;
     } else if let Some(Value::Int(damage)) = object.get("damage") {

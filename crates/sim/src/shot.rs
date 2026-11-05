@@ -472,3 +472,28 @@ pub fn practise_after_a_burst(
     let units = if launcher { shots } else { hits };
     crate::creature::practise_skill(world, shooter, gun_skill, (units + 1) * 5);
 }
+
+/// Whether a shot misfires before it is fired: the two dice `Character::handle_gun_damage` rolls first (`ranged.cpp:700-800`).
+///
+/// Reference, in its own order:
+///
+/// 1. **dirt**: `x_in_y( dirt^3, 10^12 )` - a chance that is nothing at low dirt and geometric as the dirt approaches the maximum of **10,000**, where it is a certainty. The reference's comment
+///    says the formula was fitted by eye to feel right at high, medium and low dirt, so the cube is the rule and not an approximation of one;
+/// 2. **mechanical malfunction**: `one_in( ( 2 << durability ) * 3 )` - a gun of durability 5 misfires once in 192, one of durability 9 once in 3,072. The shift is why the data's narrow range
+///    matters: **every point of durability doubles the odds against it**.
+///
+/// `NEVER_JAMS` skips **both**, which is the flag's whole meaning. The reference's magazine branch, its underwater branch and its consumable-gunmod branch are named in `docs/parity.md` rather
+/// than guessed at.
+#[must_use]
+pub fn misfires(dirt: i32, durability: i32, never_jams: bool, dice: &mut cdda_core_types::rng::Rolls) -> bool {
+    if never_jams {
+        return false;
+    }
+    let dirt = f64::from(dirt.max(0));
+    if dirt > 0.0 && dice.x_in_y(dirt * dirt * dirt, 1_000_000_000_000.0) {
+        return true;
+    }
+    let shift = u32::try_from(durability.clamp(0, 20)).unwrap_or(0);
+    let odds = i32::try_from((2_i64 << shift) * 3).unwrap_or(i32::MAX);
+    dice.one_in(odds)
+}

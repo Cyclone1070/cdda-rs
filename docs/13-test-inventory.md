@@ -880,3 +880,7 @@ The CLI's two prototypes-dump readers were folded into one `has_item_flag`.
 
 **Round 1170 ported the aim's price**: `aim::moves_to_reach` (`Character::gun_engagement_moves`, `ranged.cpp:675-691`) and the `aim` step's `…, N more to reach it` report. Gated by
 `aim_rules::the_moves_a_shot_needs_are_exactly_enough_and_not_one_more`, which asserts the **edge**: the reported moves reach the target and one fewer does not.
+
+**Round 1171 ported the misfire dice**: `shot::misfires` (`handle_gun_damage`'s first two branches, `ranged.cpp:709-800`) - dirt at `dirt^3 / 10^12` and the mechanical roll at
+`one_in( ( 2 << durability ) * 3 )`, with `NEVER_JAMS` skipping both - and `GunType::durability` (guns dump **version 8**). Gated by
+`shot_rules::a_filthy_gun_misfires_and_a_never_jams_gun_never_does`, which counts a thousand draws at two durabilities.

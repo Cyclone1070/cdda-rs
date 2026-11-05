@@ -13619,3 +13619,26 @@ tail of the aim long**, which is why the reference has a point-shooting limit at
 
 **Named, not invented:** `gun_engagement_moves`'s own `aim_cache` (the port recomputes, because it has no cache and the reference's is a pure memo), the aim UI that shows the count, and
 `MIN_RECOIL_IMPROVEMENT`'s other caller, which is the activity's own loop.
+
+## A gun can misfire (round 1171)
+
+| Piece | Reference | Port |
+|---|---|---|
+the dirt dice | `x_in_y( dirt^3, 10^12 )` (`ranged.cpp:709-712`) | `shot::misfires(dirt, durability, never_jams, dice)` |
+the mechanical dice | `one_in( ( 2 << durability ) * 3 )` (`ranged.cpp:790`) | the same function, in the reference's order |
+the data | `gun_type::durability` | guns dump **version 8** |
+the flag | `NEVER_JAMS` skips **both** | read from the item's flags |
+Gate | - | `a_filthy_gun_misfires_and_a_never_jams_gun_never_does` |
+
+**The dirt formula is a cube, and the reference says why.** `dirt^3 / 10^12` is nothing at low dirt and **a certainty at the maximum of 10,000**, where 10,000³ is exactly 10¹². The reference's own
+comment admits the number was fitted by eye - *"plugging the number into excel and changing it until the probability made sense"* - **so the cube is the rule and not an approximation of one**, and
+a port that "smoothed" it into a line would be inventing a rule the original never had.
+
+**Durability moves the odds by factors of two.** `one_in( ( 2 << durability ) * 3 )`: durability **5** is one in **192**, durability **9** one in **3,072**. The data's guns are all between 5
+and 9, **so the column's whole range is a factor of sixteen** - narrow, and exactly why it belongs in the data rather than a constant.
+
+**The gate counts a thousand draws rather than trusting one.** A rule that always returned false would pass a single-shot check; the counts show a durability-8 gun misfiring **rarely but not
+never** and a durability-3 gun misfiring **more**, with only the durability differing between the two runs.
+
+**Named, not invented:** the reference's **magazine** branch (`mag_jam_mult`, magazine damage), its **underwater** branch (`WATERPROOF_GUN`, `one_in( durability )`), the **consumable gunmod**
+branch, `gun_jam_mult`, and where the dirt **comes from** (`it.set_var( "dirt", dirt )` at the end of the rule, which needs the gun's own component and the fouling flag).
