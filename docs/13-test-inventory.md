@@ -1190,3 +1190,6 @@ leading space**.
 
 **Round 1283 ported `lighting_craft_speed_multiplier`** (`crafting.cpp:170-207`) as `crafting::lighting_speed_multiplier`, gated on the refusal at the end of the function and on both skill ladders' full-speed
 ends (two levels for `BLIND_EASY`, six for `BLIND_HARD`).
+
+**Round 1284 ported the craft speed product and its two ladder rules** - `crafting::pain_speed_multiplier`, `crafting::crafting_speed_multiplier` and `crafting::lerped_multiplier`
+(`crafting.cpp:235-246, 303-320`), gated on the pain floor and the workbench's quarter floor.

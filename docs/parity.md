@@ -15268,3 +15268,25 @@ the reference's own comment calls that "arbitrary penalty" and the port keeps th
 
 **Named, not invented:** `exceeds_recipe_requirements` itself (how many levels past the requirement the crafter is), the `CRAFT_IN_DARKNESS` flag's source in the mutation data, and the `p` argument - the
 port takes the point's resolved vision modifier, because the reference's `p` is only used for that one call.
+
+## Pain costs a percent a point, and a workbench bottoms out at a quarter (round 1284)
+
+| Piece | Reference | Port |
+|---|---|---|
+the pain term | `crafting_speed_multiplier` (`crafting.cpp:303-306`) | `crafting::pain_speed_multiplier` |
+the product | `crafting_speed_multiplier` (`crafting.cpp:303-320`) | `crafting::crafting_speed_multiplier` |
+the workbench ladder | `lerped_multiplier` (`crafting.cpp:235-246`) | `crafting::lerped_multiplier` |
+Gate | - | `crafting::pain_costs_a_percent_a_point_and_a_workbench_bottoms_out_at_a_quarter` |
+
+**The two clamps point opposite ways, and both matter:** pain **floors at zero** (a hundred pain costs everything, two hundred cannot cost more), while the workbench **bottoms out at 0.25** rather than
+reaching zero - an oversized workpiece is **slow, not impossible**.
+
+**The workbench ladder has no bonus end either:** at or under the bench's allowance the multiplier is exactly **1.0**, so a bench never makes a small job faster than the crafter's own speed. A craft
+past a tonne or past a full tile is the only thing it penalises.
+
+**Four factors multiply, so any zero stops the work** - and the port composes them rather than re-deriving them: `crafting_speed_multiplier` takes the morale, light, limb and pain answers its own
+functions already produce.
+
+**Named, not invented:** the `limb_score_manip` limb score (needs the limb model's handling scores), the `NO_MANIP` and `AFFECTED_BY_PAIN` recipe flags' data source, the `CRAFTING_SPEED_MULTIPLIER`
+enchantment (P5), and the vehicle workbench's `vpslot_workbench` - the port's ladder takes the bench's own allowance as an argument, so the furniture and vehicle tables can supply it later without
+touching the rule.

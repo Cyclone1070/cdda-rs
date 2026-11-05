@@ -626,3 +626,62 @@ pub fn lighting_speed_multiplier(
     }
     0.0
 }
+
+/// What pain costs a craft, one percent of speed per point.
+///
+/// Reference: `crafting_speed_multiplier`'s pain term (`crafting.cpp:303-306`):
+///
+/// ```text
+/// const float pain_multi = rec.has_flag( flag_AFFECTED_BY_PAIN ) ? std::max( 0.0f, 1.0f - ( get_perceived_pain() / 100.0f ) ) : 1.0f;
+/// ```
+///
+/// **The clamp is a floor, not a slope that continues:** a hundred pain costs everything and two hundred cannot cost more than everything. A recipe without `AFFECTED_BY_PAIN` ignores the number
+/// entirely, which is why the flag is the caller's argument rather than a branch buried here.
+#[must_use]
+pub fn pain_speed_multiplier(perceived_pain: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let pain = perceived_pain as f32;
+    (1.0 - pain / 100.0).max(0.0)
+}
+
+/// The whole craft speed: morale, light, limb and pain multiplied together, floored at zero.
+///
+/// Reference: `Character::crafting_speed_multiplier` (`crafting.cpp:303-320`):
+///
+/// ```text
+/// float crafting_speed = morale_crafting_speed_multiplier( rec ) * lighting_craft_speed_multiplier( rec ) * limb_score * pain_multi;
+/// const float result = enchantment_cache->modify_value( CRAFTING_SPEED_MULTIPLIER, crafting_speed );
+/// return std::max( result, 0.0f );
+/// ```
+///
+/// **Any zero term stops the work**, and the floor at the end means the enchantment cannot push the answer negative either. Each factor is ported and gated on its own -
+/// [`morale_speed_multiplier`], [`lighting_speed_multiplier`], [`pain_speed_multiplier`] - so this function is only the product the reference does, not a second copy of the rules.
+#[must_use]
+pub fn crafting_speed_multiplier(morale: f32, lighting: f32, limb_score: f32, pain: f32) -> f32 {
+    (morale * lighting * limb_score * pain).max(0.0)
+}
+
+/// A workbench's help, from full speed at its allowed mass or volume down to a quarter at the limit.
+///
+/// Reference: `lerped_multiplier` (`crafting.cpp:235-246`):
+///
+/// ```text
+/// if( value <= low ) return 1.0f;     // no effect if less than allowed
+/// if( value >= high ) return 0.25f;   // bottom out at 25% speed
+/// return 1.0f + ( value - low ) * ( 0.25f - 1.0f ) / ( high - low );
+/// ```
+///
+/// **The two ends behave differently:** at or under the allowed value there is **no bonus** - one is the ceiling - and at the far end it **bottoms out at a quarter rather than reaching zero**, so an
+/// oversized workpiece is slow rather than impossible. The reference calls it twice, once on mass against the workbench's allowance and once on volume against a tile.
+#[must_use]
+pub fn lerped_multiplier(value: f32, low: f32, high: f32) -> f32 {
+    /// The reference's floor: a workpiece past the bench's allowance still gets a quarter of the speed.
+    const BOTTOM: f32 = 0.25;
+    if value <= low {
+        return 1.0;
+    }
+    if value >= high {
+        return BOTTOM;
+    }
+    1.0 + (value - low) * (BOTTOM - 1.0) / (high - low)
+}

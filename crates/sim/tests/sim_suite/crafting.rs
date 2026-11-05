@@ -1218,3 +1218,32 @@ fn working_in_the_dark_is_a_skill_ladder_or_a_refusal() {
     assert!((lighting_speed_multiplier(11.0, false, false, true, true, 8) - 1.0).abs() < 1e-6, "and six levels above it, full speed");
     assert!((lighting_speed_multiplier(11.0, false, false, true, false, 0) - 0.5).abs() < 1e-6, "a hard-in-the-dark recipe with no skill is a flat half");
 }
+
+/// A workbench only helps until the workpiece outgrows it, and pain costs speed one percent a point.
+///
+/// Reference: `Character::crafting_speed_multiplier` (`crafting.cpp:303-320`) is the **product** of morale, light, the limb score and pain, floored at zero; the pain term is
+/// `rec.has_flag( AFFECTED_BY_PAIN ) ? max( 0.0f, 1.0f - perceived_pain / 100.0f ) : 1.0f`. And `lerped_multiplier` (`crafting.cpp:235-246`) takes a workbench from **full speed up to its allowed mass or
+/// volume**, down to **25%** at a tonne or a full tile, and interpolates between.
+///
+/// **The two clamps point opposite ways and both matter:** pain *floors* at zero (a hundred pain costs everything, two hundred cannot cost more), while the workbench *bottoms out* at 0.25 rather than
+/// reaching zero - an oversized workpiece is slow, not impossible.
+#[test]
+fn pain_costs_a_percent_a_point_and_a_workbench_bottoms_out_at_a_quarter() {
+    use cdda_sim::crafting::{crafting_speed_multiplier, lerped_multiplier, pain_speed_multiplier};
+
+    assert!((pain_speed_multiplier(0) - 1.0).abs() < 1e-6, "no pain, no cost");
+    assert!((pain_speed_multiplier(50) - 0.5).abs() < 1e-6, "half the speed at half the bar");
+    assert!((pain_speed_multiplier(100) - 0.0).abs() < 1e-6, "**a hundred pain costs everything**");
+    assert!((pain_speed_multiplier(250) - 0.0).abs() < 1e-6, "and more pain cannot cost less than nothing");
+
+    // The product, floored at zero.
+    assert!((crafting_speed_multiplier(0.5, 0.5, 1.0, 0.5) - 0.125).abs() < 1e-6, "four terms multiply");
+    assert!((crafting_speed_multiplier(0.0, 1.0, 1.0, 1.0) - 0.0).abs() < 1e-6, "any zero term means no progress");
+
+    // The workbench ladder.
+    assert!((lerped_multiplier(500.0, 1000.0, 1_000_000.0) - 1.0).abs() < 1e-6, "under the allowed mass: full speed");
+    assert!((lerped_multiplier(1000.0, 1000.0, 1_000_000.0) - 1.0).abs() < 1e-6, "**exactly the allowed mass is still full speed**");
+    assert!((lerped_multiplier(1_000_000.0, 1000.0, 1_000_000.0) - 0.25).abs() < 1e-6, "at a tonne it bottoms out at a quarter");
+    assert!((lerped_multiplier(5_000_000.0, 1000.0, 1_000_000.0) - 0.25).abs() < 1e-6, "**and heavier stays a quarter, never zero**");
+    assert!((lerped_multiplier(500_500.0, 1000.0, 1_000_000.0) - 0.625).abs() < 0.001, "halfway between is 0.625");
+}
