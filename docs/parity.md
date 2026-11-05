@@ -13739,3 +13739,34 @@ treating every creature as tinder.**
 
 **Named, not invented:** the wiring into `hurt_once` (which needs the target's **materials** - the monsters dump carries them, and the port's `MonsterType` has the field, but the shot does not yet
 read them), the **body part** the burn is applied to (`dealt_dam.bp_hit`), `IGNITE` and `IGNITE_FLARE`'s own branches, and the pyromania morale the reference grants for the pleasure of it.
+
+## An incendiary round that lands sets its target alight (round 1176)
+
+Round 1175 ported the arithmetic; this round gives it the target's materials and wires it into the shot.
+
+| Piece | Reference | Port |
+|---|---|---|
+the materials | `mtype::materials`, asked of the creature (`target.made_of`) | the `Materials` component on the creature, set at spawn |
+the sets | `cmat_flammable` = paper, powder, wood, cotton, wool; `cmat_flesh` = flesh, iflesh (`creature.cpp:171-178`) | `shot::catches_fire_readily` and `shot::is_flesh` |
+the wiring | `Creature::deal_damage` (`creature.cpp:1016-1029`) | `set_alight_if_incendiary` inside the pellet loop |
+Gate | - | `an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one` |
+
+**The materials live on the creature, and that is the round's real content.** The reference asks `target.made_of( material_veggy )` of the **creature itself**; the port could only answer that
+question if a caller happened to hold the whole monster table, which is the second source of truth the item registry already removed once. `Materials` is a component, `spawn_monster_of_type`
+sets it from the data, and the shot reads it off the thing it hit.
+
+**The five-name list is the rule, not a heuristic.** `cmat_flammable` is **paper, powder, wood, cotton and wool** - `veggy` is not in it, and is checked **separately** by
+`made_of( material_veggy )`; `cmat_flesh` is **flesh and iflesh**, two names and no third. **A port that wrote `contains("flesh")` would have covered three of the reference's four cases and
+looked right** - which is why the gate uses a haystack and a stone golem, where the materials are the only difference between catching fire and not.
+
+**The gate fires up to twenty rounds rather than one**, because a single shot can miss and the claim is about **a landing** incendiary round. A gate that fired once would fail intermittently and
+be "fixed" by moving the seed, which proves nothing.
+
+**The component had to be named in the inspection report**, and the suite caught that before I did: `inspect_names::every_component_a_creature_carries_has_a_name` refused a `?` in the dump. **A
+component the report cannot name is a component a QA run cannot show** - so the register in `crates/sim/src/inspect.rs` grew a line.
+
+**A refactor came with it**: `fire_at` had crossed the hundred-line limit the project keeps, so the incendiary branch became `set_alight_if_incendiary` - **the rule is about the target, so it
+reads better as its own function anyway.**
+
+**Named, not invented:** the body part the burn is applied to (`dealt_dam.bp_hit`), `IGNITE` and `IGNITE_FLARE`'s own branches, the pyromania morale, and the reference's post-shot dirt
+re-read that decides whether an **unlubricated** gun screeches.

@@ -1658,6 +1658,23 @@ pub struct Armour {
 ///
 /// The creature is left with **no** goal: what it wants to do is a system's business, and a monster that has
 /// just been placed has not decided anything yet.
+/// What a creature is made of: the reference's `mtype::materials` map, on the creature (`Creature::made_of`, `creature.cpp:1018`).
+///
+/// **A fact about the thing, so it lives on the thing.** The reference asks `target.made_of( material_veggy )` of the creature itself; the port used to answer such questions only if a caller
+/// held the whole `Vec<MonsterType>` - the same second source of truth the item registry removed.
+#[derive(bevy_ecs::prelude::Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct Materials(pub std::collections::BTreeMap<String, i32>);
+
+/// What a creature is made of, or nothing if it carries no materials.
+#[must_use]
+pub fn materials_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity) -> std::collections::BTreeMap<String, i32> {
+    world.get::<Materials>(creature).map_or_else(std::collections::BTreeMap::new, |made| made.0.clone())
+}
+
+/// Spawns a monster of a data type, carrying what it is made of.
+///
+/// Reference: `Monster::Monster( const mtype * )` (`monster.cpp:130-190`), which keeps the type's materials on the monster and is why `target.made_of( material_veggy )` can be asked of any
+/// creature without a table beside it.
 pub fn spawn_monster_of_type(
     world: &mut World,
     kind: crate::MonsterKindId,
@@ -1666,6 +1683,9 @@ pub fn spawn_monster_of_type(
     monster_speed_percent: i32,
 ) -> Entity {
     let entity = spawn_creature(world, &monster_type.name, square);
+    if !monster_type.materials.is_empty() {
+        world.entity_mut(entity).insert(Materials(monster_type.materials.clone()));
+    }
     set_kind(world, entity, kind);
     set_health(world, entity, monster_type.hp);
     set_speed(

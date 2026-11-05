@@ -900,3 +900,8 @@ gun's `Dirt` component inside `fire_at`. Gated by `shot_rules::a_shot_dirties_th
 **Round 1175 ported the incendiary rule's arithmetic**: `shot::incendiary_turns` (`creature.cpp:1013-1029`) - `amount` at half the damage, ignition at `amount in 50`, and a burn of
 `rng(2,6)*amount` for vegetable or flammable targets against `one_in(4)` and `rng(1,2)*amount` for flesh. Gated by `shot_rules::an_incendiary_round_burns_tinder_and_rarely_burns_flesh`, which
 counts two hundred tries at each material. The **wiring** needs the target's materials and is named as missing.
+
+**Round 1176 wired the incendiary rule to the target's materials**: `creature::Materials` (set by `spawn_monster_of_type`), `shot::catches_fire_readily` and `shot::is_flesh` (the reference's
+`cmat_flammable` and `cmat_flesh` name lists, `creature.cpp:171-178`), and `set_alight_if_incendiary` inside the pellet loop (`creature.cpp:1016-1029`). Gated by
+`shot_rules::an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one`, which asks the store for the `onfire` effect on a haystack against a stone golem. The new component had to be
+added to the inspection register, which `inspect_names::every_component_a_creature_carries_has_a_name` demanded.

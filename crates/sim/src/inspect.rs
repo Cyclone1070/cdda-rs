@@ -60,6 +60,7 @@ named_components! {
     "Wielding" => crate::creature::Wielding,
     "Strength" => crate::creature::Strength,
     "CreatureFlags" => crate::creature_flags::CreatureFlags,
+    "Materials" => crate::creature::Materials,
     "AppliedEffects" => crate::applied_effects::AppliedEffects,
     "Doing" => crate::creature::Doing,
     "Square" => crate::square::Square,

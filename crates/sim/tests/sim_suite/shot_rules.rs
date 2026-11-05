@@ -1025,3 +1025,86 @@ fn an_incendiary_round_burns_tinder_and_rarely_burns_flesh() {
     }
     assert!(lit > 0 && lit < 60, "a scratch ignites rarely: {lit} of 200");
 }
+
+/// An incendiary round that lands sets the target alight when the target's own materials say it should, and a plain round never does.
+///
+/// Reference: `Creature::deal_damage` (`creature.cpp:1016-1029`) asks `target.made_of( material_veggy ) || target.made_of_any( cmat_flammable )`, which is why the port puts the creature's
+/// `Materials` on the creature. The gate uses a **haystack** (veggy) and a **stone golem** (stone) so the materials are the only difference, and it asks the store for the effect rather than the
+/// function's return value.
+#[test]
+fn an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let incendiary = rounds
+        .iter()
+        .find(|round| round.has_effect("INCENDIARY"))
+        .expect("an incendiary round is in the dump")
+        .clone();
+    let plain = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+
+    let burn_after = |round: &cdda_content::ammo::AmmoType, material: &str| {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, Rolls::new(404));
+        let entry = cdda_json::parse(br#"{"id":"onfire","max_duration":"1 hours"}"#).expect("valid json");
+        let cdda_json::Value::Object(entry) = entry else {
+            panic!("an effect type is an object")
+        };
+        let kind = cdda_content::effects::read_one("onfire", &entry);
+        cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+
+        let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+        world
+            .entity_mut(shooter)
+            .insert(cdda_sim::creature::Strength { base: 8 })
+            .insert(cdda_sim::creature::Dexterity { base: 20 })
+            .insert(cdda_sim::creature::Perception { base: 20 })
+            .insert(cdda_sim::creature::Moves { left: 1_000 });
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
+        world
+            .entity_mut(target)
+            .insert(cdda_sim::creature::Health { hp: 5_000, max_hp: 5_000 })
+            .insert(cdda_sim::creature::Materials([(material.to_owned(), 1)].into_iter().collect()));
+        let held = world
+            .spawn((
+                cdda_sim::GroundItem {
+                    kind: cdda_sim::ItemTypeId(7),
+                    charges: 10,
+                    age: 0,
+                    burnt: 0,
+                    damage: 0,
+                    burn: None,
+                },
+                cdda_sim::Position { x: 0, y: 0, z: 0 },
+                cdda_sim::shot::NeverJams,
+            ))
+            .id();
+        // Fire until a pellet lands: a single shot can miss, and the claim is about what a landing incendiary round does.
+        for _ in 0..20 {
+            cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(round), Some(held), 3_180.0, false);
+            if !cdda_sim::applied_effects::worn(&world, target).is_empty() {
+                break;
+            }
+        }
+        cdda_sim::applied_effects::worn(&world, target)
+            .into_iter()
+            .find(|effect| effect.id == "onfire")
+            .map(|effect| effect.duration)
+    };
+
+    let veggy_plain = burn_after(&plain, "veggy");
+    assert_eq!(veggy_plain, None, "a plain round never sets anything alight: {veggy_plain:?}");
+    let veggy = burn_after(&incendiary, "veggy");
+    assert!(veggy.is_some(), "an incendiary round does set a veggy target alight over twenty shots");
+    assert!(veggy.is_some_and(|turns| turns >= 1), "for at least a turn: {veggy:?}");
+    assert_eq!(burn_after(&incendiary, "stone"), None, "and a stone target never catches, however many rounds land");
+}

@@ -299,6 +299,7 @@ pub fn fire_at(
         {
             hits += 1;
             hurt += hurt_once(world, struck, &blow);
+            set_alight_if_incendiary(world, struck, round, hurt);
         }
     }
     let aim = last_aim;
@@ -615,4 +616,47 @@ pub fn incendiary_turns(
         return Some(dice.rng(1, 2) * amount);
     }
     None
+}
+
+/// Whether a creature's materials make it catch fire readily: the reference's `made_of( material_veggy ) || made_of_any( cmat_flammable )` (`creature.cpp:1018`).
+///
+/// `cmat_flammable` is **paper, powder, wood, cotton and wool** (`creature.cpp:175-178`) - a list that says nothing about flesh, which is the point: a zombie is not tinder. The port reads
+/// the names off the creature's own [`crate::creature::Materials`].
+#[must_use]
+pub fn catches_fire_readily(materials: &std::collections::BTreeMap<String, i32>) -> bool {
+    materials.keys().any(|material| {
+        material == "veggy" || matches!(material.as_str(), "paper" | "powder" | "wood" | "cotton" | "wool")
+    })
+}
+
+/// Whether a creature's materials are flesh: the reference's `cmat_flesh`, which is **flesh and iflesh** (`creature.cpp:171-173`).
+#[must_use]
+pub fn is_flesh(materials: &std::collections::BTreeMap<String, i32>) -> bool {
+    materials.keys().any(|material| matches!(material.as_str(), "flesh" | "iflesh"))
+}
+
+/// Sets a creature alight when the round was incendiary and its materials say it should burn.
+///
+/// Reference: `Creature::deal_damage`'s incendiary branch (`creature.cpp:1016-1029`). Split out of [`fire_at`] because the shot's own line count had passed the project's limit, and because it
+/// is a rule about the **target** rather than about the shot.
+fn set_alight_if_incendiary(
+    world: &mut bevy_ecs::prelude::World,
+    struck: bevy_ecs::prelude::Entity,
+    round: Option<&cdda_content::ammo::AmmoType>,
+    damage: i32,
+) {
+    if !round.is_some_and(|round| round.has_effect("INCENDIARY")) {
+        return;
+    }
+    let Some(kind) = crate::effect_registry::kind_of(world, "onfire") else {
+        return;
+    };
+    let Some(mut dice) = crate::singletons::take_rolls(world) else {
+        return;
+    };
+    let made = crate::creature::materials_of(world, struck);
+    if let Some(turns) = incendiary_turns(damage, catches_fire_readily(&made), false, is_flesh(&made), &mut dice) {
+        crate::applied_effects::add(world, struck, crate::effects::ActiveEffect::new(&kind, i64::from(turns), 1));
+    }
+    crate::singletons::put_rolls(world, dice);
 }
