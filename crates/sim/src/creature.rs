@@ -2870,3 +2870,23 @@ pub fn give_moves(world: &mut World, entity: Entity, points: i32) {
         moves.left += points;
     }
 }
+
+/// How long heat damage sets a creature alight for, when it does: `Creature::deal_damage`'s heat branch (`creature.cpp:1482-1500`).
+///
+/// Reference:
+///
+/// ```text
+/// } else if( du.type == damage_heat ) {
+///     if( rng( 0, 100 ) < adjusted_damage ) {
+///         add_effect( source, effect_onfire, rng( 1_turns, 3_turns ), bp );
+/// ```
+///
+/// **The chance is the damage itself, out of a hundred and one** - `rng( 0, 100 )` draws **0 to 100 inclusive**, so a hundred points of heat still fails one time in a hundred and one, and
+/// anything above a hundred always lights. The burn is one to three turns, and the body part is the one that was hit.
+#[must_use]
+pub fn heat_sets_alight(damage: i32, dice: &mut cdda_core_types::rng::Rolls) -> Option<i64> {
+    if damage <= 0 || dice.rng(0, 100) >= damage {
+        return None;
+    }
+    Some(i64::from(dice.rng(1, 3)))
+}

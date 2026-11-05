@@ -13839,3 +13839,24 @@ incendiary round lands, the rule rolls against `veggy`, and the heart burns whil
 property of the test, not of the rule.
 
 **Named, not invented:** the `onfire` effect's own **damage per turn** (the reference's `effect_onfire` ticks and consumes), the body part, and the pyromania morale.
+
+## Heat damage sets things alight (round 1180)
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `Creature::deal_damage`'s heat branch (`creature.cpp:1482-1500`) | `creature::heat_sets_alight(damage, dice)` |
+Gate | - | `heat_sets_a_creature_alight_with_a_chance_equal_to_its_damage` |
+
+**The chance is the damage, and the hundred is inclusive.** `rng( 0, 100 ) < adjusted_damage` draws **0 to 100**, a hundred and one outcomes - so **a hundred points of heat still misses one time
+in a hundred and one**, and anything above a hundred always lights. **A port that wrote `rng(0, 99)` would be wrong by a hair nobody would ever notice**, which is exactly why the gate draws two
+thousand times at a hundred and asserts a **handful** of misses rather than none.
+
+**The burn is one to three turns and it is drawn**, so the rule and the duration are two dice in a row. That is the same shape as the incendiary and ignite rules above it - **the damage decides
+whether, a die decides how long** - and it is the third fire path the port now has, each with its own arithmetic.
+
+**What this closes and what it does not.** The port can now answer "this creature just took this much heat damage - is it alight, and for how long" with the reference's own numbers. What is still
+missing is the **per-turn tick** that deals the heat in the first place: fire damage to creatures lives in `map_field.cpp` (`rng( burn_min, burn_max )` per burning body part, `:1696-1701`), and the
+port's field system does not yet burn the creatures standing in it. **Named, not invented.**
+
+**Named, not invented, besides that:** the body part the burn is applied to, the pyromania morale, `damage_electric`'s speed debuff in the same chain, and the heat branch's `adjusted_damage`
+preceding it (skill, critical and graze multipliers, `creature.cpp:1471`), which the port computes in its own damage path rather than here.

@@ -917,3 +917,7 @@ scenario as the guard that the old shape still parses.
 **Round 1179 put the fire round in play**: `scenarios/a_survivor_fires_incendiary_rounds.txt` fires `556_incendiary` at a **triffid heart** - five hundred hit points, so the target survives long
 enough for the fire to be the claim - and asserts `expect monster effect onfire at 2 0`. It is the playtest the rounds 1174-1178 chain exists for, and it reaches the rule only because round 1178
 let a step name its round.
+
+**Round 1180 ported heat ignition**: `creature::heat_sets_alight` (`creature.cpp:1482-1500`) - `rng( 0, 100 ) < damage` then `rng( 1, 3 )` turns of `onfire`. Gated by
+`shot_rules::heat_sets_a_creature_alight_with_a_chance_equal_to_its_damage`, which pins the **inclusive hundred** by counting misses over two thousand draws. The per-turn heat tick that drives it
+(`map_field.cpp:1696-1701`) is named as missing.

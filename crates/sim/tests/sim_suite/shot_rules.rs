@@ -1223,3 +1223,42 @@ fn an_ignite_round_also_sets_a_burnable_target_alight() {
     assert!(turns > 0, "for a positive number of turns: {turns}");
     assert!(turns % 10 == 0 || turns % 6 == 0, "and by the ignite rule's own arithmetic, a multiple of ten or six: {turns}");
 }
+
+/// Heat damage sets a creature alight with a chance equal to the damage itself, out of a hundred and one.
+///
+/// Reference: `Creature::deal_damage`'s heat branch (`creature.cpp:1482-1500`) - `rng( 0, 100 ) < adjusted_damage`, then `rng( 1_turns, 3_turns )` of `onfire`. **The inclusive hundred is the
+/// detail worth pinning**: a hundred points of heat still misses one draw in a hundred and one, so "damage in a hundred" is not the rule and a port that wrote `rng(0, 99)` would be wrong by a
+/// hair in a way no one would ever notice.
+#[test]
+fn heat_sets_a_creature_alight_with_a_chance_equal_to_its_damage() {
+    use cdda_core_types::rng::Rolls;
+    use cdda_sim::creature::heat_sets_alight;
+
+    // Above a hundred always lights, and the burn is one to three turns.
+    let mut dice = Rolls::new(4);
+    let mut turns = Vec::new();
+    for _ in 0..100 {
+        let lit = heat_sets_alight(101, &mut dice);
+        assert!(lit.is_some(), "a hundred and one points of heat always lights");
+        turns.push(lit.unwrap_or(0));
+    }
+    assert!(turns.iter().all(|turns| (1..=3).contains(turns)), "and burns for one to three turns: {turns:?}");
+    let first = turns.first().copied().unwrap_or_default();
+    assert!(turns.iter().any(|turns| *turns != first), "the burn is drawn: {turns:?}");
+
+    // A hundred lights almost always but not quite: over two thousand draws a handful are missed.
+    let mut dice = Rolls::new(4);
+    let missed = (0..2_000).filter(|_| heat_sets_alight(100, &mut dice).is_none()).count();
+    assert!(missed > 0, "a hundred still misses sometimes: {missed} of 2000");
+    assert!(missed < 60, "but rarely - about one in a hundred and one: {missed} of 2000");
+
+    // Half the damage lights about half the time, and nothing lights nothing.
+    let mut dice = Rolls::new(4);
+    let lit = (0..2_000).filter(|_| heat_sets_alight(50, &mut dice).is_some()).count();
+    assert!((800..=1_150).contains(&lit), "fifty points light about half the time: {lit} of 2000");
+    let mut dice = Rolls::new(4);
+    for _ in 0..500 {
+        assert!(heat_sets_alight(0, &mut dice).is_none(), "no heat never lights");
+        assert!(heat_sets_alight(-5, &mut dice).is_none(), "and neither does negative heat");
+    }
+}
