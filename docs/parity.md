@@ -14094,3 +14094,22 @@ broke it anyway.**
 **Named, not invented:** `FRAGILE_MELEE`'s component-by-component breakdown (which needs an item's component list, a structure the port does not keep), `UNBREAKABLE`/`UNBREAKABLE_MELEE`,
 `EQUIPMENT_DAMAGE_CHANCE` enchantments, the weapon's destruction and the "your %s is damaged" messages, and **the wiring into a swing** - the arithmetic and the data are ported and gated, and the
 swing does not call them yet.
+
+## The wear rule has nowhere to land yet (round 1192)
+
+Round 1191 ported `handle_melee_wear`'s arithmetic and its data. This round went to wire it into a swing and found the wiring is **not a one-liner, and not a missing rule: a missing place**.
+
+**What the port has.** A wielded item is `creature::Wielding(ItemTypeId)` (`creature.rs:2627`) - **a kind and nothing else**. A ground item is an entity carrying `GroundItem { kind, charges, age, burnt, damage, burn }`
+(`lib.rs:2813-2829`), so **damage exists on the floor and not in the hand**.
+
+**What the reference has.** `Character::melee_attack` calls `handle_melee_wear( cur_weapon )` where `cur_weapon` is an `item_location` - a handle to **a specific item**, whose `damage()` is then incremented,
+and which can be destroyed outright (`melee.cpp:930`, `:293-300`). The reference's identity is the item; **the port's identity is the kind**.
+
+**So the blocker is a fact about the port's model, and it is a good one.** The port deliberately keeps *kinds* in the item registry and *things* as entities. A weapon that can be damaged needs to be a
+**thing** - an entity with `GroundItem`-like state that a character can hold. **That is the next slice, and it is P3 work (the item model), not P4 work (the combat rule).** Wiring the wear into a kind
+would be the second source of truth the architecture forbids: two rifles of the same kind would share one damage number.
+
+**What this round therefore did not do, and will not fake:** no swing wears anything yet. The arithmetic stays gated and uncalled, which `docs/parity.md` said in round 1191 and says here again.
+
+**The slice that unblocks it**, in order: a held item is an entity (spawned on wield, destroyed on drop), `Wielding` carries the **entity** rather than the kind, `GroundItem::damage` moves to the item's own
+component shared by both places, and then the swing calls `wear_damages` and adds the damage the reference adds - with the destruction branch the reference has and the port does not.

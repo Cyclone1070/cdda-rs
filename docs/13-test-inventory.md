@@ -963,3 +963,7 @@ flag alone. Gated by `sounds::a_deaf_monster_hears_nothing_though_its_type_says_
 the **prototypes dump version 2** column of the same name (`item::chip_resistance()`, `item.cpp:9375-9409`). Gated by
 `creature_fight::a_weapon_wears_by_its_own_arithmetic_and_a_zero_chance_is_the_worst_case` (the inverted strength term, the four-times durable multiplier, and the zero-chance quirk) and
 `content_suite::ammo_rules::every_prototype_states_its_chip_resistance` (9,912 prototypes, rock **20**, Mini-14 **10**, knife **9**). The swing does not call the rule yet, which the docs say.
+
+**Round 1192 did not add a test, and says why.** It went to wire round 1191's wear rule into a swing and found the port has **no place to record a held item's damage**: a wielded item is
+`Wielding(ItemTypeId)`, a kind, while `GroundItem::damage` lives only on the floor. Wiring the wear into a kind would give every rifle of that kind one shared damage number - the second source of
+truth the architecture forbids. The blocker and the slice that unblocks it are recorded in `docs/parity.md`.
