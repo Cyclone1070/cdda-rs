@@ -1055,3 +1055,7 @@ list nothing. The `blocks` callback is named as a simplification in `docs/parity
 **Round 1223 installed `Fault::block_faults`** (`item_registry::FaultBlocks` / `set_fault_blocks` / `blocks_of`, filled by `install_item_data`) and gave the swing's pick its real `blocks` callback, which
 round 1222 had stubbed to "nothing blocks anything". Gated by `ground_items::a_blocked_fault_is_never_picked`. **The first run failed in the useful direction**: the lookup was keyed by the candidates
 while `can_have_fault` asks each *present* fault what it prevents, so a blocked fault was still picked.
+
+**Round 1227 corrected round 1225's claim that "the message channel exists".** It does not: `crates/sim` has no message, log or event component, and every user-visible line today is a CLI outcome rather
+than something a rule emits. The wear path's two messages are therefore **P10 work** - a component a rule writes and the CLI reads - and printing from inside the rule would be the port's first hidden
+side effect. Recorded in `docs/parity.md`; no code changed.

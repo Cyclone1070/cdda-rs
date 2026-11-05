@@ -14521,3 +14521,13 @@ built the lookup **keyed by the candidates** instead. The first run returned `So
 
 **Named, not invented:** the fault catalogue's **`block_faults` graph is now real data** (installed from `faults.json` along with the types), and the reference's message on catching a fault is still not
 ported.
+
+## The wear messages need a channel that does not exist (round 1227)
+
+Round 1225 said the destruction and fault-catching messages were small because "the message channel exists — used by other rules". **It does not, and I checked instead of assuming this time:**
+`grep` across `crates/sim` finds **no message, log or event component at all** - the only `message` in the simulation is a `String` accessor on one type, and every user-visible line the port
+produces today is **an outcome the CLI prints**, not a message a rule emits into the world.
+
+**So the two messages are not a wiring job; they are P10 work.** `add_msg_player_or_npc` is a UI-text call, and the port's answer to it has to be a **component on the world that a rule writes and the CLI reads** - the same shape every other system's output takes. **Doing it as a one-off print inside `wear_the_wielded_weapon` would be the port's first hidden side effect**, which the architecture forbids more explicitly than it forbids a missing message.
+
+**What is therefore recorded, not written:** the destruction message, the fault-catching message, and with them every other `add_msg` the wear path carries. **They go together, once, when the message component is designed** - and that design is the next slice that is actually about the port's shape rather than about a rule.
