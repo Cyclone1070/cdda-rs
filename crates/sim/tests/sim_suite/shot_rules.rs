@@ -1300,3 +1300,37 @@ fn a_fire_burns_the_parts_its_intensity_reaches_and_every_part_on_the_ground() {
     let mut dice = Rolls::new(64);
     assert!(fire_burn(0, false, &every, &mut dice).is_empty(), "a fire that is out burns nothing");
 }
+
+/// A creature standing in fire is burnt every turn, and the burn can set it further alight.
+///
+/// Reference: `map_field.cpp:1696-1701` runs inside the fields pass, which is where the port now calls `burning::fire_burn` from. The gate builds a fire on the creature's square and runs
+/// **real turns** through the schedule rather than calling the rule, because the claim is that the stage is wired: **a rule with no caller is the failure mode this test exists for.**
+#[test]
+fn a_creature_standing_in_fire_is_burnt_every_turn() {
+    use bevy_ecs::prelude::*;
+    use cdda_core_types::rng::Rolls;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4242));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (3, 3, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 5_000, max_hp: 5_000 });
+    // A fire of intensity three: nine body parts, each for three to twelve, so a turn takes twenty-seven to a hundred and eight.
+    cdda_sim::add_field_strength(&mut world, (3, 3, 0), cdda_core_types::field::FieldId(14), 3);
+
+    let before = cdda_sim::creature::health_of(&world, zombie).expect("the zombie has hit points");
+    cdda_sim::turn::run_turn(&mut world);
+    let after_one = cdda_sim::creature::health_of(&world, zombie).expect("still there");
+    let taken = before - after_one;
+    assert!((27..=108).contains(&taken), "one turn in a three-intensity fire takes twenty-seven to a hundred and eight: {taken}");
+
+    // And it keeps happening: a second turn takes more, which is what "every turn" means.
+    cdda_sim::turn::run_turn(&mut world);
+    let after_two = cdda_sim::creature::health_of(&world, zombie).expect("still there");
+    assert!(after_two < after_one, "a second turn burns it again: {after_one} then {after_two}");
+
+    // A creature with no fire on its square is untouched, which is the other half of the claim.
+    let safe = cdda_sim::creature::spawn_creature(&mut world, "the bystander", (9, 9, 0));
+    world.entity_mut(safe).insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
+    cdda_sim::turn::run_turn(&mut world);
+    assert_eq!(cdda_sim::creature::health_of(&world, safe), Some(100), "nothing burnt a creature with no fire under it");
+}

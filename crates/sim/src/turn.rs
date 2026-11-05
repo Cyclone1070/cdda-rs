@@ -360,7 +360,50 @@ fn fields_stage(world: &mut World) {
         |_, to| !refusing.contains(&to),
         &mut rolls,
     );
+    burn_whoever_stands_in_fire(world, &mut rolls);
     singletons::put_rolls(world, rolls);
+}
+
+/// Burns the creatures standing in fire, once a turn.
+///
+/// Reference: the fire field's own creature work runs in `map::process_fields_in_submap` (`map_field.cpp:1626-1702`), which is the same pass that ages the fields - so the port runs it
+/// here, in the fields stage, after the sweep. **The per-part draws are the reference's** ([`crate::burning::fire_burn`]); what the port cannot yet do is keep a body part's own hit points,
+/// so the draws are **summed onto the creature's pool** and the summary says so.
+fn burn_whoever_stands_in_fire(world: &mut World, rolls: &mut Rolls) {
+    /// `fd_fire` in the reference's `field_type` numbering.
+    const FIRE: crate::FieldId = crate::FieldId(14);
+
+    let mut standing: Vec<bevy_ecs::entity::Entity> = Vec::new();
+    let Some(mut query) = world.try_query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::prelude::With<crate::creature::Health>>() else {
+        return;
+    };
+    standing.extend(query.iter(world));
+    for creature in standing {
+        let Some(at) = world.get::<crate::Position>(creature).copied() else {
+            continue;
+        };
+        let intensity = crate::field_strength_at(world, (at.x, at.y, at.z), FIRE);
+        if intensity < 1 {
+            continue;
+        }
+        // The reference asks whether the creature is on the ground; the port's creatures do not fall prone yet, so every one of them stands.
+        let burns = crate::burning::fire_burn(intensity, false, &[], rolls);
+        let total: i32 = burns.iter().map(|(_, damage)| *damage).sum();
+        if total > 0 {
+            #[allow(clippy::cast_precision_loss)]
+            crate::creature::hurt(world, creature, total as f32);
+        }
+        // Reference: `deal_damage` with heat sets the creature alight with a chance equal to the damage (`creature.cpp:1482-1484`), which is what keeps a burning creature burning.
+        let mut lit = None;
+        if let Some(turns) = crate::creature::heat_sets_alight(total, rolls) {
+            lit = Some(turns);
+        }
+        if let Some(turns) = lit
+            && let Some(kind) = crate::effect_registry::kind_of(world, "onfire")
+        {
+            crate::applied_effects::add(world, creature, crate::effects::ActiveEffect::new(&kind, turns, 1));
+        }
+    }
 }
 
 fn light_stage(world: &mut World) {

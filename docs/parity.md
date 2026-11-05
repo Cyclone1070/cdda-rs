@@ -13886,3 +13886,30 @@ floor slowly and the ceiling fast. That is the shape a port flattening to "inten
 
 **Named, not invented:** the `HEATSINK` and RM13-armour immunity, the **vehicle** adjustment (`adjusted_intensity -= 2` inside, `- 1` on top), the quadruped bundle, the messages, and the
 **wiring into the turn loop** - the rule is ported and gated, and the schedule does not yet call it for creatures standing in a fire, which is the next step rather than a claim.
+
+## The fire burns what stands in it, every turn (round 1183)
+
+Round 1182 ported the arithmetic and said the wiring was missing. This round wires it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the stage | the fire's creature work inside `map::process_fields_in_submap` (`map_field.cpp:1626-1702`) | `burn_whoever_stands_in_fire`, called from the **fields stage** after the sweep |
+the trigger | a creature on a square with `fd_fire` at intensity one or more | `field_strength_at(…, FieldId(14))` |
+the draws | one per burning body part | `burning::fire_burn`, **summed onto the creature's pool** |
+the after-effect | heat damage sets the creature alight (`creature.cpp:1482-1484`) | `creature::heat_sets_alight`, then `onfire` on the creature |
+Gate | - | `a_creature_standing_in_fire_is_burnt_every_turn` |
+
+**The gate runs real turns through the schedule, not the rule.** A rule with no caller is precisely the failure this port keeps catching, so the test builds a fire under a creature, calls
+`turn::run_turn`, and asks the store what the creature has left: **twenty-seven to a hundred and eight** for a three-intensity fire - nine parts times three-to-twelve - then **more on the second
+turn**, and **nothing at all** for a creature standing elsewhere. **Three claims, one turn loop.**
+
+**The chain from the shot now closes on itself.** Round 1175-1179 put `onfire` on a creature the shot burnt; this round makes a fire burn the creature standing in it and **light it in turn**, which
+is the reference's own feedback: `deal_damage` with heat has a chance to add the very effect that keeps the fire going.
+
+**The honest half: the port sums the parts.** The reference damages **each body part** and the port's creatures have **one hit point pool**, so nine draws are added together. That keeps the
+**total** right and loses **which limb** - and the gate asserts the total's range, which is the part the port can honour. **A port that could not say where the damage went should say so, and this
+paragraph is that.**
+
+**Named, not invented:** per-part hit points, `HEATSINK` and the RM13 armour's immunity, the vehicle adjustment, the quadruped bundle, the **messages**, `is_prone`/`on_ground` (the port has no
+prone state, so every creature is treated as standing - **and the reference's own comment says the ground case is much worse**), and the fire field's own growth and spread, which the sweep
+already does.

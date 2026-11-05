@@ -926,3 +926,7 @@ let a step name its round.
 with its fallthrough order, and every part for a creature on the ground) and `fire_burn` (one draw per part), all from `map_field.cpp:1663-1701`. Gated by
 `shot_rules::a_fire_burns_the_parts_its_intensity_reaches_and_every_part_on_the_ground`, whose first run proved the **fallthrough order** was the opposite of what the test assumed and the code
 was right. The turn-loop wiring is named as missing.
+
+**Round 1183 wired the fire**: `burn_whoever_stands_in_fire` in the **fields stage** of `crates/sim/src/turn.rs` (`map_field.cpp:1626-1702`), burning every creature on a square with `fd_fire`
+and lighting it with `creature::heat_sets_alight`. Gated by `shot_rules::a_creature_standing_in_fire_is_burnt_every_turn`, which runs **real turns through the schedule** - the guard against a
+rule with no caller - and asserts the burn, that it repeats, and that a creature elsewhere is untouched. The per-part draws are **summed** onto the single hit point pool, which the docs name.
