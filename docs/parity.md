@@ -16026,3 +16026,21 @@ never pays.
 
 **Named, not invented:** the weapon categories the reference registers for `UNARMED` (`weapon_category_UNARMED` is a data id the loader has not been pointed at), and the `athlete`/`archery`
 bonus categories, which still have no reader.
+
+## The real world knows what a weapon is mastered with (round 1325)
+
+| Piece | Reference | Port |
+|---|---|---|
+the item's category, joined by name | `itype::weapon_category` | `install_item_data` fills `set_item_weapon_categories` from the loaded types |
+the category table | `weapon_categories.json` | `proficiencies::set_weapon_categories` |
+the bonuses | `proficiency::_bonuses` | `proficiencies::install` from `corpus/proficiencies.json` |
+Gate | - | `the_binary_s_world_knows_what_a_weapon_is_mastered_with` |
+
+**Three tables have to reach the store, and until this round none of them did**: the real world installed items and monsters and **never a proficiency**. The gate proves all three agree by
+learning `prof_medium_swords_master` in a world built the way a playtest builds one and reading **0.95** back for `sword_wood`.
+
+**The join is by imported id, not by memory**: the categories are collected after `item_data::install`, so the numbers are the registry's own - the same rule the chip-resistance join already
+follows.
+
+**Named, not invented:** the weapon categories whose ids the data registers but whose **proficiencies the creature can never learn in play** (the learning path is crafting's), the `athlete` and
+`archery` bonus categories, and `UNARMED`'s own category data.

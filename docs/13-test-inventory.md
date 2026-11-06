@@ -1309,3 +1309,6 @@ item naming more than one.
 
 **Round 1324 gave an empty hand the `UNARMED` category** (`melee.cpp:570-578`), gated on both the multiplier and the fact that **the stamina floor swallows it** - a saving the reference's own
 arithmetic never pays.
+
+**Round 1325 made the real world install the weapon-category and proficiency tables** (`melee.cpp:570-578`, `:979-995`), gated by learning a mastery in a playtest-built world and reading the
+discount back.

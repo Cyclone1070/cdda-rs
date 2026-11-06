@@ -725,6 +725,33 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         .and_then(|bytes| cdda_json::parse(&bytes).ok())
         .map_or_else(std::collections::BTreeMap::new, |value| cdda_content::items::chip_resistance(&value));
     cdda_sim::item_data::install(world, &items, &chip_resistance);
+    // **What kind of weapon each item is**, joined by the name the registry just numbered: `wielded_weapon_categories` (`melee.cpp:570-578`) reads it before every swing charges
+    // stamina. A type that names no category is in the list with an empty one, which is the reference's own answer for a thing that is not a weapon.
+    let categories: Vec<(cdda_sim::ItemTypeId, Vec<String>)> = items
+        .iter()
+        .filter(|item| !item.weapon_category.is_empty())
+        .filter_map(|item| {
+            cdda_sim::item_registry::id_of(world, &item.id).map(|kind| (kind, item.weapon_category.clone()))
+        })
+        .collect();
+    cdda_sim::item_registry::set_item_weapon_categories(world, &categories);
+    // The category table and the proficiency bonuses, from the same data directory and the corpus: the swing's third input is what the swinger knows, and the second is these two tables.
+    if let Ok(text) = std::fs::read_to_string(data.join("weapon_categories.json"))
+        && let Ok(value) = cdda_json::parse(text.as_bytes())
+    {
+        let table: Vec<(String, Vec<String>)> = cdda_content::weapon_categories::from_data(&value)
+            .into_iter()
+            .map(|category| (category.id, category.proficiencies))
+            .collect();
+        cdda_sim::proficiencies::set_weapon_categories(world, &table);
+    }
+    let proficiencies = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json");
+    if let Ok(bytes) = std::fs::read(proficiencies)
+        && let Ok(value) = cdda_json::parse(&bytes)
+        && let Some((dump, _count)) = cdda_content::proficiencies::from_dump(&value)
+    {
+        cdda_sim::proficiencies::install(world, &dump);
+    }
     // The fault catalogue's types, from the same data directory: `set_random_fault_of_type` filters a kind's faults by this, and without it every fault is ineligible.
     if let Ok(faults) = cdda_content::faults::load_paths(&[&data]) {
         let typed: Vec<(String, String)> = faults.iter().map(|fault| (fault.id.clone(), fault.fault_type.clone())).collect();
@@ -1777,6 +1804,45 @@ mod item_data_tests {
         assert!(
             cdda_sim::item_registry::volume_of(&mut world, two_by_four) > 0,
             "and takes room"
+        );
+    }
+
+    /// The same world knows which proficiencies a weapon uses, because the swing asks before it charges stamina.
+    ///
+    /// Reference: `wielded_weapon_categories` (`melee.cpp:570-578`) and `get_total_melee_stamina_cost` (`melee.cpp:979-995`). **Three tables have to reach the store**: the item's own
+    /// `weapon_category`, the category's proficiency list, and each proficiency's bonus. A world with the first and not the other two pays full stamina for every swing and looks fine.
+    #[test]
+    fn the_binary_s_world_knows_what_a_weapon_is_mastered_with() {
+        let mut world = World::new();
+        super::install_item_data(&mut world).expect("the game data is in the repository");
+        let sword = cdda_sim::item_registry::id_of(&mut world, "sword_wood")
+            .expect("the data has a wooden sword");
+        assert_eq!(
+            cdda_sim::item_registry::weapon_categories_of(&mut world, sword),
+            vec!["MEDIUM_SWORDS".to_owned()],
+            "**the item knows its own kind**"
+        );
+        // A creature that knows the master's proficiency gets the discount, which needs all three tables to agree.
+        let dump = cdda_content::proficiencies::from_dump(&{
+            let text = std::fs::read_to_string(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json"),
+            )
+            .expect("the proficiency dump is in the corpus");
+            cdda_json::parse(text.as_bytes()).expect("the proficiency dump parses")
+        })
+        .expect("the proficiency dump loads")
+        .0;
+        cdda_sim::proficiencies::install(&mut world, &dump);
+        let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        assert!(
+            (cdda_sim::proficiencies::stamina_multiplier(&mut world, survivor, sword) - 1.0).abs() < 1e-6,
+            "a survivor who knows nothing gets no discount"
+        );
+        cdda_sim::proficiencies::learn(&mut world, survivor, "prof_medium_swords_master");
+        let discount = cdda_sim::proficiencies::stamina_multiplier(&mut world, survivor, sword);
+        assert!(
+            (discount - 0.95).abs() < 1e-6,
+            "**and a master of the medium sword gets five percent off**: {discount}"
         );
     }
 }
