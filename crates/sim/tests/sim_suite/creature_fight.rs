@@ -3538,3 +3538,68 @@ fn a_proficiency_can_only_make_a_swing_cheaper() {
         "a category that loses nothing leaves the multiplier where the first one left it"
     );
 }
+
+/// A proficiency's stat bonus is the sum over everything a creature knows, and archery is what lowers a bow's strength.
+///
+/// Reference: `proficiency_set::get_proficiency_bonus` (`proficiency.cpp:529-543`): **the sum runs over every known proficiency**, not over a weapon's category - a different shape from the
+/// stamina multiplier, which walks categories. And `item::get_min_str` (`item.cpp:15673-15694`) is its one reader with a rule: a bow's requirement falls by the archery strength bonus and
+/// **stops at zero**, because the reference's last line is `return min_str > 0 ? min_str : 0`.
+#[test]
+fn a_stat_bonus_adds_up_and_archery_lowers_a_bow() {
+    use cdda_sim::proficiencies::bonus;
+
+    let mut world = World::new();
+    let dump = cdda_content::proficiencies::Proficiencies {
+        by_id: [
+            (
+                "prof_athlete_basic".to_owned(),
+                cdda_content::proficiencies::Proficiency {
+                    id: "prof_athlete_basic".to_owned(),
+                    seconds: 14_400,
+                    can_learn: true,
+                    required: Vec::new(),
+                    bonuses: vec![("athlete".to_owned(), vec![("strength".to_owned(), 2.0)])],
+                },
+            ),
+            (
+                "prof_archery_master".to_owned(),
+                cdda_content::proficiencies::Proficiency {
+                    id: "prof_archery_master".to_owned(),
+                    seconds: 57_600,
+                    can_learn: true,
+                    required: Vec::new(),
+                    bonuses: vec![("archery".to_owned(), vec![("strength".to_owned(), 3.0)])],
+                },
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    cdda_sim::proficiencies::install(&mut world, &dump);
+
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    assert_eq!(bonus(&mut world, survivor, "athlete", "strength"), 0.0, "nothing known, nothing added");
+    cdda_sim::proficiencies::learn(&mut world, survivor, "prof_athlete_basic");
+    assert_eq!(bonus(&mut world, survivor, "athlete", "strength"), 2.0, "a basic athlete is two strength");
+    assert_eq!(
+        bonus(&mut world, survivor, "archery", "strength"),
+        0.0,
+        "**and the sum is per category**: an athlete is no archer"
+    );
+
+    // The bow's requirement falls by the archery bonus and stops at zero.
+    assert_eq!(cdda_content::items::min_strength_required(12, 0.0, true), 12, "a bow with no proficiency asks for twelve");
+    cdda_sim::proficiencies::learn(&mut world, survivor, "prof_archery_master");
+    let archery = bonus(&mut world, survivor, "archery", "strength");
+    assert_eq!(cdda_content::items::min_strength_required(12, archery, true), 9, "**a master archer asks for nine**");
+    assert_eq!(
+        cdda_content::items::min_strength_required(12, archery, false),
+        12,
+        "and a gun that is not a bow keeps its requirement: the reduction is for bows only"
+    );
+    assert_eq!(
+        cdda_content::items::min_strength_required(2, 9.0, true),
+        0,
+        "**and a requirement cannot go below nothing**"
+    );
+}

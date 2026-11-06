@@ -73,6 +73,11 @@ pub struct ItemType {
     pub price: i64,
     /// Category id, empty when the item states none.
     pub category: String,
+    /// How strong a hand the thing wants, from the data's `min_strength` (`item::get_min_str`, `item.cpp:15673-15694`).
+    ///
+    /// **Zero means it asks for nothing**, which is most things. A bow is the case with a rule behind it: the archery proficiencies reduce the requirement, so a field the loader dropped would
+    /// leave that reduction with nothing to reduce.
+    pub min_strength: i32,
     /// Which kinds of weapon this is, as the data names them (`itype::weapon_category`, read by `wielded_weapon_categories`, `melee.cpp:570-578`).
     ///
     /// **The data writes it two ways**: a bare string on most weapons and an array where one belongs to several kinds. A weapon with no category is not a weapon by this measure - the
@@ -1298,6 +1303,7 @@ fn resolve(
         integral_volume: -1,
         price: 0,
         category: String::new(),
+        min_strength: 0,
         weapon_category: Vec::new(),
         book: None,
         materials: BTreeMap::new(),
@@ -1404,6 +1410,9 @@ fn apply(
     }
     if let Some(category) = string(object, "category") {
         item.category = category;
+    }
+    if let Some(strength) = integer(object, "min_strength") {
+        item.min_strength = strength;
     }
     // **Both forms, because the data uses both**: `"weapon_category": "KNIVES"` on most weapons and an array on the ones that belong to several kinds.
     match object.get("weapon_category") {
@@ -2265,4 +2274,28 @@ fn merge_book(inherited: Option<crate::books::Book>, read: crate::books::Book, o
         generic: if stated("generic") { read.generic } else { parent.generic },
         proficiencies: if stated("proficiencies") { read.proficiencies } else { parent.proficiencies },
     }
+}
+
+/// The strength a weapon demands of the hand that holds it.
+///
+/// Reference: `item::get_min_str` (`item.cpp:15673-15694`):
+///
+/// ```text
+/// int min_str = type->min_str;
+/// if( type->gun->skill_used == skill_archery ) min_str -= p.get_proficiency_bonus( "archery", strength );
+/// ... gunmod modifiers ...
+/// return min_str > 0 ? min_str : 0;
+/// ```
+///
+/// **Only a bow gets the reduction**, which is why the flag is asked rather than the bonus: an archer's strength does nothing for a rifle. The subtraction is a `float` into an `int`, so it
+/// **truncates towards zero**, and the clamp at the end stops a strong archer from asking for a negative grip.
+#[must_use]
+pub fn min_strength_required(min_strength: i32, archery_bonus: f32, is_bow: bool) -> i32 {
+    let mut requirement = min_strength;
+    if is_bow {
+        #[allow(clippy::cast_possible_truncation)]
+        let reduction = archery_bonus as i32;
+        requirement -= reduction;
+    }
+    requirement.max(0)
 }

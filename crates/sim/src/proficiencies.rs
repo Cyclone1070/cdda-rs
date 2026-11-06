@@ -272,3 +272,37 @@ pub fn multiplier_for_categories(world: &mut World, creature: Entity, categories
     }
     crate::melee::proficiency_stamina_multiplier(&losses)
 }
+
+/// A stat bonus from the proficiencies a creature knows.
+///
+/// Reference: `proficiency_set::get_proficiency_bonus` (`proficiency.cpp:529-543`):
+///
+/// ```text
+/// float stat_bonus = 0;
+/// for( const proficiency_id &knows : known ) {
+///     const std::vector<proficiency_bonus> &prof_bonuses = knows->get_bonuses( category );
+///     for( const proficiency_bonus &bonus : prof_bonuses ) if( bonus.type == prof_bonus ) stat_bonus += bonus.value;
+/// }
+/// ```
+///
+/// **The sum runs over everything known, not over a weapon's category** - a different shape from [`stamina_multiplier`], which walks the weapon's categories. Both exist because the reference
+/// has both.
+#[must_use]
+pub fn bonus(world: &mut World, creature: Entity, category: &str, kind: &str) -> f32 {
+    let holder = crate::singletons::singleton::<ProficiencyRules, TheProficiencyRules>(world);
+    let Some(rules) = world.get::<ProficiencyRules>(holder).map(|rules| rules.dump.clone()) else {
+        return 0.0;
+    };
+    let Some(learned) = world.get::<Proficiencies>(creature).map(|set| set.known.clone()) else {
+        return 0.0;
+    };
+    let mut total = 0.0f32;
+    for proficiency in &learned {
+        if let Some(prof) = rules.by_id.get(proficiency)
+            && let Some(value) = prof.bonus_for(category, kind)
+        {
+            total += value;
+        }
+    }
+    total
+}

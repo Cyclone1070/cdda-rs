@@ -16044,3 +16044,22 @@ follows.
 
 **Named, not invented:** the weapon categories whose ids the data registers but whose **proficiencies the creature can never learn in play** (the learning path is crafting's), the `athlete` and
 `archery` bonus categories, and `UNARMED`'s own category data.
+
+## A stat bonus adds up and archery lowers a bow (round 1326)
+
+| Piece | Reference | Port |
+|---|---|---|
+the requirement | `min_strength` -> `item::get_min_str` (`item.cpp:15673-15694`) | `ItemType::min_strength`, `items::min_strength_required` |
+the sum | `proficiency_set::get_proficiency_bonus` (`proficiency.cpp:529-543`) | `proficiencies::bonus` |
+Gates | - | `item_melee_parity::a_weapon_states_the_strength_it_wants`, `creature_fight::a_stat_bonus_adds_up_and_archery_lowers_a_bow` |
+
+**The sum runs over everything known, not over a weapon's category** - a different shape from the stamina multiplier, which walks categories. Both exist because the reference has both, and a
+port that folded them into one helper would get one of the two wrong.
+
+**Only a bow gets the reduction**: the flag is asked rather than the bonus, so an archer's strength does nothing for a rifle. The subtraction is a `float` into an `int` and **truncates towards
+zero**, and the clamp stops a strong archer from asking for a negative grip.
+
+**The corpus counts are small and that is the finding**: **20** of 9,912 types state `min_strength` at all, and the largest requirement in the game is **90** - a mounted weapon, not a typo.
+
+**Named, not invented:** the gunmod modifiers (`min_str_required_mod` and its `_if_prone` twin), which the port's guns do not carry; `is_prone`'s move-mode; and the **vehicles**' use of the same
+strength bonus (`vehicle.cpp:1146`), which is P8.

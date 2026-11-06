@@ -172,3 +172,32 @@ fn a_weapon_states_its_category() {
         "with every name a real one"
     );
 }
+
+/// A gun or a bow states the strength it wants, and a real bow wants more than nothing.
+///
+/// Reference: `item::get_min_str` (`item.cpp:15673-15694`), whose `type->min_str` comes from the data's `min_strength` (`item_factory.cpp:4089`). **A bow is the interesting case**: it is
+/// exactly the kind of gun whose requirement the archery proficiencies reduce, so a loader that dropped the field would leave the reduction with nothing to reduce.
+#[test]
+fn a_weapon_states_the_strength_it_wants() {
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::items::load_paths(&paths).expect("the game's items load");
+
+    let demanding: Vec<&cdda_content::items::ItemType> = loaded
+        .iter()
+        .filter(|item| item.min_strength > 0)
+        .collect();
+    // **Twenty, and that small number is the finding**: the field only appears where an item states it, and the reference's own default is zero for everything else.
+    assert_eq!(demanding.len(), 20, "twenty types say how strong a hand they need");
+    assert!(
+        demanding.iter().any(|item| item.gun_skill.as_deref() == Some("archery")),
+        "and at least one of them is a bow, which is the one the archery proficiencies reduce"
+    );
+    // The largest is **90**, which is a mounted weapon rather than a typo: the field is the data's own number and the port passes it through unchanged.
+    assert_eq!(
+        demanding.iter().map(|item| item.min_strength).max(),
+        Some(90),
+        "and the largest requirement in the corpus is ninety"
+    );
+}

@@ -1312,3 +1312,6 @@ arithmetic never pays.
 
 **Round 1325 made the real world install the weapon-category and proficiency tables** (`melee.cpp:570-578`, `:979-995`), gated by learning a mastery in a playtest-built world and reading the
 discount back.
+
+**Round 1326 ported `item::get_min_str` and `proficiency_set::get_proficiency_bonus`** (`item.cpp:15673-15694`, `proficiency.cpp:529-543`), gated on the **two different shapes** they have
+versus the stamina rule and on the corpus's **20** types that state a strength requirement at all.
