@@ -201,3 +201,42 @@ fn a_weapon_states_the_strength_it_wants() {
         "and the largest requirement in the corpus is ninety"
     );
 }
+
+/// Armour states how much of the vitals it covers, separately from how much of the part it covers.
+///
+/// Reference: `item_factory.cpp:3163` - `optional( jo, false, "cover_vitals", cover_vitals, 0 )`, whose default is **zero and not the part's coverage**. That is the number
+/// `Creature::get_crit_factor` (`creature.cpp:890-901`) subtracts, so a loader that defaulted it to the part's coverage would make every jacket stop every critical.
+#[test]
+fn armour_states_its_vitals_coverage() {
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::items::load_paths(&paths).expect("the game's items load");
+
+    let vest = loaded
+        .iter()
+        .find(|item| item.id == "ballistic_vest_esapi")
+        .expect("the data has a ballistic vest");
+    let torso = vest
+        .armor_parts
+        .iter()
+        .find(|part| part.covers.iter().any(|part| part == "torso"))
+        .expect("the vest covers the torso");
+    assert_eq!(torso.cover_vitals, 90, "**the vest's torso entry covers ninety percent of the vitals**");
+
+    let covering: Vec<&cdda_content::items::ItemType> = loaded
+        .iter()
+        .filter(|item| item.armor_parts.iter().any(|part| part.cover_vitals > 0))
+        .collect();
+    assert!(
+        covering.len() > 50,
+        "dozens of types state a vitals figure: {}",
+        covering.len()
+    );
+    // **Most things state nothing**, and the default is zero: a plain shirt is not vitals armour.
+    let shirt = loaded.iter().find(|item| item.id == "longshirt").expect("the data has a long shirt");
+    assert!(
+        shirt.armor_parts.iter().all(|part| part.cover_vitals == 0),
+        "**and a long shirt covers none of the vitals**"
+    );
+}

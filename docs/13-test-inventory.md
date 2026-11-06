@@ -1327,3 +1327,6 @@ figure at a full `crit_mod`.
 
 **Round 1330 ported `Creature::get_crit_factor`** (`creature.cpp:890-901`), gated on the clamp running **before** the subtraction and on a monster answering one - the reference's own
 `TODO: as_monster()` kept as a fact.
+
+**Round 1331 ported `cover_vitals` and the worn-vitals sum** (`item_factory.cpp:3163`, `character_attire.cpp:1553-1562`), gated on the default being **zero rather than the entry's coverage**
+and on the sum **adding up rather than taking the best piece**.

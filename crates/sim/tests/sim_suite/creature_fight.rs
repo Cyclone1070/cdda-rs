@@ -3738,3 +3738,19 @@ fn armour_over_the_vitals_dulls_a_critical() {
     assert!((crit_factor(150) - 0.0).abs() < 1e-9, "**with the clamp stopping an over-covered part at zero**");
     assert!((crit_factor(-5) - 1.0).abs() < 1e-9, "and a negative coverage clamps at none");
 }
+
+/// What a creature is wearing covers the vitals by **adding up**, not by taking the best piece.
+///
+/// Reference: `outfit::get_coverage` (`character_attire.cpp:1553-1562`) sums every worn item that covers the part - so two vests covering sixty per cent each add to **one hundred and
+/// twenty**, which `get_crit_factor` then clamps to a hundred. A port that took the maximum would stop at sixty and let a critical through, which is the case this gate pins.
+#[test]
+fn worn_armour_covers_the_vitals_by_adding_up() {
+    use cdda_sim::melee::{crit_factor, worn_vitals_cover};
+
+    // Three pieces: two that cover the part and one that does not.
+    let cover = worn_vitals_cover(&[(true, 60), (true, 60), (false, 100)]);
+    assert_eq!(cover, 120, "**two sixty-per-cent vests are a hundred and twenty**, and the piece that misses adds nothing");
+    assert!((crit_factor(cover) - 0.0).abs() < 1e-9, "which the factor clamps to none of the critical");
+    assert_eq!(worn_vitals_cover(&[]), 0, "and bare skin is zero");
+    assert!((crit_factor(worn_vitals_cover(&[(true, 30)])) - 0.7).abs() < 1e-9, "one vest of thirty leaves seventy percent");
+}

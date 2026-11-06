@@ -16136,3 +16136,23 @@ arithmetic already multiplies through.
 
 **Named, not invented:** `COVER_VITALS` itself - the per-item coverage figure the worn layer sums per body part, which the port's `dress` does not compute yet, so `crit_factor` has a rule and no
 caller until the coverage half lands; and the melee half of the same question (`melee.cpp:469`), which needs the struck body part the port already picks.
+
+## What covers the vitals adds up (round 1331)
+
+| Piece | Reference | Port |
+|---|---|---|
+the item's figure | `cover_vitals`, `item_factory.cpp:3163` | `ArmorPart::cover_vitals`, default **zero** |
+the sum | `outfit::get_coverage` (`character_attire.cpp:1553-1562`) | `melee::worn_vitals_cover` |
+Gate | - | `item_melee_parity::armour_states_its_vitals_coverage`, `creature_fight::worn_armour_covers_the_vitals_by_adding_up` |
+
+**The default is zero, not the entry's coverage**: a long shirt covers a torso and **no vitals at all**, and the gate pins that shirt against the corpus's **102** entries that state the
+figure. A loader that defaulted it to `coverage` would make every jacket stop every critical.
+
+**The sum is not clamped where it is summed** - two sixty-per-cent vests make **one hundred and twenty** - because the clamp belongs to `crit_factor`. A port that clamped at the sum would
+answer the same for one vest and two; a port that took the best piece would answer sixty and let a critical through.
+
+**`cover_vitals` is per armour entry and copied onto each material row**, since a portion's figures are the portion's and the rows exist per material. That is a derivation of one value,
+not a second source of truth: every row of the same entry carries the same figure.
+
+**Named, not invented:** the `COVER_MELEE`/`COVER_RANGED` twins (data present, no rule reads them), `specifically_covers`' sub-part coverage, and the **caller** that walks the worn items and
+asks each whether it covers the part - the port's `Garment` keeps material layers rather than per-entry figures, so the join is named rather than faked.

@@ -918,3 +918,26 @@ pub fn crit_factor(vitals_cover: i32) -> f32 {
     let factor = 1.0 - cover as f32 / 100.0;
     factor
 }
+
+/// How many percent of a creature's vitals its worn armour covers on one body part.
+///
+/// Reference: `outfit::get_coverage` (`character_attire.cpp:1553-1562`):
+///
+/// ```text
+/// int total_cover = 0;
+/// for( const item &it : worn ) if( it.covers( bp ) ) total_cover += it.get_coverage( bp, cover_type );
+/// return total_cover;
+/// ```
+///
+/// **The sum is not clamped here** - two sixty-per-cent vests make a hundred and twenty - because the caller's clamp is [`crit_factor`]'s own (`creature.cpp:893`). A port that clamped
+/// here would answer the same for one vest and two, and a port that took the best piece would answer sixty.
+///
+/// Each entry is whether the piece covers the part at all, and its `cover_vitals` figure; a piece that does not cover the part contributes nothing however much of the vitals it would cover.
+#[must_use]
+pub fn worn_vitals_cover(pieces: &[(bool, i32)]) -> i32 {
+    pieces
+        .iter()
+        .filter(|(covers, _)| *covers)
+        .map(|(_, cover)| *cover)
+        .sum()
+}

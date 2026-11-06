@@ -618,6 +618,11 @@ pub struct ArmorPart {
     pub covers: Vec<String>,
     /// The sub-locations it covers on each of them, as entry indices.
     pub entry: usize,
+    /// The percentage of the **vitals** this entry covers, from the data's `cover_vitals` (`item_factory.cpp:3163`).
+    ///
+    /// **Its default is zero, not the entry's coverage**: a long shirt covers a torso and no vitals at all, and `Creature::get_crit_factor` (`creature.cpp:890-901`) subtracts this figure
+    /// rather than the part's. A loader that defaulted it to `coverage` would make every jacket stop every critical.
+    pub cover_vitals: i32,
     /// The percentage of that part this material covers (`covered_by_mat`, `item_factory.cpp:3136`), which decides
     /// whether a given hit meets it at all. The reference defaults it to 100 and refuses a file that states
     /// anything outside 1..=100; the port keeps whatever the file says so that a bad value shows up in the
@@ -1599,12 +1604,15 @@ fn apply_armor_slots(item: &mut ItemType, object: &Object) {
                     .get("covered_by_mat")
                     .and_then(numeric)
                     .unwrap_or(100.0) as i32;
+                #[allow(clippy::cast_possible_truncation)]
+                let cover_vitals = entry.get("cover_vitals").and_then(numeric).unwrap_or(0.0) as i32;
                 item.armor_parts.push(ArmorPart {
                     material: name.clone(),
                     thickness,
                     covers: covers.clone(),
                     entry: index,
                     cover,
+                    cover_vitals,
                 });
             }
         }
