@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 17:10:59
-@@ -0,0 +1,7127 @@
++++ oracle/src/src/harness.cpp	2026-11-06 17:51:47
+@@ -0,0 +1,7186 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1378,6 +1378,65 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                                          static_cast<double>( roll ), u.crit_chance( roll, 0.0f, weap ) );
 +                        }
 +                    }
++                }
++            }
++        }
++    }
++    std::fprintf( out, "]}\n" );
++    std::fflush( out );
++    std::fclose( out );
++}
++
++/// What a swing costs in moves and stamina, swept over the inputs the two rules read.
++///
++/// Reference: `Character::attack_speed` (`src/melee.cpp:2668-2712`) and `Character::get_total_melee_stamina_cost` (`src/melee.cpp:970-996`). Both were transcribed into the port from the
++/// source and neither had ever been compared against the reference's own answer - the class of defect the crit-chance dump found twice. **The two are swept together** because they read the
++/// same character: the melee skill, dexterity, the stamina ratio, the stance and the weapon.
++void dump_swing_cost( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    avatar &u = get_avatar();
++    u.set_body();
++    u.str_cur = 10;
++    u.str_max = 10;
++    u.dex_max = 20;
++    const std::array<std::pair<const char *, int>, 6> weapons = { {
++            { "null", 0 },
++            { "crowbar", 0 },
++            { "knife_combat", 0 },
++            { "sword_wood", 0 },
++            { "mace", 0 },
++            { "hammer", 0 },
++        } };
++    const std::array<int, 4> skills = { { 0, 3, 7, 10 } };
++    const std::array<int, 3> dexterities = { { 0, 8, 20 } };
++    const std::array<float, 3> stamina_ratios = { { 0.0f, 0.25f, 1.0f } };
++    std::fprintf( out, "{\"rows\":[" );
++    bool first_row = true;
++    for( const auto &weapon : weapons ) {
++        item weap( itype_id( weapon.first ), calendar::turn, 1 );
++        for( int skill : skills ) {
++            u.set_skill_level( skill_id( "melee" ), skill );
++            for( int dexterity : dexterities ) {
++                u.dex_cur = dexterity;
++                // Both are plain ints (`character.h:3164-3165`): the reference keeps stamina as whole units, so the ratio is set with whole numbers too.
++                const int stamina_max = u.get_stamina_max();
++                for( float ratio : stamina_ratios ) {
++                    u.set_stamina( static_cast<int>( ratio * static_cast<float>( stamina_max ) ) );
++                    const double ratio_used = static_cast<double>( u.get_stamina() ) / static_cast<double>( stamina_max );
++                    if( !first_row ) {
++                        std::fprintf( out, "," );
++                    }
++                    first_row = false;
++                    std::fprintf( out,
++                                  "{\"weapon\":\"%s\",\"melee_skill\":%d,\"dexterity\":%d,\"stamina_ratio\":%.6f,"
++                                  "\"attack_speed\":%d,\"stamina_cost\":%d,\"weapon_time\":%d}",
++                                  weapon.first, skill, dexterity, ratio_used, u.attack_speed( weap ),
++                                  u.get_total_melee_stamina_cost( &weap ), weap.attack_time( u ) );
 +                }
 +            }
 +        }
@@ -7489,8 +7548,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-06 15:30:23
-@@ -0,0 +1,419 @@
++++ oracle/src/src/harness.h	2026-11-06 17:41:53
+@@ -0,0 +1,420 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -7609,6 +7668,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_recipes( const std::string &path );
 +void dump_proficiencies( const std::string &path );
 +void dump_crit_chance( const std::string &path );
++void dump_swing_cost( const std::string &path );
 +void dump_mutations( const std::string &path );
 +void dump_mutation_categories( const std::string &path );
 +/// Writes what every recipe produces, for a batch of one and of two - see `harness.cpp`.
@@ -8084,7 +8144,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-06 16:39:49
++++ oracle/src/src/main.cpp	2026-11-06 17:41:53
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -8095,7 +8155,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,162 @@
+@@ -272,6 +275,163 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -8242,6 +8302,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_recipes;
 +    std::string dump_proficiencies;
 +    std::string dump_crit_chance;
++    std::string dump_swing_cost;
 +    std::string dump_mutations;
 +    std::string dump_mutation_categories;
 +    std::string dump_crafting;
@@ -8258,7 +8319,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +459,1390 @@
+@@ -300,6 +460,1400 @@
                  }
              },
              {
@@ -8438,6 +8499,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_proficiencies = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-swing-cost", "<file>",
++                "Writes Character::attack_speed and get_total_melee_stamina_cost over a sweep to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_swing_cost = params[0];
 +                    return 1;
 +                }
 +            },
@@ -9649,7 +9720,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2329,755 @@
+@@ -786,6 +2340,761 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -9920,6 +9991,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_mutations( cli.dump_mutations );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_swing_cost.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_swing_cost( cli.dump_swing_cost );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_crit_chance.empty() ) {

@@ -159,3 +159,4 @@ pub mod overmap_build;
 pub mod overmap_special;
 pub mod skills;
 pub mod crit_chance;
+pub mod swing_cost;

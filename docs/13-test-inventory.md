@@ -1348,3 +1348,6 @@ with no `Skills` component - a zero-level character still rolls, and only a mons
 
 **Round 1337 dumped `crit_chance` from the reference** (`--dump-crit-chance`, 3,072 rows in `corpus/melee/crit-chance.json`) and compared the port's rule against every one. It found two
 defects - **the empty hand's -2 accuracy** and **the skill term reading the weapon's skill** - and one defect in the dump itself, a sweep that labelled dexterity without setting it.
+
+**Round 1338 dumped the swing's two costs from the reference** (`--dump-swing-cost`, 216 rows) and compared both against the port: `attack_speed` and the stamina cost agree on every row,
+and the gate caught a **unit** error - item weights are milligrams, the rule wants grams.

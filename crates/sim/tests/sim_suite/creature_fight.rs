@@ -3956,3 +3956,68 @@ fn an_empty_hands_accuracy_is_minus_two() {
         "**while a balanced one leaves the half whole**: 0.5 * 0.49 * 0.25"
     );
 }
+
+/// The reference's own swing costs - moves and stamina - compared against the port's, row by row.
+///
+/// Reference: `Character::attack_speed` (`melee.cpp:2668-2712`) and `Character::get_total_melee_stamina_cost` (`melee.cpp:970-996`), dumped by `--dump-swing-cost` into
+/// `corpus/melee/swing-cost.json`. **Both were transcribed from the source and neither had ever been compared against the reference's own answer**, which is the class of defect the
+/// crit-chance dump found twice - a rule that reads right and answers differently.
+///
+/// The two rules are checked together because they read the same character: the melee skill, dexterity, the weapon's own time and the share of stamina it had left.
+#[test]
+fn the_ported_swing_cost_matches_the_reference() {
+    use cdda_sim::melee::{attack_speed, stamina_cost};
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/melee/swing-cost.json");
+    let bytes = std::fs::read(&path).expect("the swing cost dump is in the corpus");
+    let value = cdda_json::parse(&bytes).expect("the swing cost dump parses");
+    let rows = cdda_content::swing_cost::from_dump(&value).expect("the swing cost dump loads");
+    assert!(rows.len() > 100, "the dump holds {} rows, which is too few", rows.len());
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let dirs: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let items = cdda_content::items::load_paths(&dirs).expect("the game's items load");
+
+    let mut moves_checked = 0;
+    let mut stamina_checked = 0;
+    let mut failures = Vec::new();
+    for row in &rows {
+        // The port's `attack_speed` takes the weapon's own time **halved**, which the reference does inside the rule (`weap.attack_time() / 2`).
+        let port_moves = attack_speed(row.weapon_time / 2, row.melee_skill, row.dexterity, f64::from(row.stamina_ratio));
+        moves_checked += 1;
+        if port_moves != row.attack_speed {
+            failures.push(format!(
+                "{} skill {} dex {} stamina {}: moves {} vs reference {}",
+                row.weapon, row.melee_skill, row.dexterity, row.stamina_ratio, port_moves, row.attack_speed
+            ));
+        }
+        // The stamina rule reads the weapon's **weight**, which the port takes as an argument rather than reading off a held item - so the join is the same game data by id.
+        let weight = if row.weapon == "null" {
+            0
+        } else {
+            items
+                .iter()
+                .find(|item| item.id == row.weapon)
+                // The type's weight is in **milligrams** (`content::items::ItemType::weight`), and the port's stamina rule wants grams - so the join divides by a thousand, which is the
+                // same figure the reference's `weight() / 16_gram` sees.
+                .map_or(0, |item| item.weight / 1_000)
+        };
+        let port_stamina = stamina_cost(weight, row.melee_skill, 0, 1.0);
+        stamina_checked += 1;
+        if port_stamina != row.stamina_cost {
+            failures.push(format!(
+                "{} skill {} dex {} stamina {}: stamina {port_stamina} vs reference {}",
+                row.weapon, row.melee_skill, row.dexterity, row.stamina_ratio, row.stamina_cost
+            ));
+        }
+    }
+    assert_eq!(moves_checked, rows.len(), "every row's moves were compared");
+    assert_eq!(stamina_checked, rows.len(), "and every row's stamina");
+    assert!(
+        failures.is_empty(),
+        "{} disagreements of {} rows, first few: {:#?}",
+        failures.len(),
+        moves_checked,
+        &failures[..failures.len().min(5)]
+    );
+}

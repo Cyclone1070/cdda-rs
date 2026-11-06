@@ -16273,3 +16273,23 @@ labelled with a dexterity the reference never used**. A dump whose labels lie is
 
 **Named, not invented:** the martial-arts bonus and the `bio_cqb` skill floor, which the sweep holds at zero and which the port does not model; and the dump's dodge, held at zero so the
 pair term is decided by the roll alone.
+
+## The swing's two costs are checked against the reference (round 1338)
+
+| Piece | Reference | Port |
+|---|---|---|
+the dump | `attack_speed` (`melee.cpp:2668-2712`) + `get_total_melee_stamina_cost` (`melee.cpp:970-996`) | `--dump-swing-cost`, `corpus/melee/swing-cost.json`, **216 rows** |
+the loader | - | `content::swing_cost::from_dump` |
+Gate | - | `creature_fight::the_ported_swing_cost_matches_the_reference` - **both** figures, every row |
+
+**Both rules had been transcribed from the source and neither had ever been compared against the reference's own answer** - the same class of defect the crit-chance dump found twice. This
+time the transcription was right, and the gate says so with a count rather than a claim.
+
+**The moves rule matches on all 216 rows** including the stamina penalty's shape: a character with no wind pays **double** (`1 + (0.25 - ratio) * 4`), and the skill term truncates before it is
+subtracted, so the port's `as i32` is the reference's own cast.
+
+**The stamina rule matches too**, once the weapon's weight is joined in the right unit: the port's item types hold **milligrams** and the rule wants grams, which is the mistake the gate
+caught first - `-91050` where the reference says `-141`, a factor of 646.
+
+**Named, not invented:** `get_modifier( character_modifier_melee_stamina_cost_mod )` and the `ATTACK_SPEED` enchantment (both 1.0 in the sweep and unmodelled in the port), the martial-arts
+terms, and the stance rows - the dump holds every character on its feet, so the `on_ground`/crouch branches are still gated only by their own unit test.
