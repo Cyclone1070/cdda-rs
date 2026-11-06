@@ -49,6 +49,7 @@ fn steel_layer() -> cdda_content::armour::Layer {
 fn vest() -> Garment {
     Garment {
         layers: vec![("torso".to_owned(), steel_layer())],
+        vitals: Vec::new(),
     }
 }
 
@@ -121,6 +122,7 @@ fn two_layers_on_one_part_add_up() {
                     cover: 100,
                 },
             )],
+            vitals: Vec::new(),
         },
     ));
 
@@ -329,6 +331,7 @@ fn two_identical_blows_do_not_have_to_leave_the_same_vest() {
                             cover: 100,
                         },
                     )],
+                    vitals: Vec::new(),
                 },
             ))
             .id();
@@ -392,7 +395,7 @@ fn putting_something_on_costs_moves_by_its_layer() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let shirt = world
         .spawn((
-            cdda_sim::creature::Garment { layers: Vec::new() },
+            cdda_sim::creature::Garment { layers: Vec::new(), vitals: Vec::new() },
             cdda_sim::creature::Carried(survivor),
         ))
         .id();

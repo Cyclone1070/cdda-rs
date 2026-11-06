@@ -1330,3 +1330,6 @@ figure at a full `crit_mod`.
 
 **Round 1331 ported `cover_vitals` and the worn-vitals sum** (`item_factory.cpp:3163`, `character_attire.cpp:1553-1562`), gated on the default being **zero rather than the entry's coverage**
 and on the sum **adding up rather than taking the best piece**.
+
+**Round 1332 gave the store the question `vitals_cover_of`** - the worn walk that feeds `crit_factor` - gated on a garment with no vitals entries contributing nothing and the link living on
+the item rather than the wearer.

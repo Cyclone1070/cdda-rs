@@ -420,6 +420,33 @@ pub struct WornBy(pub Entity);
 pub struct Garment {
     /// The layers it puts in the way, per body part name.
     pub layers: Vec<(String, cdda_content::armour::Layer)>,
+    /// The percentage of each part's **vitals** it covers, per body part name (`cover_vitals`, `item_factory.cpp:3163`).
+    ///
+    /// **Zero is the usual answer** and it is left out of the list rather than written down: a shirt covers a torso and no vitals. The figure is worked out by content from the item's own
+    /// armour entries, so the simulation never needs the item data to answer it.
+    pub vitals: Vec<(String, i32)>,
+}
+
+/// How much of one body part's vitals a creature's worn armour covers.
+///
+/// Reference: `outfit::get_coverage( bp, COVER_VITALS )` (`character_attire.cpp:1553-1562`), walked the port's way: the wearer link lives on the **item** (`WornBy`), so this asks the
+/// items that name the creature rather than reading a list on the creature that could disagree with them.
+///
+/// **The answer adds up rather than taking the best piece**, which is the reference's own arithmetic and what [`crate::melee::crit_factor`] expects to clamp.
+#[must_use]
+pub fn vitals_cover_of(world: &World, creature: Entity, part: &str) -> i32 {
+    let Some(mut query) = world.try_query::<(&WornBy, &Garment)>() else {
+        return 0;
+    };
+    let pieces: Vec<(bool, i32)> = query
+        .iter(world)
+        .filter(|(worn, _)| worn.0 == creature)
+        .flat_map(|(_, garment)| {
+            // One entry per garment, so a garment that states the same part twice still counts once - which is what the reference's per-item sum does.
+            garment.vitals.iter().filter(|(covered, _)| covered == part).map(|(_, cover)| (true, *cover)).take(1).collect::<Vec<_>>()
+        })
+        .collect();
+    crate::melee::worn_vitals_cover(&pieces)
 }
 
 /// How long it takes to pick something up, in action points.

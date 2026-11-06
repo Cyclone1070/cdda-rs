@@ -1477,6 +1477,7 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
         cdda_sim::creature::WornBy(avatar),
         cdda_sim::creature::Garment {
             layers: layers.clone(),
+            vitals: Vec::new(),
         },
         cdda_sim::creature::Toughness::of(&shirt.flags),
     ));

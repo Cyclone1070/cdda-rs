@@ -203,6 +203,7 @@ fn armour_protects_the_part_it_covers_and_no_other() {
                     cover: 100,
                 },
             )],
+            vitals: Vec::new(),
         }
     }
 

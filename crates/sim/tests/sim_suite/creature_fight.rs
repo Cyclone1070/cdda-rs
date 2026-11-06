@@ -3754,3 +3754,48 @@ fn worn_armour_covers_the_vitals_by_adding_up() {
     assert_eq!(worn_vitals_cover(&[]), 0, "and bare skin is zero");
     assert!((crit_factor(worn_vitals_cover(&[(true, 30)])) - 0.7).abs() < 1e-9, "one vest of thirty leaves seventy percent");
 }
+
+/// The store answers what a creature's worn armour covers of one part's vitals, by asking each garment it wears.
+///
+/// Reference: `Character::get_crit_factor` (`creature.cpp:890-901`) asks `worn.get_coverage( bp, COVER_VITALS )`, which walks the worn list (`character_attire.cpp:1553-1562`). The port
+/// keeps the wearer link on the **item** (`WornBy`), so the walk runs the other way: the items that name this creature, not a list on the creature that could disagree with them.
+#[test]
+fn the_store_says_what_a_creature_wears_over_its_vitals() {
+    let mut world = World::new();
+    let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    // A vest that covers ninety percent of the torso's vitals, and a hat that covers ninety of the head's.
+    world.spawn((
+        cdda_sim::creature::WornBy(survivor),
+        cdda_sim::creature::Garment {
+            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { resist: 1.0, thickness: 1.0, cover: 100 })],
+            vitals: vec![("torso".to_owned(), 90)],
+        },
+    ));
+    world.spawn((
+        cdda_sim::creature::WornBy(survivor),
+        cdda_sim::creature::Garment {
+            layers: vec![("head".to_owned(), cdda_content::armour::Layer { resist: 1.0, thickness: 1.0, cover: 100 })],
+            vitals: vec![("head".to_owned(), 90)],
+        },
+    ));
+    assert_eq!(cdda_sim::creature::vitals_cover_of(&world, survivor, "torso"), 90, "**the vest covers ninety**");
+    assert_eq!(cdda_sim::creature::vitals_cover_of(&world, survivor, "head"), 90, "and the hat covers the head's");
+    assert_eq!(
+        cdda_sim::creature::vitals_cover_of(&world, survivor, "leg_l"),
+        0,
+        "**and neither covers a leg**"
+    );
+    // A garment that covers no vitals is still worn, and still adds nothing.
+    world.spawn((
+        cdda_sim::creature::WornBy(survivor),
+        cdda_sim::creature::Garment {
+            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { resist: 1.0, thickness: 1.0, cover: 100 })],
+            vitals: Vec::new(),
+        },
+    ));
+    assert_eq!(
+        cdda_sim::creature::vitals_cover_of(&world, survivor, "torso"),
+        90,
+        "**a shirt over the vest adds nothing to the vitals**"
+    );
+}

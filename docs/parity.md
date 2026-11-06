@@ -16156,3 +16156,19 @@ not a second source of truth: every row of the same entry carries the same figur
 
 **Named, not invented:** the `COVER_MELEE`/`COVER_RANGED` twins (data present, no rule reads them), `specifically_covers`' sub-part coverage, and the **caller** that walks the worn items and
 asks each whether it covers the part - the port's `Garment` keeps material layers rather than per-entry figures, so the join is named rather than faked.
+
+## The store says what a creature wears over its vitals (round 1332)
+
+| Piece | Reference | Port |
+|---|---|---|
+the garment's figure | `cover_vitals` per armour entry | `Garment::vitals`, worked out by content |
+the walk | `outfit::get_coverage` (`character_attire.cpp:1553-1562`) | `creature::vitals_cover_of` |
+Gate | - | `creature_fight::the_store_says_what_a_creature_wears_over_its_vitals` |
+
+**The walk runs the other way from the reference's**, because the wearer link lives on the **item** (`WornBy`) rather than in a list on the wearer: a list on both sides is a second copy that
+can disagree, and the architecture forbids exactly that.
+
+**A garment that states the same part twice still counts once**, which is what the reference's per-item sum does - the gate pins a shirt with no vitals entries adding **nothing** over a vest
+that covers ninety.
+
+**Named, not invented:** the caller that feeds this into `crit_factor` and the melee/ranged strike itself; the `COVER_MELEE`/`COVER_RANGED` twins; and the sub-part coverage.

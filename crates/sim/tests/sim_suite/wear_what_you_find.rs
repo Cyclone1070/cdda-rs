@@ -48,6 +48,7 @@ fn a_vest_on_the_floor(world: &mut World) -> Entity {
                 cover: 100,
             },
         )],
+        vitals: Vec::new(),
     });
     vest
 }

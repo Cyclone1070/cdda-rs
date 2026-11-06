@@ -97,6 +97,7 @@ fn a_vest_stops_five_of_it() {
                     cover: 100,
                 },
             )],
+            vitals: Vec::new(),
         },
     ));
     dress(&mut world);
@@ -248,6 +249,7 @@ fn a_vest_that_stops_blow_after_blow_comes_apart_and_then_the_flesh_does() {
                         cover: 100,
                     },
                 )],
+                vitals: Vec::new(),
             },
         ))
         .id();
