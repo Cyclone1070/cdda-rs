@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 21:51:14
-@@ -0,0 +1,7215 @@
++++ oracle/src/src/harness.cpp	2026-11-07 00:01:13
+@@ -0,0 +1,7244 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -6805,12 +6805,41 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const bool lower = part.has_flag( json_character_flag( "LIMB_LOWER" ) );
 +        std::fprintf( out,
 +                      "%s\n{\"id\":\"%s\",\"name\":\"%s\",\"hit_size\":%.6f,"
-+                      "\"hit_difficulty\":%.6f,\"upper\":%s,\"lower\":%s}",
++                      "\"hit_difficulty\":%.6f,\"upper\":%s,\"lower\":%s",
 +                      first ? "" : ",", harness_escape( part.id.str() ).c_str(),
 +                      harness_escape( part.name.translated() ).c_str(),
 +                      static_cast<double>( part.hit_size ),
 +                      static_cast<double>( part.hit_difficulty ),
 +                      upper ? "true" : "false", lower ? "true" : "false" );
++        // **What the part contributes to each limb score**, which is the input of the dodge, attack-speed and carrying rules:
++        // `body_part_type::limb_scores` holds a score and a max per id (`bodypart.cpp:424-434`), and `limbtypes` holds the part's
++        // limb types with the weight of each (`:331-370`).
++        // **Asked through the public getters, because the map itself is private** (`bodypart.h:211-213`): the score and its max are a method each (`:356-358`), and the
++        // reference's own `limb_score::get_all` is what says which scores exist at all.
++        std::fprintf( out, ",\"limb_scores\":[" );
++        bool first_score = true;
++        for( const limb_score &scored : limb_score::get_all() ) {
++            if( !part.has_limb_score( scored.getId() ) ) {
++                continue;
++            }
++            std::fprintf( out, "%s[\"%s\",%.6f,%.6f]", first_score ? "" : ",",
++                          harness_escape( scored.getId().str() ).c_str(),
++                          static_cast<double>( part.get_limb_score( scored.getId() ) ),
++                          static_cast<double>( part.get_limb_score_max( scored.getId() ) ) );
++            first_score = false;
++        }
++        std::fprintf( out, "],\"limb_types\":[" );
++        bool first_type = true;
++        for( const auto &typed : part.limbtypes ) {
++            std::fprintf( out, "%s[\"%s\",%.6f]", first_type ? "" : ",",
++                          io::enum_to_string<body_part_type::type>( typed.first ).c_str(),
++                          static_cast<double>( typed.second ) );
++            first_type = false;
++        }
++        std::fprintf( out, "],\"primary_limb_type\":%s",
++                      part.primary_limb_type() == body_part_type::type::num_types ? "null" :
++                      ("\"" + io::enum_to_string<body_part_type::type>( part.primary_limb_type() ) + "\"").c_str() );
++        std::fprintf( out, "}" );
 +        first = false;
 +    }
 +    // The anatomy list is deliberately not dumped: `anatomy_factory` is a file-local static in `anatomy.cpp`

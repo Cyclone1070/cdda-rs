@@ -16479,5 +16479,13 @@ flag answers zero.
 **The thresholds are the rules**: three quarters of a part's health costs nothing, the encumbrance threshold costs nothing, and the first point past either one moves the answer - which is what
 makes a half-health torso worth two thirds rather than a rounded half.
 
-**Named, not invented:** the per-part score itself (`body_part_type::get_limb_score`, the data's `limb_scores` list, e.g. a torso's `balance` of 0.7) and the creature-wide sum with limb
-type weights (`Character::get_limb_score`, `character_modifier.cpp:222-266`), which is the piece that will let the dodge and attack-speed chains finish.
+**The data is now in the dump and in the port** (round 1352). `--dump-anatomy` writes each part's `limb_scores` as `[ id, score, max ]`, its `limb_types` with weights, and its
+`primary_limb_type`; `content::body_parts` loads them. The figures are the subsystem's input - an arm's `manip` is `0.1` with a max of `0.2`, which is why the dump carries **three** numbers per
+score rather than two.
+
+**The dump's shape had to be asked for through public getters**: `body_part_type::limb_scores` is a **private** map (`bodypart.h:211-213`), so the harness asks `has_limb_score`,
+`get_limb_score` and `get_limb_score_max` (`:356-358`) and walks `limb_score::get_all()` to know which scores exist. A harness that reached into the map would have been reading the port's
+future structure instead of the reference's answers.
+
+**Named, not invented:** the creature-wide sum with limb-type weights (`Character::get_limb_score`, `character_modifier.cpp:222-266`), which is the piece that will let the dodge and
+attack-speed chains finish - and the wound and encumbrance inputs to it, since the port has no per-part health yet.

@@ -74,3 +74,48 @@ fn the_upper_and_lower_flags_come_from_the_data_not_from_the_name() {
     let none = part(&parts, "bp_null");
     assert_eq!(none.hit_size, 0.0, "the null part has no size at all");
 }
+
+/// A part states what it contributes to each limb score, and how much of the body's limb type it is.
+///
+/// Reference: `body_part_type::load` (`bodypart.cpp:424-434`) reads `limb_scores` as `[ id, score, max? ]` with the max defaulting to the score, and `bodypart.cpp:331-370` reads
+/// `limbtypes` as a map of limb type to weight - **defaulting to the plain `limb_type` at a weight of one** - and caches the heaviest as the part's primary type.
+///
+/// **The figures are the whole limb-score subsystem's input**: a torso's `balance` and an arm's `lift` are what the dodge and attack-speed chains add up, and a loader that dropped them
+/// would leave those rules unable to answer for a real body. The dump is the oracle's own answer, so the test reads the corpus rather than the raw JSON.
+#[test]
+fn a_body_part_states_its_limb_scores() {
+    let parts = loaded();
+    let torso = part(&parts, "torso");
+    let balance = torso
+        .limb_scores
+        .iter()
+        .find(|(score, _, _)| score == "balance")
+        .expect("a torso states a balance");
+    assert!((balance.1 - 0.7).abs() < 1e-6, "**a torso's balance is 0.7**: {}", balance.1);
+    assert!(
+        (balance.2 - balance.1).abs() < 1e-6,
+        "and its max is the score when the reference states no second figure"
+    );
+
+    let arm = part(&parts, "arm_l");
+    let lift = arm.limb_scores.iter().find(|(score, _, _)| score == "lift").expect("an arm lifts");
+    assert!((lift.1 - 0.5).abs() < 1e-6, "an arm's lift is half");
+    let manip = arm.limb_scores.iter().find(|(score, _, _)| score == "manip").expect("an arm manipulates");
+    assert!(
+        (manip.1 - 0.1).abs() < 1e-6 && (manip.2 - 0.2).abs() < 1e-6,
+        "**and `manip` states a max of its own**, which is why the dump carries three figures: {} {}",
+        manip.1,
+        manip.2
+    );
+    assert!(
+        arm.limb_types.iter().any(|(kind, weight)| kind == "arm" && (*weight - 1.0).abs() < 1e-6),
+        "an arm belongs to the arm limb type at a weight of one"
+    );
+    assert_eq!(arm.primary_limb_type.as_deref(), Some("arm"), "which is then its primary type");
+
+    // Every part in the dump carries a score list and a type, which is what makes the sum answerable for a whole body.
+    assert!(
+        parts.iter().all(|part| !part.limb_types.is_empty()),
+        "**every part belongs to some limb type**"
+    );
+}

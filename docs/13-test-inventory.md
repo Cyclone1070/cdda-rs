@@ -1386,3 +1386,6 @@ naming a flag the data might stop carrying.
 
 **Round 1351 started the limb-score subsystem**: the wound, encumbrance and skill adjustments that `bodypart::get_limb_score` applies - including the reference's **inert** skill term, which a
 port must copy rather than fix.
+
+**Round 1352 put the limb scores in the dump and the port**: `--dump-anatomy` now writes each part's `limb_scores` (`[ id, score, max ]`), its `limb_types` with weights and its
+`primary_limb_type`, read through the reference's public getters because the map itself is private.

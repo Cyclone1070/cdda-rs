@@ -20,6 +20,13 @@ pub struct BodyPartType {
     pub upper: bool,
     /// Whether it is low enough that a short attacker finds it easier.
     pub lower: bool,
+    /// What it contributes to each limb score, as `( score, value, max )` - the data's `limb_scores` (`bodypart.cpp:424-434`), whose third figure defaults to the second.
+    pub limb_scores: Vec<(String, f32, f32)>,
+    /// Which limb types it belongs to and how much of the body's weight of each it is, from the data's `limb_types` or its plain `limb_type` at a weight of one
+    /// (`bodypart.cpp:331-358`).
+    pub limb_types: Vec<(String, f32)>,
+    /// The type it is mostly, which the reference caches from the heaviest weight (`bodypart.cpp:359-370`).
+    pub primary_limb_type: Option<String>,
 }
 
 /// Reads one prototype.
@@ -60,12 +67,71 @@ pub fn read_prototype(
     let flag = |member: &str| -> bool {
         matches!(object.get(member), Some(cdda_json::Value::Bool(true)))
     };
+    // Reference: `limb_scores` is `[ id, score, max? ]` with the max defaulting to the score (`bodypart.cpp:424-434`). The dump the port reads states the same shape, so the loader keeps
+    // the three figures rather than reducing them to one.
+    let mut limb_scores = Vec::new();
+    if let Some(cdda_json::Value::Array(entries)) = object.get("limb_scores") {
+        for entry in entries {
+            let cdda_json::Value::Array(pair) = entry else {
+                continue;
+            };
+            let Some(cdda_json::Value::Str(score)) = pair.first() else {
+                continue;
+            };
+            let value = match pair.get(1) {
+                Some(cdda_json::Value::Float(found)) => *found as f32,
+                Some(cdda_json::Value::Int(found)) => *found as f32,
+                _ => continue,
+            };
+            let max = match pair.get(2) {
+                Some(cdda_json::Value::Float(found)) => *found as f32,
+                Some(cdda_json::Value::Int(found)) => *found as f32,
+                _ => value,
+            };
+            limb_scores.push((score.clone(), value, max));
+        }
+    }
+    // Reference: `limb_types` is a list of names or `[ name, weight ]` pairs, and a part that states none belongs to its plain `limb_type` at a weight of one (`bodypart.cpp:331-358`).
+    let mut limb_types: Vec<(String, f32)> = Vec::new();
+    match object.get("limb_types") {
+        Some(cdda_json::Value::Array(entries)) => {
+            for entry in entries {
+                match entry {
+                    cdda_json::Value::Str(kind) => limb_types.push((kind.clone(), 1.0)),
+                    cdda_json::Value::Array(pair) => {
+                        let Some(cdda_json::Value::Str(kind)) = pair.first() else {
+                            continue;
+                        };
+                        let weight = match pair.get(1) {
+                            Some(cdda_json::Value::Float(found)) => *found as f32,
+                            Some(cdda_json::Value::Int(found)) => *found as f32,
+                            _ => 1.0,
+                        };
+                        limb_types.push((kind.clone(), weight));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {
+            if let Some(cdda_json::Value::Str(kind)) = object.get("limb_type") {
+                limb_types.push((kind.clone(), 1.0));
+            }
+        }
+    }
+    let primary_limb_type = limb_types
+        .iter()
+        .max_by(|left, right| left.1.total_cmp(&right.1))
+        .map(|(kind, _)| kind.clone());
     Ok(BodyPartType {
         name,
         hit_size: number("hit_size"),
         hit_difficulty: number("hit_difficulty"),
         upper: flag("upper"),
         lower: flag("lower"),
+        limb_scores,
+        limb_types,
+        primary_limb_type,
         id,
     })
 }
