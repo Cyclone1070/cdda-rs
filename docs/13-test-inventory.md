@@ -1383,3 +1383,6 @@ many rules.
 
 **Round 1350 filled `WornFlags` in `cli`'s dresser**, closing the gap the skate round named: a real survivor's worn garment now carries its type's flags, and the test asks the store instead of
 naming a flag the data might stop carrying.
+
+**Round 1351 started the limb-score subsystem**: the wound, encumbrance and skill adjustments that `bodypart::get_limb_score` applies - including the reference's **inert** skill term, which a
+port must copy rather than fix.

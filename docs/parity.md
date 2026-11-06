@@ -16459,3 +16459,25 @@ Gate | - | `melee_rules::skates_cost_a_survivor_most_of_its_dodge`, `creature_fi
 **The dresser now fills the flags** (round 1350): `cli::dress_the_avatar` puts the garment type's own flags on the item, so a rule that asks what a **real** survivor is wearing answers for
 the demo's survivor and not only for a fixture. The gate asks the store rather than naming a flag, because the dresser picks the shirt by weight and a test that named one would break the day the
 data changed.
+
+## A hurt or loaded body part is worth less (round 1351)
+
+| Piece | Reference | Port |
+|---|---|---|
+the wound | `wound_adjusted_limb_value` (`bodypart.cpp:967-976`), whole above **three quarters**, scaled by `health / 0.75` below | `limbs::wound_adjusted_limb_value` |
+the load | `encumb_adjusted_limb_value` (`:978-990`), zero over the limit, otherwise `19 / ( 19 + load / 3 )` past the threshold | `limbs::encumb_adjusted_limb_value` |
+the skill | `skill_adjusted_limb_value` (`:992-996`), `min( value, value * (1 + skill/10) )` | `limbs::skill_adjusted_limb_value` |
+Gate | - | `limbs::a_hurt_part_is_worth_less`, `limbs::a_loaded_part_is_worth_less`, `limbs::skill_never_lowers_a_limb_value` |
+
+**The skill adjustment is inert in the reference and the port copies that.** `min( val, val * ( 1 + skill / 10 ) )` takes the smaller of the value and a figure that is **larger** for every
+non-negative skill, so it always answers the value it was given. It reads like a bonus and does nothing - and a port that "fixed" it would answer differently from the game it ported. The test
+says so in its name so nobody has to rediscover it.
+
+**The encumbrance curve never reaches zero**, which is why the reference needs the over-limit flag beside it: at a hundred thousand points of load the figure is still above nothing, and only the
+flag answers zero.
+
+**The thresholds are the rules**: three quarters of a part's health costs nothing, the encumbrance threshold costs nothing, and the first point past either one moves the answer - which is what
+makes a half-health torso worth two thirds rather than a rounded half.
+
+**Named, not invented:** the per-part score itself (`body_part_type::get_limb_score`, the data's `limb_scores` list, e.g. a torso's `balance` of 0.7) and the creature-wide sum with limb
+type weights (`Character::get_limb_score`, `character_modifier.cpp:222-266`), which is the piece that will let the dodge and attack-speed chains finish.
