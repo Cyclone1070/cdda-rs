@@ -3419,3 +3419,55 @@ fn the_ground_takes_the_wind() {
         "while indoors there is no wind however hard it blows"
     );
 }
+
+/// A swing from the floor or from a crouch costs extra, and a thing on pseudopods pays neither.
+///
+/// Reference: `get_total_melee_stamina_cost` (`melee.cpp:970-997`):
+///
+/// ```text
+/// const int stance_malus = ( is_on_ground() && !PSEUDOPOD_GRASP ) ? 50
+///     : ( !PSEUDOPOD_GRASP && !has_effect( natural_stance ) && !unarmed_attack() && is_crouching() ) ? 20
+///     : 0;
+/// ... return std::min<int>( -50, proficiency_multiplier * ( mod_sta + melee - stance_malus ) );
+/// ```
+///
+/// **Two maluses, and the reference asks them as a chain**: `50` if the swinger is on the ground, `20` only if it is also **not** on the ground, not in a natural stance and **armed**,
+/// and nothing otherwise. **`PSEUDOPOD_GRASP` cancels both**, because a thing on pseudopods is not inconvenienced by being low - the reference says as much in its own comment.
+#[test]
+fn a_low_swing_costs_more_stamina() {
+    use cdda_sim::melee::{Stance, stamina_cost, stance_malus};
+
+    let standing = Stance::default();
+    assert_eq!(stance_malus(standing), 0, "a standing, armed swing pays nothing extra");
+    assert_eq!(
+        stance_malus(Stance { on_ground: true, ..Stance::default() }),
+        50,
+        "**from the floor it is fifty**"
+    );
+    assert_eq!(
+        stance_malus(Stance { crouching: true, armed: true, ..Stance::default() }),
+        20,
+        "a crouched swing with a weapon is twenty"
+    );
+    assert_eq!(
+        stance_malus(Stance { crouching: true, armed: false, ..Stance::default() }),
+        0,
+        "and an unarmed crouch pays nothing: `!unarmed_attack()` is one of the conditions"
+    );
+    assert_eq!(
+        stance_malus(Stance { crouching: true, armed: true, natural_stance: true, ..Stance::default() }),
+        0,
+        "nor does a natural stance"
+    );
+    assert_eq!(
+        stance_malus(Stance { on_ground: true, pseudopod_grasp: true, ..Stance::default() }),
+        0,
+        "**and pseudopods cancel the floor's fifty**"
+    );
+
+    // **The sign trap**: the answer is *negative* and the malus is *subtracted*, so a bigger malus makes the number **more negative** - which is *more* spent, not less. The
+    // reference then takes `std::min( -50, ... )`, i.e. the more negative of the two, so the floor is a floor on the *rebate* rather than on the cost.
+    assert_eq!(stamina_cost(0, 0, 0), -50, "an empty-handed standing swing is the floor");
+    assert_eq!(stamina_cost(0, 0, 20), -70, "**a crouched one spends twenty more**");
+    assert_eq!(stamina_cost(0, 0, 50), -100, "and the floor's malus fifty more again");
+}

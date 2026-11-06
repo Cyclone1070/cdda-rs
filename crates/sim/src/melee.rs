@@ -393,6 +393,47 @@ pub fn attack_speed(base_move_cost: i32, melee_skill: i32, dexterity: i32, stami
     cost.max(0)
 }
 
+/// How a swinger is standing, which is what a low swing charges extra for.
+///
+/// Reference: the chain in `get_total_melee_stamina_cost` (`melee.cpp:975-977`). **A struct rather than four bools**, and named for the body rather than the penalty: a caller answers
+/// what it knows about the creature, and this rule answers what that costs.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Stance {
+    /// The swinger is on the floor (`is_on_ground`): downed, prone, or without working legs.
+    pub on_ground: bool,
+    /// The swinger is crouched (`is_crouching`).
+    pub crouching: bool,
+    /// The swinger is holding a weapon (`!unarmed_attack()`), which is what makes a crouch cost anything.
+    pub armed: bool,
+    /// The swinger is in a natural stance (`effect_natural_stance`), which is a stance that does not care.
+    pub natural_stance: bool,
+    /// The swinger grips with pseudopods (`PSEUDOPOD_GRASP`), which cancels **both** maluses.
+    pub pseudopod_grasp: bool,
+}
+
+/// What the stance charges a swing, in the reference's stamina units.
+///
+/// Reference: `get_total_melee_stamina_cost` (`melee.cpp:975-977`):
+///
+/// ```text
+/// const int stance_malus = ( is_on_ground() && !has_flag( PSEUDOPOD_GRASP ) ) ? 50
+///     : ( !has_flag( PSEUDOPOD_GRASP ) && !has_effect( natural_stance ) && !unarmed_attack() && is_crouching() ) ? 20
+///     : 0;
+/// ```
+///
+/// **A chain, not a sum**: standing on the floor is fifty **whatever else is true**, and the twenty is only asked when the first test failed - so a crouched, armed, grounded, natural-stance
+/// creature still pays the fifty. **`PSEUDOPOD_GRASP` cancels both**, in its own words because a thing on pseudopods is not inconvenienced by being low.
+#[must_use]
+pub fn stance_malus(stance: Stance) -> i32 {
+    if stance.on_ground && !stance.pseudopod_grasp {
+        return 50;
+    }
+    if !stance.pseudopod_grasp && !stance.natural_stance && stance.armed && stance.crouching {
+        return 20;
+    }
+    0
+}
+
 /// What a swing costs a character in stamina.
 ///
 /// Reference: `Character::get_total_melee_stamina_cost` (`melee.cpp:973-997`): the standard cost is `- ( weight / 16_gram + 50 )` (`character.cpp:3107-3120`), and the total adds

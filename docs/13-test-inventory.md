@@ -1289,3 +1289,6 @@ light being scaled by turns while exposure is scaled by seconds.
 
 **Round 1317 ported the wind's three rules** (`weather.cpp:785-874`): the Beaufort naming ladder, the compass table read from the top down, and the ground's three modifiers in the
 reference's order, gated on the **combined case** rather than each modifier alone.
+
+**Round 1318 ported the stance malus and wired it into the swing** (`melee.cpp:975-995`), gated twice: on the chain itself and on **the swing reading the store** - a downed survivor spends
+exactly fifty more stamina out of a seven-thousand pool.

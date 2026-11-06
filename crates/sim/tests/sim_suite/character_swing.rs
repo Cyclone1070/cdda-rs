@@ -458,3 +458,43 @@ fn swinging_past_empty_makes_a_survivor_winded_and_slows_what_comes_back() {
         "a winded survivor gets two a turn, not twenty: {wind}"
     );
 }
+
+/// A survivor swinging from the floor spends fifty more stamina than one on its feet.
+///
+/// Reference: `Character::melee_attack` charges `get_total_melee_stamina_cost( cur_weap )` with the stance malus folded in (`melee.cpp:975-995`), so being **downed** costs stamina on
+/// every swing. The gate reads the store: the same survivor, the same knife, the same victim - and only the `downed` effect differs.
+#[test]
+fn a_swing_from_the_floor_costs_more_stamina() {
+    let mut spent = Vec::new();
+    for downed in [false, true] {
+        let (mut world, _null, _rock, knife) = world_with_kinds();
+        let downed_kind = cdda_json::parse(br#"{"id":"downed","max_duration":"1 hours"}"#).expect("valid json");
+        let cdda_json::Value::Object(entry) = downed_kind else {
+            panic!("an effect type is an object")
+        };
+        let kind = cdda_content::effects::read_one("downed", &entry);
+        cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
+        let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::creature::Wielding(knife))
+            .insert(cdda_sim::creature::Dexterity { base: 8 })
+            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+        let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+        cdda_sim::creature::set_moves(&mut world, survivor, 400);
+        if downed
+            && let Some(kind) = cdda_sim::effect_registry::kind_of(&mut world, "downed")
+        {
+            cdda_sim::applied_effects::add(&mut world, survivor, cdda_sim::effects::ActiveEffect::new(&kind, 10, 1));
+        }
+        let before = cdda_sim::creature::stamina_ratio(&world, survivor);
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
+        spent.push(before - cdda_sim::creature::stamina_ratio(&world, survivor));
+    }
+    // The ratio falls by the *spent amount over the pool*, so fifty stamina of a seven-thousand pool is fifty seven-thousandths.
+    let fifty_over_the_pool = 50.0 / 7_000.0;
+    assert!(
+        (spent[1] - spent[0] - fifty_over_the_pool).abs() < 1e-9,
+        "**the floor's malus is fifty stamina**: {spent:?}"
+    );
+}

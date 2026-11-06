@@ -2814,7 +2814,17 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         .get::<Wielding>(holder)
         .map(|carried| carried.0)
         .map_or(0, |kind| crate::item_registry::weight_of(world, kind));
-    spend_stamina(world, holder, crate::melee::stamina_cost(weight, skill, 0));
+    // Reference: `get_total_melee_stamina_cost` folds the **stance** into the price (`melee.cpp:975-995`), so a swing from the floor or from a crouch costs more. The port answers
+    // the parts of the stance it has: the `downed` effect and a `PRONE` move mode are both "on the ground", `natural_stance` is an effect, and `PSEUDOPOD_GRASP` is a creature flag.
+    // **Crouching is not modelled** - the port has no crouch move mode - so that branch is named rather than guessed at.
+    let stance = crate::melee::Stance {
+        on_ground: crate::applied_effects::has(world, holder, "downed"),
+        crouching: false,
+        armed: world.get::<Wielding>(holder).is_some(),
+        natural_stance: crate::applied_effects::has(world, holder, "natural_stance"),
+        pseudopod_grasp: crate::creature_flags::has_flag(world, holder, "PSEUDOPOD_GRASP"),
+    };
+    spend_stamina(world, holder, crate::melee::stamina_cost(weight, skill, crate::melee::stance_malus(stance)));
     let stamina = stamina_ratio(world, holder);
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina);
     spend_moves(world, holder, f64::from(cost));

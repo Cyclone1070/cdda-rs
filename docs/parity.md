@@ -15899,3 +15899,23 @@ an answer for an impossible input would hide the day it happened.
 **Named, not invented:** `is_wind_blocker`'s terrain-flag lookup (`TFLAG_BLOCK_WIND`) and the **upwind square** the reference checks, which the port's terrain table can answer but the caller
 does not yet assemble; the overmap terrain ids (`oter_type_forest`, `forest_water`), which the port has as overmap terrain rather than as a wind modifier; and `warm_enough_to_plant`'s 50 F,
 which is the farming step.
+
+## A low swing costs more stamina (round 1318)
+
+| Piece | Reference | Port |
+|---|---|---|
+the stance chain | `get_total_melee_stamina_cost` (`melee.cpp:975-995`) | `melee::stance_malus` over `melee::Stance` |
+the call | the swing's stamina charge | `creature::swing_what_the_character_holds` assembles the stance from the store |
+Gates | - | `creature_fight::a_low_swing_costs_more_stamina`, `character_swing::a_swing_from_the_floor_costs_more_stamina` |
+
+**The sign is the trap, and the gate caught the port's author out**: the stamina cost is **negative** and the malus is **subtracted**, so a bigger malus makes the number **more negative** -
+which is *more* spent, not less. The first version of this gate asserted the opposite ("a crouched one spends less") and failed with `-70` against `-30`.
+
+**The chain is a chain, not a sum**: standing on the floor is fifty **whatever else is true**, and the twenty is only asked when the first test failed - so a crouched, armed, grounded swinger
+in a natural stance still pays the fifty. **`PSEUDOPOD_GRASP` cancels both.**
+
+**The wiring gate reads the store on both sides of one swing**: the same survivor, knife and victim, with only the `downed` effect differing - and the difference is exactly fifty stamina out of
+a seven-thousand pool. A test that called `stance_malus` twice would prove the arithmetic and not that the swing asks.
+
+**Named, not invented:** **crouching** (the port has no crouch move mode, so the twenty is a rule with no caller yet) and `PRONE`'s move mode plus `enough_working_legs`, which are the rest
+of `is_on_ground`; the proficiency multiplier (`proficiency_multiplier`), which needs the proficiency table.
