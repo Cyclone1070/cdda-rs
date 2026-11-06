@@ -1351,3 +1351,6 @@ defects - **the empty hand's -2 accuracy** and **the skill term reading the weap
 
 **Round 1338 dumped the swing's two costs from the reference** (`--dump-swing-cost`, 216 rows) and compared both against the port: `attack_speed` and the stamina cost agree on every row,
 and the gate caught a **unit** error - item weights are milligrams, the rule wants grams.
+
+**Round 1339 gave the swing its stance**: `attack_speed` gained the reference's ground (x4) and crouch (x1.5) multipliers, its **25-move floor** and its **rounding** - three defects that had
+looked finished - and the dump's stance sweep proved two of its three branches while documenting the third as unreachable from the harness.

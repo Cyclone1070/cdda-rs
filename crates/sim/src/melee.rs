@@ -382,15 +382,32 @@ pub fn attack_time(volume_ml: i64, weight_g: i64, count: i64) -> i32 {
 /// penalty that grows from **one at a quarter stamina to two at none**. The reference also applies modifiers, enchantments and martial arts; none of the three exists in this port yet,
 /// and each is named here so its absence is a fact rather than a silence.
 #[must_use]
-pub fn attack_speed(base_move_cost: i32, melee_skill: i32, dexterity: i32, stamina_ratio: f64) -> i32 {
+pub fn attack_speed(
+    base_move_cost: i32,
+    melee_skill: i32,
+    dexterity: i32,
+    stamina_ratio: f64,
+    stance: Stance,
+) -> i32 {
     let base = f64::from(base_move_cost);
     #[allow(clippy::cast_possible_truncation)]
     let skill_cost = (base * f64::from(15 - melee_skill) / 15.0) as i32;
     let dex_bonus = dexterity / 2;
     let penalty = 1.0 + ((0.25 - stamina_ratio) * 4.0).max(0.0);
+    // Reference: the skill term and the dexterity come **off before the stance multiplies** (`melee.cpp:2687-2689`), so a swing from the floor is four times the whole figure and not four
+    // times the base with the same discount stapled on.
+    let mut cost = base * penalty + f64::from(skill_cost) - f64::from(dex_bonus);
+    // Reference: `melee.cpp:2696-2704` - the two branches are exclusive: a swinger on the floor is not also charged for crouching.
+    if stance.on_ground {
+        cost *= if stance.pseudopod_grasp { 1.5 } else { 4.0 };
+    } else if stance.crouching && !stance.pseudopod_grasp && !stance.natural_stance && stance.armed {
+        cost *= 1.5;
+    }
+    // Reference: `if( move_cost < 25.0 ) return 25; return std::round( move_cost );` (`melee.cpp:2706-2710`) - **the floor is twenty-five and the answer rounds**, which is the pair the
+    // port had as `max(0)` and a truncation.
     #[allow(clippy::cast_possible_truncation)]
-    let cost = (base * penalty) as i32 + skill_cost - dex_bonus;
-    cost.max(0)
+    let answer = cost.max(25.0).round() as i32;
+    answer
 }
 
 /// How a swinger is standing, which is what a low swing charges extra for.

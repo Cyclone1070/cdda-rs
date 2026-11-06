@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 17:51:47
-@@ -0,0 +1,7186 @@
++++ oracle/src/src/harness.cpp	2026-11-06 18:31:17
+@@ -0,0 +1,7204 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1415,8 +1415,22 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    const std::array<int, 4> skills = { { 0, 3, 7, 10 } };
 +    const std::array<int, 3> dexterities = { { 0, 8, 20 } };
 +    const std::array<float, 3> stamina_ratios = { { 0.0f, 0.25f, 1.0f } };
++    // **The stances, because both rules read them and both have a branch for each**: `attack_speed` multiplies by four on the ground (`melee.cpp:2696-2704`) and the stamina rule's
++    // `stance_malus` is fifty there and twenty in a crouch (`melee.cpp:975-977`).
++    const std::array<const char *, 3> stances = { { "standing", "downed", "crouching" } };
 +    std::fprintf( out, "{\"rows\":[" );
 +    bool first_row = true;
++    for( const std::string &stance : stances ) {
++    if( stance == "downed" ) {
++        u.add_effect( efftype_id( "downed" ), 1_hours );
++    } else if( stance == "crouching" ) {
++        // **The downed effect is taken off again**, or the crouching rows inherit it and the dump says "crouching" about a body on the floor - which is what the first version of this
++        // sweep did, and what the port's own comparison caught: a crouched row answered -100 where the crouch's malus is twenty.
++        u.remove_effect( efftype_id( "downed" ) );
++        u.set_movement_mode( move_mode_id( "crouch" ) );
++    } else {
++        u.set_movement_mode( move_mode_id( "walk" ) );
++    }
 +    for( const auto &weapon : weapons ) {
 +        item weap( itype_id( weapon.first ), calendar::turn, 1 );
 +        for( int skill : skills ) {
@@ -1433,17 +1447,21 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                    }
 +                    first_row = false;
 +                    std::fprintf( out,
-+                                  "{\"weapon\":\"%s\",\"melee_skill\":%d,\"dexterity\":%d,\"stamina_ratio\":%.6f,"
++                                  "{\"weapon\":\"%s\",\"stance\":\"%s\",\"melee_skill\":%d,\"dexterity\":%d,\"stamina_ratio\":%.6f,"
 +                                  "\"attack_speed\":%d,\"stamina_cost\":%d,\"weapon_time\":%d}",
-+                                  weapon.first, skill, dexterity, ratio_used, u.attack_speed( weap ),
++                                  weapon.first, stance.c_str(), skill, dexterity, ratio_used, u.attack_speed( weap ),
 +                                  u.get_total_melee_stamina_cost( &weap ), weap.attack_time( u ) );
 +                }
 +            }
 +        }
 +    }
++    }
 +    std::fprintf( out, "]}\n" );
 +    std::fflush( out );
 +    std::fclose( out );
++    if( u.has_effect( efftype_id( "downed" ) ) ) {
++        u.remove_effect( efftype_id( "downed" ) );
++    }
 +}
 +
 +void dump_mutation_categories( const std::string &path )

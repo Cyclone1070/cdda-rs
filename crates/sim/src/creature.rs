@@ -2861,7 +2861,8 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         crate::melee::stamina_cost(weight, skill, crate::melee::stance_malus(stance), proficiency_multiplier),
     );
     let stamina = stamina_ratio(world, holder);
-    let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina);
+    // The stance the swing is made in: the same one the stamina rule reads, so a blow from the floor costs more moves **and** more wind.
+    let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina, stance);
     spend_moves(world, holder, f64::from(cost));
     let crit_inputs = crit_inputs_of(world, holder);
     let dealt = strike_with(world, victim, attack, crit_inputs.as_ref());

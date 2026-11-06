@@ -16293,3 +16293,25 @@ caught first - `-91050` where the reference says `-141`, a factor of 646.
 
 **Named, not invented:** `get_modifier( character_modifier_melee_stamina_cost_mod )` and the `ATTACK_SPEED` enchantment (both 1.0 in the sweep and unmodelled in the port), the martial-arts
 terms, and the stance rows - the dump holds every character on its feet, so the `on_ground`/crouch branches are still gated only by their own unit test.
+
+## The swing's stance is read by both costs (round 1339)
+
+| Piece | Reference | Port |
+|---|---|---|
+ground and crouch multipliers | `attack_speed` (`melee.cpp:2696-2704`) | `melee::attack_speed`'s `Stance` argument |
+the floor and the rounding | `if( move_cost < 25.0 ) return 25; return std::round( move_cost )` (`:2706-2710`) | `cost.max(25.0).round()` |
+the order | the skill term and dexterity come off **before** the stance multiplies (`:2687-2689`) | the same order |
+Gate | - | `melee_rules::a_swing_from_the_floor_takes_four_times_as_long`, `creature_fight::the_ported_swing_cost_matches_the_reference` |
+
+**Three defects in a rule that had looked finished**: the port floored at **zero** where the reference floors at **25**, **truncated** where the reference **rounds**, and had **no word for the
+stance at all**. The first two hid behind fixtures whose figures happened to be whole numbers; the third was invisible because nothing ever swung from the floor.
+
+**The stance multiplies the *whole* cost, not the base**: `( base * penalty + skill - dex ) * 4` from the floor and `* 1.5` in a crouch - which is why a clumsy survivor's swing from the floor is
+**368** moves and not 224.
+
+**The dump reached two of its three stances and the third is documented, not faked**: every *crouching* row asks the reference `unarmed_attack()`, which reads the **wielded** item - and the
+harness never wields anything, so those rows are the empty-handed case wearing a weapon's numbers. They are **skipped and counted** rather than tuned to.
+
+**Named, not invented:** the reference's **limb-score modifiers** (`melee_thrown_move_lift_mod`, `melee_thrown_move_balance_mod`, `melee.cpp:2685-2686`), which scale a downed character's move
+cost - the downed rows answer **896** where the port's arithmetic gives 368, and the factor is those two figures (they multiply to **3.0** for a body on the floor). The crouch branch itself is
+pinned by the unit gate from the source, and the `PSEUDOPOD_GRASP` half of both branches is unmodelled.

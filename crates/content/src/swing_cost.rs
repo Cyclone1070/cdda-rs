@@ -13,6 +13,8 @@ use cdda_json::{Object, Value};
 pub struct Row {
     /// The weapon's id, or `null` for an empty hand.
     pub weapon: String,
+    /// How the character was standing: `standing`, `downed` or `crouching`.
+    pub stance: String,
     /// The melee skill.
     pub melee_skill: i32,
     /// The character's dexterity.
@@ -52,6 +54,10 @@ pub fn from_dump(value: &Value) -> Result<Vec<Row>, String> {
 fn read_row(row: &Object) -> Option<Row> {
     Some(Row {
         weapon: match row.get("weapon")? {
+            Value::Str(text) => text.clone(),
+            _ => return None,
+        },
+        stance: match row.get("stance")? {
             Value::Str(text) => text.clone(),
             _ => return None,
         },

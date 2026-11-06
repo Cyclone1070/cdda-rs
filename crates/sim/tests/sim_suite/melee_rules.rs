@@ -251,7 +251,7 @@ fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
 /// `65 + (520 / 62.5 + 1456 / 60) = 97`, and a survivor of dexterity 8 with no melee skill swinging it pays `48 + 48 - 4 = 92` moves at full stamina.
 #[test]
 fn a_swing_costs_the_time_its_weapon_takes_and_the_swinger_s_skill_saves() {
-    use cdda_sim::melee::{attack_speed, attack_time};
+    use cdda_sim::melee::{attack_speed, attack_time, Stance};
 
     assert_eq!(attack_time(520, 1_456, 1), 97, "a crowbar takes ninety-seven");
     assert_eq!(attack_time(0, 0, 1), 65, "and a thing of no size or weight takes the base sixty-five");
@@ -262,15 +262,15 @@ fn a_swing_costs_the_time_its_weapon_takes_and_the_swinger_s_skill_saves() {
     );
 
     // Half a crowbar's time is forty-eight; the skill discount at zero skill is the whole of it; dexterity 8 saves four.
-    assert_eq!(attack_speed(48, 0, 8, 1.0), 92, "a clumsy survivor's swing");
+    assert_eq!(attack_speed(48, 0, 8, 1.0, Stance::default()), 92, "a clumsy survivor's swing");
     // Ten points of melee skill remove two thirds of the base: `48 * 5 / 15 = 16`.
-    assert_eq!(attack_speed(48, 10, 8, 1.0), 60, "an expert's swing");
+    assert_eq!(attack_speed(48, 10, 8, 1.0, Stance::default()), 60, "an expert's swing");
     // Half the stamina is no penalty at all; at none it doubles the base.
-    assert_eq!(attack_speed(48, 0, 8, 0.5), 92, "half stamina costs nothing extra");
-    assert_eq!(attack_speed(48, 0, 8, 0.0), 140, "no stamina costs double the base: 96 + 48 - 4");
+    assert_eq!(attack_speed(48, 0, 8, 0.5, Stance::default()), 92, "half stamina costs nothing extra");
+    assert_eq!(attack_speed(48, 0, 8, 0.0, Stance::default()), 140, "no stamina costs double the base: 96 + 48 - 4");
     // A quarter of stamina is exactly the threshold, so nothing is added yet.
-    assert_eq!(attack_speed(48, 0, 8, 0.25), 92, "a quarter of stamina is the threshold");
-    assert_eq!(attack_speed(48, 0, 8, 0.125), 116, "an eighth of stamina adds half again to the base");
+    assert_eq!(attack_speed(48, 0, 8, 0.25, Stance::default()), 92, "a quarter of stamina is the threshold");
+    assert_eq!(attack_speed(48, 0, 8, 0.125, Stance::default()), 116, "an eighth of stamina adds half again to the base");
 }
 
 /// Practising a skill adds to its exercise, and the exercise buys levels at a rising price.
@@ -496,5 +496,49 @@ fn a_gun_s_dispersion_is_divided_and_floored_before_anything_is_added_to_it() {
     assert!(
         gun_dispersion(100, 5, 30, 18.0) > gun_dispersion(100, 0, 30, 18.0),
         "which is the whole point of the damage term"
+    );
+}
+
+/// A swing from the floor takes four times as long, and no swing is ever quicker than twenty-five moves.
+///
+/// Reference: `Character::attack_speed` (`melee.cpp:2696-2710`):
+///
+/// ```text
+/// if( is_on_ground() ) { if( PSEUDOPOD_GRASP ) move_cost *= 1.5; else move_cost *= 4.0; }
+/// else if( is_crouching() && !PSEUDOPOD_GRASP && !natural_stance && !unarmed_attack() ) move_cost *= 1.5;
+/// if( move_cost < 25.0 ) return 25;
+/// return std::round( move_cost );
+/// ```
+///
+/// **The floor and the rounding were both missing from the port**, which floored at zero and truncated: `std::round` of 92.4 is **92** either way, so the truncation hid behind the fixtures
+/// until a row with a fraction of a half arrived. The stance multipliers are the branch the port had **no word for at all**.
+#[test]
+fn a_swing_from_the_floor_takes_four_times_as_long() {
+    use cdda_sim::melee::{Stance, attack_speed};
+
+    let standing = Stance::default();
+    assert_eq!(attack_speed(48, 0, 8, 1.0, standing), 92, "a standing swing is the arithmetic's own figure");
+    // 96 + 48 - 10 = 134 for a clumsy survivor with no wind...
+    let downed = Stance {
+        on_ground: true,
+        ..Stance::default()
+    };
+    assert_eq!(
+        attack_speed(48, 0, 8, 1.0, downed),
+        368,
+        "**and from the floor it is four times the whole figure**: ( 48 + 48 - 4 ) * 4"
+    );
+    let crouched = Stance {
+        crouching: true,
+        armed: true,
+        ..Stance::default()
+    };
+    assert_eq!(attack_speed(48, 0, 8, 1.0, crouched), 138, "a crouched armed swing is half again: ( 48 + 48 - 4 ) * 1.5");
+    // **The floor is twenty-five moves**, which nothing in the port could reach before because it floored at zero.
+    let quick = Stance::default();
+    assert_eq!(
+        attack_speed(1, 30, 20, 1.0, quick),
+        25,
+        "**a swing is never quicker than twenty-five moves**"
     );
 }
