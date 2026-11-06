@@ -222,6 +222,27 @@ pub fn stamina_multiplier(world: &mut World, creature: Entity, weapon: crate::It
     if categories.is_empty() {
         return 1.0;
     }
+    multiplier_for_categories(world, creature, &categories)
+}
+
+/// What a swing multiplies its stamina cost by, given what the swinger holds.
+///
+/// Reference: `wielded_weapon_categories` (`melee.cpp:570-578`): a character wielding nothing is read as the **`UNARMED`** category, so its proficiencies apply like any other weapon's.
+/// [`Self::stamina_multiplier`] answers the wielded case; this answers the question the swing actually asks.
+#[must_use]
+pub fn swing_multiplier(world: &mut World, creature: Entity, wielded: Option<crate::ItemTypeId>) -> f32 {
+    match wielded {
+        Some(weapon) => stamina_multiplier(world, creature, weapon),
+        None => multiplier_for_categories(world, creature, &["UNARMED".to_owned()]),
+    }
+}
+
+/// The multiplier a set of weapon categories earns, given the creature's proficiencies.
+#[must_use]
+pub fn multiplier_for_categories(world: &mut World, creature: Entity, categories: &[String]) -> f32 {
+    if categories.is_empty() {
+        return 1.0;
+    }
     let holder = crate::singletons::singleton::<WeaponCategoryProficiencies, TheWeaponCategoryProficiencies>(world);
     let table = world
         .get::<WeaponCategoryProficiencies>(holder)
@@ -230,7 +251,7 @@ pub fn stamina_multiplier(world: &mut World, creature: Entity, weapon: crate::It
     let dump = crate::singletons::singleton::<ProficiencyRules, TheProficiencyRules>(world);
     let bonuses = world.get::<ProficiencyRules>(dump).map(|rules| rules.dump.clone());
     let mut losses = Vec::new();
-    for category in &categories {
+    for category in categories {
         let Some(proficiencies) = table.get(category) else {
             continue;
         };

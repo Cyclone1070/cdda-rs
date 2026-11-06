@@ -638,3 +638,60 @@ fn a_mastered_weapon_costs_less_stamina_to_swing() {
         spent
     );
 }
+
+/// An empty hand is a weapon of the `UNARMED` kind - and its swing is already at the stamina floor, so its proficiencies cannot make it cheaper.
+///
+/// Reference: `wielded_weapon_categories` (`melee.cpp:570-578`) answers `{ weapon_category_UNARMED }` when the character wields nothing, so a bare-handed swinger's proficiencies are read
+/// from that category like any other. **But the floor hides them**: an empty hand weighs nothing, so `mod_sta + melee - stance_malus` starts at **-50** - exactly the floor
+/// `std::min( -50, ... )` - and a multiplier below one lifts it *towards* zero, where the floor pushes it back.
+#[test]
+fn an_empty_hand_is_its_own_kind_of_weapon() {
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "null",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -2,
+        }],
+    );
+    cdda_sim::proficiencies::set_weapon_categories(
+        &mut world,
+        &[("UNARMED".to_owned(), vec!["prof_unarmed_master".to_owned()])],
+    );
+    let dump = cdda_content::proficiencies::Proficiencies {
+        by_id: [(
+            "prof_unarmed_master".to_owned(),
+            cdda_content::proficiencies::Proficiency {
+                id: "prof_unarmed_master".to_owned(),
+                seconds: 57_600,
+                can_learn: true,
+                required: Vec::new(),
+                bonuses: vec![("melee_attack".to_owned(), vec![("stamina".to_owned(), 0.05)])],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    cdda_sim::proficiencies::install(&mut world, &dump);
+    let striker = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    cdda_sim::proficiencies::learn(&mut world, striker, "prof_unarmed_master");
+
+    assert!(
+        (cdda_sim::proficiencies::swing_multiplier(&mut world, striker, None) - 0.95).abs() < 1e-6,
+        "**an empty hand is read as the UNARMED category**"
+    );
+    // ... and the discount is invisible at the floor, which is the reference's own arithmetic rather than a defect.
+    assert_eq!(
+        cdda_sim::melee::stamina_cost(0, 0, 0, 0.95),
+        -50,
+        "**the floor swallows it**: -50 scaled by 0.95 is -47, and -47 is not below -50"
+    );
+}

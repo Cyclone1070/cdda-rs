@@ -16009,3 +16009,20 @@ master swinging an **axe** gets nothing, because the axe's category does not lis
 
 **Named, not invented:** `UNARMED` as the empty hand's category (the reference's own fallback, `melee.cpp:571-572`), the `athlete`/`archery` bonus categories (data present, no rule reads
 them), and a weapon that names no category at all (it gets `1.0`, and the reference does too - its `weapon_category` set is simply empty).
+
+## An empty hand is its own kind of weapon (round 1324)
+
+| Piece | Reference | Port |
+|---|---|---|
+the unarmed category | `wielded_weapon_categories` (`melee.cpp:570-578`) | `proficiencies::swing_multiplier( .., None )` reads `UNARMED` |
+Gate | - | `character_swing::an_empty_hand_is_its_own_kind_of_weapon` |
+
+**The rule works and its effect is invisible, which is the honest finding**: an empty hand is read as the `UNARMED` category, an unarmed master's multiplier really is **0.95**, and the swing
+still costs the **floor** - because an empty hand weighs nothing, so `mod_sta + melee - stance_malus` starts at exactly **-50**, and `std::min( -50, 0.95 * -50 )` is **-50**. A discount can
+lift a swing *towards* zero, where the floor pushes it back.
+
+**The gate asserts both halves**: the multiplier the store produces, and that the reference's own arithmetic swallows it. A test that only checked the multiplier would claim a saving the game
+never pays.
+
+**Named, not invented:** the weapon categories the reference registers for `UNARMED` (`weapon_category_UNARMED` is a data id the loader has not been pointed at), and the `athlete`/`archery`
+bonus categories, which still have no reader.

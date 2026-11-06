@@ -2826,9 +2826,8 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     };
     // Reference: the multiplier comes from the weapon's own categories and the proficiencies the swinger knows (`melee.cpp:979-995`), which is the last of the cost's three inputs.
     let wielded_kind = world.get::<Wielding>(holder).map(|carried| carried.0);
-    let proficiency_multiplier = wielded_kind.map_or(1.0, |kind| {
-        crate::proficiencies::stamina_multiplier(world, holder, kind)
-    });
+    // Reference: an empty hand is the `UNARMED` weapon category (`melee.cpp:571-572`), so the swing asks with `None` rather than skipping the rule.
+    let proficiency_multiplier = crate::proficiencies::swing_multiplier(world, holder, wielded_kind);
     spend_stamina(
         world,
         holder,

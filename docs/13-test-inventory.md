@@ -1306,3 +1306,6 @@ item naming more than one.
 
 **Round 1323 wired the proficiency multiplier into the swing** (`melee.cpp:570-578`, `:979-995`): the item's category, the category's proficiency list and the creature's own set, gated on the
 **wrong-weapon case** (a short-sword master gains nothing with an axe) and on the swing paying exactly **five** stamina less out of 7,000.
+
+**Round 1324 gave an empty hand the `UNARMED` category** (`melee.cpp:570-578`), gated on both the multiplier and the fact that **the stamina floor swallows it** - a saving the reference's own
+arithmetic never pays.
