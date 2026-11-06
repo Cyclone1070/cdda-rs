@@ -158,3 +158,4 @@ pub fn read_json(path: &Path) -> Option<std::sync::Arc<cdda_json::Value>> {
 pub mod overmap_build;
 pub mod overmap_special;
 pub mod skills;
+pub mod crit_chance;

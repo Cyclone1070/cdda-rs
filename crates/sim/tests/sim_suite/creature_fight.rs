@@ -3860,3 +3860,99 @@ fn a_critical_takes_its_armour_in_the_reference_s_order() {
     assert!((armour_dulled(3.0, 5, 0.5) - 0.0).abs() < 1e-6, "**more penetration than armour stops at none**, never at negative");
     assert!((armour_dulled(10.0, 0, 0.0) - 0.0).abs() < 1e-6, "and a bashing crit at no crit_mod ignores it all");
 }
+
+/// The reference's own critical chances, compared against the port's, row by row.
+///
+/// Reference: `Character::crit_chance` (`melee.cpp:1116-1193`), dumped by `--dump-crit-chance` into `corpus/melee/crit-chance.json`. **The dump is the gate because the rule has two halves
+/// that look alike**: three chances multiply, and a roll past one and a half times the dodge adds a **pair** term - so a port that added the triple twice, or applied the pair always, would be
+/// plausible and wrong.
+///
+/// The dump holds the character's own numbers, so the only figure the port has to join is the weapon's accuracy: `null` is the empty hand (no accuracy at all), and everything else is the
+/// item's `to_hit` from the same data the dump was taken from.
+#[test]
+fn the_ported_crit_chance_matches_the_reference() {
+    use cdda_sim::melee::{CritInputs, crit_chance};
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/melee/crit-chance.json");
+    let bytes = std::fs::read(&path).expect("the crit chance dump is in the corpus");
+    let value = cdda_json::parse(&bytes).expect("the crit chance dump parses");
+    let rows = cdda_content::crit_chance::from_dump(&value).expect("the crit chance dump loads");
+    assert!(rows.len() > 1_000, "the dump holds {} rows, which is too few", rows.len());
+
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let dirs: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let items = cdda_content::items::load_paths(&dirs).expect("the game's items load");
+
+    let mut checked = 0;
+    let mut failures = Vec::new();
+    for row in &rows {
+        let unarmed = row.weapon == "null";
+        let to_hit = items
+            .iter()
+            .find(|item| item.id == row.weapon)
+            .map_or(-2, |item| item.to_hit);
+        let inputs = CritInputs {
+            to_hit,
+            unarmed,
+            unarmed_skill: row.weapon_skill,
+            dexterity: row.dexterity,
+            perception: row.perception,
+            weapon_skill: row.weapon_skill_level,
+            melee_skill: row.melee_skill,
+            martial_arts_bonus: 0.0,
+        };
+        let port = crit_chance(&inputs, row.roll, 0.0);
+        checked += 1;
+        if (port - row.chance).abs() > 1e-6 {
+            failures.push(format!(
+                "{} dex {} per {} skill {} melee {} roll {}: port {port} reference {}",
+                row.weapon, row.dexterity, row.perception, row.weapon_skill, row.melee_skill, row.roll, row.chance
+            ));
+        }
+    }
+    assert_eq!(checked, rows.len(), "every row was compared");
+    assert!(
+        failures.is_empty(),
+        "{} of {checked} rows disagree, first few: {:#?}",
+        failures.len(),
+        &failures[..failures.len().min(5)]
+    );
+}
+
+/// An empty hand's accuracy is the null item's own -2, not nothing.
+///
+/// Reference: `Character::crit_chance` (`melee.cpp:1123-1137`) asks `weap.get_to_hit()` **whatever the weapon is**, and the null item's `itype::m_to_hit` is -2 (`itype.h:1540`), so an
+/// empty hand's half chance is cut to **0.3** before the three chances multiply. The port first read that a null item answers zero; the reference's own dump said otherwise - a
+/// fresh survivor's chance is **0.03675**, which is `0.3 * 0.49 * 0.25` and not `0.5 * 0.49 * 0.25`.
+#[test]
+fn an_empty_hands_accuracy_is_minus_two() {
+    use cdda_sim::melee::{CritInputs, crit_chance};
+
+    let mut inputs = CritInputs {
+        to_hit: -2,
+        unarmed: true,
+        unarmed_skill: 0,
+        dexterity: 8,
+        perception: 8,
+        weapon_skill: 0,
+        melee_skill: 0,
+        martial_arts_bonus: 0.0,
+    };
+    // 0.3 weapon, 0.49 body, 0.25 skill.
+    assert!(
+        (crit_chance(&inputs, 0.0, 0.0) - 0.03675).abs() < 1e-9,
+        "**a fresh survivor's guaranteed critical is 3.675 percent**"
+    );
+    // A weapon that states -2 and a hand that holds it get the same answer: the null item and a club are not special cases.
+    inputs.unarmed = false;
+    assert!(
+        (crit_chance(&inputs, 0.0, 0.0) - 0.03675).abs() < 1e-9,
+        "and a weapon of minus two accuracy is worth what an empty hand is"
+    );
+    inputs.to_hit = 0;
+    assert!(
+        (crit_chance(&inputs, 0.0, 0.0) - 0.06125).abs() < 1e-9,
+        "**while a balanced one leaves the half whole**: 0.5 * 0.49 * 0.25"
+    );
+}

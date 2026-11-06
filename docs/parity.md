@@ -16247,3 +16247,29 @@ against half the armour, which is why twenty becomes twenty-nine rather than twe
 
 **Named, not invented:** the oracle parity for a critical swing - there is no dump yet whose dice land a crit, so the playtest is the receipt and an oracle dump is the next step for this
 rule.
+
+## The crit chance is checked against the reference's own numbers (round 1337)
+
+| Piece | Reference | Port |
+|---|---|---|
+the dump | `Character::crit_chance` (`melee.cpp:1116-1193`), `--dump-crit-chance` | `corpus/melee/crit-chance.json`, **3,072 rows** |
+the loader | - | `content::crit_chance::from_dump` |
+Gate | - | `creature_fight::the_ported_crit_chance_matches_the_reference` - every row within `1e-6` |
+
+**The oracle found two defects the source reading had missed**, and both were in the port's favour - it looked like it worked:
+
+1. **An empty hand's accuracy is -2, not zero.** The reference asks `weap.get_to_hit()` whatever the weapon is, and the null item's `itype::m_to_hit` is **-2** (`itype.h:1540`), so the
+   negative branch runs and the half chance becomes **0.3**. The port had reasoned that a null item answers zero and skipped the branch - the reference answered `0.03675` where the port
+   said `0.03125`.
+2. **The skill term reads the *weapon's* skill, which a null weapon does not have.** `get_skill_level( weap.melee_skill() )` answers **0** for an empty hand, whatever the unarmed level is;
+   the unarmed level feeds only the weapon's chance. The first version of the dump did not record that, and the comparison failed on every row where the two disagreed - so the dump now
+   carries `weapon_skill_level` as its own column, which is the reference's answer rather than the harness's intention.
+
+**The dump itself had a defect, and it was caught by the gate refusing to pass**: the first sweep set `dex_max`/`per_max` and left `dex_cur`/`per_cur` at their defaults, so **every row was
+labelled with a dexterity the reference never used**. A dump whose labels lie is worse than no dump, and only a comparison against a second implementation shows it.
+
+**The reference's own comment is stale and the code is what the port follows**: `melee.cpp:1148-1158` illustrates an expert survivor as "100%, 55%, 60%", but the code gives **0.8 \* 0.55 \*
+0.35 = 0.154** - the comment leaves out the null item's -2 accuracy and gives the skill term a level it does not read. The fixture now pins the **dump's** figure.
+
+**Named, not invented:** the martial-arts bonus and the `bio_cqb` skill floor, which the sweep holds at zero and which the port does not model; and the dump's dodge, held at zero so the
+pair term is decided by the roll alone.

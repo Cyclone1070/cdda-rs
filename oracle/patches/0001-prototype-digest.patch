@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 12:32:52
-@@ -0,0 +1,7059 @@
++++ oracle/src/src/harness.cpp	2026-11-06 17:10:59
+@@ -0,0 +1,7127 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1317,6 +1317,74 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        out << "]}";
 +    }
 +    out << "]}" << std::endl;
++}
++
++/// The reference's own answer to "how likely is a critical", swept over the inputs the rule reads.
++///
++/// Reference: `Character::crit_chance` (`src/melee.cpp:1116-1193`). **The three chances multiply**, and a roll past one and a half times the target's dodge adds the chance of a **pair** -
++/// which is arithmetic a port can transcribe wrongly in several ways that all look plausible. This sweep is the recording: six weapon accuracies, the unarmed skill's own branch, dexterity,
++/// perception, the weapon's skill and the melee skill, each at four levels, against a roll at and either side of the doubling threshold.
++void dump_crit_chance( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    avatar &u = get_avatar();
++    u.set_body();
++    const std::array<int, 4> levels = { { 0, 3, 7, 10 } };
++    const std::array<std::pair<const char *, int>, 4> weapons = { {
++            { "null", 0 },
++            { "crowbar", 0 },
++            { "knife_combat", 0 },
++            { "sword_wood", 0 },
++        } };
++    std::fprintf( out, "{\"rows\":[" );
++    bool first_row = true;
++    for( const auto &weapon : weapons ) {
++        item weap( itype_id( weapon.first ), calendar::turn, 1 );
++        for( int dexterity : levels ) {
++            for( int perception : levels ) {
++                for( int weapon_skill : levels ) {
++                    for( int melee_skill : levels ) {
++                        // **`_cur` is what the rule reads**: `crit_chance` asks `dex_cur` and `per_cur` (`melee.cpp:1141`), and the first version of this dump set only the maxima,
++                        // so every row was labelled with a dexterity the reference never used.
++                        u.str_cur = 10;
++                        u.str_max = 10;
++                        u.dex_cur = dexterity;
++                        u.dex_max = dexterity;
++                        u.per_cur = perception;
++                        u.per_max = perception;
++                        // The reference's skill ids are file-local (`skill.cpp:31`), so the harness spells them the way the data does.
++                        const skill_id weapon_used = weap.melee_skill();
++                        u.set_skill_level( weapon_used.is_null() ? skill_id( "unarmed" ) : weapon_used, weapon_skill );
++                        u.set_skill_level( skill_id( "unarmed" ), weapon_skill );
++                        u.set_skill_level( skill_id( "melee" ), melee_skill );
++                        // The dodge is held at nothing so the doubling branch is decided by the roll alone, and the roll is swept at the three places that matter.
++                        const std::array<float, 3> rolls = { { 0.0f, 1.0f, 3.0f } };
++                        for( float roll : rolls ) {
++                            if( !first_row ) {
++                                std::fprintf( out, "," );
++                            }
++                            first_row = false;
++                            // **Two skill figures, because the rule reads two**: `weapon_skill` is the level set on the weapon's own skill (and on `unarmed`), while
++                            // `weapon_skill_level` is what `get_skill_level( weap.melee_skill() )` actually answers - **zero for a null weapon**, whose skill id is null. A dump with only the
++                            // first column says the reference used three where it used nothing.
++                            std::fprintf( out,
++                                          "{\"weapon\":\"%s\",\"dex\":%d,\"per\":%d,\"weapon_skill\":%d,\"weapon_skill_level\":%d,\"melee_skill\":%d,\"roll\":%.3f,\"chance\":%.6f}",
++                                          weapon.first, dexterity, perception, weapon_skill,
++                                          static_cast<int>( u.get_skill_level( weap.melee_skill() ) ), melee_skill,
++                                          static_cast<double>( roll ), u.crit_chance( roll, 0.0f, weap ) );
++                        }
++                    }
++                }
++            }
++        }
++    }
++    std::fprintf( out, "]}\n" );
++    std::fflush( out );
++    std::fclose( out );
 +}
 +
 +void dump_mutation_categories( const std::string &path )
@@ -7421,8 +7489,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-04 23:52:59
-@@ -0,0 +1,418 @@
++++ oracle/src/src/harness.h	2026-11-06 15:30:23
+@@ -0,0 +1,419 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -7540,6 +7608,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/** Writes every crafting recipe id and result to a JSON file. */
 +void dump_recipes( const std::string &path );
 +void dump_proficiencies( const std::string &path );
++void dump_crit_chance( const std::string &path );
 +void dump_mutations( const std::string &path );
 +void dump_mutation_categories( const std::string &path );
 +/// Writes what every recipe produces, for a batch of one and of two - see `harness.cpp`.
@@ -8015,7 +8084,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-04 23:52:59
++++ oracle/src/src/main.cpp	2026-11-06 16:39:49
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -8026,7 +8095,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,161 @@
+@@ -272,6 +275,162 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -8172,6 +8241,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_ammo;
 +    std::string dump_recipes;
 +    std::string dump_proficiencies;
++    std::string dump_crit_chance;
 +    std::string dump_mutations;
 +    std::string dump_mutation_categories;
 +    std::string dump_crafting;
@@ -8188,7 +8258,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +458,1380 @@
+@@ -300,6 +459,1390 @@
                  }
              },
              {
@@ -8368,6 +8438,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_proficiencies = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-crit-chance", "<file>",
++                "Writes Character::crit_chance over a sweep of its inputs to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_crit_chance = params[0];
 +                    return 1;
 +                }
 +            },
@@ -9569,7 +9649,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2318,749 @@
+@@ -786,6 +2329,755 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -9840,6 +9920,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_mutations( cli.dump_mutations );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_crit_chance.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_crit_chance( cli.dump_crit_chance );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_proficiencies.empty() ) {

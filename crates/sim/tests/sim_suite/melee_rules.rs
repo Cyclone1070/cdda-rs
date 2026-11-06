@@ -159,16 +159,17 @@ fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
     let triple = |inputs: &CritInputs| {
         crit_chance(inputs, 0.0, 0.0)
     };
-    // 50% * 49% * 25% = 0.06125, the reference's "~1/16".
+    // **30% * 49% * 25% = 0.03675**, the reference's "~1/16": the weapon's third is **0.3 and not 0.5**, because the null item's accuracy is -2 (`itype.h:1540`) and the negative
+    // branch cuts the half. The oracle's own dump said so in round 1337, where this fixture had written 0.5 and been accepted.
     assert!(
-        (triple(&fresh) - 0.061_25).abs() < 0.000_1,
+        (triple(&fresh) - 0.036_75).abs() < 0.000_1,
         "a fresh unarmed survivor's guaranteed critical: {}",
         triple(&fresh)
     );
     // And with a roll past the target's dodge by half again, a pair is added: the reference's "~1/8" on top.
     let good_roll = crit_chance(&fresh, 10.0, 4.0);
     assert!(
-        (good_roll - (0.061_25 + 0.5 * (0.5 * 0.49 + 0.49 * 0.25 + 0.5 * 0.25 - 3.0 * 0.061_25))).abs()
+        (good_roll - (0.036_75 + 0.5 * (0.3 * 0.49 + 0.49 * 0.25 + 0.3 * 0.25 - 3.0 * 0.036_75))).abs()
             < 0.000_1,
         "a roll of ten against a dodge of four is a double chance: {good_roll}"
     );
@@ -180,12 +181,16 @@ fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
         unarmed_skill: 10,
         dexterity: 10,
         perception: 10,
-        weapon_skill: 10,
+        // **Zero, because an empty hand has no weapon skill**: the rule asks `get_skill_level( weap.melee_skill() )` and a null weapon's skill id is null, which answers nothing
+        // (`melee.cpp:1147-1152`). The unarmed skill feeds the **weapon's** chance and no other, which is the shape the round-1337 dump records as `weapon_skill_level`.
+        weapon_skill: 0,
         melee_skill: 10,
         martial_arts_bonus: 0.0,
     };
+    // 0.8 * 0.55 * 0.35 = 0.154, which is the reference's own answer for this character in `corpus/melee/crit-chance.json` - **not** the 100% its comment claims, because the
+    // comment leaves out the null item's -2 accuracy and gives the skill term the unarmed level it does not use.
     assert!(
-        (triple(&expert) - (1.0 * 0.55 * 0.6)).abs() < 0.000_1,
+        (triple(&expert) - 0.154).abs() < 0.000_1,
         "an expert's guaranteed critical: {}",
         triple(&expert)
     );

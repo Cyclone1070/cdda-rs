@@ -335,13 +335,13 @@ pub fn crit_chance(inputs: &CritInputs, roll_hit: f32, target_dodge: f32) -> f64
     if inputs.unarmed {
         weapon = 0.5 + 0.05 * f64::from(inputs.unarmed_skill);
     }
-    // An empty hand states no accuracy at all: the reference asks a **null item** for `get_to_hit()`, which answers zero, so neither branch below fires. A caller that leaves a
-    // weapon's `to_hit` in the struct while also saying the hand is empty would otherwise have the empty hand's chance cut by a weapon it is not holding.
-    let to_hit = if inputs.unarmed { 0 } else { inputs.to_hit };
-    if to_hit > 0 {
-        weapon = weapon.max(0.5 + 0.1 * f64::from(to_hit));
-    } else if to_hit < 0 {
-        weapon += 0.1 * f64::from(to_hit);
+    // **An empty hand is a null item, and a null item's accuracy is -2** - `itype::m_to_hit`'s own default (`itype.h:1540`), which `item::get_to_hit` answers for the item the reference
+    // swings with when nothing is held. The reference therefore **does** run the negative branch for an empty hand, cutting the half to 0.3. The port first wrote that the null item answers
+    // zero and skipped the branch, and the oracle's own numbers said so: 0.03675 where the port answered 0.03125.
+    if inputs.to_hit > 0 {
+        weapon = weapon.max(0.5 + 0.1 * f64::from(inputs.to_hit));
+    } else if inputs.to_hit < 0 {
+        weapon += 0.1 * f64::from(inputs.to_hit);
     }
     let weapon = limited(weapon);
 

@@ -1345,3 +1345,6 @@ down to one and the critical still gets through.
 
 **Round 1336 proved the critical in play** with a new `expect monster health` step and `scenarios/a_critical_swing_takes_more.txt`, which caught the port skipping the crit for a character
 with no `Skills` component - a zero-level character still rolls, and only a monster never does.
+
+**Round 1337 dumped `crit_chance` from the reference** (`--dump-crit-chance`, 3,072 rows in `corpus/melee/crit-chance.json`) and compared the port's rule against every one. It found two
+defects - **the empty hand's -2 accuracy** and **the skill term reading the weapon's skill** - and one defect in the dump itself, a sweep that labelled dexterity without setting it.
