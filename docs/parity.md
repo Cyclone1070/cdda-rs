@@ -16320,3 +16320,22 @@ verdict is that **the stamina rule matches in all three stances, 648 of 648 rows
 
 **Named, not invented:** the port has **no limb scores**, so `creature.rs` answers the one posture the dump measured - a body on the floor has no balance and takes the cap, everything else is a
 whole body at one - and a character whose arms are merely hurt would be priced as whole here. The `PSEUDOPOD_GRASP` half of both branches is unmodelled.
+
+## Armour states a melee coverage and a ranged one (round 1342)
+
+| Piece | Reference | Port |
+|---|---|---|
+the three figures | `item::get_coverage( bp, cover_type )` (`item.cpp:8608-8645`), data `coverage`/`cover_melee`/`cover_ranged` | `items::ArmorPart`'s `coverage`, `cover_melee`, `cover_ranged` |
+the fallback | `optional( jo, false, "cover_melee", cover_melee, coverage )` (`item_factory.cpp:3159-3160`) | the same fallback, **entry by entry** |
+the sum | `outfit::get_coverage` (`character_attire.cpp:1553-1562`), only for garments that **cover the part** | `melee::worn_cover( pieces, CoverType )` |
+Gate | - | `melee_rules::armour_states_a_melee_coverage_and_a_ranged_one`, `item_melee_parity::a_garment_states_its_melee_coverage_or_its_plain_one` |
+
+**The twins were data the port loaded and never read.** They are not decoration: a garment that states neither is met by its plain `coverage`, so the fallback has to be **the entry's own
+figure and not zero** - the same mistake the vitals field had to be fixed for - and the gate walks **every armour entry in the game** to say so, counting how many fall back and how many state
+a different figure.
+
+**A zero is a real answer.** `migo_plate_naked` covers `torso_upper` and **0 %** of the torso, so its melee cover is zero too; a gate that demanded a non-zero figure for every entry was
+wrong, and the loader's rule is the one that says so.
+
+**Named, not invented:** the `specifically_covers` sub-part figures (`item::get_coverage( sub_bodypart_id )`), the ablative-plate aggregation (`item.cpp:8630-8641`), and the **callers** that
+would ask for the melee figure - the melee strike still asks for the vitals cover alone, because nothing in the port's strike compares a body part against its armour yet.

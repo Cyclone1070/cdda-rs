@@ -994,6 +994,37 @@ pub fn worn_vitals_cover(pieces: &[(bool, i32)]) -> i32 {
         .sum()
 }
 
+/// Which figure of a garment's coverage a blow is judged against.
+///
+/// Reference: `item::cover_type` (`item.cpp:8608-8645`), whose data half is three fields of an armour entry - `coverage`, `cover_melee` and `cover_ranged` - the last two defaulting to the
+/// first (`item_factory.cpp:3159-3160`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoverType {
+    /// The entry's own `coverage`.
+    Default,
+    /// `cover_melee`: what a swung blow is met by.
+    Melee,
+    /// `cover_ranged`: what a shot is met by.
+    Ranged,
+}
+
+/// How much of `part` a set of worn garments covers, in the figure the blow asks for.
+///
+/// Reference: `outfit::get_coverage` (`character_attire.cpp:1553-1562`) adds `it.get_coverage( bp, cover_type )` for every worn garment that **covers the part**, and a garment that covers
+/// another part is not met at all. **The three figures are separate fields in the data**, so a garment that states none of them is met by its plain coverage whichever way the blow comes.
+#[must_use]
+pub fn worn_cover(pieces: &[(bool, i32, i32, i32)], kind: CoverType) -> i32 {
+    pieces
+        .iter()
+        .filter(|(covers, ..)| *covers)
+        .map(|(_, plain, melee, ranged)| match kind {
+            CoverType::Default => *plain,
+            CoverType::Melee => *melee,
+            CoverType::Ranged => *ranged,
+        })
+        .sum()
+}
+
 /// Which of the three melee damage types a critical is being worked out for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {

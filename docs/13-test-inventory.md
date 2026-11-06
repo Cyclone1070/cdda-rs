@@ -1357,3 +1357,6 @@ looked finished - and the dump's stance sweep proved two of its three branches w
 
 **Round 1341 ported the limb-score modifier** (`limb_score_modifier`): the reference turns a score into `1 / score` capped by the data's `max`, which is three for both melee figures, and the
 swing dump now records both per row - closing the move cost to **648 of 648 rows** including a body on the floor.
+
+**Round 1342 ported the armour cover twins**: `coverage`, `cover_melee` and `cover_ranged` are three separate figures, the last two defaulting to the first entry by entry, and
+`melee::worn_cover` sums them for the garments that cover the part - with a gate over every armour entry in the game.

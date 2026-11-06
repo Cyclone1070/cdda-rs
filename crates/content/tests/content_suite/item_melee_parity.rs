@@ -240,3 +240,38 @@ fn armour_states_its_vitals_coverage() {
         "**and a long shirt covers none of the vitals**"
     );
 }
+
+/// A garment that states no melee or ranged coverage is met by the coverage it does state.
+///
+/// Reference: `optional( jo, false, "cover_melee", cover_melee, coverage )` and the same for `cover_ranged` (`item_factory.cpp:3159-3160`). **The fallback is the entry's own coverage and
+/// not zero** - a loader that defaulted them to nothing would make every ordinary coat stop no blow at all, which is the class of error the vitals field already had to be fixed for.
+#[test]
+fn a_garment_states_its_melee_coverage_or_its_plain_one() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [root.join("core"), root.join("json")];
+    let dirs: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let items = cdda_content::items::load_paths(&dirs).expect("the game's items load");
+
+    let mut stated = 0;
+    let mut fallen_back = 0;
+    for item in &items {
+        for part in &item.armor_parts {
+            // **The fallback is the entry's own `coverage`**, whatever it is - a garment that covers a sub-part and none of the whole torso states zero and keeps zero.
+            if part.cover_melee == part.coverage && part.cover_ranged == part.coverage {
+                fallen_back += 1;
+            } else {
+                stated += 1;
+            }
+        }
+    }
+    assert!(fallen_back > 500, "most garments state nothing extra: {fallen_back}");
+    assert!(
+        stated > 0,
+        "**and some state a different figure, which is why the twins exist at all**"
+    );
+    assert_eq!(
+        fallen_back + stated,
+        items.iter().map(|item| item.armor_parts.len()).sum::<usize>(),
+        "every armour entry was counted"
+    );
+}

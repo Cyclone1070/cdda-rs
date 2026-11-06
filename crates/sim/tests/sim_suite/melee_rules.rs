@@ -563,3 +563,32 @@ fn a_limb_score_becomes_a_multiplier_by_inversion() {
         "and a score too poor to invert within the cap answers the cap too"
     );
 }
+
+/// Armour states three coverages, and a blow is met by the melee one.
+///
+/// Reference: `item::get_coverage( bodypart, cover_type )` (`item.cpp:8608-8645`) answers a **different figure for each type**, and the loader defaults both `cover_melee` and
+/// `cover_ranged` to the entry's own `coverage` (`item_factory.cpp:3159-3160`) - so a garment that states nothing is met by its plain coverage whichever way the blow comes.
+/// `outfit::get_coverage` (`character_attire.cpp:1553-1562`) then adds the figure of every worn garment **that covers the part**, which is the sum the port already had for the vitals.
+///
+/// **The twins matter because the data states them separately**: a plate carrier covers a torso completely in melee and less against a shot, and a port that added the plain coverage
+/// would be right for every garment that states nothing and wrong for exactly the ones that do.
+#[test]
+fn armour_states_a_melee_coverage_and_a_ranged_one() {
+    use cdda_sim::melee::{CoverType, worn_cover};
+
+    // (covers the part, plain coverage, melee coverage, ranged coverage)
+    let garments = [(true, 100, 80, 60), (true, 50, 50, 50), (false, 90, 90, 90)];
+    assert_eq!(
+        worn_cover(&garments, CoverType::Melee),
+        130,
+        "**the melee figure of every garment that covers the part**"
+    );
+    assert_eq!(worn_cover(&garments, CoverType::Ranged), 110, "and the ranged one");
+    assert_eq!(
+        worn_cover(&garments, CoverType::Default),
+        150,
+        "and the plain coverage, which is what the vitals rule already asked for"
+    );
+    // A garment covering another part is not met at all, whichever figure it states.
+    assert_eq!(worn_cover(&[(false, 100, 100, 100)], CoverType::Melee), 0);
+}
