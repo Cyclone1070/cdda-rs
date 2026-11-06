@@ -3210,3 +3210,23 @@ fn a_monster_mends_by_the_dark() {
     assert_eq!(healed[0], 50, "**in the dark, the full fifty**");
     assert_eq!(healed[1], 0, "and under the lamp, nothing at all");
 }
+
+/// The weather scales the sun's irradiance, and the answer can never go below nothing.
+///
+/// Reference: `incident_sun_irradiance` (`weather.cpp:147-150`):
+///
+/// ```text
+/// return std::max<float>( 0.0f, sun_irradiance( t ) * wtype->sun_multiplier );
+/// ```
+///
+/// **One number, and the clamp is the whole guard**: a weather with a multiplier above one makes the sun stronger than the clear sky's own, which is how snow glare burns at a lower sun than a
+/// clear day's glare, and a negative multiplier - which the data does not use but the reference still guards - stops at zero rather than turning the sun into darkness.
+#[test]
+fn the_weather_scales_the_sun() {
+    use cdda_sim::creature::incident_sun_irradiance;
+
+    assert_eq!(incident_sun_irradiance(800.0, 1.0), 800.0, "clear weather passes the sun through");
+    assert_eq!(incident_sun_irradiance(800.0, 1.25), 1_000.0, "and a glare-making sky makes it stronger");
+    assert_eq!(incident_sun_irradiance(800.0, 0.0), 0.0, "an overcast sky puts it out");
+    assert_eq!(incident_sun_irradiance(800.0, -3.0), 0.0, "**and the clamp stops a negative sky at nothing**");
+}

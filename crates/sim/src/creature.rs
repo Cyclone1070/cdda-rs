@@ -3344,6 +3344,21 @@ pub fn broken_item_id(monster_id: &str, broken_itype: &str) -> String {
     format!("broken_{stripped}")
 }
 
+/// What the sun delivers through the weather, in watts per square metre.
+///
+/// Reference: `incident_sun_irradiance` (`weather.cpp:147-150`):
+///
+/// ```text
+/// return std::max<float>( 0.0f, sun_irradiance( t ) * wtype->sun_multiplier );
+/// ```
+///
+/// **One number and one clamp.** A multiplier above one makes the sky stronger than a clear sky's own - which is how winter snow glare burns at a **lower** sun than a clear day's glare does
+/// (`weather.cpp:113-124` compares the same ladder) - and the clamp stops a negative sky at nothing rather than turning the sun into darkness.
+#[must_use]
+pub fn incident_sun_irradiance(clear_sky: f32, sun_multiplier: f32) -> f32 {
+    (clear_sky * sun_multiplier).max(0.0)
+}
+
 /// Whether the sun reaches a square at all.
 ///
 /// Reference: `game::is_in_sunlight` (`game.cpp:5683-5687`):

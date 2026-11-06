@@ -1276,3 +1276,5 @@ healed**, not what the type's rate says.
 
 **Round 1312 ported `is_in_sunlight` and wired the dark mending** (`game.cpp:5683-5687`, `monster.cpp:3487-3494`), with the flag dumped at monversion 12 and a corpus gate pinning **three** dark
 regenerators out of 1,154.
+
+**Round 1313 ported `incident_sun_irradiance`** (`weather.cpp:147-150`), the weather's multiplier over the clear-sky sun with the reference's own clamp at nothing.

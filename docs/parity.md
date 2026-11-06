@@ -15806,3 +15806,19 @@ contributed **nothing**. A test that wrote a light number straight into the answ
 
 **Named, not invented:** `is_sheltered`'s vehicle and multi-level halves, and the **weather** half of `is_in_sunlight` (`incident_sun_irradiance` over the weather, which the port has as
 `calendar::sun_irradiance` and has not joined to the square's roof).
+
+## The weather scales the sun (round 1313)
+
+| Piece | Reference | Port |
+|---|---|---|
+the scaled sun | `incident_sun_irradiance` (`weather.cpp:147-150`) | `creature::incident_sun_irradiance` |
+Gate | - | `creature_fight::the_weather_scales_the_sun` |
+
+**One number and one clamp.** A multiplier **above** one makes the sky stronger than a clear sky's own - which is exactly how winter snow glare burns at a *lower* sun than a clear day's glare
+does, since `weather.cpp:113-124` compares the same `irradiance` ladder against a scaled value. The clamp stops a negative sky at **nothing** rather than turning the sun into darkness.
+
+**The composition with the sunlight test is the caller's**: `is_in_sunlight( sheltered, incident_sun_irradiance( clear_sky, multiplier ) )` is the reference's whole expression, and keeping the
+two functions apart keeps the roof half testable without a calendar and the sky half testable without a roof.
+
+**Named, not invented:** `sun_irradiance( t )` itself is already ported as `core_types::calendar::sun_irradiance` over the calendar's altitude; what is not joined yet is the **turn loop's**
+call - the port has both halves and no per-turn "is this creature in the sun" system, because nothing but the dark regeneration asks, and that one reads the **lightmap** rather than the sky.
