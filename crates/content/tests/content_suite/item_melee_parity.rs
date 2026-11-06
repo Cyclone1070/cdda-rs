@@ -104,3 +104,39 @@ fn every_items_melee_numbers_are_the_references() {
     );
     assert!(compared > 9_000, "and most of them were compared: {compared}");
 }
+
+/// A weapon's category names the proficiencies that make it cheaper to swing, and the data pairs them up.
+///
+/// Reference: `wielded_weapon_categories` (`melee.cpp:570-578`) reads the wielded item's `weapon_category`, and `get_total_melee_stamina_cost` (`melee.cpp:980-992`) then walks each
+/// category's `category_proficiencies()` asking for a `melee_attack`/`stamina` bonus. **The pairing is the data's**: `weapon_categories.json` states which proficiencies belong to a
+/// category, and the item states which categories it belongs to, so a port that guessed the link from names would get the common case right and the corpus wrong.
+#[test]
+fn a_weapon_category_names_its_proficiencies() {
+    use std::collections::BTreeSet;
+
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let file = data.join("weapon_categories.json");
+    let Ok(text) = std::fs::read_to_string(&file) else {
+        return;
+    };
+    let value = cdda_json::parse(text.as_bytes()).expect("the weapon categories parse");
+    let categories = cdda_content::weapon_categories::from_data(&value);
+    assert_eq!(categories.len(), 25, "**twenty-five weapon categories** in the data");
+
+    let swords = categories.iter().find(|category| category.id == "SHORT_SWORDS").expect("short swords are a category");
+    assert_eq!(
+        swords.proficiencies,
+        vec![
+            "prof_short_swords_familiar".to_owned(),
+            "prof_short_swords_pro".to_owned(),
+            "prof_short_swords_master".to_owned()
+        ],
+        "and the data names the three proficiencies in its own order"
+    );
+    let named: BTreeSet<&str> = categories.iter().flat_map(|category| category.proficiencies.iter().map(String::as_str)).collect();
+    assert!(named.len() > 70, "the categories name {} proficiencies between them", named.len());
+    assert!(
+        categories.iter().all(|category| !category.proficiencies.is_empty()),
+        "and not one of them is empty"
+    );
+}

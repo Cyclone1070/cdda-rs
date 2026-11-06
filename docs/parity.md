@@ -15956,3 +15956,20 @@ demanding a decimal the reference never produces.
 
 **Named, not invented:** the **caller** - `melee_attack` has to know the wielded weapon's categories and each category's proficiency list, and the port's item data has neither yet (the
 so-far-unused `get_total_melee_stamina_cost` multiplier is therefore `1.0` at every swing); and the reference's `wielded_weapon_categories` itself.
+
+## A weapon category names its proficiencies (round 1321)
+
+| Piece | Reference | Port |
+|---|---|---|
+the category | `weapon_category` (`weapon_category.h`) | `content::weapon_categories::WeaponCategory`, `from_data` over `weapon_categories.json` |
+Gate | - | `item_melee_parity::a_weapon_category_names_its_proficiencies` |
+
+**The pairing is the data's, not a naming convention**: `weapon_categories.json` states which proficiencies belong to a category, and an item states which categories it belongs to. **25
+categories** naming **more than seventy** proficiencies, all from the data's own file - a port that guessed the link from a proficiency's name would get the common case right and the corpus
+wrong.
+
+**The gate reads the game's own file rather than a dump**, which is the same door the item melee-parity test already uses: the pairing is content, not a computed answer, so there is nothing
+for the oracle to compute.
+
+**Named, not invented:** the **item's side** (an item's `weapon_category` list, which the port's `Item` does not carry yet) and the **caller** that composes the two into a stamina multiplier -
+the next two steps, in that order.

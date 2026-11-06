@@ -45,6 +45,7 @@ pub mod pockets;
 pub mod use_actions;
 pub mod materials;
 pub mod weather;
+pub mod weapon_categories;
 pub mod mods;
 pub mod monster_groups;
 pub mod ammo;
