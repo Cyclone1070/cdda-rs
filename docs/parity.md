@@ -15840,3 +15840,20 @@ Gate | - | `creature_fight::the_sun_glares_into_eyes` |
 **Named, not invented:** the per-**body-part** application (`get_all_body_parts_of_type( sensor )`), which needs the body model's part types; `is_blind` (the port's seeing module answers that
 half false and says so); the effect's own lifetime and its sight penalty, which are the effect system's; and the reference's **player-only** sweep, which the port deliberately does not copy -
 the rule is a question any creature can be asked, not a step that only the player takes.
+
+## The weather shifts the sunlight it lets through (round 1315)
+
+| Piece | Reference | Port |
+|---|---|---|
+the shifted light | `incident_sunlight` (`weather.cpp:142-145`) | `creature::incident_sunlight` |
+Gate | - | `creature_fight::the_weather_shifts_the_sunlight_it_lets_through` |
+
+**The order is the rule, and it is not the irradiance's shape**: the multiplier scales the **sun alone** and the modifier is added afterwards, so a hundred under a multiplier of a half and a
+modifier of minus thirty is **twenty**, not thirty-five. A port that folded the modifier into the scale would agree on a multiplier of one - which is most weather - and disagree everywhere the
+data actually uses both.
+
+**Both weather numbers are now in the port as separate rules**, multiplicative for what a plant photosynthesises and additive for what the eye receives, because the reference keeps them apart and
+the data's own weather sets them apart.
+
+**Named, not invented:** who *asks* - the reference calls `incident_sunlight` from the plant-growth and vitamin-D passes, and the port has neither of those systems yet; `sun_light_at` itself is
+already ported over the calendar's altitude and moonlight.

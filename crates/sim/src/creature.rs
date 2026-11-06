@@ -3359,6 +3359,24 @@ pub fn incident_sun_irradiance(clear_sky: f32, sun_multiplier: f32) -> f32 {
     (clear_sky * sun_multiplier).max(0.0)
 }
 
+/// How much light the weather lets through, in the reference's light units.
+///
+/// Reference: `incident_sunlight` (`weather.cpp:142-145`):
+///
+/// ```text
+/// return std::max<float>( 0.0f, sun_light_at( t ) * wtype->light_multiplier + wtype->light_modifier );
+/// ```
+///
+/// **The order is the rule, and it is not the irradiance's shape**: the multiplier scales the **sun alone** and the modifier is added afterwards, so a hundred under a multiplier of a half and
+/// a modifier of minus thirty is **twenty**, not thirty-five. A port that folded the modifier into the scale would agree on a multiplier of one - which is most weather - and disagree
+/// everywhere the data actually uses the two together.
+#[must_use]
+pub fn incident_sunlight(clear_sky: f32, light_multiplier: f32, light_modifier: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let shifted = clear_sky * light_multiplier + light_modifier as f32;
+    shifted.max(0.0)
+}
+
 /// Whether the sun reaches a square at all.
 ///
 /// Reference: `game::is_in_sunlight` (`game.cpp:5683-5687`):

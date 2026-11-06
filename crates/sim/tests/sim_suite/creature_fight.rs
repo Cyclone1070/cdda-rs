@@ -3280,3 +3280,23 @@ fn the_sun_glares_into_eyes() {
         assert_eq!(glare_of(false, 900.0, blocked), None, "**any one prerequisite stops it**: {blocked:?}");
     }
 }
+
+/// The weather's light is the sun **scaled and then shifted**, clamped at nothing - a different shape from its irradiance.
+///
+/// Reference: `incident_sunlight` (`weather.cpp:142-145`):
+///
+/// ```text
+/// return std::max<float>( 0.0f, sun_light_at( t ) * wtype->light_multiplier + wtype->light_modifier );
+/// ```
+///
+/// **The order is the rule**: the multiplier applies to the sun alone and the modifier is added afterwards, so a clear day of 100 under a fog with a modifier of -30 and a multiplier of 0.5 is
+/// 20, not 35. A port that folded the modifier into the scale would agree on a multiplier of one and disagree everywhere else - which is exactly the case the data uses.
+#[test]
+fn the_weather_shifts_the_sunlight_it_lets_through() {
+    use cdda_sim::creature::incident_sunlight;
+
+    assert_eq!(incident_sunlight(100.0, 1.0, 0), 100.0, "clear weather passes the light through");
+    assert_eq!(incident_sunlight(100.0, 0.5, -30), 20.0, "**half of a hundred, then thirty less**");
+    assert_eq!(incident_sunlight(100.0, 1.0, -120), 0.0, "and the clamp stops a dark sky at nothing");
+    assert_eq!(incident_sunlight(100.0, 1.0, 15), 115.0, "a modifier above zero brightens, which the data does for glare");
+}

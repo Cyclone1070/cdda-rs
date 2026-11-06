@@ -1281,3 +1281,5 @@ regenerators out of 1,154.
 
 **Round 1314 ported the glare ladder** (`weather.cpp:110-137`) as `glare::glare_of`, pinned on the **winter threshold being 573 rather than 707** and on each of the five prerequisites
 stopping it on its own.
+
+**Round 1315 ported `incident_sunlight`** (`weather.cpp:142-145`), the weather's additive light shift, gated on **the modifier arriving after the scale** rather than folded into it.
