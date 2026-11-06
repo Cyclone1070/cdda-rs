@@ -857,6 +857,20 @@ pub fn logarithmic_range(min: i32, max: i32, pos: i32) -> f64 {
     (logarithmic(scaled_pos) - logi_min) / logi_range
 }
 
+/// How much of a creature's dodge its wind leaves it.
+///
+/// Reference: `Character::get_stamina_dodge_modifier` (`character.cpp:1261-1268`) - the stamina is placed on `logarithmic_range` between **a tenth** and **nine tenths** of the maximum, and the
+/// answer is **one minus** that, so a full wind multiplies the dodge by one and a tenth of one multiplies it by zero. **A creature with no stamina at all is not worse than that**, because the
+/// curve is clamped above its maximum.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn stamina_dodge_modifier(stamina: f64, stamina_max: f64) -> f64 {
+    let low = (stamina_max * 0.1) as i32;
+    let high = (stamina_max * 0.9) as i32;
+    let position = stamina as i32;
+    1.0 - logarithmic_range(low, high, position)
+}
+
 /// One unit of incoming damage, as far as a block is concerned.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DamageUnit {

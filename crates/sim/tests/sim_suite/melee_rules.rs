@@ -628,3 +628,39 @@ fn a_trapped_monster_dodges_worse() {
     assert_eq!(monster_dodge(4, &["downed", "beartrap"]), 0, "the floor is asked first");
     assert_eq!(monster_dodge(3, &["beartrap", "bouldering"]), 0, "both penalties apply, and the floor rounds down");
 }
+
+/// A winded survivor dodges worse, on the reference's own curve.
+///
+/// Reference: `Character::get_stamina_dodge_modifier` (`character.cpp:1261-1268`):
+///
+/// ```text
+/// const double stamina_min = get_stamina_max() * 0.1;
+/// const double stamina_max = get_stamina_max() * 0.9;
+/// return 1.0 - logarithmic_range( stamina_min, stamina_max, stamina );
+/// ```
+///
+/// `logarithmic_range` answers **one below** its minimum and **zero above** its maximum, so the modifier is **one with a full wind and zero at a tenth of one** - and it moves the way the
+/// curve does in between, which is what makes a long fight cost the ability to dodge rather than switching it off.
+#[test]
+fn a_winded_survivor_dodges_worse() {
+    use cdda_sim::melee::stamina_dodge_modifier;
+
+    let max = 3_500.0;
+    assert!(
+        (stamina_dodge_modifier(max, max) - 1.0).abs() < 1e-9,
+        "**a full wind costs nothing**"
+    );
+    assert!(
+        (stamina_dodge_modifier(0.1 * max, max) - 0.0).abs() < 1e-9,
+        "**and a tenth of one leaves nothing to dodge with**"
+    );
+    assert!(
+        (stamina_dodge_modifier(0.0, max) - 0.0).abs() < 1e-9,
+        "nothing at all is not worse than a tenth, because the curve is clamped above its maximum"
+    );
+    // Half a wind is somewhere between, and more wind is always better than less.
+    let half = stamina_dodge_modifier(0.5 * max, max);
+    assert!((0.2..0.8).contains(&half), "half a wind leaves half a dodge: {half}");
+    assert!(stamina_dodge_modifier(0.8 * max, max) > half);
+    assert!(stamina_dodge_modifier(0.3 * max, max) < half);
+}

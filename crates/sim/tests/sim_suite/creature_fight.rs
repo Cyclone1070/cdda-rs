@@ -4095,3 +4095,37 @@ fn the_stores_own_monster_dodges_worse_in_a_trap() {
         "and one on the floor dodges nothing, whatever the trap is doing"
     );
 }
+
+/// A winded survivor dodges worse, and a traps' penalty is multiplied by it.
+///
+/// Reference: `Character::get_dodge` multiplies by `get_stamina_dodge_modifier()` **after** the trapping penalties (`melee.cpp:1202-1225`), so the two compose rather than replace one another.
+#[test]
+fn a_winded_survivor_dodges_worse_in_the_store() {
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Stamina {
+        cur: 3_500.0,
+        max: 3_500.0,
+    });
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        10,
+        "**a full wind leaves the dodge whole**"
+    );
+    world.entity_mut(survivor).insert(cdda_sim::creature::Stamina {
+        cur: 350.0,
+        max: 3_500.0,
+    });
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        0,
+        "**and a tenth of one leaves nothing to dodge with**"
+    );
+    world.entity_mut(survivor).insert(cdda_sim::creature::Stamina {
+        cur: 1_750.0,
+        max: 3_500.0,
+    });
+    let half = cdda_sim::creature::defence_of(&world, survivor).dodge;
+    assert!((2..=8).contains(&half), "half a wind leaves fewer than ten: {half}");
+}

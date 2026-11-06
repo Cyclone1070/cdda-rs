@@ -3089,7 +3089,14 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         if crate::creature_flags::has_flag(world, entity, "CANNOT_MOVE") {
             conditions.push("cannot_move");
         }
-        crate::melee::monster_dodge(world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points), &conditions)
+        let base = crate::melee::monster_dodge(world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points), &conditions);
+        // Reference: the dodge is multiplied by `get_stamina_dodge_modifier()` (`melee.cpp:1223-1225`) **after** the trapping penalties, so a winded survivor in a bear trap is worse than
+        // either rule alone. A creature with no `Stamina` component has no wind to lose and is left whole.
+        world.get::<Stamina>(entity).map_or(base, |stamina| {
+            #[allow(clippy::cast_possible_truncation)]
+            let scaled = (f64::from(base) * crate::melee::stamina_dodge_modifier(stamina.cur, stamina.max)) as i32;
+            scaled
+        })
     };
     crate::melee::Defence {
         dodge,

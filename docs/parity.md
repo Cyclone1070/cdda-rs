@@ -16411,5 +16411,19 @@ sees the trap without anything else knowing traps exist - and the conditions arr
 **The floor is asked first and answers everything**: a trapped monster that is also downed dodges **nothing**, not half of nothing. Integer division takes the fraction, so a bouldering
 monster with three points of dodge has none.
 
-**Named, not invented:** `Character::get_dodge`'s own chain (`melee.cpp:1193-1242`) - the stamina logistic, the roller-skate and speed penalties, the reaction limb score and the body-size ratio -
-which the port's `Dodge` component still stands in for; and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).
+## A winded survivor dodges worse (round 1347)
+
+| Piece | Reference | Port |
+|---|---|---|
+the window | a tenth to nine tenths of the maximum stamina (`character.cpp:1263-1266`) | `melee::stamina_dodge_modifier( stamina, max )` |
+the curve | `1.0 - logarithmic_range( min, max, stamina )` | the same, through the port's `logarithmic_range` |
+where it multiplies | after the trapping penalties (`melee.cpp:1223-1225`) | after `monster_dodge`, in `defence_of` |
+Gate | - | `melee_rules::a_winded_survivor_dodges_worse`, `creature_fight::a_winded_survivor_dodges_worse_in_the_store` |
+
+**The curve's direction is the load-bearing half**: `logarithmic_range` answers one **below** its minimum and zero **above** its maximum, so the modifier is **one with a full wind and zero at a
+tenth of one** - and a creature with nothing left is not worse than that, because the curve is clamped above its maximum rather than extrapolated past it.
+
+**The two rules compose rather than replace**: a winded survivor in a bear trap is worse than either rule alone, which is the reference's own order (`melee.cpp:1202-1225`).
+
+**Named, not invented:** the rest of `Character::get_dodge`'s chain - the roller-skate and speed penalties, the reaction limb score, the body-size ratio and the somatic limb modifier
+(`melee.cpp:1209-1240`) - which the port's `Dodge` component still stands in for; and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).

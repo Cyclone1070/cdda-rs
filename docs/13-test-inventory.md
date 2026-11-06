@@ -1371,3 +1371,6 @@ been ported and uncalled for a round.
 
 **Round 1346 ported `monster::get_dodge`**: zero when downed or immobile, half when trapped or tied, a quarter when bouldering - asked by `defence_of`, so a trapped monster is harder to hit without
 anything else knowing traps exist.
+
+**Round 1347 ported the stamina dodge modifier**: the dodge is placed on the logistic between a tenth and nine tenths of the maximum wind, so a full one costs nothing, a tenth of one leaves
+nothing to dodge with, and the two compose with the trapping penalties in the reference's own order.
