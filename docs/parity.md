@@ -15934,3 +15934,25 @@ Gate | - | `creature_fight::planting_needs_fifty_fahrenheit` |
 
 **Named, not invented:** the **act** of planting - `iexamine::dirtmound`'s "It is too cold to plant anything now." and the seed selection behind it - which is the farming step, and the five
 callers (`iexamine`, `activity_item_handling`, `faction_camp`, `mission_companion`, `vehicle`), none of which the port has.
+
+## A proficiency can only make a swing cheaper (round 1320)
+
+| Piece | Reference | Port |
+|---|---|---|
+the bonuses | `proficiency::_bonuses` (`proficiency.h:87`) | dumped at **profversion 2**, `Proficiency::bonuses` / `bonus_for` |
+the multiplier | `get_total_melee_stamina_cost` (`melee.cpp:979-995`) | `melee::proficiency_stamina_multiplier` |
+Gates | - | `crafting::proficiencies_carry_their_bonuses`, `creature_fight::a_proficiency_can_only_make_a_swing_cheaper` |
+
+**The dump's counts are the finding**: 235 proficiencies, **81 with any bonus**, **75 with a `melee_attack`/`stamina` bonus** of 0.025 (familiar, pro) or 0.05 (master). A loader that read
+`0.025` as zero would leave every count plausible and every swing paying full stamina.
+
+**The clamp's upper bound is the running multiplier, not one** - so a category that loses nothing leaves the multiplier where it was, **and two categories do not stack**: two 2.5% bonuses in
+different categories give 0.975, not 0.95. The gate pins that, because the natural way to write the rule (`multiplier *= 1 - loss`) gets the common case right and the second category wrong.
+
+**The floor stops a body of bonuses at free**, never at a rebate - the reference's own guard, since a negative multiplier would pay a character stamina for swinging.
+
+**The gate caught a single-precision value**: `1.0 - 0.9` is `0.100000024` in `f32`, which is the same answer the reference's `float` gives, so the assertion allows it rather than
+demanding a decimal the reference never produces.
+
+**Named, not invented:** the **caller** - `melee_attack` has to know the wielded weapon's categories and each category's proficiency list, and the port's item data has neither yet (the
+so-far-unused `get_total_melee_stamina_cost` multiplier is therefore `1.0` at every swing); and the reference's `wielded_weapon_categories` itself.

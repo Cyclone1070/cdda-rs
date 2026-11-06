@@ -434,6 +434,32 @@ pub fn stance_malus(stance: Stance) -> i32 {
     0
 }
 
+/// What a set of proficiencies multiplies a swing's stamina cost by.
+///
+/// Reference: `get_total_melee_stamina_cost` (`melee.cpp:979-995`):
+///
+/// ```text
+/// float proficiency_multiplier = 1.f;
+/// for( const weapon_category_id &cat : wielded_weapon_categories( *this ) ) {
+///     float loss = 0.f;
+///     for( const proficiency_id &prof : cat->category_proficiencies() ) { ... loss += bonus.value(); }
+///     proficiency_multiplier = std::clamp( 1.f - loss, 0.f, proficiency_multiplier );
+/// }
+/// ```
+///
+/// `losses` is **one number per weapon category**: the sum of that category's known proficiencies' `melee_attack`/`stamina` bonuses, which is what the inner loop adds.
+///
+/// **The upper bound of the clamp is the running multiplier, not one**, so a category that loses nothing leaves the multiplier where it was instead of resetting it. The floor at zero
+/// stops a body of bonuses at **free** rather than turning into a rebate - the reference's own guard, because a negative multiplier would pay the character stamina for swinging.
+#[must_use]
+pub fn proficiency_stamina_multiplier(losses: &[f32]) -> f32 {
+    let mut multiplier = 1.0f32;
+    for loss in losses {
+        multiplier = (1.0 - loss).clamp(0.0, multiplier);
+    }
+    multiplier
+}
+
 /// What a swing costs a character in stamina.
 ///
 /// Reference: `Character::get_total_melee_stamina_cost` (`melee.cpp:973-997`): the standard cost is `- ( weight / 16_gram + 50 )` (`character.cpp:3107-3120`), and the total adds

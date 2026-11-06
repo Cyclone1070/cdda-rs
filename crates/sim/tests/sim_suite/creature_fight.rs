@@ -3491,3 +3491,50 @@ fn planting_needs_fifty_fahrenheit() {
     assert!(warm_enough_to_plant(300.0), "a summer day certainly is");
     assert!(!warm_enough_to_plant(273.15), "and freezing is not");
 }
+
+/// A proficiency's stamina bonus can only ever make a swing cheaper, and a body of them can zero the cost.
+///
+/// Reference: `get_total_melee_stamina_cost` (`melee.cpp:979-995`):
+///
+/// ```text
+/// float proficiency_multiplier = 1.f;
+/// for( const weapon_category_id &cat : wielded_weapon_categories( *this ) ) {
+///     float loss = 0.f;
+///     for( const proficiency_id &prof : cat->category_proficiencies() ) {
+///         if( !has_proficiency( prof ) ) continue;
+///         std::optional<float> bonus = prof->bonus_for( "melee_attack", proficiency_bonus_type::stamina );
+///         if( !bonus.has_value() ) continue;
+///         loss += bonus.value();
+///     }
+///     proficiency_multiplier = std::clamp( 1.f - loss, 0.f, proficiency_multiplier );
+/// }
+/// return std::min<int>( -50, proficiency_multiplier * ( mod_sta + melee - stance_malus ) );
+/// ```
+///
+/// **The upper bound of the clamp is the running multiplier, not one**: so each weapon category can only *lower* the multiplier, and a category that loses nothing leaves it where it was
+/// rather than resetting it. **The losses inside a category add**, which is how two proficiencies of a quarter each become half. And the clamp's floor at zero means a body of bonuses
+/// stops at free rather than turning into a rebate.
+#[test]
+fn a_proficiency_can_only_make_a_swing_cheaper() {
+    use cdda_sim::melee::proficiency_stamina_multiplier;
+
+    assert_eq!(proficiency_stamina_multiplier(&[]), 1.0, "no proficiencies, no discount");
+    assert_eq!(proficiency_stamina_multiplier(&[0.025]), 0.975, "a familiar's two and a half percent");
+    assert_eq!(proficiency_stamina_multiplier(&[0.05]), 0.95, "**two of them add inside the category**, which is the inner loop's sum");
+    assert_eq!(
+        proficiency_stamina_multiplier(&[0.025, 0.025]),
+        0.975,
+        "**but two categories do not stack**: the second wants 0.975, and the clamp's ceiling is already 0.975"
+    );
+    // Single precision: 1.0 - 0.9 is 0.100000024, which is the same answer the reference's `float` gives.
+    assert!(
+        (proficiency_stamina_multiplier(&[0.9, 0.9]) - 0.1).abs() < 1e-6,
+        "and a bigger loss still only counts once"
+    );
+    assert_eq!(proficiency_stamina_multiplier(&[1.5]), 0.0, "**the floor stops it at free**, never at a rebate");
+    assert_eq!(
+        proficiency_stamina_multiplier(&[0.5, 0.0]),
+        0.5,
+        "a category that loses nothing leaves the multiplier where the first one left it"
+    );
+}

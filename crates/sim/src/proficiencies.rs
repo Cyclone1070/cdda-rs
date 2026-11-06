@@ -11,7 +11,7 @@ use bevy_ecs::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// What a creature has learned, and how far along it is with what it has not.
-#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Default, PartialEq)]
 pub struct Proficiencies {
     /// The proficiencies it knows.
     pub known: BTreeSet<String>,
@@ -141,7 +141,7 @@ pub fn install(world: &mut World, dump: &cdda_content::proficiencies::Proficienc
 }
 
 /// The data's proficiency table, kept where the rules can read it.
-#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Default, PartialEq)]
 pub struct ProficiencyRules {
     /// Every proficiency the data defines.
     pub dump: cdda_content::proficiencies::Proficiencies,

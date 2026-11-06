@@ -1294,3 +1294,6 @@ reference's order, gated on the **combined case** rather than each modifier alon
 exactly fifty more stamina out of a seven-thousand pool.
 
 **Round 1319 ported `warm_enough_to_plant`** (`weather.cpp:875-883`), gated on the **exclusive** boundary (exactly fifty is warm enough) and on the Fahrenheit-to-kelvin door being in one place.
+
+**Round 1320 dumped proficiency bonuses** (profversion 2: **235 proficiencies, 81 with bonuses, 75 with a melee_attack/stamina one**) and ported the stamina multiplier's clamp chain
+(`melee.cpp:979-995`) - including the fact that **categories do not stack**, because the clamp's ceiling is the running value.

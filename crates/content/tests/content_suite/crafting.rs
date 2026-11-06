@@ -294,3 +294,35 @@ fn three_monster_types_mend_in_the_dark() {
     // The loader pushes the null monster after the data's own, so the count is the corpus plus that one.
     assert_eq!(monsters.len(), 1155, "out of the whole corpus, plus the null monster the reference keeps at zero");
 }
+
+/// Eighty-one proficiencies are good for something, and seventy-five of them make a melee swing cheaper.
+///
+/// Reference: `proficiency::_bonuses` (`proficiency.h:87`) and `get_total_melee_stamina_cost`'s `bonus_for( "melee_attack", stamina )` (`melee.cpp:980-992`). **The counts are the dump's
+/// own**: a loader that dropped the field, or read `0.025` as `0`, would leave every count plausible and every swing paying full stamina.
+#[test]
+fn proficiencies_carry_their_bonuses() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let value = cdda_json::parse(text.as_bytes()).expect("the proficiency dump parses");
+    let (proficiencies, count) = cdda_content::proficiencies::from_dump(&value).expect("the proficiency dump loads");
+
+    assert_eq!(count, 235, "the dump's own count");
+    let with_bonuses = proficiencies.by_id.values().filter(|prof| !prof.bonuses.is_empty()).count();
+    assert_eq!(with_bonuses, 81, "**eighty-one are good for something**");
+    let stamina: Vec<&cdda_content::proficiencies::Proficiency> = proficiencies
+        .by_id
+        .values()
+        .filter(|prof| prof.bonus_for("melee_attack", "stamina").is_some())
+        .collect();
+    assert_eq!(stamina.len(), 75, "and seventy-five of those make a swing cheaper");
+    assert!(
+        stamina.iter().any(|prof| prof.bonus_for("melee_attack", "stamina") == Some(0.05)),
+        "a master's bonus is a twentieth of the cost"
+    );
+    assert!(
+        stamina.iter().all(|prof| prof.bonus_for("melee_attack", "strength").is_none()),
+        "and none of them claims to be a strength bonus"
+    );
+}

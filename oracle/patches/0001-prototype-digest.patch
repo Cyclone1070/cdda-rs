@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 11:07:53
-@@ -0,0 +1,7037 @@
++++ oracle/src/src/harness.cpp	2026-11-06 12:32:52
+@@ -0,0 +1,7059 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -379,6 +379,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "construction.h"
 +#include "recipe_dictionary.h"
 +#include "requirements.h"
++#include "proficiency.h"
 +#include "json_loader.h"
 +#include "inventory.h"
 +#include "clzones.h"
@@ -1291,6 +1292,27 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            }
 +            first_req = false;
 +            out << "\"" << need.str() << "\"";
++        }
++        // Version two adds the **bonuses** a proficiency grants (`proficiency::_bonuses`, `proficiency.h:108-114`): a map from the thing the bonus applies to - `melee_attack`,
++        // `crafting_speed` and so on - to a list of `{ type, value }`. `bonus_for( category, type )` takes the **first** entry of the type it finds, so the order matters and the
++        // dump keeps the data's own.
++        out << "],\"bonuses\":[";
++        bool first_cat = true;
++        for( const std::pair<const std::string, std::vector<proficiency_bonus>> &entry : prof.all_bonuses() ) {
++            if( !first_cat ) {
++                out << ",";
++            }
++            first_cat = false;
++            out << "{\"category\":\"" << entry.first << "\",\"values\":[";
++            bool first_bonus = true;
++            for( const proficiency_bonus &bonus : entry.second ) {
++                if( !first_bonus ) {
++                    out << ",";
++                }
++                first_bonus = false;
++                out << "{\"type\":\"" << io::enum_to_string( bonus.type ) << "\",\"value\":" << bonus.value << "}";
++            }
++            out << "]}";
 +        }
 +        out << "]}";
 +    }
@@ -10929,6 +10951,24 @@ diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 +++ oracle/src/src/prefix.h	2026-10-21 06:53:22
 @@ -0,0 +1 @@
 +#define PREFIX "/usr/local"
+diff -ruN references/Cataclysm-DDA/src/proficiency.h oracle/src/src/proficiency.h
+--- references/Cataclysm-DDA/src/proficiency.h	2026-10-19 18:15:05
++++ oracle/src/src/proficiency.h	2026-11-06 12:32:30
+@@ -93,6 +93,14 @@
+ 
+         static const std::vector<proficiency> &get_all();
+ 
++        /// Every category this proficiency has a bonus in, and the bonuses themselves.
++        ///
++        /// **Added for the harness**, not a reference API: the dump needs to read the whole map, and the class offers only `get_bonuses( category )`, which needs the category first.
++        /// Keeping `_bonuses` private and adding one reader is cheaper than guessing the category names in the dumper.
++        const std::map<std::string, std::vector<proficiency_bonus>> &all_bonuses() const {
++            return _bonuses;
++        }
++
+         bool can_learn() const;
+         bool ignore_focus() const;
+         bool is_teachable() const;
 diff -ruN references/Cataclysm-DDA/src/requirements.cpp oracle/src/src/requirements.cpp
 --- references/Cataclysm-DDA/src/requirements.cpp	2026-10-19 18:15:05
 +++ oracle/src/src/requirements.cpp	2026-10-24 20:45:07
