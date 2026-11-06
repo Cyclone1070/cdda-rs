@@ -15782,3 +15782,27 @@ seen** and that **every** line it saw was the right grade. That is the shape a t
 
 **Named, not invented:** the dark half (`regenerates_in_dark` and `is_in_sunlight`, which need a dump field and the light assembly), the `one_in( 2 )`'s position relative to other draws in
 the turn, and `regeneration_modifiers` (P5's enchantments and the effect-driven rates).
+
+## A monster mends by the dark (round 1312)
+
+| Piece | Reference | Port |
+|---|---|---|
+the sunlight test | `game::is_in_sunlight` (`game.cpp:5683-5687`) | `creature::is_in_sunlight` |
+the flag | `mtype::regenerates_in_dark` (`mtype.h:541`) | dumped (version 12), `MonsterType::regenerates_in_dark`, carried by `regeneration::Mending::in_dark` |
+the heal | `monster.cpp:3487-3494` | `regeneration::mend_everyone` adds `dark_regeneration` on top of the rate |
+Gates | - | `creature_fight::sunlight_needs_an_open_sky_and_a_sun_above_five_degrees`, `a_monster_mends_by_the_dark`, `crafting::three_monster_types_mend_in_the_dark` |
+
+**Sunlight needs both halves and neither is the obvious one**: a roof shuts out a noon sun, and a sun below five degrees is not sunlight however open the sky. `irradiance::minimal` is **87
+W/m²** and the test is **exclusive** - a square at exactly 87 is not in sunlight.
+
+**Three of 1,154 types mend by the dark**, which the corpus gate pins: a loader that read the flag as a number, or a dump that dropped it, would give every monster the same answer and every count
+would still look plausible.
+
+**The sum happens before the heal, so a body cannot be mended twice in one pass** - the reference heals twice and the port adds and heals once, which is the same number with one fewer place to get
+the message threshold wrong.
+
+**The gate drives the real lighting answer**: the lit half spawns a lamp and casts the light from the store, then asserts the answer really is past two hundred before checking that the curve
+contributed **nothing**. A test that wrote a light number straight into the answer would prove the arithmetic and not the wiring.
+
+**Named, not invented:** `is_sheltered`'s vehicle and multi-level halves, and the **weather** half of `is_in_sunlight` (`incident_sun_irradiance` over the weather, which the port has as
+`calendar::sun_irradiance` and has not joined to the square's roof).

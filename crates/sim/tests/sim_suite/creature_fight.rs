@@ -250,12 +250,12 @@ fn a_wounded_monster_mends_as_the_turns_pass_and_never_past_its_ceiling() {
     world
         .entity_mut(hurt)
         .insert(Health { hp: 40, max_hp: 80 })
-        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80 });
+        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80, in_dark: false });
     let whole = cdda_sim::creature::spawn_creature(&mut world, "the whole one", (2, 2, 0));
     world
         .entity_mut(whole)
         .insert(Health { hp: 80, max_hp: 80 })
-        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80 });
+        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80, in_dark: false });
 
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
@@ -362,7 +362,7 @@ fn a_slowed_monster_walks_faster_again_as_it_mends() {
         .entity_mut(hurt)
         .insert(Health { hp: 40, max_hp: 80 })
         .insert(Speed { base: 30, bonus: 0 })
-        .insert(Mending { per_hour: 3_600.0, type_speed: 70, type_hp: 80 });
+        .insert(Mending { per_hour: 3_600.0, type_speed: 70, type_hp: 80, in_dark: false });
 
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
@@ -3138,6 +3138,7 @@ fn the_mending_system_says_so_on_a_coin_flip() {
             per_hour: 3_600.0,
             type_speed: 100,
             type_hp: 40,
+        in_dark: false,
         });
         cdda_sim::regeneration::mend_everyone(&mut world);
         let lines = cdda_sim::messages::lines(&world);
@@ -3150,4 +3151,62 @@ fn the_mending_system_says_so_on_a_coin_flip() {
         }
     }
     assert!(said > 5, "the one-in-two coin flip says it often enough to be seen: {said} of 40 seeds");
+}
+
+/// A square is in sunlight only when it has no roof over it **and** the sun is high enough to count.
+///
+/// Reference: `game::is_in_sunlight` (`game.cpp:5683-5687`):
+///
+/// ```text
+/// return !is_sheltered( p ) && incident_sun_irradiance( weather, calendar::turn ) > irradiance::minimal;
+/// ```
+///
+/// `irradiance::minimal` is **87 W/m²**, the sun at five degrees on a clear day (`weather.h:56-60`). **Both halves are needed and neither is the obvious one**: a roof shuts out a noon sun,
+/// and a sun below five degrees is not sunlight however open the sky.
+#[test]
+fn sunlight_needs_an_open_sky_and_a_sun_above_five_degrees() {
+    use cdda_sim::creature::is_in_sunlight;
+
+    assert!(is_in_sunlight(false, 900.0), "a noon sun over an open square is sunlight");
+    assert!(!is_in_sunlight(true, 900.0), "**a roof shuts it out**");
+    assert!(!is_in_sunlight(false, 87.0), "and the floor is exclusive: 87 is not above 87");
+    assert!(is_in_sunlight(false, 87.1), "while a hair above it is");
+    assert!(!is_in_sunlight(false, 0.0), "darkness is not sunlight");
+}
+
+/// A monster that mends by the dark gains the curve on top of its rate, and loses it under a lamp.
+///
+/// Reference: `monster::process_effects` (`monster.cpp:3487-3494`): a `regenerates_in_dark` type heals `50 * e^(-light^2/10000)` when the square is not in sunlight, **in addition** to its
+/// stated rate. The gate drives the real system over the real lighting answer: a body with a rate of zero mends fifty a turn on a dark square and **nothing at all** under a lamp bright
+/// enough to put the answer past two hundred, which is the only way to tell the flag from a rate that happened to be large.
+#[test]
+fn a_monster_mends_by_the_dark() {
+    let mut healed = Vec::new();
+    for lantern in [false, true] {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+        let monster = cdda_sim::spawn_monster(&mut world, (13, 13), cdda_sim::MonsterKindId(1), 200);
+        cdda_sim::creature::set_health_left(&mut world, monster, 50);
+        world.entity_mut(monster).insert(cdda_sim::regeneration::Mending {
+            per_hour: 0.0,
+            type_speed: 100,
+            type_hp: 200,
+            in_dark: true,
+        });
+        if lantern {
+            // A lamp on the body's own square: the lighting answer is built from the store like any other turn's.
+            world.spawn((
+                cdda_sim::Position { x: 13, y: 13, z: 0 },
+                cdda_sim::LightSource { luminance: 400.0 },
+            ));
+            cdda_sim::cast_lights_with(&mut world);
+            assert!(
+                cdda_sim::singletons::light(&world).max_at(13, 13) > 200.0,
+                "the lamp really is bright enough to stop the curve"
+            );
+        }
+        healed.push(cdda_sim::regeneration::mend_everyone(&mut world));
+    }
+    assert_eq!(healed[0], 50, "**in the dark, the full fifty**");
+    assert_eq!(healed[1], 0, "and under the lamp, nothing at all");
 }

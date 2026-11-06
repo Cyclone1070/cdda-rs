@@ -84,6 +84,11 @@ pub struct MonsterType {
     /// This is where a monster's loot comes from - the group is an **inline item group** with its own weights and counts, which the port has as `byproduct_group` for recipes but not
     /// yet for monsters.
     pub death_drops: String,
+    /// Whether it mends by the dark instead of in it (`mtype::regenerates_in_dark`, `mtype.h:541`).
+    ///
+    /// **Only three of the 1,154 types say yes**, and the rule is a curve rather than a number: `50 * e^(-light^2/10000)` hit points a turn (`monster.cpp:3487-3494`), which a torch snuffs
+    /// out and a floodlight stops twenty tiles away.
+    pub regenerates_in_dark: bool,
     /// How readily it bleeds (`mtype::bleed_rate`, `mtype.h:486`).
     ///
     /// `mtype::get_bleed_type` (`mtype.cpp:412-422`) checks this **before** it looks at a species at all: a rate of zero means the monster never bleeds its species' blood, however the
@@ -368,6 +373,9 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
         monster.regen_morale = *said;
     }
     monster.bleed_rate = count(object, "bleed_rate", monster.bleed_rate)?;
+    if let Some(cdda_json::Value::Bool(dark)) = object.get("regenerates_in_dark") {
+        monster.regenerates_in_dark = *dark;
+    }
     // The two strings the death path reads, with the reference's own defaults: no message, and a normal corpse.
     if let Some(cdda_json::Value::Str(said)) = object.get("death_message") {
         monster.death_message.clone_from(said);
@@ -605,6 +613,8 @@ impl MonsterType {
             regen_morale: false,
             // `mtype::bleed_rate` starts at a hundred (`mtype.h:486`), which is the ordinary case: a species' bleed type is used unless the data says otherwise.
             bleed_rate: 100,
+            // Most types do not mend in the dark (`mtype::regenerates_in_dark` starts false).
+            regenerates_in_dark: false,
             // `monster_death_effect` starts with no message and a normal corpse (`mtype.h:274-285`).
             death_message: String::new(),
             corpse_type: "normal".to_owned(),

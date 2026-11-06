@@ -266,3 +266,31 @@ fn the_monster_dump_carries_its_broken_item_and_drops() {
         "with every id a name the data wrote, not a number the loader generated"
     );
 }
+
+/// Three types mend in the dark, and the dump says which.
+///
+/// Reference: `mtype::regenerates_in_dark` (`mtype.h:541`) with `monster.cpp:3487-3494`. **Three of 1,154** is the sort of count that has to be pinned: a loader that read the flag as a
+/// number, or a dump that dropped it, would give every monster the same answer and every count would still look plausible.
+#[test]
+fn three_monster_types_mend_in_the_dark() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let value = cdda_json::parse(text.as_bytes()).expect("the monster dump parses");
+    let cdda_json::Value::Object(root) = &value else {
+        return;
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
+        return;
+    };
+    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+    let dark: Vec<&str> = monsters
+        .iter()
+        .filter(|monster| monster.regenerates_in_dark)
+        .map(|monster| monster.id.as_str())
+        .collect();
+    assert_eq!(dark.len(), 3, "**three types mend by the dark**: {dark:?}");
+    // The loader pushes the null monster after the data's own, so the count is the corpus plus that one.
+    assert_eq!(monsters.len(), 1155, "out of the whole corpus, plus the null monster the reference keeps at zero");
+}

@@ -1273,3 +1273,6 @@ read from **what was healed** and on the truncation that stops the curve at abou
 
 **Round 1311 wired the regeneration line into the mending system** (`monster.cpp:3473-3486`), gated by driving the system itself over forty seeds and asserting the grade tracks **what was
 healed**, not what the type's rate says.
+
+**Round 1312 ported `is_in_sunlight` and wired the dark mending** (`game.cpp:5683-5687`, `monster.cpp:3487-3494`), with the flag dumped at monversion 12 and a corpus gate pinning **three** dark
+regenerators out of 1,154.

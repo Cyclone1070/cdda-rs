@@ -19,6 +19,8 @@ pub struct Mending {
     pub type_speed: i32,
     /// The hit points its type gives it, which is the ceiling both mending and speed read.
     pub type_hp: i32,
+    /// Whether its type mends **by** the dark (`mtype::regenerates_in_dark`, `mtype.h:541`).
+    pub in_dark: bool,
 }
 
 /// How many turns an hour is.
@@ -87,7 +89,17 @@ pub fn mend_everyone(world: &mut World) -> i32 {
         .collect();
     let mut healed = 0;
     for (entity, rate) in rates {
-        let amount = mend_over(world, rate.per_hour, 1);
+        // Reference: `monster::process_effects` heals the stated rate, then, for a type that mends **by** the dark, adds `50 * e^(-light^2/10000)` when the square is out of the sun
+        // (`monster.cpp:3460-3494`). The two are separate heals in the reference and are summed here into one, which is the same number and one fewer place to mend the body twice.
+        let mut amount = mend_over(world, rate.per_hour, 1);
+        if rate.in_dark
+            && let Some((x, y, z)) = world.get::<crate::Position>(entity).map(|at| (at.x, at.y, at.z))
+        {
+            let light = crate::singletons::light(world)
+                .at(x, y)
+                .map_or(0.0, |quarters| quarters.max());
+            amount += crate::creature::dark_regeneration(light);
+        }
         if amount == 0 {
             continue;
         }

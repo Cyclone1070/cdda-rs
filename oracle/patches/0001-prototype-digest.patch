@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 10:21:17
-@@ -0,0 +1,7034 @@
++++ oracle/src/src/harness.cpp	2026-11-06 11:07:53
+@@ -0,0 +1,7037 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -6728,7 +6728,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot open %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":11,\n\"prototypes\":[\n" );
++    std::fprintf( out, "{\"harness\":\"monsters\",\"version\":12,\n\"prototypes\":[\n" );
 +    bool first = true;
 +    std::set<std::string> species_named_by_monsters;
 +    for( const mtype &proto : MonsterGenerator::generator().get_all_mtypes() ) {
@@ -6802,7 +6802,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      "\"melee_bash\":%.6g,\"melee_cut\":%.6g,\"melee_stab\":%.6g,\"attack_cost\":%d,"
 +                      "\"regen_morale\":%s,\"bleed_rate\":%d,"
 +                      "\"death_message\":\"%s\",\"corpse_type\":\"%s\","
-+                      "\"broken_itype\":\"%s\",\"death_drops\":\"%s\"}",
++                      "\"broken_itype\":\"%s\",\"death_drops\":\"%s\",\"regenerates_in_dark\":%s}",
 +                      harness_escape( proto.harvest.str() ).c_str(),
 +                      harness_escape( proto.dissect.str() ).c_str(),
 +                      size_name,
@@ -6842,7 +6842,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      harness_escape( proto.broken_itype.str() ).c_str(),
 +                      // **Only a named group is dumped.** An inline `death_drops` is given a generated id when the data loads, and that id is a debug marker (`\u01F7 <n>`) rather
 +                      // than a name - dumping it would put a number that changes between loads into the corpus and call it parity. The named groups are the ones a reader can follow.
-+                      harness_escape( is_named_group( proto.death_drops.str() ) ? proto.death_drops.str() : std::string() ).c_str() );
++                      harness_escape( is_named_group( proto.death_drops.str() ) ? proto.death_drops.str() : std::string() ).c_str(),
++                      // Version twelve adds `mtype::regenerates_in_dark` (`mtype.h:541`): a type that mends by the dark instead of in it. Without it the port cannot tell a monster that
++                      // gains `50 * e^(-light^2/10000)` in the dark from one that gains nothing and simply does not mend.
++                      proto.regenerates_in_dark ? "true" : "false" );
 +        first = false;
 +    }
 +    // The **species table**, because `get_bleed_type` reads `species.bleeds` and the monster only names its species. The species the monsters name are the ones that matter, so they are

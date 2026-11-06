@@ -1762,6 +1762,7 @@ pub fn spawn_monster_of_type(
             per_hour: rate,
             type_speed: monster_type.speed,
             type_hp: monster_type.hp,
+        in_dark: false,
         });
     if let Some(size) = size_named(&monster_type.size)
         && let Some(mut creature) = world.get_mut::<Creature>(entity)
@@ -3341,6 +3342,23 @@ pub fn broken_item_id(monster_id: &str, broken_itype: &str) -> String {
     }
     let stripped = monster_id.strip_prefix("mon_").unwrap_or(monster_id);
     format!("broken_{stripped}")
+}
+
+/// Whether the sun reaches a square at all.
+///
+/// Reference: `game::is_in_sunlight` (`game.cpp:5683-5687`):
+///
+/// ```text
+/// return !is_sheltered( p ) && incident_sun_irradiance( get_weather().weather_id, calendar::turn ) > irradiance::minimal;
+/// ```
+///
+/// **Both halves are needed, and neither is the obvious one**: a roof shuts out a noon sun, and a sun below five degrees is not sunlight however open the sky. `irradiance::minimal` is **87 W/m²**
+/// (`weather.h:56-60`) and the test is **exclusive** - a square at exactly 87 is not in sunlight.
+#[must_use]
+pub fn is_in_sunlight(sheltered: bool, irradiance: f32) -> bool {
+    /// `irradiance::minimal` (`weather.h:59`): the sun at five degrees on a clear day.
+    const MINIMAL_IRRADIANCE: f32 = 87.0;
+    !sheltered && irradiance > MINIMAL_IRRADIANCE
 }
 
 /// What a mending monster says about it, in the reference's three grades.
