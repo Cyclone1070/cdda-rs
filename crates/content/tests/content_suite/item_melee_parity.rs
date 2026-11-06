@@ -140,3 +140,35 @@ fn a_weapon_category_names_its_proficiencies() {
         "and not one of them is empty"
     );
 }
+
+/// A weapon states which kind of weapon it is, and the data states it as a list.
+///
+/// Reference: `itype::weapon_category` (`itype.h`), read by `wielded_weapon_categories` (`melee.cpp:570-578`). **The data writes it two ways** - a bare string for most items and an array
+/// where a weapon belongs to more than one kind - so a loader that read only strings would silently drop every grouped weapon. The gate counts both forms over the whole corpus.
+#[test]
+fn a_weapon_states_its_category() {
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let dirs = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::items::load_paths(&paths).expect("the game's items load");
+
+    let categorised: Vec<&cdda_content::items::ItemType> = loaded
+        .iter()
+        .filter(|item| !item.weapon_category.is_empty())
+        .collect();
+    assert!(
+        categorised.len() > 500,
+        "**hundreds of types name their weapon category**: {}",
+        categorised.len()
+    );
+    assert!(
+        categorised.iter().any(|item| item.weapon_category.len() > 1),
+        "and at least one belongs to more than one kind, which is the array form"
+    );
+    assert!(
+        categorised
+            .iter()
+            .all(|item| item.weapon_category.iter().all(|category| !category.is_empty())),
+        "with every name a real one"
+    );
+}

@@ -1300,3 +1300,6 @@ exactly fifty more stamina out of a seven-thousand pool.
 
 **Round 1321 ported the weapon category table** (`weapon_category.h`, `melee.cpp:570-578`) from the game's own `weapon_categories.json`: **25 categories**, each naming its proficiencies, gated
 on the corpus rather than a dump because the pairing is content.
+
+**Round 1322 loaded the item's `weapon_category`** (`itype::weapon_category`, `melee.cpp:570-578`) in **both** JSON forms, gated on the corpus naming hundreds of categories and at least one
+item naming more than one.

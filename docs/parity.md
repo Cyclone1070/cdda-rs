@@ -15973,3 +15973,19 @@ for the oracle to compute.
 
 **Named, not invented:** the **item's side** (an item's `weapon_category` list, which the port's `Item` does not carry yet) and the **caller** that composes the two into a stamina multiplier -
 the next two steps, in that order.
+
+## A weapon states its category (round 1322)
+
+| Piece | Reference | Port |
+|---|---|---|
+the item's side | `itype::weapon_category` (`itype.h`), read by `wielded_weapon_categories` (`melee.cpp:570-578`) | `ItemType::weapon_category`, both JSON forms |
+Gate | - | `item_melee_parity::a_weapon_states_its_category` |
+
+**The data writes it two ways** - a bare string on most weapons and an **array** where one belongs to several kinds - so a loader that read only strings would silently drop every grouped
+weapon. The gate asserts both: hundreds of types name a category, **at least one names more than one**, and no name is empty.
+
+**A weapon that names no category is not a weapon by this measure**: the reference answers the `UNARMED` category for an empty hand and nothing else for a thing that names none, which is the
+distinction the port keeps by leaving the list empty rather than defaulting it.
+
+**Named, not invented:** the **caller** that composes the item's categories, the category table's proficiencies and what the creature knows into `proficiency_stamina_multiplier` - the next step
+- and the `UNARMED` fallback that gives an empty hand its own category.

@@ -73,6 +73,11 @@ pub struct ItemType {
     pub price: i64,
     /// Category id, empty when the item states none.
     pub category: String,
+    /// Which kinds of weapon this is, as the data names them (`itype::weapon_category`, read by `wielded_weapon_categories`, `melee.cpp:570-578`).
+    ///
+    /// **The data writes it two ways**: a bare string on most weapons and an array where one belongs to several kinds. A weapon with no category is not a weapon by this measure - the
+    /// reference answers the `UNARMED` category for an empty hand and nothing else for a thing that names none.
+    pub weapon_category: Vec<String>,
     /// The book slot, when this type is a book: what it teaches and what it costs in time (`islot_book`, `src/itype.h:569-620`).
     ///
     /// **`None` is "not a book", not "a book with nothing in it"** - the reference's `islot_book` exists on every type but is only read for a book, and the port keeps the distinction so a non-book
@@ -1293,6 +1298,7 @@ fn resolve(
         integral_volume: -1,
         price: 0,
         category: String::new(),
+        weapon_category: Vec::new(),
         book: None,
         materials: BTreeMap::new(),
         flags: BTreeSet::new(),
@@ -1398,6 +1404,20 @@ fn apply(
     }
     if let Some(category) = string(object, "category") {
         item.category = category;
+    }
+    // **Both forms, because the data uses both**: `"weapon_category": "KNIVES"` on most weapons and an array on the ones that belong to several kinds.
+    match object.get("weapon_category") {
+        Some(Value::Str(category)) => item.weapon_category = vec![category.clone()],
+        Some(Value::Array(list)) => {
+            item.weapon_category = list
+                .iter()
+                .filter_map(|entry| match entry {
+                    Value::Str(category) => Some(category.clone()),
+                    _ => None,
+                })
+                .collect();
+        }
+        _ => {}
     }
     // **The book slot is read only for a record that says it is a book**, and a `copy-from` child that says nothing keeps the slot it inherited - which is what `optional` does for a slot object
     // (`src/item_factory.cpp:2859-2868`). A record that states book fields without the subtype is not a book, and the port does not invent one.
