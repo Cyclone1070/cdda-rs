@@ -831,3 +831,55 @@ pub fn archery_stamina_cost(min_strength: i32, strength: f32, archery_skill: f32
     let cost = (10.0 * str_ratio + 10.0 - skill_modifier).powi(2);
     cost as i32
 }
+
+/// How good a shot was, from how far past its aim it went.
+///
+/// Reference: the ladder in `Creature::select_body_part_projectile_attack` (`creature.cpp:1172-1196`) against the thresholds in `game_constants.h:93-97`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Grade {
+    /// Under `accuracy_headshot` (0.1): *"Critical!!"*.
+    Headshot,
+    /// Under `accuracy_critical` (0.2): *"Critical!"*.
+    Critical,
+    /// Under `accuracy_goodhit` (0.5): *"Good hit!"*.
+    Good,
+    /// Under `accuracy_standard` (0.8): no message, an ordinary hit.
+    Standard,
+    /// Under `accuracy_grazing` (1.0): *"Grazing hit."*.
+    Grazing,
+    /// A full miss, which the reference's ladder has no rung for.
+    Miss,
+}
+
+/// Which rung a shot landed on.
+///
+/// Reference: `creature.cpp:1172-1196`, read against `game_constants.h:93-97`:
+///
+/// ```text
+/// accuracy_headshot 0.1, accuracy_critical 0.2, accuracy_goodhit 0.5, accuracy_standard 0.8, accuracy_grazing 1.0
+/// ```
+///
+/// **The comparisons are exclusive** (`goodhit < threshold`), so a shot missing by exactly **0.5** is a standard hit rather than a good one, and a shot at exactly **1.0** misses. **Only
+/// the two best rungs use the critical multiplier** - the good hit already drops to `std_hit_mult` - which is why the rung is worth naming separately from its multiplier.
+#[must_use]
+pub fn grade_of(missed_by: f64) -> Grade {
+    /// The five thresholds, in the reference's order (`game_constants.h:93-97`).
+    const HEADSHOT: f64 = 0.1;
+    const CRITICAL: f64 = 0.2;
+    const GOOD: f64 = 0.5;
+    const STANDARD: f64 = 0.8;
+    const GRAZING: f64 = 1.0;
+    if missed_by < HEADSHOT {
+        Grade::Headshot
+    } else if missed_by < CRITICAL {
+        Grade::Critical
+    } else if missed_by < GOOD {
+        Grade::Good
+    } else if missed_by < STANDARD {
+        Grade::Standard
+    } else if missed_by < GRAZING {
+        Grade::Grazing
+    } else {
+        Grade::Miss
+    }
+}

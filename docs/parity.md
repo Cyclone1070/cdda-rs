@@ -16081,3 +16081,20 @@ worth only **one** point of modifier (to **361**). The gate caught the port's au
 
 **Named, not invented:** the **activity level** (`set_activity_level( 10 * str_ratio )`), which the port has no notion of; the `prof_bow_master` practice the same function calls beside it; and the
 **caller** - aiming (`do_aim`) and firing, which are the ranged pipeline the port has only the dispersion half of.
+
+## A shot is graded by how far it missed (round 1328)
+
+| Piece | Reference | Port |
+|---|---|---|
+the five rungs | `creature.cpp:1172-1196`, `game_constants.h:93-97` | `shot::Grade`, `shot::grade_of` |
+Gate | - | `creature_fight::a_shot_is_graded_by_how_far_it_missed` |
+
+**The comparisons are exclusive**, so a shot missing by exactly **0.5** is a **standard** hit rather than a good one, and one at exactly **1.0** misses - the two boundaries the gate pins
+rather than the comfortable middles.
+
+**Only the two best rungs use the critical multiplier**: the good hit drops to `std_hit_mult = sqrt( 2 * crit_multiplier )`, which is why the rung is worth naming separately from its
+multiplier - a port that applied `crit_multiplier` at every rung would make **a graze as strong as a hit**.
+
+**Named, not invented:** the **damage multipliers themselves** - each rung's `0.6 + 0.45 * crit_mod - 0.1 * hit_roll` and its `hit_roll` draw - which need the projectile pipeline and the
+`crit_mod` per body part; `crit_roll`'s `hit_roll * 0.5 < accuracy_critical`; and the **monster weakpoint** half of the same function (`mon->type->weakpoints.select_weakpoint`), which is
+the weakpoint family the port has none of.

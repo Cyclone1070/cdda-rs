@@ -1318,3 +1318,6 @@ versus the stamina rule and on the corpus's **20** types that state a strength r
 
 **Round 1327 ported `mod_stamina_archery`** (`ranged.cpp:1682-1701`), gated on the **ratio-to-the-arm** shape and on the skill term being **two thirds archery, one third athletics** - a
 distinction the first draft of the test got wrong.
+
+**Round 1328 named the shot's five quality rungs** (`creature.cpp:1172-1196`, `game_constants.h:93-97`) as `shot::grade_of`, gated on the **two exclusive boundaries** (0.5 and 1.0) and noting
+that only the top two rungs use the critical multiplier.

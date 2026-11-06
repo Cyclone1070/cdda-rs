@@ -3636,3 +3636,32 @@ fn drawing_a_bow_costs_stamina_by_its_weight() {
         "**and three of athletics are worth one point of modifier**"
     );
 }
+
+/// A shot's quality is read off how far it missed by, and each rung scales the damage differently.
+///
+/// Reference: `Creature::select_body_part_projectile_attack` (`creature.cpp:1172-1196`), whose ladder is
+///
+/// ```text
+/// goodhit < accuracy_headshot (0.1) -> "Critical!!"   dmg *= 0.6 + 0.45*crit_mod - 0.1*hit_roll; dmg *= std_hit_mult + ( crit_mult - std_hit_mult )*crit_mod
+/// goodhit < accuracy_critical (0.2) -> "Critical!"    dmg *= 0.75 + 0.25*crit_mod - 0.25*hit_roll; dmg *= std_hit_mult + ( crit_mult - std_hit_mult )*crit_mod
+/// goodhit < accuracy_goodhit  (0.5) -> "Good hit!"    dmg *= 1.0 - 0.5*hit_roll; dmg *= std_hit_mult
+/// goodhit < accuracy_standard (0.8) -> no message      dmg *= 1.5 - hit_roll
+/// goodhit < accuracy_grazing  (1.0) -> "Grazing hit."  dmg *= 1.05 - hit_roll
+/// ```
+/// with `std_hit_mult = sqrt( 2 * crit_multiplier )`.
+///
+/// **Only the two best rungs use `crit_mod` and the critical multiplier** - the good hit already halves the roll's weight and multiplies by the standard figure - so a port that applied
+/// `crit_multiplier` at every rung would make a graze as strong as a hit. **The thresholds are exclusive**: a shot that misses by exactly **0.5** is not a good hit, it is a
+/// standard one.
+#[test]
+fn a_shot_is_graded_by_how_far_it_missed() {
+    use cdda_sim::shot::{Grade, grade_of};
+
+    assert_eq!(grade_of(0.05), Grade::Headshot, "under a tenth is a critical");
+    assert_eq!(grade_of(0.1), Grade::Critical, "**exactly a tenth is merely critical**");
+    assert_eq!(grade_of(0.2), Grade::Good, "and a fifth is a good hit");
+    assert_eq!(grade_of(0.5), Grade::Standard, "**half is the standard hit, not the good one**");
+    assert_eq!(grade_of(0.8), Grade::Grazing, "four fifths is a graze");
+    assert_eq!(grade_of(0.99), Grade::Grazing, "and so is anything under a full miss");
+    assert_eq!(grade_of(1.0), Grade::Miss, "a shot that misses by a full square is not a hit at all");
+}
