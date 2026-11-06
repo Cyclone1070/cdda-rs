@@ -857,6 +857,18 @@ pub fn logarithmic_range(min: i32, max: i32, pos: i32) -> f64 {
     (logarithmic(scaled_pos) - logi_min) / logi_range
 }
 
+/// What a pair of skates leaves a creature's dodge.
+///
+/// Reference: `Character::get_dodge` (`melee.cpp:1209-1214`) - a worn `ROLLER_INLINE`, `ROLLER_QUAD` or `ROLLER_ONE` divides the dodge by **five**, or by **two** for a survivor with the
+/// `PROF_SKATER` trait. The division is integer, so a small dodge is rounded away entirely.
+#[must_use]
+pub fn skate_dodge(dodge: i32, wearing_skates: bool, skater: bool) -> i32 {
+    if !wearing_skates {
+        return dodge;
+    }
+    dodge / if skater { 2 } else { 5 }
+}
+
 /// How much of a creature's dodge its speed leaves it.
 ///
 /// Reference: `Character::get_dodge` (`melee.cpp:1216-1221`) - `if( speed_stat < 100 ) ret *= speed_stat / 100.0f;`. **The branch is one-sided**: a hundred is a whole walk and nothing above it

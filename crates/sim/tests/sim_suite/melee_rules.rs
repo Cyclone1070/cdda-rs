@@ -688,3 +688,28 @@ fn a_slow_creature_dodges_in_proportion() {
     assert!((speed_dodge_modifier(50) - 0.5).abs() < 1e-9, "half speed, half the dodge");
     assert!((speed_dodge_modifier(0) - 0.0).abs() < 1e-9, "and no speed at all, none");
 }
+
+/// Roller skates cost a survivor most of its dodge, and a skater only half of it.
+///
+/// Reference: `Character::get_dodge` (`melee.cpp:1209-1214`):
+///
+/// ```text
+/// if( worn_with_flag( ROLLER_INLINE ) || worn_with_flag( ROLLER_QUAD ) || worn_with_flag( ROLLER_ONE ) )
+///     ret /= has_trait( PROF_SKATER ) ? 2 : 5;
+/// ```
+///
+/// **The division is integer and it is severe**: an unskilled survivor on skates keeps a fifth of its dodge, and the trait is worth going from a fifth to a half. The port had no rule here at all,
+/// and no way to ask what a creature is wearing by flag - which is the other half of this round.
+#[test]
+fn skates_cost_a_survivor_most_of_its_dodge() {
+    use cdda_sim::melee::skate_dodge;
+
+    assert_eq!(skate_dodge(10, false, false), 10, "shoes are not skates");
+    assert_eq!(
+        skate_dodge(10, true, false),
+        2,
+        "**an unskilled skater keeps a fifth**, and the division takes the fraction"
+    );
+    assert_eq!(skate_dodge(10, true, true), 5, "and a skater keeps half");
+    assert_eq!(skate_dodge(3, true, false), 0, "three points of dodge on skates is none");
+}

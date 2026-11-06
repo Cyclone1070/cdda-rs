@@ -411,6 +411,26 @@ pub fn armour_on(world: &World, entity: Entity, part: &str) -> i32 {
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WornBy(pub Entity);
 
+/// The flags a worn thing carries, which is how the reference asks what a survivor has on.
+///
+/// Reference: `outfit::item_worn_with_flag` (`character_attire.cpp:1045-1056`) walks the worn items asking `has_flag`. The port keeps the flags on the **item** for the same reason the wearer
+/// link is on the item: they are facts about the thing, not about the person, and a copy on the wearer would be a second answer that could disagree.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct WornFlags(pub Vec<String>);
+
+/// Whether anything a creature is wearing carries a flag.
+///
+/// Reference: `outfit::item_worn_with_flag` (`character_attire.cpp:1045-1056`) - answered by the garments that name the creature, which is the only direction the port keeps the link in.
+#[must_use]
+pub fn wears_flag(world: &World, creature: Entity, flag: &str) -> bool {
+    let Some(mut query) = world.try_query::<(&WornBy, &WornFlags)>() else {
+        return false;
+    };
+    query
+        .iter(world)
+        .any(|(worn, flags)| worn.0 == creature && flags.0.iter().any(|carried| carried == flag))
+}
+
 /// What a worn thing protects, part by part, as content worked it out.
 ///
 /// The numbers come from the item's armour entries and its materials (`cdda_content::armour::layers_on`), which is
@@ -3090,6 +3110,13 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
             conditions.push("cannot_move");
         }
         let base = crate::melee::monster_dodge(world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points), &conditions);
+        // Reference: the skates come **before** the speed penalty (`melee.cpp:1209-1214`), so a survivor on skates and slowed is worse than either. The flags are the three rollers the reference
+        // names, and the trait is asked of the creature's own traits.
+        let skates = wears_flag(world, entity, "ROLLER_INLINE")
+            || wears_flag(world, entity, "ROLLER_QUAD")
+            || wears_flag(world, entity, "ROLLER_ONE");
+        let skater = crate::traits::has_trait(world, entity, "PROF_SKATER");
+        let base = crate::melee::skate_dodge(base, skates, skater);
         // Reference: the speed penalty comes **before** the stamina one (`melee.cpp:1216-1225`) and is a penalty for being slowed, never a bonus for being quick.
         // **A speed of zero means the port never modelled one**, not that the creature is frozen: real immobility is the `CANNOT_MOVE` flag's business, and that rule answers zero dodge above.
         // The distinction matters because a fixture that gives a creature a dodge and no speed is asking about the dodge, not about being unable to move.

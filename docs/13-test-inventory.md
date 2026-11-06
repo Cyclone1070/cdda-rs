@@ -1377,3 +1377,6 @@ nothing to dodge with, and the two compose with the trapping penalties in the re
 
 **Round 1348 ported the speed dodge penalty** - one-sided, so a hundred is a whole walk and being quicker buys nothing - and the round's own failure taught the distinction between a fixture that
 never modelled speed and a creature that cannot move, which is the `CANNOT_MOVE` flag's rule.
+
+**Round 1349 ported the roller-skate dodge penalty** and, underneath it, `WornFlags`/`wears_flag` - the port's first way to ask what a creature wears **by flag**, which the reference asks in
+many rules.

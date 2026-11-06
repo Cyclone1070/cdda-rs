@@ -16440,5 +16440,21 @@ distinction is that **real immobility is the `CANNOT_MOVE` flag's business** - w
 `Speed::default()` a hundred, broke `activities::a_busy_creature_does_not_walk` and `crafting::tool_charges_are_spent_a_twentieth_at_a_time`, because a fixture's assumption that a creature has no
 moves is not a rule about dodging.
 
-**Named, not invented:** the roller-skate penalty and `PROF_SKATER` (`:1209-1214`, which needs worn-item flags the port's garments do not carry), the reaction limb score, the body-size ratio and
-the somatic limb modifier (`:1229-1240`), and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).
+## Skates cost a survivor most of its dodge (round 1349)
+
+| Piece | Reference | Port |
+|---|---|---|
+the worn-flag question | `outfit::item_worn_with_flag` (`character_attire.cpp:1045-1056`) | `creature::wears_flag`, asked of the items that **name** the creature |
+where the flags live | `item::has_flag`, carried by the item | `creature::WornFlags` on the item, beside the `WornBy` link |
+the division | `ret /= has_trait( PROF_SKATER ) ? 2 : 5` (`melee.cpp:1209-1214`) | `melee::skate_dodge`, integer division |
+where it multiplies | before the speed penalty (`:1209-1221`) | the same order in `defence_of` |
+Gate | - | `melee_rules::skates_cost_a_survivor_most_of_its_dodge`, `creature_fight::a_creature_can_be_asked_what_it_wears_by_flag`, `creature_fight::skates_in_the_store_cost_the_survivor_its_dodge` |
+
+**The division is severe and integer**: an unskilled survivor on skates keeps a **fifth** of its dodge and a `PROF_SKATER` keeps half, so three points on skates is none.
+
+**The infrastructure is the larger half of the round**: the port had no way to ask what a creature wears **by flag**, which many reference rules need. `WornFlags` sits on the item beside the
+`WornBy` link - the same direction as the wearer link, for the same reason: the flags are facts about the thing, and a copy on the wearer would be a second answer that could disagree.
+
+**Named, not invented:** the reaction limb score, the body-size ratio and the somatic limb modifier (`melee.cpp:1229-1240`), and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).
+The flags reach a garment only where a caller fills `WornFlags`; `cli`'s dresser does not yet, so a real survivor's skates are not yet seen by this rule - the piece that would fill it is named in
+`docs/05-roadmap.md`.

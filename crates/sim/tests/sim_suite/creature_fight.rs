@@ -4153,3 +4153,64 @@ fn a_slowed_creature_dodges_in_proportion() {
         "**and being quick is not a reward**"
     );
 }
+
+/// A creature can be asked what it is wearing by flag.
+///
+/// Reference: `outfit::item_worn_with_flag` (`character_attire.cpp:1045-1056`) answers whether any **worn** item carries a flag. The port keeps the worn item as an entity with a `WornBy` link, so
+/// the question is asked of the items that name the creature - and the flags are the item type's own, carried on the item because that is where the reference keeps them.
+#[test]
+fn a_creature_can_be_asked_what_it_wears_by_flag() {
+    use cdda_sim::creature::{WornBy, WornFlags};
+
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let other = spawn_creature(&mut world, "someone else", (1, 0, 0));
+    let skates = world
+        .spawn((
+            WornBy(survivor),
+            WornFlags(vec!["ROLLER_QUAD".to_owned(), "SKATES".to_owned()]),
+        ))
+        .id();
+    world
+        .spawn((WornBy(other), WornFlags(vec!["ROLLER_ONE".to_owned()])));
+
+    assert!(
+        cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_QUAD"),
+        "**the survivor is wearing quad skates**"
+    );
+    assert!(!cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_ONE"), "and not inline ones");
+    assert!(
+        cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_INLINE") == false,
+        "a flag nothing carries is not worn"
+    );
+    // Someone else's skates are not the survivor's.
+    assert!(!cdda_sim::creature::wears_flag(&world, other, "ROLLER_QUAD"));
+    assert!(cdda_sim::creature::wears_flag(&world, other, "ROLLER_ONE"));
+    world.entity_mut(skates).despawn();
+    assert!(!cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_QUAD"), "and a destroyed pair is gone");
+}
+
+/// Skates in the store cost the survivor its dodge, and the trait halves the loss.
+///
+/// Reference: `Character::get_dodge` (`melee.cpp:1209-1214`) asks `worn_with_flag` for the three rollers and `has_trait( PROF_SKATER )` for the gentler division.
+#[test]
+fn skates_in_the_store_cost_the_survivor_its_dodge() {
+    use cdda_sim::creature::{WornBy, WornFlags};
+
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    assert_eq!(cdda_sim::creature::defence_of(&world, survivor).dodge, 10, "shoes");
+    world.spawn((WornBy(survivor), WornFlags(vec!["ROLLER_QUAD".to_owned()])));
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        2,
+        "**a fifth, from the flag on the worn item**"
+    );
+    cdda_sim::traits::add_trait(&mut world, survivor, "PROF_SKATER");
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        5,
+        "**and half once the survivor is a skater**"
+    );
+}
