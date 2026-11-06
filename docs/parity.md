@@ -16313,6 +16313,10 @@ stance at all**. The first two hid behind fixtures whose figures happened to be 
 **actually wielded** - and the harness never wielded anything, so those rows were the empty-handed case wearing a weapon's numbers. The sweep now wields the weapon for that stance, and the
 verdict is that **the stamina rule matches in all three stances, 648 of 648 rows**; the move cost still cannot be compared off the standing rows, for the modifier reason below.
 
-**Named, not invented:** the reference's **limb-score modifiers** (`melee_thrown_move_lift_mod`, `melee_thrown_move_balance_mod`, `melee.cpp:2685-2686`), which scale a downed character's move
-cost - the downed rows answer **896** where the port's arithmetic gives 368, and the factor is those two figures (they multiply to **3.0** for a body on the floor). The crouch branch itself is
-pinned by the unit gate from the source, and the `PSEUDOPOD_GRASP` half of both branches is unmodelled.
+**The limb-score modifiers closed the move comparison too** (round 1341). `melee.cpp:2685-2686` multiplies the scaled base by the **lift** and **balance** figures, and `character_modifier::modifier`
+(`character_modifier.cpp:365-386`) turns a limb score into `1 / score` capped by the data's `max` - which is **three** for both of the melee ones
+(`data/json/character_modifiers.json:36-50`). The dump now records both figures per row, and the verdict is **648 of 648 rows on the move cost as well**, with a body on the floor measured at
+`lift_mod 1.0, balance_mod 3.0` - so its 896 is `( 32 * 2 * 3 + 32 ) * 4` and no longer a mystery.
+
+**Named, not invented:** the port has **no limb scores**, so `creature.rs` answers the one posture the dump measured - a body on the floor has no balance and takes the cap, everything else is a
+whole body at one - and a character whose arms are merely hurt would be priced as whole here. The `PSEUDOPOD_GRASP` half of both branches is unmodelled.

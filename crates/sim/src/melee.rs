@@ -396,7 +396,9 @@ pub fn attack_speed(
     let penalty = 1.0 + ((0.25 - stamina_ratio) * 4.0).max(0.0);
     // Reference: the skill term and the dexterity come **off before the stance multiplies** (`melee.cpp:2687-2689`), so a swing from the floor is four times the whole figure and not four
     // times the base with the same discount stapled on.
-    let mut cost = base * penalty + f64::from(skill_cost) - f64::from(dex_bonus);
+    // Reference: `melee.cpp:2685-2686` multiplies by the **lift** and **balance** figures before the skill term is added - so a swinger who cannot lift or balance pays more on the scaled
+    // base only, and the skill's discount is not multiplied.
+    let mut cost = (base * penalty * stance.lift_modifier * stance.balance_modifier) + f64::from(skill_cost) - f64::from(dex_bonus);
     // Reference: `melee.cpp:2696-2704` - the two branches are exclusive: a swinger on the floor is not also charged for crouching.
     if stance.on_ground {
         cost *= if stance.pseudopod_grasp { 1.5 } else { 4.0 };
@@ -410,11 +412,24 @@ pub fn attack_speed(
     answer
 }
 
+/// What a limb score multiplies a cost by.
+///
+/// Reference: `character_modifier::modifier` (`character_modifier.cpp:365-386`) turns a limb score into `( nominator / denominator ) / score`, then clamps it to the modifier's `max`. Both
+/// melee modifiers are `{ "limb_score": "lift" | "balance", "max": 3, "nominator": 1.0 }` (`data/json/character_modifiers.json:36-50`), so the nominator and denominator are one and the rule
+/// is an **inversion with a cap**. A score of zero - which a bodypart can have - would divide by zero, and the reference's own zero branch answers the cap (`:361-364`).
+#[must_use]
+pub fn limb_score_modifier(score: f64, max: f64) -> f64 {
+    if score < f64::EPSILON {
+        return max;
+    }
+    (1.0 / score).min(max)
+}
+
 /// How a swinger is standing, which is what a low swing charges extra for.
 ///
 /// Reference: the chain in `get_total_melee_stamina_cost` (`melee.cpp:975-977`). **A struct rather than four bools**, and named for the body rather than the penalty: a caller answers
 /// what it knows about the creature, and this rule answers what that costs.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct Stance {
     /// The swinger is on the floor (`is_on_ground`): downed, prone, or without working legs.
     pub on_ground: bool,
@@ -422,10 +437,30 @@ pub struct Stance {
     pub crouching: bool,
     /// The swinger is holding a weapon (`!unarmed_attack()`), which is what makes a crouch cost anything.
     pub armed: bool,
+    /// What the **lift** limb score multiplies a swing by (`melee_thrown_move_lift_mod`), one for a whole body.
+    pub lift_modifier: f64,
+    /// What the **balance** limb score multiplies a swing by (`melee_thrown_move_balance_mod`), one for a whole body and **three** for a body on the floor.
+    pub balance_modifier: f64,
     /// The swinger is in a natural stance (`effect_natural_stance`), which is a stance that does not care.
     pub natural_stance: bool,
     /// The swinger grips with pseudopods (`PSEUDOPOD_GRASP`), which cancels **both** maluses.
     pub pseudopod_grasp: bool,
+}
+
+impl Default for Stance {
+    /// A whole body: standing, nothing held, nothing wrong with it. **The two limb-score figures are one and not zero**, because a multiplier of zero would make every swing free - which is
+    /// the sort of default that silently disables a rule.
+    fn default() -> Self {
+        Self {
+            on_ground: false,
+            crouching: false,
+            armed: false,
+            lift_modifier: 1.0,
+            balance_modifier: 1.0,
+            natural_stance: false,
+            pseudopod_grasp: false,
+        }
+    }
 }
 
 /// What the stance charges a swing, in the reference's stamina units.

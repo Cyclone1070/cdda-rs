@@ -3986,14 +3986,22 @@ fn the_ported_swing_cost_matches_the_reference() {
         let stance = match row.stance.as_str() {
             "downed" => cdda_sim::melee::Stance {
                 on_ground: true,
+                lift_modifier: f64::from(row.lift_mod),
+                balance_modifier: f64::from(row.balance_mod),
                 ..cdda_sim::melee::Stance::default()
             },
             "crouching" => cdda_sim::melee::Stance {
                 crouching: true,
                 armed: row.weapon != "null",
+                lift_modifier: f64::from(row.lift_mod),
+                balance_modifier: f64::from(row.balance_mod),
                 ..cdda_sim::melee::Stance::default()
             },
-            _ => cdda_sim::melee::Stance::default(),
+            _ => cdda_sim::melee::Stance {
+                lift_modifier: f64::from(row.lift_mod),
+                balance_modifier: f64::from(row.balance_mod),
+                ..cdda_sim::melee::Stance::default()
+            },
         };
         let port_moves = attack_speed(
             row.weapon_time / 2,
@@ -4002,17 +4010,14 @@ fn the_ported_swing_cost_matches_the_reference() {
             f64::from(row.stamina_ratio),
             stance,
         );
-        // **Only the standing rows can be compared move for move**: a downed or crouched character's cost is also scaled by the reference's **limb-score modifiers** - `melee.cpp:2685-2686`
-        // multiplies by the lift and balance figures, and a body on the floor has neither - which the port does not compute. Those rows are named rather than guessed at, and the stance
-        // multiplier itself is pinned by `melee_rules::a_swing_from_the_floor_takes_four_times_as_long`.
-        if row.stance == "standing" {
-            moves_checked += 1;
-            if port_moves != row.attack_speed {
-                failures.push(format!(
-                    "{} skill {} dex {} stamina {}: moves {} vs reference {}",
-                    row.weapon, row.melee_skill, row.dexterity, row.stamina_ratio, port_moves, row.attack_speed
-                ));
-            }
+        // **Every row now compares move for move**, because the dump records the two limb-score figures the rule multiplies by: a body on the floor is capped at **three** on its balance
+        // and pays exactly three times the scaled base, which is where the reference's 896 comes from.
+        moves_checked += 1;
+        if port_moves != row.attack_speed {
+            failures.push(format!(
+                "{} {} skill {} dex {} stamina {}: moves {} vs reference {}",
+                row.weapon, row.stance, row.melee_skill, row.dexterity, row.stamina_ratio, port_moves, row.attack_speed
+            ));
         }
         // The stamina rule reads the weapon's **weight**, which the port takes as an argument rather than reading off a held item - so the join is the same game data by id.
         let weight = if row.weapon == "null" {
@@ -4037,7 +4042,7 @@ fn the_ported_swing_cost_matches_the_reference() {
             ));
         }
     }
-    assert!(moves_checked > 200, "the standing rows were compared: {moves_checked}");
+    assert_eq!(moves_checked, rows.len(), "every row's moves were compared");
     assert_eq!(stamina_checked, rows.len(), "and every row's stamina, in all three stances");
     assert!(
         failures.is_empty(),

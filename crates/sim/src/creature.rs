@@ -2844,10 +2844,20 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     // Reference: `get_total_melee_stamina_cost` folds the **stance** into the price (`melee.cpp:975-995`), so a swing from the floor or from a crouch costs more. The port answers
     // the parts of the stance it has: the `downed` effect and a `PRONE` move mode are both "on the ground", `natural_stance` is an effect, and `PSEUDOPOD_GRASP` is a creature flag.
     // **Crouching is not modelled** - the port has no crouch move mode - so that branch is named rather than guessed at.
+    let on_ground = crate::applied_effects::has(world, holder, "downed");
     let stance = crate::melee::Stance {
-        on_ground: crate::applied_effects::has(world, holder, "downed"),
+        on_ground,
         crouching: false,
         armed: world.get::<Wielding>(holder).is_some(),
+        // **A body on the floor cannot balance, so its balance figure is the data's cap of three**; the reference measures exactly that for a downed survivor
+        // (`corpus/melee/swing-cost.json`: `lift_mod` one, `balance_mod` three). The port has no limb scores to ask, so this is the one posture it can answer, and every other
+        // creature is a whole body whose figures are one - which is what the dump shows for a standing one.
+        lift_modifier: 1.0,
+        balance_modifier: if on_ground {
+            crate::melee::limb_score_modifier(0.0, 3.0)
+        } else {
+            1.0
+        },
         natural_stance: crate::applied_effects::has(world, holder, "natural_stance"),
         pseudopod_grasp: crate::creature_flags::has_flag(world, holder, "PSEUDOPOD_GRASP"),
     };

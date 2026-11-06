@@ -1354,3 +1354,6 @@ and the gate caught a **unit** error - item weights are milligrams, the rule wan
 
 **Round 1339 gave the swing its stance**: `attack_speed` gained the reference's ground (x4) and crouch (x1.5) multipliers, its **25-move floor** and its **rounding** - three defects that had
 looked finished - and the dump's stance sweep proved two of its three branches while documenting the third as unreachable from the harness.
+
+**Round 1341 ported the limb-score modifier** (`limb_score_modifier`): the reference turns a score into `1 / score` capped by the data's `max`, which is three for both melee figures, and the
+swing dump now records both per row - closing the move cost to **648 of 648 rows** including a body on the floor.

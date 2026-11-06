@@ -542,3 +542,24 @@ fn a_swing_from_the_floor_takes_four_times_as_long() {
         "**a swing is never quicker than twenty-five moves**"
     );
 }
+
+/// A limb score becomes a multiplier by inversion, and no multiplier is worse than the data's cap.
+///
+/// Reference: `character_modifier::modifier` (`character_modifier.cpp:365-386`) computes `( nominator / denominator ) / score` and then clamps it to the modifier's `max`, and the data
+/// gives both melee ones `{ "limb_score": "lift" | "balance", "max": 3, "nominator": 1.0 }` (`data/json/character_modifiers.json:36-50`). So a body that can balance perfectly multiplies a
+/// swing by **one**, and one that cannot balance at all multiplies it by **three and no more** - which is why a swing from the floor is not the nine times the two inversions would give.
+#[test]
+fn a_limb_score_becomes_a_multiplier_by_inversion() {
+    use cdda_sim::melee::limb_score_modifier;
+
+    assert!((limb_score_modifier(1.0, 3.0) - 1.0).abs() < 1e-9, "**a whole score is no change**");
+    assert!((limb_score_modifier(0.5, 3.0) - 2.0).abs() < 1e-9, "half a score doubles the cost");
+    assert!(
+        (limb_score_modifier(0.0, 3.0) - 3.0).abs() < 1e-9,
+        "**no score at all would divide by zero, so the reference's zero branch answers the cap** (`character_modifier.cpp:361-364`)"
+    );
+    assert!(
+        (limb_score_modifier(0.1, 3.0) - 3.0).abs() < 1e-9,
+        "and a score too poor to invert within the cap answers the cap too"
+    );
+}

@@ -27,6 +27,10 @@ pub struct Row {
     pub stamina_cost: i32,
     /// The weapon's own `attack_time`, which is the input that never changes with the character.
     pub weapon_time: i32,
+    /// The **lift** limb score as a multiplier (`melee_thrown_move_lift_mod`), which a body on the floor has already lost.
+    pub lift_mod: f32,
+    /// The **balance** limb score as a multiplier (`melee_thrown_move_balance_mod`), which a body on the floor is capped at **three** for.
+    pub balance_mod: f32,
 }
 
 /// Reads the dump.
@@ -67,6 +71,8 @@ fn read_row(row: &Object) -> Option<Row> {
         attack_speed: whole(row.get("attack_speed")?)?,
         stamina_cost: whole(row.get("stamina_cost")?)?,
         weapon_time: whole(row.get("weapon_time")?)?,
+        lift_mod: real(row.get("lift_mod")?)?,
+        balance_mod: real(row.get("balance_mod")?)?,
     })
 }
 
