@@ -3799,3 +3799,43 @@ fn the_store_says_what_a_creature_wears_over_its_vitals() {
         "**a shirt over the vest adds nothing to the vitals**"
     );
 }
+
+/// A critical sharpens each kind of damage differently, and only one of them keeps the armour it meets.
+///
+/// Reference: `roll_melee_damage_internal` (`melee.cpp:1356-1373`), the `if( crit )` block:
+///
+/// ```text
+/// stab: dmg_mul *= 1.0 + ( skill / 10.0 ) * crit_mod;  armor_mult = 1.f - 0.34f * crit_mod;
+/// cut:  dmg_mul *= 1.f + 0.25f * crit_mod;  arpen += (int)( 5.f * crit_mod );  armor_mult = 1.f - 0.25f * crit_mod;
+/// bash: dmg_mul *= 1.f + 0.5f * crit_mod;   armor_mult = 0.5f * crit_mod;
+/// ```
+///
+/// **Stabbing's bonus is the only one that grows with skill** (`skill / 10`), and **bashing's armour multiplier is `0.5 * crit_mod` rather than `1 - 0.5 * crit_mod`** - the reference's own
+/// asymmetry, which makes a bashing critical at no `crit_mod` ignore the armour entirely. The port transcribes it rather than repairing it, because repairing it would be a different game.
+#[test]
+fn a_critical_sharpens_each_kind_of_damage_differently() {
+    use cdda_sim::melee::crit_bonus;
+
+    let stab = crit_bonus(cdda_sim::melee::Kind::Stab, 10, 1.0);
+    assert!((stab.damage - 2.0).abs() < 1e-9, "**a tenth-dan stab is twice the damage**");
+    assert!((stab.armour - 0.66).abs() < 1e-6, "and keeps two thirds of the armour");
+
+    let cut = crit_bonus(cdda_sim::melee::Kind::Cut, 0, 1.0);
+    assert!((cut.damage - 1.25).abs() < 1e-9, "a cut is a quarter more");
+    assert_eq!(cut.arpen, 5, "and ignores five points of armour");
+    assert!((cut.armour - 0.75).abs() < 1e-6, "keeping three quarters");
+
+    let bash = crit_bonus(cdda_sim::melee::Kind::Bash, 0, 1.0);
+    assert!((bash.damage - 1.5).abs() < 1e-9, "a bash is half again");
+    assert!(
+        (bash.armour - 0.5).abs() < 1e-6,
+        "**and its armour multiplier is `0.5 * crit_mod`, not `1 - 0.5 * crit_mod`**"
+    );
+    // The asymmetry, pinned as a fact: at no crit_mod a bashing critical ignores all the armour.
+    assert!((crit_bonus(cdda_sim::melee::Kind::Bash, 0, 0.0).armour - 0.0).abs() < 1e-6, "which at zero means no armour at all");
+    // Stab's skill term is the only one that moves with skill.
+    assert!(
+        (crit_bonus(cdda_sim::melee::Kind::Stab, 0, 1.0).damage - 1.0).abs() < 1e-9,
+        "and a stab with no skill is not sharpened at all"
+    );
+}

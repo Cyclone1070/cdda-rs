@@ -1333,3 +1333,6 @@ and on the sum **adding up rather than taking the best piece**.
 
 **Round 1332 gave the store the question `vitals_cover_of`** - the worn walk that feeds `crit_factor` - gated on a garment with no vitals entries contributing nothing and the link living on
 the item rather than the wearer.
+
+**Round 1333 ported the melee critical table** (`melee.cpp:1356-1373`), gated on the skill-scaled stab bonus and on the **bash asymmetry** (`0.5 * crit_mod` rather than `1 - 0.5 * crit_mod`)
+kept as the reference writes it.

@@ -941,3 +941,76 @@ pub fn worn_vitals_cover(pieces: &[(bool, i32)]) -> i32 {
         .map(|(_, cover)| *cover)
         .sum()
 }
+
+/// Which of the three melee damage types a critical is being worked out for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// Blunt force.
+    Bash,
+    /// A cutting edge.
+    Cut,
+    /// A point.
+    Stab,
+}
+
+/// What a critical does to one kind of damage.
+///
+/// Reference: `roll_melee_damage_internal`'s `if( crit )` block (`melee.cpp:1356-1373`):
+///
+/// ```text
+/// stab: dmg_mul *= 1.0 + ( skill / 10.0 ) * crit_mod;  armor_mult = 1.f - 0.34f * crit_mod;
+/// cut:  dmg_mul *= 1.f + 0.25f * crit_mod;  arpen += (int)( 5.f * crit_mod );  armor_mult = 1.f - 0.25f * crit_mod;
+/// bash: dmg_mul *= 1.f + 0.5f * crit_mod;   armor_mult = 0.5f * crit_mod;
+/// ```
+///
+/// **Stabbing's bonus is the only one that grows with skill**, and **bashing's armour multiplier is `0.5 * crit_mod` rather than `1 - 0.5 * crit_mod`** - the reference's own asymmetry, which
+/// makes a bashing critical at no `crit_mod` ignore the armour entirely. The port transcribes it rather than repairing it, because repairing it would be a different game.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CritBonus {
+    /// What the damage is multiplied by.
+    pub damage: f32,
+    /// Points of armour the blow ignores.
+    pub arpen: i32,
+    /// What the target's armour is multiplied by before it is subtracted.
+    pub armour: f32,
+}
+
+/// What a critical does to one kind of damage, for a given skill and vitals cover.
+///
+/// Reference: `melee.cpp:1356-1373`, transcribed branch for branch. A non-critical blow is the identity ([`Self::none`]) rather than a special case at every caller.
+#[must_use]
+pub fn crit_bonus(kind: Kind, skill: i32, crit_mod: f32) -> CritBonus {
+    #[allow(clippy::cast_precision_loss)]
+    let skill = skill as f32;
+    match kind {
+        Kind::Stab => CritBonus {
+            damage: 1.0 + (skill / 10.0) * crit_mod,
+            arpen: 0,
+            armour: 1.0 - 0.34 * crit_mod,
+        },
+        Kind::Cut => CritBonus {
+            damage: 1.0 + 0.25 * crit_mod,
+            #[allow(clippy::cast_possible_truncation)]
+            arpen: (5.0 * crit_mod) as i32,
+            armour: 1.0 - 0.25 * crit_mod,
+        },
+        // The reference writes `armor_mult = 0.5f * crit_mod` here, without the `1 -` its two siblings have.
+        Kind::Bash => CritBonus {
+            damage: 1.0 + 0.5 * crit_mod,
+            arpen: 0,
+            armour: 0.5 * crit_mod,
+        },
+    }
+}
+
+impl CritBonus {
+    /// What a blow that did not critical does to each kind of damage: nothing.
+    #[must_use]
+    pub fn none() -> Self {
+        Self {
+            damage: 1.0,
+            arpen: 0,
+            armour: 1.0,
+        }
+    }
+}

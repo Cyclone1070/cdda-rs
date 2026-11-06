@@ -16172,3 +16172,21 @@ can disagree, and the architecture forbids exactly that.
 that covers ninety.
 
 **Named, not invented:** the caller that feeds this into `crit_factor` and the melee/ranged strike itself; the `COVER_MELEE`/`COVER_RANGED` twins; and the sub-part coverage.
+
+## A critical sharpens each kind of damage differently (round 1333)
+
+| Piece | Reference | Port |
+|---|---|---|
+the three branches | `roll_melee_damage_internal`, the `if( crit )` block (`melee.cpp:1356-1373`) | `melee::crit_bonus`, `melee::CritBonus` |
+Gate | - | `creature_fight::a_critical_sharpens_each_kind_of_damage_differently` |
+
+**Stabbing's bonus is the only one that grows with skill** (`1 + skill/10 * crit_mod`), and it also **ignores a third of the armour** (`1 - 0.34 crit_mod`) - which is why a knife is worth
+carrying past the early game.
+
+**Bashing's armour multiplier is `0.5 * crit_mod`, not `1 - 0.5 * crit_mod`** - the reference's own asymmetry, which makes a bashing critical at no `crit_mod` **ignore the armour entirely**. The
+port transcribes it rather than repairing it; repairing it would be a different game, and the gate pins the asymmetry as a fact.
+
+**A blow that did not critical is the identity** ([`CritBonus::none`]) rather than a special case at every caller.
+
+**Named, not invented:** the `crit` flag itself - the roll that decides whether a blow criticals (`melee.cpp`'s `critical_hit_chance`, which the port's `crit_chance` computes but nothing calls
+yet) - and the **enchantment** bonuses the same function folds in (`mabuff_damage_mult`, `mabuff_arpen_bonus`), which are P5.
