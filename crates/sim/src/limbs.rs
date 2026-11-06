@@ -48,3 +48,31 @@ pub fn skill_adjusted_limb_value(value: f32, skill: i32) -> f32 {
     let mitigated = value * (1.0 + skill as f32 / 10.0);
     value.min(mitigated)
 }
+
+/// What one part contributes to a limb score.
+///
+/// Reference: `body_part_type::get_limb_score` (`bodypart.cpp:584-588`) - the part's own figure for that score, and **zero for a score it does not state**, which is a fact about the part rather
+/// than a missing number.
+#[must_use]
+pub fn part_limb_score(scores: &[(String, f32, f32)], score: &str) -> f32 {
+    scores
+        .iter()
+        .find(|(stated, _, _)| stated == score)
+        .map_or(0.0, |(_, value, _)| *value)
+}
+
+/// A creature's score, added up from its parts.
+///
+/// Reference: `Character::get_limb_score` (`character_modifier.cpp:222-266`) - each part's adjusted figure is added, and a part of the limb type being asked for counts **only by its weight in
+/// that type** (`* id.first->limbtypes.at( bp )`). The total is floored at zero (`:266`), so a body hurt past nothing still has no negative score.
+///
+/// The adjustments are the caller's: [`wound_adjusted_limb_value`], [`encumb_adjusted_limb_value`] and [`skill_adjusted_limb_value`] are applied to each part's figure **before** it is handed
+/// here, which is the order the reference applies them in.
+#[must_use]
+pub fn limb_score_total(parts: &[(f32, f32)]) -> f32 {
+    let total: f32 = parts
+        .iter()
+        .map(|(figure, weight)| figure * weight)
+        .sum();
+    total.max(0.0)
+}

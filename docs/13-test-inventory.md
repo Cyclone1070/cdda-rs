@@ -1389,3 +1389,5 @@ port must copy rather than fix.
 
 **Round 1352 put the limb scores in the dump and the port**: `--dump-anatomy` now writes each part's `limb_scores` (`[ id, score, max ]`), its `limb_types` with weights and its
 `primary_limb_type`, read through the reference's public getters because the map itself is private.
+
+**Round 1353 ported the creature-wide limb-score sum**: a part's own figure, an optional weight by limb type, and a floor at zero - with the dumped human body's `balance` adding up to one.

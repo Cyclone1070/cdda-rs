@@ -77,3 +77,82 @@ fn skill_never_lowers_a_limb_value() {
     }
     assert_eq!(skill_adjusted_limb_value(0.7, 10), 0.7, "whatever figure is asked about");
 }
+
+/// A creature's score is the sum of its parts, each weighted by how much of a limb type it is.
+///
+/// Reference: `Character::get_limb_score` (`character_modifier.cpp:222-266`) - for every part, the part's own figure (adjusted for wounds, load and skill) is added; when a limb type is asked
+/// for, **only the parts of that type count, and only by their weight in it** (`* id.first->limbtypes.at( bp )`). The total is floored at zero (`:266`).
+#[test]
+fn a_creature_s_score_is_its_parts_added_up() {
+    use cdda_sim::limbs::{limb_score_total, part_limb_score};
+
+    let arm = vec![
+        ("manip".to_owned(), 0.1, 0.2),
+        ("lift".to_owned(), 0.5, 0.5),
+    ];
+    assert!((part_limb_score(&arm, "lift") - 0.5).abs() < 1e-6, "an arm lifts half");
+    assert!((part_limb_score(&arm, "grip") - 0.0).abs() < 1e-6, "**a score it does not state is nothing**, not a guess");
+
+    // Two arms at a weight of one each, and a torso that lifts nothing.
+    assert!((limb_score_total(&[(0.5, 1.0), (0.5, 1.0), (0.0, 1.0)]) - 1.0).abs() < 1e-6, "two arms lift one");
+    // **A part that is only half of a limb type counts half**, which is what the weight is for.
+    assert!((limb_score_total(&[(0.5, 0.5)]) - 0.25).abs() < 1e-6, "half an arm counts half");
+    // And the floor is zero: a wound cannot make a score negative.
+    assert!((limb_score_total(&[(0.5, -3.0)]) - 0.0).abs() < 1e-6, "a negative total is nothing");
+}
+
+/// The dumped body's scores add up the way the reference's own sum would.
+///
+/// Reference: `Character::get_limb_score` over every part of a body (`character_modifier.cpp:222-266`), whose input is the data the dump carries (`corpus/anatomy.json`). **The test reads the
+/// dump rather than a fixture**, so a part whose figures changed under the port shows up here.
+#[test]
+fn the_dumped_body_adds_up() {
+    use cdda_sim::limbs::{limb_score_total, part_limb_score};
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/anatomy.json");
+    let bytes = std::fs::read(&path).expect("the anatomy dump is in the corpus");
+    let value = cdda_json::parse(&bytes).expect("the anatomy dump parses");
+    let cdda_json::Value::Object(root) = &value else {
+        panic!("the anatomy dump is an object");
+    };
+    let Some(cdda_json::Value::Array(entries)) = root.get("parts") else {
+        panic!("the anatomy dump has parts");
+    };
+    let parts = cdda_content::body_parts::load_objects(entries).expect("the anatomy dump loads");
+
+    // **A human body is a list of parts, not the dump's whole list**: the dump states every part type the game has, so the test names the ones a human has.
+    let human = [
+        "torso", "head", "eyes", "mouth", "arm_l", "arm_r", "hand_l", "hand_r", "leg_l", "leg_r", "foot_l", "foot_r",
+    ];
+    let figures: Vec<(f32, f32)> = human
+        .iter()
+        .map(|id| {
+            let part = parts
+                .iter()
+                .find(|part| part.id == *id)
+                .unwrap_or_else(|| panic!("{id} is in the dump"));
+            (part_limb_score(&part.limb_scores, "balance"), 1.0)
+        })
+        .collect();
+    let whole = limb_score_total(&figures);
+    assert!(
+        (whole - 1.0).abs() < 1e-6,
+        "**a human body's balance is one**: the torso's 0.7 and an arm's 0.15 each - {whole}"
+    );
+    // The arms carry theirs and the legs carry none, which is a fact the data states rather than one the port assumes.
+    let legs = limbs_balance(&parts, "leg_l");
+    assert!(legs.abs() < 1e-6, "a leg states no balance: {legs}");
+    let torso = parts.iter().find(|part| part.id == "torso").expect("a torso");
+    assert!(
+        (part_limb_score(&torso.limb_scores, "balance") - 0.7).abs() < 1e-6,
+        "and the torso carries most of it"
+    );
+    // The arms' own figure, through the same rule.
+    assert!((limbs_balance(&parts, "arm_l") - 0.15).abs() < 1e-6);
+}
+
+/// The balance one dumped part states, through the port's lookup.
+fn limbs_balance(parts: &[cdda_content::body_parts::BodyPartType], id: &str) -> f32 {
+    let part = parts.iter().find(|part| part.id == id).expect("the part is in the dump");
+    cdda_sim::limbs::part_limb_score(&part.limb_scores, "balance")
+}

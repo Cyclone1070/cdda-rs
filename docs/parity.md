@@ -16487,5 +16487,9 @@ score rather than two.
 `get_limb_score` and `get_limb_score_max` (`:356-358`) and walks `limb_score::get_all()` to know which scores exist. A harness that reached into the map would have been reading the port's
 future structure instead of the reference's answers.
 
-**Named, not invented:** the creature-wide sum with limb-type weights (`Character::get_limb_score`, `character_modifier.cpp:222-266`), which is the piece that will let the dodge and
-attack-speed chains finish - and the wound and encumbrance inputs to it, since the port has no per-part health yet.
+**The sum is ported too** (round 1353): `Character::get_limb_score` (`character_modifier.cpp:222-266`) is a part's own figure, an optional **weight** by limb type, and a floor at zero -
+`limbs::part_limb_score` and `limbs::limb_score_total`. A human body's `balance` is exactly **one**: the torso's 0.7 plus an arm's 0.15 each, with the legs stating none at all, and the test
+reads the dump to say so.
+
+**Named, not invented:** the per-part **health** the wound adjustment needs (the port has no per-part hit points yet, so `wound_adjusted_limb_value` is called by fixtures and not by a body),
+the encumbrance input, and the effect multiplier `get_limb_score` applies to the total (`:227-236`), because the port has no `EFFECT_LIMB_SCORE_MOD` effects.
