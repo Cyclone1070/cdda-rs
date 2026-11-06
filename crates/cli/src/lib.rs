@@ -1524,6 +1524,9 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
             vitals: Vec::new(),
         },
         cdda_sim::creature::Toughness::of(&shirt.flags),
+        // **The garment's own flags travel with it**, so a rule that asks what a survivor is wearing - the roller-skate dodge penalty among them - can answer for a real survivor and not
+        // only for a fixture.
+        cdda_sim::creature::WornFlags(shirt.flags.iter().cloned().collect()),
     ));
     cdda_sim::creature::dress(world);
     let torso = world
@@ -1718,6 +1721,24 @@ mod tests {
             cdda_sim::creature::armour_on(&world, avatar, "foot_l"),
             0,
             "and it says nothing about a part it does not cover"
+        );
+        // **The flags the garment's type states travel with it**, which is what lets a rule ask what a real survivor is wearing. The dresser picks the shirt by weight, so the test asks the
+        // store rather than naming a flag the data might stop carrying.
+        let worn_any_flag = {
+            let mut flags = world.get::<cdda_sim::creature::WornFlags>(avatar);
+            let _ = &mut flags;
+            let mut query = world.query::<(&cdda_sim::creature::WornBy, &cdda_sim::creature::WornFlags)>();
+            let mut carried = 0;
+            for (worn_by, flags) in query.iter(&world) {
+                if worn_by.0 == avatar {
+                    carried += flags.0.len();
+                }
+            }
+            carried
+        };
+        assert!(
+            worn_any_flag > 0,
+            "**the worn garment carries its type's flags**, or no rule can ask what the survivor has on"
         );
     }
 

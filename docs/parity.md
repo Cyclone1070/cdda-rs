@@ -16456,5 +16456,6 @@ Gate | - | `melee_rules::skates_cost_a_survivor_most_of_its_dodge`, `creature_fi
 `WornBy` link - the same direction as the wearer link, for the same reason: the flags are facts about the thing, and a copy on the wearer would be a second answer that could disagree.
 
 **Named, not invented:** the reaction limb score, the body-size ratio and the somatic limb modifier (`melee.cpp:1229-1240`), and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).
-The flags reach a garment only where a caller fills `WornFlags`; `cli`'s dresser does not yet, so a real survivor's skates are not yet seen by this rule - the piece that would fill it is named in
-`docs/05-roadmap.md`.
+**The dresser now fills the flags** (round 1350): `cli::dress_the_avatar` puts the garment type's own flags on the item, so a rule that asks what a **real** survivor is wearing answers for
+the demo's survivor and not only for a fixture. The gate asks the store rather than naming a flag, because the dresser picks the shirt by weight and a test that named one would break the day the
+data changed.
