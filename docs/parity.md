@@ -15822,3 +15822,21 @@ two functions apart keeps the roof half testable without a calendar and the sky 
 
 **Named, not invented:** `sun_irradiance( t )` itself is already ported as `core_types::calendar::sun_irradiance` over the calendar's altitude; what is not joined yet is the **turn loop's**
 call - the port has both halves and no per-turn "is this creature in the sun" system, because nothing but the dark regeneration asks, and that one reads the **lightmap** rather than the sky.
+
+## The sun glares into eyes (round 1314)
+
+| Piece | Reference | Port |
+|---|---|---|
+the ladder | `glare` (`weather.cpp:110-137`) | `glare::glare_of` over `glare::Conditions` |
+the thresholds | `irradiance::moderate` 573, `high` 707 (`weather.h:64-71`) | the same two numbers, **exclusive** |
+Gate | - | `creature_fight::the_sun_glares_into_eyes` |
+
+**The winter branch is the rule worth pinning**: snow glare starts at **573**, not the **707** a clear summer day needs, so the *same* sun glares in winter and does not in summer. It is an
+`else if`, so a winter sun strong enough for either takes the **snow** effect and never both.
+
+**Six true-or-false answers became a struct**, because a function taking six bools is one nobody can read at the call site and a misspelt argument is a bug that compiles. The gate loops over
+**each** of the five prerequisites separately, so a rule that guarded on only some of them fails on the first one it forgot.
+
+**Named, not invented:** the per-**body-part** application (`get_all_body_parts_of_type( sensor )`), which needs the body model's part types; `is_blind` (the port's seeing module answers that
+half false and says so); the effect's own lifetime and its sight penalty, which are the effect system's; and the reference's **player-only** sweep, which the port deliberately does not copy -
+the rule is a question any creature can be asked, not a step that only the player takes.

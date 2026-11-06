@@ -107,6 +107,7 @@ pub mod friendly;
 pub mod furniture_types;
 pub mod needs;
 pub mod fun_for;
+pub mod glare;
 pub mod terrain_table;
 pub mod terrain_transform;
 pub mod terrain_types;

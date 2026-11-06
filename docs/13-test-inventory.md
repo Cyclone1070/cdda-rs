@@ -1278,3 +1278,6 @@ healed**, not what the type's rate says.
 regenerators out of 1,154.
 
 **Round 1313 ported `incident_sun_irradiance`** (`weather.cpp:147-150`), the weather's multiplier over the clear-sky sun with the reference's own clamp at nothing.
+
+**Round 1314 ported the glare ladder** (`weather.cpp:110-137`) as `glare::glare_of`, pinned on the **winter threshold being 573 rather than 707** and on each of the five prerequisites
+stopping it on its own.

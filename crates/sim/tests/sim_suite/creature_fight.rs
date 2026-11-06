@@ -3230,3 +3230,53 @@ fn the_weather_scales_the_sun() {
     assert_eq!(incident_sun_irradiance(800.0, 0.0), 0.0, "an overcast sky puts it out");
     assert_eq!(incident_sun_irradiance(800.0, -3.0), 0.0, "**and the clamp stops a negative sky at nothing**");
 }
+
+/// The sun glares into a creature's eyes, and a winter sun does it at a much lower height.
+///
+/// Reference: `glare` (`weather.cpp:100-138`):
+///
+/// ```text
+/// if( sheltered || asleep || SUN_GLASSES || GLARE_RESIST || blind ) return;
+/// if( season == WINTER && incident_sun_irradiance > irradiance::moderate )  effect = snow_glare;   // 573 W/m2
+/// else if( incident_sun_irradiance > irradiance::high )                     effect = glare;        // 707 W/m2
+/// dur = has_effect( effect ) ? 10_turns : 20_turns;
+/// if( has_trait( CEPH_VISION ) ) dur *= 2;
+/// ```
+///
+/// **The winter branch is the rule worth pinning**: snow glare starts at **573**, not at the 707 a clear summer day needs, so the *same* sun glares in winter and does not in summer. And it
+/// is an `else if` - a winter sun strong enough for either takes the **snow** effect, never both.
+#[test]
+fn the_sun_glares_into_eyes() {
+    use cdda_sim::glare::{Conditions, glare_of};
+
+    let clear = Conditions::default();
+    assert_eq!(glare_of(true, 800.0, clear), Some(("snow_glare", 20)), "**a winter sun glares at 800 in snow**");
+    assert_eq!(glare_of(false, 800.0, clear), Some(("glare", 20)), "and a summer sun glares at 800 without it");
+    assert_eq!(
+        glare_of(true, 600.0, clear),
+        Some(("snow_glare", 20)),
+        "**600 is snow glare in winter** - above moderate"
+    );
+    assert_eq!(glare_of(false, 600.0, clear), None, "and nothing at all in summer: it is under high");
+
+    let already = Conditions {
+        already_glared: true,
+        ..Conditions::default()
+    };
+    assert_eq!(glare_of(false, 800.0, already), Some(("glare", 10)), "a second glare is shorter");
+    let ceph = Conditions {
+        ceph_vision: true,
+        ..Conditions::default()
+    };
+    assert_eq!(glare_of(false, 800.0, ceph), Some(("glare", 40)), "and the cephalopod trait doubles it");
+
+    for blocked in [
+        Conditions { sheltered: true, ..Conditions::default() },
+        Conditions { asleep: true, ..Conditions::default() },
+        Conditions { sun_glasses: true, ..Conditions::default() },
+        Conditions { glare_resist: true, ..Conditions::default() },
+        Conditions { blind: true, ..Conditions::default() },
+    ] {
+        assert_eq!(glare_of(false, 900.0, blocked), None, "**any one prerequisite stops it**: {blocked:?}");
+    }
+}
