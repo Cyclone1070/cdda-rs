@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-07 00:01:13
-@@ -0,0 +1,7244 @@
++++ oracle/src/src/harness.cpp	2026-11-07 00:27:07
+@@ -0,0 +1,7246 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -6836,7 +6836,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                          static_cast<double>( typed.second ) );
 +            first_type = false;
 +        }
-+        std::fprintf( out, "],\"primary_limb_type\":%s",
++        // **How much health the part has**, which is what the wound adjustment scales a score by (`bodypart.cpp:967-976`): `base_hp` is the type's own figure, and a body's part
++        // starts there rather than at a number the port would have to guess.
++        std::fprintf( out, "],\"base_hp\":%d,\"primary_limb_type\":%s", part.base_hp,
 +                      part.primary_limb_type() == body_part_type::type::num_types ? "null" :
 +                      ("\"" + io::enum_to_string<body_part_type::type>( part.primary_limb_type() ) + "\"").c_str() );
 +        std::fprintf( out, "}" );

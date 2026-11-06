@@ -119,3 +119,30 @@ fn a_body_part_states_its_limb_scores() {
         "**every part belongs to some limb type**"
     );
 }
+
+/// A part states how much health it has, which is what "hurt" is measured against.
+///
+/// Reference: `body_part_type::base_hp` (`bodypart.h:291`), the figure `wound_adjusted_limb_value` divides a part's health by (`bodypart.cpp:969-970`). **Without it a part cannot say how
+/// hurt it is**, so every limb score that a wound moves would be stuck at its whole value.
+#[test]
+fn a_body_part_states_its_health() {
+    let parts = loaded();
+    // **A stump has no health**, which the data states as zero and the reference keeps: it is what is left of a limb, not a limb, so the test says "every part a body can lose health
+    // from" rather than "every part".
+    let stumps: Vec<&str> = parts
+        .iter()
+        .filter(|part| part.base_hp == 0)
+        .map(|part| part.id.as_str())
+        .collect();
+    assert_eq!(
+        stumps,
+        vec!["arm_stub_l", "arm_stub_r", "leg_stub_r", "leg_stub_l"],
+        "**only the four stumps have no health**"
+    );
+    assert!(
+        parts.iter().filter(|part| part.base_hp > 0).count() > 30,
+        "and everything else states one"
+    );
+    assert_eq!(part(&parts, "head").base_hp, 60, "a head has sixty");
+    assert_eq!(part(&parts, "torso").base_hp, 60, "and so does a torso");
+}

@@ -16491,5 +16491,12 @@ future structure instead of the reference's answers.
 `limbs::part_limb_score` and `limbs::limb_score_total`. A human body's `balance` is exactly **one**: the torso's 0.7 plus an arm's 0.15 each, with the legs stating none at all, and the test
 reads the dump to say so.
 
-**Named, not invented:** the per-part **health** the wound adjustment needs (the port has no per-part hit points yet, so `wound_adjusted_limb_value` is called by fixtures and not by a body),
-the encumbrance input, and the effect multiplier `get_limb_score` applies to the total (`:227-236`), because the port has no `EFFECT_LIMB_SCORE_MOD` effects.
+**The reaction score is ported with the health it needs** (round 1354): `--dump-anatomy` now carries each part's **`base_hp`** (sixty for a head, a torso and everything else; **zero for the
+four stumps**, which is the data's own answer for what is left of a limb), `content::body_parts` loads it, and `limbs::reaction_score` applies the wound adjustment to each part before adding
+them.
+
+**A whole human's reaction is exactly one** - a head at 0.3 and eyes at 0.7 - so the rule **leaves a healthy survivor's dodge alone** and moves it only when a part that reacts is hurt: a head at
+half health leaves nine tenths of the reaction.
+
+**Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), and the **caller** that multiplies the dodge by the reaction - the
+port's `Body` carries a part's name and size but not its scores yet, which is the piece that will connect this rule to a struck survivor.

@@ -1391,3 +1391,6 @@ port must copy rather than fix.
 `primary_limb_type`, read through the reference's public getters because the map itself is private.
 
 **Round 1353 ported the creature-wide limb-score sum**: a part's own figure, an optional weight by limb type, and a floor at zero - with the dumped human body's `balance` adding up to one.
+
+**Round 1354 ported the reaction score and the health it is measured against**: the anatomy dump now carries each part's `base_hp`, and `limbs::reaction_score` applies the wound adjustment per
+part - a human's reaction being exactly one, so the rule only moves a hurt body.

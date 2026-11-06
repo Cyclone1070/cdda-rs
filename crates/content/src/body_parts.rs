@@ -27,6 +27,9 @@ pub struct BodyPartType {
     pub limb_types: Vec<(String, f32)>,
     /// The type it is mostly, which the reference caches from the heaviest weight (`bodypart.cpp:359-370`).
     pub primary_limb_type: Option<String>,
+    /// How much health it has, from the data's `base_hp` (`bodypart.h:291`). **The wound adjustment scales a part's scores by this**, so a part with no figure would have no way to say
+    /// how hurt it is - which is why the dump carries it.
+    pub base_hp: i32,
 }
 
 /// Reads one prototype.
@@ -123,6 +126,10 @@ pub fn read_prototype(
         .iter()
         .max_by(|left, right| left.1.total_cmp(&right.1))
         .map(|(kind, _)| kind.clone());
+    let whole = match object.get("base_hp") {
+        Some(cdda_json::Value::Int(found)) => i32::try_from(*found).unwrap_or(0),
+        _ => 0,
+    };
     Ok(BodyPartType {
         name,
         hit_size: number("hit_size"),
@@ -132,6 +139,7 @@ pub fn read_prototype(
         limb_scores,
         limb_types,
         primary_limb_type,
+        base_hp: whole,
         id,
     })
 }

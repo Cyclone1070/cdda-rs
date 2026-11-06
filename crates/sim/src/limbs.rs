@@ -76,3 +76,17 @@ pub fn limb_score_total(parts: &[(f32, f32)]) -> f32 {
         .sum();
     total.max(0.0)
 }
+
+/// A creature's reaction, from its parts and their condition.
+///
+/// Reference: `Character::get_dodge` multiplies the dodge by `get_limb_score( limb_score_reaction )` (`melee.cpp:1229-1231`), and that score is each part's `reaction` figure **after** the
+/// wound adjustment (`bodypart.cpp:967-976`) added up (`:266`). A whole human's reaction is exactly **one**, so the rule leaves a healthy survivor's dodge alone and moves it only when a part
+/// that reacts is hurt - which is what makes it a consequence rather than a constant.
+#[must_use]
+pub fn reaction_score(parts: &[(f32, i32, i32)]) -> f32 {
+    let total: f32 = parts
+        .iter()
+        .map(|(score, health_max, health)| wound_adjusted_limb_value(*score, *health, *health_max))
+        .sum();
+    total.max(0.0)
+}

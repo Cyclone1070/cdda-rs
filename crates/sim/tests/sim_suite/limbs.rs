@@ -156,3 +156,31 @@ fn limbs_balance(parts: &[cdda_content::body_parts::BodyPartType], id: &str) -> 
     let part = parts.iter().find(|part| part.id == id).expect("the part is in the dump");
     cdda_sim::limbs::part_limb_score(&part.limb_scores, "balance")
 }
+
+/// A whole human reacts at one, and a hurt head slows the reaction down.
+///
+/// Reference: `Character::get_dodge` multiplies by `get_limb_score( limb_score_reaction )` (`melee.cpp:1229-1231`), and the score is the sum of the parts' `reaction` figures after the wound
+/// adjustment (`bodypart.cpp:967-976, 998-1018`). **A whole human's reaction is exactly one** - a head at 0.3 and eyes at 0.7 - so the rule does not move a healthy survivor's dodge at all,
+/// and a hurt head is the only thing that does.
+#[test]
+fn a_hurt_head_slows_the_reaction_down() {
+    use cdda_sim::limbs::reaction_score;
+
+    // ( score, base health, current health )
+    let whole = [(0.3, 100, 100), (0.7, 100, 100)];
+    assert!(
+        (reaction_score(&whole) - 1.0).abs() < 1e-6,
+        "**a whole body reacts at one**"
+    );
+    // A head at half its health is scaled by half over three quarters, which is two thirds of 0.3.
+    let hurt = [(0.3, 100, 50), (0.7, 100, 100)];
+    assert!(
+        (reaction_score(&hurt) - (0.2 + 0.7)).abs() < 1e-6,
+        "**a head at half health leaves nine tenths of the reaction**: {}",
+        reaction_score(&hurt)
+    );
+    assert!(
+        (reaction_score(&[(0.3, 100, 0), (0.7, 100, 0)]) - 0.0).abs() < 1e-6,
+        "and a ruined body reacts not at all"
+    );
+}
