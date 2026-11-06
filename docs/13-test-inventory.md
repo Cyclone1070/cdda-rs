@@ -1360,3 +1360,6 @@ swing dump now records both per row - closing the move cost to **648 of 648 rows
 
 **Round 1342 ported the armour cover twins**: `coverage`, `cover_melee` and `cover_ranged` are three separate figures, the last two defaulting to the first entry by entry, and
 `melee::worn_cover` sums them for the garments that cover the part - with a gate over every armour entry in the game.
+
+**Round 1343 ported the garment's own wear into its protection**: `damage_adjusted_armor_resist` (an eighth a level past the first, floored at zero) and `resist_as_worn`, which keeps the sum
+and the scale in one place, with a mutation check on the `- 1`.

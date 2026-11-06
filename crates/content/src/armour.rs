@@ -40,6 +40,24 @@ pub fn resist_of(layers: &[Layer], roll: i32) -> f64 {
         .sum()
 }
 
+/// What a garment still takes off a blow, once its own damage is accounted for.
+///
+/// Reference: `item::_resist` sums the materials and then returns `( resist + mod ) * damage_scale` (`item.cpp:9226-9234`), where the scale is the rule below. **The join lives here so that a
+/// caller cannot sum a garment's materials and forget that the garment has been worn out.**
+#[must_use]
+pub fn resist_as_worn(layers: &[Layer], roll: i32, damage_level: i32) -> f64 {
+    damage_adjusted_armor_resist(resist_of(layers, roll), damage_level)
+}
+
+/// What a garment's protection is worth once it has been damaged.
+///
+/// Reference: `item::damage_adjusted_armor_resist` (`item.cpp:944-962`) - a garment at damage level one is whole, and **each level past that takes an eighth**, with a floor of zero so a
+/// thing past level nine still protects by nothing rather than by a negative figure. The port summed materials and left this out, which is invisible while every garment is whole.
+#[must_use]
+pub fn damage_adjusted_armor_resist(value: f64, damage_level: i32) -> f64 {
+    (value * (1.0 - f64::from((damage_level - 1).max(0)) * 0.125)).max(0.0)
+}
+
 /// One step of damage a garment takes, and the point past which it is ruined.
 ///
 /// Reference: `itype::damage_scale` and `itype::damage_max_` (`itype.h:1568-1588`). A garment damaged by a blow takes

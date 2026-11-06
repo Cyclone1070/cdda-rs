@@ -203,3 +203,63 @@ fn the_data_carries_the_flags_that_decide_how_a_garment_wears_out() {
         "nothing in the data is unbreakable, so that branch is tested against an empty set"
     );
 }
+
+/// A damaged garment protects by an eighth less for every level past the first.
+///
+/// Reference: `item::damage_adjusted_armor_resist` (`item.cpp:944-962`):
+///
+/// ```text
+/// return std::max( 0.0f, value * ( 1.0f - std::max( 0, damage_level() - 1 ) * 0.125f ) );
+/// ```
+///
+/// **The first level costs nothing** - a garment at damage level one is simply undamaged - and past that every level takes **an eighth**, so a ruined one (level five) keeps half its
+/// protection and a hypothetical level nine keeps none. The port summed materials and left the scaling out, which is invisible while every garment is whole.
+#[test]
+fn a_damaged_garment_protects_by_an_eighth_less_a_level() {
+    use cdda_content::armour::damage_adjusted_armor_resist;
+
+    assert!((damage_adjusted_armor_resist(4.0, 0) - 4.0).abs() < 1e-9, "an untouched garment");
+    assert!(
+        (damage_adjusted_armor_resist(4.0, 1) - 4.0).abs() < 1e-9,
+        "**and level one is still whole**: the reference subtracts one before counting"
+    );
+    assert!((damage_adjusted_armor_resist(4.0, 2) - 3.5).abs() < 1e-9, "level two takes an eighth");
+    assert!((damage_adjusted_armor_resist(4.0, 5) - 2.0).abs() < 1e-9, "level five keeps half");
+    assert!(
+        (damage_adjusted_armor_resist(4.0, 9) - 0.0).abs() < 1e-9,
+        "**and past level nine there is nothing left to protect with**, which is the reference's own floor"
+    );
+}
+
+/// The sum and the wear meet in one place.
+///
+/// Reference: `item::_resist` returns `( resist + mod ) * damage_scale` (`item.cpp:9226-9234`) - the materials are summed **first** and the garment's own damage scales the whole sum, not one
+/// material of it. A caller that scaled each material and then added would get the same figure only when every layer was as worn as every other.
+#[test]
+fn the_materials_are_summed_before_the_wear_scales_them() {
+    use cdda_content::armour::{Layer, resist_as_worn, resist_of};
+
+    let layers = [
+        Layer {
+            resist: 1.0,
+            thickness: 2.0,
+            cover: 100,
+        },
+        Layer {
+            resist: 0.5,
+            thickness: 4.0,
+            cover: 100,
+        },
+    ];
+    assert_eq!(resist_of(&layers, 0), 4.0, "two and two");
+    assert_eq!(resist_as_worn(&layers, 0, 1), 4.0, "a whole garment is worth its sum");
+    #[allow(clippy::float_cmp)]
+    {
+        assert_eq!(resist_as_worn(&layers, 0, 5), 2.0, "**and a level-five one is worth half of it**");
+    }
+    assert_eq!(
+        resist_as_worn(&layers, 100, 5),
+        0.0,
+        "a blow that misses every layer is stopped by nothing, however worn the garment is"
+    );
+}

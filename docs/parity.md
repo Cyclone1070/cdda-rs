@@ -16339,3 +16339,24 @@ wrong, and the loader's rule is the one that says so.
 
 **Named, not invented:** the `specifically_covers` sub-part figures (`item::get_coverage( sub_bodypart_id )`), the ablative-plate aggregation (`item.cpp:8630-8641`), and the **callers** that
 would ask for the melee figure - the melee strike still asks for the vitals cover alone, because nothing in the port's strike compares a body part against its armour yet.
+
+## A worn-out garment protects less (round 1343)
+
+| Piece | Reference | Port |
+|---|---|---|
+the sum | `item::_resist` (`item.cpp:9199-9234`) - every material of the entry covering the part, each only if the hit's roll meets its coverage | `content::armour::resist_of`, unchanged |
+the wear | `damage_adjusted_armor_resist` (`item.cpp:944-962`), `value * max( 0, 1 - max(0, level - 1) * 0.125 )` | `content::armour::damage_adjusted_armor_resist` |
+the join | `( resist + mod ) * damage_scale` (`:9226-9234`) | `content::armour::resist_as_worn( layers, roll, level )` |
+Gate | - | `armour::a_damaged_garment_protects_by_an_eighth_less_a_level`, `armour::the_materials_are_summed_before_the_wear_scales_them` |
+
+**The first level costs nothing**: the reference subtracts one before counting, so a garment at damage level one is simply whole, level five keeps **half** its protection, and past nine the
+floor of zero stops it protecting **negatively**.
+
+**The join is a function so a caller cannot forget it.** A port that summed a garment's materials and forgot the garment was worn out looks right for exactly as long as nothing is damaged,
+which is how this rule survived until the scaling was written down. Scaling each material and then adding is only the same answer when every layer is equally worn, which is why the test
+states the sum before the scale.
+
+**Mutation-checked**: removing the `- 1` fails both tests - the first on level one, the second on a whole garment.
+
+**Named, not invented:** the fault armour modifications (`item.cpp:950-957`) and the material's own `clothing_mod` figure (`:9211`); the port has no faults and no clothing mods, so both are
+absent rather than assumed to be one.
