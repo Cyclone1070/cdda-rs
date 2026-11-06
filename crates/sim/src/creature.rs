@@ -3090,13 +3090,24 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
             conditions.push("cannot_move");
         }
         let base = crate::melee::monster_dodge(world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points), &conditions);
+        // Reference: the speed penalty comes **before** the stamina one (`melee.cpp:1216-1225`) and is a penalty for being slowed, never a bonus for being quick.
+        // **A speed of zero means the port never modelled one**, not that the creature is frozen: real immobility is the `CANNOT_MOVE` flag's business, and that rule answers zero dodge above.
+        // The distinction matters because a fixture that gives a creature a dodge and no speed is asking about the dodge, not about being unable to move.
+        let speed = speed_of(world, entity);
+        #[allow(clippy::cast_possible_truncation)]
+        let slowed = if speed > 0 {
+            f64::from(base) * crate::melee::speed_dodge_modifier(speed)
+        } else {
+            f64::from(base)
+        };
         // Reference: the dodge is multiplied by `get_stamina_dodge_modifier()` (`melee.cpp:1223-1225`) **after** the trapping penalties, so a winded survivor in a bear trap is worse than
         // either rule alone. A creature with no `Stamina` component has no wind to lose and is left whole.
-        world.get::<Stamina>(entity).map_or(base, |stamina| {
-            #[allow(clippy::cast_possible_truncation)]
-            let scaled = (f64::from(base) * crate::melee::stamina_dodge_modifier(stamina.cur, stamina.max)) as i32;
-            scaled
-        })
+        let rested = world.get::<Stamina>(entity).map_or(slowed, |stamina| {
+            slowed * crate::melee::stamina_dodge_modifier(stamina.cur, stamina.max)
+        });
+        #[allow(clippy::cast_possible_truncation)]
+        let answer = rested as i32;
+        answer
     };
     crate::melee::Defence {
         dodge,

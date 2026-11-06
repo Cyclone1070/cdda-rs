@@ -4129,3 +4129,27 @@ fn a_winded_survivor_dodges_worse_in_the_store() {
     let half = cdda_sim::creature::defence_of(&world, survivor).dodge;
     assert!((2..=8).contains(&half), "half a wind leaves fewer than ten: {half}");
 }
+
+/// A slowed creature dodges in proportion and a quick one gains nothing.
+///
+/// Reference: `Character::get_dodge` multiplies by `speed_stat / 100.0f` **only below a hundred** (`melee.cpp:1216-1221`), before the stamina modifier (`:1223-1225`).
+#[test]
+fn a_slowed_creature_dodges_in_proportion() {
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    set_speed(&mut world, survivor, 100, 0);
+    assert_eq!(cdda_sim::creature::defence_of(&world, survivor).dodge, 10, "a walk");
+    set_speed(&mut world, survivor, 50, 0);
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        5,
+        "**half speed, half the dodge**"
+    );
+    set_speed(&mut world, survivor, 200, 0);
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        10,
+        "**and being quick is not a reward**"
+    );
+}

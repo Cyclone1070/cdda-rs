@@ -1374,3 +1374,6 @@ anything else knowing traps exist.
 
 **Round 1347 ported the stamina dodge modifier**: the dodge is placed on the logistic between a tenth and nine tenths of the maximum wind, so a full one costs nothing, a tenth of one leaves
 nothing to dodge with, and the two compose with the trapping penalties in the reference's own order.
+
+**Round 1348 ported the speed dodge penalty** - one-sided, so a hundred is a whole walk and being quicker buys nothing - and the round's own failure taught the distinction between a fixture that
+never modelled speed and a creature that cannot move, which is the `CANNOT_MOVE` flag's rule.

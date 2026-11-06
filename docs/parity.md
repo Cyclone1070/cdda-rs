@@ -16425,5 +16425,20 @@ tenth of one** - and a creature with nothing left is not worse than that, becaus
 
 **The two rules compose rather than replace**: a winded survivor in a bear trap is worse than either rule alone, which is the reference's own order (`melee.cpp:1202-1225`).
 
-**Named, not invented:** the rest of `Character::get_dodge`'s chain - the roller-skate and speed penalties, the reaction limb score, the body-size ratio and the somatic limb modifier
-(`melee.cpp:1209-1240`) - which the port's `Dodge` component still stands in for; and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).
+## A slowed creature dodges in proportion (round 1348)
+
+| Piece | Reference | Port |
+|---|---|---|
+the branch | `if( speed_stat < 100 ) ret *= speed_stat / 100.0f;` (`melee.cpp:1216-1221`) | `melee::speed_dodge_modifier`, one-sided |
+the order | speed **before** the stamina modifier (`:1223-1225`) | the same order in `defence_of` |
+Gate | - | `melee_rules::a_slow_creature_dodges_in_proportion`, `creature_fight::a_slowed_creature_dodges_in_proportion` |
+
+**The branch is one-sided and that is the rule**: a hundred is a whole walk, and being quicker than that buys nothing - it is a penalty for being slowed, not a reward for speed.
+
+**A speed of zero means the port never modelled one.** The first version of the wiring read every fixture's `Speed::default()` as a frozen creature and three tests answered zero dodge; the honest
+distinction is that **real immobility is the `CANNOT_MOVE` flag's business** - which `monster_dodge` already answers zero for - so a zero figure here leaves the dodge whole. The alternative, making
+`Speed::default()` a hundred, broke `activities::a_busy_creature_does_not_walk` and `crafting::tool_charges_are_spent_a_twentieth_at_a_time`, because a fixture's assumption that a creature has no
+moves is not a rule about dodging.
+
+**Named, not invented:** the roller-skate penalty and `PROF_SKATER` (`:1209-1214`, which needs worn-item flags the port's garments do not carry), the reaction limb score, the body-size ratio and
+the somatic limb modifier (`:1229-1240`), and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).

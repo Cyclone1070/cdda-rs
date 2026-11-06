@@ -664,3 +664,27 @@ fn a_winded_survivor_dodges_worse() {
     assert!(stamina_dodge_modifier(0.8 * max, max) > half);
     assert!(stamina_dodge_modifier(0.3 * max, max) < half);
 }
+
+/// A creature slower than a walk dodges in proportion, and a faster one gains nothing.
+///
+/// Reference: `Character::get_dodge` (`melee.cpp:1216-1221`):
+///
+/// ```text
+/// int speed_stat = get_speed();
+/// if( speed_stat < 100 ) ret *= speed_stat / 100.0f;
+/// ```
+///
+/// **The test is one-sided**: a hundred is a whole walk and the branch does not fire above it, so a creature at a hundred and twenty dodges exactly as well as one at a hundred - the rule is a
+/// penalty for being slowed, not a reward for being quick.
+#[test]
+fn a_slow_creature_dodges_in_proportion() {
+    use cdda_sim::melee::speed_dodge_modifier;
+
+    assert!((speed_dodge_modifier(100) - 1.0).abs() < 1e-9, "**a walk is no penalty**");
+    assert!(
+        (speed_dodge_modifier(120) - 1.0).abs() < 1e-9,
+        "**and being quick is not a reward**: the branch does not fire above a hundred"
+    );
+    assert!((speed_dodge_modifier(50) - 0.5).abs() < 1e-9, "half speed, half the dodge");
+    assert!((speed_dodge_modifier(0) - 0.0).abs() < 1e-9, "and no speed at all, none");
+}

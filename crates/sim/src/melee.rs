@@ -857,6 +857,19 @@ pub fn logarithmic_range(min: i32, max: i32, pos: i32) -> f64 {
     (logarithmic(scaled_pos) - logi_min) / logi_range
 }
 
+/// How much of a creature's dodge its speed leaves it.
+///
+/// Reference: `Character::get_dodge` (`melee.cpp:1216-1221`) - `if( speed_stat < 100 ) ret *= speed_stat / 100.0f;`. **The branch is one-sided**: a hundred is a whole walk and nothing above it
+/// helps, so this is a penalty for being slowed rather than a reward for being quick.
+#[must_use]
+pub fn speed_dodge_modifier(speed: i32) -> f64 {
+    if speed < 100 {
+        f64::from(speed) / 100.0
+    } else {
+        1.0
+    }
+}
+
 /// How much of a creature's dodge its wind leaves it.
 ///
 /// Reference: `Character::get_stamina_dodge_modifier` (`character.cpp:1261-1268`) - the stamina is placed on `logarithmic_range` between **a tenth** and **nine tenths** of the maximum, and the
