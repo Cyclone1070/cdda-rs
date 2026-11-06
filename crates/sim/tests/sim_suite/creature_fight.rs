@@ -3471,3 +3471,23 @@ fn a_low_swing_costs_more_stamina() {
     assert_eq!(stamina_cost(0, 0, 20), -70, "**a crouched one spends twenty more**");
     assert_eq!(stamina_cost(0, 0, 50), -100, "and the floor's malus fifty more again");
 }
+
+/// Planting needs a square at fifty Fahrenheit, and fifty exactly counts.
+///
+/// Reference: `warm_enough_to_plant` (`weather.cpp:875-883`):
+///
+/// ```text
+/// return get_weather().get_temperature( pos ) >= units::from_fahrenheit( 50 );
+/// ```
+///
+/// **The comparison is `>=`**, so a square at exactly fifty is warm enough - which is the first thing a port rewrites as `>` and the last thing a test notices. The threshold is stated in
+/// **Fahrenheit** and the port holds kelvin, so the gate pins the conversion too: `( 50 - 32 ) / 1.8 + 273.15 = 283.15 K`.
+#[test]
+fn planting_needs_fifty_fahrenheit() {
+    use cdda_sim::temperature::warm_enough_to_plant;
+
+    assert!(warm_enough_to_plant(283.15), "**exactly fifty Fahrenheit is warm enough**");
+    assert!(!warm_enough_to_plant(283.14), "and a hundredth of a degree colder is not");
+    assert!(warm_enough_to_plant(300.0), "a summer day certainly is");
+    assert!(!warm_enough_to_plant(273.15), "and freezing is not");
+}

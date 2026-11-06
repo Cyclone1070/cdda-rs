@@ -95,3 +95,20 @@ pub fn temperature(weather: f32, base: f32, z: i32, heat: f32, convection: f32, 
     delta += map;
     weather + delta
 }
+
+/// Whether a square is warm enough to plant in.
+///
+/// Reference: `warm_enough_to_plant` (`weather.cpp:875-883`):
+///
+/// ```text
+/// return get_weather().get_temperature( pos ) >= units::from_fahrenheit( 50 );
+/// ```
+///
+/// **The comparison is `>=`**, so a square at exactly fifty is warm enough. The threshold is the reference's own **semi-appropriate temperature for most plants** (its comment), stated in
+/// Fahrenheit; the port holds kelvin, so the door is converted once here rather than at every caller: `( 50 - 32 ) / 1.8 + 273.15`.
+#[must_use]
+pub fn warm_enough_to_plant(temperature_kelvin: f32) -> bool {
+    /// Fifty Fahrenheit in kelvin: `units::from_fahrenheit( 50 )` (`weather.cpp:877`).
+    const FIFTY_FAHRENHEIT: f32 = (50.0 - 32.0) / 1.8 + 273.15;
+    temperature_kelvin >= FIFTY_FAHRENHEIT
+}

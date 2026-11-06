@@ -15919,3 +15919,18 @@ a seven-thousand pool. A test that called `stance_malus` twice would prove the a
 
 **Named, not invented:** **crouching** (the port has no crouch move mode, so the twenty is a rule with no caller yet) and `PRONE`'s move mode plus `enough_working_legs`, which are the rest
 of `is_on_ground`; the proficiency multiplier (`proficiency_multiplier`), which needs the proficiency table.
+
+## Planting needs fifty Fahrenheit (round 1319)
+
+| Piece | Reference | Port |
+|---|---|---|
+the threshold | `warm_enough_to_plant` (`weather.cpp:875-883`) | `temperature::warm_enough_to_plant` |
+Gate | - | `creature_fight::planting_needs_fifty_fahrenheit` |
+
+**The comparison is `>=`**, so a square at exactly fifty is warm enough - the first thing a port rewrites as `>` and the last thing a test notices. The reference's own comment calls it the
+**semi-appropriate temperature for most plants**.
+
+**The threshold is Fahrenheit and the port holds kelvin**, so the conversion lives in one place rather than at each of the reference's five callers: `( 50 - 32 ) / 1.8 + 273.15 = 283.15`.
+
+**Named, not invented:** the **act** of planting - `iexamine::dirtmound`'s "It is too cold to plant anything now." and the seed selection behind it - which is the farming step, and the five
+callers (`iexamine`, `activity_item_handling`, `faction_camp`, `mission_companion`, `vehicle`), none of which the port has.

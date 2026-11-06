@@ -1292,3 +1292,5 @@ reference's order, gated on the **combined case** rather than each modifier alon
 
 **Round 1318 ported the stance malus and wired it into the swing** (`melee.cpp:975-995`), gated twice: on the chain itself and on **the swing reading the store** - a downed survivor spends
 exactly fifty more stamina out of a seven-thousand pool.
+
+**Round 1319 ported `warm_enough_to_plant`** (`weather.cpp:875-883`), gated on the **exclusive** boundary (exactly fifty is warm enough) and on the Fahrenheit-to-kelvin door being in one place.
