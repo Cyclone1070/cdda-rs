@@ -15766,3 +15766,19 @@ body at full health.
 **Named, not invented:** the per-turn **system** that would call these - the reference runs them from `monster::process_effects` inside `process_turn`, and the port's monster turn is the P7
 behaviour step; the `one_in( 2 )` gate on saying it; `regeneration_modifiers` (effect-driven, needs `mtype::regeneration_modifiers` dumped) and the `REGEN_HP` enchantment, which is P5;
 `regenerates_in_dark`'s sunlight test, which the port has light for but does not yet assemble into `is_in_sunlight`.
+
+## The mending system says so on a coin flip (round 1311)
+
+| Piece | Reference | Port |
+|---|---|---|
+the line in the turn | `monster::process_effects` (`monster.cpp:3473-3486`) | `regeneration::mend_everyone` pushes it as a warning |
+Gate | - | `creature_fight::the_mending_system_says_so_on_a_coin_flip` |
+
+**The grade is the amount actually healed**, and the gate proves it by driving the **real system** over forty seeds: a body mending **one** point a turn can only ever say *"is healing
+slowly."*, however fast its type's rate says it mends. A port that keyed the sentence off `regenerates` would print *"visibly regenerating"* for one point.
+
+**The gate allows for the reference's `one_in( 2 )`** rather than demanding a line on every seed: it counts how many of forty seeds said anything and asserts both that it was **often enough to be
+seen** and that **every** line it saw was the right grade. That is the shape a test needs when the rule itself is a coin flip.
+
+**Named, not invented:** the dark half (`regenerates_in_dark` and `is_in_sunlight`, which need a dump field and the light assembly), the `one_in( 2 )`'s position relative to other draws in
+the turn, and `regeneration_modifiers` (P5's enchantments and the effect-driven rates).

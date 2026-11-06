@@ -3119,3 +3119,35 @@ fn a_mending_monster_says_how_well_it_is_mending() {
     // At two hundred the curve is 50 * e^-4, which is 0.91 - **truncated to zero**, so the light has stopped it.
     assert_eq!(dark_regeneration(200.0), 0, "and at two hundred the light has stopped it");
 }
+
+/// The mending system says how well a body is mending, on the reference's one-in-two.
+///
+/// Reference: `monster::process_effects` (`monster.cpp:3473-3486`), which runs `heal( regeneration_amount )` and then, **on `one_in( 2 )`**, says one of the three lines. The gate
+/// runs the real turn system over a range of seeds and asserts the line that appears is the grade of the amount actually mended - a port that keyed the text off the type's rate would
+/// print "visibly regenerating" for a body mending one point.
+#[test]
+fn the_mending_system_says_so_on_a_coin_flip() {
+    let mut said = 0;
+    for seed in 0..40 {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        let monster = cdda_sim::spawn_monster(&mut world, (12, 12), cdda_sim::MonsterKindId(1), 40);
+        cdda_sim::creature::set_health_left(&mut world, monster, 20);
+        // One hit point a turn: the smallest grade there is.
+        world.entity_mut(monster).insert(cdda_sim::regeneration::Mending {
+            per_hour: 3_600.0,
+            type_speed: 100,
+            type_hp: 40,
+        });
+        cdda_sim::regeneration::mend_everyone(&mut world);
+        let lines = cdda_sim::messages::lines(&world);
+        if let Some(line) = lines.iter().find(|line| line.contains("healing") || line.contains("healthier") || line.contains("regenerating")) {
+            said += 1;
+            assert!(
+                line.contains("is healing slowly."),
+                "**one point is the slowest grade**, whatever the rate was: {line}"
+            );
+        }
+    }
+    assert!(said > 5, "the one-in-two coin flip says it often enough to be seen: {said} of 40 seeds");
+}

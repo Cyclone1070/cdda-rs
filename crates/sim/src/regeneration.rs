@@ -93,6 +93,27 @@ pub fn mend_everyone(world: &mut World) -> i32 {
         }
         crate::creature::heal(world, entity, amount);
         healed += amount;
+        // Reference: `monster::process_effects` (`monster.cpp:3473-3486`) says one of three lines on `one_in( 2 )`, and the grade is the amount **actually healed**. The message is a
+        // warning (`m_warning`): a mending enemy is bad news.
+        if let Some(mut rolls) = crate::singletons::take_rolls(world) {
+            let speaks = rolls.one_in(2);
+            crate::singletons::put_rolls(world, rolls);
+            if speaks
+                && let Some(line) = crate::creature::regeneration_message(amount)
+            {
+                let mut name = world
+                    .get::<crate::creature::Creature>(entity)
+                    .map(|creature| creature.name.clone())
+                    .filter(|name| !name.is_empty());
+                if name.is_none()
+                    && let Some(kind) = world.get::<crate::creature::CreatureKind>(entity)
+                {
+                    name = crate::monster_registry::name_of(world, kind.0);
+                }
+                let name = name.unwrap_or_else(|| "monster".to_owned());
+                crate::messages::push_kind(world, &line.replacen("%s", &name, 1), crate::messages::MessageKind::Warning);
+            }
+        }
         // Reference: the same function puts speed back as the body mends (`monster.cpp:4104-4115`), so a monster that was slowed by its wounds walks faster as it heals.
         let now = crate::creature::health_of(world, entity).unwrap_or(0);
         let base = world.get::<crate::creature::Speed>(entity).map(|speed| speed.base);

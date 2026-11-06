@@ -1270,3 +1270,6 @@ the named gap.
 
 **Round 1310 ported the regeneration grades and the dark curve** (`monster.cpp:3473-3494`) as `creature::regeneration_message` and `creature::dark_regeneration`, gated on the thresholds being
 read from **what was healed** and on the truncation that stops the curve at about light 214.
+
+**Round 1311 wired the regeneration line into the mending system** (`monster.cpp:3473-3486`), gated by driving the system itself over forty seeds and asserting the grade tracks **what was
+healed**, not what the type's rate says.
