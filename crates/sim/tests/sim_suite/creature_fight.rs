@@ -4351,3 +4351,85 @@ fn a_hurt_leg_in_the_store_multiplies_the_dodge() {
         "**a leg down to a tenth of its health costs most of the dodge**: {hurt}"
     );
 }
+
+/// A body bigger than a human keeps less of its dodge, and one that says nothing keeps all of it.
+///
+/// Reference: `Character::get_dodge` ends with `ret /= anatomy.get_size_ratio( human )` (`melee.cpp:1237-1238`). The ratio is a **derived** figure - the creature's own sum of its parts'
+/// `hit_size` over the human anatomy's (`anatomy.cpp:136-173`) - so the port states it on the creature instead of re-deriving two bodies' worth of data in the middle of a dodge.
+#[test]
+fn a_bigger_creature_in_the_store_dodges_less() {
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        10,
+        "a creature that says nothing about its size is dodging as itself"
+    );
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::SizeComparedToHuman(2.0));
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        5,
+        "**twice the size of a human halves the dodge**"
+    );
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::SizeComparedToHuman(0.5));
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        20,
+        "and half the size doubles it: a smaller target is harder to hit"
+    );
+}
+
+/// A body built from the game's data answers the limb rules for itself.
+///
+/// Reference: `anatomy::finalize` (`anatomy.cpp:78-90`) is the join that resolves an anatomy's parts, and every limb-score rule reads that body afterwards. **A body that dropped a part's figures
+/// would answer zero for its own reaction** - a survivor with no dodge for a reason that has nothing to do with the rule - so the join carries them.
+#[test]
+fn a_body_built_from_the_data_answers_its_own_scores() {
+    let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
+    let read = |name: &str| -> cdda_json::Value {
+        let text = std::fs::read_to_string(corpus.join(name)).expect("the dump is in the corpus");
+        cdda_json::parse(text.as_bytes()).expect("the dump parses")
+    };
+    let anatomy = read("anatomy-parts.json");
+    let cdda_json::Value::Array(anatomies) = anatomy else {
+        panic!("the anatomies are an array");
+    };
+    let anatomies = cdda_content::anatomies::load_objects(&anatomies).expect("the anatomies load");
+    let parts = {
+        let dumped = read("anatomy.json");
+        let cdda_json::Value::Object(root) = dumped else {
+            panic!("the anatomy dump is an object");
+        };
+        let Some(cdda_json::Value::Array(parts)) = root.get("parts") else {
+            panic!("the dump has parts");
+        };
+        cdda_content::body_parts::load_objects(parts).expect("the dump loads")
+    };
+    let body = cdda_sim::creature::body_named("human_anatomy", &anatomies, &parts).expect("a human body");
+
+    let score = |name: &str| -> f32 {
+        body.parts
+            .iter()
+            .map(|part| {
+                part.limb_scores
+                    .iter()
+                    .find(|(score, _, _)| score == name)
+                    .map_or(0.0, |(_, value, _)| *value)
+            })
+            .sum()
+    };
+    // **A whole human's reaction is one and its balance is one**, which is what the data says and what the join has to carry through.
+    assert!((score("reaction") - 1.0).abs() < 1e-6, "reaction: {}", score("reaction"));
+    assert!((score("balance") - 1.0).abs() < 1e-6, "balance: {}", score("balance"));
+    assert!((score("move_speed") - 1.0).abs() < 1e-6, "move speed: {}", score("move_speed"));
+    assert!((score("footing") - 1.0).abs() < 1e-6, "footing: {}", score("footing"));
+    assert!(
+        body.parts.iter().all(|part| part.base_hp >= 0),
+        "every part states the health it is measured against"
+    );
+}

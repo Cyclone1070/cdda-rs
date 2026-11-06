@@ -375,8 +375,11 @@ pub fn body_named(
             hit_difficulty: found.hit_difficulty,
             upper: found.upper,
             lower: found.lower,
-                ..Default::default()
-            });
+            // **The figures a limb-score rule reads come across too**: a body built from content that dropped them would answer zero for its own reaction, and a survivor would have no dodge
+            // for a reason that has nothing to do with the rule.
+            limb_scores: found.limb_scores.clone(),
+            base_hp: found.base_hp,
+        });
     }
     Some(Body { parts: built })
 }
@@ -389,6 +392,14 @@ pub fn body_named(
 /// already summed by the time they reach here, which is the same arithmetic with one fewer place to disagree.
 #[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
 pub struct PartArmour(pub std::collections::BTreeMap<String, i32>);
+
+/// How big a creature is next to a human, as `anatomy::get_size_ratio` answers it.
+///
+/// Reference: `anatomy::get_size_ratio` (`anatomy.cpp:136-142`) - the creature's own sum of its parts' `hit_size` over the human anatomy's - which `Character::get_dodge` **divides** the dodge by
+/// (`melee.cpp:1237-1238`). The ratio is derived from two bodies, so the port states it on the creature rather than re-deriving a second body's data inside a dodge; a creature that carries none
+/// is dodging as itself, which is the answer for a human.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct SizeComparedToHuman(pub f64);
 
 /// How much a part of a creature resists a blow.
 ///
@@ -3164,6 +3175,10 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
             };
             crate::limbs::limb_dodge_modifier(score("balance"), score("move_speed"), score("footing"))
         };
+        // Reference: the dodge is divided by the body-size ratio last of all (`melee.cpp:1237-1238`), so a bigger target keeps less of it.
+        let size = world
+            .get::<SizeComparedToHuman>(entity)
+            .map_or(1.0, |ratio| ratio.0);
         let skates = wears_flag(world, entity, "ROLLER_INLINE")
             || wears_flag(world, entity, "ROLLER_QUAD")
             || wears_flag(world, entity, "ROLLER_ONE");
@@ -3174,6 +3189,13 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         #[allow(clippy::cast_possible_truncation)]
         let base = if world.get::<Body>(entity).is_some() {
             (f64::from(base) * limb_dodge).round() as i32
+        } else {
+            base
+        };
+        // **The size divide comes last** (`melee.cpp:1237-1238`), and it is applied whether or not the creature has a body: a creature that states a size is stating what it is next to a human.
+        #[allow(clippy::cast_possible_truncation)]
+        let base = if size > 0.0 {
+            (f64::from(base) / size).round() as i32
         } else {
             base
         };

@@ -16512,4 +16512,12 @@ holds the arithmetic; `defence_of` reads the three scores off the body's parts, 
 **A whole human multiplies by exactly one** - balance 1.0, move speed 1.0, footing 1.0 - so the rule bites only a body that has lost a limb's worth. **A body of two legs multiplies by zero**,
 and so does a body of a head and two eyes: the figures multiply, and a fixture that carried only the parts its test named measured nothing. Both fixtures now carry the whole human set.
 
-**Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), and the body-size ratio (`melee.cpp:1237-1238`).
+**The dodge chain is complete** (round 1357). The last term is the body-size ratio, `ret /= anatomy.get_size_ratio( human )` (`melee.cpp:1237-1238`), which is a creature's sum of its parts'
+`hit_size` over the human anatomy's (`anatomy.cpp:136-173`); `limbs::body_size_ratio` holds it and `defence_of` divides by it **last**. The ratio is **derived from two bodies**, so the creature
+states it (`SizeComparedToHuman`) rather than the port re-deriving a second body's data inside a dodge - and a creature that states none is dodging as itself.
+
+**The body join carries the figures.** `body_named` (`anatomy::finalize`, `anatomy.cpp:78-90`) now copies each part's `limb_scores` and `base_hp`, so a body built from the game's data answers for
+itself: a human's `reaction`, `balance`, `move_speed` and `footing` are each exactly **one**, gated against the dump.
+
+**Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), and the **sight**-side dodge modifiers (`get_dodge`'s `DIFFICULTY` /
+light level terms are not in this chain).

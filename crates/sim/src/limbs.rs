@@ -101,3 +101,16 @@ pub fn reaction_score(parts: &[(f32, i32, i32)]) -> f32 {
 pub fn limb_dodge_modifier(balance: f64, move_speed: f64, footing: f64) -> f64 {
     (balance.powf(1.5) * move_speed * footing).max(0.0)
 }
+
+/// How much bigger a body is than a reference body.
+///
+/// Reference: `anatomy::get_size_ratio` (`anatomy.cpp:136-142`) is the creature's sum of its parts' `hit_size` over the base anatomy's own sum (`:144-153`, `:168-173`), and
+/// `Character::get_dodge` **divides** the dodge by it (`melee.cpp:1237-1238`) - so a body twice as big keeps half its dodge, which is the reference's way of saying a bigger target is easier to
+/// hit. A base of zero is not something the reference meets; the port answers one rather than dividing by nothing.
+#[must_use]
+pub fn body_size_ratio(own_hit_size: f64, base_hit_size: f64) -> f64 {
+    if base_hit_size <= 0.0 {
+        return 1.0;
+    }
+    own_hit_size / base_hit_size
+}

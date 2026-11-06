@@ -216,3 +216,18 @@ fn a_hurt_leg_multiplies_the_dodge_down() {
         "and the product is floored at zero, which is what the data's min says"
     );
 }
+
+/// A bigger body is easier to hit, and a human-sized one divides the dodge by one.
+///
+/// Reference: `Character::get_dodge` ends with `ret /= anatomy.get_size_ratio( human )` (`melee.cpp:1237-1238`), and that ratio is the creature's own sum of its parts' `hit_size` over the
+/// human anatomy's (`anatomy.cpp:136-142, 144-153, 168-173`). **A human is exactly one against itself**, and a body twice as big halves the dodge.
+#[test]
+fn a_bigger_body_divides_the_dodge() {
+    use cdda_sim::limbs::body_size_ratio;
+
+    assert!((body_size_ratio(100.0, 100.0) - 1.0).abs() < 1e-6, "**a human against a human is one**");
+    assert!((body_size_ratio(200.0, 100.0) - 2.0).abs() < 1e-6, "twice the size, twice the ratio");
+    assert!((body_size_ratio(50.0, 100.0) - 0.5).abs() < 1e-6, "and half the size, half of it");
+    // A base of zero would divide by nothing; the reference never meets one, and the port answers the neutral figure rather than inventing a division.
+    assert!((body_size_ratio(100.0, 0.0) - 1.0).abs() < 1e-6, "no base, no change");
+}

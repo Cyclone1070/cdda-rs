@@ -1400,3 +1400,6 @@ head costs a tenth of it - with the product **rounded**, because truncating `0.8
 
 **Round 1356 multiplied the dodge by the balance, legs and feet figure**: `limb_dodge_modifier` is the three limb scores multiplied, the balance raised to 1.5, floored at zero - one for a whole
 human, and zero for a body that lacks any of the three.
+
+**Round 1357 closed the dodge chain**: the body-size ratio divides the dodge last, a creature stating its size instead of the port re-deriving two bodies, and `body_named` now carries each part's
+limb scores and health so a body built from the data answers its own rules - a human's reaction, balance, move speed and footing each being exactly one.
