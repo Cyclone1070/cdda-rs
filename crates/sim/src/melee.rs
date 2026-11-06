@@ -892,3 +892,29 @@ pub fn counter_attack(stamina: i32, stamina_max: i32, glass_ml: f64, material_to
         CounterAttack::Yes
     }
 }
+
+/// How much of a critical blow survives the armour over the vitals.
+///
+/// Reference: `Creature::get_crit_factor` (`creature.cpp:890-901`):
+///
+/// ```text
+/// float crit_mod = 1.f;
+/// const Character *c = as_character();
+/// if( c != nullptr ) {
+///     const int total_cover = clamp<int>( c->worn.get_coverage( bp, COVER_VITALS ), 0, 100 );
+///     crit_mod = 1.f - total_cover / 100.f;
+/// }
+/// return crit_mod;
+/// ```
+///
+/// **The factor scales the critical part of a blow, not the blow**: at full coverage a hit still lands, it just stops reaching the critical multiplier. **A monster answers one**, because
+/// the reference's own `TODO: as_monster()` leaves it without a worn layer - the port keeps that as a fact rather than inventing a monster's vitals.
+///
+/// `vitals_cover` is a percentage of the part covered by `COVER_VITALS`, clamped to `[0, 100]` before it is used.
+#[must_use]
+pub fn crit_factor(vitals_cover: i32) -> f32 {
+    let cover = vitals_cover.clamp(0, 100);
+    #[allow(clippy::cast_precision_loss)]
+    let factor = 1.0 - cover as f32 / 100.0;
+    factor
+}

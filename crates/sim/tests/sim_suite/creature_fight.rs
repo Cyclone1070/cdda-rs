@@ -3712,3 +3712,29 @@ fn a_grade_multiplies_the_damage_its_own_way() {
     );
     assert_eq!(damage_multiplier(Grade::Miss, 1.0, 0.0, crit), 0.0, "**a miss multiplies nothing**, because it never landed");
 }
+
+/// Armour over the vitals turns a critical into a plain hit, and a monster has none to turn.
+///
+/// Reference: `Creature::get_crit_factor` (`creature.cpp:890-901`):
+///
+/// ```text
+/// float crit_mod = 1.f;
+/// if( c != nullptr ) {
+///     const int total_cover = clamp<int>( c->worn.get_coverage( bp, COVER_VITALS ), 0, 100 );
+///     crit_mod = 1.f - total_cover / 100.f;
+/// }
+/// return crit_mod;
+/// ```
+///
+/// **The factor scales the *critical* part of a blow, not the blow**: at full vitals coverage it is zero, so the shot's grade still lands but stops reaching the critical multiplier
+/// (`creature.cpp:1170-1174`). **A monster answers one** because the function's own `TODO` says it has no worn layer - named rather than invented.
+#[test]
+fn armour_over_the_vitals_dulls_a_critical() {
+    use cdda_sim::melee::crit_factor;
+
+    assert!((crit_factor(0) - 1.0).abs() < 1e-9, "bare skin leaves a critical a critical");
+    assert!((crit_factor(40) - 0.6).abs() < 1e-9, "**forty percent cover takes forty percent of the force**");
+    assert!((crit_factor(100) - 0.0).abs() < 1e-9, "and full cover takes all of it");
+    assert!((crit_factor(150) - 0.0).abs() < 1e-9, "**with the clamp stopping an over-covered part at zero**");
+    assert!((crit_factor(-5) - 1.0).abs() < 1e-9, "and a negative coverage clamps at none");
+}

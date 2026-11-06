@@ -16119,3 +16119,20 @@ arithmetic).
 
 **Named, not invented:** `crit_mod` itself (`get_crit_factor( bp )`, the per-body-part critical modifier), `crit_roll`, `fatal_hit` and the **headshot/weakpoint** tests that decide which rung a
 projectile takes.
+
+## Armour over the vitals dulls a critical (round 1330)
+
+| Piece | Reference | Port |
+|---|---|---|
+the factor | `Creature::get_crit_factor` (`creature.cpp:890-901`) | `melee::crit_factor` |
+Gate | - | `creature_fight::armour_over_the_vitals_dulls_a_critical` |
+
+**The factor scales the *critical* part of a blow, not the blow**: at full vitals coverage a hit still lands, it just stops reaching the critical multiplier - which is the `crit_mod` the grade
+arithmetic already multiplies through.
+
+**The clamp runs before the subtraction**, so an over-covered part (`150`) and a bare one (`-5`) both stop at the ends of `[0, 100]` rather than producing a negative or a doubled factor.
+
+**A monster answers one**, because the reference's own `TODO: as_monster()` leaves it without a worn layer - the port keeps that as a fact rather than inventing a monster's vitals.
+
+**Named, not invented:** `COVER_VITALS` itself - the per-item coverage figure the worn layer sums per body part, which the port's `dress` does not compute yet, so `crit_factor` has a rule and no
+caller until the coverage half lands; and the melee half of the same question (`melee.cpp:469`), which needs the struck body part the port already picks.

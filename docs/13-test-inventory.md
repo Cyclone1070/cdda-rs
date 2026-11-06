@@ -1324,3 +1324,6 @@ that only the top two rungs use the critical multiplier.
 
 **Round 1329 ported the grade's damage multiplier** (`creature.cpp:1172-1196`), gated on the **standard rung passing above one** and on both critical rungs reaching the weapon's own critical
 figure at a full `crit_mod`.
+
+**Round 1330 ported `Creature::get_crit_factor`** (`creature.cpp:890-901`), gated on the clamp running **before** the subtraction and on a monster answering one - the reference's own
+`TODO: as_monster()` kept as a fact.
