@@ -1283,3 +1283,6 @@ regenerators out of 1,154.
 stopping it on its own.
 
 **Round 1315 ported `incident_sunlight`** (`weather.cpp:142-145`), the weather's additive light shift, gated on **the modifier arriving after the scale** rather than folded into it.
+
+**Round 1316 ported the weather sum's step ladder and per-step numbers** (`weather.cpp:152-215`), gated on the **two asymmetric boundaries** (exactly ten turns and exactly seven days) and on
+light being scaled by turns while exposure is scaled by seconds.

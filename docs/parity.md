@@ -15857,3 +15857,23 @@ the data's own weather sets them apart.
 
 **Named, not invented:** who *asks* - the reference calls `incident_sunlight` from the plant-growth and vitamin-D passes, and the port has neither of those systems yet; `sun_light_at` itself is
 already ported over the calendar's altitude and moonlight.
+
+## A weather sum steps in coarser ticks (round 1316)
+
+| Piece | Reference | Port |
+|---|---|---|
+the step ladder | `sum_conditions` (`weather.cpp:190-205`) | `weather_sum::tick_size` over `MovesPerTick` |
+one step's numbers | `proc_weather_sum` (`weather.cpp:152-180`) | `weather_sum::{rain_per_turn, step_of}` |
+Gates | - | `creature_fight::a_weather_sum_steps_in_coarser_ticks`, `one_step_of_weather_adds_rain_light_and_exposure` |
+
+**The comparisons are asymmetric and that is the trap**: *under* ten turns is the fine step, *over* seven days is the coarse one, so exactly ten turns and exactly seven days both take the
+**middle** step. A port that wrote `<=` in either place would agree on every value but the two boundaries - and the gate pins both boundaries rather than the comfortable middle.
+
+**Light is scaled by turns and exposure by seconds**, which are the same number because a turn is a second. That coincidence is exactly what a port must not rely on, so `MovesPerTick` keeps both
+names and the gate checks them separately.
+
+**The rain ladder is per turn and gated on `rains`**: very light **1**, light **4**, heavy **8**, and a snowing sky adds **nothing** to the rain total however heavy its precipitation class
+says it is.
+
+**Named, not invented:** the **walk** itself (`for t = start; t < end; t += tick`), which needs a calendar and a weather generator, and the **wind sum** (`get_local_windpower` over the overmap
+terrain). Also `sum_conditions`' current-weather lookup, which is the weather generator's own step.

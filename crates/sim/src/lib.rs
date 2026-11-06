@@ -108,6 +108,7 @@ pub mod furniture_types;
 pub mod needs;
 pub mod fun_for;
 pub mod glare;
+pub mod weather_sum;
 pub mod terrain_table;
 pub mod terrain_transform;
 pub mod terrain_types;

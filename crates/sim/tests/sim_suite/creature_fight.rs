@@ -3300,3 +3300,53 @@ fn the_weather_shifts_the_sunlight_it_lets_through() {
     assert_eq!(incident_sunlight(100.0, 1.0, -120), 0.0, "and the clamp stops a dark sky at nothing");
     assert_eq!(incident_sunlight(100.0, 1.0, 15), 115.0, "a modifier above zero brightens, which the data does for glare");
 }
+
+/// A stretch of weather is summed in coarse steps, and the steps get coarser the longer the stretch.
+///
+/// Reference: `sum_conditions` (`weather.cpp:190-215`) and `proc_weather_sum` (`weather.cpp:152-180`):
+///
+/// ```text
+/// if( diff < 10_turns )        tick = 1_turn;
+/// else if( diff > 7_days )     tick = 1_hours;
+/// else                         tick = 1_minutes;
+/// ...
+/// amount = very_light ? 1 : light ? 4 : heavy ? 8;   // only when the weather rains
+/// data.rain_amount += amount * to_turns( tick );
+/// data.sunlight += incident_sunlight( w ) * to_turns( tick );
+/// data.radiant_exposure += incident_sun_irradiance( w ) * to_seconds( tick );
+/// ```
+///
+/// **The comparisons are asymmetric and that is the trap**: *under* ten turns is the fine step and *over* seven days is the coarse one, so exactly ten turns and exactly seven days both take the
+/// **middle** step. A port that wrote `<=` in either place would agree on every value but the two boundaries and never notice.
+#[test]
+fn a_weather_sum_steps_in_coarser_ticks() {
+    use cdda_sim::weather_sum::{MovesPerTick, tick_size};
+
+    assert_eq!(tick_size(9), MovesPerTick::Turn, "nine turns is summed a turn at a time");
+    assert_eq!(tick_size(10), MovesPerTick::Minute, "**and exactly ten turns is already a minute**");
+    assert_eq!(tick_size(7 * 24 * 60 * 60), MovesPerTick::Minute, "seven days exactly is still a minute");
+    assert_eq!(tick_size(7 * 24 * 60 * 60 + 1), MovesPerTick::Hour, "**one turn more and it is an hour**");
+}
+
+/// One step of weather adds rain per turn, light per turn and exposure per second.
+///
+/// Reference: `proc_weather_sum` (`weather.cpp:174-180`). **The two sun numbers are scaled by different clocks**: light by `to_turns( tick )` and radiant exposure by `to_seconds( tick )`.
+/// They happen to be the same number, because a turn is a second - which is exactly the coincidence a port must not rely on, so the gate pins a minute as sixty turns for one and sixty
+/// seconds for the other, and checks the rain against the precipitation ladder.
+#[test]
+fn one_step_of_weather_adds_rain_light_and_exposure() {
+    use cdda_sim::weather_sum::{MovesPerTick, rain_per_turn, step_of};
+
+    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::VeryLight, true), 1, "a turn of drizzle is one");
+    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::Light, true), 4, "of rain, four");
+    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::Heavy, true), 8, "of a downpour, eight");
+    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::Heavy, false), 0, "**and a snowing sky adds no rain at all**");
+
+    let mut weather = cdda_content::weather::WeatherType::default();
+    weather.precip = cdda_content::weather::Precipitation::Light;
+    weather.rains = true;
+    let minute = step_of(&weather, MovesPerTick::Minute, 100.0, 800.0);
+    assert_eq!(minute.rain, 240, "a minute of light rain is sixty turns of four");
+    assert_eq!(minute.sunlight, 6_000.0, "and a hundred of light for sixty turns");
+    assert_eq!(minute.radiant_exposure, 48_000.0, "with eight hundred of exposure for sixty seconds");
+}
