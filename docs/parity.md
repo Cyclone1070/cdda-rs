@@ -16498,5 +16498,11 @@ them.
 **A whole human's reaction is exactly one** - a head at 0.3 and eyes at 0.7 - so the rule **leaves a healthy survivor's dodge alone** and moves it only when a part that reacts is hurt: a head at
 half health leaves nine tenths of the reaction.
 
-**Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), and the **caller** that multiplies the dodge by the reaction - the
-port's `Body` carries a part's name and size but not its scores yet, which is the piece that will connect this rule to a struck survivor.
+**The reaction now reaches a real survivor** (round 1355): a body's parts carry their own `limb_scores` and `base_hp`, so `defence_of` sums the reaction over the body and multiplies the dodge by
+it - with no second list keyed by part name, which is what keeps the body the only place a part's figure lives. A **hurt head in the store costs a tenth of the dodge**, and a whole one costs
+nothing.
+
+**The product rounds rather than truncating.** The reference keeps the dodge as a `float` all the way to `dodge_roll`; the port's points are whole, and `0.2f32 + 0.7f32` is `0.8999999`, so
+truncating answered **eight** where the reference answers **nine**. The round is the closest whole number to the reference's own answer rather than a preference.
+
+**Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), the limb-dodge modifier and the body-size ratio (`melee.cpp:1233-1238`).

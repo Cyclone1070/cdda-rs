@@ -1755,7 +1755,8 @@ mod tests {
             hit_difficulty: 1.0,
             upper: false,
             lower: false,
-        };
+                ..Default::default()
+            };
         let zombie = cdda_sim::spawn_monster(&mut world, (1, 0), cdda_sim::MonsterKindId(0), 30);
         world
             .entity_mut(zombie)

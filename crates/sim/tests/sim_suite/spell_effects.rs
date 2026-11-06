@@ -421,6 +421,7 @@ fn an_attack_spell_hits_everything_its_blast_reaches() {
                 hit_difficulty: 1.0,
                 upper: false,
                 lower: false,
+                ..Default::default()
             }],
         });
         world

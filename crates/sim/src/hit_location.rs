@@ -6,7 +6,7 @@
 //! dice, and a monster - which has no parts at all - simply never asks.
 
 /// One part of a body, as the rule needs it.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct BodyPart {
     /// What it is called, which is all a message needs.
     pub name: String,
@@ -18,6 +18,11 @@ pub struct BodyPart {
     pub upper: bool,
     /// Whether it is low down, and so easier for a short attacker to reach (the `LIMB_LOWER` flag).
     pub lower: bool,
+    /// What the part contributes to each limb score, as `( score, value, max )` - the data's `limb_scores`. The hit-location rule does not read it; the limb-score rules do, and carrying it
+    /// here is what lets a **body** answer for its reaction without a second list keyed by part name.
+    pub limb_scores: Vec<(String, f32, f32)>,
+    /// How much health the part has (`base_hp`), which a wound is measured against.
+    pub base_hp: i32,
 }
 
 /// Picks one entry of a weighted list, given a draw.

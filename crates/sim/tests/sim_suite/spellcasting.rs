@@ -27,7 +27,8 @@ fn torso_only() -> Body {
             hit_difficulty: 1.0,
             upper: false,
             lower: false,
-        }],
+                ..Default::default()
+            }],
     }
 }
 
@@ -185,14 +186,16 @@ fn a_spell_lands_where_the_hit_sizes_say_and_not_where_the_melee_rule_would() {
         hit_difficulty: 1.0,
         upper: false,
         lower: false,
-    };
+                ..Default::default()
+            };
     let head = BodyPart {
         name: "head".to_owned(),
         hit_size: 10.0,
         hit_difficulty: 3.0,
         upper: true,
         lower: false,
-    };
+                ..Default::default()
+            };
     let parts = vec![torso, head];
 
     assert_eq!(lands_on(&parts, 0.0).as_deref(), Some("torso"), "the first draw is the first part");

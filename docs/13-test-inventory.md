@@ -1394,3 +1394,6 @@ port must copy rather than fix.
 
 **Round 1354 ported the reaction score and the health it is measured against**: the anatomy dump now carries each part's `base_hp`, and `limbs::reaction_score` applies the wound adjustment per
 part - a human's reaction being exactly one, so the rule only moves a hurt body.
+
+**Round 1355 connected the reaction score to a survivor**: a body's parts carry their own limb scores and health, `defence_of` multiplies the dodge by the reaction they add up to, and a hurt
+head costs a tenth of it - with the product **rounded**, because truncating `0.8999999` answered eight where the reference answers nine.

@@ -375,7 +375,8 @@ pub fn body_named(
             hit_difficulty: found.hit_difficulty,
             upper: found.upper,
             lower: found.lower,
-        });
+                ..Default::default()
+            });
     }
     Some(Body { parts: built })
 }
@@ -3112,11 +3113,42 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         let base = crate::melee::monster_dodge(world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points), &conditions);
         // Reference: the skates come **before** the speed penalty (`melee.cpp:1209-1214`), so a survivor on skates and slowed is worse than either. The flags are the three rollers the reference
         // names, and the trait is asked of the creature's own traits.
+        // Reference: the dodge is multiplied by the **reaction** limb score (`melee.cpp:1229-1231`), which is the sum of the parts' own figures after the wound adjustment - a whole human's
+        // is exactly one, so this only moves a hurt survivor. The wounds are the store's own record and the figures are the body's, so nothing here is a second copy.
+        let reaction = {
+            let scores: Vec<(f32, i32, i32)> = world
+                .get::<Body>(entity)
+                .map(|body| {
+                    body.parts
+                        .iter()
+                        .map(|part| {
+                            let figure = part
+                                .limb_scores
+                                .iter()
+                                .find(|(score, _, _)| score == "reaction")
+                                .map_or(0.0, |(_, value, _)| *value);
+                            let wound = wound_on(world, entity, &part.name);
+                            (figure, part.base_hp, (part.base_hp - wound).max(0))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            crate::limbs::reaction_score(&scores)
+        };
         let skates = wears_flag(world, entity, "ROLLER_INLINE")
             || wears_flag(world, entity, "ROLLER_QUAD")
             || wears_flag(world, entity, "ROLLER_ONE");
         let skater = crate::traits::has_trait(world, entity, "PROF_SKATER");
         let base = crate::melee::skate_dodge(base, skates, skater);
+        // A body with no parts at all has no reaction to lose, so the figure is only applied where the store can answer it - which is the reference's own shape, a score summed over parts.
+        // **The product rounds rather than truncating**, because the reference keeps the dodge as a `float` all the way to `dodge_roll` and the port's points are whole. Truncating threw a
+        // point away to the float's own representation: `0.2f32 + 0.7f32` is `0.8999999`, so ten points times it answered eight where the reference answers nine.
+        #[allow(clippy::cast_possible_truncation)]
+        let base = if world.get::<Body>(entity).is_some() {
+            (f64::from(base) * f64::from(reaction)).round() as i32
+        } else {
+            base
+        };
         // Reference: the speed penalty comes **before** the stamina one (`melee.cpp:1216-1225`) and is a penalty for being slowed, never a bonus for being quick.
         // **A speed of zero means the port never modelled one**, not that the creature is frozen: real immobility is the `CANNOT_MOVE` flag's business, and that rule answers zero dodge above.
         // The distinction matters because a fixture that gives a creature a dodge and no speed is asking about the dodge, not about being unable to move.

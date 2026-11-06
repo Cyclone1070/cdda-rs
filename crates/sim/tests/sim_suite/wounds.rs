@@ -59,6 +59,7 @@ fn human_body() -> Vec<BodyPart> {
                 hit_difficulty: found.hit_difficulty,
                 upper: found.upper,
                 lower: found.lower,
+                ..Default::default()
             }
         })
         .collect()

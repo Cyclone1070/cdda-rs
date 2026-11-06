@@ -64,7 +64,8 @@ fn a_vest_on_the_torso_becomes_armour_on_the_torso() {
             hit_difficulty: 1.0,
             upper: false,
             lower: false,
-        }],
+                ..Default::default()
+            }],
     });
     let worn = world.spawn((WornBy(survivor), vest())).id();
 

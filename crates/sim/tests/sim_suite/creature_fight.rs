@@ -4214,3 +4214,52 @@ fn skates_in_the_store_cost_the_survivor_its_dodge() {
         "**and half once the survivor is a skater**"
     );
 }
+
+/// A hurt head in the store slows the survivor's dodge, and a whole one leaves it alone.
+///
+/// Reference: `Character::get_dodge` multiplies by `get_limb_score( limb_score_reaction )` (`melee.cpp:1229-1231`), summed over the parts after the wound adjustment
+/// (`bodypart.cpp:967-976`). **The figures ride on the body's parts**, so the rule needs no list of its own: a body carries what each part contributes.
+#[test]
+fn a_hurt_head_in_the_store_slows_the_dodge() {
+    use cdda_sim::hit_location::BodyPart;
+
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    let head = BodyPart {
+        name: "head".to_owned(),
+        hit_size: 4.0,
+        hit_difficulty: 1.2,
+        limb_scores: vec![("reaction".to_owned(), 0.3, 0.3)],
+        base_hp: 60,
+        ..BodyPart::default()
+    };
+    let eyes = BodyPart {
+        name: "eyes".to_owned(),
+        hit_size: 1.0,
+        hit_difficulty: 1.5,
+        limb_scores: vec![("reaction".to_owned(), 0.7, 0.7)],
+        base_hp: 60,
+        ..BodyPart::default()
+    };
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Body { parts: vec![head, eyes] });
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        10,
+        "**a whole body reacts at one, so the dodge is whole**"
+    );
+
+    // Half a head's health is two thirds of its figure: 0.2 + 0.7 leaves nine tenths.
+    let mut wounds = std::collections::BTreeMap::new();
+    wounds.insert("head".to_owned(), 30);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wounds(wounds));
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        9,
+        "**and a head at half health costs a tenth of it**"
+    );
+}

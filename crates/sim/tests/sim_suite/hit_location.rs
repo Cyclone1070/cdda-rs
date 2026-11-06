@@ -16,6 +16,7 @@ fn part(name: &str, hit_size: f32, hit_difficulty: f32) -> BodyPart {
         hit_difficulty,
         upper: false,
         lower: false,
+        ..BodyPart::default()
     }
 }
 

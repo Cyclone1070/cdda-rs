@@ -17,7 +17,8 @@ fn a_torso() -> Vec<cdda_sim::hit_location::BodyPart> {
         hit_difficulty: 1.0,
         upper: false,
         lower: false,
-    }]
+                ..Default::default()
+            }]
 }
 
 /// What the sweep found, so the counts can be asserted and printed.
