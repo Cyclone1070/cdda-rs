@@ -15989,3 +15989,23 @@ distinction the port keeps by leaving the list empty rather than defaulting it.
 
 **Named, not invented:** the **caller** that composes the item's categories, the category table's proficiencies and what the creature knows into `proficiency_stamina_multiplier` - the next step
 - and the `UNARMED` fallback that gives an empty hand its own category.
+
+## A mastered weapon costs less stamina to swing (round 1323)
+
+| Piece | Reference | Port |
+|---|---|---|
+the item's categories | `wielded_weapon_categories` (`melee.cpp:570-578`) | `item_registry::set_item_weapon_categories` / `weapon_categories_of` |
+the category's proficiencies | `category_proficiencies()` (`melee.cpp:981-985`) | `proficiencies::set_weapon_categories` |
+the multiplier | `melee.cpp:979-995` | `proficiencies::stamina_multiplier`, wired into the swing |
+Gates | - | `character_swing::knowing_a_weapons_proficiencies_makes_it_cheaper`, `a_mastered_weapon_costs_less_stamina_to_swing` |
+
+**All three tables have to agree** - the item's category, the category's proficiency list, and the proficiency's own bonus - and the gate proves it with the **wrong-weapon case**: a short-sword
+master swinging an **axe** gets nothing, because the axe's category does not list that proficiency. A port keyed off the proficiency's name would get that case wrong.
+
+**The floor is applied after the multiplier**: `std::min( -50, multiplier * total )` (`melee.cpp:995`), so a discount can lift a swing to the floor and never past it.
+
+**The wiring gate reads the store on both sides of one swing** and the difference is exactly five stamina: a 500 g knife's standard cost is **81**, five percent off is **76.95**, truncated to
+**76**. That truncation is the reference's own cast rather than a rounding.
+
+**Named, not invented:** `UNARMED` as the empty hand's category (the reference's own fallback, `melee.cpp:571-572`), the `athlete`/`archery` bonus categories (data present, no rule reads
+them), and a weapon that names no category at all (it gets `1.0`, and the reference does too - its `weapon_category` set is simply empty).

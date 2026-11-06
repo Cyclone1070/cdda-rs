@@ -1303,3 +1303,6 @@ on the corpus rather than a dump because the pairing is content.
 
 **Round 1322 loaded the item's `weapon_category`** (`itype::weapon_category`, `melee.cpp:570-578`) in **both** JSON forms, gated on the corpus naming hundreds of categories and at least one
 item naming more than one.
+
+**Round 1323 wired the proficiency multiplier into the swing** (`melee.cpp:570-578`, `:979-995`): the item's category, the category's proficiency list and the creature's own set, gated on the
+**wrong-weapon case** (a short-sword master gains nothing with an axe) and on the swing paying exactly **five** stamina less out of 7,000.

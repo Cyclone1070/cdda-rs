@@ -2824,7 +2824,16 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         natural_stance: crate::applied_effects::has(world, holder, "natural_stance"),
         pseudopod_grasp: crate::creature_flags::has_flag(world, holder, "PSEUDOPOD_GRASP"),
     };
-    spend_stamina(world, holder, crate::melee::stamina_cost(weight, skill, crate::melee::stance_malus(stance)));
+    // Reference: the multiplier comes from the weapon's own categories and the proficiencies the swinger knows (`melee.cpp:979-995`), which is the last of the cost's three inputs.
+    let wielded_kind = world.get::<Wielding>(holder).map(|carried| carried.0);
+    let proficiency_multiplier = wielded_kind.map_or(1.0, |kind| {
+        crate::proficiencies::stamina_multiplier(world, holder, kind)
+    });
+    spend_stamina(
+        world,
+        holder,
+        crate::melee::stamina_cost(weight, skill, crate::melee::stance_malus(stance), proficiency_multiplier),
+    );
     let stamina = stamina_ratio(world, holder);
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina);
     spend_moves(world, holder, f64::from(cost));

@@ -466,11 +466,15 @@ pub fn proficiency_stamina_multiplier(losses: &[f32]) -> f32 {
 /// the melee skill as a rebate and subtracts any stance penalty, then keeps at least **-50** - `std::min( -50, ... )`. The result is **negative**, because the reference spends it by
 /// adding it: a swing returns the stamina to take.
 #[must_use]
-pub fn stamina_cost(weight_g: i64, melee_skill: i32, stance_malus: i32) -> i32 {
+pub fn stamina_cost(weight_g: i64, melee_skill: i32, stance_malus: i32, proficiency_multiplier: f32) -> i32 {
     let standard = -(weight_g / 16 + 50);
     #[allow(clippy::cast_possible_truncation)]
     let total = i32::try_from(standard).unwrap_or(i32::MIN / 2) + melee_skill - stance_malus;
-    total.min(-50)
+    // Reference: `std::min<int>( -50, proficiency_multiplier * ( mod_sta + melee - stance_malus ) )` - the multiplier scales the **total**, and the floor is applied **after** it
+    // (`melee.cpp:995`), so a big enough discount can lift a swing to the floor but never past it.
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let scaled = (proficiency_multiplier * total as f32) as i32;
+    scaled.min(-50)
 }
 
 /// How likely a weapon is to be damaged by a blow: `Character::handle_melee_wear`'s arithmetic (`melee.cpp:214-289`).

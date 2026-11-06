@@ -3467,9 +3467,9 @@ fn a_low_swing_costs_more_stamina() {
 
     // **The sign trap**: the answer is *negative* and the malus is *subtracted*, so a bigger malus makes the number **more negative** - which is *more* spent, not less. The
     // reference then takes `std::min( -50, ... )`, i.e. the more negative of the two, so the floor is a floor on the *rebate* rather than on the cost.
-    assert_eq!(stamina_cost(0, 0, 0), -50, "an empty-handed standing swing is the floor");
-    assert_eq!(stamina_cost(0, 0, 20), -70, "**a crouched one spends twenty more**");
-    assert_eq!(stamina_cost(0, 0, 50), -100, "and the floor's malus fifty more again");
+    assert_eq!(stamina_cost(0, 0, 0, 1.0), -50, "an empty-handed standing swing is the floor");
+    assert_eq!(stamina_cost(0, 0, 20, 1.0), -70, "**a crouched one spends twenty more**");
+    assert_eq!(stamina_cost(0, 0, 50, 1.0), -100, "and the floor's malus fifty more again");
 }
 
 /// Planting needs a square at fifty Fahrenheit, and fifty exactly counts.

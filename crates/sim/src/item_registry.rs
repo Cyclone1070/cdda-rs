@@ -713,3 +713,31 @@ pub fn message_of(world: &mut World, fault: &str) -> Option<String> {
         .and_then(|table| table.0.get(fault).cloned())
         .filter(|line| !line.is_empty())
 }
+
+/// Which kinds of weapon each item type is (`itype::weapon_category`).
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct ItemWeaponCategories(pub BTreeMap<ItemTypeId, Vec<String>>);
+
+/// Marks the entity carrying the weapon categories.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct TheItemWeaponCategories;
+
+/// Installs which kinds of weapon each item type is.
+///
+/// Reference: `itype::weapon_category`, read by `wielded_weapon_categories` (`melee.cpp:570-578`). **A weapon that names none gets an empty list rather than a made-up category**: the
+/// reference answers `UNARMED` for an empty hand, which is the caller's decision rather than this table's.
+pub fn set_item_weapon_categories(world: &mut World, categories: &[(ItemTypeId, Vec<String>)]) {
+    let entity = singletons::singleton::<ItemWeaponCategories, TheItemWeaponCategories>(world);
+    let table: BTreeMap<ItemTypeId, Vec<String>> = categories.iter().cloned().collect();
+    world.entity_mut(entity).insert(ItemWeaponCategories(table));
+}
+
+/// The kinds of weapon an item type is, or an empty list.
+#[must_use]
+pub fn weapon_categories_of(world: &mut World, kind: ItemTypeId) -> Vec<String> {
+    let entity = singletons::singleton::<ItemWeaponCategories, TheItemWeaponCategories>(world);
+    world
+        .get::<ItemWeaponCategories>(entity)
+        .and_then(|table| table.0.get(&kind).cloned())
+        .unwrap_or_default()
+}

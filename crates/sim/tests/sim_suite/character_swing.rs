@@ -498,3 +498,143 @@ fn a_swing_from_the_floor_costs_more_stamina() {
         "**the floor's malus is fifty stamina**: {spent:?}"
     );
 }
+
+/// Knowing a weapon's proficiencies makes swinging it cheaper, and knowing the wrong ones does nothing.
+///
+/// Reference: `get_total_melee_stamina_cost` (`melee.cpp:979-995`) over `wielded_weapon_categories` (`melee.cpp:570-578`): the item's own categories, each category's proficiency list,
+/// and the creature's own proficiency set. **All three have to agree**: a master of the short sword swinging an axe gets nothing, because the axe's category does not list that proficiency.
+#[test]
+fn knowing_a_weapons_proficiencies_makes_it_cheaper() {
+    let mut world = World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "sword_short",
+                volume_ml: 500,
+                weight_g: 900,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 12.0,
+                melee_stab: 3.0,
+                to_hit: 2,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "axe",
+                volume_ml: 900,
+                weight_g: 1_500,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 14.0,
+                melee_cut: 8.0,
+                melee_stab: 0.0,
+                to_hit: -1,
+            },
+        ],
+    );
+    let sword = cdda_sim::item_registry::id_of(&mut world, "sword_short").expect("the sword is registered");
+    let axe = cdda_sim::item_registry::id_of(&mut world, "axe").expect("the axe is registered");
+    // The three tables, installed the way the loader would: the item's category, the category's proficiencies, and the proficiency's own bonus.
+    cdda_sim::item_registry::set_item_weapon_categories(
+        &mut world,
+        &[
+            (sword, vec!["SHORT_SWORDS".to_owned()]),
+            (axe, vec!["HAND_AXES".to_owned()]),
+        ],
+    );
+    cdda_sim::proficiencies::set_weapon_categories(
+        &mut world,
+        &[
+            ("SHORT_SWORDS".to_owned(), vec!["prof_short_swords_master".to_owned()]),
+            ("HAND_AXES".to_owned(), vec!["prof_hand_axes_master".to_owned()]),
+        ],
+    );
+    let dump = cdda_content::proficiencies::Proficiencies {
+        by_id: [(
+            "prof_short_swords_master".to_owned(),
+            cdda_content::proficiencies::Proficiency {
+                id: "prof_short_swords_master".to_owned(),
+                seconds: 57_600,
+                can_learn: true,
+                required: Vec::new(),
+                bonuses: vec![("melee_attack".to_owned(), vec![("stamina".to_owned(), 0.05)])],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+    cdda_sim::proficiencies::install(&mut world, &dump);
+
+    let novice = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    let master = cdda_sim::spawn_player(&mut world, (0, 1), 80, 0);
+    cdda_sim::proficiencies::learn(&mut world, master, "prof_short_swords_master");
+
+    assert_eq!(
+        cdda_sim::proficiencies::stamina_multiplier(&mut world, novice, sword),
+        1.0,
+        "a novice gets nothing"
+    );
+    assert!(
+        (cdda_sim::proficiencies::stamina_multiplier(&mut world, master, sword) - 0.95).abs() < 1e-6,
+        "**and a master of the short sword gets five percent off**"
+    );
+    assert_eq!(
+        cdda_sim::proficiencies::stamina_multiplier(&mut world, master, axe),
+        1.0,
+        "**but not for an axe**: the axe's category does not list that proficiency"
+    );
+}
+
+/// The swing itself pays less stamina for a weapon its swinger has mastered.
+///
+/// Reference: `Character::melee_attack` charges `get_total_melee_stamina_cost( cur_weap )`, which multiplies the total by the proficiency figure (`melee.cpp:995`). The gate reads the
+/// store on both sides of one swing: the same knife, survivor and victim, and only what the survivor knows differs.
+#[test]
+fn a_mastered_weapon_costs_less_stamina_to_swing() {
+    let mut spent = Vec::new();
+    for knows in [false, true] {
+        let (mut world, _null, _rock, knife) = world_with_kinds();
+        cdda_sim::item_registry::set_item_weapon_categories(&mut world, &[(knife, vec!["KNIVES".to_owned()])]);
+        cdda_sim::proficiencies::set_weapon_categories(
+            &mut world,
+            &[("KNIVES".to_owned(), vec!["prof_knives_master".to_owned()])],
+        );
+        let dump = cdda_content::proficiencies::Proficiencies {
+            by_id: [(
+                "prof_knives_master".to_owned(),
+                cdda_content::proficiencies::Proficiency {
+                    id: "prof_knives_master".to_owned(),
+                    seconds: 57_600,
+                    can_learn: true,
+                    required: Vec::new(),
+                    bonuses: vec![("melee_attack".to_owned(), vec![("stamina".to_owned(), 0.05)])],
+                },
+            )]
+            .into_iter()
+            .collect(),
+        };
+        cdda_sim::proficiencies::install(&mut world, &dump);
+
+        let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::creature::Wielding(knife))
+            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+        if knows {
+            cdda_sim::proficiencies::learn(&mut world, survivor, "prof_knives_master");
+        }
+        let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+        cdda_sim::creature::set_moves(&mut world, survivor, 400);
+        let before = cdda_sim::creature::stamina_ratio(&world, survivor);
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
+        spent.push(before - cdda_sim::creature::stamina_ratio(&world, survivor));
+    }
+    // A 500 g knife's standard cost is 81; five percent off is 76.95, truncated to 76 - so five stamina of a seven-thousand pool.
+    let five_over_the_pool = 5.0 / 7_000.0;
+    assert!(
+        (spent[0] - spent[1] - five_over_the_pool).abs() < 1e-9,
+        "**a master's knife swing costs five fewer**: {:?}",
+        spent
+    );
+}

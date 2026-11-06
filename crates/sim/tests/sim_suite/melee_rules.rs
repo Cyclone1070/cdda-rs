@@ -298,13 +298,13 @@ fn practising_a_skill_buys_levels_at_a_rising_price() {
 fn a_swing_costs_stamina_in_proportion_to_what_it_weighs() {
     use cdda_sim::melee::stamina_cost;
 
-    assert_eq!(stamina_cost(500, 0, 0), -81, "a half-kilo knife costs eighty-one");
-    assert_eq!(stamina_cost(0, 0, 0), -50, "and empty hands cost the floor");
-    assert_eq!(stamina_cost(500, 10, 0), -71, "ten points of melee skill give ten back");
-    assert_eq!(stamina_cost(500, 0, 20), -101, "and crouching costs twenty more");
+    assert_eq!(stamina_cost(500, 0, 0, 1.0), -81, "a half-kilo knife costs eighty-one");
+    assert_eq!(stamina_cost(0, 0, 0, 1.0), -50, "and empty hands cost the floor");
+    assert_eq!(stamina_cost(500, 10, 0, 1.0), -71, "ten points of melee skill give ten back");
+    assert_eq!(stamina_cost(500, 0, 20, 1.0), -101, "and crouching costs twenty more");
     // The floor holds however light the weapon or skilled the hand: `std::min( -50, ... )`.
-    assert_eq!(stamina_cost(0, 100, 0), -50, "there is no free swing");
-    assert_eq!(stamina_cost(4_000, 0, 0), -300, "a four-kilo maul costs three hundred");
+    assert_eq!(stamina_cost(0, 100, 0, 1.0), -50, "there is no free swing");
+    assert_eq!(stamina_cost(4_000, 0, 0, 1.0), -300, "a four-kilo maul costs three hundred");
 }
 
 /// Dexterity's contribution to ranged dispersion: half a unit a point below twenty, nothing above it.

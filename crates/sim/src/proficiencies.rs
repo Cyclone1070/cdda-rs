@@ -193,3 +193,61 @@ pub fn time_to_learn(world: &World, proficiency: &str) -> Option<i64> {
         .and_then(|holder| world.get::<ProficiencyTimes>(holder))
         .and_then(|times| times.seconds.get(proficiency).copied())
 }
+
+/// Which proficiencies each kind of weapon may use (`weapon_category::category_proficiencies`).
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct WeaponCategoryProficiencies(pub BTreeMap<String, Vec<String>>);
+
+/// Marks the entity carrying the weapon category table.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct TheWeaponCategoryProficiencies;
+
+/// Installs which proficiencies each kind of weapon may use.
+pub fn set_weapon_categories(world: &mut World, categories: &[(String, Vec<String>)]) {
+    let entity = crate::singletons::singleton::<WeaponCategoryProficiencies, TheWeaponCategoryProficiencies>(world);
+    let table: BTreeMap<String, Vec<String>> = categories.iter().cloned().collect();
+    world.entity_mut(entity).insert(WeaponCategoryProficiencies(table));
+}
+
+/// What a weapon's own categories and the creature's own proficiencies multiply a swing's stamina cost by.
+///
+/// Reference: `get_total_melee_stamina_cost` (`melee.cpp:979-995`): for each category the wielded item belongs to, the sum of the **known** proficiencies of that category's list that carry a
+/// `melee_attack`/`stamina` bonus, fed to [`crate::melee::proficiency_stamina_multiplier`].
+///
+/// **All three tables have to agree**: the item's category, the category's proficiency list, and the proficiency's own bonus. A master of the short sword swinging an axe gets nothing, which
+/// is the reference's own behaviour and the case a port that keyed off the proficiency's name would get wrong.
+#[must_use]
+pub fn stamina_multiplier(world: &mut World, creature: Entity, weapon: crate::ItemTypeId) -> f32 {
+    let categories = crate::item_registry::weapon_categories_of(world, weapon);
+    if categories.is_empty() {
+        return 1.0;
+    }
+    let holder = crate::singletons::singleton::<WeaponCategoryProficiencies, TheWeaponCategoryProficiencies>(world);
+    let table = world
+        .get::<WeaponCategoryProficiencies>(holder)
+        .map(|table| table.0.clone())
+        .unwrap_or_default();
+    let dump = crate::singletons::singleton::<ProficiencyRules, TheProficiencyRules>(world);
+    let bonuses = world.get::<ProficiencyRules>(dump).map(|rules| rules.dump.clone());
+    let mut losses = Vec::new();
+    for category in &categories {
+        let Some(proficiencies) = table.get(category) else {
+            continue;
+        };
+        let mut loss = 0.0f32;
+        for proficiency in proficiencies {
+            if !knows(world, creature, proficiency) {
+                continue;
+            }
+            if let Some(bonus) = bonuses
+                .as_ref()
+                .and_then(|dump| dump.by_id.get(proficiency))
+                .and_then(|prof| prof.bonus_for("melee_attack", "stamina"))
+            {
+                loss += bonus;
+            }
+        }
+        losses.push(loss);
+    }
+    crate::melee::proficiency_stamina_multiplier(&losses)
+}
