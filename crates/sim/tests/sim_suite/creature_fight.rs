@@ -3665,3 +3665,50 @@ fn a_shot_is_graded_by_how_far_it_missed() {
     assert_eq!(grade_of(0.99), Grade::Grazing, "and so is anything under a full miss");
     assert_eq!(grade_of(1.0), Grade::Miss, "a shot that misses by a full square is not a hit at all");
 }
+
+/// A grade's damage multiplier is the reference's own branch arithmetic, and only the top two rungs reach the critical figure.
+///
+/// Reference: `Creature::select_body_part_projectile_attack` (`creature.cpp:1172-1196`), with `std_hit_mult = sqrt( 2 * crit_multiplier )`:
+///
+/// ```text
+/// headshot: ( 0.6 + 0.45*crit_mod - 0.1*hit_roll ) * ( std_hit_mult + ( crit_multiplier - std_hit_mult ) * crit_mod )
+/// critical: ( 0.75 + 0.25*crit_mod - 0.25*hit_roll ) * ( std_hit_mult + ( crit_multiplier - std_hit_mult ) * crit_mod )
+/// good:     ( 1.0 - 0.5*hit_roll ) * std_hit_mult
+/// standard: 1.5 - hit_roll
+/// grazing:  1.05 - hit_roll
+/// ```
+///
+/// **The standard rung's multiplier is above one** (`1.5 - hit_roll`, so 1.5 down to 0.7) while the good rung's is around `sqrt(3)` - so a *worse* rung can hit harder than a better one for
+/// an unlucky roll, which is the reference's arithmetic rather than a defect. **A graze is `1.05 - hit_roll`**, tiny because `hit_roll` is near one when the shot is far off.
+#[test]
+fn a_grade_multiplies_the_damage_its_own_way() {
+    use cdda_sim::shot::{Grade, damage_multiplier};
+
+    // crit_multiplier 1.5 makes std_hit_mult sqrt( 3 ) = 1.7320508.
+    let crit = 1.5;
+    assert!(
+        (damage_multiplier(Grade::Good, 1.0, 0.0, crit) - 3.0f64.sqrt()).abs() < 1e-9,
+        "**a perfect good hit is the standard figure alone**"
+    );
+    assert!(
+        (damage_multiplier(Grade::Good, 1.0, 1.0, crit) - 3.0f64.sqrt() / 2.0).abs() < 1e-9,
+        "and an unlucky one is half of it"
+    );
+    assert!((damage_multiplier(Grade::Standard, 1.0, 0.0, crit) - 1.5).abs() < 1e-9, "a standard hit at the top is 1.5");
+    assert!((damage_multiplier(Grade::Standard, 1.0, 0.5, crit) - 1.0).abs() < 1e-9, "and in the middle is 1.0");
+    assert!((damage_multiplier(Grade::Grazing, 1.0, 0.05, crit) - 1.0).abs() < 1e-9, "a graze is `1.05 - hit_roll`");
+    assert!(
+        (damage_multiplier(Grade::Headshot, 1.0, 0.0, crit) - 1.05 * crit).abs() < 1e-9,
+        "**a headshot with a full crit_mod reaches the critical figure itself**: 1.05 * 1.5"
+    );
+    // **A critical at full `crit_mod` reaches the critical figure itself**, not three quarters of it: `0.75 + 0.25 * crit_mod` is one when `crit_mod` is one.
+    assert!(
+        (damage_multiplier(Grade::Critical, 1.0, 0.0, crit) - crit).abs() < 1e-9,
+        "and a critical at a full crit_mod is the critical figure too"
+    );
+    assert!(
+        (damage_multiplier(Grade::Critical, 0.0, 0.0, crit) - 0.75 * 3.0f64.sqrt()).abs() < 1e-9,
+        "while a critical with no crit_mod is three quarters of the standard figure"
+    );
+    assert_eq!(damage_multiplier(Grade::Miss, 1.0, 0.0, crit), 0.0, "**a miss multiplies nothing**, because it never landed");
+}

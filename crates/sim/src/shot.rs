@@ -883,3 +883,40 @@ pub fn grade_of(missed_by: f64) -> Grade {
         Grade::Miss
     }
 }
+
+/// What a grade multiplies the damage by.
+///
+/// Reference: `Creature::select_body_part_projectile_attack` (`creature.cpp:1172-1196`), with `std_hit_mult = sqrt( 2 * crit_multiplier )`:
+///
+/// ```text
+/// headshot: ( 0.6 + 0.45*crit_mod - 0.1*hit_roll ) * ( std_hit_mult + ( crit_multiplier - std_hit_mult ) * crit_mod )
+/// critical: ( 0.75 + 0.25*crit_mod - 0.25*hit_roll ) * ( std_hit_mult + ( crit_multiplier - std_hit_mult ) * crit_mod )
+/// good:     ( 1.0 - 0.5*hit_roll ) * std_hit_mult
+/// standard: 1.5 - hit_roll
+/// grazing:  1.05 - hit_roll
+/// ```
+///
+/// `hit_roll` is a fresh `rng_float( goodhit, 1.0 )`: a shot that missed by less rolls from a bigger number, so **the roll's floor is where the shot landed** - which is why a graze's
+/// `1.05 - hit_roll` is tiny and a headshot's is near its ceiling.
+///
+/// **The standard rung's multiplier passes above one** (`1.5 - hit_roll`) while the good rung's sits around `sqrt( 3 )`, so an unluckier grade can hit harder than a better one. That is the
+/// reference's arithmetic rather than a defect, and the port keeps it rather than tidying the ladder into a monotone one.
+#[must_use]
+pub fn damage_multiplier(grade: Grade, crit_mod: f64, hit_roll: f64, crit_multiplier: f64) -> f64 {
+    let std_hit_mult = (2.0 * crit_multiplier).sqrt();
+    match grade {
+        Grade::Headshot => {
+            (0.6 + 0.45 * crit_mod - 0.1 * hit_roll)
+                * (std_hit_mult + (crit_multiplier - std_hit_mult) * crit_mod)
+        }
+        Grade::Critical => {
+            (0.75 + 0.25 * crit_mod - 0.25 * hit_roll)
+                * (std_hit_mult + (crit_multiplier - std_hit_mult) * crit_mod)
+        }
+        Grade::Good => (1.0 - 0.5 * hit_roll) * std_hit_mult,
+        Grade::Standard => 1.5 - hit_roll,
+        Grade::Grazing => 1.05 - hit_roll,
+        // The reference has no branch for a full miss: it never gets here, because the shot has already been resolved as a miss.
+        Grade::Miss => 0.0,
+    }
+}

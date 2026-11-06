@@ -16098,3 +16098,24 @@ multiplier - a port that applied `crit_multiplier` at every rung would make **a 
 **Named, not invented:** the **damage multipliers themselves** - each rung's `0.6 + 0.45 * crit_mod - 0.1 * hit_roll` and its `hit_roll` draw - which need the projectile pipeline and the
 `crit_mod` per body part; `crit_roll`'s `hit_roll * 0.5 < accuracy_critical`; and the **monster weakpoint** half of the same function (`mon->type->weakpoints.select_weakpoint`), which is
 the weakpoint family the port has none of.
+
+## A grade multiplies the damage its own way (round 1329)
+
+| Piece | Reference | Port |
+|---|---|---|
+the arithmetic | `creature.cpp:1172-1196` | `shot::damage_multiplier` |
+Gate | - | `creature_fight::a_grade_multiplies_the_damage_its_own_way` |
+
+**The standard rung's multiplier passes above one** (`1.5 - hit_roll`, so 1.5 down to 0.7) while the good rung's sits around `sqrt(3)` - so a **worse grade can hit harder than a better one**, and
+that is the reference's arithmetic rather than a defect. The port keeps the ladder as written instead of tidying it into something monotone.
+
+**`hit_roll` is drawn from the grade's own floor**: `rng_float( goodhit, 1.0 )`, so a graze rolls near one and its `1.05 - hit_roll` is tiny, while a headshot's roll starts near nothing.
+
+**Both critical rungs multiply their first factor by the same `std_hit_mult + ( crit_multiplier - std_hit_mult ) * crit_mod`**, so `crit_mod` moves the damage between the standard figure and the
+weapon's own critical multiplier - at a full `crit_mod` both reach the critical figure exactly, which the gate pins (the port's author first wrote "three quarters" and was corrected by the
+arithmetic).
+
+**A miss multiplies nothing** by name, because the reference never reaches its branches and the port says so rather than leaving a caller to divide by an unstated one.
+
+**Named, not invented:** `crit_mod` itself (`get_crit_factor( bp )`, the per-body-part critical modifier), `crit_roll`, `fatal_hit` and the **headshot/weakpoint** tests that decide which rung a
+projectile takes.

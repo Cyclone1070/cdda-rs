@@ -1321,3 +1321,6 @@ distinction the first draft of the test got wrong.
 
 **Round 1328 named the shot's five quality rungs** (`creature.cpp:1172-1196`, `game_constants.h:93-97`) as `shot::grade_of`, gated on the **two exclusive boundaries** (0.5 and 1.0) and noting
 that only the top two rungs use the critical multiplier.
+
+**Round 1329 ported the grade's damage multiplier** (`creature.cpp:1172-1196`), gated on the **standard rung passing above one** and on both critical rungs reaching the weapon's own critical
+figure at a full `crit_mod`.
