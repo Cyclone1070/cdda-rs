@@ -800,3 +800,34 @@ fn make_the_gun_s_sound(
         crate::sounds::make_a_sound_of_kind(world, place, audible_to, saying, crate::sounds::SoundCategory::Combat);
     }
 }
+
+/// What drawing a bow costs in stamina, from its weight against the arm and the two skills that help.
+///
+/// Reference: `mod_stamina_archery` (`src/ranged.cpp:1682-1701`):
+///
+/// ```text
+/// const float str_ratio = static_cast<float>( relevant.get_min_str() ) / you.str_cur;
+/// you.set_activity_level( 10 * str_ratio );
+/// const float skill_modifier = ( 2.0f * archery_skill + athletics_skill ) / 3.0f;
+/// const int stamina_cost = pow( 10.0f * str_ratio + 10 - skill_modifier, 2 );
+/// you.mod_stamina( -stamina_cost );
+/// ```
+///
+/// **The square is the rule**: a bow the arm can barely draw costs `( 10 + 10 - skills )^2` - four hundred at no skill - and a stronger arm costs less because `str_ratio` is a **ratio of the
+/// requirement to the strength**, not a penalty. **The skill term is two thirds archery and one third athletics** (the reference names `skill_swimming`, its athletics skill), and it is
+/// subtracted **inside** the square, which is why a point of archery is worth more than a point of athletics.
+///
+/// The answer is the `int` the reference's `pow` is assigned to, so it **truncates**; the activity level (`10 * str_ratio`) is the caller's, since the port has no activity level yet.
+#[must_use]
+pub fn archery_stamina_cost(min_strength: i32, strength: f32, archery_skill: f32, athletics_skill: f32) -> i32 {
+    if strength <= 0.0 {
+        // The reference divides by the arm's strength and would divide by zero; a creature with no strength is the port's own guard rather than an invented ratio.
+        return 0;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let str_ratio = min_strength as f32 / strength;
+    let skill_modifier = (2.0 * archery_skill + athletics_skill) / 3.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let cost = (10.0 * str_ratio + 10.0 - skill_modifier).powi(2);
+    cost as i32
+}

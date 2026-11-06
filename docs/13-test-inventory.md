@@ -1315,3 +1315,6 @@ discount back.
 
 **Round 1326 ported `item::get_min_str` and `proficiency_set::get_proficiency_bonus`** (`item.cpp:15673-15694`, `proficiency.cpp:529-543`), gated on the **two different shapes** they have
 versus the stamina rule and on the corpus's **20** types that state a strength requirement at all.
+
+**Round 1327 ported `mod_stamina_archery`** (`ranged.cpp:1682-1701`), gated on the **ratio-to-the-arm** shape and on the skill term being **two thirds archery, one third athletics** - a
+distinction the first draft of the test got wrong.

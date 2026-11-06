@@ -16063,3 +16063,21 @@ zero**, and the clamp stops a strong archer from asking for a negative grip.
 
 **Named, not invented:** the gunmod modifiers (`min_str_required_mod` and its `_if_prone` twin), which the port's guns do not carry; `is_prone`'s move-mode; and the **vehicles**' use of the same
 strength bonus (`vehicle.cpp:1146`), which is P8.
+
+## Drawing a bow costs stamina by its weight (round 1327)
+
+| Piece | Reference | Port |
+|---|---|---|
+the draw's cost | `mod_stamina_archery` (`ranged.cpp:1682-1701`) | `shot::archery_stamina_cost` |
+Gate | - | `creature_fight::drawing_a_bow_costs_stamina_by_its_weight` |
+
+**The square is the rule**: a bow the arm can barely draw costs `( 10 + 10 - skills )^2` - **four hundred** at no skill - and a stronger arm costs less because `str_ratio` is a **ratio of the
+requirement to the strength**, not a penalty. Twice the arm halves the ratio and takes the cost to **225**.
+
+**The skill term is two thirds archery and one third athletics**, subtracted **inside** the square - so four archery points take a hundred off (to **300**) while three athletics points are
+worth only **one** point of modifier (to **361**). The gate caught the port's author expecting three athletics points to be worth three.
+
+**The answer truncates**, because the reference assigns the `pow` to an `int`.
+
+**Named, not invented:** the **activity level** (`set_activity_level( 10 * str_ratio )`), which the port has no notion of; the `prof_bow_master` practice the same function calls beside it; and the
+**caller** - aiming (`do_aim`) and firing, which are the ranged pipeline the port has only the dispersion half of.

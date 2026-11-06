@@ -3603,3 +3603,36 @@ fn a_stat_bonus_adds_up_and_archery_lowers_a_bow() {
         "**and a requirement cannot go below nothing**"
     );
 }
+
+/// Drawing a bow costs stamina by how heavy it is against how strong the arm is, and the skills take a little back.
+///
+/// Reference: `mod_stamina_archery` (`ranged.cpp:1682-1701`):
+///
+/// ```text
+/// const float str_ratio = static_cast<float>( relevant.get_min_str() ) / you.str_cur;
+/// you.set_activity_level( 10 * str_ratio );
+/// const float skill_modifier = ( 2.0f * archery_skill + athletics_skill ) / 3.0f;
+/// const int stamina_cost = pow( 10.0f * str_ratio + 10 - skill_modifier, 2 );
+/// you.mod_stamina( -stamina_cost );
+/// ```
+///
+/// **The square is the rule**: a bow the arm can barely draw costs `( 10 + 10 - skills )^2`, so **four hundred** at no skill, and the same bow drawn by a strong arm costs far less because
+/// `str_ratio` is a **ratio of the requirement to the strength** rather than a penalty. **The skill term is two thirds archery and one third athletics**, and it is subtracted **inside** the
+/// square, which is why a point of archery is worth more than a point of the swimming skill the reference uses for athletics.
+#[test]
+fn drawing_a_bow_costs_stamina_by_its_weight() {
+    use cdda_sim::shot::archery_stamina_cost;
+
+    // A bow wanting ten, drawn by a strength of ten: ratio one, so ( 10 + 10 )^2 = 400.
+    assert_eq!(archery_stamina_cost(10, 10.0, 0.0, 0.0), 400, "**a bow at the limit of the arm costs four hundred**");
+    // Twice the strength halves the ratio: ( 5 + 10 )^2 = 225.
+    assert_eq!(archery_stamina_cost(10, 20.0, 0.0, 0.0), 225, "and twice the arm costs two hundred and twenty-five");
+    // Four archery points are worth two thirds each: 400 becomes ( 20 - 2.666 )^2 = 300.44, truncated to 300.
+    assert_eq!(archery_stamina_cost(10, 10.0, 4.0, 0.0), 300, "four archery points take a hundred off");
+    // **Three athletics points are worth one of modifier**, because the skill term divides by three: ( 20 - 1 )^2 = 361.
+    assert_eq!(
+        archery_stamina_cost(10, 10.0, 0.0, 3.0),
+        361,
+        "**and three of athletics are worth one point of modifier**"
+    );
+}
