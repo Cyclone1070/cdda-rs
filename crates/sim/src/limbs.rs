@@ -90,3 +90,14 @@ pub fn reaction_score(parts: &[(f32, i32, i32)]) -> f32 {
         .sum();
     total.max(0.0)
 }
+
+/// What a creature's balance, legs and feet multiply its dodge by.
+///
+/// Reference: `Character::get_dodge` multiplies by `get_modifier( character_modifier_limb_dodge_mod )` (`melee.cpp:1233-1235`), whose data is
+/// `{ "limb_score": [["balance", 1.5], "move_speed", "footing"], "limb_score_op": "x", "min": 0.0 }` (`data/json/character_modifiers.json`) and whose arithmetic is `character_modifier::modifier`
+/// (`character_modifier.cpp:338-386`): the scores are multiplied, the weight is an **exponent**, and the data's `min` is a floor. A whole human multiplies by exactly one, so the rule only
+/// moves a body that has lost balance, a leg or a foot.
+#[must_use]
+pub fn limb_dodge_modifier(balance: f64, move_speed: f64, footing: f64) -> f64 {
+    (balance.powf(1.5) * move_speed * footing).max(0.0)
+}

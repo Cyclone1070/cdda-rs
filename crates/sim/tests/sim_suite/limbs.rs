@@ -184,3 +184,35 @@ fn a_hurt_head_slows_the_reaction_down() {
         "and a ruined body reacts not at all"
     );
 }
+
+/// A hurt leg or foot multiplies the dodge down, and a whole body multiplies it by one.
+///
+/// Reference: `Character::get_dodge` multiplies by `get_modifier( character_modifier_limb_dodge_mod )` (`melee.cpp:1233-1235`), whose data is
+/// `{ "limb_score": [["balance", 1.5], "move_speed", "footing"], "limb_score_op": "x", "min": 0.0 }` (`data/json/character_modifiers.json`) - so the three scores are **multiplied**, the
+/// balance is raised to **1.5**, and the product cannot go below zero.
+///
+/// **A whole human multiplies by exactly one**: balance 1.0, move speed 1.0 and footing 1.0 - the torso's 0.7 and an arm's 0.15 each, a leg's 0.5 each and a foot's 0.5 each - so the rule
+/// only moves a body that has lost something.
+#[test]
+fn a_hurt_leg_multiplies_the_dodge_down() {
+    use cdda_sim::limbs::limb_dodge_modifier;
+
+    assert!((limb_dodge_modifier(1.0, 1.0, 1.0) - 1.0).abs() < 1e-6, "**a whole body is one**");
+    assert!(
+        (limb_dodge_modifier(1.0, 0.5, 1.0) - 0.5).abs() < 1e-6,
+        "**one leg out of two halves the dodge**"
+    );
+    assert!(
+        (limb_dodge_modifier(1.0, 1.0, 0.5) - 0.5).abs() < 1e-6,
+        "and so does one foot"
+    );
+    assert!(
+        (limb_dodge_modifier(0.5, 1.0, 1.0) - 0.5f64.powf(1.5)).abs() < 1e-6,
+        "**and the balance is raised to three halves**, so losing half of it costs more than half"
+    );
+    assert!((limb_dodge_modifier(1.0, 0.0, 1.0) - 0.0).abs() < 1e-6, "no legs, no dodge");
+    assert!(
+        (limb_dodge_modifier(-1.0, 1.0, 1.0) - 0.0).abs() < 1e-6,
+        "and the product is floored at zero, which is what the data's min says"
+    );
+}

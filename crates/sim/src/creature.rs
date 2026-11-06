@@ -3135,11 +3135,48 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
                 .unwrap_or_default();
             crate::limbs::reaction_score(&scores)
         };
+        // Reference: `melee.cpp:1233-1235` multiplies the dodge by the **balance, legs and feet** figure, which is one for a whole body and falls as those limbs are hurt.
+        let limb_dodge = {
+            let score = |name: &str| -> f64 {
+                f64::from(
+                    world
+                        .get::<Body>(entity)
+                        .map(|body| {
+                            body.parts
+                                .iter()
+                                .map(|part| {
+                                    let figure = part
+                                        .limb_scores
+                                        .iter()
+                                        .find(|(score, _, _)| score == name)
+                                        .map_or(0.0, |(_, value, _)| *value);
+                                    let wound = wound_on(world, entity, &part.name);
+                                    crate::limbs::wound_adjusted_limb_value(
+                                        figure,
+                                        (part.base_hp - wound).max(0),
+                                        part.base_hp,
+                                    )
+                                })
+                                .sum::<f32>()
+                        })
+                        .unwrap_or(1.0),
+                )
+            };
+            crate::limbs::limb_dodge_modifier(score("balance"), score("move_speed"), score("footing"))
+        };
         let skates = wears_flag(world, entity, "ROLLER_INLINE")
             || wears_flag(world, entity, "ROLLER_QUAD")
             || wears_flag(world, entity, "ROLLER_ONE");
         let skater = crate::traits::has_trait(world, entity, "PROF_SKATER");
+        // Reference: the skates are applied before the limb figure (`melee.cpp:1209-1235`), and a creature with no body has no balance to lose, so the figure is only applied where the store
+        // can answer it.
         let base = crate::melee::skate_dodge(base, skates, skater);
+        #[allow(clippy::cast_possible_truncation)]
+        let base = if world.get::<Body>(entity).is_some() {
+            (f64::from(base) * limb_dodge).round() as i32
+        } else {
+            base
+        };
         // A body with no parts at all has no reaction to lose, so the figure is only applied where the store can answer it - which is the reference's own shape, a score summed over parts.
         // **The product rounds rather than truncating**, because the reference keeps the dodge as a `float` all the way to `dodge_roll` and the port's points are whole. Truncating threw a
         // point away to the float's own representation: `0.2f32 + 0.7f32` is `0.8999999`, so ten points times it answered eight where the reference answers nine.

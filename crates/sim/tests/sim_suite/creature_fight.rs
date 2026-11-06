@@ -4242,9 +4242,42 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
         base_hp: 60,
         ..BodyPart::default()
     };
+    // **The dodge is multiplied by the balance, leg and foot figure as well** (`melee.cpp:1233-1235`), which a body of a head and two eyes has none of - so the fixture carries the parts
+    // that figure needs, or it would be measuring zero rather than the reaction.
+    let mut parts = vec![head, eyes];
+    parts.push(BodyPart {
+        name: "torso".to_owned(),
+        limb_scores: vec![("balance".to_owned(), 0.7, 0.7)],
+        base_hp: 60,
+        ..BodyPart::default()
+    });
+    for arm in ["arm_l", "arm_r"] {
+        parts.push(BodyPart {
+            name: arm.to_owned(),
+            limb_scores: vec![("balance".to_owned(), 0.15, 0.15)],
+            base_hp: 60,
+            ..BodyPart::default()
+        });
+    }
+    for leg in ["leg_l", "leg_r"] {
+        parts.push(BodyPart {
+            name: leg.to_owned(),
+            limb_scores: vec![("move_speed".to_owned(), 0.5, 0.5)],
+            base_hp: 60,
+            ..BodyPart::default()
+        });
+    }
+    for foot in ["foot_l", "foot_r"] {
+        parts.push(BodyPart {
+            name: foot.to_owned(),
+            limb_scores: vec![("footing".to_owned(), 0.5, 0.5)],
+            base_hp: 60,
+            ..BodyPart::default()
+        });
+    }
     world
         .entity_mut(survivor)
-        .insert(cdda_sim::creature::Body { parts: vec![head, eyes] });
+        .insert(cdda_sim::creature::Body { parts });
     assert_eq!(
         cdda_sim::creature::defence_of(&world, survivor).dodge,
         10,
@@ -4261,5 +4294,60 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
         cdda_sim::creature::defence_of(&world, survivor).dodge,
         9,
         "**and a head at half health costs a tenth of it**"
+    );
+}
+
+/// A hurt leg in the store multiplies the survivor's dodge down.
+///
+/// Reference: `Character::get_dodge` multiplies by `get_modifier( character_modifier_limb_dodge_mod )` (`melee.cpp:1233-1235`) after the skates and before the body-size ratio. **A whole body
+/// multiplies by one**, so the test starts there and then hurts a leg.
+#[test]
+fn a_hurt_leg_in_the_store_multiplies_the_dodge() {
+    use cdda_sim::hit_location::BodyPart;
+
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    // **A body is a whole set of parts, not the two the test is about**: the figure multiplies balance, move speed and footing, so a body of two legs multiplies by zero and the fixture
+    // would have been testing nothing. This is the human set the dump states.
+    let scored = |name: &str, score: &str, figure: f32| BodyPart {
+        name: name.to_owned(),
+        limb_scores: vec![(score.to_owned(), figure, figure)],
+        base_hp: 60,
+        ..BodyPart::default()
+    };
+    // **The reacting parts are part of the body too**: the reaction multiplies the dodge before this figure does, so a body without a head and eyes multiplies by zero and a dodge of ten
+    // answers zero - which is the reference's own arithmetic, and the reason a body has to be a body.
+    let mut parts = vec![
+        scored("torso", "balance", 0.7),
+        scored("head", "reaction", 0.3),
+        scored("eyes", "reaction", 0.7),
+    ];
+    for arm in ["arm_l", "arm_r"] {
+        parts.push(scored(arm, "balance", 0.15));
+    }
+    for leg in ["leg_l", "leg_r"] {
+        parts.push(scored(leg, "move_speed", 0.5));
+    }
+    for foot in ["foot_l", "foot_r"] {
+        parts.push(scored(foot, "footing", 0.5));
+    }
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Body { parts });
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        10,
+        "**two whole legs are one whole figure**"
+    );
+    let mut wounds = std::collections::BTreeMap::new();
+    wounds.insert("leg_l".to_owned(), 50);
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Wounds(wounds));
+    let hurt = cdda_sim::creature::defence_of(&world, survivor).dodge;
+    assert!(
+        hurt < 10 && hurt > 4,
+        "**a leg down to a tenth of its health costs most of the dodge**: {hurt}"
     );
 }

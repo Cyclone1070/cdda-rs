@@ -16505,4 +16505,11 @@ nothing.
 **The product rounds rather than truncating.** The reference keeps the dodge as a `float` all the way to `dodge_roll`; the port's points are whole, and `0.2f32 + 0.7f32` is `0.8999999`, so
 truncating answered **eight** where the reference answers **nine**. The round is the closest whole number to the reference's own answer rather than a preference.
 
-**Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), the limb-dodge modifier and the body-size ratio (`melee.cpp:1233-1238`).
+**The limb figure is ported too** (round 1356): `melee.cpp:1233-1235` multiplies the dodge by `character_modifier_limb_dodge_mod`, whose data is `{ "limb_score": [["balance", 1.5],
+"move_speed", "footing"], "limb_score_op": "x", "min": 0.0 }` - the scores **multiplied**, the balance raised to **1.5** as an exponent, and the product floored at zero. `limbs::limb_dodge_modifier`
+holds the arithmetic; `defence_of` reads the three scores off the body's parts, wound-adjusted.
+
+**A whole human multiplies by exactly one** - balance 1.0, move speed 1.0, footing 1.0 - so the rule bites only a body that has lost a limb's worth. **A body of two legs multiplies by zero**,
+and so does a body of a head and two eyes: the figures multiply, and a fixture that carried only the parts its test named measured nothing. Both fixtures now carry the whole human set.
+
+**Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), and the body-size ratio (`melee.cpp:1237-1238`).

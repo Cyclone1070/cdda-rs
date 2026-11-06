@@ -1397,3 +1397,6 @@ part - a human's reaction being exactly one, so the rule only moves a hurt body.
 
 **Round 1355 connected the reaction score to a survivor**: a body's parts carry their own limb scores and health, `defence_of` multiplies the dodge by the reaction they add up to, and a hurt
 head costs a tenth of it - with the product **rounded**, because truncating `0.8999999` answered eight where the reference answers nine.
+
+**Round 1356 multiplied the dodge by the balance, legs and feet figure**: `limb_dodge_modifier` is the three limb scores multiplied, the balance raised to 1.5, floored at zero - one for a whole
+human, and zero for a body that lacks any of the three.
