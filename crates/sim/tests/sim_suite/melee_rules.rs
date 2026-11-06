@@ -592,3 +592,39 @@ fn armour_states_a_melee_coverage_and_a_ranged_one() {
     // A garment covering another part is not met at all, whichever figure it states.
     assert_eq!(worn_cover(&[(false, 100, 100, 100)], CoverType::Melee), 0);
 }
+
+/// A monster tied down, trapped or bouldering dodges less, and one that cannot move does not dodge at all.
+///
+/// Reference: `monster::get_dodge` (`monster.cpp:2693-2713`):
+///
+/// ```text
+/// if( has_effect( effect_downed ) || has_flag( json_flag_CANNOT_MOVE ) ) return 0.0f;
+/// float ret = Creature::get_dodge();
+/// if( lightsnare || heavysnare || beartrap || tied ) ret /= 2;
+/// if( bouldering ) ret /= 4;
+/// ```
+///
+/// and `monster::dodge_roll` is `get_dodge() * 5` (`:2717-2720`). **The port read `sk_dodge` straight into a `Dodge` component and never asked the penalties**, so a zombie in a bear trap
+/// dodged like a free one - the kind of rule that only shows when something is actually trapped.
+#[test]
+fn a_trapped_monster_dodges_worse() {
+    use cdda_sim::melee::monster_dodge;
+
+    assert_eq!(monster_dodge(4, &[]), 4, "a free monster dodges as its type says");
+    assert_eq!(
+        monster_dodge(4, &["beartrap"]),
+        2,
+        "**a trapped one dodges half as well**"
+    );
+    for trap in ["lightsnare", "heavysnare", "tied"] {
+        assert_eq!(monster_dodge(4, &[trap]), 2, "{trap} halves it too");
+    }
+    assert_eq!(monster_dodge(4, &["bouldering"]), 1, "a bouldering one quarters it, rounded down");
+    assert_eq!(
+        monster_dodge(4, &["downed"]),
+        0,
+        "**and one on the floor dodges nothing at all**, whatever else it is suffering"
+    );
+    assert_eq!(monster_dodge(4, &["downed", "beartrap"]), 0, "the floor is asked first");
+    assert_eq!(monster_dodge(3, &["beartrap", "bouldering"]), 0, "both penalties apply, and the floor rounds down");
+}

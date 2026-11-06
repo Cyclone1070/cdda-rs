@@ -3070,8 +3070,29 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         .get::<Creature>(entity)
         .map_or(crate::CreatureSize::Medium, |creature| creature.size);
     let armour = world.get::<Armour>(entity).copied().unwrap_or_default();
+    // Reference: `monster::get_dodge` (`monster.cpp:2693-2713`) asks what is holding the monster before it answers, so a trapped or bouldering one dodges worse and one that cannot move
+    // dodges not at all. The conditions arrive as names because that is how the port stores them - effects keyed by id, traits as flags.
+    let dodge = {
+        let mut conditions: Vec<&str> = Vec::new();
+        for name in [
+            "downed",
+            "lightsnare",
+            "heavysnare",
+            "beartrap",
+            "tied",
+            "bouldering",
+        ] {
+            if crate::applied_effects::has(world, entity, name) {
+                conditions.push(name);
+            }
+        }
+        if crate::creature_flags::has_flag(world, entity, "CANNOT_MOVE") {
+            conditions.push("cannot_move");
+        }
+        crate::melee::monster_dodge(world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points), &conditions)
+    };
     crate::melee::Defence {
-        dodge: world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points),
+        dodge,
         size,
         #[allow(clippy::cast_precision_loss)]
         resist: armour.bash as f32,

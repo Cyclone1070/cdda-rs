@@ -16394,3 +16394,22 @@ the `Wear` the item already carried - the reference's raw points - and asks the 
 The mutation check removes exactly that and the test reads `4` where it expects `2`.
 
 **Named, not invented:** the per-material coverage roll and the one-turn lag, which are the two places `dress` is coarser than a blow-time question.
+
+## A trapped monster dodges worse (round 1346)
+
+| Piece | Reference | Port |
+|---|---|---|
+the floor | `if( downed || CANNOT_MOVE ) return 0.0f;` (`monster.cpp:2695-2697`) | `melee::monster_dodge`, asked first |
+the halving | `lightsnare`, `heavysnare`, `beartrap`, `tied` → `/ 2` (`:2699-2704`) | the same four names |
+the quartering | `bouldering` → `/ 4` (`:2706-2708`) | the same, after the halving |
+the roll | `monster::dodge_roll` is `get_dodge() * 5` (`:2717-2720`) | `melee::dodge_roll`, already ported |
+Gate | - | `melee_rules::a_trapped_monster_dodges_worse`, `creature_fight::the_stores_own_monster_dodges_worse_in_a_trap` |
+
+**The port read the type's `sk_dodge` straight into a component and never asked the penalties**: a zombie in a bear trap dodged like a free one. `defence_of` now asks the rule, so every blow
+sees the trap without anything else knowing traps exist - and the conditions arrive by **name**, because that is how the port stores them (effects keyed by id, traits as flags).
+
+**The floor is asked first and answers everything**: a trapped monster that is also downed dodges **nothing**, not half of nothing. Integer division takes the fraction, so a bouldering
+monster with three points of dodge has none.
+
+**Named, not invented:** `Character::get_dodge`'s own chain (`melee.cpp:1193-1242`) - the stamina logistic, the roller-skate and speed penalties, the reaction limb score and the body-size ratio -
+which the port's `Dodge` component still stands in for; and the enchantment half of `dodge_roll` (`EVASION`, `HARDTOHIT`).

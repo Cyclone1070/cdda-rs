@@ -4052,3 +4052,46 @@ fn the_ported_swing_cost_matches_the_reference() {
         &failures[..failures.len().min(5)]
     );
 }
+
+/// The store's own monster dodges worse in a bear trap.
+///
+/// Reference: `monster::get_dodge` (`monster.cpp:2693-2713`), reached through the port's components: an effect keyed by id holds the monster, and `CANNOT_MOVE` is a flag on the creature.
+/// **The rule is asked by `defence_of`**, which is what every blow reads, so a trapped monster is harder to hit without anything else knowing traps exist.
+#[test]
+fn the_stores_own_monster_dodges_worse_in_a_trap() {
+    let mut world = bevy_ecs::world::World::new();
+    let zombie = spawn_creature(&mut world, "a zombie", (0, 0, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Dodge { points: 4 });
+    assert_eq!(cdda_sim::creature::defence_of(&world, zombie).dodge, 4, "a free zombie dodges four");
+
+    cdda_sim::applied_effects::add(
+        &mut world,
+        zombie,
+        cdda_sim::effects::ActiveEffect {
+            id: "beartrap".to_owned(),
+            intensity: 1,
+            duration: 100,
+            permanent: false,
+        },
+    );
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, zombie).dodge,
+        2,
+        "**one in a bear trap dodges half as well**"
+    );
+    cdda_sim::applied_effects::add(
+        &mut world,
+        zombie,
+        cdda_sim::effects::ActiveEffect {
+            id: "downed".to_owned(),
+            intensity: 1,
+            duration: 100,
+            permanent: false,
+        },
+    );
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, zombie).dodge,
+        0,
+        "and one on the floor dodges nothing, whatever the trap is doing"
+    );
+}

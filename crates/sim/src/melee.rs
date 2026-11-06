@@ -36,6 +36,33 @@ pub fn dodge_roll(dodge: i32) -> f32 {
     roll
 }
 
+/// What a monster's dodge is worth once the things holding it are counted.
+///
+/// Reference: `monster::get_dodge` (`monster.cpp:2693-2713`) - **zero** for a monster that is downed or cannot move, **half** for one tied or caught in a snare or bear trap, and **a quarter**
+/// for one bouldering, in that order, with integer division taking the fraction away. `monster::dodge_roll` then multiplies by five (`:2717-2720`), which [`dodge_roll`] does.
+///
+/// The port read the type's `sk_dodge` into a component and never asked these; the conditions are passed by name because the port's effects are components keyed by id, and a monster's
+/// traits are flags on the creature.
+#[must_use]
+pub fn monster_dodge(base: i32, conditions: &[&str]) -> i32 {
+    let has = |name: &str| conditions.iter().any(|condition| *condition == name);
+    // Reference: the floor is asked first and answers everything, so a trapped monster on the ground dodges nothing rather than half of nothing.
+    if has("downed") || has("cannot_move") {
+        return 0;
+    }
+    let mut dodge = base;
+    if ["lightsnare", "heavysnare", "beartrap", "tied"]
+        .iter()
+        .any(|name| has(name))
+    {
+        dodge /= 2;
+    }
+    if has("bouldering") {
+        dodge /= 4;
+    }
+    dodge
+}
+
 /// How much a target's size moves the spread, in the target's favour when it is small.
 ///
 /// Reference: `Creature::size_melee_penalty` (`creature.cpp:836-852`): thirty for a cat down to minus

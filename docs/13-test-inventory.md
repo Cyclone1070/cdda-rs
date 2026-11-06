@@ -1368,3 +1368,6 @@ and the scale in one place, with a mutation check on the `- 1`.
 
 **Round 1345 made the wear rule reachable**: `creature::dress` now scales each garment layer by its own `Wear` through `armour::resist_as_worn`, so a level-five jacket protects by half - the rule had
 been ported and uncalled for a round.
+
+**Round 1346 ported `monster::get_dodge`**: zero when downed or immobile, half when trapped or tied, a quarter when bouldering - asked by `defence_of`, so a trapped monster is harder to hit without
+anything else knowing traps exist.
