@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-06 18:31:17
-@@ -0,0 +1,7204 @@
++++ oracle/src/src/harness.cpp	2026-11-06 18:51:58
+@@ -0,0 +1,7212 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1433,6 +1433,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    }
 +    for( const auto &weapon : weapons ) {
 +        item weap( itype_id( weapon.first ), calendar::turn, 1 );
++        // **The crouch branch asks `unarmed_attack()`, which reads the item actually in hand** - so the weapon is wielded for that stance and put away for the others. Without this the
++        // crouching rows were the empty-handed case wearing a weapon's numbers, which is what the port's comparison found.
++        if( stance == "crouching" ) {
++            item held( itype_id( weapon.first ), calendar::turn, 1 );
++            u.wield( held );
++        } else {
++            u.remove_weapon();
++        }
 +        for( int skill : skills ) {
 +            u.set_skill_level( skill_id( "melee" ), skill );
 +            for( int dexterity : dexterities ) {

@@ -3980,7 +3980,6 @@ fn the_ported_swing_cost_matches_the_reference() {
 
     let mut moves_checked = 0;
     let mut stamina_checked = 0;
-    let mut crouching_skipped = 0;
     let mut failures = Vec::new();
     for row in &rows {
         // The port's `attack_speed` takes the weapon's own time **halved**, which the reference does inside the rule (`weap.attack_time() / 2`).
@@ -4026,14 +4025,9 @@ fn the_ported_swing_cost_matches_the_reference() {
                 // same figure the reference's `weight() / 16_gram` sees.
                 .map_or(0, |item| item.weight / 1_000)
         };
-        // **The crouching rows cannot be compared at all, and the dump says why**: the reference asks `unarmed_attack()` for its crouch branch, and that reads the **wielded** item - which the
-        // harness never wields, so every crouching row is silently the empty-handed case wearing a weapon's numbers. A row whose premise does not hold is not evidence, so the comparison
-        // skips them and counts them rather than tuning the port to a fixture that is measuring something else.
-        if row.stance == "crouching" {
-            crouching_skipped += 1;
-            continue;
-        }
-        // **The stance's malus is the second half of the stamina rule** (`melee.cpp:975-977`), and the dump's two comparable stances are its two reachable branches.
+        // The crouching rows are reached by **wielding** the weapon, because the reference's crouch branch asks `unarmed_attack()` and that reads the item in hand - the first version of the
+        // sweep never wielded it and so answered the empty-handed case for every weapon.
+        // **The stance's malus is the second half of the stamina rule** (`melee.cpp:975-977`), and the dump's three stances are its three branches.
         let port_stamina = stamina_cost(weight, row.melee_skill, stance_malus(stance), 1.0);
         stamina_checked += 1;
         if port_stamina != row.stamina_cost {
@@ -4044,12 +4038,7 @@ fn the_ported_swing_cost_matches_the_reference() {
         }
     }
     assert!(moves_checked > 200, "the standing rows were compared: {moves_checked}");
-    assert_eq!(
-        stamina_checked + crouching_skipped,
-        rows.len(),
-        "every row is either compared or counted as unreachable"
-    );
-    assert!(crouching_skipped > 100, "the crouching rows were skipped: {crouching_skipped}");
+    assert_eq!(stamina_checked, rows.len(), "and every row's stamina, in all three stances");
     assert!(
         failures.is_empty(),
         "{} disagreements of {} rows, first few: {:#?}",

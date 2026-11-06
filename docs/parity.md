@@ -16309,8 +16309,9 @@ stance at all**. The first two hid behind fixtures whose figures happened to be 
 **The stance multiplies the *whole* cost, not the base**: `( base * penalty + skill - dex ) * 4` from the floor and `* 1.5` in a crouch - which is why a clumsy survivor's swing from the floor is
 **368** moves and not 224.
 
-**The dump reached two of its three stances and the third is documented, not faked**: every *crouching* row asks the reference `unarmed_attack()`, which reads the **wielded** item - and the
-harness never wields anything, so those rows are the empty-handed case wearing a weapon's numbers. They are **skipped and counted** rather than tuned to.
+**The dump reached two of its three stances on the first try and the third needed the weapon in hand**: every *crouching* row asks the reference `unarmed_attack()`, which reads the item
+**actually wielded** - and the harness never wielded anything, so those rows were the empty-handed case wearing a weapon's numbers. The sweep now wields the weapon for that stance, and the
+verdict is that **the stamina rule matches in all three stances, 648 of 648 rows**; the move cost still cannot be compared off the standing rows, for the modifier reason below.
 
 **Named, not invented:** the reference's **limb-score modifiers** (`melee_thrown_move_lift_mod`, `melee_thrown_move_balance_mod`, `melee.cpp:2685-2686`), which scale a downed character's move
 cost - the downed rows answer **896** where the port's arithmetic gives 368, and the factor is those two figures (they multiply to **3.0** for a body on the floor). The crouch branch itself is
