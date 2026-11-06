@@ -1286,3 +1286,6 @@ stopping it on its own.
 
 **Round 1316 ported the weather sum's step ladder and per-step numbers** (`weather.cpp:152-215`), gated on the **two asymmetric boundaries** (exactly ten turns and exactly seven days) and on
 light being scaled by turns while exposure is scaled by seconds.
+
+**Round 1317 ported the wind's three rules** (`weather.cpp:785-874`): the Beaufort naming ladder, the compass table read from the top down, and the ground's three modifiers in the
+reference's order, gated on the **combined case** rather than each modifier alone.

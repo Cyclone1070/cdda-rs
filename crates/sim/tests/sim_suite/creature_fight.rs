@@ -3350,3 +3350,72 @@ fn one_step_of_weather_adds_rain_light_and_exposure() {
     assert_eq!(minute.sunlight, 6_000.0, "and a hundred of light for sixty turns");
     assert_eq!(minute.radiant_exposure, 48_000.0, "with eight hundred of exposure for sixty seconds");
 }
+
+/// Wind has a name and a direction, and both ladders are read from the top down.
+///
+/// Reference: `get_wind_desc` (`weather.cpp:817-850`) and `convert_wind_to_coord` (`weather.cpp:852-874`):
+///
+/// ```text
+/// if( windpower < 1 )        "Calm"
+/// else if( <= 3 )            "Light Air"     ... twelve more grades ... else "Hurricane"
+///
+/// for( const auto &val : outputs ) if( angle >= val.first ) return val.second;   // 330, 301, 240, 211, 150, 121, 60, 31, 0
+/// return ( 0, 0 );
+/// ```
+///
+/// **The first grade is `< 1` and every other is `<=`**, so exactly one is "Calm" and a wind of one is already "Light Air". **The direction table is read from the top down and its
+/// thresholds descend**, so the first row at or below the angle wins - 330 is north, 31 is north-east, and the last row catches everything down to zero.
+#[test]
+fn wind_has_a_name_and_a_direction() {
+    use cdda_sim::wind::{description, direction};
+
+    assert_eq!(description(0.0), "Calm", "**under one is calm**");
+    assert_eq!(description(0.99), "Calm");
+    assert_eq!(description(1.0), "Light Air", "**and one is already light air**");
+    assert_eq!(description(3.0), "Light Air");
+    assert_eq!(description(3.1), "Light Breeze");
+    assert_eq!(description(72.0), "Violent Storm", "seventy-two is still a violent storm");
+    assert_eq!(description(72.1), "Hurricane", "and above it, a hurricane");
+
+    assert_eq!(direction(330), (0, -1), "330 is north");
+    assert_eq!(direction(360), (0, -1), "and so is the whole turn past it");
+    assert_eq!(direction(329), (-1, -1), "329 has already turned north-west");
+    assert_eq!(direction(31), (1, -1), "**thirty-one is north-east**");
+    assert_eq!(direction(0), (0, -1), "zero is the last row, which is north again");
+}
+
+/// The wind is halved by a wood, raised by height and cut by a wall - in that order.
+///
+/// Reference: `get_local_windpower` (`weather.cpp:785-810`). **The order is the rule**: a gale of twenty in a wood on a roof of height two beside a wall is `( 20/2 + 2*min(5, 20/2) )/10 = 2`,
+/// not the `20/10 + ...` a port that blocked first would get, and a shelter answers **zero** whatever the sky is doing.
+#[test]
+fn the_ground_takes_the_wind() {
+    use cdda_sim::wind::{Ground, local_windpower};
+
+    assert_eq!(local_windpower(20, Ground::default()), 20, "open ground leaves a gale a gale");
+    assert_eq!(
+        local_windpower(20, Ground { forest: true, ..Ground::default() }),
+        10,
+        "a wood halves it"
+    );
+    assert_eq!(
+        local_windpower(20, Ground { height: 3, ..Ground::default() }),
+        35,
+        "height three adds `3 * min( 5, 20 )`"
+    );
+    assert_eq!(
+        local_windpower(20, Ground { blocked: true, ..Ground::default() }),
+        2,
+        "a wall cuts it to a tenth"
+    );
+    assert_eq!(
+        local_windpower(20, Ground { forest: true, height: 2, blocked: true, ..Ground::default() }),
+        2,
+        "**and all three in the reference's order**: ( 20/2 + 2*5 ) / 10"
+    );
+    assert_eq!(
+        local_windpower(90, Ground { sheltered: true, ..Ground::default() }),
+        0,
+        "while indoors there is no wind however hard it blows"
+    );
+}

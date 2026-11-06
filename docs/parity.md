@@ -15877,3 +15877,25 @@ says it is.
 
 **Named, not invented:** the **walk** itself (`for t = start; t < end; t += tick`), which needs a calendar and a weather generator, and the **wind sum** (`get_local_windpower` over the overmap
 terrain). Also `sum_conditions`' current-weather lookup, which is the weather generator's own step.
+
+## Wind has a name, a direction and a ground (round 1317)
+
+| Piece | Reference | Port |
+|---|---|---|
+the Beaufort ladder | `get_wind_desc` (`weather.cpp:817-850`) | `wind::description` |
+the compass table | `convert_wind_to_coord` (`weather.cpp:852-874`) | `wind::direction` |
+the ground's share | `get_local_windpower` (`weather.cpp:785-810`) | `wind::local_windpower` over `wind::Ground` |
+Gates | - | `creature_fight::wind_has_a_name_and_a_direction`, `the_ground_takes_the_wind` |
+
+**Both ladders have a first row that behaves differently from the rest**, which is the detail a rewrite into arithmetic loses: the Beaufort chain's first test is `< 1` and every other is
+`<=`, and the compass table is read from the top down with **330 and 0 both answering north**.
+
+**The order of the ground's three modifiers is the rule**: a gale of twenty in a wood on a roof of height two beside a wall is `( 20/2 + 2*min(5, 20/2) )/10 = 2`, not what a port that
+blocked first would get. **A shelter answers zero whatever the sky is doing.**
+
+**A direction outside the table answers no wind at all**, rather than a made-up one: the reference's callers never produce such an angle (a direction is 0..=359), and a rule that invented
+an answer for an impossible input would hide the day it happened.
+
+**Named, not invented:** `is_wind_blocker`'s terrain-flag lookup (`TFLAG_BLOCK_WIND`) and the **upwind square** the reference checks, which the port's terrain table can answer but the caller
+does not yet assemble; the overmap terrain ids (`oter_type_forest`, `forest_water`), which the port has as overmap terrain rather than as a wind modifier; and `warm_enough_to_plant`'s 50 F,
+which is the farming step.
