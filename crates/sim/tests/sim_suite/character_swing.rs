@@ -732,3 +732,44 @@ fn a_critical_swing_hurts_more() {
         dealt[1]
     );
 }
+
+/// An armoured victim takes more from a critical than from a plain hit even when the plain hit's damage is already zero.
+///
+/// Reference: a critical both **sharpens the blow** (`melee.cpp:1356-1373`) and **dulls the armour it meets** (`damage.cpp:724-727`), so against a well-armoured target the second half is
+/// the one that shows: the plain hit is stopped dead and the critical gets through. A gate on a bare target would only prove the first half exists.
+#[test]
+fn an_armoured_victim_feels_a_critical_more() {
+    let mut dealt = Vec::new();
+    for critical in [false, true] {
+        let (mut world, _null, _rock, sword) = world_with_kinds();
+        let swinger = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        world.entity_mut(swinger).insert(cdda_sim::creature::Skills(
+            [("melee".to_owned(), 10), ("stabbing".to_owned(), 10)].into_iter().collect(),
+        ));
+        world
+            .entity_mut(swinger)
+            .insert(cdda_sim::creature::Wielding(sword))
+            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+        let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+        cdda_sim::creature::set_health(&mut world, victim, 5_000);
+        // Twenty points of stabbing armour: more than half of the blow, so the plain hit survives only just and the crit's quarter-off shows.
+        world.entity_mut(victim).insert(cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 20,
+        });
+        cdda_sim::creature::set_moves(&mut world, swinger, 400);
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(if critical { 0.02 } else { 0.99 }));
+        let before = cdda_sim::creature::health_of(&world, victim).expect("the victim has health");
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, swinger, victim);
+        let after = cdda_sim::creature::health_of(&world, victim).expect("the victim still has health");
+        dealt.push(before - after);
+    }
+    assert!(
+        dealt[1] > dealt[0],
+        "**a critical gets through armour the plain hit barely dents**: plain {:?}, critical {:?}",
+        dealt[0],
+        dealt[1]
+    );
+    assert_eq!(dealt[0], 1, "and the plain hit is stopped down to almost nothing");
+}

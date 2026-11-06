@@ -16212,3 +16212,18 @@ sharpened at all** (`1 + 0/10`), which is why the first version of the gate saw 
 
 **Named, not invented:** the martial-arts bonus term (zero until techniques exist), `arpen`'s effect on the armour (`resolve` subtracts armour per type; the crit's own armour multiplier is
 applied to the figure it subtracts, which the port does through `crit_factor` rather than through `DamageUnit`), and the reference's **damage-unit** pipeline the sharper ultimately feeds.
+
+## A critical takes its armour in the reference's order (round 1335)
+
+| Piece | Reference | Port |
+|---|---|---|
+the effective armour | `resistances::get_effective_resist` (`damage.cpp:724-727`) | `melee::armour_dulled`, wired into the strike's defence |
+Gates | - | `creature_fight::a_critical_takes_its_armour_in_the_reference_s_order`, `character_swing::an_armoured_victim_feels_a_critical_more` |
+
+**The floor comes before the multiplier**: `max( resist - arpen, 0 ) * res_mult` - so a crit that ignores more armour than there is does **not** make the armour negative and heal the target.
+
+**The second gate exists because the first half alone would pass without it**: a bare target shows the sharper and hides the armour. Against **twenty points of stabbing armour** the plain hit
+is stopped down to **one** and the critical gets through - which is the half a port that computed `arpen`/`armour` and threw them away would fail.
+
+**Named, not invented:** `unconditional_res_mult` (data present, no reader), the per-unit `damage_multiplier` (the port folds it into the amount before `resolve`), and the reference's
+`damage_instance` the figures ride on - the port passes the three bonuses to the defence instead, since one figure per type is what its `Defence` holds.

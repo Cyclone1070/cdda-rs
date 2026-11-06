@@ -1022,3 +1022,20 @@ impl Defence {
         dodge_roll(self.dodge)
     }
 }
+
+/// What a blow meets of a target's armour once its own penetration and armour multiplier are worked in.
+///
+/// Reference: `resistances::get_effective_resist` (`damage.cpp:724-727`):
+///
+/// ```text
+/// return std::max( type_resist( du.type ) - du.res_pen, 0.0f ) * du.res_mult * du.unconditional_res_mult;
+/// ```
+///
+/// **The floor comes before the multiplier**, so a crit that ignores more armour than there is does not make the remaining armour negative and heal the target - and the multiplier then
+/// scales what is left. For an ordinary blow `arpen` is zero and `armour` is one, which makes this the armour itself.
+#[must_use]
+pub fn armour_dulled(resist: f32, arpen: i32, armour: f32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let arpen = arpen as f32;
+    (resist - arpen).max(0.0) * armour
+}

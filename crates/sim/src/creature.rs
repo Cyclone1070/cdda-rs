@@ -2956,6 +2956,22 @@ fn strike_with(
     } else {
         rolled
     };
+    // Reference: the crit's armour multiplier and penetration ride **on the damage unit** (`damage.h:120-131`) and are spent where the armour is subtracted (`damage.cpp:724-727`), so a
+    // critical that ignores armour meets less of it. The port's `Defence` carries one figure per type, which is where the three bonuses land.
+    let defence = if crit {
+        let dull = |resist: f32, kind: crate::melee::Kind| {
+            let bonus = crate::melee::crit_bonus(kind, crit_for.map_or(0, |inputs| inputs.weapon_skill), crit_mod);
+            crate::melee::armour_dulled(resist, bonus.arpen, bonus.armour)
+        };
+        crate::melee::Defence {
+            resist: dull(defence.resist, crate::melee::Kind::Bash),
+            cut_resist: dull(defence.cut_resist, crate::melee::Kind::Cut),
+            stab_resist: dull(defence.stab_resist, crate::melee::Kind::Stab),
+            ..defence
+        }
+    } else {
+        defence
+    };
     let swung = crate::melee::resolve(hitroll, sharpened, defence);
     // A garment's own fate is decided by the whole blow, before the armour took its share
     // (`character_armor.cpp`), and by a **fresh** draw of its own: `damage_armor_durability` calls `x_in_y` after

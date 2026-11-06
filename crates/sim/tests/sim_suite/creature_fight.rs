@@ -3839,3 +3839,24 @@ fn a_critical_sharpens_each_kind_of_damage_differently() {
         "and a stab with no skill is not sharpened at all"
     );
 }
+
+/// A critical's armour figure is applied the way the reference applies it: penetration first, the floor second, the multiplier last.
+///
+/// Reference: `resistances::get_effective_resist` (`damage.cpp:724-727`):
+///
+/// ```text
+/// return std::max( type_resist( du.type ) - du.res_pen, 0.0f ) * du.res_mult * du.unconditional_res_mult;
+/// ```
+///
+/// **The floor comes before the multiplier**, so a crit that ignores more armour than there is does not make the remaining armour negative and heal the target - and the multiplier then
+/// scales what is left.
+#[test]
+fn a_critical_takes_its_armour_in_the_reference_s_order() {
+    use cdda_sim::melee::armour_dulled;
+
+    assert!((armour_dulled(10.0, 0, 1.0) - 10.0).abs() < 1e-6, "a plain hit keeps the armour whole");
+    assert!((armour_dulled(10.0, 0, 0.75) - 7.5).abs() < 1e-6, "**a cutting crit keeps three quarters**");
+    assert!((armour_dulled(10.0, 5, 0.75) - 3.75).abs() < 1e-6, "**and takes the five off before the three quarters**");
+    assert!((armour_dulled(3.0, 5, 0.5) - 0.0).abs() < 1e-6, "**more penetration than armour stops at none**, never at negative");
+    assert!((armour_dulled(10.0, 0, 0.0) - 0.0).abs() < 1e-6, "and a bashing crit at no crit_mod ignores it all");
+}

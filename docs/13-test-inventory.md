@@ -1339,3 +1339,6 @@ kept as the reference writes it.
 
 **Round 1334 wired the critical into the swing** (`melee.cpp:1103-1106`, `:462-476`, `creature.cpp:890-901`): a roll against `crit_chance`, `crit_bonus` per damage type, damped by the victim's
 vitals cover - gated end to end on a critical hurting more, with `Rolls::fixed` as the lever.
+
+**Round 1335 applied the crit's armour figures** (`damage.cpp:724-727`), gated twice: the arithmetic's **floor before the multiplier**, and an **armoured** victim where the plain hit is stopped
+down to one and the critical still gets through.
