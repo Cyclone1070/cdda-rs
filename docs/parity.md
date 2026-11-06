@@ -16360,3 +16360,20 @@ states the sum before the scale.
 
 **Named, not invented:** the fault armour modifications (`item.cpp:950-957`) and the material's own `clothing_mod` figure (`:9211`); the port has no faults and no clothing mods, so both are
 absent rather than assumed to be one.
+
+## The worn armour is already in the part's armour (round 1344)
+
+| Piece | Reference | Port |
+|---|---|---|
+the worn sum | `outfit::damage_resist( dt, bp )` (`character_attire.cpp:1973-1983`) | `creature::dress` derives **`PartArmour`** from the garment layers |
+the body's own figure | `bp->damage_resistance( dt )` added **after** the worn sum (`character_armor.cpp:86`) | `armour_on`, which answers `PartArmour` first and the body's `Armour` second |
+where it is applied | `Creature::deal_melee_attack` tells `absorb_hit` which part it was | `strike_with` picks the part from the spread and asks `armour_on` for it |
+
+**The join this round set out to add was already there, and adding it a second time counted the same jacket twice.** The full suite caught it in one line: `wounds::armour_protects_the_part_it_covers_and_no_other` asks for **six through four points is two** and got **zero**, because the blow met the jacket's four in `resist` and its four again in `worn_armour`.
+
+**A derived index earns its keep by making the second copy impossible** - `dress` writes `PartArmour` from the garments a creature has on, so nothing in the strike has to walk them - and the lesson is that a rule already carried by a derived component must be **found** before it is written again.
+
+**Named, not invented:**
+- **a garment's wear does not reach `PartArmour`.** The rule for it is ported (`armour::damage_adjusted_armor_resist`, `resist_as_worn`) and nothing calls it, because the port has no per-garment damage state: a garment is worn-out or new, never in between.
+- **the per-material coverage roll.** `item::_resist` rolls for each material when it is asked without a fixed value (`item.cpp:9221-9225`); `dress` derives the sum once, at the moment the garment goes on, so nothing rolls per blow.
+- `Defence::worn_armour` stays in the struct and stays **zero** on the strike path, named here so that a later reader does not mistake it for a rule that is doing work.

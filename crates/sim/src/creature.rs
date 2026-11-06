@@ -2935,6 +2935,8 @@ fn strike_with(
         let armour = armour_on(world, victim, part) as f32;
         armour
     });
+    // **The worn garments are already in `resist`**: `armour_on` reads `PartArmour`, which `creature::dress` derives from the garment layers, so a second worn sum here would count the same
+    // jacket twice - which the round that added one did, and `wounds::armour_protects_the_part_it_covers_and_no_other` caught with `six through four points is two` answering zero.
     let defence = crate::melee::Defence { resist, ..defence };
     let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.fixed, attack.dice, attack.sides);
     // Reference: `Character::melee_attack` asks `scored_crit( dodge, weap )` - one real against the chance `crit_chance` works out (`melee.cpp:1103-1106`) - and hands the answer to

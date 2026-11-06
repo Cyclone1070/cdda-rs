@@ -1363,3 +1363,5 @@ swing dump now records both per row - closing the move cost to **648 of 648 rows
 
 **Round 1343 ported the garment's own wear into its protection**: `damage_adjusted_armor_resist` (an eighth a level past the first, floored at zero) and `resist_as_worn`, which keeps the sum
 and the scale in one place, with a mutation check on the `- 1`.
+
+**Round 1344 tried to add the worn-armour join to the strike and the suite refused it**: `PartArmour` already carries the join, and a second sum counted the same jacket twice - six through four points answering zero instead of two. The rule for a garment's wear is ported and **uncalled**, because the port has no per-garment damage state.
