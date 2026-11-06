@@ -395,6 +395,8 @@ pub struct Rolls {
     normal: NormalDistribution,
     /// When a reference recording is attached, every draw comes from it instead of the engine.
     recording: Option<Recording>,
+    /// When set, every draw answers this number whatever range was asked for - a test's lever, never a game's.
+    fixed: Option<f64>,
 }
 
 /// Every die a reference run rolled, in the order it rolled them.
@@ -583,6 +585,21 @@ impl Rolls {
             engine: MinStdRand0::seeded(seed),
             normal: NormalDistribution::standard(),
             recording: None,
+            fixed: None,
+        }
+    }
+
+    /// A run whose dice are **all the same answer**, for a test that wants to say "this roll came up high" rather than walk a seed to it.
+    ///
+    /// Every draw answers `value` whatever range was asked for, so a rule that reads one die can be driven to either side without the test knowing which draw it is - and a rule that reads
+    /// several sees the same answer each time, which is what makes "the crit happened" and "the crit did not" two worlds apart by one word.
+    #[must_use]
+    pub const fn fixed(value: f64) -> Self {
+        Self {
+            engine: MinStdRand0::seeded(0),
+            normal: NormalDistribution::standard(),
+            recording: None,
+            fixed: Some(value),
         }
     }
 
@@ -598,6 +615,7 @@ impl Rolls {
             engine: MinStdRand0::seeded(0),
             normal: NormalDistribution::standard(),
             recording: Some(recording),
+            fixed: None,
         }
     }
 
@@ -624,6 +642,13 @@ impl Rolls {
     /// refusing them (`src/rng.cpp:20-28`).
     pub fn rng(&mut self, lo: i32, hi: i32) -> i32 {
         let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
+        if let Some(fixed) = self.fixed {
+            // **The lever is a fraction of the range, not a number**: `fixed(0.9)` answers nine tenths of the way from `lo` to `hi`, so `rng(0, 10_000)` answers `9000` and `rng(0, 1)`
+            // answers `1`. Rounding the fraction itself would make every range of more than two answers come back as its low bound.
+            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+            let drawn = (f64::from(lo) + fixed.clamp(0.0, 1.0) * f64::from(hi - lo)).round() as i32;
+            return drawn.clamp(lo, hi);
+        }
         if let Some(recording) = self.recording.as_mut() {
             return recording.next_int(lo, hi);
         }
@@ -640,6 +665,10 @@ impl Rolls {
         let (lo, hi) = if lo > hi { (hi, lo) } else { (lo, hi) };
         if !lo.is_finite() || !hi.is_finite() {
             return 0.0;
+        }
+        if let Some(fixed) = self.fixed {
+            // A real is the same lever without the rounding: a fraction of the way from `lo` to `hi`.
+            return lo + fixed.clamp(0.0, 1.0) * (hi - lo);
         }
         if let Some(recording) = self.recording.as_mut() {
             return recording.next_real(lo, hi);
@@ -721,6 +750,12 @@ impl Rolls {
 
     /// A whole unsigned word (`src/rng.cpp:13-18`).
     pub fn rng_bits(&mut self) -> u32 {
+        if let Some(fixed) = self.fixed {
+            // The lever in the units of a raw draw: a fraction of the whole 32-bit range.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+            let bits = (fixed.clamp(0.0, 1.0) * f64::from(u32::MAX)) as u32;
+            return bits;
+        }
         if let Some(recording) = self.recording.as_mut() {
             return recording.next_bits();
         }

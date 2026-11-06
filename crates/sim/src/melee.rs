@@ -1014,3 +1014,11 @@ impl CritBonus {
         }
     }
 }
+
+impl Defence {
+    /// The dodge as the attacker meets it: `get_dodge() * 5` (`monster.cpp:2717`), which is the figure `crit_chance` compares the roll against.
+    #[must_use]
+    pub fn dodge_roll(&self) -> f32 {
+        dodge_roll(self.dodge)
+    }
+}

@@ -16190,3 +16190,25 @@ port transcribes it rather than repairing it; repairing it would be a different 
 
 **Named, not invented:** the `crit` flag itself - the roll that decides whether a blow criticals (`melee.cpp`'s `critical_hit_chance`, which the port's `crit_chance` computes but nothing calls
 yet) - and the **enchantment** bonuses the same function folds in (`mabuff_damage_mult`, `mabuff_arpen_bonus`), which are P5.
+
+## A swing can critical (round 1334)
+
+| Piece | Reference | Port |
+|---|---|---|
+the roll | `scored_crit` (`melee.cpp:1103-1106`) | a draw compared against `crit_chance`, inside `strike_with` |
+the sharper | `roll_all_damage` (`melee.cpp:462-476`) | `melee::crit_bonus` applied per damage type before `resolve` |
+the damping | `get_crit_factor` (`creature.cpp:890-901`) | `melee::crit_factor` over `vitals_cover_of` |
+Gate | - | `character_swing::a_critical_swing_hurts_more` |
+Test lever | - | `Rolls::fixed( fraction )` |
+
+**Only a character's blow criticals**: the question arrives at the strike as an `Option<CritInputs>`, and the monster path (`monster::melee_attack`, `monster.cpp:2108`) passes `None` - the
+reference's own shape, kept as an absence rather than a flag someone has to remember to clear.
+
+**The lever is a fraction of the range, not a number**: `Rolls::fixed(0.9)` answers nine tenths of the way from `lo` to `hi`, so `rng(0, 10_000)` answers `9000`. The first version rounded the
+fraction itself, which made every range wider than two answers come back as its **low bound** - the gate caught it by finding both worlds critical.
+
+**The test found the real rule too**: this sword's biggest damage type is **stabbing**, so the crit skill is `stabbing`, not `cutting` - and a stab critical at no stabbing skill is **not
+sharpened at all** (`1 + 0/10`), which is why the first version of the gate saw two identical hits.
+
+**Named, not invented:** the martial-arts bonus term (zero until techniques exist), `arpen`'s effect on the armour (`resolve` subtracts armour per type; the crit's own armour multiplier is
+applied to the figure it subtracts, which the port does through `crit_factor` rather than through `DamageUnit`), and the reference's **damage-unit** pipeline the sharper ultimately feeds.

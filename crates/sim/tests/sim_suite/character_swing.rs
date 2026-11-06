@@ -695,3 +695,40 @@ fn an_empty_hand_is_its_own_kind_of_weapon() {
         "**the floor swallows it**: -50 scaled by 0.95 is -47, and -47 is not below -50"
     );
 }
+
+/// A swing can critical, and a critical of a cutting weapon hits harder and meets less armour.
+///
+/// Reference: `Character::melee_attack` rolls `scored_crit( dodge, weap )` (`melee.cpp:1103-1106`) and hands it to `roll_all_damage( crit, ... )`, which multiplies each damage type by its
+/// own figure (`melee.cpp:1356-1373`). The gate builds two identical worlds that differ only in the **roll** the swing draws, so the extra damage is the rule rather than the dice.
+#[test]
+fn a_critical_swing_hurts_more() {
+    let mut dealt = Vec::new();
+    for critical in [false, true] {
+        let (mut world, _null, _rock, sword) = world_with_kinds();
+        let swinger = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        // **The crit skill the reference reads is the one the weapon's biggest damage type trains**: this sword stabs, so it is `stabbing`, and a stab critical's bonus is the one that grows
+        // with skill (`melee.cpp:1360-1362`).
+        world.entity_mut(swinger).insert(cdda_sim::creature::Skills(
+            [("melee".to_owned(), 10), ("stabbing".to_owned(), 10)].into_iter().collect(),
+        ));
+        world
+            .entity_mut(swinger)
+            .insert(cdda_sim::creature::Wielding(sword))
+            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+        let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
+        cdda_sim::creature::set_health(&mut world, victim, 5_000);
+        cdda_sim::creature::set_moves(&mut world, swinger, 400);
+        // **The one difference**: the first draw of the rolls decides the critical, and the two worlds are told a different answer for it.
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(if critical { 0.02 } else { 0.99 }));
+        let before = cdda_sim::creature::health_of(&world, victim).expect("the victim has health");
+        cdda_sim::creature::swing_what_the_character_holds(&mut world, swinger, victim);
+        let after = cdda_sim::creature::health_of(&world, victim).expect("the victim still has health");
+        dealt.push(before - after);
+    }
+    assert!(
+        dealt[1] > dealt[0],
+        "**a critical is more damage than a plain hit**: plain {:?}, critical {:?}",
+        dealt[0],
+        dealt[1]
+    );
+}

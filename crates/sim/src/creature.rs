@@ -2435,7 +2435,7 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     if attack.0.dice == 0 {
         return None;
     }
-    let dealt = strike_with(world, victim, attack.0)?;
+    let dealt = strike_with(world, victim, attack.0, None)?;
     // Reference: `monster::melee_attack` puts a hit-and-run monster into `effect_run` for four turns after its blow (`monster.cpp:2134-2136`). The effect is only given when the
     // world has been told what that effect is: an effect the content does not define cannot be worn, and inventing one here would put a name in the store that nothing can read.
     // Reference: `monster::melee_attack` gives **itself** `effect_hit_by_player` for three turns when what it hit was the avatar (`monster.cpp:2130-2133`), which is how a monster
@@ -2863,7 +2863,8 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     let stamina = stamina_ratio(world, holder);
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina);
     spend_moves(world, holder, f64::from(cost));
-    let dealt = strike_with(world, victim, attack);
+    let crit_inputs = crit_inputs_of(world, holder);
+    let dealt = strike_with(world, victim, attack, crit_inputs.as_ref());
     // Reference: `Character::melee_attack` wears the weapon it swung **whatever the outcome** - the call sits outside the hit branch (`melee.cpp:930`) - so a miss dents a weapon just as a hit
     // does. The chance is round 1191's arithmetic and the guard is its inverted `one_in`; what is new here is the **place**, which is the hand.
     crate::creature::wear_the_wielded_weapon(world, holder, skill, dexterity);
@@ -2892,7 +2893,12 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
 }
 
 /// One blow, from an attack the caller has already worked out.
-fn strike_with(world: &mut World, victim: Entity, attack: crate::melee::Attack) -> Option<i32> {
+fn strike_with(
+    world: &mut World,
+    victim: Entity,
+    attack: crate::melee::Attack,
+    crit_for: Option<&crate::melee::CritInputs>,
+) -> Option<i32> {
     let mut rolls = crate::singletons::take_rolls(world)?;
     let defence = defence_of(world, victim);
     // The roll, the landing place and the armour are asked in the order the reference asks them: the margin is
@@ -2920,7 +2926,37 @@ fn strike_with(world: &mut World, victim: Entity, attack: crate::melee::Attack) 
     });
     let defence = crate::melee::Defence { resist, ..defence };
     let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.fixed, attack.dice, attack.sides);
-    let swung = crate::melee::resolve(hitroll, rolled, defence);
+    // Reference: `Character::melee_attack` asks `scored_crit( dodge, weap )` - one real against the chance `crit_chance` works out (`melee.cpp:1103-1106`) - and hands the answer to
+    // `roll_all_damage( crit, ... )`, which sharpens each damage type by its own figure (`melee.cpp:1356-1373`). **The crit is rolled only for a blow that lands**; a miss has nothing to
+    // sharpen, which is why the frame comes after the spread.
+    // **Only a character's blow criticals**: `Character::melee_attack` rolls `scored_crit` (`melee.cpp:1103-1106`) and a monster's own path (`monster::melee_attack`, `monster.cpp:2108`) has no
+    // such roll at all - which is why the question arrives as an `Option` rather than a flag the caller has to remember to clear.
+    let crit = crit_for.is_some_and(|inputs| {
+        let roll = f64::from(rolls.rng(0, 10_000)) / 10_000.0;
+        roll < crate::melee::crit_chance(inputs, hitroll, defence.dodge_roll())
+    });
+    // Reference: `roll_all_damage` reads `crit_mod = target->get_crit_factor( bp )` (`melee.cpp:467-470`), which is how much of the vitals the struck part's armour covers.
+    let crit_mod = landed_on
+        .as_deref()
+        .map_or(1.0, |part| crate::melee::crit_factor(vitals_cover_of(world, victim, part)));
+    let sharpened = if crit {
+        crate::melee::Damage {
+            bash: sharpen(rolled.bash, crate::melee::crit_bonus(crate::melee::Kind::Bash, 0, crit_mod)),
+            cut: sharpen(rolled.cut, crate::melee::crit_bonus(crate::melee::Kind::Cut, 0, crit_mod)),
+            stab: sharpen(
+                rolled.stab,
+                crate::melee::crit_bonus(
+                    crate::melee::Kind::Stab,
+                    crit_for.map_or(0, |inputs| inputs.weapon_skill),
+                    crit_mod,
+                ),
+            ),
+            penetration: rolled.penetration,
+        }
+    } else {
+        rolled
+    };
+    let swung = crate::melee::resolve(hitroll, sharpened, defence);
     // A garment's own fate is decided by the whole blow, before the armour took its share
     // (`character_armor.cpp`), and by a **fresh** draw of its own: `damage_armor_durability` calls `x_in_y` after
     // the damage has been worked out, so this draw belongs after `resolve` and before the rolls go back.
@@ -2942,6 +2978,53 @@ fn strike_with(world: &mut World, victim: Entity, attack: crate::melee::Attack) 
         }
     }
     Some(dealt)
+}
+
+/// What a character's blow brings to the question "was it a critical".
+///
+/// Reference: `Character::crit_chance` (`melee.cpp:1116-1193`) reads the weapon's accuracy, the character's dexterity and perception, the weapon's skill, and the melee skill - the port asks
+/// the store for each. **A character with no weapon asks with an empty hand**, which is the reference's own null item.
+#[must_use]
+fn crit_inputs_of(world: &World, holder: Entity) -> Option<crate::melee::CritInputs> {
+    // Only a character criticals; a creature with no skills is not one.
+    world.get::<Skills>(holder)?;
+    let kind = world.get::<Wielding>(holder).map(|held| held.0);
+    let names = crate::item_registry::peek(world);
+    let to_hit = kind
+        .and_then(|kind| names.map(|names| names.to_hit_of(kind)))
+        .unwrap_or(-2);
+    let (bash, cut, stab) = kind
+        .and_then(|kind| {
+            names.map(|names| {
+                (
+                    names.melee_bash_of(kind),
+                    names.melee_cut_of(kind),
+                    names.melee_stab_of(kind),
+                )
+            })
+        })
+        .unwrap_or((0.0, 0.0, 0.0));
+    let weapon_skill = kind.map_or("unarmed", |_| {
+        crate::melee::weapon_skill(bash, cut, stab).unwrap_or("unarmed")
+    });
+    Some(crate::melee::CritInputs {
+        to_hit,
+        unarmed: kind.is_none(),
+        unarmed_skill: skill_level(world, holder, "unarmed"),
+        dexterity: effective_dexterity(world, holder),
+        perception: effective_perception(world, holder),
+        weapon_skill: skill_level(world, holder, weapon_skill),
+        melee_skill: skill_level(world, holder, "melee"),
+        martial_arts_bonus: 0.0,
+    })
+}
+
+/// One damage type after a critical sharpened it: `melee.cpp:1356-1373` multiplies the amount, and the armour multiplier is applied where the armour is subtracted.
+#[allow(clippy::cast_possible_truncation)]
+fn sharpen(amount: i32, bonus: crate::melee::CritBonus) -> i32 {
+    #[allow(clippy::cast_precision_loss)]
+    let scaled = f64::from(amount) * f64::from(bonus.damage);
+    scaled as i32
 }
 
 /// What a creature brings to being hit, read from the components it carries.

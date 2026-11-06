@@ -1336,3 +1336,6 @@ the item rather than the wearer.
 
 **Round 1333 ported the melee critical table** (`melee.cpp:1356-1373`), gated on the skill-scaled stab bonus and on the **bash asymmetry** (`0.5 * crit_mod` rather than `1 - 0.5 * crit_mod`)
 kept as the reference writes it.
+
+**Round 1334 wired the critical into the swing** (`melee.cpp:1103-1106`, `:462-476`, `creature.cpp:890-901`): a roll against `crit_chance`, `crit_bonus` per damage type, damped by the victim's
+vitals cover - gated end to end on a critical hurting more, with `Rolls::fixed` as the lever.
