@@ -1598,11 +1598,16 @@ pub fn take_off(world: &mut World, item: Entity) -> bool {
 /// before, which is the failure a store with two writers always has.
 pub fn dress(world: &mut World) {
     // What each worn thing protects, gathered before anything is written.
-    let mut worn: Vec<(Entity, Vec<(String, cdda_content::armour::Layer)>)> = Vec::new();
+    let mut worn: Vec<(Entity, Vec<(String, cdda_content::armour::Layer)>, i32)> = Vec::new();
     {
-        let mut query = world.query::<(&WornBy, &Garment)>();
-        for (worn_by, garment) in query.iter(world) {
-            worn.push((worn_by.0, garment.layers.clone()));
+        let mut query = world.query::<(&WornBy, &Garment, Option<&Wear>)>();
+        for (worn_by, garment, wear) in query.iter(world) {
+            // **A garment's own wear scales its protection** (`item.cpp:944-962`), read off the `Wear` the item already carried: the reference keeps raw damage points and asks
+            // `item::damage_level` for the five-step scale (`itype.cpp:117-126`), so the port asks the same rule rather than storing a second figure that could disagree with it.
+            let level = wear.map_or(1, |wear| {
+                cdda_content::armour::damage_level(wear.damage, cdda_content::armour::DAMAGE_MAX)
+            });
+            worn.push((worn_by.0, garment.layers.clone(), level));
         }
     }
     let wearers: Vec<Entity> = {
@@ -1611,7 +1616,7 @@ pub fn dress(world: &mut World) {
     };
     for wearer in wearers {
         let mut tenths_of: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
-        for (owner, layers) in &worn {
+        for (owner, layers, level) in &worn {
             if *owner != wearer {
                 continue;
             }
@@ -1621,7 +1626,7 @@ pub fn dress(world: &mut World) {
                 // because a garment's protection is a fraction - a shirt is a third of a point - and truncating each
                 // layer as it is added would throw away the difference between one shirt and three.
                 #[allow(clippy::cast_possible_truncation)]
-                let tenths = (cdda_content::armour::layer_resist(*layer, 0) * 10.0).round() as i32;
+                let tenths = (cdda_content::armour::resist_as_worn(&[*layer], 0, *level) * 10.0).round() as i32;
                 *tenths_of.entry(part.clone()).or_insert(0) += tenths;
             }
         }

@@ -257,3 +257,45 @@ fn armour_protects_the_part_it_covers_and_no_other() {
         "armour on a part the blow misses is worth nothing"
     );
 }
+
+/// A garment's wear reaches the part it protects, and nothing else has to ask.
+///
+/// Reference: `item::_resist` scales a garment's whole material sum by its own wear (`item.cpp:9226-9234`) and `Character::get_armor_type` is the sum of that over the garments covering the
+/// part (`character_armor.cpp:70-87`, `character_attire.cpp:1973-1983`). **The port derived `PartArmour` once, when the garment went on**, so a jacket that was whole at the time stayed whole
+/// for ever - the wear rule was ported and unreachable, which is the gap a worn-out jacket's four points becoming two has to close.
+#[test]
+fn a_worn_out_garment_protects_less_of_the_part_it_covers() {
+    use cdda_content::armour::Layer;
+    use cdda_sim::creature::{Garment, Wear, WornBy, armour_on};
+
+    let mut world = bevy_ecs::world::World::new();
+    let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let jacket = world
+        .spawn(Garment {
+            layers: vec![(
+                "torso".to_owned(),
+                Layer {
+                    resist: 4.0,
+                    thickness: 1.0,
+                    cover: 100,
+                },
+            )],
+            vitals: Vec::new(),
+        })
+        .id();
+    world.entity_mut(jacket).insert(WornBy(survivor));
+
+    cdda_sim::creature::dress(&mut world);
+    assert_eq!(armour_on(&world, survivor, "torso"), 4, "a whole jacket protects by four");
+
+    // **Four thousand points of damage is the fifth level, and the same jacket protects by two** - which `dress` has to be asked for again, because the armour is derived and not a rule of
+    // the blow.
+    world.entity_mut(jacket).insert(Wear { damage: 4_000 });
+    cdda_sim::creature::dress(&mut world);
+    assert_eq!(
+        armour_on(&world, survivor, "torso"),
+        2,
+        "**a level-five jacket keeps half its protection, through the same derived figure**"
+    );
+    assert_eq!(armour_on(&world, survivor, "head"), 0, "and a part it does not cover is still bare");
+}

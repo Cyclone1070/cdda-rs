@@ -16374,6 +16374,23 @@ where it is applied | `Creature::deal_melee_attack` tells `absorb_hit` which par
 **A derived index earns its keep by making the second copy impossible** - `dress` writes `PartArmour` from the garments a creature has on, so nothing in the strike has to walk them - and the lesson is that a rule already carried by a derived component must be **found** before it is written again.
 
 **Named, not invented:**
-- **a garment's wear does not reach `PartArmour`.** The rule for it is ported (`armour::damage_adjusted_armor_resist`, `resist_as_worn`) and nothing calls it, because the port has no per-garment damage state: a garment is worn-out or new, never in between.
-- **the per-material coverage roll.** `item::_resist` rolls for each material when it is asked without a fixed value (`item.cpp:9221-9225`); `dress` derives the sum once, at the moment the garment goes on, so nothing rolls per blow.
+- **the per-material coverage roll.** `item::_resist` rolls for each material when it is asked without a fixed value (`item.cpp:9221-9225`); `dress` derives the sum once a turn, so nothing rolls per blow.
+- **the lag of one turn.** The reference asks `get_armor_type` at the moment of the blow; the port derives `PartArmour` at the start of the creatures' stage (`turn.rs:289`), before anything acts, so a garment ruined this turn is still whole for the blows of that turn.
 - `Defence::worn_armour` stays in the struct and stays **zero** on the strike path, named here so that a later reader does not mistake it for a rule that is doing work.
+
+## A garment's wear reaches the armour it gives (round 1345)
+
+| Piece | Reference | Port |
+|---|---|---|
+the step scale | `item::damage_level` (`itype.cpp:117-126`) | `armour::damage_level( damage, DAMAGE_MAX )`, already ported |
+the scaling | `damage_adjusted_armor_resist` (`item.cpp:944-962`) | `armour::resist_as_worn`, already ported |
+where it is applied | inside `item::_resist`, so the worn sum is scaled (`:9226-9234`) | `creature::dress`, which scales each layer **before** it adds the tenths |
+Gate | - | `wounds::a_worn_out_garment_protects_less_of_the_part_it_covers` |
+
+**The rule was ported and unreachable for one round**: `dress` summed `layer_resist` and never asked how worn the garment was, so a jacket at level five protected by four instead of two. It now reads
+the `Wear` the item already carried - the reference's raw points - and asks the **same** `damage_level` rule rather than storing a second figure that could disagree with it.
+
+**The `- 1` in the scale is the load-bearing half**: a garment at level one is whole, so `damage_level` of an undamaged thing (zero points) has to answer one, and the scaling has to subtract it.
+The mutation check removes exactly that and the test reads `4` where it expects `2`.
+
+**Named, not invented:** the per-material coverage roll and the one-turn lag, which are the two places `dress` is coarser than a blow-time question.
