@@ -197,6 +197,15 @@ pub enum Step {
     ExpectHurt(i32),
     /// Expects some creature to be this close to the survivor, in squares.
     ExpectMonsterNear(i32),
+    /// Expects the creature standing on this square to have exactly this many hit points left.
+    ExpectMonsterHealth {
+        /// How many hit points it should have.
+        points: i32,
+        /// The square's x.
+        x: i32,
+        /// The square's y.
+        y: i32,
+    },
     /// Expects no creature to be standing on this square.
     ExpectNoMonsterAt {
         /// The square's x.
@@ -355,6 +364,11 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             },
             ["expect", "monster", "effect", id, "at", x, y] => Step::ExpectMonsterEffect {
                 id: (*id).to_owned(),
+                x: number_of(x, number, "x")?,
+                y: number_of(y, number, "y")?,
+            },
+            ["expect", "monster", "health", points, "at", x, y] => Step::ExpectMonsterHealth {
+                points: number_of(points, number, "points")?,
                 x: number_of(x, number, "x")?,
                 y: number_of(y, number, "y")?,
             },
@@ -559,6 +573,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::Monster { id, x, y } => put_a_monster(world, outcome, id, *x, *y),
         Step::ExpectHurt(points) => expect_a_wound(world, outcome, *points),
         Step::ExpectMonsterNear(squares) => expect_a_monster_close(world, outcome, *squares),
+        Step::ExpectMonsterHealth { points, x, y } => expect_monster_health(world, outcome, *points, *x, *y),
         Step::ExpectNoMonsterAt { x, y } => expect_no_monster_at(world, outcome, *x, *y),
         Step::ExpectItemAt { item, x, y } => expect_one_on(world, outcome, item, *x, *y),
         Step::Craft { recipe, turns } => {
@@ -1304,6 +1319,35 @@ fn expect_a_monster_close(world: &mut World, outcome: &mut Outcome, squares: i32
 ///
 /// This is how a scenario says a noise **moved** something without pretending to know where it went: a monster that hears a sound walks to a guess up to ten squares out, so
 /// "it is no longer where it was" is the only honest claim a playtest can make about an imprecise noise.
+/// Says how many hit points the monster standing on a square has left, which is the receipt for damage actually landing.
+///
+/// The step exists because a scenario could otherwise only say "nothing is there any more": a blow that took a zombie to **one** hit point and a blow that took it to nothing look the same to
+/// `expect no monster at`. Reading the number is what lets a playtest pin the **arithmetic** of a hit, crit included, rather than only its consequence.
+fn expect_monster_health(world: &mut World, outcome: &mut Outcome, points: i32, x: i32, y: i32) {
+    let player = survivor(world);
+    let mut query = world.query_filtered::<(Entity, &cdda_sim::Position), bevy_ecs::prelude::With<cdda_sim::creature::Creature>>();
+    let found = query
+        .iter(world)
+        .find(|(entity, place)| (place.x, place.y) == (x, y) && player != Some(*entity))
+        .map(|(entity, _)| entity);
+    let Some(monster) = found else {
+        outcome
+            .failures
+            .push(format!("nothing stands at ({x}, {y}) to have hit points"));
+        return;
+    };
+    let health = cdda_sim::creature::health_of(world, monster).unwrap_or(0);
+    if health == points {
+        outcome
+            .lines
+            .push(format!("health: the monster at ({x}, {y}) has {health} hit points"));
+    } else {
+        outcome
+            .failures
+            .push(format!("the monster at ({x}, {y}) has {health} hit points, not {points}"));
+    }
+}
+
 fn expect_no_monster_at(world: &mut World, outcome: &mut Outcome, x: i32, y: i32) {
     let player = survivor(world);
     let mut query = world.query_filtered::<(Entity, &cdda_sim::Position), bevy_ecs::prelude::With<cdda_sim::creature::Creature>>();

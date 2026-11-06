@@ -16227,3 +16227,23 @@ is stopped down to **one** and the critical gets through - which is the half a p
 
 **Named, not invented:** `unconditional_res_mult` (data present, no reader), the per-unit `damage_multiplier` (the port folds it into the amount before `resolve`), and the reference's
 `damage_instance` the figures ride on - the port passes the three bonuses to the defence instead, since one figure per type is what its `Defence` holds.
+
+## A critical, in play (round 1336)
+
+| Piece | Reference | Port |
+|---|---|---|
+the receipt | - | `expect monster health N at X Y` (a new playtest step) |
+the playtest | `scored_crit` (`melee.cpp:1103-1106`) end to end | `scenarios/a_critical_swing_takes_more.txt` |
+Rule fix | every character has a skill map, empty or not | `crit_inputs_of` asks for the port's **`Player`**, not for a `Skills` component |
+
+**The playtest could not say this before**: `expect no monster at` cannot tell a blow that took a zombie to one hit point from one that killed it. Reading the number is what lets a scenario pin
+the **arithmetic** of a hit rather than only its consequence.
+
+**The step found a real bug**: the first swing of a fresh survivor dealt **20** and the second **29**, and the trace said why - the first had no `Skills` component yet, so the crit was skipped
+entirely. A zero-level character still rolls (`crit_chance` answers about a twentieth); only a **monster** does not, and the port's word for a character is `Player`.
+
+**Seed 19 gives both halves in two swings**: the first rolls **0.12** against a chance of **0.21** and takes twenty-nine; the second rolls **0.91** and takes twenty - half again the damage
+against half the armour, which is why twenty becomes twenty-nine rather than twenty-eight.
+
+**Named, not invented:** the oracle parity for a critical swing - there is no dump yet whose dice land a crit, so the playtest is the receipt and an oracle dump is the next step for this
+rule.

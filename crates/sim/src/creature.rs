@@ -3002,8 +3002,10 @@ fn strike_with(
 /// the store for each. **A character with no weapon asks with an empty hand**, which is the reference's own null item.
 #[must_use]
 fn crit_inputs_of(world: &World, holder: Entity) -> Option<crate::melee::CritInputs> {
-    // Only a character criticals; a creature with no skills is not one.
-    world.get::<Skills>(holder)?;
+    // **Only a character criticals**, and the port's word for one is [`crate::Player`]: a monster's own path never rolls a crit at all. A character with no `Skills` component yet is a
+    // character with nothing trained, not a thing that cannot critical - the reference gives every character a skill map, and a zero-level one still rolls (`crit_chance` answers a
+    // sixtieth or so rather than nothing).
+    world.get::<crate::Player>(holder)?;
     let kind = world.get::<Wielding>(holder).map(|held| held.0);
     let names = crate::item_registry::peek(world);
     let to_hit = kind

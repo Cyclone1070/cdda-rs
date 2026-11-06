@@ -1342,3 +1342,6 @@ vitals cover - gated end to end on a critical hurting more, with `Rolls::fixed` 
 
 **Round 1335 applied the crit's armour figures** (`damage.cpp:724-727`), gated twice: the arithmetic's **floor before the multiplier**, and an **armoured** victim where the plain hit is stopped
 down to one and the critical still gets through.
+
+**Round 1336 proved the critical in play** with a new `expect monster health` step and `scenarios/a_critical_swing_takes_more.txt`, which caught the port skipping the crit for a character
+with no `Skills` component - a zero-level character still rolls, and only a monster never does.
