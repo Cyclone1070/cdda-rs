@@ -223,8 +223,8 @@ fn stamina_ratio(world: &bevy_ecs::prelude::World, thrower: bevy_ecs::prelude::E
 /// Who the thrown thing struck and how much it took, or nothing when the square was empty.
 ///
 /// Reference: `projectile_attack`'s hit branch hands the impact to `deal_projectile_attack`, which calls the target's `absorb_hit` (`monster.cpp:2085`) - that subtracts the resistance
-/// **capped at the blow**, so armour can stop a rock entirely and can never heal what it hits. The port's armour is one number per damage kind; **body parts and weakpoints are the half not
-/// written yet**, and a creature with no hit points takes nothing rather than being invented.
+/// **capped at the blow**, so armour can stop a rock entirely and can never heal what it hits. A thrown thing lands on a **weak point** like any other projectile (`weakpoint.cpp:588-631`,
+/// with `Character::throw_weakpoint_skill`'s `throw`-twice, vision-twice figures), and a creature with no hit points takes nothing rather than being invented.
 fn strike_whatever_stands_there(
     world: &mut World,
     thrower: Entity,
@@ -236,11 +236,63 @@ fn strike_whatever_stands_there(
         .find(|standing| *standing != thrower && crate::creature::health_of(world, *standing).is_some())
         .and_then(|struck| {
             let before = crate::creature::health_of(world, struck)?;
+            // Reference: `Character::throw_weakpoint_skill` (`weakpoint.cpp:104-107`) - `throw` twice and **vision twice** - and the attack type is `PROJECTILE`, because a thrown rock is
+            // not a melee blow however it lands.
+            let skill = {
+                let level = f64::from(crate::creature::skill_level(world, thrower, "throw"));
+                crate::weakpoints::attacker_skill(
+                    level,
+                    level,
+                    crate::creature::effective_dexterity(world, thrower),
+                    crate::creature::effective_perception(world, thrower),
+                    crate::creature::limb_score(world, thrower, "vision"),
+                    crate::creature::limb_score(world, thrower, "vision"),
+                )
+            };
+            let found = match crate::singletons::take_rolls(world) {
+                Some(mut dice) => {
+                    let found = crate::weakpoints::stored_weak_point(
+                        world,
+                        struck,
+                        crate::weakpoints::AttackType::Projectile,
+                        skill,
+                        &mut dice,
+                    );
+                    crate::singletons::put_rolls(world, dice);
+                    found
+                }
+                None => None,
+            };
             #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-            let resisted = world.get::<crate::creature::Armour>(struck).map_or(0.0, |armour| armour.bash as f32);
+            let (blow, resisted) = match found.as_ref() {
+                Some(weak) => {
+                    // A thrown thing's blow is **bash**, and its armour is the body's bash figure - so the weak point's two maps are read for that one type.
+                    let (bash, _, _) = crate::weakpoints::apply_to_blow(
+                        &weak.factors,
+                        (f64::from(blow), 0.0, 0.0),
+                        false,
+                    );
+                    let armour = world.get::<crate::creature::Armour>(struck).map_or(0, |armour| armour.bash);
+                    let (resist, _, _) = crate::weakpoints::apply_to_armour_triple(
+                        &weak.factors,
+                        (f64::from(armour), 0.0, 0.0),
+                    );
+                    (bash as i32, resist as f32)
+                }
+                None => (
+                    blow,
+                    world.get::<crate::creature::Armour>(struck).map_or(0.0, |armour| armour.bash as f32),
+                ),
+            };
             #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
             let hurt = crate::melee::after_armour(blow as f32, resisted, 0.0, 0.0).floor() as i32;
             let fatal = crate::damage_monster(world, struck, hurt);
+            // Reference: `wkpt->apply_effects` runs after the damage lands (`creature.cpp:1453-1455`), for a thrown thing exactly as for a shot.
+            if let Some(weak) = found.as_ref() {
+                #[allow(clippy::cast_precision_loss)]
+                let dealt = hurt as f32;
+                crate::creature::triggered_effects(world, struck, weak, dealt);
+            }
             // A killed creature has no hit points left to read, so the blow it took is the damage itself.
             let after = if fatal {
                 before - hurt

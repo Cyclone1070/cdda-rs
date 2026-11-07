@@ -627,3 +627,92 @@ fn a_shot_spends_the_weak_point_it_lands_on() {
     // **The doubling is not exact, because the blow is a cut and a stab at once**: the multiplier names the stab only, so the gate reads the direction and the sum.
     assert_eq!(weak, plain * 2, "the Mini-14's round is all stab, so the doubling is exact: {weak} against {plain}");
 }
+
+/// A thrown thing spends the weak point it lands on, with the thrower's own figures.
+///
+/// Reference: `Character::throw_weakpoint_skill` (`weakpoint.cpp:104-107`) is `generic_weakpoint_skill` with **`throw` twice** and **vision twice**, and the attack is `attack_type::PROJECTILE`
+/// because a throw is not a melee blow however it lands. **The three paths differ only in which skill and which limbs they read** - the walk, the multipliers and the effects are one rule.
+#[test]
+fn a_thrown_thing_spends_the_weak_point_it_lands_on() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, WeakpointFactors};
+
+    // One world, one throw: the same seed, the same rock, the same distance - with or without a weak point that doubles the bash.
+    let toss = |weak: bool| -> i32 {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(31));
+        let thrower = cdda_sim::creature::spawn_creature(&mut world, "the thrower", (0, 0, 0));
+        world
+            .entity_mut(thrower)
+            .insert(cdda_sim::creature::Dexterity { base: 8 })
+            .insert(cdda_sim::creature::Perception { base: 8 })
+            .insert(cdda_sim::creature::Moves { left: 200 });
+        let beast = cdda_sim::creature::spawn_creature(&mut world, "a big thing", (2, 0, 0));
+        world.entity_mut(beast).insert((
+            cdda_sim::creature::Creature {
+                name: "a big thing".to_owned(),
+                size: cdda_sim::CreatureSize::Huge,
+            },
+            cdda_sim::creature::Health { hp: 900, max_hp: 900 },
+            cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        ));
+        if weak {
+            let mut factors = WeakpointFactors::default();
+            factors.damage_multiplier.insert("bash".to_owned(), 2.0);
+            world.entity_mut(beast).insert(WeakPoints {
+                entries: vec![WeakPoint {
+                    id: "the temple".to_owned(),
+                    coverage: 100.0,
+                    helps_attacker: true,
+                    difficulties: vec![-100.0; 5],
+                    coverage_multipliers: vec![1.0; 5],
+                    effects: Vec::new(),
+                    factors,
+                }],
+                default: WeakPoint {
+                    id: String::new(),
+                    coverage: 100.0,
+                    helps_attacker: true,
+                    difficulties: vec![-100.0; 5],
+                    coverage_multipliers: vec![1.0; 5],
+                    effects: Vec::new(),
+                    factors: WeakpointFactors::default(),
+                },
+            });
+        }
+        // A rock in the hand: the item registry needs the kind before the thing can exist.
+        cdda_sim::item_registry::set_item_types(
+            &mut world,
+            &[cdda_sim::item_registry::Kind {
+                id: "rock",
+                volume_ml: 50,
+                weight_g: 657,
+                pockets: &[],
+                thrown_damage: 10.0,
+                melee_bash: 7.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: -1,
+            }],
+        );
+        let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock");
+        let rock = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+        // **The rock is in hand without the carry rules**: this gate is about the throw's weak point, and a body with no strength to spare would refuse to lift it for a reason of its own.
+        world
+            .entity_mut(rock)
+            .insert(cdda_sim::creature::Carried(thrower));
+        let before = cdda_sim::creature::health_of(&world, beast).unwrap_or(900);
+        cdda_sim::throwing::throw_at(&mut world, thrower, rock, (2, 0, 0));
+        let after = cdda_sim::creature::health_of(&world, beast).unwrap_or(900);
+        before - after
+    };
+
+    let plain = toss(false);
+    let weak = toss(true);
+    assert!(plain > 0, "the rock hurts a body with no weak points: {plain}");
+    assert_eq!(
+        weak,
+        plain * 2,
+        "**the same throw into a doubled weak point is worth twice as much**: {weak} against {plain}"
+    );
+}

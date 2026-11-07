@@ -1445,3 +1445,6 @@ made whether or not the effect fires, so a replayed seed sees the same sequence.
 
 **Round 1371 gave a shot its weak point** - the projectile difficulty and `ranged_weakpoint_skill`'s gun-twice, vision-twice figures - and the added draw exposed two playtests that had been
 passing on luck rather than on the rule. Both now aim before every shot, so the recoil that starved them cannot make the fixture's outcome a coin flip.
+
+**Round 1372 finished the triangle**: a thrown thing spends the weak point it lands on, with `throw_weakpoint_skill`'s throw-twice, vision-twice figures. Melee, shot and throw now share one walk and
+one set of multipliers, and differ only in the skill and limbs they read.

@@ -16660,6 +16660,9 @@ of blindness at a thirty-five percent share of the body.
 **A shot spends one too** (round 1371): `shot::hurt_once` asks `weakpoints::stored_weak_point` with `AttackType::Projectile` and `Character::ranged_weakpoint_skill`'s figures - the gun's skill
 twice and **vision twice** - then sharpens the round, dulls the armour, and triggers the same effects a blow does.
 
+**A thrown thing does too** (round 1372): `throwing::strike_whatever_stands_there` reads `Character::throw_weakpoint_skill` (`weakpoint.cpp:104-107`) - `throw` twice and vision twice - and asks
+the walk with `PROJECTILE`, so all three attack paths now agree on the walk, the multipliers and the effects, and differ only in **which skill and which limbs** they read.
+
 **Two playtests had been passing on luck, and the extra draw exposed both.** A weak-point selection is one draw the reference has always made and the port did not, so every fixture downstream of
 it shifted: `a_survivor_shoots_a_zombie` needed three of four shots to land and now lands one, and `a_survivor_fires_incendiary_rounds` fired bursts whose hits were one in six with a 24 percent
 fire chance a hit. Both were rewritten to be **armed by construction** - an aim that clears the recoil before every shot - rather than by a favourable seed. A fixture that depends on a coin landing
