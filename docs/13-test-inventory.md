@@ -1469,3 +1469,7 @@ now gate the rule that was already there. The uncalled-rule gate could not catch
 **Round 1378 opened martial arts with the requirement, not the numbers**: `--dump-martial-arts` (38 styles, 34 with static buffs) and four gates on `martial_arts::applies` - neither flag, unarmed
 only, melee only with a stated category, and both. The dump cost three builds: a member that does not exist in this baseline (`flat_bonus`), then a registry accessor that does not exist either
 (`martialart::get_all`), and each was caught by reading the header rather than by reading the output.
+
+**Round 1379 gave the buffs their arithmetic**: the scaling switch with `NONE` answering the scale itself, the flat sum, and the multiplier product clamped at zero. The mutation check made `NONE`
+answer zero and two gates failed - the null-scaling case and the flat sum that leans on it. One fixture of the round was wrong in its own arithmetic: two negative multipliers multiply to a
+**positive**, so the clamp needs an odd count to be visible at all.

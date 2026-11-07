@@ -16696,6 +16696,10 @@ to a whole number before the mixture**, so an untrained skinner's half point cos
 an empty hand, a melee-only one needs a weapon whose categories the requirement names, and **a buff that states neither is worth nothing**, because the reference loads both flags `false`. The
 `--dump-martial-arts` dump carries **38 styles and 34 with static buffs**, with each buff's requirement and skill needs.
 
+**And its buffs' arithmetic** (round 1379): `martial_arts::scaled` is `effect_scaling::get` (`bonuses.cpp:318-372`), `flat_of` and `mult_of` are `bonus_container::get_flat` and `get_mult`
+(`:221-258`) - flat bonuses **add** and answer zero for a stat with none, multipliers **start at one**, multiply, and are **clamped at zero** with the reference's own comment that all its effects are
+non-negative. **A bonus that scales with nothing is its scale, not zero**, which is the case a port defaults wrongly.
+
 **Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' two **other** practice
 paths (`practice_kill` in `kill_tracker.cpp:128` - a minute - and `practice_dissect` in `butchery.cpp:953` - two fifteen-minute halves, because proficiency practice is capped - which need the kill
 tracker and butchery), `physical`/`non_physical` map keys, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.
