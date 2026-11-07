@@ -1404,6 +1404,6 @@ human, and zero for a body that lacks any of the three.
 **Round 1357 closed the dodge chain**: the body-size ratio divides the dodge last, a creature stating its size instead of the port re-deriving two bodies, and `body_named` now carries each part's
 limb scores and health so a body built from the data answers its own rules - a human's reaction, balance, move speed and footing each being exactly one.
 
-**Round 1358 priced a swing's wear**: `wear_chance` is the reference's `handle_melee_wear` divisor - a stronger arm wears a weapon *more*, a better material *less*, `DURABLE_MELEE` four times
-tougher and `FRAGILE_MELEE` divided by six. **No caller yet**, which is named in `docs/parity.md`. The same round repaired the clippy gate, which had been passing on a stale cache while 23
-lints sat in `crates/sim`.
+**Round 1358 was a duplicate and round 1359 deleted it**: `melee_wear_chance`, `wear_damages`, `fragile_material_factor` and `wear_the_wielded_weapon` had been ported and gated in rounds 1149-1191,
+with the caller the later round claimed did not exist. The clippy gate repair from that round stands and is the only thing it contributed. The rule to carry forward is in `docs/parity.md`: **find the
+rule before writing it again**, and treat the roadmap's "named gaps" as a list to check rather than a list to trust.

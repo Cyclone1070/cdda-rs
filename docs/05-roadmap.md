@@ -922,8 +922,11 @@ dump column - and a swing **teaches the weapon's skill whether it lands or misse
 (`100 * 100 * (level + 1)^2`). **The critical-hit chance is ported but unused**: `crit_chance` (`melee.cpp:1116-1193`) is gated against the reference's own worked examples, and its
 **only** consumer is weakpoints, which this port does not have - so nothing multiplies a critical hit yet and the roadmap says so rather than inventing a multiplier.
 
-**Named gaps in the melee path, in the order they matter:** weakpoints (the whole force of a critical hit), stamina (the `attack_speed` penalty is always one until it exists), martial
-arts, `handle_melee_wear` (a weapon does not wear out), and the survivor's own `attack_cost` when it is not the avatar.
+**Named gaps in the melee path, in the order they matter:** weakpoints (the whole force of a critical hit), martial arts, and the survivor's own `attack_cost` when it is not the avatar.
+
+**`handle_melee_wear` was closed by rounds 1149-1191** (`melee::melee_wear_chance`, `wear_damages`, `fragile_material_factor`, `wear_the_wielded_weapon`, with the swing calling it whether the blow
+lands or not) - and this line said it was still a gap for sixteen hundred rounds, which is how round 1358 came to re-port it. **A stale gap in this list is a duplicate waiting to be written**; check
+the symbol before trusting the sentence. Stamina is closed too: `attack_speed` now takes the stamina ratio and the two stance figures from the oracle dump.
 
 **The dead come back at 1102-1105.** `item::ready_to_revive`'s arithmetic (damage makes a corpse **younger**; past six hours, a one-in-`48 - age` chance) is gated, and the whole chain
 runs in a playtest: a crowbar blow, a corpse left by the creature stage, a `date` step that moves the clock two days, and the monster standing again.

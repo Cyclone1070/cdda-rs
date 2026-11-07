@@ -16522,21 +16522,29 @@ itself: a human's `reaction`, `balance`, `move_speed` and `footing` are each exa
 **Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), and the **sight**-side dodge modifiers (`get_dodge`'s `DIFFICULTY` /
 light level terms are not in this chain).
 
-## A weapon wears by the hand that swings it (round 1358)
+## A weapon's wear was already ported, and round 1358 wrote it twice (corrected in round 1359)
 
-| Piece | Reference | Port |
+Round 1358 added `melee::wear_chance` and `melee_rules::a_weapon_wears_by_a_chance_its_material_decides`, reported them as a new rule with **"no caller yet"**, and shipped that claim in a commit.
+**Every word of it was wrong**: the rule had been ported in rounds 1149-1191, in full, with its caller.
+
+| Piece | Reference | Where it was already ported |
 |---|---|---|
-the divisor | `Character::handle_melee_wear` (`melee.cpp:214-290`): `dex/2 + melee + 64/max(arm strength, 4)` times the material, over the wear and enchantment multipliers | `melee::wear_chance` |
-the material | the item's `chip_resistance`, divided by **six** for `FRAGILE_MELEE` | the same branch |
-the flags | `DURABLE_MELEE` multiplies the divisor by **four**; a zero multiplier is no wear | the same |
-Gate | - | `melee_rules::a_weapon_wears_by_a_chance_its_material_decides` |
+the chance | `Character::handle_melee_wear` (`melee.cpp:214-290`) | `melee::melee_wear_chance` |
+the roll's inversion | `if( damage_chance > 0 && !one_in( damage_chance ) ) return false;` (`:291-293`) | `melee::wear_damages` - and **a chance of zero damages the weapon every time** |
+the material | `chip_resistance`, `FRAGILE_MELEE` at its weakest part over six (`:246-274`) | `melee::fragile_material_factor`, `creature::weapon_material_factor` |
+the caller | `melee.cpp:929-931`, outside the hit branch | `creature::swing_what_the_character_holds` calls `wear_the_wielded_weapon` **whether the blow lands or not** |
+the damage | `item::inc_damage`, then the break-apart branch (`:295-340`) | `ItemDamage::mod_damage`, `creature::break_apart_the_weapon` |
 
-**The answer is a divisor, not a probability.** The reference rolls `one_in( damage_chance )`, so a **larger** figure is **less** wear - and a stronger arm makes it **smaller**, which the reference's own
-comment calls a negative: `@ARM_STR increases chance of damaging your melee weapon (NEGATIVE)`. A port that read the figure as a chance would wear a strong character's crowbar *least*, which is
-backwards.
+All of it was gated: `creature_fight` has the arm-strength direction, the `DURABLE_MELEE` four times, the wear multiplier, the fragile part factor and `wear_damages`' inverted guard.
 
-**Named, not invented:** the caller. Nothing spends the divisor yet - the rule is gated and `docs/13-test-inventory.md` names it as a rule waiting for the swing that rolls it, because the port's
-weapon is a component with a [`cdda_sim::creature::Wear`] and no `chip_resistance` of its own.
+**The duplicate is deleted, not kept beside the original.** Two implementations of one rule drift, and the one nobody calls is the one that rots.
+
+**The lesson, in the shape this project has already recorded twice:** *find the rule before writing it again*. The census that would have caught it takes one `grep` for the reference's function name -
+`handle_melee_wear` - which the roadmap had already named as a gap in the melee path at round 1022 and which rounds 1149-1191 had since closed. The roadmap was stale and the port was not.
+A round that reads the roadmap's "named gaps" without checking whether they are still gaps will re-port what it finds.
+
+**And a false receipt is worse than a stale roadmap.** The commit's count table and its "Named, not invented: the caller" paragraph both asserted something untrue about the tree, and the
+gates could not catch it because a duplicate rule passes every test its original passes. What catches it is a reader - or a `grep` before the keyboard.
 
 ## The clippy gate was lying, and now it cannot (round 1358)
 
