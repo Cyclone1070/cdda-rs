@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-07 12:13:58
-@@ -0,0 +1,7296 @@
++++ oracle/src/src/harness.cpp	2026-11-07 17:22:21
+@@ -0,0 +1,7374 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -6851,6 +6851,84 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++/// Every weak-point set the game defines, with the figures its rules read.
++///
++/// A set is a **list of weak points plus a default one**, and each entry carries its own coverage, which way it cuts, its armour and damage multipliers, and the difficulty of hitting it with each
++/// kind of attack (`weakpoint.h:132-166`, `:180-205`). The port loads these rather than writing them down: 48 sets exist, and a hand-copied one would be wrong the day the data changed.
++///
++/// The entries are written through the public struct's own fields - a `weakpoints` hands out its list and its default, not a reader for either - and the attack-type difficulty is written as the
++/// five figures the array holds, in the array's own order (`NONE`, `MELEE_BASH`, `MELEE_CUT`, `MELEE_STAB`, `PROJECTILE`).
++static void dump_one_weakpoint( std::FILE *out, const weakpoint &weakpoint )
++{
++    std::fprintf( out, "{\"id\":\"%s\",\"coverage\":%.6f,\"is_good\":%s,\"is_head\":%s",
++                  harness_escape( weakpoint.id ).c_str(), static_cast<double>( weakpoint.coverage ),
++                  weakpoint.is_good ? "true" : "false", weakpoint.is_head ? "true" : "false" );
++    std::fprintf( out, ",\"armor_mult\":{" );
++    bool first = true;
++    for( const auto &entry : weakpoint.armor_mult ) {
++        std::fprintf( out, "%s\"%s\":%.6f", first ? "" : ",", harness_escape( entry.first.str() ).c_str(),
++                      static_cast<double>( entry.second ) );
++        first = false;
++    }
++    std::fprintf( out, "},\"armor_penalty\":{" );
++    first = true;
++    for( const auto &entry : weakpoint.armor_penalty ) {
++        std::fprintf( out, "%s\"%s\":%.6f", first ? "" : ",", harness_escape( entry.first.str() ).c_str(),
++                      static_cast<double>( entry.second ) );
++        first = false;
++    }
++    std::fprintf( out, "},\"damage_mult\":{" );
++    first = true;
++    for( const auto &entry : weakpoint.damage_mult ) {
++        std::fprintf( out, "%s\"%s\":%.6f", first ? "" : ",", harness_escape( entry.first.str() ).c_str(),
++                      static_cast<double>( entry.second ) );
++        first = false;
++    }
++    std::fprintf( out, "},\"crit_mult\":{" );
++    first = true;
++    for( const auto &entry : weakpoint.crit_mult ) {
++        std::fprintf( out, "%s\"%s\":%.6f", first ? "" : ",", harness_escape( entry.first.str() ).c_str(),
++                      static_cast<double>( entry.second ) );
++        first = false;
++    }
++    std::fprintf( out, "},\"coverage_mult\":[" );
++    for( int i = 0; i < static_cast<int>( weakpoint_attack::attack_type::NUM ); i++ ) {
++        std::fprintf( out, "%s%.6f", i == 0 ? "" : ",", static_cast<double>( weakpoint.coverage_mult.difficulty[i] ) );
++    }
++    std::fprintf( out, "],\"difficulty\":[" );
++    for( int i = 0; i < static_cast<int>( weakpoint_attack::attack_type::NUM ); i++ ) {
++        std::fprintf( out, "%s%.6f", i == 0 ? "" : ",", static_cast<double>( weakpoint.difficulty.difficulty[i] ) );
++    }
++    std::fprintf( out, "]}" );
++}
++
++void dump_weakpoint_sets( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"weakpoint-sets\",\"version\":1,\n\"sets\":[\n" );
++    bool first_set = true;
++    for( const weakpoints &set : weakpoints::get_all() ) {
++        std::fprintf( out, "%s\n{\"id\":\"%s\",\"weakpoints\":[", first_set ? "" : ",",
++                      harness_escape( set.id.str() ).c_str() );
++        bool first = true;
++        for( const weakpoint &one : set.weakpoint_list ) {
++            std::fprintf( out, "%s", first ? "" : "," );
++            dump_one_weakpoint( out, one );
++            first = false;
++        }
++        std::fprintf( out, "],\"default\":" );
++        dump_one_weakpoint( out, set.default_weakpoint );
++        std::fprintf( out, "}" );
++        first_set = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +/// What chance an attack has of hitting a weak point, exactly as the reference computes it.
 +///
 +/// `weakpoint::hit_chance` (`weakpoint.cpp:536-578`) is a **normal distribution's tail** - `erf` for a weak point that helps the attacker, `erfc` for one that hurts the monster - multiplied by the
@@ -7658,8 +7736,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-07 12:13:58
-@@ -0,0 +1,421 @@
++++ oracle/src/src/harness.h	2026-11-07 17:22:21
+@@ -0,0 +1,422 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -7974,6 +8052,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_monsters( const std::string &path );
 +void dump_anatomy( const std::string &path );
 +void dump_weakpoint_chance( const std::string &path );
++void dump_weakpoint_sets( const std::string &path );
 +void dump_spells( const std::string &path );
 +
 +// `--dump-state <file>`: the world the reference actually produced — random
@@ -8255,7 +8334,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-07 13:16:45
++++ oracle/src/src/main.cpp	2026-11-07 17:22:21
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -8266,7 +8345,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,164 @@
+@@ -272,6 +275,165 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -8285,6 +8364,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    // Harness: anatomies and the body part numbers a hit location is chosen from.
 +    std::string dump_anatomy;
 +    std::string dump_weakpoint_chance;
++    std::string dump_weakpoint_sets;
 +    // Harness: every spell's numbers.
 +    std::string dump_spells;
 +    // Harness: the state of a freshly started game.
@@ -8431,7 +8511,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +461,1410 @@
+@@ -300,6 +462,1420 @@
                  }
              },
              {
@@ -8461,6 +8541,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_weakpoint_chance = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-weakpoint-sets", "<file>",
++                "Writes every weak-point set with its entries, multipliers and per-attack-type difficulty",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_weakpoint_sets = params[0];
 +                    return 1;
 +                }
 +            },
@@ -9842,7 +9932,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2351,767 @@
+@@ -786,6 +2362,774 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -10538,6 +10628,13 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_anatomy( cli.dump_anatomy );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_weakpoint_sets.empty() ) {
++            // After the data is loaded: a set is a prototype, and a dump taken before the load measures an empty registry.
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_weakpoint_sets( cli.dump_weakpoint_sets );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_weakpoint_chance.empty() ) {

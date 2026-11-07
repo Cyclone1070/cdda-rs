@@ -16603,6 +16603,15 @@ zero the boundary is twenty-five and at skill ten it is 96.875.
 **The two damage maps are exclusive, and that is the whole shape of a critical hit's payoff.** A weak point worth twice the damage ordinarily is worth twice - not six times - on a crit unless its
 own `crit_mult` says otherwise, because the reference's branches are `if is_crit ... else if`. A port that multiplied both would quietly double every crit a weak point grants.
 
-**Named, not invented:** which weak point a creature has (the `weakpoint_set` prototypes - 48 of them - and the per-attack-type difficulty table), the effects a hit triggers
-(`weakpoint_effect`), the proficiency families that shift the skill, and the crit roll that decides `is_crit` (ported as `melee::crit_chance` in round 1349, with no weak point to spend it on until
-now).
+**Which weak point a creature has is data now** (round 1364): `--dump-weakpoint-sets` writes all **48** sets - every entry's coverage, direction, four multiplier maps and per-attack-type
+difficulty, plus the set's default - and `content::weakpoints` loads them.
+
+**The dump writes the maps before the reference expands them, and that is a rule the port has to carry.** `finalize_damage_map` (`damage.cpp:789-829`) turns a data map's `all` entry into every
+damage type's default, and the harness stops at `check_mod_data`, which loads weak points but does not finalize them - so a set whose data says `{ "all": 0.5 }` arrives with the keyword still in it,
+and **no rule ever asks about a damage type called `all`**. `content::weakpoints::expand_all` does the expansion, and the gate says so.
+
+**Two data facts worth writing down**, both read from the dump rather than assumed: a set's **default weak point covers the whole body** (coverage 100, difficulty -100 for every attack type) - it
+is a plain hit, not a miss - and **`crit_mult` defaults to `damage_mult`** when the data states none (`weakpoint.cpp:437-442`), which the dump already carries as a copy.
+
+**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys (the port's three damage types are all
+physical, so only `all` can reach them), and the crit roll that decides `is_crit` (ported as `melee::crit_chance` in round 1349).

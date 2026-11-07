@@ -1419,3 +1419,6 @@ itself past every share. The test found twice that a coverage of fifty is a chan
 
 **Round 1363 ported what a weak point does**: armour is multiplied then reduced by a flat penalty per damage type, and damage reads `crit_mult` on a crit and `damage_mult` otherwise - **exclusively**,
 which is the reference's `if is_crit ... else if` and the difference between a crit worth double and one worth six times.
+
+**Round 1364 loaded the weak-point sets**: all 48 from `--dump-weakpoint-sets`, with the `all`-expansion the dump leaves undone - because no rule ever asks about a damage type called `all`, and a
+weak point whose data says `{ "all": 0.5 }` would otherwise change nothing. The dump also settled two facts: a default weak point covers the whole body, and `crit_mult` falls back to `damage_mult`.
