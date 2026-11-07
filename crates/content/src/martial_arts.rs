@@ -69,6 +69,24 @@ pub struct Technique {
     pub defensive: bool,
     /// Whether it only fires on a critical hit.
     pub crit_tec: bool,
+    /// A placeholder the reference never offers (`ma_technique::dummy`).
+    pub dummy: bool,
+    /// Whether it is offered in a critical moment **as well as** an ordinary one.
+    pub crit_ok: bool,
+    /// Whether it only works during a reach attack.
+    pub reach_tec: bool,
+    /// Whether it works during a reach attack as well as an ordinary one.
+    pub reach_ok: bool,
+    /// Whether it answers a dodge.
+    pub dodge_counter: bool,
+    /// Whether it answers a block.
+    pub block_counter: bool,
+    /// Whether it needs a loaded weapon.
+    pub needs_ammo: bool,
+    /// Whether it takes the target's weapon away.
+    pub disarms: bool,
+    /// Whether it takes the target's weapon for the striker.
+    pub take_weapon: bool,
     /// The requirement it states.
     pub requirement: BuffRequirement,
 }
@@ -162,6 +180,15 @@ pub fn read_style(object: &Object) -> Option<Style> {
                 weighting: number(technique, "weighting", 0),
                 defensive: flag(technique, "defensive"),
                 crit_tec: flag(technique, "crit_tec"),
+                dummy: flag(technique, "dummy"),
+                crit_ok: flag(technique, "crit_ok"),
+                reach_tec: flag(technique, "reach_tec"),
+                reach_ok: flag(technique, "reach_ok"),
+                dodge_counter: flag(technique, "dodge_counter"),
+                block_counter: flag(technique, "block_counter"),
+                needs_ammo: flag(technique, "needs_ammo"),
+                disarms: flag(technique, "disarms"),
+                take_weapon: flag(technique, "take_weapon"),
                 requirement: BuffRequirement {
                     id: technique_id.clone(),
                     unarmed_allowed: flag(technique, "unarmed_allowed"),

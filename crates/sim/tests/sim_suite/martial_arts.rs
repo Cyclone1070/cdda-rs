@@ -194,3 +194,102 @@ fn the_corpus_weights_its_moves_evenly_enough_to_need_the_rule() {
         "the heaviest weighting is a hundred"
     );
 }
+
+/// A move is offered only when the moment is its moment.
+///
+/// Reference: `Character::evaluate_technique` (`melee.cpp:1446-1550`). Six refusals, and each one is a line a port is tempted to drop because the move "looks fine":
+///
+/// - a **dummy** is never offered (`:1451-1455`);
+/// - a **defensive** move is not an attack (`:1457-1461`);
+/// - a move that is **not `crit_ok`** needs the moment's own criticality to match its `crit_tec` (`:1512-1517`);
+/// - a move that **needs ammunition** wants a loaded weapon (`:1519-1523`);
+/// - a **disarm** against a body with no weapon does nothing (`:1528-1532`);
+/// - a **negative weighting** is a *chance*, not a prohibition: it rolls `one_in( |weighting| )` and only then qualifies (`:1544-1549`).
+#[test]
+fn a_move_is_offered_only_when_the_moment_is_its_moment() {
+    use cdda_sim::martial_arts::{Moment, TechniqueFlags, offers};
+
+    let plain = TechniqueFlags {
+        weighting: 1,
+        dummy: false,
+        defensive: false,
+        crit_tec: false,
+        crit_ok: false,
+        reach_tec: false,
+        reach_ok: false,
+        dodge_counter: false,
+        block_counter: false,
+        needs_ammo: false,
+        disarms: false,
+        take_weapon: false,
+    };
+    let ordinary = Moment {
+        crit: false,
+        reach_attacking: false,
+        dodge_counter: false,
+        block_counter: false,
+        loaded: false,
+        target_armed: true,
+        self_armed: false,
+        wall_adjacent: true,
+    };
+    assert!(offers(&plain, &ordinary, 0.5), "an ordinary move is offered in an ordinary moment");
+
+    // A dummy is never offered, whatever else it says.
+    let mut dummy = plain.clone();
+    dummy.dummy = true;
+    assert!(!offers(&dummy, &ordinary, 0.5), "**a dummy is never offered**");
+
+    // A defensive move is a counter, not an attack.
+    // **A counter is flagged twice**: `defensive` says it is not an attack, and the counter flag says which moment it answers. One without the other is refused, because the reference checks
+    // both `defensive` and that `block_counter == tec.block_counter`.
+    let mut defensive = plain.clone();
+    defensive.defensive = true;
+    defensive.block_counter = true;
+    assert!(!offers(&defensive, &ordinary, 0.5), "**a defensive move is not an attack**");
+    assert!(
+        offers(&defensive, &Moment { block_counter: true, ..ordinary.clone() }, 0.5),
+        "but it is offered to a block counter"
+    );
+
+    // A critical-only move needs the critical, and a move that is not crit_ok refuses a critical moment.
+    let mut critical_only = plain.clone();
+    critical_only.crit_tec = true;
+    assert!(!offers(&critical_only, &ordinary, 0.5), "**a critical move is not offered on an ordinary blow**");
+    assert!(
+        offers(&critical_only, &Moment { crit: true, ..ordinary.clone() }, 0.5),
+        "and is offered when the blow is critical"
+    );
+    assert!(
+        !offers(&plain, &Moment { crit: true, ..ordinary.clone() }, 0.5),
+        "**a move that is not crit_ok refuses the critical moment**, because crit != its crit_tec"
+    );
+
+    // Ammunition, reach and the two weapon rules.
+    let mut needs_ammo = plain.clone();
+    needs_ammo.needs_ammo = true;
+    assert!(!offers(&needs_ammo, &ordinary, 0.5), "a move that needs a loaded weapon is not offered empty");
+    assert!(
+        offers(&needs_ammo, &Moment { loaded: true, ..ordinary.clone() }, 0.5),
+        "and is offered when the weapon is loaded"
+    );
+
+    let mut disarm = plain.clone();
+    disarm.disarms = true;
+    assert!(!offers(&disarm, &Moment { target_armed: false, ..ordinary.clone() }, 0.5), "a disarm does nothing against empty hands");
+
+    let mut reach = plain.clone();
+    reach.reach_tec = true;
+    assert!(!offers(&reach, &ordinary, 0.5), "**a reach move needs a reach attack**");
+    assert!(
+        offers(&reach, &Moment { reach_attacking: true, ..ordinary.clone() }, 0.5),
+        "and is offered when the attack reaches"
+    );
+
+    // A negative weighting is a chance rather than a prohibition.
+    let mut occasional = plain.clone();
+    occasional.weighting = -4;
+    assert!(offers(&occasional, &ordinary, 0.0), "**a weighting of minus four is offered on a roll of nothing**");
+    assert!(!offers(&occasional, &ordinary, 0.5), "and refused on a roll of a half, because one in four is a quarter of the range");
+    assert!(offers(&occasional, &ordinary, 0.1), "but a tenth is inside that quarter");
+}

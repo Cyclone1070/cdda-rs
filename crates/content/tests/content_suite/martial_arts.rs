@@ -107,3 +107,30 @@ fn a_technique_can_require_a_critical() {
         .count();
     assert!(critical > 0, "**some moves only fire on a critical hit**");
 }
+
+/// The flags that decide whether a move is offered at all arrive with the move.
+///
+/// Reference: `evaluate_technique` (`melee.cpp:1446-1550`) reads nine of them, and **the corpus uses most**: dummies that are never offered, counters that answer a dodge or a block, moves that
+/// only fire on a critical, and reach moves that only work at reach.
+#[test]
+fn every_flag_that_decides_whether_a_move_is_offered_is_read() {
+    let found = styles();
+    let moves: Vec<&cdda_content::martial_arts::Technique> =
+        found.all.iter().flat_map(|style| style.techniques.iter()).collect();
+    assert_eq!(moves.len(), 171, "a hundred and seventy-one moves");
+    let count = |check: &dyn Fn(&cdda_content::martial_arts::Technique) -> bool| moves.iter().filter(|movement| check(movement)).count();
+
+    // **The numbers the data actually carries**, not the ones a reader would guess: forty-nine moves care about a critical, thirty are counters, thirteen disarm, and the two dodge-counter
+    // branches - with the dummy and ammunition ones - are **empty in this corpus**. Naming the empties is the point: a branch the data never reaches is untested behaviour, not proven behaviour.
+    assert_eq!(count(&|movement| movement.crit_tec), 49, "**forty-nine moves only fire on a critical**");
+    assert_eq!(count(&|movement| movement.crit_ok), 38, "and thirty-eight are offered either way");
+    assert_eq!(count(&|movement| movement.defensive), 30, "thirty are counters rather than attacks");
+    assert_eq!(count(&|movement| movement.disarms), 13, "thirteen take a weapon away");
+    assert_eq!(count(&|movement| movement.block_counter), 2, "two answer a block");
+    assert_eq!(count(&|movement| movement.reach_tec), 1, "one only works at reach");
+    assert_eq!(count(&|movement| movement.reach_ok), 4, "and four work at reach as well as close");
+    assert_eq!(count(&|movement| movement.take_weapon), 1, "one takes the weapon for the striker");
+    assert_eq!(count(&|movement| movement.dummy), 0, "**no style offers a dummy in this corpus**");
+    assert_eq!(count(&|movement| movement.dodge_counter), 0, "and none answers a dodge");
+    assert_eq!(count(&|movement| movement.needs_ammo), 0, "and none wants a loaded weapon");
+}

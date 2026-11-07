@@ -153,3 +153,103 @@ pub fn pick(candidates: &[Candidate], roll: f64) -> Option<String> {
     let index = (roll.clamp(0.0, 1.0) * entries.len() as f64).floor() as usize;
     entries.get(index.min(last)).map(|id| (*id).to_owned())
 }
+
+/// What a move says about itself, as far as whether it is offered goes.
+///
+/// Reference: `ma_technique` (`martialarts.h:162-247`) - the flags `evaluate_technique` reads before it ever looks at the requirement.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TechniqueFlags {
+    /// How many entries the move is worth. **Negative means a chance**: `one_in( |weighting| )` decides whether it is offered at all.
+    pub weighting: i32,
+    /// A placeholder the reference never offers.
+    pub dummy: bool,
+    /// A counter rather than an attack.
+    pub defensive: bool,
+    /// Only offered on a critical hit.
+    pub crit_tec: bool,
+    /// Offered whether or not the hit was critical.
+    pub crit_ok: bool,
+    /// Only offered during a reach attack.
+    pub reach_tec: bool,
+    /// Offered during a reach attack as well as an ordinary one.
+    pub reach_ok: bool,
+    /// Answers a dodge.
+    pub dodge_counter: bool,
+    /// Answers a block.
+    pub block_counter: bool,
+    /// Needs a loaded weapon.
+    pub needs_ammo: bool,
+    /// Takes the target's weapon away.
+    pub disarms: bool,
+    /// Takes the target's weapon for the striker.
+    pub take_weapon: bool,
+}
+
+/// The moment a move is being offered for.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Moment {
+    /// Whether the blow is critical.
+    pub crit: bool,
+    /// Whether the attack reaches.
+    pub reach_attacking: bool,
+    /// Whether the striker is looking for a dodge counter.
+    pub dodge_counter: bool,
+    /// Whether the striker is looking for a block counter.
+    pub block_counter: bool,
+    /// Whether the weapon is loaded.
+    pub loaded: bool,
+    /// Whether the target carries a weapon.
+    pub target_armed: bool,
+    /// Whether the striker carries one.
+    pub self_armed: bool,
+    /// Whether there is a wall beside the striker.
+    pub wall_adjacent: bool,
+}
+
+/// Whether a move is offered in this moment, given one uniform roll for its chance.
+///
+/// Reference: `Character::evaluate_technique` (`melee.cpp:1446-1550`), in the reference's own order, because the order is what a reader diffs against:
+///
+/// 1. a **dummy** is never offered;
+/// 2. a **defensive** move is a counter, so it is offered only when a counter is being looked for, and the two kinds must match;
+/// 3. a **reach** move needs a reach attack, and a reach attack needs a move that allows it;
+/// 4. **criticality must match**: a move that is not `crit_ok` is offered only when the moment's criticality equals its own `crit_tec`;
+/// 5. **ammunition** and the two weapon-taking rules;
+/// 6. a **negative weighting** is a chance rather than a prohibition - `one_in( |weighting| )` - which is the line that looks like an exclusion and is not.
+#[must_use]
+pub fn offers(flags: &TechniqueFlags, moment: &Moment, roll: f64) -> bool {
+    if flags.dummy {
+        return false;
+    }
+    if flags.defensive && !(moment.dodge_counter && flags.dodge_counter || moment.block_counter && flags.block_counter) {
+        return false;
+    }
+    if moment.dodge_counter != flags.dodge_counter || moment.block_counter != flags.block_counter {
+        return false;
+    }
+    if flags.reach_tec && !moment.reach_attacking {
+        return false;
+    }
+    if !(flags.reach_ok || flags.reach_tec) && moment.reach_attacking {
+        return false;
+    }
+    if !flags.crit_ok && (moment.crit != flags.crit_tec) {
+        return false;
+    }
+    if flags.needs_ammo && !moment.loaded {
+        return false;
+    }
+    if flags.disarms && !moment.target_armed {
+        return false;
+    }
+    if flags.take_weapon && (moment.self_armed || !moment.target_armed) {
+        return false;
+    }
+    if flags.weighting < 0 {
+        let chance = f64::from(flags.weighting.unsigned_abs());
+        return chance > 0.0 && roll < 1.0 / chance;
+    }
+    true
+}

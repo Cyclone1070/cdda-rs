@@ -16708,6 +16708,11 @@ offered at all.
 `weighting - 1` more times, and one is drawn uniformly - so **a move weighted nothing still gets one entry**, because the reference's first push happens whatever the weighting says. The corpus
 weights 171 moves, 33 above one and up to a hundred, so the duplication is the norm rather than a corner.
 
+**And whether a move is offered at all** (round 1382): `martial_arts::offers` is `Character::evaluate_technique` (`melee.cpp:1446-1550`) in the reference's own order - dummy, the counters,
+reach, criticality, ammunition, the two weapon rules, and the **negative weighting**, which is `one_in( |weighting| )` rather than a prohibition. The dump carries the flags, and the corpus's own
+counts are gated: **49 moves critical-only, 38 crit-either-way, 30 counters, 13 disarms, 2 block counters, 1 reach-only, 1 take-weapon** - and **dummy, dodge-counter and needs-ammo are empty**,
+which is named rather than treated as proven.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

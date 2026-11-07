@@ -1479,3 +1479,6 @@ own numbers stay unloaded, and the reason is now written down: `bonus_container`
 
 **Round 1381 ported technique selection**: the weighting is entries in a uniform list, and the corpus weights 171 moves with 33 above one and a maximum of a hundred. The mutation check made a
 weighting of nothing mean no entry and the boundary gate failed - which is the one line of `pick_technique` a port drops, since the `> 1` guard looks like it excludes a weight of zero.
+
+**Round 1382 ported the qualification of a move**: six refusals in the reference's own order, and the flags that carry them in the dump. The corpus's counts were guessed wrong the first time - sixteen
+defensive against the data's thirty, three critical-only against forty-nine - and the corrected gate now names the three branches the corpus never reaches: dummy, dodge counter and ammunition.

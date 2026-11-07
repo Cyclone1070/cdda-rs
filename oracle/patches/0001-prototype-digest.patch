@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-08 06:19:57
-@@ -0,0 +1,7544 @@
++++ oracle/src/src/harness.cpp	2026-11-08 07:02:52
+@@ -0,0 +1,7555 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1779,6 +1779,17 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                << ",\"weighting\":" << technique.weighting
 +                << ",\"defensive\":" << ( technique.defensive ? "true" : "false" )
 +                << ",\"crit_tec\":" << ( technique.crit_tec ? "true" : "false" )
++                // **The flags that decide whether a move is offered at all** (`evaluate_technique`, `melee.cpp:1446-1550`): a dummy is never offered, a counter only answers a counter, a
++                // critical-only move needs a critical, a reach move needs a reach attack, and a disarming move does nothing against a body with no weapon.
++                << ",\"dummy\":" << ( technique.dummy ? "true" : "false" )
++                << ",\"crit_ok\":" << ( technique.crit_ok ? "true" : "false" )
++                << ",\"reach_tec\":" << ( technique.reach_tec ? "true" : "false" )
++                << ",\"reach_ok\":" << ( technique.reach_ok ? "true" : "false" )
++                << ",\"dodge_counter\":" << ( technique.dodge_counter ? "true" : "false" )
++                << ",\"block_counter\":" << ( technique.block_counter ? "true" : "false" )
++                << ",\"needs_ammo\":" << ( technique.needs_ammo ? "true" : "false" )
++                << ",\"disarms\":" << ( technique.disarms ? "true" : "false" )
++                << ",\"take_weapon\":" << ( technique.take_weapon ? "true" : "false" )
 +                << ",\"unarmed_allowed\":" << ( technique.reqs.unarmed_allowed ? "true" : "false" )
 +                << ",\"melee_allowed\":" << ( technique.reqs.melee_allowed ? "true" : "false" )
 +                << ",\"strictly_unarmed\":" << ( technique.reqs.strictly_unarmed ? "true" : "false" )
