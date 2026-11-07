@@ -1473,3 +1473,6 @@ only, melee only with a stated category, and both. The dump cost three builds: a
 **Round 1379 gave the buffs their arithmetic**: the scaling switch with `NONE` answering the scale itself, the flat sum, and the multiplier product clamped at zero. The mutation check made `NONE`
 answer zero and two gates failed - the null-scaling case and the flat sum that leans on it. One fixture of the round was wrong in its own arithmetic: two negative multipliers multiply to a
 **positive**, so the clamp needs an odd count to be visible at all.
+
+**Round 1380 gave the styles their moves**: the technique column on the martial arts dump (171 techniques over 38 styles) and two gates on what a style offers and what a move needs. The buffs'
+own numbers stay unloaded, and the reason is now written down: `bonus_container` is private and takes a `Character`, so a dump would have to probe and solve rather than read.

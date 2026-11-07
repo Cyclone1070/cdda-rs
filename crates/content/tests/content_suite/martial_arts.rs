@@ -64,3 +64,46 @@ fn a_style_can_refuse_every_weapon() {
     let strictly = found.all.iter().filter(|style| style.strictly_melee).count();
     assert!(strictly > 0, "and some insist on one");
 }
+
+/// A style is a set of **moves** as well as a set of buffs, and every move states the same kind of requirement.
+///
+/// Reference: `martialart::techniques` (`martialarts.h:409`) and `ma_technique` (`:162-247`). **171 techniques across the 38 styles**, which is the other half of what a fight reads: a buff
+/// changes the striker, a technique changes the blow.
+#[test]
+fn a_style_offers_the_moves_the_data_gives_it() {
+    let found = styles();
+    let techniques: usize = found.all.iter().map(|style| style.techniques.len()).sum();
+    assert_eq!(techniques, 171, "**the corpus gives the styles a hundred and seventy-one moves**");
+
+    let aikido = found.all.iter().find(|style| style.id == "style_aikido").expect("aikido");
+    let disarm = aikido
+        .techniques
+        .iter()
+        .find(|technique| technique.id == "tec_aikido_dodgedisarm")
+        .expect("aikido's dodge disarm");
+    assert_eq!(disarm.weighting, 1, "the data's weighting is kept");
+    assert!(!disarm.defensive, "a disarm is an attack rather than a counter");
+    assert!(
+        disarm.requirement.strictly_unarmed || disarm.requirement.unarmed_allowed,
+        "**and it says what it needs in hand**, like any buff"
+    );
+
+    // A counter is marked as one, which is the flag that decides whether it fires on a hit or on a dodge.
+    assert!(
+        aikido.techniques.iter().any(|technique| technique.defensive),
+        "aikido offers at least one counter"
+    );
+}
+
+/// A technique that only fires on a critical says so, which is the flag the fight has to honour.
+#[test]
+fn a_technique_can_require_a_critical() {
+    let found = styles();
+    let critical = found
+        .all
+        .iter()
+        .flat_map(|style| style.techniques.iter())
+        .filter(|technique| technique.crit_tec)
+        .count();
+    assert!(critical > 0, "**some moves only fire on a critical hit**");
+}

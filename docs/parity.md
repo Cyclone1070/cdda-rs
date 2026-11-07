@@ -16700,6 +16700,14 @@ an empty hand, a melee-only one needs a weapon whose categories the requirement 
 (`:221-258`) - flat bonuses **add** and answer zero for a stat with none, multipliers **start at one**, multiply, and are **clamped at zero** with the reference's own comment that all its effects are
 non-negative. **A bonus that scales with nothing is its scale, not zero**, which is the case a port defaults wrongly.
 
+**A style is a set of moves as well as a set of buffs** (round 1380): `content::martial_arts::Technique` reads `martialart::techniques` (`martialarts.h:409`) and each `ma_technique`'s
+requirement, weighting, defensive and critical-only flags - **171 techniques across the 38 styles**. What a move *does* to a body is the half not ported; the requirement is what decides whether it is
+offered at all.
+
+**The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
+(`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
+(round 1379); the *numbers* wait for a reachable accessor.
+
 **Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' two **other** practice
 paths (`practice_kill` in `kill_tracker.cpp:128` - a minute - and `practice_dissect` in `butchery.cpp:953` - two fifteen-minute halves, because proficiency practice is capped - which need the kill
 tracker and butchery), `physical`/`non_physical` map keys, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

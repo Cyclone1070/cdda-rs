@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-08 01:00:08
-@@ -0,0 +1,7514 @@
++++ oracle/src/src/harness.cpp	2026-11-08 06:19:57
+@@ -0,0 +1,7544 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1764,6 +1764,36 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                out << "\"" << flag.str() << "\"";
 +            }
 +            out << "]}";
++        }
++        // **The techniques the style offers** (`martialart::techniques`, `martialarts.h:409`): a style is a set of buffs *and* a set of moves, and every move states the same kind of requirement
++        // a buff does. The reference reaches a technique by id, so the dump walks the style's own set rather than a registry the reference keeps private.
++        out << "],\"techniques\":[";
++        bool first_technique = true;
++        for( const matec_id &technique_id : style.techniques ) {
++            const ma_technique &technique = technique_id.obj();
++            if( !first_technique ) {
++                out << ",";
++            }
++            first_technique = false;
++            out << "{\"id\":\"" << technique.id.str() << "\",\"name\":\"" << harness_escape( technique.name.translated() ) << "\""
++                << ",\"weighting\":" << technique.weighting
++                << ",\"defensive\":" << ( technique.defensive ? "true" : "false" )
++                << ",\"crit_tec\":" << ( technique.crit_tec ? "true" : "false" )
++                << ",\"unarmed_allowed\":" << ( technique.reqs.unarmed_allowed ? "true" : "false" )
++                << ",\"melee_allowed\":" << ( technique.reqs.melee_allowed ? "true" : "false" )
++                << ",\"strictly_unarmed\":" << ( technique.reqs.strictly_unarmed ? "true" : "false" )
++                << ",\"wall_adjacent\":" << ( technique.reqs.wall_adjacent ? "true" : "false" )
++                << ",\"weapon_categories\":[";
++            bool first_technique_category = true;
++            for( const weapon_category_id &category : technique.reqs.weapon_categories_allowed ) {
++                if( !first_technique_category ) {
++                    out << ",";
++                }
++                first_technique_category = false;
++                out << "\"" << category.str() << "\"";
++            }
++            out << "]";
++            out << "}";
 +        }
 +        out << "]}";
 +    }

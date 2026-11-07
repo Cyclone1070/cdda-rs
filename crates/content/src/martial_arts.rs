@@ -49,6 +49,28 @@ pub struct Style {
     pub weapon_categories: Vec<String>,
     /// Its static buffs, in the data's order.
     pub static_buffs: Vec<BuffRequirement>,
+    /// The moves it offers, each with the requirement it states.
+    pub techniques: Vec<Technique>,
+}
+
+/// One technique a style offers.
+///
+/// Reference: `ma_technique` (`martialarts.h:162-247`): the same `ma_requirements` a buff carries, plus what the move does - how likely it is to be chosen, whether it is defensive, and whether it
+/// only fires on a critical. **What the move does to a body is the half not ported**: this is the requirement, which is what decides whether the move is offered at all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Technique {
+    /// Its id.
+    pub id: String,
+    /// What it is called.
+    pub name: String,
+    /// How often the move is chosen among those that qualify.
+    pub weighting: i32,
+    /// Whether it is a counter rather than an attack.
+    pub defensive: bool,
+    /// Whether it only fires on a critical hit.
+    pub crit_tec: bool,
+    /// The requirement it states.
+    pub requirement: BuffRequirement,
 }
 
 /// Every style the data defines, in the reference's own order.
@@ -126,6 +148,33 @@ pub fn read_style(object: &Object) -> Option<Style> {
             });
         }
     }
+    let mut techniques = Vec::new();
+    if let Some(Value::Array(entries)) = object.get("techniques") {
+        for entry in entries {
+            let Value::Object(technique) = entry else {
+                continue;
+            };
+            let Some(technique_id) = text(technique, "id") else {
+                continue;
+            };
+            techniques.push(Technique {
+                name: text(technique, "name").unwrap_or_default(),
+                weighting: number(technique, "weighting", 0),
+                defensive: flag(technique, "defensive"),
+                crit_tec: flag(technique, "crit_tec"),
+                requirement: BuffRequirement {
+                    id: technique_id.clone(),
+                    unarmed_allowed: flag(technique, "unarmed_allowed"),
+                    melee_allowed: flag(technique, "melee_allowed"),
+                    strictly_unarmed: flag(technique, "strictly_unarmed"),
+                    wall_adjacent: flag(technique, "wall_adjacent"),
+                    weapon_categories: words(technique, "weapon_categories"),
+                    min_skill: Vec::new(),
+                },
+                id: technique_id,
+            });
+        }
+    }
     Some(Style {
         name: text(object, "name").unwrap_or_default(),
         arm_block: number(object, "arm_block", 0),
@@ -137,6 +186,7 @@ pub fn read_style(object: &Object) -> Option<Style> {
         force_unarmed: flag(object, "force_unarmed"),
         weapon_categories: words(object, "weapon_categories"),
         static_buffs,
+        techniques,
         id,
     })
 }
