@@ -122,3 +122,75 @@ fn flat_bonuses_add_and_multipliers_multiply_then_clamp() {
     );
     assert_eq!(mult_of(&negative, "speed"), 0.0, "**and a product below zero is clamped to zero**");
 }
+
+/// A move's `weighting` is how many times it appears in the list the pick chooses from, and **every move that qualifies appears at least once**.
+///
+/// Reference: `Character::pick_technique` (`melee.cpp:1406-1440`): the qualified techniques are pushed once, then `weighting - 1` more times, and `random_entry` picks uniformly from that list.
+/// So a weighting of four is four entries out of five, and **a weighting of nothing is still one entry** - the `> 1` guard means the loop never runs, but the first push already happened.
+#[test]
+fn a_move_s_weighting_is_how_many_entries_it_gets() {
+    use cdda_sim::martial_arts::{Candidate, pick};
+
+    let candidates = vec![
+        Candidate { id: "tec_a".to_owned(), weighting: 1 },
+        Candidate { id: "tec_b".to_owned(), weighting: 3 },
+    ];
+    // Four entries: a, b, b, b. A roll is `[0, 1)`, so the boundaries are three quarters of the way through.
+    assert_eq!(pick(&candidates, 0.0).as_deref(), Some("tec_a"), "the first entry is the first move");
+    assert_eq!(pick(&candidates, 0.24).as_deref(), Some("tec_a"), "**a quarter of the range is the one-entry move**");
+    assert_eq!(pick(&candidates, 0.25).as_deref(), Some("tec_b"), "and the next quarter is the three-entry one");
+    assert_eq!(pick(&candidates, 0.99).as_deref(), Some("tec_b"), "right up to the end");
+
+    // **A weighting of nothing is still offered**: the reference pushes every qualified technique before it duplicates any.
+    let zero = vec![
+        Candidate { id: "tec_never".to_owned(), weighting: 0 },
+        Candidate { id: "tec_once".to_owned(), weighting: 1 },
+    ];
+    assert_eq!(pick(&zero, 0.0).as_deref(), Some("tec_never"), "a move weighted nothing is still one entry in two");
+    assert_eq!(pick(&zero, 0.5).as_deref(), Some("tec_once"), "and the other is the other half");
+
+    // Nothing qualifies, so nothing is picked - which the reference spells as `tec_none`.
+    assert_eq!(pick(&[], 0.5), None, "**an empty list picks nothing at all**");
+}
+
+/// The data does weight its moves, so the duplication branch is a rule the corpus needs rather than a hypothetical.
+#[test]
+fn the_corpus_weights_its_moves_evenly_enough_to_need_the_rule() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/martial-arts/martial-arts.json");
+    let text = std::fs::read(path).expect("the martial arts dump exists");
+    let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the dump's root is an object");
+    };
+    let Some(cdda_json::Value::Array(rows)) = root.get("styles") else {
+        panic!("the dump has styles");
+    };
+    let mut weightings = Vec::new();
+    for row in rows {
+        let cdda_json::Value::Object(style) = row else {
+            continue;
+        };
+        let Some(cdda_json::Value::Array(moves)) = style.get("techniques") else {
+            continue;
+        };
+        for one in moves {
+            let cdda_json::Value::Object(move_row) = one else {
+                continue;
+            };
+            if let Some(cdda_json::Value::Int(weighting)) = move_row.get("weighting") {
+                weightings.push(*weighting);
+            }
+        }
+    }
+    assert_eq!(weightings.len(), 171, "**a hundred and seventy-one moves in the corpus**");
+    assert!(
+        weightings.iter().filter(|weighting| **weighting > 1).count() > 20,
+        "and more than twenty of them are weighted above one, so the duplication is not a corner case"
+    );
+    assert_eq!(
+        weightings.iter().copied().max(),
+        Some(100),
+        "the heaviest weighting is a hundred"
+    );
+}

@@ -1476,3 +1476,6 @@ answer zero and two gates failed - the null-scaling case and the flat sum that l
 
 **Round 1380 gave the styles their moves**: the technique column on the martial arts dump (171 techniques over 38 styles) and two gates on what a style offers and what a move needs. The buffs'
 own numbers stay unloaded, and the reason is now written down: `bonus_container` is private and takes a `Character`, so a dump would have to probe and solve rather than read.
+
+**Round 1381 ported technique selection**: the weighting is entries in a uniform list, and the corpus weights 171 moves with 33 above one and a maximum of a hundred. The mutation check made a
+weighting of nothing mean no entry and the boundary gate failed - which is the one line of `pick_technique` a port drops, since the `> 1` guard looks like it excludes a weight of zero.

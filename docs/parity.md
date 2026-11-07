@@ -16704,6 +16704,10 @@ non-negative. **A bonus that scales with nothing is its scale, not zero**, which
 requirement, weighting, defensive and critical-only flags - **171 techniques across the 38 styles**. What a move *does* to a body is the half not ported; the requirement is what decides whether it is
 offered at all.
 
+**A style picks one of its moves by weight** (round 1381): `martial_arts::pick` is `Character::pick_technique` (`melee.cpp:1406-1440`) - every qualified move is pushed once, then
+`weighting - 1` more times, and one is drawn uniformly - so **a move weighted nothing still gets one entry**, because the reference's first push happens whatever the weighting says. The corpus
+weights 171 moves, 33 above one and up to a hundred, so the duplication is the norm rather than a corner.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

@@ -122,3 +122,34 @@ pub fn mult_of(bonuses: &std::collections::BTreeMap<String, Vec<Bonus>>, stat: &
         product.max(0.0)
     })
 }
+
+/// One move that has already qualified, and how many entries it is worth.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Candidate {
+    /// The technique's id.
+    pub id: String,
+    /// Its `weighting`: how many entries it gets in the list the pick chooses from.
+    pub weighting: i32,
+}
+
+/// Which move a striker makes, given the ones that qualified and one uniform roll.
+///
+/// Reference: `Character::pick_technique` (`melee.cpp:1406-1440`): every qualified technique is pushed once, then `weighting - 1` more times, and `random_entry` picks one uniformly - **so a
+/// weighting of nothing still gets one entry**, because the first push happens whatever the weighting says. An empty list answers nothing, which the reference spells `tec_none`.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+pub fn pick(candidates: &[Candidate], roll: f64) -> Option<String> {
+    if candidates.is_empty() {
+        return None;
+    }
+    let mut entries: Vec<&str> = Vec::new();
+    for candidate in candidates {
+        entries.push(&candidate.id);
+        for _ in 1..candidate.weighting {
+            entries.push(&candidate.id);
+        }
+    }
+    let last = entries.len() - 1;
+    let index = (roll.clamp(0.0, 1.0) * entries.len() as f64).floor() as usize;
+    entries.get(index.min(last)).map(|id| (*id).to_owned())
+}
