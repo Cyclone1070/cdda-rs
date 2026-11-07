@@ -262,6 +262,7 @@ fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
                 helps_attacker: true,
                 difficulties: vec![-100.0; 5],
                 coverage_multipliers: vec![1.0; 5],
+                effects: Vec::new(),
                 factors,
             };
             let plain = WeakPoint {
@@ -270,6 +271,7 @@ fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
                 helps_attacker: true,
                 difficulties: vec![-100.0; 5],
                 coverage_multipliers: vec![1.0; 5],
+                effects: Vec::new(),
                 factors: WeakpointFactors::default(),
             };
             world.entity_mut(zombie).insert(WeakPoints {
@@ -383,4 +385,160 @@ fn a_blow_is_read_against_the_difficulty_of_its_biggest_damage_type() {
         0.0,
         "**a list too short to hold the index answers nothing rather than the wrong figure**"
     );
+}
+
+/// A weak point that is struck can trigger something.
+///
+/// Reference: `weakpoint_effect::apply_to` (`weakpoint.cpp:273-300`). Three gates before anything happens, **in this order**:
+///
+/// ```text
+/// percent_hp = min( 100, 100 * total_damage / hp_max )
+/// if percent_hp < damage_required.first or damage_required.second < percent_hp: return
+/// if not ( rng_float( 0, 100 ) < chance ): return
+/// then add the effect for rng( duration.first, duration.second ) turns at rng( intensity.first, intensity.second )
+/// ```
+///
+/// **The damage gate comes first and it is a share of the body's maximum, capped at a hundred** - so a blow that removes a quarter of a small body's hit points passes a twenty percent gate while the
+/// same blow against a huge one does not. The chance is a **strict** `rng < chance`, so a chance of zero never fires and a chance of a hundred always does.
+#[test]
+fn a_struck_weak_point_can_trigger_an_effect() {
+    use cdda_sim::weakpoints::{TriggeredEffect, triggers};
+
+    let stun = TriggeredEffect {
+        effect: "stunned".to_owned(),
+        chance: 100.0,
+        damage_required: (20.0, 100.0),
+        duration: (2, 4),
+        intensity: (1, 1),
+        permanent: false,
+    };
+
+    // A body of a hundred and twenty hit points taking thirty: a quarter of it, so **in range**.
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    assert!(
+        triggers(&stun, 30, 120, &mut rolls),
+        "**a quarter of the body passes a twenty percent gate**, and a chance of a hundred always fires"
+    );
+    // A body of a thousand taking the same thirty: three percent, so **out of range** whatever the chance says.
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    assert!(!triggers(&stun, 30, 1_000, &mut rolls), "three percent of a huge body does not");
+    // The cap: a blow that takes everything is a hundred percent, not more, so a gate with a ceiling of a hundred still passes.
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    assert!(triggers(&stun, 500, 100, &mut rolls), "**the share is capped at a hundred**, so overkill still passes");
+    // A chance of zero never fires, because the comparison is strict.
+    let never = TriggeredEffect { chance: 0.0, ..stun.clone() };
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    assert!(!triggers(&never, 30, 120, &mut rolls), "a chance of zero never fires");
+    // A body with no maximum has no share to speak of, and the reference would divide by zero; the port answers zero rather than a nonsense share.
+    let mut rolls = cdda_core_types::rng::Rolls::new(7);
+    assert!(!triggers(&stun, 30, 0, &mut rolls), "a body with no maximum triggers nothing");
+}
+
+/// A blow into a weak point that triggers an effect leaves it on the body.
+///
+/// Reference: `wkpt->apply_effects( *this, total_damage, attack )` (`creature.cpp:1453-1455`), called after `apply_damage`, so **the effect lands only when the blow actually landed** and is given the
+/// damage the body took rather than the blow's face value. The effect is added for a duration drawn from the data's range and at an intensity from its own.
+///
+/// **This is the half of a weak point that no number shows**: a struck eye is not worth more damage, it blinds.
+#[test]
+fn a_blow_into_a_weak_point_leaves_the_effect_it_triggers() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::item_registry::{Kind, set_item_types};
+    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, WeakpointFactors};
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(9));
+    set_item_types(
+        &mut world,
+        &[Kind {
+            id: "rock",
+            volume_ml: 50,
+            weight_g: 657,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 20.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let rock = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock");
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // **An effect only lands if the world has been told what it is**: the store holds effect definitions by id, so the fixture registers the one the data names.
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[cdda_content::effects::EffectType {
+            id: "stunned".to_owned(),
+            max_intensity: 5,
+            max_duration: 100,
+            dur_add_perc: 100,
+            int_add_val: 0,
+            int_decay_step: -1,
+            int_decay_tick: 0,
+            int_dur_factor: 0,
+            int_decay_remove: false,
+            main_parts_only: false,
+            show_in_info: false,
+            show_intensity: true,
+            pain_sizing: false,
+            hurt_sizing: false,
+            harmful_cough: false,
+            impairs_movement: false,
+            pkill_addict_reduces: false,
+            kill_chance: Vec::new(),
+            red_kill_chance: Vec::new(),
+            apply_ratings: Vec::new(),
+            flags: std::collections::BTreeSet::new(),
+            resist_traits: Vec::new(),
+            resist_effects: Vec::new(),
+            removes_effects: Vec::new(),
+            blocks_effects: Vec::new(),
+            mods: cdda_content::effects::ModTable::new(),
+        }],
+    );
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert((
+        cdda_sim::creature::Health { hp: 120, max_hp: 120 },
+        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+    ));
+    world.entity_mut(survivor).insert((
+        cdda_sim::creature::Dexterity { base: 8 },
+        cdda_sim::creature::Wielding(rock),
+    ));
+    // A weak point that cannot be missed and always stuns for two turns: the damage gate is met by a sixth of the body, which twenty of a hundred and twenty is.
+    world.entity_mut(zombie).insert(WeakPoints {
+        entries: vec![WeakPoint {
+            id: "the eye".to_owned(),
+            coverage: 100.0,
+            helps_attacker: true,
+            difficulties: vec![-100.0; 5],
+            coverage_multipliers: vec![1.0; 5],
+            factors: WeakpointFactors::default(),
+            effects: vec![cdda_sim::weakpoints::TriggeredEffect {
+                effect: "stunned".to_owned(),
+                chance: 100.0,
+                damage_required: (5.0, 100.0),
+                duration: (2, 2),
+                intensity: (1, 1),
+                permanent: false,
+            }],
+        }],
+        default: WeakPoint {
+            id: String::new(),
+            coverage: 100.0,
+            helps_attacker: true,
+            difficulties: vec![-100.0; 5],
+            coverage_multipliers: vec![1.0; 5],
+            factors: WeakpointFactors::default(),
+            effects: Vec::new(),
+        },
+    });
+
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    let worn = cdda_sim::applied_effects::worn(&world, zombie);
+    let stun = worn
+        .iter()
+        .find(|worn| worn.id == "stunned")
+        .expect("**a blow into a weak point that stuns leaves the body stunned**");
+    assert_eq!(stun.duration, 2, "for the two turns the data states, from a range of two to two");
 }

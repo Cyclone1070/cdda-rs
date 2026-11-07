@@ -16647,5 +16647,16 @@ data's `difficulty` and `coverage_mult` lists are read by, and `type_of_melee_at
 **Before this round every blow was read against index zero.** A knife through a zombie's eye was asked the `NONE` difficulty of minus a hundred instead of the stab difficulty of six - so the port
 made every weak point far easier to hit than the reference does, and the error was invisible because it made the port *succeed* more often.
 
-**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys, the projectile path's own `wp_skill`
-(`ranged_weakpoint_skill` and `throw_weakpoint_skill`), the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.
+**What a struck weak point *does* came last** (round 1370): `--dump-weakpoint-sets` now writes the `effects` column - **258 of them across the 48 sets** - and `weakpoint_effect::apply_to`
+(`weakpoint.cpp:273-300`) is ported as `weakpoints::triggers` plus the strike's `triggered_effects`. The damage gate is a **share of the body's maximum hit points, capped at a hundred**, and it is
+asked **before** the chance, so a blow that is too small never rolls at all.
+
+**The draws are made whether or not the effect fires.** The reference draws the duration and intensity *after* the chance (`weakpoint.cpp:286-289`), so a replayed seed must see the same
+sequence whichever way the roll went - the port draws first and only then decides.
+
+**A struck eye is not worth more damage, it blinds.** That is the half of a weak point no number shows: an eye at a hundred percent coverage is a two percent chance, and what it buys is 86,400 turns
+of blindness at a thirty-five percent share of the body.
+
+**Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the proficiency families that shift the
+skill, `physical`/`non_physical` map keys, the projectile path's own `wp_skill`, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own
+`PartArmour` roll.

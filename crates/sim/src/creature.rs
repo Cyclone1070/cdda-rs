@@ -3099,6 +3099,11 @@ fn strike_with(
             settle_armour(world, victim, part, arrived, garment_roll);
         }
         hurt(world, victim, swung.damage);
+        // Reference: `wkpt->apply_effects( *this, total_damage, attack )` (`creature.cpp:1453-1455`) runs **after** the damage lands, and is told the damage the body took rather than the blow's
+        // face value - so a weak point's effect fires on what arrived and not on what was swung.
+        if let Some(weak) = found.as_ref() {
+            triggered_effects(world, victim, weak, swung.damage);
+        }
         #[allow(clippy::cast_possible_truncation)]
         {
             dealt = swung.damage as i32;
@@ -3154,6 +3159,44 @@ fn weak_point_found(
         || Some(weak_points.default.clone()),
         |index| weak_points.entries.get(index).cloned(),
     )
+}
+
+/// Leaves on the body whatever the struck weak point triggers.
+///
+/// Reference: `weakpoint_effect::apply_to` (`weakpoint.cpp:273-300`) - the damage gate is a share of the body's **maximum** hit points, capped at a hundred, and the chance is a strict
+/// `rng_float( 0, 100 ) < chance`. **An effect the store has not been told about is not given**: the reference would look one up and find nothing, and inventing a name here would put a row in the
+/// store that no definition can ever read.
+fn triggered_effects(
+    world: &mut World,
+    victim: Entity,
+    weak: &crate::weakpoints::WeakPoint,
+    damage: f32,
+) {
+    let maximum = world.get::<Health>(victim).map_or(0, |health| health.max_hp);
+    #[allow(clippy::cast_possible_truncation)]
+    let dealt = damage as i32;
+    for effect in &weak.effects {
+        let Some(kind) = crate::effect_registry::kind_of(world, &effect.effect) else {
+            continue;
+        };
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            return;
+        };
+        let fires = crate::weakpoints::triggers(effect, dealt, maximum, &mut rolls);
+        // **The draws happen whether or not the effect fires**, because the reference draws the duration and the intensity after the chance
+        // (`weakpoint.cpp:286-289`) - and a replayed seed has to see the same sequence whichever way the roll went.
+        let duration = i64::from(rolls.rng(effect.duration.0, effect.duration.1));
+        let intensity = rolls.rng(effect.intensity.0, effect.intensity.1);
+        crate::singletons::put_rolls(world, rolls);
+        if fires {
+            let mut worn = crate::effects::ActiveEffect::new(&kind, duration, intensity);
+            if effect.permanent {
+                worn.duration = kind.max_duration;
+                worn.permanent = true;
+            }
+            crate::applied_effects::add(world, victim, worn);
+        }
+    }
 }
 
 /// What a character's blow brings to the question "was it a critical".

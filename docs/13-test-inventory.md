@@ -1438,3 +1438,7 @@ crit from a miss now proves the crit roll is not what decides the damage.
 
 **Round 1369 gave the walk its attack type**: the reference's five-entry enum, its order as the index, and `type_of_melee_attack`'s largest-amount rule. Every blow was read against index zero
 before this, which made a knife's stab at a head use the `NONE` difficulty of minus a hundred instead of six.
+
+**Round 1370 gave a struck weak point something to do**: `weakpoint_effect::apply_to` is `weakpoints::triggers` plus the strike's `triggered_effects`, its damage gate is a share of the body capped at a
+hundred and asked before the chance, and the dump now carries **258 effects** across the 48 sets. An effect the store has not been told about is not given, and the duration and intensity draws are
+made whether or not the effect fires, so a replayed seed sees the same sequence.

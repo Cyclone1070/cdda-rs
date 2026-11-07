@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-07 19:24:56
-@@ -0,0 +1,7390 @@
++++ oracle/src/src/harness.cpp	2026-11-07 21:24:47
+@@ -0,0 +1,7405 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -6898,6 +6898,21 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fprintf( out, "],\"difficulty\":[" );
 +    for( int i = 0; i < static_cast<int>( weakpoint_attack::attack_type::NUM ); i++ ) {
 +        std::fprintf( out, "%s%.6f", i == 0 ? "" : ",", static_cast<double>( weakpoint.difficulty.difficulty[i] ) );
++    }
++    // **What a struck weak point can trigger** (`weakpoint_effect`, `weakpoint.h:68-92`): an effect id, the chance, the share of the body it must take, the duration and intensity ranges, and
++    // whether it is permanent. Without this column a port can find a head and has nothing to do to the body it found.
++    std::fprintf( out, "],\"effects\":[" );
++    bool first_effect = true;
++    for( const weakpoint_effect &effect : weakpoint.effects ) {
++        std::fprintf( out,
++                      "%s{\"effect\":\"%s\",\"chance\":%.6f,\"permanent\":%s,"
++                      "\"duration\":[%d,%d],\"intensity\":[%d,%d],\"damage_required\":[%.6f,%.6f]}",
++                      first_effect ? "" : ",", harness_escape( effect.effect.str() ).c_str(),
++                      static_cast<double>( effect.chance ), effect.permanent ? "true" : "false",
++                      effect.duration.first, effect.duration.second, effect.intensity.first,
++                      effect.intensity.second, static_cast<double>( effect.damage_required.first ),
++                      static_cast<double>( effect.damage_required.second ) );
++        first_effect = false;
 +    }
 +    std::fprintf( out, "]}" );
 +}

@@ -233,6 +233,8 @@ pub struct WeakPoint {
     pub coverage_multipliers: Vec<f64>,
     /// Its armour and damage multipliers.
     pub factors: WeakpointFactors,
+    /// What a blow into it can trigger.
+    pub effects: Vec<TriggeredEffect>,
 }
 
 impl WeakPoint {
@@ -262,6 +264,18 @@ impl WeakPoints {
             helps_attacker: entry.helps_attacker,
             difficulties: entry.difficulty.clone(),
             coverage_multipliers: entry.coverage_multiplier.clone(),
+            effects: entry
+                .effects
+                .iter()
+                .map(|effect| TriggeredEffect {
+                    effect: effect.effect.clone(),
+                    chance: effect.chance,
+                    damage_required: effect.damage_required,
+                    duration: effect.duration,
+                    intensity: effect.intensity,
+                    permanent: effect.permanent,
+                })
+                .collect(),
             factors: WeakpointFactors {
                 armour_multiplier: entry.armour_multiplier.clone(),
                 armour_penalty: entry.armour_penalty.clone(),
@@ -383,4 +397,46 @@ pub fn type_of_melee_attack(damage: (i32, i32, i32)) -> AttackType {
 #[must_use]
 pub fn difficulty_for(list: &[f64], attack: AttackType) -> f64 {
     list.get(attack.index()).copied().unwrap_or(0.0)
+}
+
+/// Something a struck weak point can do to the body it was found on.
+///
+/// Reference: `weakpoint_effect` (`weakpoint.h:96-130`) - an effect id, the chance it fires, the share of the body's maximum hit points the blow must take, and the duration and intensity ranges.
+/// The port keeps the **rule's inputs**; an effect-on-condition and the message are named in `docs/parity.md`, because the port has no dialogue activation and no message channel here.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TriggeredEffect {
+    /// The effect's id, as the data names it.
+    pub effect: String,
+    /// The percent chance it fires, out of a hundred.
+    pub chance: f64,
+    /// The **share of the body's maximum hit points** the blow must take, as a percent range.
+    pub damage_required: (f64, f64),
+    /// How many turns it lasts, as a range.
+    pub duration: (i32, i32),
+    /// How strong it is, as a range.
+    pub intensity: (i32, i32),
+    /// Whether it never wears off.
+    pub permanent: bool,
+}
+
+/// Whether a struck weak point's effect fires on this blow.
+///
+/// Reference: `weakpoint_effect::apply_to` (`weakpoint.cpp:273-300`). **The damage gate is asked first**, as a share of the body's maximum capped at a hundred, and the chance is a strict
+/// `rng_float( 0, 100 ) < chance` - so a chance of zero never fires and one of a hundred always does. **A body with no maximum hit points triggers nothing**, which is the port's answer to a
+/// division the reference would have to guard.
+pub fn triggers(
+    effect: &TriggeredEffect,
+    total_damage: i32,
+    maximum_hit_points: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
+    if maximum_hit_points <= 0 {
+        return false;
+    }
+    let share = 100.0 * f64::from(total_damage) / f64::from(maximum_hit_points);
+    let share = share.min(100.0);
+    if share < effect.damage_required.0 || effect.damage_required.1 < share {
+        return false;
+    }
+    f64::from(rolls.rng(0, 10_000)) / 100.0 < effect.chance
 }

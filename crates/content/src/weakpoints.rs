@@ -32,6 +32,27 @@ pub struct Weakpoint {
     pub coverage_multiplier: Vec<f64>,
     /// The difficulty per attack type, in the same order.
     pub difficulty: Vec<f64>,
+    /// What a blow into it can trigger (`weakpoint_effect`).
+    pub effects: Vec<TriggeredEffect>,
+}
+
+/// Something a struck weak point can do to the body it was found on.
+///
+/// Reference: `weakpoint_effect` (`weakpoint.h:68-92`). The port keeps the rule's inputs and names the two it cannot honour - `effect_on_conditions` and the message - in `docs/parity.md`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TriggeredEffect {
+    /// The effect's id.
+    pub effect: String,
+    /// The percent chance it fires.
+    pub chance: f64,
+    /// Whether it never wears off.
+    pub permanent: bool,
+    /// How many turns it lasts, as a range.
+    pub duration: (i32, i32),
+    /// How strong it is, as a range.
+    pub intensity: (i32, i32),
+    /// The share of the body's maximum hit points the blow must take, as a percent range.
+    pub damage_required: (f64, f64),
 }
 
 /// A set of weak points and the default one.
@@ -43,6 +64,67 @@ pub struct WeakpointSet {
     pub weakpoints: Vec<Weakpoint>,
     /// The weak point that answers a roll nothing else took.
     pub default: Weakpoint,
+}
+
+/// Reads the effects a weak point can trigger.
+///
+/// # Errors
+/// None: an entry that states nothing readable is skipped rather than failing the whole set, because an effect the data leaves half-written must not stop a game from loading.
+fn read_effects(value: Option<&Value>) -> Vec<TriggeredEffect> {
+    let Some(Value::Array(entries)) = value else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in entries {
+        let Value::Object(object) = entry else {
+            continue;
+        };
+        let Some(Value::Str(effect)) = object.get("effect") else {
+            continue;
+        };
+        let number = |key: &str, fallback: f64| -> f64 {
+            match object.get(key) {
+                Some(Value::Float(found)) => *found,
+                Some(Value::Int(found)) => *found as f64,
+                _ => fallback,
+            }
+        };
+        let pair = |key: &str, fallback: (f64, f64)| -> (f64, f64) {
+            match object.get(key) {
+                Some(Value::Array(ends)) if ends.len() == 2 => (
+                    ends.first().and_then(as_number).unwrap_or(fallback.0),
+                    ends.get(1).and_then(as_number).unwrap_or(fallback.1),
+                ),
+                _ => fallback,
+            }
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        let whole = |value: f64| value as i32;
+        out.push(TriggeredEffect {
+            effect: effect.clone(),
+            chance: number("chance", 100.0),
+            permanent: matches!(object.get("permanent"), Some(Value::Bool(true))),
+            duration: {
+                let (first, second) = pair("duration", (0.0, 0.0));
+                (whole(first), whole(second))
+            },
+            intensity: {
+                let (first, second) = pair("intensity", (1.0, 1.0));
+                (whole(first), whole(second))
+            },
+            damage_required: pair("damage_required", (0.0, 100.0)),
+        });
+    }
+    out
+}
+
+/// A JSON number, whole or fractional.
+fn as_number(value: &Value) -> Option<f64> {
+    match value {
+        Value::Float(found) => Some(*found),
+        Value::Int(found) => Some(*found as f64),
+        _ => None,
+    }
 }
 
 /// Reads one weak point, from the dump's own shape.
@@ -114,6 +196,7 @@ pub fn read_weakpoint(value: &Value) -> Result<Weakpoint, LoadError> {
         // The reference's default weak point has **no coverage and no entries**, and the dump states that as an empty list rather than a guessed default.
         coverage_multiplier: list("coverage_mult"),
         difficulty: list("difficulty"),
+        effects: read_effects(object.get("effects")),
     })
 }
 

@@ -150,3 +150,41 @@ fn a_monster_states_the_weak_points_its_body_has() {
     // A blow to a zombie's head is **easier** than one to its body: its bash difficulty is two against the default's minus a hundred.
     assert!((head.difficulty[1] - 2.0).abs() < 1e-9, "melee bash difficulty two: {:?}", head.difficulty);
 }
+
+/// What a struck weak point triggers is data too.
+///
+/// Reference: `weakpoint_effect` (`weakpoint.h:68-92`), loaded by `weakpoint_effect::load` (`weakpoint.cpp:302-340`). **258 effects across the 48 sets**, and a set with none is a weak point that
+/// only changes numbers, which is the common case - so the gate counts both the whole and a known one rather than assuming every entry has an effect.
+#[test]
+fn a_weak_point_states_what_it_triggers() {
+    let sets = loaded();
+    let effects = sets
+        .iter()
+        .flat_map(|set| set.weakpoints.iter())
+        .flat_map(|entry| entry.effects.iter())
+        .count();
+    assert_eq!(effects, 258, "**the reference defines two hundred and fifty-eight weak-point effects**");
+
+    let blind = sets
+        .iter()
+        .flat_map(|set| set.weakpoints.iter())
+        .flat_map(|entry| entry.effects.iter())
+        .find(|effect| effect.effect == "blind")
+        .expect("some weak point blinds");
+    assert!(blind.chance > 0.0 && blind.chance <= 100.0, "a chance is a percentage: {}", blind.chance);
+    assert!(
+        (blind.damage_required.0 - 35.0).abs() < 1e-9 && (blind.damage_required.1 - 100.0).abs() < 1e-9,
+        "**an eye struck for a third of the body's hit points blinds**: {:?}",
+        blind.damage_required
+    );
+    assert!(blind.duration.0 > 0, "and it lasts: {:?}", blind.duration);
+
+    // The four fields the rule reads are loaded for every effect, so none of them is a zero a parser forgot to fill.
+    assert!(
+        sets.iter()
+            .flat_map(|set| set.weakpoints.iter())
+            .flat_map(|entry| entry.effects.iter())
+            .all(|effect| !effect.effect.is_empty() && effect.duration.1 >= effect.duration.0),
+        "every effect names an id and a duration that ends at or after it starts"
+    );
+}
