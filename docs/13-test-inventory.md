@@ -1458,3 +1458,6 @@ fixture's first penalty was positive and the gate failed backwards: the data's p
 
 **Round 1375 taught the attacker**: `practice_hit` is two seconds through the proficiency rule the crafting path already had, wired on all three attack kinds, and gated twice - once on the rule
 alone and once on a real swing, because a rule with no caller is not behaviour. The mutation check moved the span to one second and the swing gate answered one against two.
+
+**Round 1376 started butchery with its clock**: four gates against `butcher_time_to_cut`'s own numbers - the five sizes, the blade's percentage and its twenty-five floor, the eight actions with
+the two that have floors of their own, the field-dressed branch, and the quartered corpse. The first pass read the size table as moves and was off by a hundred; the table is turns.
