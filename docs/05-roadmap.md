@@ -1334,6 +1334,43 @@ prevent.
 10. Start the semantic frame dump in the oracle (B5) — it is the longest-lead infrastructure item and it
     gates P10.
 
+### P4 status at round 1370
+
+**Combat is a chain of small rules now, and every link is gated on the reference's own numbers.** From 1131 to 1370 the port finished the melee defence chain, the swing's two costs, the critical,
+and then the whole of weak points - the last of which is what made the rest of it *matter*.
+
+| Round | Rule | Reference | Gate |
+|---|---|---|---|
+1135-1150 | what a garment is worth as a block, and the block's logistic curve | `Character::block_score` and the `BLOCK` branch of `Character::block_hit` | the curve's two flat ends and a shield that ties the weapon |
+1151-1160 | the wear chain: a garment's coverage, its own durability, and its fragility | `Character::armor_absorb`, `item::damage_armor_durability` | a worn-out garment protects less, and the round that added a second worn sum was caught by `wounds::armour_protects_the_part_it_covers_and_no_other` |
+1161-1175 | a weapon's **category**, its proficiencies, and what a master's swing costs | `item::weapon_category`, `proficiency::swing_multiplier` | a mastered weapon costs less stamina, and an empty hand is its own kind |
+1176-1191 | a swing's **stamina** cost and its **moves**, both scaled by stance and skill | `melee.cpp:975-995`, `attack_speed` | the stance sweep reaches the crouch by putting the weapon in hand |
+1191-1205 | a weapon **wears** by the hand that swings it, and a chance of zero is the worst case | `handle_melee_wear` (`melee.cpp:214-293`) | **round 1358 found this rule written twice**: 1149-1191 had already ported it, and the duplicate was deleted in `9d74db81` |
+1206-1225 | the melee **defence chain**: skates, speed, stamina, reaction, limb dodge, body size | `Character::get_dodge` (`melee.cpp:1193-1242`) | six gates, one per link, and a body of only two legs multiplied by zero - the fixture lesson |
+1226-1250 | a **critical**: its chance, its per-kind bonus, the armour it dulls, and the order it dulls it in | `Character::crit_chance` (`:1116-1193`), `roll_all_damage` (`:1356-1373`) | 8 gates against the reference's own numbers, then `scenarios/a_swing_at_a_body_never_crits.txt` |
+1251-1290 | the **body**: a part's limb scores, its `base_hp`, the wound adjustment, the encumbrance adjustment, and `get_limb_score` | `bodypart.cpp:967-1018`, `character_modifier.cpp:222-266` | the anatomy dump carries all five columns, and stumps are the only parts with no hit points |
+1291-1310 | **weak points, the arithmetic**: `erf`, `hit_chance`, `reweigh`, `rolls_for` | `weakpoint.cpp:536-586` | **240 of 240** dump rows within `1e-4`, and the reference's own comment corrected by `1 - reweigh( 0.25, 5 )` |
+1311-1330 | the **walk** over a set, the default weak point, and the two maps' exclusivity | `select_weakpoint` (`:588-631`), `apply_to` (`:496-526`) | a coverage of fifty is a chance of twenty-five, and a crit replaces the ordinary multiplier rather than stacking |
+1331-1355 | the **attacker's** side and the **data**: 48 sets, 744 monster types with a body's weak points, and `type_of_melee_attack` | `generic_weakpoint_skill` (`:82-90`), `mtype::weakpoints` (`mtype.h:444`), `:354-371` | the two dumps disagree about expansion, and every blow was read against index zero before round 1369 |
+1356-1370 | a blow **spends** the weak point: the damage, the armour, the crit it takes away, and the effect it leaves | `creature.cpp:1146-1147`, `:1453-1455`, `weakpoint_effect::apply_to` | a two-world comparison (20 against 40), then a stun that lands for two turns |
+
+**The retraction is the important line in that table.** `a_critical_swing_takes_more` pinned a character's critical hit against a zombie's **body**, and the reference says that cannot happen:
+`crit_roll &= ret.wp->is_good && !ret.wp->id.empty()` cancels a critical on the default weak point. The scenario is now `a_swing_at_a_body_never_crits`, keeps its seed and its two rolls, and proves
+that **both swings take twenty** - so the crit roll is not what decides the damage. A port that had never ported weak points would have kept that scenario green forever.
+
+**What P4 still wants, named rather than implied:** mutations and bionics as data-driven components (bionics read their own numbers since round 1000, but no bionic is installed by a character
+path yet), disease, martial arts, harvest and butchery, the ranged half of the combat chain (dispersion, projectiles, recoil), `monster::quiet_death` as a runtime field (the `QUIETDEATH` flag is
+honoured; the field is set by dialogue and by one monster attack), and the proficiency families that shift a weak-point skill.
+
+**Three lessons from these 239 rounds, each now a rule of the port's own:**
+
+1. **A rule already carried by a derived component must be *found* before it is written again.** Round 1358 wrote `melee::wear_chance` beside `melee::melee_wear_chance`, which 1149-1191 had
+   already ported *with a caller*. The uncalled-rule gate (`tools/check_dead_rules.py`) is what now asks the question before the duplicate lands.
+2. **A fixture's body must be a whole body.** A dodge fixture of two legs and a head multiplied by zero, because balance is a torso and two arms and move speed is two legs - so the fixture was
+   measuring absence rather than the rule.
+3. **A dump whose labels lie is worse than no dump.** Round 1364-1370 rebuilt the same dump four times: a flag entry missing its file argument, an inline set mistaken for an id, a row that never
+   closed, and a column that silently did not land. Every one was caught by a count, not by reading the output.
+
 ### P4 status at round 1131
 
 **A monster now wants something.** From 1122 to 1130 the port grew the whole of monster temperament, rule by rule, and each link is gated on its own:
