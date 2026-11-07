@@ -16554,3 +16554,22 @@ deliberately planted unused variable makes it fail - which is the mutation check
 
 Everything the stale cache hid is fixed rather than silenced: `BloodTraits` and `Conditions` keep their four booleans with an `#[allow]` saying why a bitset would be worse, the registry's
 indexing keeps its bounds-checked `#[allow]` because the vector was just resized, and the casts that only narrow the data's own precision are allowed at the line that makes them.
+
+## A rule with no caller is a question, and now it is a gate (round 1360)
+
+`tools/check_dead_rules.py` fails when a `pub fn` in `crates/` is named nowhere else in the tree. Three things look like that, and all three want a human's eyes: a rule **waiting** for its
+caller (allowed, with a reason), a **leftover** from a rename (delete it), or a **second implementation** of a rule that already has one - which is round 1358's failure, and the one case no
+test could have caught, because a duplicate passes every test its original passes.
+
+The ledger, each entry also named here so the script is not a second source of truth about what is missing:
+
+| Uncalled rule | Why it waits |
+|---|---|
+`friendly::is_friendly` | the faction rule, waiting for a faction store |
+`creature::wielded_damage` | `Character::get_wielded_item`'s damage, waiting for the survivor's damage display |
+`creature::gibs_scattered` | `mdeath::gib`'s scatter, waiting for the remains pipeline |
+`lib::monster_spawn_attempts` | the spawn counter, waiting for the spawn schedule stage |
+`sunlight_cache::sunlight_through` | `lightmap`'s through-transmission, waiting for a single-square light query |
+`monsters::load_species_paths` | the species loader, waiting for the content table that reads it |
+
+**The gate is proved by planting**: an uncalled `pub fn` added to `melee.rs` makes it fail with the file and the name, and removing the file's copy makes it pass again.

@@ -128,6 +128,11 @@ def main() -> int:
     if everything or options.docs:
         if run("python3 tools/check_docs.py", "the document check", jobs) != 0:
             failed.append("docs")
+        # **A rule with no caller is a rule nobody has proved works** - or a second copy of one that does. Round 1358's duplicate passed every test its original passed; the only signal was
+        # that nothing called it, so the gate that notices that now rides along with the docs check on every run.
+        if subprocess.run([sys.executable, "tools/check_dead_rules.py"], capture_output=True).returncode != 0:
+            subprocess.run([sys.executable, "tools/check_dead_rules.py"], check=False)
+            failed.append("dead rules")
     if options.clippy:
         # **Touch every crate root first, or cargo's cache eats the gate.** `cargo clippy -D warnings` only fails on diagnostics it *emits*, and a crate whose fingerprint has not changed is
         # not re-checked - so a green run could mean "nothing was looked at". That is exactly what happened: the gate reported clean for many rounds while `crates/sim` held twenty-three

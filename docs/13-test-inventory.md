@@ -1407,3 +1407,6 @@ limb scores and health so a body built from the data answers its own rules - a h
 **Round 1358 was a duplicate and round 1359 deleted it**: `melee_wear_chance`, `wear_damages`, `fragile_material_factor` and `wear_the_wielded_weapon` had been ported and gated in rounds 1149-1191,
 with the caller the later round claimed did not exist. The clippy gate repair from that round stands and is the only thing it contributed. The rule to carry forward is in `docs/parity.md`: **find the
 rule before writing it again**, and treat the roadmap's "named gaps" as a list to check rather than a list to trust.
+
+**Round 1360 added the uncalled-rule gate**: `tools/check_dead_rules.py` fails when a `pub fn` is named nowhere, with a ledger of six rules that are ported, gated and waiting for a caller - the
+check that would have caught round 1358's duplicate.
