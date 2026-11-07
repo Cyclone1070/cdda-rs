@@ -114,3 +114,48 @@ fn a_roll_walks_the_weak_points_in_reweighed_order() {
     assert_eq!(select_weakpoint(&list, 10.0, 99.99), Some(1), "which absorbs what is left of a hundred");
     assert_eq!(select_weakpoint(&list, 10.0, 100.0), None, "and the roll's own top is the body");
 }
+
+/// Hitting a weak point changes the armour it meets and the damage it deals.
+///
+/// Reference: `weakpoint::apply_to( resistances & )` and `apply_to( damage_instance &, bool is_crit )` (`weakpoint.cpp:496-526`). Two rules, and the second has a **substitution** in it:
+///
+/// ```text
+/// armour:  value *= armor_mult      then   value -= armor_penalty
+/// damage:  if is_crit  -> *= crit_mult       (and damage_mult is NOT applied)
+///          else        -> *= damage_mult
+/// ```
+///
+/// **A critical hit replaces the weak point's ordinary multiplier rather than stacking with it**, which is the reference's `else if`: a weak point worth twice the damage normally is not worth
+/// six times on a crit unless its own `crit_mult` says so. That is the whole reason a critical hit is worth hunting - and the reason a port that multiplied both would quietly double it.
+#[test]
+fn a_weak_point_changes_the_armour_and_the_damage() {
+    use cdda_sim::weakpoints::{WeakpointFactors, apply_to_armour, apply_to_damage};
+
+    let factors = WeakpointFactors {
+        armour_multiplier: [("bash".to_owned(), 0.5)].into_iter().collect(),
+        armour_penalty: [("bash".to_owned(), 2.0)].into_iter().collect(),
+        damage_multiplier: [("cut".to_owned(), 2.0)].into_iter().collect(),
+        crit_multiplier: [("cut".to_owned(), 3.0)].into_iter().collect(),
+    };
+
+    // Armour: ten bash becomes five by the multiplier and three by the penalty after it - **in that order**, so a penalty is worth more against heavy armour.
+    let mut armour = [("bash".to_owned(), 10.0), ("cut".to_owned(), 4.0)].into_iter().collect();
+    apply_to_armour(&factors, &mut armour);
+    assert!((armour["bash"] - 3.0).abs() < 1e-9, "**half of ten, less two, is three**: {}", armour["bash"]);
+    assert!((armour["cut"] - 4.0).abs() < 1e-9, "and a type the weak point says nothing about is untouched");
+
+    // Damage: a cut of ten is twenty normally, and **thirty on a crit rather than sixty**.
+    let mut damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
+    let ordinary = apply_to_damage(&factors, &mut damage, false);
+    assert!((ordinary[0].1 - 20.0).abs() < 1e-9, "the cut is doubled: {}", ordinary[0].1);
+    assert!((ordinary[1].1 - 10.0).abs() < 1e-9, "and the bash is untouched");
+
+    let mut damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
+    let critical = apply_to_damage(&factors, &mut damage, true);
+    assert!(
+        (critical[0].1 - 30.0).abs() < 1e-9,
+        "**a crit triples, and does not also double**: {}",
+        critical[0].1
+    );
+    assert!((critical[1].1 - 10.0).abs() < 1e-9, "and the bash is still untouched");
+}

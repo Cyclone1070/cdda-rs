@@ -16597,5 +16597,12 @@ the **gap** between consecutive reweighed figures, `idx < chance` strictly, and 
 **twenty-five each** at difficulty zero, and an expert's is worth nearly the whole fifty. The test's first draft assumed coverage was the chance and the arithmetic said otherwise, twice: at skill
 zero the boundary is twenty-five and at skill ten it is 96.875.
 
-**Named, not invented:** what a weak point *does* - `apply_to`'s armour multiplier and penalty, `damage_mult`/`crit_mult` (which is where a critical hit finally spends itself), the effects a weak
-point triggers, the per-attack-type difficulty table, the proficiency families that shift the skill, and the data's own sets (`weakpoint_set` prototypes, 48 of them).
+**What a weak point does to armour and damage is ported too** (round 1363): `weakpoints::apply_to_armour` multiplies then subtracts, per damage type (`weakpoint.cpp:496-509`), and
+`weakpoints::apply_to_damage` reads **only** `crit_mult` on a critical hit and **only** `damage_mult` otherwise (`:511-526`).
+
+**The two damage maps are exclusive, and that is the whole shape of a critical hit's payoff.** A weak point worth twice the damage ordinarily is worth twice - not six times - on a crit unless its
+own `crit_mult` says otherwise, because the reference's branches are `if is_crit ... else if`. A port that multiplied both would quietly double every crit a weak point grants.
+
+**Named, not invented:** which weak point a creature has (the `weakpoint_set` prototypes - 48 of them - and the per-attack-type difficulty table), the effects a hit triggers
+(`weakpoint_effect`), the proficiency families that shift the skill, and the crit roll that decides `is_crit` (ported as `melee::crit_chance` in round 1349, with no weak point to spend it on until
+now).

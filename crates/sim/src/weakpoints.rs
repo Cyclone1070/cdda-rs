@@ -139,3 +139,52 @@ pub fn select_weakpoint(list: &[Weakpoint], skill: f64, roll: f64) -> Option<usi
     }
     None
 }
+
+/// What a weak point does to the armour it meets and the damage that arrives.
+///
+/// Reference: `struct weakpoint`'s four maps (`weakpoint.h:141-149`) - `armor_mult`, `armor_penalty`, `damage_mult` and `crit_mult`. They are kept as maps by **damage type's name**, which is how
+/// the data states them, and converted to and from the port's three-type [`crate::melee::Damage`] by name: the port speaks three types because the data's melee uses three, and a map is what a
+/// loader will hand it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WeakpointFactors {
+    /// `armor_mult`: multiplied into the armour, per damage type.
+    pub armour_multiplier: std::collections::BTreeMap<String, f64>,
+    /// `armor_penalty`: subtracted from the armour **after** the multiplier.
+    pub armour_penalty: std::collections::BTreeMap<String, f64>,
+    /// `damage_mult`: multiplied into an ordinary hit's damage.
+    pub damage_multiplier: std::collections::BTreeMap<String, f64>,
+    /// `crit_mult`: multiplied into a critical hit's damage **instead of** [`Self::damage_multiplier`].
+    pub crit_multiplier: std::collections::BTreeMap<String, f64>,
+}
+
+/// Applies a weak point's armour changes to a creature's resistances, in place.
+///
+/// Reference: `weakpoint::apply_to( resistances & )` (`weakpoint.cpp:496-509`) - every damage type is multiplied by its `armor_mult` and then has its `armor_penalty` subtracted, **in that order**,
+/// which makes a flat penalty worth more against heavy armour. A type the weak point says nothing about is left alone.
+pub fn apply_to_armour(factors: &WeakpointFactors, armour: &mut std::collections::BTreeMap<String, f64>) {
+    for (damage_type, value) in armour.iter_mut() {
+        if let Some(multiplier) = factors.armour_multiplier.get(damage_type) {
+            *value *= multiplier;
+        }
+        if let Some(penalty) = factors.armour_penalty.get(damage_type) {
+            *value -= penalty;
+        }
+    }
+}
+
+/// Applies a weak point's damage changes to a blow, answering what it becomes.
+///
+/// Reference: `weakpoint::apply_to( damage_instance &, bool is_crit )` (`weakpoint.cpp:511-526`). **The two maps are exclusive**: a critical hit reads only `crit_mult` and an ordinary hit only
+/// `damage_mult`, because the reference's branches are `if is_crit ... else if`. A port that applied both would make every weak point worth most on a crit and would double a critical hit that the
+/// data meant to triple.
+#[must_use]
+pub fn apply_to_damage(factors: &WeakpointFactors, damage: &[(String, f64)], is_crit: bool) -> Vec<(String, f64)> {
+    let table = if is_crit { &factors.crit_multiplier } else { &factors.damage_multiplier };
+    damage
+        .iter()
+        .map(|(damage_type, amount)| {
+            let multiplier = table.get(damage_type).copied().unwrap_or(1.0);
+            (damage_type.clone(), amount * multiplier)
+        })
+        .collect()
+}

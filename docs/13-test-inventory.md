@@ -1416,3 +1416,6 @@ skillful attacker reweighs with - gated on **240 of 240** rows of the reference'
 
 **Round 1362 ported the weak point walk**: `select_weakpoint` adds each raw chance to a running base, reweighs it, compares the roll against the gap between consecutive figures, and answers the body
 itself past every share. The test found twice that a coverage of fifty is a chance of twenty-five at equal skill.
+
+**Round 1363 ported what a weak point does**: armour is multiplied then reduced by a flat penalty per damage type, and damage reads `crit_mult` on a crit and `damage_mult` otherwise - **exclusively**,
+which is the reference's `if is_crit ... else if` and the difference between a crit worth double and one worth six times.
