@@ -91,6 +91,7 @@ mod item_melee_parity;
 mod items;
 mod link_ups;
 mod map_oracle;
+mod martial_arts;
 mod mapdata;
 mod mapgen;
 mod mapgen_draw;

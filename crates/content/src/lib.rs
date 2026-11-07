@@ -43,6 +43,7 @@ pub mod mapdata;
 pub mod mapgen;
 pub mod pockets;
 pub mod use_actions;
+pub mod martial_arts;
 pub mod materials;
 pub mod weather;
 pub mod weapon_categories;

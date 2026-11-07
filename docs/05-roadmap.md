@@ -1358,9 +1358,23 @@ and then the whole of weak points - the last of which is what made the rest of i
 `crit_roll &= ret.wp->is_good && !ret.wp->id.empty()` cancels a critical on the default weak point. The scenario is now `a_swing_at_a_body_never_crits`, keeps its seed and its two rolls, and proves
 that **both swings take twenty** - so the crit roll is not what decides the damage. A port that had never ported weak points would have kept that scenario green forever.
 
-**What P4 still wants, named rather than implied:** mutations and bionics as data-driven components (bionics read their own numbers since round 1000, but no bionic is installed by a character
-path yet), disease, martial arts, harvest and butchery, the ranged half of the combat chain (dispersion, projectiles, recoil), `monster::quiet_death` as a runtime field (the `QUIETDEATH` flag is
-honoured; the field is set by dialogue and by one monster attack), and the proficiency families that shift a weak-point skill.
+**What P4 still wants, audited at round 1378 rather than remembered.** The list written here at round 1370 was five rounds out of date and mostly wrong, which is the P4 lesson about stale gaps
+turning into duplicate work - and round 1376 then walked straight into it anyway by writing a second butchery clock. Each line below is what a search of the tree says, not what the last summary
+said:
+
+| Leftover, as round 1370 named it | What is actually true | Evidence |
+|---|---|---|
+| mutations as data-driven components | **ported** | `mutations.rs`, `mutation_data.rs`, `traits.rs`, 13 gates in `sim_suite/mutations.rs` |
+| bionics as data-driven components | **ported** | `bionics.rs` with `install`, 2 gates in `sim_suite/bionics.rs` |
+| disease | **dead data in this baseline** | `disease_type` has no consumer outside its own loader and consistency check (`init.cpp:318,622,909`); `disease.json` holds two entries and nothing applies either |
+| martial arts | **open, and the largest item left** | `melee::CritInputs` has a `martial_arts_bonus` slot and nothing fills it; 32 martial arts and 171 techniques in the data |
+| harvest and butchery | **ported** | `kill_to_loot.rs` (3 gates) and `butchery_activity.rs` (6 gates), plus `butchery.rs`'s five gates on the clock |
+| the ranged half: dispersion, projectiles, recoil | **ported** | `shot_rules.rs` (30 gates), `ballistics.rs`, `dispersion.rs`, `aim_rules.rs` |
+| `monster::quiet_death` as a runtime field | **ported** | the death pass reads it as a query field (`creature.rs:1923`), and `death_message` takes it as an argument |
+| the proficiency families that shift a weak-point skill | **ported, rounds 1373-1375** | 4,082 families loaded, `skill_with_families` on all three attack paths, `practise_a_hit` |
+
+**So P4 has one real gap left, and it is martial arts** - not the seven the round-1370 list implied. Disease is worth naming as *dead data* rather than as unfinished: a port that invented a
+consumer for it would be porting a caller the reference does not have.
 
 **Three lessons from these 239 rounds, each now a rule of the port's own:**
 

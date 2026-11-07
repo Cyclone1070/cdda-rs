@@ -16692,6 +16692,10 @@ already carried by a derived component must be found before it is written again.
 **Two facts the numbers taught, both now gated:** the table is in **turns** and the answer is in **moves** (a cat with no blade is `15000`, not `150`), and **each proficiency penalty is truncated
 to a whole number before the mixture**, so an untrained skinner's half point costs **nothing** - a quick cut is `45000 * 2.4`, not `* 2.475`.
 
+**Martial arts began with what a style asks for** (round 1378): `martial_arts::applies` is `ma_buff::is_valid_character`'s hand test (`martialarts.cpp:713-760`) - an unarmed-only buff needs
+an empty hand, a melee-only one needs a weapon whose categories the requirement names, and **a buff that states neither is worth nothing**, because the reference loads both flags `false`. The
+`--dump-martial-arts` dump carries **38 styles and 34 with static buffs**, with each buff's requirement and skill needs.
+
 **Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' two **other** practice
 paths (`practice_kill` in `kill_tracker.cpp:128` - a minute - and `practice_dissect` in `butchery.cpp:953` - two fifteen-minute halves, because proficiency practice is capped - which need the kill
 tracker and butchery), `physical`/`non_physical` map keys, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

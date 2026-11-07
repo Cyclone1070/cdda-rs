@@ -1465,3 +1465,7 @@ the two that have floors of their own, the field-dressed branch, and the quarter
 **Round 1376 broke the port's own first lesson and round 1377 repaired it**: a new `butchery` module wrote a second `time_to_cut` while `butcher_time_to_cut` already lived in `lib.rs` with the
 activity that spends it. The duplicate is gone, and the numbers it brought - the five sizes in turns, the blade floor, the two action floors, the field-dressed branch, the quartering, the helpers -
 now gate the rule that was already there. The uncalled-rule gate could not catch this one: both copies had callers.
+
+**Round 1378 opened martial arts with the requirement, not the numbers**: `--dump-martial-arts` (38 styles, 34 with static buffs) and four gates on `martial_arts::applies` - neither flag, unarmed
+only, melee only with a stated category, and both. The dump cost three builds: a member that does not exist in this baseline (`flat_bonus`), then a registry accessor that does not exist either
+(`martialart::get_all`), and each was caught by reading the header rather than by reading the output.

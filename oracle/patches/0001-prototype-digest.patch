@@ -358,11 +358,12 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-07 23:40:01
-@@ -0,0 +1,7419 @@
++++ oracle/src/src/harness.cpp	2026-11-08 01:00:08
+@@ -0,0 +1,7514 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
++#include "martialarts.h"
 +
 +#include "units.h"
 +#include "weather.h"
@@ -1675,6 +1676,100 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// Writes what every recipe **makes**, rather than what it asks for: the result rule and the byproduct rule are rules about produced things, and reading them out of the
 +/// data is exactly the mistake `create_results` exists to prevent. For a batch of one and of two, the produced items are folded to `(item id, count)` - `item::count()`
 +/// is the charge count for a stack and one for a single thing, which is the number the port keeps as a stack's charges.
++void dump_martial_arts( const std::string &path )
++{
++    std::ofstream out( path );
++    if( !out.is_open() ) {
++        return;
++    }
++    // Every style the data defines, **through the reference's own list** (`all_martialart_types`, `martialarts.cpp:516`), because a style that exists is one it would show a player.
++    const std::vector<matype_id> &ids = all_martialart_types();
++    out << "{\"count\":" << ids.size() << ",\"styles\":[";
++    bool first = true;
++    for( const matype_id &style_id : ids ) {
++        const martialart &style = style_id.obj();
++        if( !first ) {
++            out << ",";
++        }
++        first = false;
++        // The style itself: what it is called, what it blocks with, whether a book can teach it, and the four flags that say what it needs in hand.
++        out << "{\"id\":\"" << style.id.str() << "\",\"name\":\"" << harness_escape( style.name.translated() ) << "\""
++            << ",\"priority\":" << style.priority
++            << ",\"teachable\":" << ( style.teachable ? "true" : "false" )
++            << ",\"learn_difficulty\":" << style.learn_difficulty
++            << ",\"arm_block\":" << style.arm_block
++            << ",\"leg_block\":" << style.leg_block
++            << ",\"strictly_unarmed\":" << ( style.strictly_unarmed ? "true" : "false" )
++            << ",\"strictly_melee\":" << ( style.strictly_melee ? "true" : "false" )
++            << ",\"allow_all_weapons\":" << ( style.allow_all_weapons ? "true" : "false" )
++            << ",\"force_unarmed\":" << ( style.force_unarmed ? "true" : "false" )
++            << ",\"weapon_categories\":[";
++        bool first_category = true;
++        for( const weapon_category_id &category : style.weapon_category ) {
++            if( !first_category ) {
++                out << ",";
++            }
++            first_category = false;
++            out << "\"" << category.str() << "\"";
++        }
++        // **The static buffs by id, and the requirements each one states**: a buff is a *requirement* first and a set of bonuses second, and the requirement is the half that decides whether
++        // the buff is in play at all (`ma_buff::is_valid_character`, `martialarts.cpp:713-760`).
++        out << "],\"static_buffs\":[";
++        bool first_buff = true;
++        for( const mabuff_id &buff_id : style.static_buffs ) {
++            const ma_buff &buff = buff_id.obj();
++            if( !first_buff ) {
++                out << ",";
++            }
++            first_buff = false;
++            out << "{\"id\":\"" << buff.id.str() << "\""
++                << ",\"unarmed_allowed\":" << ( buff.reqs.unarmed_allowed ? "true" : "false" )
++                << ",\"melee_allowed\":" << ( buff.reqs.melee_allowed ? "true" : "false" )
++                << ",\"strictly_unarmed\":" << ( buff.reqs.strictly_unarmed ? "true" : "false" )
++                << ",\"wall_adjacent\":" << ( buff.reqs.wall_adjacent ? "true" : "false" )
++                << ",\"weapon_categories\":[";
++            bool first_buff_category = true;
++            for( const weapon_category_id &category : buff.reqs.weapon_categories_allowed ) {
++                if( !first_buff_category ) {
++                    out << ",";
++                }
++                first_buff_category = false;
++                out << "\"" << category.str() << "\"";
++            }
++            out << "],\"min_skill\":[";
++            bool first_skill = true;
++            for( const std::pair<skill_id, int> &need : buff.reqs.min_skill ) {
++                if( !first_skill ) {
++                    out << ",";
++                }
++                first_skill = false;
++                out << "{\"skill\":\"" << need.first.str() << "\",\"level\":" << need.second << "}";
++            }
++            out << "],\"min_damage\":[";
++            bool first_damage = true;
++            for( const std::pair<damage_type_id, int> &need : buff.reqs.min_damage ) {
++                if( !first_damage ) {
++                    out << ",";
++                }
++                first_damage = false;
++                out << "{\"type\":\"" << need.first.str() << "\",\"amount\":" << need.second << "}";
++            }
++            out << "],\"flags\":[";
++            bool first_flag = true;
++            for( const flag_id &flag : buff.reqs.req_flags ) {
++                if( !first_flag ) {
++                    out << ",";
++                }
++                first_flag = false;
++                out << "\"" << flag.str() << "\"";
++            }
++            out << "]}";
++        }
++        out << "]}";
++    }
++    out << "]}";
++}
++
 +void dump_crafting( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -7781,8 +7876,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-07 17:22:21
-@@ -0,0 +1,422 @@
++++ oracle/src/src/harness.h	2026-11-08 00:54:24
+@@ -0,0 +1,423 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -7900,6 +7995,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/** Writes every crafting recipe id and result to a JSON file. */
 +void dump_recipes( const std::string &path );
 +void dump_proficiencies( const std::string &path );
++void dump_martial_arts( const std::string &path );
 +void dump_crit_chance( const std::string &path );
 +void dump_swing_cost( const std::string &path );
 +void dump_mutations( const std::string &path );
@@ -8379,7 +8475,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-07 17:22:21
++++ oracle/src/src/main.cpp	2026-11-08 00:54:24
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -8390,7 +8486,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,165 @@
+@@ -272,6 +275,166 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -8538,6 +8634,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_ammo;
 +    std::string dump_recipes;
 +    std::string dump_proficiencies;
++    std::string dump_martial_arts;
 +    std::string dump_crit_chance;
 +    std::string dump_swing_cost;
 +    std::string dump_mutations;
@@ -8556,7 +8653,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +462,1420 @@
+@@ -300,6 +463,1430 @@
                  }
              },
              {
@@ -8746,6 +8843,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_mutations = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-martial-arts", "<file>",
++                "Writes every martial art's flags and the requirements of each static buff to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_martial_arts = params[0];
 +                    return 1;
 +                }
 +            },
@@ -9977,7 +10084,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2362,774 @@
+@@ -786,6 +2373,780 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -10260,6 +10367,12 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_crit_chance( cli.dump_crit_chance );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_martial_arts.empty() ) {
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_martial_arts( cli.dump_martial_arts );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_proficiencies.empty() ) {
