@@ -339,3 +339,87 @@ pub fn pick_for(
         .collect();
     pick(&qualified, roll)
 }
+
+/// The data's styles, kept where a creature can learn one.
+///
+/// Reference: `martialart` objects live in the reference's own registry (`martialarts.cpp:71`), and a character's `martial_arts_data` names one by id. The port keeps them the same way every other
+/// table is kept: a component on one entity, with a marker saying which table it is.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
+pub struct StyleTable {
+    /// The styles by id.
+    pub by_id: std::collections::BTreeMap<String, Style>,
+}
+
+/// Marks the stored style table.
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheStyleTable;
+
+/// Installs the data's styles, so a creature can learn one.
+pub fn install(world: &mut bevy_ecs::prelude::World, styles: &cdda_content::martial_arts::Styles) {
+    let mut by_id = std::collections::BTreeMap::new();
+    for style in &styles.all {
+        by_id.insert(style.id.clone(), from_content(style));
+    }
+    let holder = crate::singletons::singleton::<StyleTable, TheStyleTable>(world);
+    world.entity_mut(holder).insert(StyleTable { by_id });
+}
+
+/// One of the data's styles, as the fight reads it.
+///
+/// **The requirement is the same type the buffs use**, because the reference states it with the same `ma_requirements`; a second type here would be a second implementation of one rule.
+#[must_use]
+pub fn from_content(style: &cdda_content::martial_arts::Style) -> Style {
+    Style {
+        id: style.id.clone(),
+        techniques: style
+            .techniques
+            .iter()
+            .map(|technique| Technique {
+                id: technique.id.clone(),
+                requirement: Requirement {
+                    unarmed_allowed: technique.requirement.unarmed_allowed,
+                    melee_allowed: technique.requirement.melee_allowed,
+                    strictly_unarmed: technique.requirement.strictly_unarmed,
+                    wall_adjacent: technique.requirement.wall_adjacent,
+                    weapon_categories: technique.requirement.weapon_categories.clone(),
+                },
+                flags: TechniqueFlags {
+                    weighting: technique.weighting,
+                    dummy: technique.dummy,
+                    defensive: technique.defensive,
+                    crit_tec: technique.crit_tec,
+                    crit_ok: technique.crit_ok,
+                    reach_tec: technique.reach_tec,
+                    reach_ok: technique.reach_ok,
+                    dodge_counter: technique.dodge_counter,
+                    block_counter: technique.block_counter,
+                    needs_ammo: technique.needs_ammo,
+                    disarms: technique.disarms,
+                    take_weapon: technique.take_weapon,
+                },
+            })
+            .collect(),
+    }
+}
+
+/// Teaches a creature a style the data defines, and answers whether it learned one.
+///
+/// Reference: `character_martial_arts::set_style` (`martialarts.cpp`): the style is named by id and looked up, and an id with nothing behind it is refused. **The refusal is the point**: a fighter
+/// given an empty style and a fighter with none must not become the same thing here, because the pick would then answer nothing for the wrong reason.
+pub fn learn_style(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    style_id: &str,
+) -> bool {
+    let Some(holder) = crate::singletons::holder::<TheStyleTable>(world) else {
+        return false;
+    };
+    let Some(style) = world
+        .get::<StyleTable>(holder)
+        .and_then(|table| table.by_id.get(style_id).cloned())
+    else {
+        return false;
+    };
+    world.entity_mut(creature).insert(Practising { style });
+    true
+}

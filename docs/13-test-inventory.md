@@ -1485,3 +1485,6 @@ defensive against the data's thirty, three critical-only against forty-nine - an
 
 **Round 1383 made the pick a store read**: `Practising(style)` on the striker, the hands read from `Wielding`, and `pick_for` answering a move id or nothing. The gate holds one style with an ordinary
 move and a critical-only one, and the mutation check removed the criticality refusal - both the store gate and the rule gate then answered the critical move for an ordinary blow.
+
+**Round 1384 loaded the styles into the store**: a `StyleTable` component with the corpus's 38 styles, `learn_style` refusing an id the data never defined, and a gate that learns aikido from the dump
+and asks the store for a move. The mutation check let an unknown style install itself empty, and the gate's second half failed - which is the confusion the refusal exists to prevent.

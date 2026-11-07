@@ -379,3 +379,62 @@ fn the_store_answers_which_move_a_striker_makes() {
         "**and a critical moment offers only the move that wants one**"
     );
 }
+
+/// A style learned from the data can be picked from, and one the data does not define cannot.
+///
+/// Reference: `Character::martial_arts_data` is set from the style's own id (`character_martial_arts::set_style`, `martialarts.cpp`), and a style id the data never defined is refused rather than
+/// installed as an empty style - **a fighter with an empty style and a fighter with none are the same fighter**, so the port must not confuse them at the point of learning.
+#[test]
+fn a_style_is_learned_from_the_data() {
+    use cdda_sim::martial_arts::{Moment, learn_style, pick_for};
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/martial-arts/martial-arts.json");
+    let text = std::fs::read(path).expect("the martial arts dump exists");
+    let value = cdda_json::parse(&text).expect("the dump is valid JSON");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the dump's root is an object");
+    };
+    let Some(cdda_json::Value::Array(rows)) = root.get("styles") else {
+        panic!("the dump has styles");
+    };
+    let styles = cdda_content::martial_arts::Styles {
+        all: rows
+            .iter()
+            .filter_map(|row| match row {
+                cdda_json::Value::Object(object) => cdda_content::martial_arts::read_style(object),
+                _ => None,
+            })
+            .collect(),
+    };
+
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::martial_arts::install(&mut world, &styles);
+    let fighter = cdda_sim::creature::spawn_creature(&mut world, "the fighter", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+
+    assert!(
+        learn_style(&mut world, fighter, "style_aikido"),
+        "**a style the data defines is learned**"
+    );
+    let chosen = pick_for(&mut world, fighter, zombie, &Moment::ordinary(), 0.5);
+    assert!(
+        chosen.is_some(),
+        "**and a fighter who has learned aikido has moves to make**: {chosen:?}"
+    );
+    let explained = chosen.expect("a move");
+    assert!(
+        explained.starts_with("tec_"),
+        "the answer is one of the data's own move ids: {explained}"
+    );
+
+    // A style the data never defined is refused, and the fighter keeps the one it had.
+    assert!(
+        !learn_style(&mut world, fighter, "style_from_a_mod_nobody_installed"),
+        "a style the data does not define is not learned"
+    );
+    assert_eq!(
+        pick_for(&mut world, fighter, zombie, &Moment::ordinary(), 0.5),
+        Some(explained),
+        "and the fighter still knows the style it had"
+    );
+}

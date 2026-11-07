@@ -16717,6 +16717,10 @@ which is named rather than treated as proven.
 hands and the target's, and answers a move id - or nothing, which is the plain blow. **No style and no move**, and a style whose every move is refused is the same nothing, which is why the pick is a
 component read rather than a table.
 
+**A style is learned from the data** (round 1384): `martial_arts::install` keeps the corpus's 38 styles in a `StyleTable` component, `learn_style` looks one up by id and refuses an id with nothing
+behind it, and `from_content` copies each move's requirement and flags into the fight's own types. **The refusal is the point**: a fighter given an empty style and a fighter with none would
+otherwise answer nothing for the wrong reason.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
