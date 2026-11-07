@@ -83,7 +83,7 @@ fn whole(value: &Value) -> Option<i32> {
     }
 }
 
-#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn real(value: &Value) -> Option<f32> {
     match value {
         Value::Float(number) => Some(*number as f32),

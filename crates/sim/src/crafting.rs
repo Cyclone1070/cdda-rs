@@ -849,7 +849,7 @@ pub fn proficiency_share(seconds: i64, subject_count: usize, time_multiplier: f3
     if subject_count == 0 {
         return 0;
     }
-    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     let share = seconds / subject_count as i64;
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     let scaled = (share as f32 * time_multiplier * if helper_knows_it { 2.0 } else { 1.0 }) as i64;

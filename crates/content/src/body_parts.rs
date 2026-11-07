@@ -39,6 +39,8 @@ pub struct BodyPartType {
 ///
 /// # Errors
 /// Returns the id when a prototype states no `id`.
+/// The casts are the data's own precision: the dump writes `float`s and `int`s, and a body part's figures are `f32` in the reference.
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 pub fn read_prototype(
     object: &cdda_json::Object,
 ) -> Result<BodyPartType, crate::generated::LoadError> {

@@ -1432,7 +1432,7 @@ fn a_craft_hands_out_one_practice_tick_per_turn_of_work() {
 /// and `difficulty * 1.25` otherwise. The craft turn hook must therefore ask **the recipe**, not its difficulty - a practice recipe with a limit of four caps at three however high its difficulty is.
 #[test]
 fn a_practice_recipe_caps_its_craft_at_its_own_limit() {
-    use cdda_content::recipes::{Practice, Recipe};
+    use cdda_content::recipes::Practice;
 
     let mut practice = recipe(60, "", 1);
     practice.practice = Some(Practice {
@@ -1444,7 +1444,9 @@ fn a_practice_recipe_caps_its_craft_at_its_own_limit() {
     assert_eq!(practice.teaching_cap(), 3, "**the limit minus one wins over the difficulty**");
 
     let ordinary = recipe(60, "", 1);
-    assert_eq!(ordinary.teaching_cap(), (f64::from(ordinary.difficulty) * 1.25) as i32, "and an ordinary recipe keeps its 1.25 cap");
+    #[allow(clippy::cast_possible_truncation)]
+    let ordinary_cap = (f64::from(ordinary.difficulty) * 1.25) as i32;
+    assert_eq!(ordinary.teaching_cap(), ordinary_cap, "and an ordinary recipe keeps its 1.25 cap");
 }
 
 /// A finished practice craft stops practising at the recipe's own limit, however hard the recipe says it is.

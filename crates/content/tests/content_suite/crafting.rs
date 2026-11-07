@@ -80,7 +80,11 @@ fn a_recipe_answers_its_own_difficulty_and_cap() {
     assert_eq!(ordinary.difficulty_for(0), ordinary.difficulty, "an ordinary recipe ignores the crafter");
     assert_eq!(
         ordinary.teaching_cap(),
-        (f64::from(ordinary.difficulty) * 1.25) as i32,
+        {
+            #[allow(clippy::cast_possible_truncation)]
+            let expected = (f64::from(ordinary.difficulty) * 1.25) as i32;
+            expected
+        },
         "and caps at its difficulty times one and a quarter, truncated"
     );
 }

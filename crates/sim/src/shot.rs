@@ -828,8 +828,8 @@ pub fn archery_stamina_cost(min_strength: i32, strength: f32, archery_skill: f32
     let str_ratio = min_strength as f32 / strength;
     let skill_modifier = (2.0 * archery_skill + athletics_skill) / 3.0;
     #[allow(clippy::cast_possible_truncation)]
-    let cost = (10.0 * str_ratio + 10.0 - skill_modifier).powi(2);
-    cost as i32
+    let cost = ((10.0 * str_ratio + 10.0 - skill_modifier).powi(2)) as i32;
+    cost
 }
 
 /// How good a shot was, from how far past its aim it went.

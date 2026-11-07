@@ -574,14 +574,12 @@ pub fn practice_difficulty(skill_level: i32, min_difficulty: i32, max_difficulty
 /// Reference: `recipe::get_skill_cap` (`recipe.cpp:70-77`): a practice recipe stops at `skill_limit - 1`; an ordinary one at `difficulty * 1.25`, **truncated** - so a difficulty of five caps at six.
 #[must_use]
 pub fn skill_cap(practice_skill_limit: Option<i32>, difficulty: i32) -> i32 {
-    match practice_skill_limit {
-        Some(limit) => limit - 1,
-        None => {
-            #[allow(clippy::cast_possible_truncation)]
-            let cap = (f64::from(difficulty) * 1.25) as i32;
-            cap
-        }
+    if let Some(limit) = practice_skill_limit {
+        return limit - 1;
     }
+    #[allow(clippy::cast_possible_truncation)]
+    let cap = (f64::from(difficulty) * 1.25) as i32;
+    cap
 }
 
 impl Recipe {

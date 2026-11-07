@@ -1,4 +1,11 @@
-#![allow(clippy::expect_used, clippy::float_cmp, clippy::panic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::uninlined_format_args
+)]
 
 //! The avatar's own blow: what a character holding nothing or holding a knife does to a monster.
 //!

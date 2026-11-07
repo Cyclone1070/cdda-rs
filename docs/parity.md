@@ -16521,3 +16521,28 @@ itself: a human's `reaction`, `balance`, `move_speed` and `footing` are each exa
 
 **Named, not invented:** the encumbrance input, the effect multiplier `get_limb_score` applies to the total (`:227-236`), and the **sight**-side dodge modifiers (`get_dodge`'s `DIFFICULTY` /
 light level terms are not in this chain).
+
+## A weapon wears by the hand that swings it (round 1358)
+
+| Piece | Reference | Port |
+|---|---|---|
+the divisor | `Character::handle_melee_wear` (`melee.cpp:214-290`): `dex/2 + melee + 64/max(arm strength, 4)` times the material, over the wear and enchantment multipliers | `melee::wear_chance` |
+the material | the item's `chip_resistance`, divided by **six** for `FRAGILE_MELEE` | the same branch |
+the flags | `DURABLE_MELEE` multiplies the divisor by **four**; a zero multiplier is no wear | the same |
+Gate | - | `melee_rules::a_weapon_wears_by_a_chance_its_material_decides` |
+
+**The answer is a divisor, not a probability.** The reference rolls `one_in( damage_chance )`, so a **larger** figure is **less** wear - and a stronger arm makes it **smaller**, which the reference's own
+comment calls a negative: `@ARM_STR increases chance of damaging your melee weapon (NEGATIVE)`. A port that read the figure as a chance would wear a strong character's crowbar *least*, which is
+backwards.
+
+**Named, not invented:** the caller. Nothing spends the divisor yet - the rule is gated and `docs/13-test-inventory.md` names it as a rule waiting for the swing that rolls it, because the port's
+weapon is a component with a [`cdda_sim::creature::Wear`] and no `chip_resistance` of its own.
+
+## The clippy gate was lying, and now it cannot (round 1358)
+
+`cargo clippy -- -D warnings` **only fails on diagnostics it emits**, and cargo does not re-check a crate whose fingerprint has not changed. The gate had therefore reported clean for many rounds
+while `crates/sim` carried **23 deny-level lints** (and `cdda-content` a dozen more): a fresh checkout of the same tree failed instantly. The gate now touches every crate root before it runs, and a
+deliberately planted unused variable makes it fail - which is the mutation check the gate itself needed.
+
+Everything the stale cache hid is fixed rather than silenced: `BloodTraits` and `Conditions` keep their four booleans with an `#[allow]` saying why a bitset would be worse, the registry's
+indexing keeps its bounds-checked `#[allow]` because the vector was just resized, and the casts that only narrow the data's own precision are allowed at the line that makes them.

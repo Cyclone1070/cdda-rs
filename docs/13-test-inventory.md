@@ -1403,3 +1403,7 @@ human, and zero for a body that lacks any of the three.
 
 **Round 1357 closed the dodge chain**: the body-size ratio divides the dodge last, a creature stating its size instead of the port re-deriving two bodies, and `body_named` now carries each part's
 limb scores and health so a body built from the data answers its own rules - a human's reaction, balance, move speed and footing each being exactly one.
+
+**Round 1358 priced a swing's wear**: `wear_chance` is the reference's `handle_melee_wear` divisor - a stronger arm wears a weapon *more*, a better material *less*, `DURABLE_MELEE` four times
+tougher and `FRAGILE_MELEE` divided by six. **No caller yet**, which is named in `docs/parity.md`. The same round repaired the clippy gate, which had been passing on a stale cache while 23
+lints sat in `crates/sim`.

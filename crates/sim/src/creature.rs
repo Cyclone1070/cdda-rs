@@ -1630,6 +1630,7 @@ pub fn take_off(world: &mut World, item: Entity) -> bool {
 /// before, which is the failure a store with two writers always has.
 pub fn dress(world: &mut World) {
     // What each worn thing protects, gathered before anything is written.
+    #[allow(clippy::type_complexity)]
     let mut worn: Vec<(Entity, Vec<(String, cdda_content::armour::Layer)>, i32)> = Vec::new();
     {
         let mut query = world.query::<(&WornBy, &Garment, Option<&Wear>)>();
@@ -1870,6 +1871,7 @@ pub fn set_kind(world: &mut World, entity: Entity, kind: crate::MonsterKindId) {
 ///
 /// A creature with no [`CreatureKind`] is cleared like any other and leaves nothing: there is no prototype to
 /// name the body with, and a test's survivor is not a monster that died.
+#[allow(clippy::too_many_lines)]
 pub fn reap_dead_creatures_as_corpses(
     world: &mut World,
     corpse_kind: crate::ItemTypeId,
@@ -3097,6 +3099,7 @@ fn sharpen(amount: i32, bonus: crate::melee::CritBonus) -> i32 {
 
 /// What a creature brings to being hit, read from the components it carries.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
     let size = world
         .get::<Creature>(entity)
@@ -3152,7 +3155,7 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
                 f64::from(
                     world
                         .get::<Body>(entity)
-                        .map(|body| {
+                        .map_or(1.0, |body| {
                             body.parts
                                 .iter()
                                 .map(|part| {
@@ -3169,8 +3172,7 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
                                     )
                                 })
                                 .sum::<f32>()
-                        })
-                        .unwrap_or(1.0),
+                        }),
                 )
             };
             crate::limbs::limb_dodge_modifier(score("balance"), score("move_speed"), score("footing"))
@@ -3182,10 +3184,10 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         let skates = wears_flag(world, entity, "ROLLER_INLINE")
             || wears_flag(world, entity, "ROLLER_QUAD")
             || wears_flag(world, entity, "ROLLER_ONE");
-        let skater = crate::traits::has_trait(world, entity, "PROF_SKATER");
+        let is_skater = crate::traits::has_trait(world, entity, "PROF_SKATER");
         // Reference: the skates are applied before the limb figure (`melee.cpp:1209-1235`), and a creature with no body has no balance to lose, so the figure is only applied where the store
         // can answer it.
-        let base = crate::melee::skate_dodge(base, skates, skater);
+        let base = crate::melee::skate_dodge(base, skates, is_skater);
         #[allow(clippy::cast_possible_truncation)]
         let base = if world.get::<Body>(entity).is_some() {
             (f64::from(base) * limb_dodge).round() as i32
@@ -3787,10 +3789,11 @@ const DAMAGE_SCALE: f32 = 1000.0;
 /// zero - a body killed to exactly zero has taken no overkill.
 #[must_use]
 pub fn corpse_damage(hp: i32, max_hp: i32) -> f32 {
-    let ceiling = max_hp.max(1);
+    #[allow(clippy::cast_precision_loss)]
+    let ceiling = max_hp.max(1) as f32;
     #[allow(clippy::cast_precision_loss)]
     let overflow = (-hp).max(0) as f32;
-    2.5 * overflow / ceiling as f32
+    2.5 * overflow / ceiling
 }
 
 /// What a death leaves behind, given the health it ended on and the health it started with.
@@ -3812,9 +3815,9 @@ pub fn death_remains(hp: i32, max_hp: i32) -> DeathRemains {
     if damage > 5.0 && overflow > max_hp {
         return DeathRemains::Pulverized;
     }
-    DeathRemains::Corpse {
-        damage: (damage * DAMAGE_SCALE).floor() as i32,
-    }
+    #[allow(clippy::cast_possible_truncation)]
+    let damage = (damage * DAMAGE_SCALE).floor() as i32;
+    DeathRemains::Corpse { damage }
 }
 
 /// How many gibs a splattered body leaves.

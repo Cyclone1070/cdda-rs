@@ -291,6 +291,7 @@ fn expect_step(words: &[&str], number: usize) -> Result<Step, String> {
 /// # Errors
 ///
 /// An error naming the line and the word when a line is not a step this runner knows, or when a number is not a number.
+#[allow(clippy::too_many_lines)]
 pub fn parse(text: &str) -> Result<Vec<Step>, String> {
     let mut steps = Vec::new();
     for (number, line) in text.lines().enumerate() {

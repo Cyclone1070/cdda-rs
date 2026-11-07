@@ -15,6 +15,7 @@ const HIGH: f32 = 707.0;
 ///
 /// Reference: the five early returns and the one trait multiplier in `glare` (`weather.cpp:104-135`). **A struct rather than five bools**: a function taking six true-or-false arguments is
 /// a function nobody can read at the call site, and a misspelt one is a bug that compiles.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Conditions {
     /// The creature is under a roof (`g->is_sheltered`).

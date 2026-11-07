@@ -713,3 +713,77 @@ fn skates_cost_a_survivor_most_of_its_dodge() {
     assert_eq!(skate_dodge(10, true, true), 5, "and a skater keeps half");
     assert_eq!(skate_dodge(3, true, false), 0, "three points of dodge on skates is none");
 }
+
+/// A weapon wears by a chance that its handling and its material decide.
+///
+/// Reference: `Character::handle_melee_wear` (`melee.cpp:214-290`):
+///
+/// ```text
+/// stat_factor = dex / 2 + melee skill + ( 64 / max( arm strength, 4 ) )
+/// damage_chance = int( stat_factor * material_factor / ( wear_multiplier * enchant_multiplier ) )
+/// if DURABLE_MELEE: damage_chance *= 4
+/// ```
+///
+/// **The chance is a divisor, not a probability**: the reference rolls `one_in( damage_chance )`, so a *larger* figure is *less* wear. A stronger arm and a better material both raise it -
+/// which is the same arithmetic as a chance turned upside down, and the test says so in each figure.
+#[test]
+fn a_weapon_wears_by_a_chance_its_material_decides() {
+    use cdda_sim::melee::{WearInputs, wear_chance};
+
+    // A starter's hands: dexterity 8, no melee skill, arm strength 8.
+    let starter = WearInputs {
+        dexterity: 8,
+        melee_skill: 0,
+        arm_strength: 8,
+        chip_resistance: 8,
+        wear_multiplier: 1.0,
+        enchant_multiplier: 1.0,
+        durable_melee: false,
+        fragile_melee: false,
+    };
+    // 8/2 + 0 + 64/8 = 12, times a material of 8 is 96.
+    assert_eq!(wear_chance(&starter), 96, "**a starter wears a crowbar one blow in ninety-six**");
+
+    // **A stronger arm wears its weapon MORE**, which is the reference's own note - `@ARM_STR increases chance of damaging your melee weapon (NEGATIVE)`. The `64 / max( arm_str, 4 )` term
+    // shrinks as the arm grows, so the divisor falls: 4 + 0 + 64/16 is 8, and 8 * 8 is 64.
+    let strong = WearInputs {
+        arm_strength: 16,
+        ..starter
+    };
+    assert_eq!(wear_chance(&strong), 64, "**a stronger arm damages the weapon it swings more often**");
+
+    // **A better material wears less**, which is the same direction: a stone is not a crowbar.
+    let stone = WearInputs {
+        chip_resistance: 2,
+        ..starter
+    };
+    assert_eq!(wear_chance(&stone), 24, "a chipped stone wears one blow in twenty-four");
+
+    // DURABLE_MELEE is made for hitting things, so its chance is four times the divisor.
+    let durable = WearInputs {
+        durable_melee: true,
+        ..starter
+    };
+    assert_eq!(wear_chance(&durable), 384, "**a durable weapon wears a quarter as often**");
+
+    // FRAGILE_MELEE divides the material by six before the rest: 8 / 6 is 1 in integer arithmetic.
+    let fragile = WearInputs {
+        fragile_melee: true,
+        ..starter
+    };
+    assert_eq!(wear_chance(&fragile), 12, "and a fragile one falls apart");
+
+    // The multiplier the caller passes scales the divisor down: twice the wear is half the chance.
+    let hard = WearInputs {
+        wear_multiplier: 2.0,
+        ..starter
+    };
+    assert_eq!(wear_chance(&hard), 48, "twice the wear is half the chance");
+
+    // Nothing at all when the caller says there is no wear to be done.
+    let none = WearInputs {
+        wear_multiplier: 0.0,
+        ..starter
+    };
+    assert_eq!(wear_chance(&none), 0, "a zero multiplier is no wear, not a division by nothing");
+}

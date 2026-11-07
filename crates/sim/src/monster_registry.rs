@@ -63,6 +63,7 @@ impl MonsterTypes {
 pub struct TheMonsterTypes;
 
 /// Installs the registry the store will answer from.
+#[allow(clippy::indexing_slicing, clippy::assigning_clones)]
 pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
     let mut names = vec![String::new()];
     let mut hit_points = vec![0];
@@ -130,6 +131,7 @@ pub fn count(world: &mut World) -> usize {
 ///
 /// Reference: `mtype::bloodType` and `mtype::gibType` (`mtype.cpp:431-470`), whose answers are computed from the monster's flags, materials and species by
 /// [`cdda_content::blood`]. This keeps the **answer** rather than the inputs, because a death happens long after the data was loaded and the ladder's two functions are pure.
+#[allow(clippy::indexing_slicing, clippy::assigning_clones)]
 pub fn set_remains(world: &mut World, kind: MonsterKindId, blood: Option<&str>, gibs: Option<&str>) {
     let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
     let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
@@ -166,6 +168,7 @@ pub fn gibs_of(world: &mut World, kind: MonsterKindId) -> Option<String> {
 ///
 /// Reference: `mdeath_effect::death_message` (`mtype.h:280`), printed by `monster::die` (`monster.cpp:3086`) **before** the normal branch's own line. Most kinds state nothing, which is
 /// why the registry stores an empty string rather than an `Option` - absent and empty are the same thing here, and the reference treats them the same way.
+#[allow(clippy::indexing_slicing, clippy::assigning_clones)]
 pub fn set_death_message(world: &mut World, kind: MonsterKindId, message: &str) {
     let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
     let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
@@ -192,6 +195,7 @@ pub fn death_message_of(world: &mut World, kind: MonsterKindId) -> String {
 ///
 /// Reference: `mdeath_effect::corpse_type` (`mtype.h:285`), which `monster::die` switches on (`monster.cpp:3093-3106`): a normal corpse, a broken one, a splatter, or **nothing at all**. The
 /// port keeps the data's word rather than a bool per branch, because the four answers are the reference's and collapsing them would lose which one the data gave.
+#[allow(clippy::indexing_slicing, clippy::assigning_clones)]
 pub fn set_corpse_type(world: &mut World, kind: MonsterKindId, corpse_type: &str) {
     let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
     let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
@@ -215,6 +219,7 @@ pub fn corpse_type_of(world: &mut World, kind: MonsterKindId) -> String {
 }
 
 /// Says which item a `broken` kind leaves, when the data names it rather than leaving it to the id rule.
+#[allow(clippy::indexing_slicing, clippy::assigning_clones)]
 pub fn set_broken_itype(world: &mut World, kind: MonsterKindId, item: &str) {
     let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
     let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
@@ -241,6 +246,7 @@ pub fn broken_itype_of(world: &mut World, kind: MonsterKindId) -> String {
 ///
 /// Reference: `mtype::death_drops` (`mtype.h:404`), drawn by `drop_items_on_death` (`monster.cpp:3248-3272`). **339 of the 1,154 types name one**; the rest leave their loot to an inline
 /// group, which the dump does not name and the port therefore does not have.
+#[allow(clippy::indexing_slicing, clippy::assigning_clones)]
 pub fn set_death_drops(world: &mut World, kind: MonsterKindId, group: &str) {
     let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
     let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {

@@ -45,7 +45,7 @@ pub fn dodge_roll(dodge: i32) -> f32 {
 /// traits are flags on the creature.
 #[must_use]
 pub fn monster_dodge(base: i32, conditions: &[&str]) -> i32 {
-    let has = |name: &str| conditions.iter().any(|condition| *condition == name);
+    let has = |name: &str| conditions.contains(&name);
     // Reference: the floor is asked first and answers everything, so a trapped monster on the ground dodges nothing rather than half of nothing.
     if has("downed") || has("cannot_move") {
         return 0;
@@ -456,6 +456,7 @@ pub fn limb_score_modifier(score: f64, max: f64) -> f64 {
 ///
 /// Reference: the chain in `get_total_melee_stamina_cost` (`melee.cpp:975-977`). **A struct rather than four bools**, and named for the body rather than the penalty: a caller answers
 /// what it knows about the creature, and this rule answers what that costs.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 pub struct Stance {
     /// The swinger is on the floor (`is_on_ground`): downed, prone, or without working legs.
@@ -1187,4 +1188,65 @@ pub fn armour_dulled(resist: f32, arpen: i32, armour: f32) -> f32 {
     #[allow(clippy::cast_precision_loss)]
     let arpen = arpen as f32;
     (resist - arpen).max(0.0) * armour
+}
+
+/// What a swing costs the weapon that makes it, as the reference's divisor.
+///
+/// Reference: `Character::handle_melee_wear` (`melee.cpp:214-290`):
+///
+/// ```text
+/// stat_factor = dex / 2 + melee skill + ( 64 / max( arm strength, 4 ) )
+/// damage_chance = int( stat_factor * material_factor / ( wear_multiplier * enchant_multiplier ) )
+/// if DURABLE_MELEE: damage_chance *= 4
+/// ```
+///
+/// **The answer is a divisor, not a probability**: the reference rolls `one_in( damage_chance )`, so a larger figure is less wear. `material_factor` is the item's own
+/// [`cdda_content::items::chip_resistance`] - divided by six first for a `FRAGILE_MELEE` weapon, which is the reference's fragile branch with its comment that fragile things fall apart
+/// "due to poor construction quality". A zero multiplier is no wear at all, which the reference answers before the division rather than dividing by nothing.
+#[must_use]
+pub struct WearInputs {
+    /// The wielder's dexterity.
+    pub dexterity: i32,
+    /// Its melee skill.
+    pub melee_skill: i32,
+    /// Its arm strength, which a strong arm turns against the weapon's wear.
+    pub arm_strength: i32,
+    /// The weapon's own chip resistance.
+    pub chip_resistance: i32,
+    /// The caller's multiplier - how hard the blow was, in the reference's terms.
+    pub wear_multiplier: f32,
+    /// The `EQUIPMENT_DAMAGE_CHANCE` enchantment multiplier, one when nothing says otherwise.
+    pub enchant_multiplier: f32,
+    /// Whether the item is made to hit things.
+    pub durable_melee: bool,
+    /// Whether it is poorly made enough to fall apart.
+    pub fragile_melee: bool,
+}
+
+/// The divisor a weapon's wear is rolled against, or zero for no wear.
+///
+/// Reference: `Character::handle_melee_wear` (`melee.cpp:214-290`).
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+pub fn wear_chance(inputs: &WearInputs) -> i32 {
+    if inputs.wear_multiplier <= 0.0 || inputs.enchant_multiplier <= 0.0 {
+        return 0;
+    }
+    let stat_factor = inputs.dexterity as f32 / 2.0
+        + inputs.melee_skill as f32
+        + 64.0 / (inputs.arm_strength.max(4) as f32);
+    let material_factor = if inputs.fragile_melee {
+        inputs.chip_resistance / 6
+    } else {
+        inputs.chip_resistance
+    };
+    let mut chance = (stat_factor * material_factor as f32 / (inputs.wear_multiplier * inputs.enchant_multiplier)) as i32;
+    if inputs.durable_melee {
+        chance *= 4;
+    }
+    chance.max(0)
 }

@@ -3071,7 +3071,7 @@ fn a_body_drops_what_its_group_says() {
         },
     );
     cdda_sim::item_groups::set_groups(&mut world, definitions);
-    let mut dice = cdda_core_types::rng::Rolls::new(1);
+    let dice = cdda_core_types::rng::Rolls::new(1);
     cdda_sim::singletons::put_rolls(&mut world, dice);
 
     let looter = cdda_sim::spawn_monster(&mut world, (11, 11), cdda_sim::MonsterKindId(1), 40);
@@ -4180,7 +4180,7 @@ fn a_creature_can_be_asked_what_it_wears_by_flag() {
     );
     assert!(!cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_ONE"), "and not inline ones");
     assert!(
-        cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_INLINE") == false,
+        !cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_INLINE"),
         "a flag nothing carries is not worn"
     );
     // Someone else's skates are not the survivor's.

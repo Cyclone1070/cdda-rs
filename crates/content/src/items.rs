@@ -1615,6 +1615,7 @@ fn apply_armor_slots(item: &mut ItemType, object: &Object) {
                 let cover_vitals = entry.get("cover_vitals").and_then(numeric).unwrap_or(0.0) as i32;
                 // Reference: `optional( jo, false, "cover_melee", cover_melee, coverage )` (`item_factory.cpp:3159-3160`) - **a garment that states neither is met by its plain coverage**,
                 // so the fallback is the entry's `coverage` and a zero here would mean a coat stops nothing.
+                #[allow(clippy::cast_possible_truncation)]
                 let coverage = entry.get("coverage").and_then(numeric).unwrap_or(0.0) as i32;
                 #[allow(clippy::cast_possible_truncation)]
                 let cover_melee = entry.get("cover_melee").and_then(numeric).unwrap_or(f64::from(coverage)) as i32;

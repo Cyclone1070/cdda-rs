@@ -21,6 +21,7 @@ Usage:
 
 import argparse
 import pathlib
+import os
 import subprocess
 import sys
 
@@ -128,6 +129,18 @@ def main() -> int:
         if run("python3 tools/check_docs.py", "the document check", jobs) != 0:
             failed.append("docs")
     if options.clippy:
+        # **Touch every crate root first, or cargo's cache eats the gate.** `cargo clippy -D warnings` only fails on diagnostics it *emits*, and a crate whose fingerprint has not changed is
+        # not re-checked - so a green run could mean "nothing was looked at". That is exactly what happened: the gate reported clean for many rounds while `crates/sim` held twenty-three
+        # deny-level lints, and a fresh checkout of the same tree failed instantly. The touch is cheap (a mtime) and forces the diagnostics to be re-emitted.
+        touched = subprocess.run(
+            ["find", "crates", "-name", "lib.rs", "-o", "-name", "main.rs"],
+            capture_output=True, text=True,
+        ).stdout.split()
+        for path in touched:
+            try:
+                os.utime(path, None)
+            except OSError:
+                pass
         if run("cargo clippy --workspace --all-targets -- -D warnings", "clippy", jobs) != 0:
             failed.append("clippy")
     # The gate that rotted for several rounds because it was the one command nobody typed (round 1200). It is cheap - it runs

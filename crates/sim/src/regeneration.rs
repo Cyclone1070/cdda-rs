@@ -93,7 +93,7 @@ pub fn mend_everyone(world: &mut World) -> i32 {
         // (`monster.cpp:3460-3494`). The two are separate heals in the reference and are summed here into one, which is the same number and one fewer place to mend the body twice.
         let mut amount = mend_over(world, rate.per_hour, 1);
         if rate.in_dark
-            && let Some((x, y, z)) = world.get::<crate::Position>(entity).map(|at| (at.x, at.y, at.z))
+            && let Some((x, y, _z)) = world.get::<crate::Position>(entity).map(|at| (at.x, at.y, at.z))
         {
             let light = crate::singletons::light(world)
                 .at(x, y)

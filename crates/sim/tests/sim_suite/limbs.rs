@@ -3,6 +3,8 @@
 //! Reference: `bodypart::wound_adjusted_limb_value`, `encumb_adjusted_limb_value` and `skill_adjusted_limb_value` (`src/bodypart.cpp:967-996`), which
 //! `bodypart::get_limb_score` (`:998-1018`) applies in that order before summing a creature's score.
 
+#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
+
 /// A hurt part is worth less in proportion, and only below three quarters of its health.
 ///
 /// Reference: `bodypart::wound_adjusted_limb_value` (`bodypart.cpp:967-976`) - above three quarters of its health a part is worth its whole figure, and below it the figure is scaled by

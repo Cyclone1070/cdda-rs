@@ -5,6 +5,10 @@
 //! is what makes an acid-blooded corpse bleed acid and not blood.
 
 /// The three blood flags and the warmth that decides the ordinary case, gathered so the ladder takes one argument.
+///
+/// Four booleans is what the reference's ladder needs - three flags and the warmth - and a struct is the only way to hand them to one function without a positional call that a reader has to
+/// count. The lint is allowed here for that reason rather than the booleans being folded into a bitset nobody can read.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BloodTraits {
     /// `ACID_BLOOD`: it bleeds acid. Checked first, and it wins over everything below.
