@@ -1461,3 +1461,7 @@ alone and once on a real swing, because a rule with no caller is not behaviour. 
 
 **Round 1376 started butchery with its clock**: four gates against `butcher_time_to_cut`'s own numbers - the five sizes, the blade's percentage and its twenty-five floor, the eight actions with
 the two that have floors of their own, the field-dressed branch, and the quartered corpse. The first pass read the size table as moves and was off by a hundred; the table is turns.
+
+**Round 1376 broke the port's own first lesson and round 1377 repaired it**: a new `butchery` module wrote a second `time_to_cut` while `butcher_time_to_cut` already lived in `lib.rs` with the
+activity that spends it. The duplicate is gone, and the numbers it brought - the five sizes in turns, the blade floor, the two action floors, the field-dressed branch, the quartering, the helpers -
+now gate the rule that was already there. The uncalled-rule gate could not catch this one: both copies had callers.

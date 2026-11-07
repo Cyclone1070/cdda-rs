@@ -16685,9 +16685,12 @@ is ported and gated; only the two defaults are resolved upstream.
 own `proficiencies::practice`, which a finished craft already used - called from `strike_with`, `shot::hurt_once` and the throw's impact, because the reference practises on **any** character's
 hit (`monster.cpp:3888-3892`). A family whose proficiency the data does not define is **not practised** rather than practised toward an invented target.
 
-**Butchery has its clock** (round 1376): `butchery::time_to_cut` is `butcher_time_to_cut` (`butchery.cpp:382-487`) - the body's size sets the base, the blade's quality takes a percentage
-**with a floor of twenty-five**, the action multiplies, and a field-dressed body is four times rather than six. **The table is in turns and the answer is in moves**: a cat with no blade is `15000`
-moves, which is the reference's own arithmetic rather than a unit the port chose.
+**Butchery has its clock, and it was already ported** (rounds 1376-1377): `butcher_time_to_cut` (`butchery.cpp:382-487`) has lived in `lib.rs` beside the activity that spends it. Round 1376 wrote a
+**second copy** in a new module without finding the first, and round 1377 deleted it and put its numbers on the rule that was already there. That is the port's own first P4 lesson, repeated: **a rule
+already carried by a derived component must be found before it is written again.**
+
+**Two facts the numbers taught, both now gated:** the table is in **turns** and the answer is in **moves** (a cat with no blade is `15000`, not `150`), and **each proficiency penalty is truncated
+to a whole number before the mixture**, so an untrained skinner's half point costs **nothing** - a quick cut is `45000 * 2.4`, not `* 2.475`.
 
 **Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' two **other** practice
 paths (`practice_kill` in `kill_tracker.cpp:128` - a minute - and `practice_dissect` in `butchery.cpp:953` - two fifteen-minute halves, because proficiency practice is capped - which need the kill
