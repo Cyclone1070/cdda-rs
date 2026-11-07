@@ -1428,3 +1428,6 @@ percent coverage at three quarters of the bash armour.
 
 **Round 1366 ported the attacker's side**: `weakpoints::attacker_skill` is the average of two skill levels plus the stat bonus, multiplied by the average of two limb scores - so an attacker with no
 eyes finds nothing, and a half-hurt head halves the result.
+
+**Round 1367 made a blow spend its weak point**: `strike_with` selects one from the victim's body, sharpens the damage, dulls the armour and cancels a crit against a weak point that helps the
+monster. The same round found the wound-adjusted limb-score walk written out twice in `defence_of` and made it `creature::limb_score`, which the weak-point skill now also reads.

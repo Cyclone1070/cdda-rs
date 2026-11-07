@@ -2474,7 +2474,9 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     if attack.0.dice == 0 {
         return None;
     }
-    let dealt = strike_with(world, victim, attack.0, None)?;
+    // Reference: a monster's weak-point skill is its type's melee skill (`monster::weakpoint_skill`, `monster.cpp:76-79`), which the port reads as its own melee level (round 1357).
+    let weak_point_skill = f64::from(skill_level(world, attacker, "melee"));
+    let dealt = strike_with(world, victim, attack.0, None, weak_point_skill)?;
     // Reference: `monster::melee_attack` puts a hit-and-run monster into `effect_run` for four turns after its blow (`monster.cpp:2134-2136`). The effect is only given when the
     // world has been told what that effect is: an effect the content does not define cannot be worn, and inventing one here would put a name in the store that nothing can read.
     // Reference: `monster::melee_attack` gives **itself** `effect_hit_by_player` for three turns when what it hit was the avatar (`monster.cpp:2130-2133`), which is how a monster
@@ -2914,7 +2916,17 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina, stance);
     spend_moves(world, holder, f64::from(cost));
     let crit_inputs = crit_inputs_of(world, holder);
-    let dealt = strike_with(world, victim, attack, crit_inputs.as_ref());
+    // Reference: the attacker's half of a weak point is `generic_weakpoint_skill` - the weapon's skill and melee averaged, the stat bonus, and the vision and reaction figures as a multiplier
+    // (`weakpoint.cpp:82-90`) - which a monster answers with its melee skill alone (`monster.cpp:76-79`).
+    let weak_point_skill = crate::weakpoints::attacker_skill(
+        f64::from(weapon_skill_level(world, holder)),
+        f64::from(skill),
+        effective_dexterity(world, holder),
+        effective_perception(world, holder),
+        limb_score(world, holder, "vision"),
+        limb_score(world, holder, "reaction"),
+    );
+    let dealt = strike_with(world, victim, attack, crit_inputs.as_ref(), weak_point_skill);
     // Reference: `Character::melee_attack` wears the weapon it swung **whatever the outcome** - the call sits outside the hit branch (`melee.cpp:930`) - so a miss dents a weapon just as a hit
     // does. The chance is round 1191's arithmetic and the guard is its inverted `one_in`; what is new here is the **place**, which is the hand.
     crate::creature::wear_the_wielded_weapon(world, holder, skill, dexterity);
@@ -2948,6 +2960,7 @@ fn strike_with(
     victim: Entity,
     attack: crate::melee::Attack,
     crit_for: Option<&crate::melee::CritInputs>,
+    weak_point_skill: f64,
 ) -> Option<i32> {
     let mut rolls = crate::singletons::take_rolls(world)?;
     let defence = defence_of(world, victim);
@@ -2964,6 +2977,9 @@ fn strike_with(
         defence.size,
         defence.immobile,
     );
+    // Reference: `Creature::deal_damage` asks the monster's own weak-point set for the place the blow found (`creature.cpp:1146`), **before** the armour is worked out, because what the weak point
+    // does to the armour is part of how the blow meets it. The roll is the walk's own hundred, drawn from the store's generator so a fixed seed still replays the fight.
+    let found = weak_point_found(world, victim, weak_point_skill, &mut rolls);
     let landed_on = world.get::<Body>(victim).map(|body| body.parts.clone()).and_then(|parts| {
         let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
         crate::hit_location::struck_part(&parts, spread, false, fraction)
@@ -2986,7 +3002,9 @@ fn strike_with(
     let crit = crit_for.is_some_and(|inputs| {
         let roll = f64::from(rolls.rng(0, 10_000)) / 10_000.0;
         roll < crate::melee::crit_chance(inputs, hitroll, defence.dodge_roll())
-    });
+    })
+    // Reference: `crit_roll &= ret.wp->is_good && !ret.wp->id.empty()` (`creature.cpp:1147`) - **a weak point that hurts the monster takes the critical away**, however well the blow was struck.
+    && found.as_ref().is_none_or(|weak| weak.weakpoint.helps_attacker && !weak.weakpoint.id.is_empty());
     // Reference: `roll_all_damage` reads `crit_mod = target->get_crit_factor( bp )` (`melee.cpp:467-470`), which is how much of the vitals the struck part's armour covers.
     let crit_mod = landed_on
         .as_deref()
@@ -3024,6 +3042,37 @@ fn strike_with(
     } else {
         defence
     };
+    // Reference: the weak point's `apply_to( resistances & )` multiplies and then subtracts the armour it meets (`weakpoint.cpp:496-509`), and its `apply_to( damage_instance &, is_crit )` sharpens the
+    // blow by `crit_mult` on a crit and `damage_mult` otherwise - **exclusively**, which is the reference's `else if`.
+    let (sharpened, defence) = match found.as_ref() {
+        Some(weak) => {
+            let (bash, cut, stab) = crate::weakpoints::apply_to_blow(
+                &weak.factors,
+                (f64::from(sharpened.bash), f64::from(sharpened.cut), f64::from(sharpened.stab)),
+                crit,
+            );
+            #[allow(clippy::cast_possible_truncation)]
+            let sharpened = crate::melee::Damage {
+                bash: bash as i32,
+                cut: cut as i32,
+                stab: stab as i32,
+                penetration: sharpened.penetration,
+            };
+            let (resist, cut_resist, stab_resist) = crate::weakpoints::apply_to_armour_triple(
+                &weak.factors,
+                (f64::from(defence.resist), f64::from(defence.cut_resist), f64::from(defence.stab_resist)),
+            );
+            #[allow(clippy::cast_possible_truncation)]
+            let defence = crate::melee::Defence {
+                resist: resist as f32,
+                cut_resist: cut_resist as f32,
+                stab_resist: stab_resist as f32,
+                ..defence
+            };
+            (sharpened, defence)
+        }
+        None => (sharpened, defence),
+    };
     let swung = crate::melee::resolve(hitroll, sharpened, defence);
     // A garment's own fate is decided by the whole blow, before the armour took its share
     // (`character_armor.cpp`), and by a **fresh** draw of its own: `damage_armor_durability` calls `x_in_y` after
@@ -3046,6 +3095,50 @@ fn strike_with(
         }
     }
     Some(dealt)
+}
+
+/// The skill the thing in a character's hand trains, at the level the character has it.
+///
+/// Reference: `item::melee_skill` answers the skill its biggest damage type belongs to (`melee.cpp:356-370`), and an empty hand trains `unarmed`, which is the reference's `skill_unarmed`.
+#[must_use]
+fn weapon_skill_level(world: &World, holder: Entity) -> i32 {
+    let Some(kind) = world.get::<Wielding>(holder).map(|held| held.0) else {
+        return skill_level(world, holder, "unarmed");
+    };
+    let names = crate::item_registry::peek(world);
+    names.map_or(0, |names| {
+        let skill = crate::melee::weapon_skill(
+            f64::from(names.melee_bash_of(kind)),
+            f64::from(names.melee_cut_of(kind)),
+            f64::from(names.melee_stab_of(kind)),
+        );
+        skill.map_or(0, |skill| skill_level(world, holder, skill))
+    })
+}
+
+/// Which of the victim's weak points the blow found, if its body has any.
+///
+/// Reference: `weakpoints::select_weakpoint` (`weakpoint.cpp:588-631`) over a roll of nought to a hundred, with the attacker's `wp_skill` deciding how many rolls it takes (`rolls_for`). **A monster
+/// with no weak points answers nothing at all**, and the caller spends nothing - which is the reference's default entry doing its work without the port inventing one.
+#[must_use]
+fn weak_point_found(
+    world: &World,
+    victim: Entity,
+    skill: f64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<crate::weakpoints::WeakPoint> {
+    let weak_points = world.get::<crate::weakpoints::WeakPoints>(victim)?;
+    let entries: Vec<crate::weakpoints::Weakpoint> = weak_points
+        .entries
+        .iter()
+        .map(|entry| entry.weakpoint.clone())
+        .collect();
+    let roll = f64::from(rolls.rng(0, 99_999)) / 1_000.0;
+    let index = crate::weakpoints::select_weakpoint(&entries, skill, roll);
+    index.map_or_else(
+        || Some(weak_points.default.clone()),
+        |index| weak_points.entries.get(index).cloned(),
+    )
 }
 
 /// What a character's blow brings to the question "was it a critical".
@@ -3100,6 +3193,32 @@ fn sharpen(amount: i32, bonus: crate::melee::CritBonus) -> i32 {
 /// What a creature brings to being hit, read from the components it carries.
 #[must_use]
 #[allow(clippy::too_many_lines)]
+/// A character's limb score by name, wound-adjusted, summed over the parts that carry it.
+///
+/// Reference: `Character::get_limb_score` (`character_modifier.cpp:222-266`) walks the body's parts and adds each one's figure after `wound_adjusted_limb_value`
+/// (`bodypart.cpp:967-976`) - a part above three quarters of its hit points counts whole, below that it counts in proportion. **A body with no such part scores nothing**, which is what makes a
+/// stubbed limb a real loss rather than a rounding; a creature with no `Body` at all answers one, because the port's monsters have no anatomy and are whole until they have one.
+#[must_use]
+pub fn limb_score(world: &World, entity: Entity, name: &str) -> f64 {
+    let Some(body) = world.get::<Body>(entity) else {
+        return 1.0;
+    };
+    let total: f32 = body
+        .parts
+        .iter()
+        .map(|part| {
+            let figure = part
+                .limb_scores
+                .iter()
+                .find(|(score, _, _)| score == name)
+                .map_or(0.0, |(_, value, _)| *value);
+            let wound = wound_on(world, entity, &part.name);
+            crate::limbs::wound_adjusted_limb_value(figure, (part.base_hp - wound).max(0), part.base_hp)
+        })
+        .sum();
+    f64::from(total)
+}
+
 pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
     let size = world
         .get::<Creature>(entity)
@@ -3147,36 +3266,15 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
                         .collect()
                 })
                 .unwrap_or_default();
+            // **The product is floored at zero**, which is the reference's own `std::max( 0.0, ret )` (`melee.cpp:1229-1231`).
             crate::limbs::reaction_score(&scores)
         };
         // Reference: `melee.cpp:1233-1235` multiplies the dodge by the **balance, legs and feet** figure, which is one for a whole body and falls as those limbs are hurt.
-        let limb_dodge = {
-            let score = |name: &str| -> f64 {
-                f64::from(
-                    world
-                        .get::<Body>(entity)
-                        .map_or(1.0, |body| {
-                            body.parts
-                                .iter()
-                                .map(|part| {
-                                    let figure = part
-                                        .limb_scores
-                                        .iter()
-                                        .find(|(score, _, _)| score == name)
-                                        .map_or(0.0, |(_, value, _)| *value);
-                                    let wound = wound_on(world, entity, &part.name);
-                                    crate::limbs::wound_adjusted_limb_value(
-                                        figure,
-                                        (part.base_hp - wound).max(0),
-                                        part.base_hp,
-                                    )
-                                })
-                                .sum::<f32>()
-                        }),
-                )
-            };
-            crate::limbs::limb_dodge_modifier(score("balance"), score("move_speed"), score("footing"))
-        };
+        let limb_dodge = crate::limbs::limb_dodge_modifier(
+            limb_score(world, entity, "balance"),
+            limb_score(world, entity, "move_speed"),
+            limb_score(world, entity, "footing"),
+        );
         // Reference: the dodge is divided by the body-size ratio last of all (`melee.cpp:1237-1238`), so a bigger target keeps less of it.
         let size = world
             .get::<SizeComparedToHuman>(entity)

@@ -209,3 +209,60 @@ pub fn attacker_skill(
     let multiplier = (limb_one + limb_two) / 2.0;
     (skill + stat) * multiplier
 }
+
+/// One weak point as the store carries it: the selection's figures and what it does to a blow.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WeakPoint {
+    /// Its coverage, difficulty and direction.
+    pub weakpoint: Weakpoint,
+    /// Its armour and damage multipliers.
+    pub factors: WeakpointFactors,
+}
+
+/// The weak points a body has.
+///
+/// Reference: `mtype::weakpoints` (`mtype.h:444`) is an inline `::weakpoints` object on the monster's type, and `Creature::deal_damage` selects from it (`creature.cpp:1146`). The store keeps
+/// the same shape as a component on the body rather than on the type, because **the body is what a blow lands on** and a type is data that several bodies share.
+#[derive(bevy_ecs::component::Component, Debug, Clone, PartialEq)]
+pub struct WeakPoints {
+    /// The entries, in the order the walk tries them.
+    pub entries: Vec<WeakPoint>,
+    /// The one that answers a roll nothing else took.
+    pub default: WeakPoint,
+}
+
+/// The same damage rule, over the port's three physical types.
+///
+/// A thin reading of [`apply_to_damage`] for a blow, which carries exactly bash, cut and stab: the map is the rule and this is the shape a caller has.
+#[must_use]
+pub fn apply_to_blow(factors: &WeakpointFactors, blow: (f64, f64, f64), is_crit: bool) -> (f64, f64, f64) {
+    let units = apply_to_damage(
+        factors,
+        &[
+            ("bash".to_owned(), blow.0),
+            ("cut".to_owned(), blow.1),
+            ("stab".to_owned(), blow.2),
+        ],
+        is_crit,
+    );
+    (
+        units.first().map_or(blow.0, |unit| unit.1),
+        units.get(1).map_or(blow.1, |unit| unit.1),
+        units.get(2).map_or(blow.2, |unit| unit.1),
+    )
+}
+
+/// The same armour rule, over the port's three physical types.
+#[must_use]
+pub fn apply_to_armour_triple(factors: &WeakpointFactors, armour: (f64, f64, f64)) -> (f64, f64, f64) {
+    let mut mapped = std::collections::BTreeMap::new();
+    mapped.insert("bash".to_owned(), armour.0);
+    mapped.insert("cut".to_owned(), armour.1);
+    mapped.insert("stab".to_owned(), armour.2);
+    apply_to_armour(factors, &mut mapped);
+    (
+        mapped.get("bash").copied().unwrap_or(0.0),
+        mapped.get("cut").copied().unwrap_or(0.0),
+        mapped.get("stab").copied().unwrap_or(0.0),
+    )
+}

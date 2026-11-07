@@ -16626,5 +16626,12 @@ average of two limb scores - `weakpoints::attacker_skill`. A monster's answer is
 **The product is the rule.** An attacker whose eyes and reaction are gone finds nothing however skilled it is, and a half-hurt head **halves** the result rather than taking a point off it - which is
 the same reaction figure the dodge chain reads, so one hurt head now costs a survivor both its dodge and its aim.
 
-**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill (their bonus and penalty are in the data, and the port has neither
-proficiency table nor the family set), `physical`/`non_physical` map keys, and the **caller** - no blow spends a weak point yet, because `strike_with` does not ask for one.
+**A blow spends it now** (round 1367): `strike_with` asks `weak_point_found` for the place it landed, sharpens the damage through `apply_to_blow`, dulls the armour through
+`apply_to_armour_triple`, and **takes the critical away when the weak point helps the monster** (`crit_roll &= ret.wp->is_good && !ret.wp->id.empty()`, `creature.cpp:1147`).
+
+**One rule was hiding in two places, and the round that needed it a third time found it.** `defence_of` had the wound-adjusted limb-score walk written out twice - once for the reaction figure
+and once for the balance/legs/feet figure - and the weak-point skill needed the same walk for vision and reaction. It is now `creature::limb_score`, called from all three, and the fight suite's 105
+tests were green before and after.
+
+**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys, the walk's **per-attack-type difficulty
+index** (the port asks with the `NONE` default, because it has no attack-type enum), and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

@@ -195,3 +195,86 @@ fn a_weak_point_needs_a_skilled_eye_to_find() {
         "four and two average to three"
     );
 }
+
+/// A blow that lands on a weak point is changed by it.
+///
+/// Reference: `Creature::deal_damage` asks `mon->type->weakpoints.select_weakpoint( attack )` (`creature.cpp:1146`) and then spends the answer three ways - the **armour** it meets
+/// (`apply_to( resistances )`), the **damage** it deals (`apply_to( damage_instance, is_crit )`), and whether the blow can critical at all (`crit_roll &= ret.wp->is_good &&
+/// !ret.wp->id.empty()`).
+///
+/// **A weak point that hurts the monster cancels the attacker's crit**: a blow that found a bad place is not a clean one, however well it was struck. The gate below is the doubled-damage
+/// half: the same seed, the same swing, two worlds - one body with the weak point and one without - and **the weak point's body takes more from the same blow**.
+#[test]
+fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::item_registry::{Kind, set_item_types};
+    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, Weakpoint, WeakpointFactors};
+
+    /// One world, one swing: a survivor with a rock in hand against a body of nine hundred hit points, with or without a weak point that doubles the bash.
+    fn blow(weak: bool) -> i32 {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(9));
+        set_item_types(
+            &mut world,
+            &[Kind {
+                id: "rock",
+                volume_ml: 50,
+                weight_g: 657,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 20.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            }],
+        );
+        let rock = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock");
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+        world.entity_mut(zombie).insert((
+            cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
+            // **An unarmoured body**, because the fixture is about the weak point rather than about which layer the blow stopped in.
+            cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        ));
+        world.entity_mut(survivor).insert((
+            cdda_sim::creature::Dexterity { base: 8 },
+            cdda_sim::creature::Wielding(rock),
+        ));
+        if weak {
+            let mut factors = WeakpointFactors::default();
+            factors.damage_multiplier.insert("bash".to_owned(), 2.0);
+            let doubled = WeakPoint {
+                weakpoint: Weakpoint {
+                    id: "ribs".to_owned(),
+                    // **A hundred percent coverage at a difficulty of minus a hundred**: it cannot be missed, so the comparison is about the multiplier rather than a roll.
+                    coverage: 100.0,
+                    difficulty: -100.0,
+                    helps_attacker: true,
+                },
+                factors,
+            };
+            let plain = WeakPoint {
+                weakpoint: Weakpoint {
+                    id: String::new(),
+                    coverage: 100.0,
+                    difficulty: -100.0,
+                    helps_attacker: true,
+                },
+                factors: WeakpointFactors::default(),
+            };
+            world.entity_mut(zombie).insert(WeakPoints {
+                entries: vec![doubled],
+                default: plain,
+            });
+        }
+        let dealt = cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie).unwrap_or(-1);
+        let lost = 9_000 - cdda_sim::creature::health_of(&world, zombie).unwrap_or(9_000);
+        assert_eq!(dealt, lost, "what the swing says it dealt is what the body lost");
+        dealt
+    }
+
+    let plain = blow(false);
+    let weak = blow(true);
+    assert!(plain > 0, "the rock hurts a body with no weak points: {plain}");
+    assert_eq!(weak, plain * 2, "**and the same blow into a doubled weak point is worth twice as much**: {weak} against {plain}");
+}
