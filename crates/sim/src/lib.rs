@@ -62,6 +62,7 @@ pub mod creature_flags;
 pub mod hearing;
 pub mod hit_location;
 pub mod limbs;
+pub mod weakpoints;
 pub mod melee;
 pub mod sounds;
 pub mod timed_events;

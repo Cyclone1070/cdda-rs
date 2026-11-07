@@ -1410,3 +1410,6 @@ rule before writing it again**, and treat the roadmap's "named gaps" as a list t
 
 **Round 1360 added the uncalled-rule gate**: `tools/check_dead_rules.py` fails when a `pub fn` is named nowhere, with a ledger of six rules that are ported, gated and waiting for a caller - the
 check that would have caught round 1358's duplicate.
+
+**Round 1361 ported the weak point's hit chance**: a normal tail from the port's own `erf` series, the ten-point shift and tenth-floor for a weak point that hurts the monster, and the rolls a
+skillful attacker reweighs with - gated on **240 of 240** rows of the reference's own grid.

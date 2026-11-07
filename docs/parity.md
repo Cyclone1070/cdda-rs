@@ -16573,3 +16573,22 @@ The ledger, each entry also named here so the script is not a second source of t
 `monsters::load_species_paths` | the species loader, waiting for the content table that reads it |
 
 **The gate is proved by planting**: an uncalled `pub fn` added to `melee.rs` makes it fail with the file and the name, and removing the file's copy makes it pass again.
+
+## Weak points: the chance an attack has of finding one (round 1361)
+
+| Piece | Reference | Port |
+|---|---|---|
+the chance | `weakpoint::hit_chance` (`weakpoint.cpp:536-578`): a normal tail, `0.5*(1+erf)` for a good weak point and `max(0.5*erfc, 0.1)` for a bad one, shifted by ten | `weakpoints::hit_chance` |
+the tail | `std::erf` / `std::erfc` | `weakpoints::erf` from its own series, `erfc` as `1 - erf` |
+the draws | `rolls = max(1, 1 + skill/2.5)` and `reweigh = 1 - (1-base)^rolls` (`:583-596`) | `weakpoints::rolls_for`, `weakpoints::reweigh` |
+Gate | `--dump-weakpoint-chance`, **240 rows** over skill, difficulty and coverage for both branches | `weakpoints::the_ported_weakpoint_chance_matches_the_reference` |
+
+**The formula is the gate, not the constants.** `erf` is written from its own series rather than from a table of rational coefficients, because a table of magic numbers is exactly what a port
+cannot verify; the dump then says whether the series is right, and it did: 240 of 240 rows within **a ten-thousandth of a percent**, which is what the reference's `float` return can carry.
+
+**Two cuts the dump made, and both were mine to be wrong about.** Saturating `erf` beyond `|x| = 3` answered **zero** where the reference answers `0.00017` - the reference's grid has a row at
+`z = -3.18`, so the cut-off is four. And the reference's own comment about "a 75% chance of not hitting becomes 23.7% with 5 rolls" is written **the other way round**: it is `1 - reweigh(0.25, 5)`,
+not `reweigh(0.75, 5)`, which is 99.9.
+
+**Named, not invented:** what a weak point *does* - `apply_to`'s armour multiplier and penalty, `damage_mult`/`crit_mult` (which is where a critical hit finally spends itself), the effects a weak
+point triggers, the per-attack-type difficulty table, the proficiency families that shift the skill, and `select_weakpoint`'s walk over the reweighed distribution.

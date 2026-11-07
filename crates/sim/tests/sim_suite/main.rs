@@ -19,6 +19,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 
 mod acid_vent;
 mod limbs;
+mod weakpoints;
 mod setters;
 mod weather_conditions;
 mod missions;
