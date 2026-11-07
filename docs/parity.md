@@ -16681,6 +16681,10 @@ first fixture written used `penalty: 200.0` and the gate failed in the opposite 
 proficiency table carrying that field - so the dump writes what the reference would have used. That is a data decision rather than a rule one: the *rule* (bonus when known, penalty when not, summed)
 is ported and gated; only the two defaults are resolved upstream.
 
-**Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' **practice** paths
-(`practice_hit`, `practice_kill`, `practice_dissect` - the reference teaches a proficiency by doing, and nothing calls them yet), `physical`/`non_physical` map keys, the enchantment that modifies
-`WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.
+**Striking a body teaches what that body rewards** (round 1375): `weakpoints::practise_a_hit` is `weakpoint_families::practice_hit` (`weakpoint.cpp:145-148`) - **two seconds** through the port's
+own `proficiencies::practice`, which a finished craft already used - called from `strike_with`, `shot::hurt_once` and the throw's impact, because the reference practises on **any** character's
+hit (`monster.cpp:3888-3892`). A family whose proficiency the data does not define is **not practised** rather than practised toward an invented target.
+
+**Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' two **other** practice
+paths (`practice_kill` in `kill_tracker.cpp:128` - a minute - and `practice_dissect` in `butchery.cpp:953` - two fifteen-minute halves, because proficiency practice is capped - which need the kill
+tracker and butchery), `physical`/`non_physical` map keys, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

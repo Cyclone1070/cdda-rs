@@ -455,6 +455,14 @@ fn hurt_once(
         total += through.max(0);
     }
     crate::damage_monster(world, struck, total);
+    // Reference: `monster::deal_damage` practises the struck body's families for two seconds on **any** character's hit (`monster.cpp:3888-3892`), not only a blow's.
+    {
+        let families = world
+            .get::<crate::weakpoints::WeakPoints>(struck)
+            .map(|weak| weak.families.clone())
+            .unwrap_or_default();
+        crate::weakpoints::practise_a_hit(world, shooter, &families);
+    }
     // Reference: `wkpt->apply_effects( *this, total_damage, attack )` runs after the damage lands (`creature.cpp:1453-1455`), and a shot's weak point triggers exactly like a blow's.
     if let Some(weak) = found.as_ref() {
         #[allow(clippy::cast_precision_loss)]

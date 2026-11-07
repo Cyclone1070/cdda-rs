@@ -519,3 +519,23 @@ pub fn skill_with_families(
 ) -> f64 {
     skill + families_modifier(families, knows)
 }
+
+/// Teaches a creature what a body it struck rewards.
+///
+/// Reference: `weakpoint_families::practice_hit` (`weakpoint.cpp:145-148`), which is `weakpoint_families::practice` with **two seconds** (`:131-143`) - and that rule is
+/// `proficiency_set::practice`, which the port already had for a finished craft. A family whose proficiency the creature already knows answers nothing, which is the reference's own guard.
+///
+/// The span comes from the data's table (`proficiency::time_to_learn`, `proficiency.h:84`), and a proficiency the data does not define is **not practised** rather than practised toward an
+/// invented target: a rule that needs a number the data never gave has nothing to say.
+pub fn practise_a_hit(
+    world: &mut bevy_ecs::prelude::World,
+    learner: bevy_ecs::prelude::Entity,
+    families: &[WeakpointFamily],
+) {
+    for family in families {
+        let Some(seconds) = crate::proficiencies::time_to_learn(world, &family.proficiency) else {
+            continue;
+        };
+        crate::proficiencies::practice(world, learner, &family.proficiency, 2, seconds);
+    }
+}

@@ -294,6 +294,14 @@ fn strike_whatever_stands_there(
             #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
             let hurt = crate::melee::after_armour(blow as f32, resisted, 0.0, 0.0).floor() as i32;
             let fatal = crate::damage_monster(world, struck, hurt);
+            // Reference: `monster::deal_damage` practises the struck body's families for two seconds on any character's hit (`monster.cpp:3888-3892`).
+            {
+                let families = world
+                    .get::<crate::weakpoints::WeakPoints>(struck)
+                    .map(|weak| weak.families.clone())
+                    .unwrap_or_default();
+                crate::weakpoints::practise_a_hit(world, thrower, &families);
+            }
             // Reference: `wkpt->apply_effects` runs after the damage lands (`creature.cpp:1453-1455`), for a thrown thing exactly as for a shot.
             if let Some(weak) = found.as_ref() {
                 #[allow(clippy::cast_precision_loss)]

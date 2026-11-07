@@ -849,3 +849,162 @@ fn the_body_s_families_reach_the_walk_s_skill() {
         "**the penalty takes the skill below the point, so the plain body answers instead**"
     );
 }
+
+/// Striking a body teaches what that body rewards.
+///
+/// Reference: `monster::deal_damage`'s `type->families.practice_hit( *attacker )` (`monster.cpp:3888-3892`), which is `weakpoint_families::practice` with **two seconds**
+/// (`weakpoint.cpp:145-148`) - the same rule as a finished craft, pointed at the proficiencies the struck body names. **Two seconds is small and the corpus's proficiencies take hours**, so the
+/// practice shows up as *practised time* rather than as a learned proficiency, which is exactly what the reference's own message-less path does.
+#[test]
+fn striking_a_body_practises_what_that_body_rewards() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, WeakpointFactors, WeakpointFamily};
+
+    let mut world = World::new();
+    // The data's table, with one proficiency that takes four seconds so the gate can watch it fill.
+    let mut dump = cdda_content::proficiencies::Proficiencies::default();
+    dump.by_id.insert(
+        "prof_wp_zombie".to_owned(),
+        cdda_content::proficiencies::Proficiency {
+            id: "prof_wp_zombie".to_owned(),
+            seconds: 4,
+            can_learn: true,
+            required: Vec::new(),
+            bonuses: Vec::new(),
+        },
+    );
+    cdda_sim::proficiencies::install(&mut world, &dump);
+
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert(( 
+        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
+        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        WeakPoints {
+            entries: Vec::new(),
+            default: WeakPoint {
+                id: String::new(),
+                coverage: 100.0,
+                helps_attacker: true,
+                difficulties: vec![-100.0; 5],
+                coverage_multipliers: vec![1.0; 5],
+                effects: Vec::new(),
+                factors: WeakpointFactors::default(),
+            },
+            families: vec![WeakpointFamily {
+                id: "prof_wp_zombie".to_owned(),
+                proficiency: "prof_wp_zombie".to_owned(),
+                bonus: 2.0,
+                penalty: -2.0,
+            }],
+        },
+    ));
+
+    let families = vec![WeakpointFamily {
+        id: "prof_wp_zombie".to_owned(),
+        proficiency: "prof_wp_zombie".to_owned(),
+        bonus: 2.0,
+        penalty: -2.0,
+    }];
+    // **At first nothing**, because nothing has struck it.
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_wp_zombie"),
+        0,
+        "a survivor who has not struck the body has practised nothing"
+    );
+    cdda_sim::weakpoints::practise_a_hit(&mut world, survivor, &families);
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_wp_zombie"),
+        2,
+        "**one hit is two seconds of practice**: {}",
+        cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_wp_zombie")
+    );
+    cdda_sim::weakpoints::practise_a_hit(&mut world, survivor, &families);
+    assert!(
+        cdda_sim::proficiencies::knows(&world, survivor, "prof_wp_zombie"),
+        "**the second hit reaches the four seconds the data asks for, so the proficiency is learned**"
+    );
+    // A proficiency already known is not practised again, which is the reference's own guard (`proficiency.cpp:307`).
+    cdda_sim::weakpoints::practise_a_hit(&mut world, survivor, &families);
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_wp_zombie"),
+        0,
+        "a learned proficiency reports no practised time"
+    );
+}
+
+/// A real swing practises what it struck, not only the rule in isolation.
+///
+/// Reference: `monster::deal_damage` calls `type->families.practice_hit( *attacker )` on the way out (`monster.cpp:3888-3892`), so the practice rides on **the hit** rather than on a button.
+#[test]
+fn a_swing_practises_the_body_it_struck() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, WeakpointFactors, WeakpointFamily};
+
+    let mut world = World::new();
+    let mut dump = cdda_content::proficiencies::Proficiencies::default();
+    dump.by_id.insert(
+        "prof_wp_zombie".to_owned(),
+        cdda_content::proficiencies::Proficiency {
+            id: "prof_wp_zombie".to_owned(),
+            seconds: 600,
+            can_learn: true,
+            required: Vec::new(),
+            bonuses: Vec::new(),
+        },
+    );
+    cdda_sim::proficiencies::install(&mut world, &dump);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 50,
+            weight_g: 657,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 20.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 40,
+        }],
+    );
+    let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock");
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert((
+        cdda_sim::creature::Dexterity { base: 12 },
+        cdda_sim::creature::Perception { base: 12 },
+        cdda_sim::creature::Moves { left: 400 },
+        cdda_sim::creature::Wielding(kind),
+    ));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert((
+        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
+        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        WeakPoints {
+            entries: Vec::new(),
+            default: WeakPoint {
+                id: String::new(),
+                coverage: 100.0,
+                helps_attacker: true,
+                difficulties: vec![-100.0; 5],
+                coverage_multipliers: vec![1.0; 5],
+                effects: Vec::new(),
+                factors: WeakpointFactors::default(),
+            },
+            families: vec![WeakpointFamily {
+                id: "prof_wp_zombie".to_owned(),
+                proficiency: "prof_wp_zombie".to_owned(),
+                bonus: 2.0,
+                penalty: -2.0,
+            }],
+        },
+    ));
+
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_wp_zombie"),
+        2,
+        "**one landed swing is two seconds toward what the body rewards**"
+    );
+}

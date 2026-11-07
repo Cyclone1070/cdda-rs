@@ -1455,3 +1455,6 @@ written down in the round's commit.
 
 **Round 1374 put the target's families into the skill** on all three attack paths, and the gate asks the walk directly rather than swinging, so the two outcomes differ for one reason. The
 fixture's first penalty was positive and the gate failed backwards: the data's penalties are signed, so the rule adds rather than subtracts.
+
+**Round 1375 taught the attacker**: `practice_hit` is two seconds through the proficiency rule the crafting path already had, wired on all three attack kinds, and gated twice - once on the rule
+alone and once on a real swing, because a rule with no caller is not behaviour. The mutation check moved the span to one second and the swing gate answered one against two.

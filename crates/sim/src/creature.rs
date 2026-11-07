@@ -2952,6 +2952,15 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         &|proficiency| crate::proficiencies::knows(world, holder, proficiency),
     );
     let dealt = strike_with(world, victim, attack, crit_inputs.as_ref(), weak_point_skill);
+    // Reference: `monster::deal_damage`'s last line before the enchantments - `type->families.practice_hit( *attacker )` (`monster.cpp:3888-3892`) - which teaches the attacker what the body it
+    // just struck rewards, two seconds at a time.
+    if dealt.is_some() {
+        let families = world
+            .get::<crate::weakpoints::WeakPoints>(victim)
+            .map(|weak| weak.families.clone())
+            .unwrap_or_default();
+        crate::weakpoints::practise_a_hit(world, holder, &families);
+    }
     // Reference: `Character::melee_attack` wears the weapon it swung **whatever the outcome** - the call sits outside the hit branch (`melee.cpp:930`) - so a miss dents a weapon just as a hit
     // does. The chance is round 1191's arithmetic and the guard is its inverted `one_in`; what is new here is the **place**, which is the hand.
     crate::creature::wear_the_wielded_weapon(world, holder, skill, dexterity);
