@@ -1435,3 +1435,6 @@ monster. The same round found the wound-adjusted limb-score walk written out twi
 **Round 1368 gave the world its weak points and retracted a scenario.** A spawned monster now carries its type's set, so the strike can find one in play; and `a_critical_swing_takes_more` became
 `a_swing_at_a_body_never_crits`, because the reference cancels a critical on the default weak point and a zombie's body is the default - both swings take twenty, and the seed that used to tell a
 crit from a miss now proves the crit roll is not what decides the damage.
+
+**Round 1369 gave the walk its attack type**: the reference's five-entry enum, its order as the index, and `type_of_melee_attack`'s largest-amount rule. Every blow was read against index zero
+before this, which made a knife's stab at a head use the `NONE` difficulty of minus a hundred instead of six.

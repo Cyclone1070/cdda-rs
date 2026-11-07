@@ -90,8 +90,20 @@ fn a_roll_walks_the_weak_points_in_reweighed_order() {
     use cdda_sim::weakpoints::{Weakpoint, reweigh, select_weakpoint};
 
     let list = [
-        Weakpoint { id: "eye".to_owned(), coverage: 50.0, difficulty: 0.0, helps_attacker: true },
-        Weakpoint { id: "knee".to_owned(), coverage: 50.0, difficulty: 0.0, helps_attacker: true },
+        Weakpoint {
+            id: "eye".to_owned(),
+            coverage: 50.0,
+            difficulty: 0.0,
+            helps_attacker: true,
+            coverage_multiplier: 1.0,
+        },
+        Weakpoint {
+            id: "knee".to_owned(),
+            coverage: 50.0,
+            difficulty: 0.0,
+            helps_attacker: true,
+            coverage_multiplier: 1.0,
+        },
     ];
     // A beginner gets one roll, so each entry's share is its own raw chance: twenty-five, then twenty-five.
     assert_eq!(select_weakpoint(&list, 0.0, 0.0), Some(0), "a low roll takes the first");
@@ -243,23 +255,21 @@ fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
         if weak {
             let mut factors = WeakpointFactors::default();
             factors.damage_multiplier.insert("bash".to_owned(), 2.0);
+            // **A hundred percent coverage at a difficulty of minus a hundred for every attack type**: it cannot be missed, so the comparison is about the multiplier rather than a roll.
             let doubled = WeakPoint {
-                weakpoint: Weakpoint {
-                    id: "ribs".to_owned(),
-                    // **A hundred percent coverage at a difficulty of minus a hundred**: it cannot be missed, so the comparison is about the multiplier rather than a roll.
-                    coverage: 100.0,
-                    difficulty: -100.0,
-                    helps_attacker: true,
-                },
+                id: "ribs".to_owned(),
+                coverage: 100.0,
+                helps_attacker: true,
+                difficulties: vec![-100.0; 5],
+                coverage_multipliers: vec![1.0; 5],
                 factors,
             };
             let plain = WeakPoint {
-                weakpoint: Weakpoint {
-                    id: String::new(),
-                    coverage: 100.0,
-                    difficulty: -100.0,
-                    helps_attacker: true,
-                },
+                id: String::new(),
+                coverage: 100.0,
+                helps_attacker: true,
+                difficulties: vec![-100.0; 5],
+                coverage_multipliers: vec![1.0; 5],
                 factors: WeakpointFactors::default(),
             };
             world.entity_mut(zombie).insert(WeakPoints {
@@ -317,7 +327,7 @@ fn a_spawned_monster_carries_its_weak_points() {
         .expect("**a spawned zombie keeps the weak points its type states**");
     assert_eq!(carried.entries.len(), 5, "a zombie's body has five");
     assert!(
-        carried.entries.iter().all(|entry| !entry.weakpoint.id.is_empty()),
+        carried.entries.iter().all(|entry| !entry.id.is_empty()),
         "and every one of them is named"
     );
     // A monster whose type states none gets no component at all, which is the port's way of saying "nothing to find" rather than an empty list to walk.
@@ -338,5 +348,39 @@ fn a_spawned_monster_carries_its_weak_points() {
     assert!(
         world.get::<cdda_sim::weakpoints::WeakPoints>(spawned).is_none(),
         "a body with nothing to aim at carries no weak point set"
+    );
+}
+
+/// Which difficulty a blow is read against is decided by its **biggest** damage type.
+///
+/// Reference: `weakpoint_attack::type_of_melee_attack` (`weakpoint.cpp:354-371`) walks the damage units and takes the type with the **largest amount** - strictly larger, so a tie keeps the first
+/// the blow states - and then names it `MELEE_BASH`, `MELEE_CUT` or `MELEE_STAB`. **A blow whose biggest type is none of the three is `NONE`**, which is the index the port was reading for every
+/// blow before this round: a knife read a zombie head's bash difficulty instead of its stab one.
+///
+/// The weak point's own `difficulty` list is in the reference's order - `NONE`, bash, cut, stab, projectile - which is the order the dump writes it in.
+#[test]
+fn a_blow_is_read_against_the_difficulty_of_its_biggest_damage_type() {
+    use cdda_sim::weakpoints::{AttackType, difficulty_for, type_of_melee_attack};
+
+    assert_eq!(type_of_melee_attack((20, 0, 0)), AttackType::MeleeBash, "a crowbar's blow is bash");
+    assert_eq!(type_of_melee_attack((0, 20, 0)), AttackType::MeleeCut, "a machete's is cut");
+    assert_eq!(type_of_melee_attack((0, 0, 20)), AttackType::MeleeStab, "and a knife's is stab");
+    // **The biggest wins, not the first**: a blow of five bash and twelve stab is a stab.
+    assert_eq!(type_of_melee_attack((5, 0, 12)), AttackType::MeleeStab, "the largest amount decides");
+    // A tie keeps the earlier type, because the reference only replaces on a strictly larger amount.
+    assert_eq!(type_of_melee_attack((10, 0, 10)), AttackType::MeleeBash, "a tie keeps the first");
+    assert_eq!(type_of_melee_attack((0, 0, 0)), AttackType::None, "a blow worth nothing has no type");
+
+    // The list is read by the index the enum states, which is the reference's own numbering.
+    let difficulty = [-100.0, 2.0, 4.0, 6.0, 8.0];
+    assert_eq!(difficulty_for(&difficulty, AttackType::None), -100.0, "the default entry");
+    assert_eq!(difficulty_for(&difficulty, AttackType::MeleeBash), 2.0);
+    assert_eq!(difficulty_for(&difficulty, AttackType::MeleeCut), 4.0);
+    assert_eq!(difficulty_for(&difficulty, AttackType::MeleeStab), 6.0);
+    assert_eq!(difficulty_for(&difficulty, AttackType::Projectile), 8.0);
+    assert_eq!(
+        difficulty_for(&[], AttackType::MeleeStab),
+        0.0,
+        "**a list too short to hold the index answers nothing rather than the wrong figure**"
     );
 }

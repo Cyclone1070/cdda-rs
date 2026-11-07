@@ -16641,5 +16641,11 @@ whose id is empty. The scenario is now `a_swing_at_a_body_never_crits`, keeps it
 it proved before: **both swings take twenty**, so the crit roll is not what decides the damage. A monster can only be critically hit **where it is weak**, which is the whole reason hunting a
 head is worth the accuracy it costs.
 
-**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys, the walk's **per-attack-type difficulty
-index** (the port asks with the `NONE` default, because it has no attack-type enum), and `armour_mult`'s interaction with a garment's own `PartArmour` roll.
+**The walk now reads the right figure for the attack it is asked about** (round 1369): `AttackType` is the reference's own five-entry enum (`weakpoint.h:155-166`), **its order is the index** the
+data's `difficulty` and `coverage_mult` lists are read by, and `type_of_melee_attack` (`weakpoint.cpp:354-371`) picks the type with the **largest amount**, replacing only on a strictly larger one.
+
+**Before this round every blow was read against index zero.** A knife through a zombie's eye was asked the `NONE` difficulty of minus a hundred instead of the stab difficulty of six - so the port
+made every weak point far easier to hit than the reference does, and the error was invisible because it made the port *succeed* more often.
+
+**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys, the projectile path's own `wp_skill`
+(`ranged_weakpoint_skill` and `throw_weakpoint_skill`), the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

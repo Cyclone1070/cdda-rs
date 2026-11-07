@@ -2986,7 +2986,13 @@ fn strike_with(
     );
     // Reference: `Creature::deal_damage` asks the monster's own weak-point set for the place the blow found (`creature.cpp:1146`), **before** the armour is worked out, because what the weak point
     // does to the armour is part of how the blow meets it. The roll is the walk's own hundred, drawn from the store's generator so a fixed seed still replays the fight.
-    let found = weak_point_found(world, victim, weak_point_skill, &mut rolls);
+    let found = weak_point_found(
+        world,
+        victim,
+        (attack.fixed.bash, attack.fixed.cut, attack.fixed.stab),
+        weak_point_skill,
+        &mut rolls,
+    );
     let landed_on = world.get::<Body>(victim).map(|body| body.parts.clone()).and_then(|parts| {
         let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
         crate::hit_location::struck_part(&parts, spread, false, fraction)
@@ -3011,7 +3017,7 @@ fn strike_with(
         roll < crate::melee::crit_chance(inputs, hitroll, defence.dodge_roll())
     })
     // Reference: `crit_roll &= ret.wp->is_good && !ret.wp->id.empty()` (`creature.cpp:1147`) - **a weak point that hurts the monster takes the critical away**, however well the blow was struck.
-    && found.as_ref().is_none_or(|weak| weak.weakpoint.helps_attacker && !weak.weakpoint.id.is_empty());
+    && found.as_ref().is_none_or(|weak| weak.helps_attacker && !weak.id.is_empty());
     // Reference: `roll_all_damage` reads `crit_mod = target->get_crit_factor( bp )` (`melee.cpp:467-470`), which is how much of the vitals the struck part's armour covers.
     let crit_mod = landed_on
         .as_deref()
@@ -3131,14 +3137,16 @@ fn weapon_skill_level(world: &World, holder: Entity) -> i32 {
 fn weak_point_found(
     world: &World,
     victim: Entity,
+    blow: (i32, i32, i32),
     skill: f64,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> Option<crate::weakpoints::WeakPoint> {
     let weak_points = world.get::<crate::weakpoints::WeakPoints>(victim)?;
+    let attack = crate::weakpoints::type_of_melee_attack(blow);
     let entries: Vec<crate::weakpoints::Weakpoint> = weak_points
         .entries
         .iter()
-        .map(|entry| entry.weakpoint.clone())
+        .map(|entry| entry.asked_with(attack))
         .collect();
     let roll = f64::from(rolls.rng(0, 99_999)) / 1_000.0;
     let index = crate::weakpoints::select_weakpoint(&entries, skill, roll);

@@ -109,6 +109,8 @@ pub struct Weakpoint {
     pub difficulty: f64,
     /// Whether hitting it helps the attacker (`is_good`) or hurts the monster (`false`).
     pub helps_attacker: bool,
+    /// The attack type's own multiplier on the coverage (`weakpoint::hit_chance`'s `coverage_mult.of( attack )`).
+    pub coverage_multiplier: f64,
 }
 
 /// Which weak point a roll lands on, or `None` for the body itself.
@@ -123,7 +125,13 @@ pub fn select_weakpoint(list: &[Weakpoint], skill: f64, roll: f64) -> Option<usi
     let mut reweighed = 0.0;
     let mut idx = roll;
     for (index, weakpoint) in list.iter().enumerate() {
-        let raw = hit_chance(weakpoint.coverage, weakpoint.difficulty, skill, weakpoint.helps_attacker, 1.0);
+        let raw = hit_chance(
+            weakpoint.coverage,
+            weakpoint.difficulty,
+            skill,
+            weakpoint.helps_attacker,
+            weakpoint.coverage_multiplier,
+        );
         if raw == 0.0 {
             continue;
         }
@@ -213,10 +221,32 @@ pub fn attacker_skill(
 /// One weak point as the store carries it: the selection's figures and what it does to a blow.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WeakPoint {
-    /// Its coverage, difficulty and direction.
-    pub weakpoint: Weakpoint,
+    /// Its id.
+    pub id: String,
+    /// The percent chance of hitting it before skill is considered.
+    pub coverage: f64,
+    /// Whether hitting it helps the attacker.
+    pub helps_attacker: bool,
+    /// How hard it is to hit, **per attack type** in the reference's order (`NONE`, bash, cut, stab, projectile).
+    pub difficulties: Vec<f64>,
+    /// The coverage multiplier per attack type, in the same order.
+    pub coverage_multipliers: Vec<f64>,
     /// Its armour and damage multipliers.
     pub factors: WeakpointFactors,
+}
+
+impl WeakPoint {
+    /// The entry the walk reads, asked the way this attack asks it.
+    #[must_use]
+    pub fn asked_with(&self, attack: AttackType) -> Weakpoint {
+        Weakpoint {
+            id: self.id.clone(),
+            coverage: self.coverage,
+            difficulty: difficulty_for(&self.difficulties, attack),
+            helps_attacker: self.helps_attacker,
+            coverage_multiplier: difficulty_for(&self.coverage_multipliers, attack),
+        }
+    }
 }
 
 impl WeakPoints {
@@ -227,12 +257,11 @@ impl WeakPoints {
     #[must_use]
     pub fn from_set(set: &cdda_content::weakpoints::WeakpointSet) -> Self {
         let one = |entry: &cdda_content::weakpoints::Weakpoint| WeakPoint {
-            weakpoint: Weakpoint {
-                id: entry.id.clone(),
-                coverage: entry.coverage,
-                difficulty: entry.difficulty.first().copied().unwrap_or(0.0),
-                helps_attacker: entry.helps_attacker,
-            },
+            id: entry.id.clone(),
+            coverage: entry.coverage,
+            helps_attacker: entry.helps_attacker,
+            difficulties: entry.difficulty.clone(),
+            coverage_multipliers: entry.coverage_multiplier.clone(),
             factors: WeakpointFactors {
                 armour_multiplier: entry.armour_multiplier.clone(),
                 armour_penalty: entry.armour_penalty.clone(),
@@ -293,4 +322,65 @@ pub fn apply_to_armour_triple(factors: &WeakpointFactors, armour: (f64, f64, f64
         mapped.get("cut").copied().unwrap_or(0.0),
         mapped.get("stab").copied().unwrap_or(0.0),
     )
+}
+
+/// Which kind of attack a weak point is being asked about.
+///
+/// Reference: `weakpoint_attack::attack_type` (`weakpoint.h:155-166`) - `NONE`, the three melee damage types and `PROJECTILE`, in that order, **because the order is the index** the data's
+/// `difficulty` and `coverage_mult` lists are read by (`weakpoint.cpp:245-260`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttackType {
+    /// No type: a blow that is not one of the three, or no attack at all.
+    None,
+    /// A bashing blow.
+    MeleeBash,
+    /// A cutting blow.
+    MeleeCut,
+    /// A stabbing blow.
+    MeleeStab,
+    /// A shot.
+    Projectile,
+}
+
+impl AttackType {
+    /// The index the data's lists are read by, which is the reference's own `static_cast<int>`.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::None => 0,
+            Self::MeleeBash => 1,
+            Self::MeleeCut => 2,
+            Self::MeleeStab => 3,
+            Self::Projectile => 4,
+        }
+    }
+}
+
+/// The type of a melee blow, from its three damage amounts.
+///
+/// Reference: `weakpoint_attack::type_of_melee_attack` (`weakpoint.cpp:354-371`) - the type with the **largest amount**, replaced only on a strictly larger one, so a tie keeps the earlier type.
+#[must_use]
+pub fn type_of_melee_attack(damage: (i32, i32, i32)) -> AttackType {
+    let (bash, cut, stab) = damage;
+    let mut primary = AttackType::None;
+    let mut amount = 0;
+    for (kind, value) in [
+        (AttackType::MeleeBash, bash),
+        (AttackType::MeleeCut, cut),
+        (AttackType::MeleeStab, stab),
+    ] {
+        if value > amount {
+            primary = kind;
+            amount = value;
+        }
+    }
+    primary
+}
+
+/// One figure out of a weak point's per-attack-type list.
+///
+/// **A list too short answers nothing**, which is the port's honest refusal: the data's lists are five long and a short one is a dump that lost a column, not a zero the rule meant.
+#[must_use]
+pub fn difficulty_for(list: &[f64], attack: AttackType) -> f64 {
+    list.get(attack.index()).copied().unwrap_or(0.0)
 }
