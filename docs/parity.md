@@ -16613,5 +16613,12 @@ and **no rule ever asks about a damage type called `all`**. `content::weakpoints
 **Two data facts worth writing down**, both read from the dump rather than assumed: a set's **default weak point covers the whole body** (coverage 100, difficulty -100 for every attack type) - it
 is a plain hit, not a miss - and **`crit_mult` defaults to `damage_mult`** when the data states none (`weakpoint.cpp:437-442`), which the dump already carries as a copy.
 
+**Which weak points a monster's body has came next** (round 1365): `--dump-monsters` version **12** writes `mtype::weakpoints` (`mtype.h:444`) as the set itself - its entries and its
+default - because a monster's set is **inline**, not an id. **744 of the 1,154 types** state at least one, and `content::monsters::MonsterType` carries them.
+
+**The two dumps disagree about expansion, and the reason is a rule.** A standalone `weakpoint_set` is written **before** `finalize_damage_map` runs (the harness stops at `check_mod_data`), so its
+maps still say `all`; a monster's inline set has been finalized with its type, so its maps name **every** damage type - `bash`, `cut`, `stab` and ten more. The port's `expand_all` handles the first
+case and the loader keeps the second as it arrives.
+
 **Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys (the port's three damage types are all
-physical, so only `all` can reach them), and the crit roll that decides `is_crit` (ported as `melee::crit_chance` in round 1349).
+physical, so only `all` can reach them), and the **caller** - no blow spends a weak point yet, because `strike_with` does not ask for one.

@@ -1422,3 +1422,6 @@ which is the reference's `if is_crit ... else if` and the difference between a c
 
 **Round 1364 loaded the weak-point sets**: all 48 from `--dump-weakpoint-sets`, with the `all`-expansion the dump leaves undone - because no rule ever asks about a damage type called `all`, and a
 weak point whose data says `{ "all": 0.5 }` would otherwise change nothing. The dump also settled two facts: a default weak point covers the whole body, and `crit_mult` falls back to `damage_mult`.
+
+**Round 1365 gave every monster its weak points**: `--dump-monsters` version 12 writes the type's inline `weakpoints` set, **744 of 1,154** types state one, and a zombie's head is gated as five
+percent coverage at three quarters of the bash armour.

@@ -104,3 +104,49 @@ fn an_all_multiplier_reaches_every_damage_type() {
         "an unstated map is the caller's default, which for a penalty is nothing rather than nothing-times-nothing"
     );
 }
+
+/// A monster's body carries the weak points its type states.
+///
+/// Reference: `mtype::weakpoints` (`mtype.h:444`) - an **inline set** on the type, not an id, which `monster::deal_damage` selects from (`creature.cpp:1146`). **744 of the 1,154 monster types
+/// state at least one**, and a zombie's head is the shape of one: a five percent coverage that halves nothing and a bash multiplier below one, at a difficulty a swing can reach.
+#[test]
+fn a_monster_states_the_weak_points_its_body_has() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let text = std::fs::read(path).expect("the monster dump exists");
+    let value = parse(&text).expect("the dump is valid JSON");
+    let Value::Object(root) = value else {
+        panic!("the dump's root is an object");
+    };
+    let Some(Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump has prototypes");
+    };
+    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monsters load");
+    let with_weakpoints = monsters.iter().filter(|monster| monster.weakpoints.is_some()).count();
+    assert_eq!(
+        with_weakpoints, 744,
+        "**seven hundred and forty-four of the {count} types state weak points**",
+        count = monsters.len()
+    );
+
+    let zombie = monsters
+        .iter()
+        .find(|monster| monster.id == "mon_zombie")
+        .expect("a zombie");
+    let Some(set) = &zombie.weakpoints else {
+        panic!("a zombie has weak points");
+    };
+    assert_eq!(set.weakpoints.len(), 5, "a zombie's body has five");
+    let head = set
+        .weakpoints
+        .iter()
+        .find(|entry| entry.id == "head")
+        .expect("a zombie has a head");
+    assert!((head.coverage - 5.0).abs() < 1e-9, "**its head is five percent coverage**: {}", head.coverage);
+    assert!(
+        (head.armour_multiplier.get("bash").copied().unwrap_or(1.0) - 0.75).abs() < 1e-9,
+        "and a blow to it meets three quarters of the armour"
+    );
+    assert_eq!(head.difficulty.len(), 5, "with a difficulty for every attack type");
+    // A blow to a zombie's head is **easier** than one to its body: its bash difficulty is two against the default's minus a hundred.
+    assert!((head.difficulty[1] - 2.0).abs() < 1e-9, "melee bash difficulty two: {:?}", head.difficulty);
+}

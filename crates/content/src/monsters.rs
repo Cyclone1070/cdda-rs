@@ -89,6 +89,12 @@ pub struct MonsterType {
     /// **Only three of the 1,154 types say yes**, and the rule is a curve rather than a number: `50 * e^(-light^2/10000)` hit points a turn (`monster.cpp:3487-3494`), which a torch snuffs
     /// out and a floodlight stops twenty tiles away.
     pub regenerates_in_dark: bool,
+    /// The weak points its body has, if any - **an inline set rather than an id**.
+    ///
+    /// Reference: `mtype::weakpoints` (`mtype.h:444`), a `::weakpoints` object on the type itself, which `monster::deal_damage` selects from (`creature.cpp:1146`). The dump writes the set's
+    /// entries and its default, already **expanded** - a monster's inline set goes through `finalize_damage_map` when its type is finalized, unlike the standalone `weakpoint_set` prototypes -
+    /// which is why these maps carry every damage type's name and the set dump's do not.
+    pub weakpoints: Option<crate::weakpoints::WeakpointSet>,
     /// How readily it bleeds (`mtype::bleed_rate`, `mtype.h:486`).
     ///
     /// `mtype::get_bleed_type` (`mtype.cpp:412-422`) checks this **before** it looks at a species at all: a rate of zero means the monster never bleeds its species' blood, however the
@@ -376,6 +382,36 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     if let Some(cdda_json::Value::Bool(dark)) = object.get("regenerates_in_dark") {
         monster.regenerates_in_dark = *dark;
     }
+    // **The body's weak points, when the type states any.** The dump writes the set's list and its default under one object, and a type with nothing to say has an empty list and the
+    // reference's default - which is the same shape, so the reader decides by the list rather than by the key's presence.
+    if let Some(cdda_json::Value::Object(set)) = object.get("weakpoints")
+        && let Some(cdda_json::Value::Array(entries)) = set.get("list")
+        && !entries.is_empty()
+    {
+        let mut weakpoints = Vec::new();
+        for entry in entries {
+            weakpoints.push(
+                crate::weakpoints::read_weakpoint(entry).map_err(|error| LoadError {
+                    message: error.message,
+                })?,
+            );
+        }
+        let default = match set.get("default") {
+            Some(entry) => crate::weakpoints::read_weakpoint(entry).map_err(|error| LoadError {
+                message: error.message,
+            })?,
+            None => {
+                return Err(LoadError {
+                    message: format!("the monster {} has weak points but no default", monster.id),
+                });
+            }
+        };
+        monster.weakpoints = Some(crate::weakpoints::WeakpointSet {
+            id: String::new(),
+            weakpoints,
+            default,
+        });
+    }
     // The two strings the death path reads, with the reference's own defaults: no message, and a normal corpse.
     if let Some(cdda_json::Value::Str(said)) = object.get("death_message") {
         monster.death_message.clone_from(said);
@@ -615,6 +651,8 @@ impl MonsterType {
             bleed_rate: 100,
             // Most types do not mend in the dark (`mtype::regenerates_in_dark` starts false).
             regenerates_in_dark: false,
+            // Most types state no weak points at all; the ones that do say so in their own row.
+            weakpoints: None,
             // `monster_death_effect` starts with no message and a normal corpse (`mtype.h:274-285`).
             death_message: String::new(),
             corpse_type: "normal".to_owned(),

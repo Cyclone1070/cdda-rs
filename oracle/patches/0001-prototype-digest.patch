@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-07 17:22:21
-@@ -0,0 +1,7374 @@
++++ oracle/src/src/harness.cpp	2026-11-07 19:24:56
+@@ -0,0 +1,7390 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -7058,6 +7058,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                             static_cast<unsigned char>( id[1] ) == 0xB7 );
 +}
 +
++static void dump_one_weakpoint( std::FILE *out, const weakpoint &weakpoint );
++
 +void dump_monsters( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -7139,7 +7141,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      "\"melee_bash\":%.6g,\"melee_cut\":%.6g,\"melee_stab\":%.6g,\"attack_cost\":%d,"
 +                      "\"regen_morale\":%s,\"bleed_rate\":%d,"
 +                      "\"death_message\":\"%s\",\"corpse_type\":\"%s\","
-+                      "\"broken_itype\":\"%s\",\"death_drops\":\"%s\",\"regenerates_in_dark\":%s}",
++                      "\"broken_itype\":\"%s\",\"death_drops\":\"%s\",\"regenerates_in_dark\":%s,"
++                      // **Version twelve adds the weak points a monster's body has** (`mtype::weakpoints`, an **inline** set rather than an id, read by `monster::deal_damage` through
++                      // `select_weakpoint`: `creature.cpp:1146`). It is written as the set itself - its entries and its default - because an inline set has no id to name.
++                      "\"weakpoints\":{",
 +                      harness_escape( proto.harvest.str() ).c_str(),
 +                      harness_escape( proto.dissect.str() ).c_str(),
 +                      size_name,
@@ -7183,6 +7188,17 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      // Version twelve adds `mtype::regenerates_in_dark` (`mtype.h:541`): a type that mends by the dark instead of in it. Without it the port cannot tell a monster that
 +                      // gains `50 * e^(-light^2/10000)` in the dark from one that gains nothing and simply does not mend.
 +                      proto.regenerates_in_dark ? "true" : "false" );
++                  std::fprintf( out, "\"list\":[" );
++                  bool first_wp = true;
++                  for( const weakpoint &one : proto.weakpoints.weakpoint_list ) {
++                      std::fprintf( out, "%s", first_wp ? "" : "," );
++                      dump_one_weakpoint( out, one );
++                      first_wp = false;
++                  }
++                  std::fprintf( out, "],\"default\":" );
++                  dump_one_weakpoint( out, proto.weakpoints.default_weakpoint );
++                  // One brace closes the weakpoints object and the second closes the prototype's row.
++                  std::fprintf( out, "}}" );
 +        first = false;
 +    }
 +    // The **species table**, because `get_bleed_type` reads `species.bleeds` and the monster only names its species. The species the monsters name are the ones that matter, so they are

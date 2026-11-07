@@ -49,7 +49,7 @@ pub struct WeakpointSet {
 ///
 /// # Errors
 /// Returns an error when the entry states no id.
-fn read_weakpoint(value: &Value) -> Result<Weakpoint, LoadError> {
+pub fn read_weakpoint(value: &Value) -> Result<Weakpoint, LoadError> {
     let Value::Object(object) = value else {
         return Err(LoadError {
             message: "a weak point that is not an object".to_owned(),
