@@ -1431,3 +1431,7 @@ eyes finds nothing, and a half-hurt head halves the result.
 
 **Round 1367 made a blow spend its weak point**: `strike_with` selects one from the victim's body, sharpens the damage, dulls the armour and cancels a crit against a weak point that helps the
 monster. The same round found the wound-adjusted limb-score walk written out twice in `defence_of` and made it `creature::limb_score`, which the weak-point skill now also reads.
+
+**Round 1368 gave the world its weak points and retracted a scenario.** A spawned monster now carries its type's set, so the strike can find one in play; and `a_critical_swing_takes_more` became
+`a_swing_at_a_body_never_crits`, because the reference cancels a critical on the default weak point and a zombie's body is the default - both swings take twenty, and the seed that used to tell a
+crit from a miss now proves the crit roll is not what decides the damage.

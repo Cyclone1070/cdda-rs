@@ -56,6 +56,7 @@ named_components! {
     "Wander" => crate::creature::Wander,
     "HeardSound" => crate::hearing::HeardSound,
     "Mending" => crate::regeneration::Mending,
+    "WeakPoints" => crate::weakpoints::WeakPoints,
     "Dexterity" => crate::creature::Dexterity,
     "Wielding" => crate::creature::Wielding,
     "Strength" => crate::creature::Strength,

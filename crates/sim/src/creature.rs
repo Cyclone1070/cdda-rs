@@ -1834,6 +1834,13 @@ pub fn spawn_monster_of_type(
     {
         creature.size = size;
     }
+    // Reference: the type's weak points are the body's, because `monster::monster( const mtype * )` copies the type wholesale (`monster.cpp:1300-1330`) and only a body that has them can have a
+    // blow aimed at one (`creature.cpp:1146`). **A type with nothing to find leaves the component off entirely**, so the strike's question has a plain "no" as its answer rather than an empty walk.
+    if let Some(set) = &monster_type.weakpoints {
+        world
+            .entity_mut(entity)
+            .insert(crate::weakpoints::WeakPoints::from_set(set));
+    }
     entity
 }
 

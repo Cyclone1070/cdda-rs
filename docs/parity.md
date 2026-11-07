@@ -16233,7 +16233,7 @@ is stopped down to **one** and the critical gets through - which is the half a p
 | Piece | Reference | Port |
 |---|---|---|
 the receipt | - | `expect monster health N at X Y` (a new playtest step) |
-the playtest | `scored_crit` (`melee.cpp:1103-1106`) end to end | `scenarios/a_critical_swing_takes_more.txt` |
+the playtest | `scored_crit` (`melee.cpp:1103-1106`) end to end, **and the weak-point gate on it** (`creature.cpp:1147`) | `scenarios/a_swing_at_a_body_never_crits.txt` |
 Rule fix | every character has a skill map, empty or not | `crit_inputs_of` asks for the port's **`Player`**, not for a `Skills` component |
 
 **The playtest could not say this before**: `expect no monster at` cannot tell a blow that took a zombie to one hit point from one that killed it. Reading the number is what lets a scenario pin
@@ -16632,6 +16632,14 @@ the same reaction figure the dodge chain reads, so one hurt head now costs a sur
 **One rule was hiding in two places, and the round that needed it a third time found it.** `defence_of` had the wound-adjusted limb-score walk written out twice - once for the reaction figure
 and once for the balance/legs/feet figure - and the weak-point skill needed the same walk for vision and reaction. It is now `creature::limb_score`, called from all three, and the fight suite's 105
 tests were green before and after.
+
+**A body placed in the world carries them** (round 1368): `spawn_monster_of_type` installs the type's set through `WeakPoints::from_set`, and a type with nothing to find leaves the component off.
+
+**The crit a monster can take was the last piece of the old simplification to fall, and it fell loudly.** The QA scenario `a_critical_swing_takes_more` had pinned a character's critical hit
+against a zombie's **body** - and the reference says that cannot happen: `crit_roll &= ret.wp->is_good && !ret.wp->id.empty()` (`creature.cpp:1147`) cancels a critical on the default weak point,
+whose id is empty. The scenario is now `a_swing_at_a_body_never_crits`, keeps its seed and its two rolls (0.12 and 0.91, one inside `crit_chance` and one outside), and proves the opposite of what
+it proved before: **both swings take twenty**, so the crit roll is not what decides the damage. A monster can only be critically hit **where it is weak**, which is the whole reason hunting a
+head is worth the accuracy it costs.
 
 **Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys, the walk's **per-attack-type difficulty
 index** (the port asks with the `NONE` default, because it has no attack-type enum), and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

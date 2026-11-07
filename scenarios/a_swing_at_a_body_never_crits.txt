@@ -1,0 +1,22 @@
+# A crit at a monster's body, in play: the same survivor, the same crowbar, the same zombie - and **neither swing is a critical**.
+#
+# `Character::melee_attack` rolls `scored_crit` (`melee.cpp:1103-1106`) against `crit_chance`, but then a monster's branch takes it away again:
+# `crit_roll &= ret.wp->is_good && !ret.wp->id.empty()` (`creature.cpp:1147`). A blow that found **no named weak point** has landed on the default one - the body - and its id is empty, so the
+# critical is cancelled however well it was struck. That is the reference's own sentence: a monster can only be critically hit **where it is weak**, which is why hunting a head is worth the
+# accuracy it costs.
+#
+# **Seed 19 still gives the two rolls it gave the earlier scenario** - 0.12 and 0.91, one inside `crit_chance` and one outside - so the scenario reads the same thing it read before and now proves
+# the opposite: both swings take twenty, and the pair together says the crit roll is not what decides the damage.
+world 20 bare
+survivor 0 0
+items
+monsters
+data
+seed 19
+give crowbar 1
+wield crowbar
+monster mon_zombie 1 0
+attack 1 0
+expect monster health 59 at 1 0
+attack 1 0
+expect monster health 39 at 1 0

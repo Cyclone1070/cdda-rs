@@ -219,6 +219,34 @@ pub struct WeakPoint {
     pub factors: WeakpointFactors,
 }
 
+impl WeakPoints {
+    /// Reads a body's weak points out of the data's own set.
+    ///
+    /// The two shapes differ by what each is for: the data states a difficulty **per attack type** and the store carries the one figure its walk asks with. **The port has no attack-type enum**, so
+    /// it reads the first entry - the reference's own `NONE` - and `docs/parity.md` names the gap rather than guessing at a melee index.
+    #[must_use]
+    pub fn from_set(set: &cdda_content::weakpoints::WeakpointSet) -> Self {
+        let one = |entry: &cdda_content::weakpoints::Weakpoint| WeakPoint {
+            weakpoint: Weakpoint {
+                id: entry.id.clone(),
+                coverage: entry.coverage,
+                difficulty: entry.difficulty.first().copied().unwrap_or(0.0),
+                helps_attacker: entry.helps_attacker,
+            },
+            factors: WeakpointFactors {
+                armour_multiplier: entry.armour_multiplier.clone(),
+                armour_penalty: entry.armour_penalty.clone(),
+                damage_multiplier: entry.damage_multiplier.clone(),
+                crit_multiplier: entry.crit_multiplier.clone(),
+            },
+        };
+        Self {
+            entries: set.weakpoints.iter().map(one).collect(),
+            default: one(&set.default),
+        }
+    }
+}
+
 /// The weak points a body has.
 ///
 /// Reference: `mtype::weakpoints` (`mtype.h:444`) is an inline `::weakpoints` object on the monster's type, and `Creature::deal_damage` selects from it (`creature.cpp:1146`). The store keeps

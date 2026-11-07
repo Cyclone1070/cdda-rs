@@ -278,3 +278,65 @@ fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
     assert!(plain > 0, "the rock hurts a body with no weak points: {plain}");
     assert_eq!(weak, plain * 2, "**and the same blow into a doubled weak point is worth twice as much**: {weak} against {plain}");
 }
+
+/// A monster the store spawns from its type carries the weak points its body has.
+///
+/// Reference: `monster::monster( const mtype * )` copies the type onto the monster (`monster.cpp:1300-1330`), and the weak points live on the type - so a body placed in the world already has them
+/// and `deal_damage` can ask (`creature.cpp:1146`). **A spawned monster with no weak points is a body the port cannot aim at**, whatever the data says.
+#[test]
+fn a_spawned_monster_carries_its_weak_points() {
+    use cdda_json::{Value, parse};
+    use std::path::Path;
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let text = std::fs::read(path).expect("the monster dump exists");
+    let value = parse(&text).expect("the dump is valid JSON");
+    let Value::Object(root) = value else {
+        panic!("the dump's root is an object");
+    };
+    let Some(Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump has prototypes");
+    };
+    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monsters load");
+    let zombie = monsters
+        .iter()
+        .find(|monster| monster.id == "mon_zombie")
+        .expect("a zombie");
+    let mut world = bevy_ecs::world::World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_zombie",
+            hp: zombie.hp,
+        }],
+    );
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("the kind");
+    let spawned = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, zombie, (1, 1, 0), 100);
+    let carried = world
+        .get::<cdda_sim::weakpoints::WeakPoints>(spawned)
+        .expect("**a spawned zombie keeps the weak points its type states**");
+    assert_eq!(carried.entries.len(), 5, "a zombie's body has five");
+    assert!(
+        carried.entries.iter().all(|entry| !entry.weakpoint.id.is_empty()),
+        "and every one of them is named"
+    );
+    // A monster whose type states none gets no component at all, which is the port's way of saying "nothing to find" rather than an empty list to walk.
+    let plain = monsters
+        .iter()
+        .find(|monster| monster.weakpoints.is_none() && monster.id != "mon_null")
+        .expect("some type states no weak points");
+    let mut world = bevy_ecs::world::World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "plain",
+            hp: plain.hp,
+        }],
+    );
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "plain").expect("the kind");
+    let spawned = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, plain, (1, 1, 0), 100);
+    assert!(
+        world.get::<cdda_sim::weakpoints::WeakPoints>(spawned).is_none(),
+        "a body with nothing to aim at carries no weak point set"
+    );
+}
