@@ -1837,9 +1837,20 @@ pub fn spawn_monster_of_type(
     // Reference: the type's weak points are the body's, because `monster::monster( const mtype * )` copies the type wholesale (`monster.cpp:1300-1330`) and only a body that has them can have a
     // blow aimed at one (`creature.cpp:1146`). **A type with nothing to find leaves the component off entirely**, so the strike's question has a plain "no" as its answer rather than an empty walk.
     if let Some(set) = &monster_type.weakpoints {
+        // **The families come from the type, not the set**: they are what the body rewards, and the dump resolves their two figures (`mtype::families`, `mtype.h:382`).
+        let families = monster_type
+            .families
+            .iter()
+            .map(|family| crate::weakpoints::WeakpointFamily {
+                id: family.id.clone(),
+                proficiency: family.proficiency.clone(),
+                bonus: family.bonus,
+                penalty: family.penalty,
+            })
+            .collect();
         world
             .entity_mut(entity)
-            .insert(crate::weakpoints::WeakPoints::from_set(set));
+            .insert(crate::weakpoints::WeakPoints::from_set(set).rewarding(families));
     }
     entity
 }
@@ -2925,13 +2936,20 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     let crit_inputs = crit_inputs_of(world, holder);
     // Reference: the attacker's half of a weak point is `generic_weakpoint_skill` - the weapon's skill and melee averaged, the stat bonus, and the vision and reaction figures as a multiplier
     // (`weakpoint.cpp:82-90`) - which a monster answers with its melee skill alone (`monster.cpp:76-79`).
-    let weak_point_skill = crate::weakpoints::attacker_skill(
+    let weak_point_skill = crate::weakpoints::skill_with_families(
+        crate::weakpoints::attacker_skill(
         f64::from(weapon_skill_level(world, holder)),
         f64::from(skill),
         effective_dexterity(world, holder),
         effective_perception(world, holder),
         limb_score(world, holder, "vision"),
         limb_score(world, holder, "reaction"),
+        ),
+        // Reference: the **target's** families are the last term of the attacker's skill (`weakpoint.cpp:401-409`).
+        world
+            .get::<crate::weakpoints::WeakPoints>(victim)
+            .map_or(&[][..], |weak| weak.families.as_slice()),
+        &|proficiency| crate::proficiencies::knows(world, holder, proficiency),
     );
     let dealt = strike_with(world, victim, attack, crit_inputs.as_ref(), weak_point_skill);
     // Reference: `Character::melee_attack` wears the weapon it swung **whatever the outcome** - the call sits outside the hit branch (`melee.cpp:930`) - so a miss dents a weapon just as a hit

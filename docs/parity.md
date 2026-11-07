@@ -16671,6 +16671,12 @@ its way is not a gate.
 **The families that shift the skill are data too** (round 1373): `weakpoint_families::modifier` (`weakpoint.cpp:171-178`) is `weakpoints::families_modifier`, and `--dump-monsters` version
 thirteen writes the type's `families` with the figures **resolved** - **4,082 of them across 1,154 types, and 1,038 types state at least one**, so skipping the column would have skipped the norm.
 
+**The term reaches the skill, on all three paths** (round 1374): `weakpoints::skill_with_families` is `compute_wp_skill`'s last two lines (`weakpoint.cpp:401-409`) - the attacker's own figure
+plus the **target's** families - and melee, shot and throw all pass it. `WeakPoints` carries the body's families beside its entries, filled at spawn from the type.
+
+**A penalty in the data is already negative** (four points under for an armoured synthetic, two for a skeleton), so the rule **adds a signed figure** rather than subtracting an unsigned one. The
+first fixture written used `penalty: 200.0` and the gate failed in the opposite direction - the wrong sign made the body *easier* - which is how the sign got pinned rather than assumed.
+
 **The fallback is the proficiency's own number, and the port does not have it.** `weakpoint_family::modifier` answers `bonus.value_or( proficiency.default_weakpoint_bonus() )`, and the port has no
 proficiency table carrying that field - so the dump writes what the reference would have used. That is a data decision rather than a rule one: the *rule* (bonus when known, penalty when not, summed)
 is ported and gated; only the two defaults are resolved upstream.

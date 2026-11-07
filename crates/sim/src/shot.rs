@@ -382,13 +382,20 @@ fn hurt_once(
     // `PROJECTILE` - so a bullet reads the fifth entry of the difficulty list where a crowbar reads the second.
     let skill = {
         let level = |skill: &str| f64::from(crate::creature::skill_level(world, shooter, skill));
-        crate::weakpoints::attacker_skill(
-            level(&crate::creature::wielding_skill(world, shooter)),
-            level(&crate::creature::wielding_skill(world, shooter)),
-            crate::creature::effective_dexterity(world, shooter),
-            crate::creature::effective_perception(world, shooter),
-            crate::creature::limb_score(world, struck, "vision").min(crate::creature::limb_score(world, shooter, "vision")),
-            crate::creature::limb_score(world, shooter, "vision"),
+        crate::weakpoints::skill_with_families(
+            crate::weakpoints::attacker_skill(
+                level(&crate::creature::wielding_skill(world, shooter)),
+                level(&crate::creature::wielding_skill(world, shooter)),
+                crate::creature::effective_dexterity(world, shooter),
+                crate::creature::effective_perception(world, shooter),
+                crate::creature::limb_score(world, struck, "vision").min(crate::creature::limb_score(world, shooter, "vision")),
+                crate::creature::limb_score(world, shooter, "vision"),
+            ),
+            // Reference: the **target's** families are the last term of the attacker's skill (`weakpoint.cpp:401-409`).
+            world
+                .get::<crate::weakpoints::WeakPoints>(struck)
+                .map_or(&[][..], |weak| weak.families.as_slice()),
+            &|proficiency| crate::proficiencies::knows(world, shooter, proficiency),
         )
     };
     let found = match crate::singletons::take_rolls(world) {

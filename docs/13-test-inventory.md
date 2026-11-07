@@ -1452,3 +1452,6 @@ one set of multipliers, and differ only in the skill and limbs they read.
 **Round 1373 loaded the weak-point families**: 4,082 across the 1,154 types, with the figures resolved the way the reference's own fallback resolves them, and `weakpoints::families_modifier` gated
 on knowing both, one and neither. The dump took two builds because the first patch matched a line the file no longer had and left the row's format string unbalanced; the repair path is now
 written down in the round's commit.
+
+**Round 1374 put the target's families into the skill** on all three attack paths, and the gate asks the walk directly rather than swinging, so the two outcomes differ for one reason. The
+fixture's first penalty was positive and the gate failed backwards: the data's penalties are signed, so the rule adds rather than subtracts.

@@ -277,6 +277,7 @@ fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
             world.entity_mut(zombie).insert(WeakPoints {
                 entries: vec![doubled],
                 default: plain,
+                families: Vec::new(),
             });
         }
         let dealt = cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie).unwrap_or(-1);
@@ -532,6 +533,7 @@ fn a_blow_into_a_weak_point_leaves_the_effect_it_triggers() {
             factors: WeakpointFactors::default(),
             effects: Vec::new(),
         },
+        families: Vec::new(),
     });
 
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
@@ -610,6 +612,7 @@ fn a_shot_spends_the_weak_point_it_lands_on() {
                     effects: Vec::new(),
                     factors: WeakpointFactors::default(),
                 },
+                families: Vec::new(),
             });
         }
         let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&round), None, 0.0, false);
@@ -678,6 +681,7 @@ fn a_thrown_thing_spends_the_weak_point_it_lands_on() {
                     effects: Vec::new(),
                     factors: WeakpointFactors::default(),
                 },
+                families: Vec::new(),
             });
         }
         // A rock in the hand: the item registry needs the kind before the thing can exist.
@@ -723,7 +727,7 @@ fn a_thrown_thing_spends_the_weak_point_it_lands_on() {
 /// **penalty** when it does not, and the total is their **sum**.
 ///
 /// **The two figures are not a trade**: a monster with two families whose bonuses are one and a half and a half gives an attacker who knows both **two** points of skill, and an attacker who knows
-/// neither is two points **worse** - which is why a butcher's training is worth more against some bodies than others.
+/// neither is one and a half points **worse** - which is why a butcher's training is worth more against some bodies than others.
 #[test]
 fn a_body_s_families_reward_the_proficiency_an_attacker_has() {
     use cdda_sim::weakpoints::{WeakpointFamily, families_modifier};
@@ -733,13 +737,13 @@ fn a_body_s_families_reward_the_proficiency_an_attacker_has() {
             id: "gross_anatomy".to_owned(),
             proficiency: "prof_gross_anatomy".to_owned(),
             bonus: 1.5,
-            penalty: 0.5,
+            penalty: -0.5,
         },
         WeakpointFamily {
             id: "physiology".to_owned(),
             proficiency: "prof_physiology".to_owned(),
             bonus: 0.5,
-            penalty: 0.0,
+            penalty: -1.0,
         },
     ];
 
@@ -749,19 +753,99 @@ fn a_body_s_families_reward_the_proficiency_an_attacker_has() {
         "**knowing both is worth two points**: {}",
         families_modifier(&zombie, &|_| true)
     );
-    // One of the two: a point and a half for the first, and the second's penalty of nothing.
+    // One of the two: a point and a half for the first, and the second's penalty of minus one.
     assert!(
-        (families_modifier(&zombie, &|name| name == "prof_gross_anatomy") - 1.5).abs() < 1e-9,
+        (families_modifier(&zombie, &|name| name == "prof_gross_anatomy") - 0.5).abs() < 1e-9,
         "knowing one is worth its bonus and the other's penalty"
     );
-    // Neither: half a point of penalty plus nothing.
+    // Neither: minus a half and minus one.
     assert!(
-        (families_modifier(&zombie, &|_| false) - 0.5).abs() < 1e-9,
-        "knowing neither is worth the penalties, which are a cost rather than a floor"
+        (families_modifier(&zombie, &|_| false) + 1.5).abs() < 1e-9,
+        "**knowing neither is worth the penalties, which are already negative in the data**: {}",
+        families_modifier(&zombie, &|_| false)
     );
     // **A body with no families asks for nothing**, which is most of the corpus and every body a port invents.
     assert!(
         (families_modifier(&[], &|_| true) - 0.0).abs() < 1e-9,
         "a body with no families changes no skill"
+    );
+}
+
+/// The body an attacker aims at is what decides which training is worth something.
+///
+/// Reference: `compute_wp_skill`'s last two lines (`weakpoint.cpp:401-409`) - the attacker's own figure plus `mon_tar->type->families.modifier( *chr_att )`. **The families are the target's**: it
+/// is the body being struck that says which proficiency matters, which is why a butcher learns a dozen anatomies rather than one.
+///
+/// The gate asks the walk directly rather than swinging, so the two outcomes differ for one reason: a body whose one weak point can never be missed is found by an attacker the family **pays**, and
+/// missed by one it **penalises**, because the penalty is subtracted from the very skill the walk is handed.
+#[test]
+fn the_body_s_families_reach_the_walk_s_skill() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::weakpoints::{
+        AttackType, WeakPoint, WeakPoints, WeakpointFactors, WeakpointFamily, stored_weak_point,
+    };
+
+    let found = |known: bool| -> String {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+        let mut doubled = WeakpointFactors::default();
+        doubled.damage_multiplier.insert("bash".to_owned(), 2.0);
+        world.entity_mut(zombie).insert(WeakPoints {
+            entries: vec![WeakPoint {
+                id: "the skull".to_owned(),
+                coverage: 100.0,
+                helps_attacker: true,
+                // **A point that cannot be missed until the family takes the skill away**: the walk is the only thing under test.
+                difficulties: vec![-100.0; 5],
+                coverage_multipliers: vec![1.0; 5],
+                effects: Vec::new(),
+                factors: doubled,
+            }],
+            default: WeakPoint {
+                id: String::new(),
+                coverage: 100.0,
+                helps_attacker: true,
+                difficulties: vec![-100.0; 5],
+                coverage_multipliers: vec![1.0; 5],
+                effects: Vec::new(),
+                factors: WeakpointFactors::default(),
+            },
+            families: vec![WeakpointFamily {
+                id: "prof_wp_zombie".to_owned(),
+                proficiency: "prof_wp_zombie".to_owned(),
+                bonus: 20.0,
+                // **The data's penalties are already negative** - four points under for an armoured synthetic - so the rule adds a signed figure rather than subtracting an unsigned one.
+                penalty: -200.0,
+            }],
+        });
+        let base = cdda_sim::weakpoints::attacker_skill(
+            0.0,
+            0.0,
+            12,
+            12,
+            cdda_sim::creature::limb_score(&world, survivor, "vision"),
+            cdda_sim::creature::limb_score(&world, survivor, "reaction"),
+        );
+        let families = world
+            .get::<WeakPoints>(zombie)
+            .map(|weak| weak.families.clone())
+            .unwrap_or_default();
+        let skill = cdda_sim::weakpoints::skill_with_families(base, &families, &|_| known);
+        let mut dice = cdda_core_types::rng::Rolls::new(5);
+        stored_weak_point(&mut world, zombie, AttackType::MeleeBash, skill, &mut dice)
+            .map_or_else(String::new, |weak| weak.id)
+    };
+
+    assert_eq!(
+        found(true),
+        "the skull",
+        "**the bonus pays for the point, so the walk finds it**"
+    );
+    assert_eq!(
+        found(false),
+        "",
+        "**the penalty takes the skill below the point, so the plain body answers instead**"
     );
 }

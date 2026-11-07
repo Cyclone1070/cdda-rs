@@ -240,13 +240,20 @@ fn strike_whatever_stands_there(
             // not a melee blow however it lands.
             let skill = {
                 let level = f64::from(crate::creature::skill_level(world, thrower, "throw"));
-                crate::weakpoints::attacker_skill(
-                    level,
-                    level,
-                    crate::creature::effective_dexterity(world, thrower),
-                    crate::creature::effective_perception(world, thrower),
-                    crate::creature::limb_score(world, thrower, "vision"),
-                    crate::creature::limb_score(world, thrower, "vision"),
+                crate::weakpoints::skill_with_families(
+                    crate::weakpoints::attacker_skill(
+                        level,
+                        level,
+                        crate::creature::effective_dexterity(world, thrower),
+                        crate::creature::effective_perception(world, thrower),
+                        crate::creature::limb_score(world, thrower, "vision"),
+                        crate::creature::limb_score(world, thrower, "vision"),
+                    ),
+                    // Reference: the **target's** families are the last term of the attacker's skill (`weakpoint.cpp:401-409`).
+                    world
+                        .get::<crate::weakpoints::WeakPoints>(struck)
+                        .map_or(&[][..], |weak| weak.families.as_slice()),
+                    &|proficiency| crate::proficiencies::knows(world, thrower, proficiency),
                 )
             };
             let found = match crate::singletons::take_rolls(world) {

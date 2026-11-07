@@ -313,7 +313,15 @@ impl WeakPoints {
         Self {
             entries: set.weakpoints.iter().map(one).collect(),
             default: one(&set.default),
+            families: Vec::new(),
         }
+    }
+
+    /// The same body, with the proficiencies its type rewards.
+    #[must_use]
+    pub fn rewarding(mut self, families: Vec<WeakpointFamily>) -> Self {
+        self.families = families;
+        self
     }
 }
 
@@ -327,6 +335,8 @@ pub struct WeakPoints {
     pub entries: Vec<WeakPoint>,
     /// The one that answers a roll nothing else took.
     pub default: WeakPoint,
+    /// The proficiencies this body rewards, already resolved (`mtype::families`).
+    pub families: Vec<WeakpointFamily>,
 }
 
 /// The same damage rule, over the port's three physical types.
@@ -495,4 +505,17 @@ pub fn families_modifier(families: &[WeakpointFamily], knows: &dyn Fn(&str) -> b
         .iter()
         .map(|family| if knows(&family.proficiency) { family.bonus } else { family.penalty })
         .sum()
+}
+
+/// An attacker's weak-point skill after the body's families have their say.
+///
+/// Reference: `compute_wp_skill`'s last two lines (`weakpoint.cpp:401-409`) - the attacker's own figure plus `mon_tar->type->families.modifier( *chr_att )`. **The families are the target's**, not
+/// the attacker's: it is the body being aimed at that decides which training is worth something, which is why a butcher learns a dozen anatomies rather than one.
+#[must_use]
+pub fn skill_with_families(
+    skill: f64,
+    families: &[WeakpointFamily],
+    knows: &dyn Fn(&str) -> bool,
+) -> f64 {
+    skill + families_modifier(families, knows)
 }
