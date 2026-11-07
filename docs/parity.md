@@ -16657,6 +16657,13 @@ sequence whichever way the roll went - the port draws first and only then decide
 **A struck eye is not worth more damage, it blinds.** That is the half of a weak point no number shows: an eye at a hundred percent coverage is a two percent chance, and what it buys is 86,400 turns
 of blindness at a thirty-five percent share of the body.
 
+**A shot spends one too** (round 1371): `shot::hurt_once` asks `weakpoints::stored_weak_point` with `AttackType::Projectile` and `Character::ranged_weakpoint_skill`'s figures - the gun's skill
+twice and **vision twice** - then sharpens the round, dulls the armour, and triggers the same effects a blow does.
+
+**Two playtests had been passing on luck, and the extra draw exposed both.** A weak-point selection is one draw the reference has always made and the port did not, so every fixture downstream of
+it shifted: `a_survivor_shoots_a_zombie` needed three of four shots to land and now lands one, and `a_survivor_fires_incendiary_rounds` fired bursts whose hits were one in six with a 24 percent
+fire chance a hit. Both were rewritten to be **armed by construction** - an aim that clears the recoil before every shot - rather than by a favourable seed. A fixture that depends on a coin landing
+its way is not a gate.
+
 **Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the proficiency families that shift the
-skill, `physical`/`non_physical` map keys, the projectile path's own `wp_skill`, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own
-`PartArmour` roll.
+skill, `physical`/`non_physical` map keys, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

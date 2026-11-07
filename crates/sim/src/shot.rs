@@ -298,7 +298,7 @@ pub fn fire_at(
                 .find(|entity| *entity != shooter && crate::creature::health_of(world, *entity).is_some())
         {
             hits += 1;
-            hurt += hurt_once(world, struck, &blow);
+            hurt += hurt_once(world, struck, &blow, shooter);
             set_alight_if_fire_round(world, struck, round, hurt);
         }
     }
@@ -372,8 +372,69 @@ fn range_to(world: &bevy_ecs::prelude::World, shooter: bevy_ecs::prelude::Entity
 ///
 /// Reference: `projectile_attack`'s hit branch calls `deal_projectile_attack`, which hands the impact to the target's `absorb_hit` (`monster.cpp:2085`) - the resistance is subtracted
 /// **capped at the blow**, so armour can stop a round and never heals what it hits. The port resolves each kind against the same kind of armour and adds what got through.
-fn hurt_once(world: &mut bevy_ecs::prelude::World, struck: bevy_ecs::prelude::Entity, blow: &crate::melee::Damage) -> i32 {
-    let armour = world.get::<crate::creature::Armour>(struck).copied().unwrap_or_default();
+fn hurt_once(
+    world: &mut bevy_ecs::prelude::World,
+    struck: bevy_ecs::prelude::Entity,
+    blow: &crate::melee::Damage,
+    shooter: bevy_ecs::prelude::Entity,
+) -> i32 {
+    // Reference: `Character::ranged_weakpoint_skill` (`weakpoint.cpp:97-102`) is `generic_weakpoint_skill` with the **gun's skill twice and vision twice**, and the attack type is
+    // `PROJECTILE` - so a bullet reads the fifth entry of the difficulty list where a crowbar reads the second.
+    let skill = {
+        let level = |skill: &str| f64::from(crate::creature::skill_level(world, shooter, skill));
+        crate::weakpoints::attacker_skill(
+            level(&crate::creature::wielding_skill(world, shooter)),
+            level(&crate::creature::wielding_skill(world, shooter)),
+            crate::creature::effective_dexterity(world, shooter),
+            crate::creature::effective_perception(world, shooter),
+            crate::creature::limb_score(world, struck, "vision").min(crate::creature::limb_score(world, shooter, "vision")),
+            crate::creature::limb_score(world, shooter, "vision"),
+        )
+    };
+    let found = match crate::singletons::take_rolls(world) {
+        Some(mut dice) => {
+            let found = crate::weakpoints::stored_weak_point(
+                world,
+                struck,
+                crate::weakpoints::AttackType::Projectile,
+                skill,
+                &mut dice,
+            );
+            crate::singletons::put_rolls(world, dice);
+            found
+        }
+        None => None,
+    };
+    let (blow, armour) = match found.as_ref() {
+        Some(weak) => {
+            let (bash, cut, stab) = crate::weakpoints::apply_to_blow(
+                &weak.factors,
+                (f64::from(blow.bash), f64::from(blow.cut), f64::from(blow.stab)),
+                false,
+            );
+            #[allow(clippy::cast_possible_truncation)]
+            let blow = crate::melee::Damage {
+                bash: bash as i32,
+                cut: cut as i32,
+                stab: stab as i32,
+                penetration: blow.penetration,
+            };
+            let armour = world.get::<crate::creature::Armour>(struck).copied().unwrap_or_default();
+            let (bash, cut, stab) = crate::weakpoints::apply_to_armour_triple(
+                &weak.factors,
+                (f64::from(armour.bash), f64::from(armour.cut), f64::from(armour.stab)),
+            );
+            #[allow(clippy::cast_possible_truncation)]
+            let armour = crate::creature::Armour {
+                bash: bash as i32,
+                cut: cut as i32,
+                stab: stab as i32,
+                ..armour
+            };
+            (blow, armour)
+        }
+        None => (*blow, world.get::<crate::creature::Armour>(struck).copied().unwrap_or_default()),
+    };
     let mut total = 0;
     for (amount, resist) in [
         (blow.bash, armour.bash),
@@ -387,6 +448,12 @@ fn hurt_once(world: &mut bevy_ecs::prelude::World, struck: bevy_ecs::prelude::En
         total += through.max(0);
     }
     crate::damage_monster(world, struck, total);
+    // Reference: `wkpt->apply_effects( *this, total_damage, attack )` runs after the damage lands (`creature.cpp:1453-1455`), and a shot's weak point triggers exactly like a blow's.
+    if let Some(weak) = found.as_ref() {
+        #[allow(clippy::cast_precision_loss)]
+        let dealt = total as f32;
+        crate::creature::triggered_effects(world, struck, weak, dealt);
+    }
     total
 }
 

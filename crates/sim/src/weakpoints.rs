@@ -218,6 +218,33 @@ pub fn attacker_skill(
     (skill + stat) * multiplier
 }
 
+/// Which of a body's weak points a blow found, asked of the store.
+///
+/// Reference: `weakpoints::select_weakpoint` (`weakpoint.cpp:588-631`) over the body's own set, with each entry asked the way **this** attack asks it. **A body with no weak points answers
+/// nothing**, which is the caller's cue to spend nothing rather than to fall back to a default the port invented.
+#[must_use]
+pub fn stored_weak_point(
+    world: &bevy_ecs::prelude::World,
+    victim: bevy_ecs::prelude::Entity,
+    attack: AttackType,
+    skill: f64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<WeakPoint> {
+    let weak_points = world.get::<WeakPoints>(victim)?;
+    let entries: Vec<Weakpoint> = weak_points
+        .entries
+        .iter()
+        .map(|entry| entry.asked_with(attack))
+        .collect();
+    // The walk's own hundred, drawn from the store's generator so a fixed seed replays the fight.
+    let roll = f64::from(rolls.rng(0, 99_999)) / 1_000.0;
+    let index = select_weakpoint(&entries, skill, roll);
+    index.map_or_else(
+        || Some(weak_points.default.clone()),
+        |index| weak_points.entries.get(index).cloned(),
+    )
+}
+
 /// One weak point as the store carries it: the selection's figures and what it does to a blow.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WeakPoint {

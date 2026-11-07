@@ -3115,6 +3115,28 @@ fn strike_with(
     Some(dealt)
 }
 
+/// The skill the thing in a character's hand belongs to.
+///
+/// Reference: `item::gun_skill` for a gun and `item::melee_skill` for anything else; the port's `wielding_skill` answers the **melee** half, and a caller that knows the item is a gun passes its
+/// own id. It exists so a rule can ask "what does this hand know" without repeating the item lookup.
+#[must_use]
+pub fn wielding_skill(world: &World, holder: Entity) -> String {
+    let Some(kind) = world.get::<Wielding>(holder).map(|held| held.0) else {
+        return "unarmed".to_owned();
+    };
+    let names = crate::item_registry::peek(world);
+    names
+        .and_then(|names| {
+            crate::melee::weapon_skill(
+                f64::from(names.melee_bash_of(kind)),
+                f64::from(names.melee_cut_of(kind)),
+                f64::from(names.melee_stab_of(kind)),
+            )
+        })
+        .unwrap_or("unarmed")
+        .to_owned()
+}
+
 /// The skill the thing in a character's hand trains, at the level the character has it.
 ///
 /// Reference: `item::melee_skill` answers the skill its biggest damage type belongs to (`melee.cpp:356-370`), and an empty hand trains `unarmed`, which is the reference's `skill_unarmed`.
@@ -3134,10 +3156,10 @@ fn weapon_skill_level(world: &World, holder: Entity) -> i32 {
     })
 }
 
-/// Which of the victim's weak points the blow found, if its body has any.
+/// Which of the victim's weak points a blow found, if its body has any.
 ///
-/// Reference: `weakpoints::select_weakpoint` (`weakpoint.cpp:588-631`) over a roll of nought to a hundred, with the attacker's `wp_skill` deciding how many rolls it takes (`rolls_for`). **A monster
-/// with no weak points answers nothing at all**, and the caller spends nothing - which is the reference's default entry doing its work without the port inventing one.
+/// Reference: `weakpoints::select_weakpoint` over the body's own set with the attack taken from `type_of_melee_attack` (`weakpoint.cpp:354-371`). The rule lives in
+/// [`crate::weakpoints::stored_weak_point`], because a **shot** asks the same question with a different attack type and a different skill.
 #[must_use]
 fn weak_point_found(
     world: &World,
@@ -3146,18 +3168,12 @@ fn weak_point_found(
     skill: f64,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> Option<crate::weakpoints::WeakPoint> {
-    let weak_points = world.get::<crate::weakpoints::WeakPoints>(victim)?;
-    let attack = crate::weakpoints::type_of_melee_attack(blow);
-    let entries: Vec<crate::weakpoints::Weakpoint> = weak_points
-        .entries
-        .iter()
-        .map(|entry| entry.asked_with(attack))
-        .collect();
-    let roll = f64::from(rolls.rng(0, 99_999)) / 1_000.0;
-    let index = crate::weakpoints::select_weakpoint(&entries, skill, roll);
-    index.map_or_else(
-        || Some(weak_points.default.clone()),
-        |index| weak_points.entries.get(index).cloned(),
+    crate::weakpoints::stored_weak_point(
+        world,
+        victim,
+        crate::weakpoints::type_of_melee_attack(blow),
+        skill,
+        rolls,
     )
 }
 
@@ -3166,7 +3182,7 @@ fn weak_point_found(
 /// Reference: `weakpoint_effect::apply_to` (`weakpoint.cpp:273-300`) - the damage gate is a share of the body's **maximum** hit points, capped at a hundred, and the chance is a strict
 /// `rng_float( 0, 100 ) < chance`. **An effect the store has not been told about is not given**: the reference would look one up and find nothing, and inventing a name here would put a row in the
 /// store that no definition can ever read.
-fn triggered_effects(
+pub fn triggered_effects(
     world: &mut World,
     victim: Entity,
     weak: &crate::weakpoints::WeakPoint,

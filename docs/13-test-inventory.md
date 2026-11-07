@@ -1442,3 +1442,6 @@ before this, which made a knife's stab at a head use the `NONE` difficulty of mi
 **Round 1370 gave a struck weak point something to do**: `weakpoint_effect::apply_to` is `weakpoints::triggers` plus the strike's `triggered_effects`, its damage gate is a share of the body capped at a
 hundred and asked before the chance, and the dump now carries **258 effects** across the 48 sets. An effect the store has not been told about is not given, and the duration and intensity draws are
 made whether or not the effect fires, so a replayed seed sees the same sequence.
+
+**Round 1371 gave a shot its weak point** - the projectile difficulty and `ranged_weakpoint_skill`'s gun-twice, vision-twice figures - and the added draw exposed two playtests that had been
+passing on luck rather than on the rule. Both now aim before every shot, so the recoil that starved them cannot make the fixture's outcome a coin flip.

@@ -542,3 +542,88 @@ fn a_blow_into_a_weak_point_leaves_the_effect_it_triggers() {
         .expect("**a blow into a weak point that stuns leaves the body stunned**");
     assert_eq!(stun.duration, 2, "for the two turns the data states, from a range of two to two");
 }
+
+/// A shot spends the weak point it lands on, read against the projectile difficulty.
+///
+/// Reference: `Character::ranged_weakpoint_skill` (`weakpoint.cpp:97-102`) is `generic_weakpoint_skill` with the **gun's own skill twice** and **vision twice** - not the melee figures - and the
+/// attack is `attack_type::PROJECTILE`, so the walk reads the fifth entry of the difficulty list rather than the bash one.
+///
+/// **A bullet is not a crowbar**: a weak point whose stab difficulty is six and whose projectile difficulty is a hundred is one a knife finds and a rifle does not, which is exactly the shape
+/// the data gives a zombie's eye.
+#[test]
+fn a_shot_spends_the_weak_point_it_lands_on() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, WeakpointFactors};
+
+    let read = |name: &str| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let bytes = std::fs::read(path).expect("the corpus file exists");
+        cdda_json::parse(&bytes).expect("valid JSON")
+    };
+    let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
+    let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
+    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the corpus has the Mini-14").clone();
+    let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+    // **A cartridge carries the damage, not the gun**: `.223` is thirty-nine points of stab, which is what the weak point's multiplier has something to double.
+    let round = rounds.iter().find(|round| round.id == "223").expect("the corpus has a .223").clone();
+
+    // One world, one shot: the same seed, the same gun, the same distance - with or without a weak point that doubles the bullet.
+    let shot = |weak: bool| -> i32 {
+        let mut world = World::new();
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(4_242));
+        let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
+        world
+            .entity_mut(shooter)
+            .insert(cdda_sim::creature::Dexterity { base: 8 })
+            .insert(cdda_sim::creature::Perception { base: 8 })
+            .insert(cdda_sim::creature::Moves { left: 200 });
+        // **A big thing at point blank**, so the shot lands and the armour is the only thing between the bullet and the body.
+        let beast = cdda_sim::creature::spawn_creature(&mut world, "a big thing", (1, 0, 0));
+        world.entity_mut(beast).insert((
+            cdda_sim::creature::Creature {
+                name: "a big thing".to_owned(),
+                size: cdda_sim::CreatureSize::Huge,
+            },
+            cdda_sim::creature::Health { hp: 900, max_hp: 900 },
+            cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        ));
+        if weak {
+            let mut factors = WeakpointFactors::default();
+            factors.damage_multiplier.insert("stab".to_owned(), 2.0);
+            world.entity_mut(beast).insert(WeakPoints {
+                entries: vec![WeakPoint {
+                    id: "the heart".to_owned(),
+                    coverage: 100.0,
+                    helps_attacker: true,
+                    // **A difficulty of minus a hundred for every type**: the point of this gate is the multiplier, not the walk.
+                    difficulties: vec![-100.0; 5],
+                    coverage_multipliers: vec![1.0; 5],
+                    effects: Vec::new(),
+                    factors,
+                }],
+                default: WeakPoint {
+                    id: String::new(),
+                    coverage: 100.0,
+                    helps_attacker: true,
+                    difficulties: vec![-100.0; 5],
+                    coverage_multipliers: vec![1.0; 5],
+                    effects: Vec::new(),
+                    factors: WeakpointFactors::default(),
+                },
+            });
+        }
+        let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&round), None, 0.0, false);
+        assert_eq!(fired.hurt, 900 - cdda_sim::creature::health_of(&world, beast).unwrap_or(900), "what the shot says it dealt is what the body lost");
+        fired.hurt
+    };
+
+    let plain = shot(false);
+    let weak = shot(true);
+    assert!(plain > 0, "the rifle hurts a body with no weak points: {plain}");
+    assert!(
+        weak > plain,
+        "**the same bullet into a doubled weak point is worth more**: {weak} against {plain}"
+    );
+    // **The doubling is not exact, because the blow is a cut and a stab at once**: the multiplier names the stab only, so the gate reads the direction and the sum.
+    assert_eq!(weak, plain * 2, "the Mini-14's round is all stab, so the doubling is exact: {weak} against {plain}");
+}
