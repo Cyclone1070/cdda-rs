@@ -16590,5 +16590,12 @@ cannot verify; the dump then says whether the series is right, and it did: 240 o
 `z = -3.18`, so the cut-off is four. And the reference's own comment about "a 75% chance of not hitting becomes 23.7% with 5 rolls" is written **the other way round**: it is `1 - reweigh(0.25, 5)`,
 not `reweigh(0.75, 5)`, which is 99.9.
 
+**The walk is ported too** (round 1362): `weakpoints::select_weakpoint` is the reference's own loop - each entry's raw chance added to a running base, the base reweighed, the roll compared against
+the **gap** between consecutive reweighed figures, `idx < chance` strictly, and `None` for the body itself when the roll runs past every share.
+
+**A coverage of fifty is not a chance of fifty.** The raw chance is the coverage times the normal tail, which is one half when skill equals difficulty - so two entries of fifty coverage are worth
+**twenty-five each** at difficulty zero, and an expert's is worth nearly the whole fifty. The test's first draft assumed coverage was the chance and the arithmetic said otherwise, twice: at skill
+zero the boundary is twenty-five and at skill ten it is 96.875.
+
 **Named, not invented:** what a weak point *does* - `apply_to`'s armour multiplier and penalty, `damage_mult`/`crit_mult` (which is where a critical hit finally spends itself), the effects a weak
-point triggers, the per-attack-type difficulty table, the proficiency families that shift the skill, and `select_weakpoint`'s walk over the reweighed distribution.
+point triggers, the per-attack-type difficulty table, the proficiency families that shift the skill, and the data's own sets (`weakpoint_set` prototypes, 48 of them).

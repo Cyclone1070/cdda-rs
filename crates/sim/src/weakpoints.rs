@@ -94,3 +94,48 @@ pub fn reweigh(base: f64, rolls: f64) -> f64 {
 pub fn rolls_for(skill: f64) -> f64 {
     (1.0 + skill / 2.5).max(1.0)
 }
+
+/// One weak point, as the selection rule needs it.
+///
+/// Reference: `struct weakpoint` (`weakpoint.h:132-166`) - its coverage, its difficulty, and which way it cuts. The port keeps the three figures the **selection** reads; the multipliers and the
+/// effects a hit triggers are named in `docs/parity.md` rather than carried here, because a field nothing reads is a second source of truth about what a rule needs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Weakpoint {
+    /// Its id, which is what the data calls it.
+    pub id: String,
+    /// The percent chance of hitting it before skill is considered.
+    pub coverage: f64,
+    /// How hard it is to hit.
+    pub difficulty: f64,
+    /// Whether hitting it helps the attacker (`is_good`) or hurts the monster (`false`).
+    pub helps_attacker: bool,
+}
+
+/// Which weak point a roll lands on, or `None` for the body itself.
+///
+/// Reference: `weakpoints::select_weakpoint` (`weakpoint.cpp:588-631`). Each entry's raw chance is added to a running base, the base is reweighed, and the roll is compared against the **gap** between
+/// consecutive reweighed figures. **The comparison is `idx < hit_chance`, strictly**, so a roll exactly on a boundary belongs to the next entry - and the answer is the *index*, because a caller
+/// wants to spend the hit, not to hold a reference the store may have moved.
+#[must_use]
+pub fn select_weakpoint(list: &[Weakpoint], skill: f64, roll: f64) -> Option<usize> {
+    let rolls = rolls_for(skill);
+    let mut base = 0.0;
+    let mut reweighed = 0.0;
+    let mut idx = roll;
+    for (index, weakpoint) in list.iter().enumerate() {
+        let raw = hit_chance(weakpoint.coverage, weakpoint.difficulty, skill, weakpoint.helps_attacker, 1.0);
+        if raw == 0.0 {
+            continue;
+        }
+        let new_base = base + raw;
+        let new_reweighed = 100.0 * reweigh(new_base / 100.0, rolls);
+        let chance = new_reweighed - reweighed;
+        if idx < chance {
+            return Some(index);
+        }
+        base = new_base;
+        reweighed = new_reweighed;
+        idx -= chance;
+    }
+    None
+}

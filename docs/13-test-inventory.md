@@ -1413,3 +1413,6 @@ check that would have caught round 1358's duplicate.
 
 **Round 1361 ported the weak point's hit chance**: a normal tail from the port's own `erf` series, the ten-point shift and tenth-floor for a weak point that hurts the monster, and the rolls a
 skillful attacker reweighs with - gated on **240 of 240** rows of the reference's own grid.
+
+**Round 1362 ported the weak point walk**: `select_weakpoint` adds each raw chance to a running base, reweighs it, compares the roll against the gap between consecutive figures, and answers the body
+itself past every share. The test found twice that a coverage of fifty is a chance of twenty-five at equal skill.
