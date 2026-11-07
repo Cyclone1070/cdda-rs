@@ -159,3 +159,39 @@ fn a_weak_point_changes_the_armour_and_the_damage() {
     );
     assert!((critical[1].1 - 10.0).abs() < 1e-9, "and the bash is still untouched");
 }
+
+/// How good an attacker is at finding a weak point.
+///
+/// Reference: `Character::generic_weakpoint_skill` (`weakpoint.cpp:82-90`):
+///
+/// ```text
+/// skill = ( level( skill_1 ) + level( skill_2 ) ) / 2
+/// stat  = ( dex - 8 ) / 8 + ( per - 8 ) / 8
+/// mul   = ( limb score 1 + limb score 2 ) / 2
+/// return ( skill + stat ) * mul
+/// ```
+///
+/// **It is a product, not a sum**: an attacker with no limbs to see or react with finds nothing however skilled it is, which is why a hurt head costs more than a point of skill. A monster's
+/// answer is simply its melee skill (`monster.cpp:76-79`).
+#[test]
+fn a_weak_point_needs_a_skilled_eye_to_find() {
+    use cdda_sim::weakpoints::attacker_skill;
+
+    // A survivor with three levels of melee and none of the weapon's skill, an ordinary body's dexterity and perception, and whole eyes and head.
+    let ordinary = attacker_skill(3.0, 0.0, 10, 10, 1.0, 1.0);
+    assert!((ordinary - 2.0).abs() < 1e-9, "**one and a half of skill plus half of a point of stat**: {ordinary}");
+    // **Eight is the centre**: a survivor of exactly eight and eight has no stat bonus at all, and no skill means no chance of finding anything.
+    assert!((attacker_skill(0.0, 0.0, 8, 8, 1.0, 1.0) - 0.0).abs() < 1e-9, "a beginner of ordinary build");
+    // **The limbs multiply the whole thing**: half the reaction halves the skill.
+    let hurt = attacker_skill(3.0, 0.0, 10, 10, 1.0, 0.5);
+    assert!((hurt - 1.5).abs() < 1e-9, "**half of the head halves the skill**: {hurt}");
+    assert!(
+        (attacker_skill(3.0, 0.0, 10, 10, 0.0, 0.0) - 0.0).abs() < 1e-9,
+        "and no eyes and no reaction finds nothing at all"
+    );
+    // A better weapon skill is averaged with melee, not added to it.
+    assert!(
+        (attacker_skill(4.0, 2.0, 8, 8, 1.0, 1.0) - 3.0).abs() < 1e-9,
+        "four and two average to three"
+    );
+}

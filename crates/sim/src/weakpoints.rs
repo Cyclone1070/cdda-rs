@@ -188,3 +188,24 @@ pub fn apply_to_damage(factors: &WeakpointFactors, damage: &[(String, f64)], is_
         })
         .collect()
 }
+
+/// How good an attacker is at finding a weak point.
+///
+/// Reference: `Character::generic_weakpoint_skill` (`weakpoint.cpp:82-90`) - the average of two skill levels plus the stat bonus, **multiplied** by the average of two limb scores. A monster's
+/// answer is its melee skill alone (`monster::weakpoint_skill`, `monster.cpp:76-79`), which a caller passes as both skills with whole limbs.
+///
+/// **The product is the rule**: an attacker whose eyes and reaction are gone finds nothing however skilled it is, and a half-hurt head halves the result rather than taking a point off it.
+#[must_use]
+pub fn attacker_skill(
+    skill_one: f64,
+    skill_two: f64,
+    dexterity: i32,
+    perception: i32,
+    limb_one: f64,
+    limb_two: f64,
+) -> f64 {
+    let skill = (skill_one + skill_two) / 2.0;
+    let stat = f64::from(dexterity - 8) / 8.0 + f64::from(perception - 8) / 8.0;
+    let multiplier = (limb_one + limb_two) / 2.0;
+    (skill + stat) * multiplier
+}

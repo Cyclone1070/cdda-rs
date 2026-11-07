@@ -1425,3 +1425,6 @@ weak point whose data says `{ "all": 0.5 }` would otherwise change nothing. The 
 
 **Round 1365 gave every monster its weak points**: `--dump-monsters` version 12 writes the type's inline `weakpoints` set, **744 of 1,154** types state one, and a zombie's head is gated as five
 percent coverage at three quarters of the bash armour.
+
+**Round 1366 ported the attacker's side**: `weakpoints::attacker_skill` is the average of two skill levels plus the stat bonus, multiplied by the average of two limb scores - so an attacker with no
+eyes finds nothing, and a half-hurt head halves the result.

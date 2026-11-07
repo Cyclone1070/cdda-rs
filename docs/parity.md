@@ -16620,5 +16620,11 @@ default - because a monster's set is **inline**, not an id. **744 of the 1,154 t
 maps still say `all`; a monster's inline set has been finalized with its type, so its maps name **every** damage type - `bash`, `cut`, `stab` and ten more. The port's `expand_all` handles the first
 case and the loader keeps the second as it arrives.
 
-**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill, `physical`/`non_physical` map keys (the port's three damage types are all
-physical, so only `all` can reach them), and the **caller** - no blow spends a weak point yet, because `strike_with` does not ask for one.
+**How good an attacker is at finding one came next** (round 1366): `generic_weakpoint_skill` (`weakpoint.cpp:82-90`) is the average of two skill levels plus the stat bonus, **multiplied** by the
+average of two limb scores - `weakpoints::attacker_skill`. A monster's answer is its melee skill alone (`monster.cpp:76-79`).
+
+**The product is the rule.** An attacker whose eyes and reaction are gone finds nothing however skilled it is, and a half-hurt head **halves** the result rather than taking a point off it - which is
+the same reaction figure the dodge chain reads, so one hurt head now costs a survivor both its dodge and its aim.
+
+**Named, not invented:** the effects a hit triggers (`weakpoint_effect`), the proficiency families that shift the skill (their bonus and penalty are in the data, and the port has neither
+proficiency table nor the family set), `physical`/`non_physical` map keys, and the **caller** - no blow spends a weak point yet, because `strike_with` does not ask for one.
