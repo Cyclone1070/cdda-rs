@@ -293,3 +293,89 @@ fn a_move_is_offered_only_when_the_moment_is_its_moment() {
     assert!(!offers(&occasional, &ordinary, 0.5), "and refused on a roll of a half, because one in four is a quarter of the range");
     assert!(offers(&occasional, &ordinary, 0.1), "but a tenth is inside that quarter");
 }
+
+/// The store answers which move a striker makes, from the style it carries and what is in its hands.
+///
+/// Reference: `Character::pick_technique` (`melee.cpp:1406-1440`) over `martial_arts_data->get_all_techniques`, which is the selected style's own set filtered by
+/// `ma_technique::is_valid_character`. **The port keeps the selected style as a component**, because a style is what a creature has learned rather than a table to look up.
+#[test]
+fn the_store_answers_which_move_a_striker_makes() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::martial_arts::{Moment, Style, Technique, TechniqueFlags, pick_for};
+
+    let mut world = World::new();
+    let fighter = cdda_sim::creature::spawn_creature(&mut world, "the fighter", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+
+    let plain = TechniqueFlags {
+        weighting: 1,
+        dummy: false,
+        defensive: false,
+        crit_tec: false,
+        crit_ok: false,
+        reach_tec: false,
+        reach_ok: false,
+        dodge_counter: false,
+        block_counter: false,
+        needs_ammo: false,
+        disarms: false,
+        take_weapon: false,
+    };
+    let mut critical = plain.clone();
+    critical.crit_tec = true;
+    let ordinary = plain.clone();
+    let style = Style {
+        id: "style_test".to_owned(),
+        techniques: vec![
+            Technique {
+                id: "tec_ordinary".to_owned(),
+                requirement: cdda_sim::martial_arts::Requirement {
+                    unarmed_allowed: true,
+                    melee_allowed: true,
+                    strictly_unarmed: false,
+                    wall_adjacent: false,
+                    weapon_categories: Vec::new(),
+                },
+                flags: ordinary,
+            },
+            Technique {
+                id: "tec_critical".to_owned(),
+                requirement: cdda_sim::martial_arts::Requirement {
+                    unarmed_allowed: true,
+                    melee_allowed: true,
+                    strictly_unarmed: false,
+                    wall_adjacent: false,
+                    weapon_categories: Vec::new(),
+                },
+                flags: critical,
+            },
+        ],
+    };
+
+    // No style, no move - a fighter who has learned nothing swings the plain blow.
+    assert_eq!(
+        pick_for(&mut world, fighter, zombie, &Moment::ordinary(), 0.5),
+        None,
+        "**a fighter with no style offers no move**"
+    );
+
+    world
+        .entity_mut(fighter)
+        .insert(cdda_sim::martial_arts::Practising { style });
+    // In an ordinary moment the critical-only move is refused, so the ordinary one is all there is.
+    assert_eq!(
+        pick_for(&mut world, fighter, zombie, &Moment::ordinary(), 0.5).as_deref(),
+        Some("tec_ordinary"),
+        "an ordinary moment offers the ordinary move"
+    );
+    // In a critical moment the ordinary move is refused and the critical one is offered.
+    let moment = Moment {
+        crit: true,
+        ..Moment::ordinary()
+    };
+    assert_eq!(
+        pick_for(&mut world, fighter, zombie, &moment, 0.5).as_deref(),
+        Some("tec_critical"),
+        "**and a critical moment offers only the move that wants one**"
+    );
+}

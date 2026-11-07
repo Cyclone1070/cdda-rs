@@ -1482,3 +1482,6 @@ weighting of nothing mean no entry and the boundary gate failed - which is the o
 
 **Round 1382 ported the qualification of a move**: six refusals in the reference's own order, and the flags that carry them in the dump. The corpus's counts were guessed wrong the first time - sixteen
 defensive against the data's thirty, three critical-only against forty-nine - and the corrected gate now names the three branches the corpus never reaches: dummy, dodge counter and ammunition.
+
+**Round 1383 made the pick a store read**: `Practising(style)` on the striker, the hands read from `Wielding`, and `pick_for` answering a move id or nothing. The gate holds one style with an ordinary
+move and a critical-only one, and the mutation check removed the criticality refusal - both the store gate and the rule gate then answered the critical move for an ordinary blow.

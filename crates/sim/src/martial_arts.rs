@@ -7,6 +7,8 @@
 //! The port keeps the two facts that decide it - what is in the hand, and which categories the style allows - and leaves the weapon's own damage, the buffs a technique requires and the wall
 //! adjacency to the rounds that port them. **Naming what is not read is the point**: a requirement the port ignores must not silently become an allowance.
 
+use bevy_ecs::prelude::*;
+
 /// What a creature has in its hands, which a requirement asks about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hands<'a> {
@@ -252,4 +254,88 @@ pub fn offers(flags: &TechniqueFlags, moment: &Moment, roll: f64) -> bool {
         return chance > 0.0 && roll < 1.0 / chance;
     }
     true
+}
+
+/// A move as the store hands it over: what it is called and how it is offered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Technique {
+    /// Its id.
+    pub id: String,
+    /// The requirement it states for the hands.
+    pub requirement: Requirement,
+    /// The flags that decide whether it is offered at all.
+    pub flags: TechniqueFlags,
+}
+
+/// A style a creature has learned: its id and the moves it offers.
+///
+/// Reference: `character_martial_arts` (`martialarts.h:445-460`) keeps the **selected style**, and the moves are the style's own set (`martialart::techniques`). The port keeps the style itself as
+/// a component, because a creature's training is something it carries rather than a table to look up.
+#[derive(Debug, Clone, PartialEq, Eq, Component)]
+pub struct Practising {
+    /// The style.
+    pub style: Style,
+}
+
+/// One style, as far as picking a move needs it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Style {
+    /// Which style.
+    pub id: String,
+    /// The moves it offers.
+    pub techniques: Vec<Technique>,
+}
+
+impl Moment {
+    /// A blow with nothing special about it: no critical, no reach, no counter, nothing loaded.
+    #[must_use]
+    pub fn ordinary() -> Self {
+        Self {
+            crit: false,
+            reach_attacking: false,
+            dodge_counter: false,
+            block_counter: false,
+            loaded: false,
+            target_armed: false,
+            self_armed: false,
+            wall_adjacent: false,
+        }
+    }
+}
+
+/// Which move the striker makes at this target, or nothing when the style offers none.
+///
+/// Reference: `Character::pick_technique` (`melee.cpp:1406-1440`): the selected style's moves are filtered by `ma_technique::is_valid_character` and by `evaluate_technique`'s refusals, and one is
+/// drawn by weight. **The store's own answer**: no style answers nothing, and a style whose every move is refused answers nothing too - which is the plain blow.
+#[must_use]
+pub fn pick_for(
+    world: &mut bevy_ecs::prelude::World,
+    striker: bevy_ecs::prelude::Entity,
+    target: bevy_ecs::prelude::Entity,
+    moment: &Moment,
+    roll: f64,
+) -> Option<String> {
+    let style = world.get::<Practising>(striker)?.style.clone();
+    // **What is in each hand, read from the store**: a `Wielding` link says the striker carries a weapon, and the weapon's own categories decide which moves allow it.
+    let held = world.get::<crate::creature::Wielding>(striker).map(|wielded| wielded.0);
+    let categories = held.map_or_else(Vec::new, |kind| crate::item_registry::weapon_categories_of(world, kind));
+    let borrowed: Vec<&str> = categories.iter().map(String::as_str).collect();
+    let hands = if held.is_some() { Hands::Weapon("a weapon") } else { Hands::Empty };
+    let moment = Moment {
+        self_armed: held.is_some(),
+        target_armed: world.get::<crate::creature::Wielding>(target).is_some(),
+        ..moment.clone()
+    };
+    let qualified: Vec<Candidate> = style
+        .techniques
+        .iter()
+        .filter(|technique| offers(&technique.flags, &moment, roll))
+        .filter(|technique| applies(&technique.requirement, hands, &borrowed))
+        .map(|technique| Candidate {
+            id: technique.id.clone(),
+            // The reference's list pushes a move once and then `weighting - 1` more times, and `pick` does the same, so a weight of nothing stays one entry.
+            weighting: technique.flags.weighting,
+        })
+        .collect();
+    pick(&qualified, roll)
 }

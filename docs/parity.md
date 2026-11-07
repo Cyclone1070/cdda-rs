@@ -16713,6 +16713,10 @@ reach, criticality, ammunition, the two weapon rules, and the **negative weighti
 counts are gated: **49 moves critical-only, 38 crit-either-way, 30 counters, 13 disarms, 2 block counters, 1 reach-only, 1 take-weapon** - and **dummy, dodge-counter and needs-ammo are empty**,
 which is named rather than treated as proven.
 
+**The store answers which move a striker makes** (round 1383): `martial_arts::pick_for` reads the style a creature carries (`Practising`, the port's `character_martial_arts`), what is in its
+hands and the target's, and answers a move id - or nothing, which is the plain blow. **No style and no move**, and a style whose every move is refused is the same nothing, which is why the pick is a
+component read rather than a table.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
