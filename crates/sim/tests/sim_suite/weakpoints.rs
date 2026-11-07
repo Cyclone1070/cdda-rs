@@ -716,3 +716,52 @@ fn a_thrown_thing_spends_the_weak_point_it_lands_on() {
         "**the same throw into a doubled weak point is worth twice as much**: {weak} against {plain}"
     );
 }
+
+/// A body's weak-point families reward the proficiency an attacker has learned.
+///
+/// Reference: `weakpoint_families::modifier` (`weakpoint.cpp:171-178`) and `weakpoint_family::modifier` (`:110-115`): each family adds a **bonus** when the attacker knows its proficiency and a
+/// **penalty** when it does not, and the total is their **sum**.
+///
+/// **The two figures are not a trade**: a monster with two families whose bonuses are one and a half and a half gives an attacker who knows both **two** points of skill, and an attacker who knows
+/// neither is two points **worse** - which is why a butcher's training is worth more against some bodies than others.
+#[test]
+fn a_body_s_families_reward_the_proficiency_an_attacker_has() {
+    use cdda_sim::weakpoints::{WeakpointFamily, families_modifier};
+
+    let zombie = vec![
+        WeakpointFamily {
+            id: "gross_anatomy".to_owned(),
+            proficiency: "prof_gross_anatomy".to_owned(),
+            bonus: 1.5,
+            penalty: 0.5,
+        },
+        WeakpointFamily {
+            id: "physiology".to_owned(),
+            proficiency: "prof_physiology".to_owned(),
+            bonus: 0.5,
+            penalty: 0.0,
+        },
+    ];
+
+    // An attacker who knows both: a point and a half plus a half.
+    assert!(
+        (families_modifier(&zombie, &|_| true) - 2.0).abs() < 1e-9,
+        "**knowing both is worth two points**: {}",
+        families_modifier(&zombie, &|_| true)
+    );
+    // One of the two: a point and a half for the first, and the second's penalty of nothing.
+    assert!(
+        (families_modifier(&zombie, &|name| name == "prof_gross_anatomy") - 1.5).abs() < 1e-9,
+        "knowing one is worth its bonus and the other's penalty"
+    );
+    // Neither: half a point of penalty plus nothing.
+    assert!(
+        (families_modifier(&zombie, &|_| false) - 0.5).abs() < 1e-9,
+        "knowing neither is worth the penalties, which are a cost rather than a floor"
+    );
+    // **A body with no families asks for nothing**, which is most of the corpus and every body a port invents.
+    assert!(
+        (families_modifier(&[], &|_| true) - 0.0).abs() < 1e-9,
+        "a body with no families changes no skill"
+    );
+}

@@ -16668,5 +16668,13 @@ it shifted: `a_survivor_shoots_a_zombie` needed three of four shots to land and 
 fire chance a hit. Both were rewritten to be **armed by construction** - an aim that clears the recoil before every shot - rather than by a favourable seed. A fixture that depends on a coin landing
 its way is not a gate.
 
-**Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the proficiency families that shift the
-skill, `physical`/`non_physical` map keys, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.
+**The families that shift the skill are data too** (round 1373): `weakpoint_families::modifier` (`weakpoint.cpp:171-178`) is `weakpoints::families_modifier`, and `--dump-monsters` version
+thirteen writes the type's `families` with the figures **resolved** - **4,082 of them across 1,154 types, and 1,038 types state at least one**, so skipping the column would have skipped the norm.
+
+**The fallback is the proficiency's own number, and the port does not have it.** `weakpoint_family::modifier` answers `bonus.value_or( proficiency.default_weakpoint_bonus() )`, and the port has no
+proficiency table carrying that field - so the dump writes what the reference would have used. That is a data decision rather than a rule one: the *rule* (bonus when known, penalty when not, summed)
+is ported and gated; only the two defaults are resolved upstream.
+
+**Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' **practice** paths
+(`practice_hit`, `practice_kill`, `practice_dissect` - the reference teaches a proficiency by doing, and nothing calls them yet), `physical`/`non_physical` map keys, the enchantment that modifies
+`WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.

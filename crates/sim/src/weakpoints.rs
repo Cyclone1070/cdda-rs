@@ -467,3 +467,32 @@ pub fn triggers(
     }
     f64::from(rolls.rng(0, 10_000)) / 100.0 < effect.chance
 }
+
+/// One proficiency a body's weak points reward.
+///
+/// Reference: `struct weakpoint_family` (`weakpoint.h:102-114`) - an id, the proficiency it belongs to, and the two figures. **They are stored resolved**: the reference falls back to the
+/// proficiency's own `default_weakpoint_bonus` and `default_weakpoint_penalty` (`weakpoint.cpp:110-115`), and the port has no proficiency table carrying those two numbers, so the dump writes
+/// what the reference would have used rather than a zero the port would have to invent.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WeakpointFamily {
+    /// Its id, which is what the data calls the family.
+    pub id: String,
+    /// The proficiency an attacker must know to earn the bonus.
+    pub proficiency: String,
+    /// What knowing it is worth.
+    pub bonus: f64,
+    /// What **not** knowing it costs.
+    pub penalty: f64,
+}
+
+/// The skill a body's families add to an attacker's weak-point skill.
+///
+/// Reference: `weakpoint_families::modifier` (`weakpoint.cpp:171-178`) - the **sum** over every family, where each contributes its bonus when the attacker knows its proficiency and its penalty
+/// when it does not. **The total can be negative**, which is the whole point: an untrained attacker aims worse at a body whose anatomy means something.
+#[must_use]
+pub fn families_modifier(families: &[WeakpointFamily], knows: &dyn Fn(&str) -> bool) -> f64 {
+    families
+        .iter()
+        .map(|family| if knows(&family.proficiency) { family.bonus } else { family.penalty })
+        .sum()
+}

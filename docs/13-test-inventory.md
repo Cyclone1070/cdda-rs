@@ -1448,3 +1448,7 @@ passing on luck rather than on the rule. Both now aim before every shot, so the 
 
 **Round 1372 finished the triangle**: a thrown thing spends the weak point it lands on, with `throw_weakpoint_skill`'s throw-twice, vision-twice figures. Melee, shot and throw now share one walk and
 one set of multipliers, and differ only in the skill and limbs they read.
+
+**Round 1373 loaded the weak-point families**: 4,082 across the 1,154 types, with the figures resolved the way the reference's own fallback resolves them, and `weakpoints::families_modifier` gated
+on knowing both, one and neither. The dump took two builds because the first patch matched a line the file no longer had and left the row's format string unbalanced; the repair path is now
+written down in the round's commit.

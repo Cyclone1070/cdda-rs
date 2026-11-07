@@ -95,6 +95,12 @@ pub struct MonsterType {
     /// entries and its default, already **expanded** - a monster's inline set goes through `finalize_damage_map` when its type is finalized, unlike the standalone `weakpoint_set` prototypes -
     /// which is why these maps carry every damage type's name and the set dump's do not.
     pub weakpoints: Option<crate::weakpoints::WeakpointSet>,
+    /// The weak-point families its body rewards, with the figures **already resolved**.
+    ///
+    /// Reference: `mtype::families` (`mtype.h:382`), a `weakpoint_families` read by `weakpoint_families::modifier` (`weakpoint.cpp:171-178`): each entry is a proficiency the attacker must know
+    /// for the **bonus**, and pays the **penalty** when it does not. The dump writes the resolved figures because the reference's fallback is the proficiency's own default and the port has no
+    /// proficiency table carrying those two numbers.
+    pub families: Vec<crate::weakpoints::Family>,
     /// How readily it bleeds (`mtype::bleed_rate`, `mtype.h:486`).
     ///
     /// `mtype::get_bleed_type` (`mtype.cpp:412-422`) checks this **before** it looks at a species at all: a rate of zero means the monster never bleeds its species' blood, however the
@@ -384,6 +390,15 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     }
     // **The body's weak points, when the type states any.** The dump writes the set's list and its default under one object, and a type with nothing to say has an empty list and the
     // reference's default - which is the same shape, so the reader decides by the list rather than by the key's presence.
+    if let Some(cdda_json::Value::Array(families)) = object
+        .get("weakpoints")
+        .and_then(|set| match set {
+            cdda_json::Value::Object(inner) => inner.get("families"),
+            _ => None,
+        })
+    {
+        monster.families = crate::weakpoints::read_families(families);
+    }
     if let Some(cdda_json::Value::Object(set)) = object.get("weakpoints")
         && let Some(cdda_json::Value::Array(entries)) = set.get("list")
         && !entries.is_empty()
@@ -653,6 +668,8 @@ impl MonsterType {
             regenerates_in_dark: false,
             // Most types state no weak points at all; the ones that do say so in their own row.
             weakpoints: None,
+            // A type with no families rewards no proficiency.
+            families: Vec::new(),
             // `monster_death_effect` starts with no message and a normal corpse (`mtype.h:274-285`).
             death_message: String::new(),
             corpse_type: "normal".to_owned(),

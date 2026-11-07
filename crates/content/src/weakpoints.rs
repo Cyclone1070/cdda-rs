@@ -217,6 +217,56 @@ pub fn expand_all(map: &BTreeMap<String, f64>, default: f64) -> BTreeMap<String,
     out
 }
 
+/// One proficiency a body's weak points reward.
+///
+/// Reference: `struct weakpoint_family` (`weakpoint.h:102-114`). The two figures are stored **resolved**: the reference falls back to the proficiency's own `default_weakpoint_bonus` and
+/// `default_weakpoint_penalty` (`weakpoint.cpp:110-115`), which the dump has already applied.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Family {
+    /// Its id, which is what the data calls the family.
+    pub id: String,
+    /// The proficiency an attacker must know for the bonus.
+    pub proficiency: String,
+    /// What knowing it is worth.
+    pub bonus: f64,
+    /// What **not** knowing it costs.
+    pub penalty: f64,
+}
+
+/// Reads a body's weak-point families.
+///
+/// An entry that names no proficiency is skipped: a family nothing can earn is not a rule, and the reference's own loader makes the proficiency mandatory.
+#[must_use]
+pub fn read_families(entries: &[Value]) -> Vec<Family> {
+    let mut out = Vec::new();
+    for entry in entries {
+        let Value::Object(object) = entry else {
+            continue;
+        };
+        let Some(Value::Str(proficiency)) = object.get("proficiency") else {
+            continue;
+        };
+        let number = |key: &str, fallback: f64| -> f64 {
+            match object.get(key) {
+                Some(Value::Float(found)) => *found,
+                Some(Value::Int(found)) => *found as f64,
+                _ => fallback,
+            }
+        };
+        let id = match object.get("id") {
+            Some(Value::Str(said)) => said.clone(),
+            _ => proficiency.clone(),
+        };
+        out.push(Family {
+            id,
+            proficiency: proficiency.clone(),
+            bonus: number("bonus", 0.0),
+            penalty: number("penalty", 0.0),
+        });
+    }
+    out
+}
+
 /// Reads a list of sets, in the order the dump states them.
 ///
 /// # Errors

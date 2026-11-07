@@ -188,3 +188,48 @@ fn a_weak_point_states_what_it_triggers() {
         "every effect names an id and a duration that ends at or after it starts"
     );
 }
+
+/// A monster's body states the proficiencies its weak points reward.
+///
+/// Reference: `mtype::families` (`mtype.h:382`), loaded by `monstergenerator.cpp:913-921` from the data's `families` array and read by `weakpoint_families::modifier`
+/// (`weakpoint.cpp:171-178`). **4,082 of them across the 1,154 types**, and the figures arrive **resolved** - `prof_physiology` on a chicken is worth two points to an attacker who has learned it,
+/// which is the data's own `default_weakpoint_bonus` rather than a number this dump chose.
+#[test]
+fn a_monster_states_the_proficiencies_its_weak_points_reward() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let text = std::fs::read(path).expect("the monster dump exists");
+    let value = parse(&text).expect("the dump is valid JSON");
+    let Value::Object(root) = value else {
+        panic!("the dump's root is an object");
+    };
+    let Some(Value::Array(prototypes)) = root.get("prototypes") else {
+        panic!("the dump has prototypes");
+    };
+    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monsters load");
+    let families: usize = monsters.iter().map(|monster| monster.families.len()).sum();
+    assert_eq!(families, 4_082, "**the corpus states four thousand and eighty-two families**");
+
+    let chicken = monsters
+        .iter()
+        .find(|monster| monster.id == "mon_chicken")
+        .expect("a chicken");
+    let physiology = chicken
+        .families
+        .iter()
+        .find(|family| family.proficiency == "prof_physiology")
+        .expect("a chicken rewards physiology");
+    assert!(
+        (physiology.bonus - 2.0).abs() < 1e-9,
+        "**the data's own default is two points**: {}",
+        physiology.bonus
+    );
+    assert!((physiology.penalty - 0.0).abs() < 1e-9, "and not knowing it costs nothing here");
+
+    // **The families are the ordinary case and the absence is the exception**: 1,038 of the 1,154 dumped types reward at least one proficiency, so a port that skipped this column skipped the
+    // norm. The count is 117 rather than 116 because the loader appends the reference's own `null` monster, which rewards nothing.
+    assert_eq!(
+        monsters.iter().filter(|monster| monster.families.is_empty()).count(),
+        117,
+        "a hundred and sixteen dumped types reward no proficiency, and the null monster is the hundred and seventeenth"
+    );
+}
