@@ -7887,6 +7887,52 @@ pub fn harvest_after_damage(weight: i32, entry: HarvestEntry, damage: CorpseDama
     }
 }
 
+/// What one entry gives once the **action** has had its say, or nothing when the action refuses it.
+///
+/// Reference: `butchery.cpp`'s finish loop, the block after the damage:
+///
+/// * `QUICK` - flesh is quartered, bone halved, offal divided by five, skin halved for a medium body or bigger, and **anything else is dropped** (`:741-756`);
+/// * `DISMEMBER` - the roll is zero, which drops every entry (`:758-761`);
+/// * `FIELD_DRESS` - flesh and skin are dropped and bone is halved (`:763-773`);
+/// * `BLEED` - only blood survives (`:776-781`);
+/// * `SKIN` - only skin survives (`:784-790`).
+///
+/// **The two rng branches are not here**: a body whose field dressing failed has its bone and hide rolled (`:791-808`), and that needs the caller's dice. The port's finish applies them with the same draw the
+/// count roll used, which is a divergence named in `docs/parity.md`.
+#[must_use]
+pub fn after_the_action(entry: &HarvestSpec, count: i32, state: &ButcherFinish) -> Option<i32> {
+    let part = entry.part;
+    match state.action {
+        ButcherAction::Quick => match part {
+            Some(HarvestEntry::Flesh) => Some(count / 4),
+            Some(HarvestEntry::Bone) => Some(count / 2),
+            Some(HarvestEntry::Skin)
+                if matches!(state.size, CreatureSize::Medium | CreatureSize::Large | CreatureSize::Huge) =>
+            {
+                Some(count / 2)
+            }
+            Some(HarvestEntry::Skin) => Some(count),
+            Some(HarvestEntry::Offal) => Some(count / 5),
+            _ => None,
+        },
+        ButcherAction::Dismember => Some(0),
+        ButcherAction::FieldDress => match part {
+            Some(HarvestEntry::Flesh | HarvestEntry::Skin) => None,
+            Some(HarvestEntry::Bone) => Some(count / 2),
+            _ => Some(count),
+        },
+        ButcherAction::Bleed => match part {
+            Some(HarvestEntry::Blood) => Some(count),
+            _ => None,
+        },
+        ButcherAction::Skin => match part {
+            Some(HarvestEntry::Skin) => Some(count),
+            _ => None,
+        },
+        ButcherAction::Full | ButcherAction::Quarter | ButcherAction::Dissect => Some(count),
+    }
+}
+
 /// One harvest entry, as the rule needs it: what it is and how much.
 ///
 /// The sim does not depend on the content crate, so the numbers arrive here rather than being looked up: the
@@ -8057,10 +8103,14 @@ pub struct HarvestTable<'a> {
 /// The facts a finished butchery needs that are not in the entries themselves.
 #[derive(Debug, Clone, Copy)]
 pub struct ButcherFinish {
+    /// What kind of butchery is being done. The reference's finish loop branches on it for every entry, so it is part of the rule rather than of the caller's setup.
+    pub action: ButcherAction,
     /// The butcher's effective skill, which scales counts.
     pub butchery: i32,
     /// How much of a body's **bulk** becomes items: `butchery_dissect_yield_mult` (`butchery.cpp:585-593`), which the caller works out from the skill, the dexterity and the blade.
     pub yield_multiplier: f64,
+    /// How big the body was, which a quick butchery halves the hide of only for a medium creature or larger (`butchery.cpp:748-752`).
+    pub size: CreatureSize,
     /// How badly the corpse was damaged.
     pub damage: CorpseDamage,
     /// Whether the body was smashed apart before it was cut up.
@@ -8102,6 +8152,10 @@ pub fn butcher_finish(
             state.skinned,
             draw,
         );
+        // Reference: the action's own block, which runs **before** the weight becomes items and can remove an entry outright (`butchery.cpp:700-790`).
+        let Some(count) = after_the_action(entry, count, &state) else {
+            continue;
+        };
         if count <= 0 {
             continue;
         }

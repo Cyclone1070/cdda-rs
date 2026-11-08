@@ -1579,3 +1579,6 @@ port would get "right": a count entry's minimum survives any damage, and the top
 
 **Round 1410 ported the bulk arithmetic and found two of its own numbers wrong.** The yield multiplier is three clamped terms, and a bulk entry's grams divide by one drop's weight rounding up - the port
 had been reporting the weight itself as a count. The gate that said so had the old rule written into it, and the monster's weight had been crossing as milligrams against a dump that writes grams.
+
+**Round 1411 gave the butchery its action.** The finish loop branches five ways on what the butcher is doing; the port's finish had one path, so a quick job stripped a body as thoroughly as a full one. Two gates
+pin the two most different actions, and the mutation that stops quartering flesh fails on the first.

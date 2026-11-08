@@ -16798,6 +16798,13 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**The action decides what survives the harvest** (round 1411): `after_the_action` is the reference's finish-loop block that runs after the damage and before a bulk share becomes items
+(`butchery.cpp:700-790`) - `QUICK` quarters flesh, halves bone and skin on a medium body or larger, divides offal by five and **drops everything else**; `DISMEMBER` zeroes every entry; `FIELD_DRESS` drops flesh and
+skin and halves bone; `BLEED` keeps only blood; `SKIN` keeps only hide. The finish had been ignoring the action entirely, so a quick job gave a full body's harvest. `ButcherFinish` now carries the action and the
+body's size, and the registry carries each kind's size class from the content (`set_sizes`/`size_of`, medium when the data says nothing).
+
+**Named divergence**: the two rng branches - a body whose field dressing failed, where bone and hide are rolled (`:791-808`) - are not modelled; the port applies the plain branch.
+
 **A body's bulk becomes items by weight and by the butcher's own hands** (round 1410): `butchery_dissect_yield_mult` (`butchery.cpp:585-593`) is ported as `butchery_yield_multiplier` - half skill,
 three tenths blade, two tenths dexterity, **each clamped to one** - and `butcher_finish` now divides a `mass_ratio` entry's grams by one drop's weight, **rounding up**, as `butchery.cpp:829-840` does. A
 count entry takes neither, which is the reference's asymmetry.

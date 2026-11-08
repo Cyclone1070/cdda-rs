@@ -61,6 +61,8 @@ pub struct MonsterTypes {
     harvest_ranges: Vec<(u32, u32)>,
     /// What each kind weighed while it was alive, in grams, by registry order.
     weights: Vec<i64>,
+    /// How big each kind is, by registry order.
+    sizes: Vec<crate::CreatureSize>,
 }
 
 /// What killing each kind teaches, by kind.
@@ -134,6 +136,33 @@ pub fn set_harvests(
             *slot = (start, how_many);
         }
     }
+}
+
+/// How big each kind of body is, by kind, which decides the base cost of cutting it up.
+pub fn set_sizes(world: &mut World, entries: &[(crate::MonsterKindId, crate::CreatureSize)]) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, size) in entries {
+        let at = kind.0 as usize;
+        if types.sizes.len() <= at {
+            types.sizes.resize(at + 1, crate::CreatureSize::Medium);
+        }
+        if let Some(slot) = types.sizes.get_mut(at) {
+            *slot = *size;
+        }
+    }
+}
+
+/// How big one kind of body is; a medium body when the world did not say, which is the reference's own default for a size it cannot read (`butchery.cpp:377-392`).
+#[must_use]
+pub fn size_of(world: &World, kind: crate::MonsterKindId) -> crate::CreatureSize {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+        .and_then(|types| types.sizes.get(kind.0 as usize).copied())
+        .unwrap_or(crate::CreatureSize::Medium)
 }
 
 /// What one kind's body yields when butchered: the entries and the ids their drops name, in the definition's order.
@@ -218,6 +247,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         harvest_ids: Vec::new(),
         harvest_ranges: Vec::new(),
         weights: Vec::new(),
+        sizes: Vec::new(),
         names,
         hit_points,
         by_name,

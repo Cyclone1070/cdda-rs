@@ -5,7 +5,7 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    ButcherFinish, CorpseDamage, CorpseOf, GroundItem, HarvestEntry, HarvestSpec, HarvestTable,
+    ButcherAction, ButcherFinish, CreatureSize, CorpseDamage, CorpseOf, GroundItem, HarvestEntry, HarvestSpec, HarvestTable,
     ItemTypeId, MonsterKindId, butcher_finish, drop_item, items_at,
 };
 
@@ -37,6 +37,8 @@ fn entry(part: HarvestEntry, base: (i32, i32)) -> HarvestSpec {
 
 fn finish() -> ButcherFinish {
     ButcherFinish {
+        action: ButcherAction::Full,
+        size: CreatureSize::Medium,
         butchery: 0,
         // Nothing extra: a share of a body is what the weight says, which keeps these gates about the count rule.
         yield_multiplier: 1.0,
@@ -249,4 +251,73 @@ fn a_bulk_entry_uses_the_weight_it_was_given() {
         vec![(MEAT, 2)],
         "and fifty grams of a forty-gram cut is two, because the division rounds **up**"
     );
+}
+
+/// **A quick butchery takes a quarter of the flesh and half the bone, and gives no blood at all.**
+///
+/// Reference: the `QUICK BUTCHERY` block (`butchery.cpp:741-756`) - flesh `/= 4`, bone `/= 2`, skin `/= 2` for a medium body or bigger, offal `/= 5`, and **every other entry is skipped**. The port's finish
+/// ignored the action entirely, so a quick job on a body gave the same harvest as a full one.
+#[test]
+fn a_quick_butchery_takes_a_quarter_of_the_flesh_and_half_the_bone() {
+    let mut world = World::new();
+    let corpse = body(&mut world);
+    let entries = [
+        entry(HarvestEntry::Flesh, (40, 40)),
+        entry(HarvestEntry::Bone, (20, 20)),
+        entry(HarvestEntry::Blood, (10, 10)),
+    ];
+    let mut rolls = Rolls::new(7);
+    let dropped = butcher_finish(
+        &mut world,
+        corpse,
+        HarvestTable {
+            entries: &entries,
+            ids: &["meat", "bone", "blood"],
+            weight: 0.0,
+        },
+        ButcherFinish {
+            action: ButcherAction::Quick,
+            ..finish()
+        },
+        ids,
+        |_| 1_000,
+        &mut rolls,
+    );
+    assert_eq!(
+        dropped,
+        vec![(MEAT, 10), (BONE, 10)],
+        "**forty cuts of flesh become ten and twenty bones become ten; blood is not on the list at all**"
+    );
+}
+
+/// **Skinning takes the hide and nothing else.**
+///
+/// Reference: the `SKIN` block (`butchery.cpp:781-790`) - every entry that is not skin is skipped, and a body whose field dressing failed has its hide rolled away from.
+#[test]
+fn skinning_takes_the_hide_and_nothing_else() {
+    let mut world = World::new();
+    let corpse = body(&mut world);
+    let entries = [
+        entry(HarvestEntry::Flesh, (40, 40)),
+        entry(HarvestEntry::Skin, (5, 5)),
+        entry(HarvestEntry::Bone, (20, 20)),
+    ];
+    let mut rolls = Rolls::new(9);
+    let dropped = butcher_finish(
+        &mut world,
+        corpse,
+        HarvestTable {
+            entries: &entries,
+            ids: &["meat", "skin", "bone"],
+            weight: 0.0,
+        },
+        ButcherFinish {
+            action: ButcherAction::Skin,
+            ..finish()
+        },
+        ids,
+        |_| 1_000,
+        &mut rolls,
+    );
+    assert_eq!(dropped, vec![(SKIN, 5)], "**only the hide**, and all five of it");
 }

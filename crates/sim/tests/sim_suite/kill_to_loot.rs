@@ -113,6 +113,8 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
             weight: 0.0,
         },
         ButcherFinish {
+            action: cdda_sim::ButcherAction::Full,
+            size: cdda_sim::CreatureSize::Medium,
             butchery: 0,
             yield_multiplier: 1.0,
             damage: CorpseDamage::Light,
@@ -171,8 +173,10 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
                 weight: 0.0,
             },
             ButcherFinish {
+                action: cdda_sim::ButcherAction::Full,
+                size: cdda_sim::CreatureSize::Medium,
                 yield_multiplier: 1.0,
-            butchery: 0,
+                butchery: 0,
                 damage: CorpseDamage::Light,
                 gibbed: false,
                 skinned: false,
