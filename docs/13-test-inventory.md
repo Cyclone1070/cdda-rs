@@ -1569,3 +1569,7 @@ the three clamps, because no real tool quality reaches them, so the gate says wh
 
 **Round 1407 found the pieces of butchery all ported and none of them joined.** The clock, the turn and the yields each had a rule and a gate; no creature could start or finish the work, so the game
 could not butcher a corpse at all. The finisher is four lines of reading and one call, which is what a port looks like when the rules were already right and only the wiring was missing.
+
+**Round 1408 made butchery playable, and the playtest found that the ordinary zombie had no harvest.** The loader read `entries` and ignored `copy-from`/`extend`, which is how most of the content's
+harvest lists are written - so the commonest body in the game butchered to nothing. The fix is a resolution pass, gated in the content suite and shown end to end by a scenario that now leaves twenty
+tainted meat on the ground.

@@ -95,3 +95,36 @@ fn the_reference_tree_holds_the_definitions_it_says_it_does() {
         Some(0.32)
     );
 }
+
+/// **A harvest that inherits gets its parent's entries and then its own, in that order.** Most of the content's harvest lists are written that way.
+///
+/// Reference: `harvest_definition` is a `generic_factory` entry, so `copy-from` is resolved at finalisation and `extend.entries` are appended after the inherited list. The port read only the literal
+/// `entries` until a playtest butchered a zombie and got nothing: `zombie_humanoid` is a `copy-from: zombie_decay_bone_human_skull` with an `extend`, so its own list is empty and the parent's was never
+/// consulted.
+#[test]
+fn an_inheriting_harvest_gets_its_parent_s_entries_and_then_its_own() {
+    use cdda_content::harvest::{load_harvests, resolve_harvests};
+
+    let text = r#"[
+        {"id": "parent", "type": "harvest", "entries": [
+            {"drop": "meat", "type": "flesh", "mass_ratio": 0.5}
+        ]},
+        {"id": "child", "type": "harvest", "copy-from": "parent", "extend": {"entries": [
+            {"drop": "bone", "type": "bone", "mass_ratio": 0.1}
+        ]}}
+    ]"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("the fixture parses");
+    let mut all = load_harvests(&value);
+    assert_eq!(
+        all.get("child").map(|definition| definition.entries.len()),
+        Some(0),
+        "**the child states no entries of its own**, which is what the reference's data looks like"
+    );
+    resolve_harvests(&mut all);
+    let child = all.get("child").expect("the child");
+    assert_eq!(child.entries.len(), 2, "the parent's entry and the child's, and no more");
+    assert_eq!(child.entries.first().map(|entry| entry.drop.as_str()), Some("meat"), "the parent's comes first");
+    assert_eq!(child.entries.last().map(|entry| entry.drop.as_str()), Some("bone"), "the child's comes after");
+    let parent = all.get("parent").expect("the parent");
+    assert_eq!(parent.entries.len(), 1, "the parent is untouched by its child");
+}

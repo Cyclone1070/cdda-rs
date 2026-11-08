@@ -66,8 +66,12 @@ pub struct HarvestEntry {
 pub struct HarvestDefinition {
     /// Its id, which is what a monster names.
     pub id: String,
-    /// What it yields.
+    /// What it yields, **after** [`resolve_harvests`] has folded in what it inherits.
     pub entries: Vec<HarvestEntry>,
+    /// The definition this one copies, when it states one (`copy-from`).
+    pub copy_from: Option<String>,
+    /// The entries this one adds to what it inherited (`extend`).
+    pub extend: Vec<HarvestEntry>,
 }
 
 /// Reads every harvest definition in a file or list, keyed by id.
@@ -96,15 +100,73 @@ pub fn load_harvests(value: &Value) -> BTreeMap<String, HarvestDefinition> {
             Some(Value::Array(list)) => list.iter().filter_map(read_entry).collect(),
             _ => Vec::new(),
         };
+        // **The half of the definition that is not written down.** Most harvest lists in the content are a `copy-from` plus an `extend`, which is why a loader that reads only `entries` gives the
+        // commonest body in the game - the humanoid zombie - an empty one.
+        let copy_from = match object.get("copy-from") {
+            Some(Value::Str(parent)) => Some(parent.clone()),
+            _ => None,
+        };
+        let extend = match object.get("extend") {
+            Some(Value::Object(inner)) => match inner.get("entries") {
+                Some(Value::Array(list)) => list.iter().filter_map(read_entry).collect(),
+                _ => Vec::new(),
+            },
+            _ => Vec::new(),
+        };
         out.insert(
             id.clone(),
             HarvestDefinition {
                 id: id.clone(),
                 entries,
+                copy_from,
+                extend,
             },
         );
     }
     out
+}
+
+/// Folds every `copy-from` in a set of harvest definitions into the definitions that inherit from them.
+///
+/// Reference: `harvest_definition` is a `generic_factory` entry, so its `copy-from` is resolved at finalisation and its `extend.entries` are appended **after** the inherited list, in the order the
+/// child writes them. A parent that is itself a copy is resolved first, and a cycle resolves to whatever the pass reached - the reference refuses a cycle outright, and a port that looped on one would
+/// hang, so the passes are bounded by the number of definitions.
+///
+/// **A definition that states `entries` and no `copy-from` keeps exactly what it stated**, which is the reference's own rule: the parent is only consulted when the child names one.
+pub fn resolve_harvests(all: &mut BTreeMap<String, HarvestDefinition>) {
+    let ids: Vec<String> = all.keys().cloned().collect();
+    // The bound is the number of definitions: every pass resolves at least the chains whose parent is already resolved, so a chain of n resolves in n passes at the very worst.
+    for _ in 0..ids.len().max(1) {
+        let mut changed = false;
+        for id in &ids {
+            let Some(definition) = all.get(id) else {
+                continue;
+            };
+            let Some(parent_id) = definition.copy_from.clone() else {
+                continue;
+            };
+            let Some(parent) = all.get(&parent_id) else {
+                continue;
+            };
+            // A parent that has not been resolved yet is waited for, unless it inherits in turn and the chain has run as far as it can.
+            if parent.copy_from.is_some() && parent.entries.is_empty() && !parent.extend.is_empty() {
+                continue;
+            }
+            let mut entries = parent.entries.clone();
+            entries.extend(definition.extend.iter().cloned());
+            let inherited = entries != definition.entries;
+            if let Some(definition) = all.get_mut(id) {
+                if inherited {
+                    definition.entries = entries;
+                    changed = true;
+                }
+                definition.copy_from = None;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
 }
 
 /// A number that may be a single value or a low-high pair, as the reference writes them.

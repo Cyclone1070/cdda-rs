@@ -168,6 +168,11 @@ pub enum Step {
         /// The item's id.
         item: String,
     },
+    /// Cut up the body the survivor is standing on, quickly or as a full job.
+    Butcher {
+        /// Whether the job is the quick one, which is a different multiplier in `butcher_time_to_cut`.
+        quick: bool,
+    },
     /// Swings at whatever stands on a square.
     Attack {
         /// The square's x.
@@ -334,6 +339,8 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
             },
+            ["butcher"] => Step::Butcher { quick: false },
+            ["butcher", "quick"] => Step::Butcher { quick: true },
             ["wield", item] => Step::Wield {
                 item: (*item).to_owned(),
             },
@@ -558,6 +565,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                         .insert(cdda_sim::creature::Carried(survivor));
                 }
             }
+        Step::Butcher { quick } => butcher_a_step(world, outcome, *quick),
         Step::Wield { .. } | Step::Attack { .. } => take_a_swing(world, step, outcome),
         Step::Goal { x, y } => send_the_monsters_to(outcome, world, *x, *y),
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
@@ -870,6 +878,9 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     if definitions.is_empty() {
         return;
     }
+    // **Most harvest lists are a `copy-from` plus an `extend`.** Resolving them here, once the whole data tree has been read, is what gives the commonest body in the game - the humanoid zombie - its
+    // entries at all.
+    cdda_content::harvest::resolve_harvests(&mut definitions);
     let mut weights = Vec::new();
     let mut tables = Vec::new();
     for monster in monsters {
@@ -2693,4 +2704,77 @@ mod round_naming_tests {
         assert!(round.has_effect("INCENDIARY"), "and it is an incendiary round");
         assert!(super::round_of_id("no_such_round").is_none(), "an unknown round is nothing rather than a guess");
     }
+}
+
+/// Plays one `butcher` step: cuts up the body the survivor is standing on, and reports what the last turn left behind.
+///
+/// The activity is the reference's shape - `player_activity` with `ACT_BUTCHER`, whose `moves_left` is `butcher_time_to_cut` and whose finish draws the body's harvest onto the square. The port keeps that
+/// clock on the **creature** (`Doing`), because that is where the reference keeps it and where the turn loop already spends every other activity's moves.
+fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool) {
+    let Some(survivor) = survivor(world) else {
+        outcome.failures.push("there is no survivor".to_owned());
+        return;
+    };
+    let Some(at) = world.get::<cdda_sim::Position>(survivor).map(|position| (position.x, position.y)) else {
+        outcome.failures.push("the survivor has no square".to_owned());
+        return;
+    };
+    // The body the survivor can reach: one on their own square, or on one of the eight beside it. The reference picks a corpse from the squares within `PICKUP_RANGE` and walks to it; the port models
+    // no walk for an activity yet, so a body out of arm's reach is a step that fails rather than one that cuts something across the room.
+    let reachable = |x: i32, y: i32| (x - at.0).abs() <= 1 && (y - at.1).abs() <= 1;
+    let corpse = {
+        let mut query = world.query::<(bevy_ecs::entity::Entity, &cdda_sim::Position, &cdda_sim::CorpseOf)>();
+        query
+            .iter(world)
+            .find(|(_, position, _)| reachable(position.x, position.y))
+            .map(|(entity, _, _)| entity)
+    };
+    let Some(corpse) = corpse else {
+        outcome.failures.push(format!("there is no corpse within reach of {} {} to cut up", at.0, at.1));
+        return;
+    };
+    let Some(corpse_of) = world.get::<cdda_sim::CorpseOf>(corpse).copied() else {
+        return;
+    };
+    // The body's size decides the base time; a kind the data does not describe is cut up as a person's body, which is the reference's own default for a size it cannot read.
+    let size = monster_types()
+        .and_then(|types| {
+            let name = cdda_sim::monster_registry::name_of(world, corpse_of.kind)?;
+            types.into_iter().find(|monster| monster.id == name).map(|monster| monster.size)
+        })
+        .map_or(cdda_sim::CreatureSize::Medium, |size| match size.as_str() {
+            "TINY" => cdda_sim::CreatureSize::Tiny,
+            "SMALL" => cdda_sim::CreatureSize::Small,
+            "LARGE" => cdda_sim::CreatureSize::Large,
+            "HUGE" => cdda_sim::CreatureSize::Huge,
+            _ => cdda_sim::CreatureSize::Medium,
+        });
+    let state = cdda_sim::ButcherState {
+        size,
+        action: if quick {
+            cdda_sim::ButcherAction::Quick
+        } else {
+            cdda_sim::ButcherAction::Full
+        },
+        tool_factor: 0,
+        field_dressed: false,
+        field_dress_failed: false,
+        quartered: false,
+        instant_bleed: false,
+        butchering_basic: 0.0,
+        butchering_advanced: 0.0,
+        skinning_basic: 0.0,
+        helpers: 0,
+    };
+    let moves = cdda_sim::butcher_time_to_cut(state);
+    world.entity_mut(survivor).insert(cdda_sim::creature::Doing {
+        activity: "butcher".to_owned(),
+        moves_left: moves,
+        basis: cdda_sim::creature::Basis::Time,
+        moves_total: moves,
+        subject: Some(corpse),
+    });
+    outcome.lines.push(format!(
+        "butcher: a {size:?} body, {moves} moves of work"
+    ));
 }

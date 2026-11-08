@@ -1,0 +1,41 @@
+# A body is cut up quickly, and its meat is on the ground when the work is done.
+#
+# **Twenty tainted meat, because the harvest is a share of the body**: the humanoid zombie's definition says `mass_ratio 0.25` of flesh, the body weighed 81,500 g, and a cut of tainted meat is a
+# kilogram - so twenty of them, which is the arithmetic the port's `harvest_yield` does and the recording cannot yet check.
+#
+# The reference's butchery is an activity: `player_activity` with the butcher's clock on the **character**, the corpse as its subject, and a finish loop that draws the body's own harvest definition
+# onto the square and consumes the body. Every rule in that chain was ported and gated separately - the clock (`butcher_time_to_cut`), the yields (`harvest_yield`), the finish - and nothing joined them to
+# a creature doing the work, so the game could not butcher at all. This is that join, played out: a zombie is killed, its body butchered, and the meat appears on the square.
+#
+# **A zombie and not a dog**: a dog flees, so a scenario that swings at one twice as often as it needs to proves only that the dog left - the "no monster" line and the "no corpse" line passed together
+# the first time this was written. A zombie stands and takes it. The clock is the point of the arithmetic: a medium body is 450 turns of base work, the quick job is `0.7 * 3 + 0.15 * 1 + 0.15 = 2.4` of that once the unskilled
+# butcher's penalties are counted, and a turn of butchery spends a hundred moves - so 1,080 turns of work. A medium body at a full job is 4,860 turns, which is the same rule and too slow to play.
+world 10 bare
+survivor 0 0
+items
+monsters
+seed 7
+give crowbar 1
+wield crowbar
+monster mon_zombie 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+turn 1
+expect no monster at 1 0
+butcher quick
+turn 1080
+expect floor meat_tainted 20

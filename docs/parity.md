@@ -16798,6 +16798,17 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**A playtest now butchers a zombie, and it found the commonest body in the game had no harvest at all** (round 1408): `butcher` is a scenario step (with `quick`), reach covering the survivor's own
+square and the eight beside it, and `scenarios/a_butchered_zombie_leaves_meat.txt` kills a zombie, cuts it up over 1,080 turns, and finds **twenty tainted meat** on the square. The item is
+`meat_tainted` because that is what the humanoid zombie's definition says - the scenario names the item the data names, not the one the word "meat" suggests.
+
+The round's real find is behind it. `harvest_definition` is a `generic_factory` entry, so **most harvest lists are a `copy-from` plus an `extend`**, and the port's loader read only a literal `entries`
+array. `zombie_humanoid` - the ordinary zombie - is exactly that shape, so its harvest resolved to **nothing**, and a player butchering one got an empty square. `content::harvest::resolve_harvests` now
+folds every `copy-from` in, appending the child's `extend.entries` after the inherited list, and the playtest is the gate that shows the difference.
+
+A timing note, because a measurement nearly became a false diagnosis: a playtest of two hundred turns takes about 170 seconds and a playtest of **twenty** turns takes about the same, so nearly all of it
+is the content load and a turn is a few tens of milliseconds. A first reading of that number as "a turn costs a second" was wrong.
+
 **Butchering a body is now an activity a creature can finish** (round 1407): the clock, the turn and the yields were ported rounds ago and **nothing joined them to a creature doing the work**, so the game
 could not butcher. `creature::FINISHERS` gains `butcher`, which reads the dead body's own harvest from the monster registry (installed from content by `install_harvests`, flat with a range per kind, and
 each kind's living weight in grams), hands it to `butcher_finish`, and the body is used up. The canceller takes the `Butchery` component back off the corpse, because the port keeps a butchery's progress on
