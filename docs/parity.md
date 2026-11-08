@@ -16733,6 +16733,11 @@ branches are exercised by the sim's fixture rather than by the data.
 **And the move the swing picked is the move that lands** (round 1387): the chosen technique's `AppliedMove` - its effects, its stun and its knockdown - runs **after** the damage, because
 `on_damage` asks whether the blow drew blood (`melee.cpp:1759-1785`). The pick and the landing are the two halves of one choice, and a swing that made no move lands nothing.
 
+**An enchantment adds, then multiplies what it has added to** (round 1388, the first P5 piece): `enchantments::Enchantment::modify` is
+`enchant_cache::modify_value` (`magic_enchantment.cpp:1396-1400`) - `value += add; value *= 1.0 + multiply` - so **the multiply is a fraction of the number and not of the result**, and a value the
+enchantment never mentions is left exactly as it was. `merge` keeps the **first** row for a value, because the reference's loader fills a `std::map` with `emplace` (`:204-232`).
+**The enchantment's data has no dump path**: the reference reaches one only through an item, a bionic or a mutation, so its values are ported as a rule and await a dump that can walk them.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

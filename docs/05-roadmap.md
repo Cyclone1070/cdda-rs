@@ -85,7 +85,7 @@ P1 registry & saves | **in progress**: 160 registries load, the prototypes dump 
 P2 world grid | ported: terrain, furniture, fields, fire, light, scent, sounds | `sim_suite::{terrain, field, fire, light, scent, sounds}` |
 P3 items | **in progress**: kinds, weights, volumes, pockets, damage, faults, wear, the book slot and identification; the crafting rules are ported (time, batching, speed multipliers, failure, practice, proficiencies) with **the item-component model still open** | `sim_suite::{ground_items, item_data, item_burn, creature_fight, crafting, craft_time, craft_roll, craft_progress}` |
 P4 creatures & combat | **in progress and the current focus**: melee with blocking and weapon wear, ranged dispersion and ballistics, armour, effects, monster AI's hearing and wandering | `sim_suite::{creature_fight, shot, aim, dispersion, ballistics, hearing}` |
-P5 spells & enchantments | **not started** - and it is what `EQUIPMENT_DAMAGE_CHANCE` waits on | - |
+P5 spells & enchantments | **open, and started**: the enchantment's arithmetic is ported (`sim_suite::enchantments`), and **its data has no dump path yet** - the reference reaches an enchantment only through an item, a bionic or a mutation, so there is no registry to walk; what is left is the effect side (hit and dodge effects, mutations, intermittent activation) and the dump that would carry them | `sim_suite::enchantments` |
 P6 activities | **not started** | - |
 P7 AI | **partly**: hearing, wandering, attitudes; **not** the behaviour tree or NPC decisions | `sim_suite::hearing`, `sounds` |
 P8-P11 | not started | - |

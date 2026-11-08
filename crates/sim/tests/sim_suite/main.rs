@@ -225,3 +225,4 @@ mod throwing;
 mod shot_rules;
 
 mod aim_rules;
+mod enchantments;

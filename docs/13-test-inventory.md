@@ -1498,3 +1498,7 @@ corpus's fourteen effects are all chance-100 and all damage-requiring, which the
 
 **Round 1387 joined the pick to the landing**: the technique's effects, stun and knockdown now run inside the blow, after the damage, exactly where the reference runs them. The mutation check removed the
 call and the gate lost its stun - which is the only evidence that the two halves were ever connected.
+
+**Round 1388 opened P5 with the enchantment's arithmetic**: add, then multiply by one plus the fraction, and the first row winning a duplicate. The mutation check dropped the `1.0 +` and both
+gates failed. The data has no dump path yet, which is recorded in the roadmap rather than hidden: the reference reaches an enchantment through an item, a bionic or a mutation, not through a registry
+that can be walked.

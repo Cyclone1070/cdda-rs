@@ -50,6 +50,7 @@ pub mod effect_registry;
 pub mod eoc_registry;
 pub mod eating;
 pub mod effects;
+pub mod enchantments;
 pub mod singletons;
 pub mod square;
 pub mod conditions;
