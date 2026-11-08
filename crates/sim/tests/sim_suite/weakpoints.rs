@@ -44,6 +44,7 @@ fn the_ported_weakpoint_chance_matches_the_reference() {
             number(row, "skill"),
             helps,
             1.0,
+            1.0,
         );
         let reference = number(row, "chance");
         assert!(
@@ -96,6 +97,7 @@ fn a_roll_walks_the_weak_points_in_reweighed_order() {
             difficulty: 0.0,
             helps_attacker: true,
             coverage_multiplier: 1.0,
+            accuracy_multiplier: 1.0,
         },
         Weakpoint {
             id: "knee".to_owned(),
@@ -103,6 +105,7 @@ fn a_roll_walks_the_weak_points_in_reweighed_order() {
             difficulty: 0.0,
             helps_attacker: true,
             coverage_multiplier: 1.0,
+            accuracy_multiplier: 1.0,
         },
     ];
     // A beginner gets one roll, so each entry's share is its own raw chance: twenty-five, then twenty-five.
@@ -1006,5 +1009,31 @@ fn a_swing_practises_the_body_it_struck() {
         cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_wp_zombie"),
         2,
         "**one landed swing is two seconds toward what the body rewards**"
+    );
+}
+
+/// **An enchantment can sharpen a good weak point, and never a bad one.**
+///
+/// Reference: `weakpoint::hit_chance` (`weakpoint.cpp:550-570`): the attacker's coverage goes through `enchantment_cache->modify_value( WEAKPOINT_ACCURACY, coverage )` **inside the branch where the
+/// weak point helps the attacker**, and the branch where it hurts the monster never asks the cache at all. So a character with the enchantment aims better at a weak point and no worse at a
+/// liability, which is the asymmetry the reference's own control flow states.
+#[test]
+fn an_enchantment_sharpens_a_good_weak_point_and_never_a_bad_one() {
+    let plain = cdda_sim::weakpoints::hit_chance(20.0, 0.0, 5.0, true, 1.0, 1.0);
+    let sharpened = cdda_sim::weakpoints::hit_chance(20.0, 0.0, 5.0, true, 1.0, 1.5);
+    assert!(
+        sharpened > plain,
+        "**the same weak point is likelier when the accuracy is multiplied**: {sharpened} against {plain}"
+    );
+    assert!(
+        (sharpened - plain * 1.5).abs() < 1e-9,
+        "and by exactly the multiplier, because it lands on the coverage and nothing else"
+    );
+
+    let bad_plain = cdda_sim::weakpoints::hit_chance(20.0, 0.0, 5.0, false, 1.0, 1.0);
+    let bad_sharpened = cdda_sim::weakpoints::hit_chance(20.0, 0.0, 5.0, false, 1.0, 1.5);
+    assert!(
+        (bad_sharpened - bad_plain).abs() < 1e-12,
+        "**the enchantment does not touch a weak point that hurts the monster**: {bad_sharpened} against {bad_plain}"
     );
 }

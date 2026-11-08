@@ -1557,3 +1557,6 @@ scenario printed "rock (657000 g)". The gate now states the two units and the co
 **Round 1403 started the kill's teaching.** The killing blow records its striker (`hurt_by`, threaded from the swing through the strike), the reaper practises the dead body's weak-point families for a
 minute each, and the families reached the registry. The first attempt to add them failed an **architecture** gate - a component holding one list per kind - and the fix was the item registry's own
 answer: lay them flat and keep a range.
+
+**Round 1404 audited the "named, not invented" list and found four of its items stale** - `effect_on_conditions`, `physical`/`non_physical`, `armour_mult`, and the families' bonus and penalty were all
+ported and wired. A gap list is a work queue, and a queue that lies wastes the next round's first hour; the audit is now part of the ledger's own paragraph rather than a claim about it.

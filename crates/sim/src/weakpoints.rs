@@ -62,7 +62,14 @@ pub fn erfc(x: f64) -> f64 {
 /// **The bad branch shifts the difficulty by ten and floors the answer at a tenth**, which is the reference's way of saying a monster's bad weak point is hard to avoid entirely - a
 /// hopeless attacker still hits it a tenth of the time. The coverage multiplier is the attack type's, one for the "unusual" type the dump holds constant.
 #[must_use]
-pub fn hit_chance(coverage: f64, difficulty: f64, skill: f64, helps_attacker: bool, coverage_multiplier: f64) -> f64 {
+pub fn hit_chance(
+    coverage: f64,
+    difficulty: f64,
+    skill: f64,
+    helps_attacker: bool,
+    coverage_multiplier: f64,
+    accuracy_multiplier: f64,
+) -> f64 {
     let shifted = if helps_attacker {
         skill - difficulty
     } else {
@@ -74,7 +81,14 @@ pub fn hit_chance(coverage: f64, difficulty: f64, skill: f64, helps_attacker: bo
     } else {
         (0.5 * erfc(z)).max(0.1)
     };
-    coverage_multiplier * difficulty_multiplier * coverage
+    // **The accuracy enchantment sharpens a good weak point and never a bad one.** Reference: `weakpoint.cpp:558-569` applies
+    // `modify_value( WEAKPOINT_ACCURACY, coverage )` inside the `is_good` branch only, then multiplies the three figures together at `:570`.
+    let final_coverage = if helps_attacker {
+        coverage * accuracy_multiplier
+    } else {
+        coverage
+    };
+    coverage_multiplier * difficulty_multiplier * final_coverage
 }
 
 /// Reweighs the chance of hitting a weak point by how many "rolls" the attacker gets.
@@ -111,6 +125,8 @@ pub struct Weakpoint {
     pub helps_attacker: bool,
     /// The attack type's own multiplier on the coverage (`weakpoint::hit_chance`'s `coverage_mult.of( attack )`).
     pub coverage_multiplier: f64,
+    /// What the attacker's `WEAKPOINT_ACCURACY` enchantments make of the coverage; one when there are none (`weakpoint.cpp:558-561`).
+    pub accuracy_multiplier: f64,
 }
 
 /// Which weak point a roll lands on, or `None` for the body itself.
@@ -131,6 +147,7 @@ pub fn select_weakpoint(list: &[Weakpoint], skill: f64, roll: f64) -> Option<usi
             skill,
             weakpoint.helps_attacker,
             weakpoint.coverage_multiplier,
+            weakpoint.accuracy_multiplier,
         );
         if raw == 0.0 {
             continue;
@@ -274,6 +291,9 @@ impl WeakPoint {
             difficulty: difficulty_for(&self.difficulties, attack),
             helps_attacker: self.helps_attacker,
             coverage_multiplier: difficulty_for(&self.coverage_multipliers, attack),
+            // The enchantment is the **attacker's**, so it is not part of the body's data and cannot be asked here; a caller that has one sets it, and one that has none leaves the neutral
+            // figure the reference uses when the attacker has no enchantment cache at all (`weakpoint.cpp:562-564`).
+            accuracy_multiplier: 1.0,
         }
     }
 }

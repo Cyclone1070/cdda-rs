@@ -16798,6 +16798,11 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
-**Named, not invented:** `effect_on_conditions` (the port has no dialogue activation) and the effect's own `message` (no message channel at this layer), the families' two **other** practice
-paths (`practice_kill` in `kill_tracker.cpp:128` - a minute - and `practice_dissect` in `butchery.cpp:953` - two fifteen-minute halves, because proficiency practice is capped - which need the kill
-tracker and butchery), `physical`/`non_physical` map keys, the enchantment that modifies `WEAKPOINT_ACCURACY`, and `armour_mult`'s interaction with a garment's own `PartArmour` roll.
+**And the accuracy enchantment sharpens a good weak point and never a bad one** (round 1404): `weakpoint::hit_chance` (`weakpoint.cpp:550-570`) multiplies the coverage by the attacker's
+`WEAKPOINT_ACCURACY` enchantment **inside the branch where the weak point helps the attacker**, and the branch where it hurts the monster never asks. The port's `Weakpoint::accuracy_multiplier` is that
+figure, one when the attacker has no enchantment.
+
+**The named gaps were audited against the tree this round and four of them were no longer true**, which is the same hazard as a stale roadmap: a gap that has been closed invites the work to be done
+again. `effect_on_conditions` is ported (`eoc_registry`, `sim_suite::eoc_programs`), `physical`/`non_physical` are filled in by the content's `finalize_damage_map`, `armour_mult` **is** applied
+(`weakpoints::factors_after`), the families' bonus and penalty **are** applied (`skill_with_families` at the swing), and `practice_hit` and `practice_kill` are both wired. What remains open is
+`bonus_container`'s numbers (unreachable from a dump), `practice_dissect` (needs butchery), and the effect's own message at the effect layer.
