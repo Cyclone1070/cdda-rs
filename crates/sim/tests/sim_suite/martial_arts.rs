@@ -337,6 +337,7 @@ fn the_store_answers_which_move_a_striker_makes() {
                     weapon_categories: Vec::new(),
                 },
                 flags: ordinary,
+                movement: cdda_sim::martial_arts::AppliedMove::default(),
             },
             Technique {
                 id: "tec_critical".to_owned(),
@@ -348,6 +349,7 @@ fn the_store_answers_which_move_a_striker_makes() {
                     weapon_categories: Vec::new(),
                 },
                 flags: critical,
+                movement: cdda_sim::martial_arts::AppliedMove::default(),
             },
         ],
     };
@@ -515,6 +517,7 @@ fn the_swing_asks_the_style_and_leaves_the_move_it_made() {
                     weapon_categories: Vec::new(),
                 },
                 flags,
+                movement: cdda_sim::martial_arts::AppliedMove::default(),
             }],
         },
     });
@@ -613,4 +616,97 @@ fn a_move_s_effects_land_by_their_own_chance() {
         (1..=3).contains(&duration),
         "**the stun lasts from one turn to three, never zero**: {duration}"
     );
+}
+
+/// The move the swing picked is the move that lands: its stun and its effects reach the body it hit.
+///
+/// Reference: `melee.cpp:1759-1785` runs inside the blow, after the damage, for the technique `melee_attack` chose. The port picked the move before striking (round 1385) and **applies it after** -
+/// the same order, and the same reason: the reference's `on_damage` rule needs to know whether the blow drew blood, which is only true once the blow has landed.
+#[test]
+fn the_move_the_swing_picked_is_the_move_that_lands() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::martial_arts::{AppliedMove, MoveEffect, Practising, Requirement, Style, Technique, TechniqueFlags};
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &["stunned", "downed", "bleed"]
+            .iter()
+            .map(|id| cdda_sim::effect_registry::bare(id))
+            .collect::<Vec<_>>(),
+    );
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 50,
+            weight_g: 657,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 20.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 40,
+        }],
+    );
+    let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock");
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert((
+        cdda_sim::creature::Dexterity { base: 12 },
+        cdda_sim::creature::Perception { base: 12 },
+        cdda_sim::creature::Moves { left: 400 },
+        cdda_sim::creature::Wielding(kind),
+    ));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert((
+        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
+        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+    ));
+
+    let flags = TechniqueFlags {
+        weighting: 1,
+        dummy: false,
+        defensive: false,
+        crit_tec: false,
+        crit_ok: true,
+        reach_tec: false,
+        reach_ok: false,
+        dodge_counter: false,
+        block_counter: false,
+        needs_ammo: false,
+        disarms: false,
+        take_weapon: false,
+    };
+    world.entity_mut(survivor).insert(Practising {
+        style: Style {
+            id: "style_test".to_owned(),
+            techniques: vec![Technique {
+                id: "tec_stunner".to_owned(),
+                requirement: Requirement {
+                    unarmed_allowed: true,
+                    melee_allowed: true,
+                    strictly_unarmed: false,
+                    wall_adjacent: false,
+                    weapon_categories: Vec::new(),
+                },
+                flags,
+                movement: AppliedMove {
+                    effects: vec![MoveEffect {
+                        id: "bleed".to_owned(),
+                        duration: 5,
+                        permanent: false,
+                        on_damage: true,
+                        chance: 100,
+                    }],
+                    down_dur: 0,
+                    stun_dur: 3,
+                },
+            }],
+        },
+    });
+
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert!(cdda_sim::applied_effects::has(&world, zombie, "stunned"), "**the move's stun lands on the body it hit**");
+    assert!(cdda_sim::applied_effects::has(&world, zombie, "bleed"), "and so does its effect, because the blow drew blood");
 }

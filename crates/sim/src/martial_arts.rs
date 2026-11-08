@@ -265,6 +265,8 @@ pub struct Technique {
     pub requirement: Requirement,
     /// The flags that decide whether it is offered at all.
     pub flags: TechniqueFlags,
+    /// What it does to the body it lands on, beyond the damage.
+    pub movement: AppliedMove,
 }
 
 /// A style a creature has learned: its id and the moves it offers.
@@ -382,6 +384,21 @@ pub fn from_content(style: &cdda_content::martial_arts::Style) -> Style {
                     strictly_unarmed: technique.requirement.strictly_unarmed,
                     wall_adjacent: technique.requirement.wall_adjacent,
                     weapon_categories: technique.requirement.weapon_categories.clone(),
+                },
+                movement: AppliedMove {
+                    effects: technique
+                        .effects
+                        .iter()
+                        .map(|effect| MoveEffect {
+                            id: effect.id.clone(),
+                            duration: effect.duration,
+                            permanent: effect.permanent,
+                            on_damage: effect.on_damage,
+                            chance: effect.chance,
+                        })
+                        .collect(),
+                    down_dur: technique.down_dur,
+                    stun_dur: technique.stun_dur,
                 },
                 flags: TechniqueFlags {
                     weighting: technique.weighting,

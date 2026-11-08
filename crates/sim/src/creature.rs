@@ -2975,6 +2975,28 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         &|proficiency| crate::proficiencies::knows(world, holder, proficiency),
     );
     let dealt = strike_with(world, victim, attack, crit_inputs.as_ref(), weak_point_skill);
+    // Reference: the technique's own effects run **after** the damage (`melee.cpp:1759-1785`), because `on_damage` asks whether the blow drew blood. The move was picked before the strike; this is
+    // the other half of that choice, and it lands nothing when the move was never made.
+    if let (Some(move_id), Some(damage)) = (
+        world
+            .get::<crate::martial_arts::LastMove>(holder)
+            .and_then(|last| last.0.clone()),
+        dealt,
+    ) {
+        let movement = world
+            .get::<crate::martial_arts::Practising>(holder)
+            .and_then(|practising| {
+                practising
+                    .style
+                    .techniques
+                    .iter()
+                    .find(|technique| technique.id == move_id)
+                    .map(|technique| technique.movement.clone())
+            });
+        if let Some(movement) = movement {
+            crate::martial_arts::apply_move(world, victim, &movement, damage);
+        }
+    }
     // Reference: `monster::deal_damage`'s last line before the enchantments - `type->families.practice_hit( *attacker )` (`monster.cpp:3888-3892`) - which teaches the attacker what the body it
     // just struck rewards, two seconds at a time.
     if dealt.is_some() {

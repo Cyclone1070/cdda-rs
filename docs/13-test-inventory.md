@@ -1495,3 +1495,6 @@ which moved `a_swing_at_a_body_never_crits` and one sim gate by one draw each - 
 **Round 1386 gave the moves their effects**: the chance out of a hundred, the damage requirement, the stun and the knockdown, and the dump column behind them. Three fixtures in a row were wrong
 about their own boundary - the roll source was a parameter the store's dice overrode, and the comparison is **inclusive**, so a roll of exactly a half lands where the fixture said it refused. The
 corpus's fourteen effects are all chance-100 and all damage-requiring, which the content gate states rather than glosses.
+
+**Round 1387 joined the pick to the landing**: the technique's effects, stun and knockdown now run inside the blow, after the damage, exactly where the reference runs them. The mutation check removed the
+call and the gate lost its stun - which is the only evidence that the two halves were ever connected.

@@ -16730,6 +16730,9 @@ blood or the effect does not need it, then `stun_dur` and `down_dur` land `stunn
 second source. The dump carries them: 14 moves leave an effect, 28 stun, 37 knock down - and **every effect in the corpus is a certainty that needs damage**, so the chance and harmless-blow
 branches are exercised by the sim's fixture rather than by the data.
 
+**And the move the swing picked is the move that lands** (round 1387): the chosen technique's `AppliedMove` - its effects, its stun and its knockdown - runs **after** the damage, because
+`on_damage` asks whether the blow drew blood (`melee.cpp:1759-1785`). The pick and the landing are the two halves of one choice, and a swing that made no move lands nothing.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
