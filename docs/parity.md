@@ -16765,6 +16765,10 @@ the damage it would do, which needs unarmed limb damage the port does not model,
 non-empty list and consumes no draw otherwise (`martialarts.cpp:1600-1605`) - and the swing records the answer in `LastAim` beside `LastMove`. The whole chain is now observable in one blow: the style
 that was learned, the move its weights offered, the aim the striker's own limbs allowed, and the effects that landed.
 
+**An item's behaviour begins with four predicates over its kind's data** (round 1397, the first P3 piece): `ItemType::is_container` is `item::is_container` (`item.cpp:10238-10241`) - a kind that states a
+`CONTAINER` pocket, **not** a magazine, which holds rounds and takes no rocks - and `is_tool`, `is_gun` and `is_ammo` answer from the kind's own slots. **The reference's own answers are now in the
+dump**: of 9,912 kinds, 1,145 hold a container pocket, 1,237 are tools, 406 guns, 736 ammunition and 1,686 comestibles, and the corpus gate pins those counts.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

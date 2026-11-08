@@ -1528,3 +1528,7 @@ failed; the first half - a move with no aim records none - passed either way, wh
 **Round 1396 audited the roadmap against the tree**, and two of its evidence pointers named modules that do not exist (`sim_suite::shot`, `sim_suite::aim` - the files are `shot_rules` and `aim_rules`),
 which is the same failure as a stale gap: a reader following the pointer finds nothing and writes the work again. The P3 gap was also rewritten, because "the item-component model" named something the
 reference does not have: `item_components` is the container a **craft** consumes its materials into, and what an item actually carries is a set of **predicates** over its kind's data.
+
+**Round 1397 opened P3's predicate layer**: four questions an item answers about itself, with the reference's own counts pinned. The dump had to lose a column first - `is_gun` was already there, so adding
+it again produced a file whose duplicate key the Rust parser refuses and Python's accepts, which is the kind of dump defect that only shows up when a second reader arrives. **One gate was parked**: a
+six-prototype fixture loaded no kinds at all, and why is its own piece of work rather than a footnote; the predicate is gated on pockets directly in the meantime, and the loader's silent drop is named.

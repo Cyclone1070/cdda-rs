@@ -643,6 +643,39 @@ impl ItemType {
         self.subtypes.contains("COMESTIBLE")
     }
 
+    /// Whether the item **holds things**, which is what makes it a container.
+    ///
+    /// Reference: `item::is_container` (`item.cpp:10238-10241`) is `contents.has_pocket_type( pocket_type::CONTAINER )`, and a fresh item's pockets are its type's own - so the answer is
+    /// whether the kind states at least one `CONTAINER` pocket. **A magazine is not a container by this question**, though it holds rounds; the reference keeps the two questions apart.
+    #[must_use]
+    pub fn is_container(&self) -> bool {
+        is_container_with(&self.pockets)
+    }
+
+    /// Whether the item is a tool, which is what makes it spend charges.
+    ///
+    /// Reference: `item::is_tool` (`item.cpp`), answering from the type's tool slot - which the loader keeps as the `TOOL` subtype.
+    #[must_use]
+    pub fn is_tool(&self) -> bool {
+        self.subtypes.contains("TOOL")
+    }
+
+    /// Whether the item is a gun.
+    ///
+    /// Reference: `item::is_gun` (`item.cpp`), answering from the type's gun slot, which the loader keeps as the `GUN` subtype.
+    #[must_use]
+    pub fn is_gun(&self) -> bool {
+        self.subtypes.contains("GUN")
+    }
+
+    /// Whether the item is ammunition.
+    ///
+    /// Reference: `item::is_ammo` (`item.cpp`), answering from the type's ammunition data, which the loader keeps in [`ItemType::ammo_types`].
+    #[must_use]
+    pub fn is_ammo(&self) -> bool {
+        !self.ammo_types.is_empty()
+    }
+
     /// Adds the flags a material brings with it, even in trace amounts
     /// (`item_factory.cpp:3550-3591`).
     fn add_material_flags(&mut self) {
@@ -2324,4 +2357,13 @@ pub fn min_strength_required(min_strength: i32, archery_bonus: f32, is_bow: bool
         requirement -= reduction;
     }
     requirement.max(0)
+}
+
+/// Whether these pockets make a kind a container.
+///
+/// Reference: `item::is_container` (`item.cpp:10238-10241`), which asks the item's pockets for a `CONTAINER` one. The question is about the **pockets** and not about the kind, which is why it is
+/// answered here as well as by [`ItemType::is_container`]: a rule that wants to ask about a list of pockets can ask without building a whole kind.
+#[must_use]
+pub fn is_container_with(pockets: &[crate::pockets::PocketSpec]) -> bool {
+    pockets.iter().any(|pocket| pocket.kind == "CONTAINER")
 }

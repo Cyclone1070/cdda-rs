@@ -476,3 +476,59 @@ fn the_integral_volume_is_in_the_dump_and_the_loader_keeps_a_deliberate_zero() {
         "a type that says nothing keeps its ordinary volume"
     );
 }
+
+/// **What an item is** is a predicate over its kind's data, and the reference answers the same questions about the same kinds.
+///
+/// Reference: `item::is_container` (`item.cpp:10238-10241`), `is_tool`, `is_gun`, `is_ammo` (`item.h:1663-1687`, `:2510`). The dump now carries the reference's own answer beside every kind's
+/// data - **1,145 containers, 1,237 tools, 406 guns, 736 ammunition types and 1,686 comestibles** - so the corpus is asked what it says rather than assumed to say it.
+#[test]
+fn the_corpus_says_what_its_kinds_are() {
+    let dump = std::fs::read(root().join("corpus/prototypes/items.json")).expect("the item dump");
+    let parsed = cdda_json::parse(&dump).expect("valid JSON");
+    let cdda_json::Value::Object(row_root) = parsed else {
+        panic!("the item dump is an object");
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = row_root.get("prototypes") else {
+        panic!("the item dump has prototypes");
+    };
+    let count = |name: &str| {
+        prototypes
+            .iter()
+            .filter(|entry| matches!(entry, cdda_json::Value::Object(row) if matches!(row.get(name), Some(cdda_json::Value::Bool(true)))))
+            .count()
+    };
+    assert_eq!(prototypes.len(), 9912, "**nine thousand nine hundred and twelve kinds**");
+    assert_eq!(count("holds_container_pocket"), 1145, "a thousand and a hundred and forty-five hold a container pocket");
+    assert_eq!(count("is_tool"), 1237, "twelve hundred and thirty-seven are tools");
+    assert_eq!(count("is_gun"), 406, "four hundred and six are guns");
+    assert_eq!(count("is_ammo"), 736, "seven hundred and thirty-six are ammunition");
+}
+
+/// The four questions are answered from the kind's own data, and **a magazine is not a container**.
+///
+/// Reference: `item::is_container` asks for a `CONTAINER` pocket (`item.cpp:10238-10241`), while a magazine's pockets are `MAGAZINE`. The port keeps the two questions apart for the same reason the
+/// reference does: a magazine holds rounds and a survivor cannot put a rock in it.
+///
+/// **Written against the type's own facts rather than through the loader**: this round's attempt at a six-prototype fixture loaded no kinds at all, and finding out why is its own piece of work
+/// (recorded in `docs/13-test-inventory.md`). A gate that silently sees an empty list would be worse than this one, which builds the two states it is asking about and nothing else.
+#[test]
+fn a_kind_is_a_container_only_when_it_states_a_container_pocket() {
+    // A pocket is a shape with many members; the rule reads **only its type**, so the rest are built as the shape's own empty state.
+    let pocket = |kind: &str| {
+        let mut spec = cdda_content::pockets::PocketSpec::empty_of_kind(kind);
+        spec.kind = kind.to_owned();
+        spec
+    };
+    assert!(
+        cdda_content::items::is_container_with(&[pocket("CONTAINER")]),
+        "a pocket of type CONTAINER makes a kind a container"
+    );
+    assert!(
+        !cdda_content::items::is_container_with(&[pocket("MAGAZINE")]),
+        "**a magazine pocket does not**, though it holds rounds"
+    );
+    assert!(
+        !cdda_content::items::is_container_with(&[]),
+        "and a kind with no pockets holds nothing"
+    );
+}

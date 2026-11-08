@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-08 20:54:15
-@@ -0,0 +1,7642 @@
++++ oracle/src/src/harness.cpp	2026-11-08 22:27:54
+@@ -0,0 +1,7652 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -5542,7 +5542,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +        std::fprintf( out, "],\"is_gun\":%s,\"is_gunmod\":%s,"
 +                      "\"nutr\":%d,\"quench\":%d,\"charges_to_use\":%d,"
-+                      "\"explode_in_fire\":%s,\"cookoff\":%s,\"special_cookoff\":%s}",
++                      "\"explode_in_fire\":%s,\"cookoff\":%s,\"special_cookoff\":%s,"
++                      // **What the item is**, as the reference's own predicates answer it (`item.h:1663-1687`, `:2510`, `item.cpp:10238-10241`). The port models a kind as facts, and these four
++                      // booleans are the facts a behaviour hangs off: a container holds things, a tool spends charges, a gun fires, a comestible feeds.
++                      "\"holds_container_pocket\":%s,\"is_tool\":%s,\"is_comestible\":%s,\"is_ammo\":%s}",
 +                      proto->gun ? "true" : "false",
 +                      proto->gunmod ? "true" : "false",
 +                      proto->comestible ? proto->comestible->get_default_nutr() : 0,
@@ -5550,7 +5553,14 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      proto->charges_to_use(),
 +                      proto->explode_in_fire ? "true" : "false",
 +                      proto->ammo && proto->ammo->cookoff ? "true" : "false",
-+                      proto->ammo && proto->ammo->special_cookoff ? "true" : "false" );
++                      proto->ammo && proto->ammo->special_cookoff ? "true" : "false",
++                      std::any_of( proto->pockets.begin(), proto->pockets.end(),
++                                   []( const pocket_data & pocket ) {
++                                       return pocket.type == pocket_type::CONTAINER;
++                                   } ) ? "true" : "false",
++                      proto->tool ? "true" : "false",
++                      proto->comestible ? "true" : "false",
++                      proto->ammo ? "true" : "false" );
 +        first = false;
 +    }
 +    std::fprintf( out, "]}\n" );

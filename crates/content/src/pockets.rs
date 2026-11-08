@@ -208,3 +208,32 @@ fn length(object: &Object, member: &str) -> Option<i64> {
         _ => None,
     }
 }
+
+impl PocketSpec {
+    /// A pocket of one type with every other member at its empty value.
+    ///
+    /// This is for the gates that ask a rule about a pocket's **type** alone: a `pocket_data` entry that states nothing but `pocket_type` is exactly what the reference's loader produces for one,
+    /// because every other member has a default it falls back to (`src/item_pocket.cpp:150-260`).
+    #[must_use]
+    pub fn empty_of_kind(kind: &str) -> Self {
+        Self {
+            kind: kind.to_owned(),
+            watertight: false,
+            airtight: false,
+            rigid: false,
+            max_volume_ml: 0,
+            max_weight_grams: 0,
+            max_length_mm: 0,
+            min_length_mm: 0,
+            min_volume_ml: 0,
+            max_item_volume_ml: None,
+            holster: false,
+            ablative: false,
+            sealed: false,
+            items: Vec::new(),
+            flags: Vec::new(),
+            materials: Vec::new(),
+            ammo: Vec::new(),
+        }
+    }
+}
