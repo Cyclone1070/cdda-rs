@@ -9,6 +9,8 @@
 
 use bevy_ecs::prelude::*;
 
+pub use crate::martial_arts_vectors::{VectorNeed, aims_available};
+
 /// What a creature has in its hands, which a requirement asks about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hands<'a> {
@@ -267,6 +269,24 @@ pub struct Technique {
     pub flags: TechniqueFlags,
     /// What it does to the body it lands on, beyond the damage.
     pub movement: AppliedMove,
+    /// What it may aim at.
+    pub vectors: Vec<Vector>,
+}
+
+/// One aim a move may take, as the fight reads it.
+///
+/// Reference: `attack_vector` (`martialarts.h:70-97`). **The weighting is not here**: `choose_attack_vector` weights an aim by the damage it would do, and the port does not model unarmed limb damage
+/// yet, so every eligible aim weighs the same and the draw is the reference's own floor for a damage-less aim (`martialarts.cpp:1568-1571`). That is named in `docs/parity.md`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Vector {
+    /// Its id.
+    pub id: String,
+    /// The limbs it may strike, by part name.
+    pub limbs: Vec<String>,
+    /// The limbs the striker must still have, by kind and count.
+    pub needs: Vec<VectorNeed>,
+    /// The share of a limb's health below which it is not worth aiming at.
+    pub health_limit: i32,
 }
 
 /// A style a creature has learned: its id and the moves it offers.
@@ -385,6 +405,23 @@ pub fn from_content(style: &cdda_content::martial_arts::Style) -> Style {
                     wall_adjacent: technique.requirement.wall_adjacent,
                     weapon_categories: technique.requirement.weapon_categories.clone(),
                 },
+                vectors: technique
+                    .attack_vectors
+                    .iter()
+                    .map(|vector| Vector {
+                        id: vector.id.clone(),
+                        limbs: vector.limbs.clone(),
+                        needs: vector
+                            .limb_req
+                            .iter()
+                            .map(|need| VectorNeed {
+                                kind: need.kind.clone(),
+                                count: need.count,
+                            })
+                            .collect(),
+                        health_limit: vector.bp_hp_limit,
+                    })
+                    .collect(),
                 movement: AppliedMove {
                     effects: technique
                         .effects

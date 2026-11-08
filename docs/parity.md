@@ -16756,6 +16756,11 @@ its own limit no longer counts. Round 1392 closed the one-point difference round
 `( 100 * bp_hp_cur / bp_hp_max ) > vec->bp_hp_limit` (`martialarts.cpp:1559-1560`). **The division is integer and the comparison is strictly greater**, so a limb at six of sixty is a percentage of
 exactly ten and a limit of ten refuses it, and a limit of a hundred refuses even a whole limb.
 
+**And the store chooses which aim a move takes** (round 1394): `martial_arts_vectors::aim_for` filters a move's aims by the striker's limbs - the count each kind it needs, and each struck
+limb's share of its own health against the aim's limit - and draws one of what survives. **The draw is unweighted, and that is the port's limit rather than the reference's rule**: an aim is weighted by
+the damage it would do, which needs unarmed limb damage the port does not model, so every eligible aim weighs one - the reference's own floor for an aim that would do none
+(`martialarts.cpp:1568-1571`).
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

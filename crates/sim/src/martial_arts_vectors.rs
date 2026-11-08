@@ -1,5 +1,7 @@
 //! What a move aims at.
 
+use crate::martial_arts::Vector;
+
 /// One limb of the striker, as far as a move's needs are concerned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LimbState {
@@ -107,4 +109,59 @@ pub fn health_above_limit(current: i32, maximum: i32, limit: i32) -> bool {
         return false;
     }
     (100 * current / maximum) > limit
+}
+
+/// Which aim the striker takes for a move, given the move's aims and one draw.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1475-1605`): each aim is checked against the striker's **limbs** - the count of each kind it needs (`:1495-1515`) and, for the limbs it may
+/// strike, their share of their own health against the aim's limit (`:1559-1560`) - and what survives is drawn by weight.
+///
+/// **The weight is one for every aim here**, and that is the port's own limit rather than the reference's rule: an aim is weighted by the damage it would do, and the port does not model unarmed
+/// limb damage yet, so the draw is the reference's own floor for an aim that would do none (`:1568-1571`). Named in `docs/parity.md`.
+#[must_use]
+pub fn aim_for(
+    world: &bevy_ecs::prelude::World,
+    striker: bevy_ecs::prelude::Entity,
+    vectors: &[Vector],
+    roll: f64,
+) -> Option<String> {
+    let eligible: Vec<WeightedAim> = vectors
+        .iter()
+        .filter(|vector| aims_available(world, striker, &vector.needs))
+        .filter(|vector| limbs_healthy_enough(world, striker, vector))
+        .map(|vector| WeightedAim {
+            id: vector.id.clone(),
+            weight: 1.0,
+        })
+        .collect();
+    weighted_pick(&eligible, roll)
+}
+
+/// Whether the limbs a move may strike are each above the move's health limit.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1553-1580`): a limb is only taken for an aim when its share of its own health is above the aim's `bp_hp_limit`. An aim that names no limb is
+/// not filtered by this at all, which is what the reference's loop over `vec->limbs` means when the list is empty.
+#[must_use]
+fn limbs_healthy_enough(
+    world: &bevy_ecs::prelude::World,
+    striker: bevy_ecs::prelude::Entity,
+    vector: &Vector,
+) -> bool {
+    if vector.limbs.is_empty() {
+        return true;
+    }
+    let Some(body) = world.get::<crate::creature::Body>(striker) else {
+        return false;
+    };
+    let mut any = false;
+    for name in &vector.limbs {
+        let Some(part) = body.parts.iter().find(|part| &part.name == name) else {
+            continue;
+        };
+        let current = part.base_hp - crate::creature::wound_on(world, striker, &part.name);
+        if health_above_limit(current, part.base_hp, vector.health_limit) {
+            any = true;
+        }
+    }
+    any
 }

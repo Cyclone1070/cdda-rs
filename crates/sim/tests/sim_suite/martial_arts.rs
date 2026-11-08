@@ -338,6 +338,7 @@ fn the_store_answers_which_move_a_striker_makes() {
                 },
                 flags: ordinary,
                 movement: cdda_sim::martial_arts::AppliedMove::default(),
+                vectors: Vec::new(),
             },
             Technique {
                 id: "tec_critical".to_owned(),
@@ -350,6 +351,7 @@ fn the_store_answers_which_move_a_striker_makes() {
                 },
                 flags: critical,
                 movement: cdda_sim::martial_arts::AppliedMove::default(),
+                vectors: Vec::new(),
             },
         ],
     };
@@ -518,6 +520,7 @@ fn the_swing_asks_the_style_and_leaves_the_move_it_made() {
                 },
                 flags,
                 movement: cdda_sim::martial_arts::AppliedMove::default(),
+                vectors: Vec::new(),
             }],
         },
     });
@@ -702,6 +705,7 @@ fn the_move_the_swing_picked_is_the_move_that_lands() {
                     down_dur: 0,
                     stun_dur: 3,
                 },
+                vectors: Vec::new(),
             }],
         },
     });
@@ -912,4 +916,82 @@ fn a_limb_is_aimed_at_while_its_health_is_above_the_limit() {
     assert!(!health_above_limit(60, 60, 100), "a whole limb is at exactly a hundred, which is not above a hundred");
     assert!(health_above_limit(60, 60, 99), "and is above ninety-nine");
     assert!(!health_above_limit(59, 60, 99), "while a limb one hit point down is at ninety-eight");
+}
+
+/// The store answers **which** aim a move takes, from the striker's own limbs, and an aim no limb of theirs can take is not among them.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1475-1605`): the aims are filtered by the limbs the striker has and by each struck limb's share of its own health, and one of what survives is
+/// drawn. **The port draws without weights** - an aim is weighted by the damage it would do, which needs unarmed limb damage the port does not model - so what this gate proves is the filtering,
+/// which is the half that decides whether an aim exists at all.
+#[test]
+fn the_store_answers_which_aim_a_move_takes() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::martial_arts::{Vector, VectorNeed};
+    use cdda_sim::martial_arts_vectors::aim_for;
+
+    let mut world = World::new();
+    let fighter = cdda_sim::creature::spawn_creature(&mut world, "the fighter", (0, 0, 0));
+    let part = |name: &str, kind: &str| cdda_sim::hit_location::BodyPart {
+        name: name.to_owned(),
+        hit_size: 1.0,
+        hit_difficulty: 1.0,
+        upper: false,
+        lower: false,
+        limb_scores: Vec::new(),
+        base_hp: 60,
+        primary_limb_type: Some(kind.to_owned()),
+        health_limit: 1,
+    };
+    world.entity_mut(fighter).insert(cdda_sim::creature::Body {
+        parts: vec![part("arm_l", "arm"), part("arm_r", "arm"), part("leg_l", "leg")],
+    });
+
+    let punch = Vector {
+        id: "vector_punch".to_owned(),
+        limbs: vec!["arm_l".to_owned(), "arm_r".to_owned()],
+        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 2 }],
+        health_limit: 10,
+    };
+    let legs = Vector {
+        id: "vector_kick".to_owned(),
+        limbs: vec!["leg_l".to_owned()],
+        needs: vec![VectorNeed { kind: "leg".to_owned(), count: 2 }],
+        health_limit: 10,
+    };
+
+    // The kick needs two legs and the fighter has one, so only the punch is offered.
+    assert_eq!(
+        aim_for(&world, fighter, &[punch.clone(), legs.clone()], 0.5).as_deref(),
+        Some("vector_punch"),
+        "**an aim whose limbs the striker does not have is not offered**"
+    );
+
+    // **A striker who still has an arm, but not the arm this aim strikes.** The need of one arm is met by the whole one, so only the health
+    // filter can refuse it - which is the point of testing the two filters apart.
+    let grip = Vector {
+        id: "vector_grip".to_owned(),
+        limbs: vec!["arm_l".to_owned()],
+        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 1 }],
+        health_limit: 10,
+    };
+    world.entity_mut(fighter).insert(cdda_sim::creature::Wounds(
+        [("arm_l".to_owned(), 60)].into_iter().collect(),
+    ));
+    assert_eq!(
+        aim_for(&world, fighter, &[grip.clone()], 0.5),
+        None,
+        "**an aim whose struck limb is wrecked is not offered, even when another limb of its kind is whole**"
+    );
+    // The same wounded arm, against an aim that may strike **either** arm: the whole one carries it.
+    let either_arm = Vector {
+        id: "vector_either".to_owned(),
+        limbs: vec!["arm_l".to_owned(), "arm_r".to_owned()],
+        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 1 }],
+        health_limit: 10,
+    };
+    assert_eq!(
+        aim_for(&world, fighter, &[either_arm], 0.5).as_deref(),
+        Some("vector_either"),
+        "**while an aim that may strike either arm is still on offer**"
+    );
 }

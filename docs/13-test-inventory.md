@@ -1517,3 +1517,7 @@ against it with the reference's strict `>`. The corpus states limits of one and 
 
 **Round 1393 added the health-share filter**: integer division, then a strictly greater comparison. The fixture was wrong on its first run in the way this rule invites - it expected a limit of a
 hundred to be satisfied by a whole limb - and the mutation check turned the `>` into a `>=` and failed on the boundary both times.
+
+**Round 1394 chose the aim**: two filters kept apart, and the first version of the gate let both be satisfied by the same fixture, so the mutation that removed the health filter **survived**. The gate
+was rebuilt around an aim that may strike either arm, where the need is met by the whole one and only the health filter can refuse it - and the mutation then died, which is the only evidence that the
+second filter is load-bearing.
