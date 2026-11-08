@@ -380,6 +380,7 @@ pub fn body_named(
             limb_scores: found.limb_scores.clone(),
             base_hp: found.base_hp,
             primary_limb_type: found.primary_limb_type.clone(),
+            health_limit: found.health_limit,
         });
     }
     Some(Body { parts: built })

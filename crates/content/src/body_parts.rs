@@ -30,6 +30,11 @@ pub struct BodyPartType {
     /// How much health it has, from the data's `base_hp` (`bodypart.h:291`). **The wound adjustment scales a part's scores by this**, so a part with no figure would have no way to say
     /// how hurt it is - which is why the dump carries it.
     pub base_hp: i32,
+    /// The hit points below which the part stops counting towards a move's needs (`health_limit`, `bodypart.h:272`), which loads as **one** when the data says nothing
+    /// (`bodypart.cpp:414`).
+    pub health_limit: i32,
+    /// The encumbrance at which the part stops contributing its scores (`encumbrance_limit`, `bodypart.h:270`).
+    pub encumbrance_limit: i32,
 }
 
 /// Reads one prototype.
@@ -128,6 +133,12 @@ pub fn read_prototype(
         .iter()
         .max_by(|left, right| left.1.total_cmp(&right.1))
         .map(|(kind, _)| kind.clone());
+    let limited = |name: &str, fallback: i32| match object.get(name) {
+        Some(cdda_json::Value::Int(found)) => i32::try_from(*found).unwrap_or(fallback),
+        _ => fallback,
+    };
+    let health_limit = limited("health_limit", 1);
+    let encumbrance_limit = limited("encumbrance_limit", 0);
     let whole = match object.get("base_hp") {
         Some(cdda_json::Value::Int(found)) => i32::try_from(*found).unwrap_or(0),
         _ => 0,
@@ -142,6 +153,8 @@ pub fn read_prototype(
         limb_types,
         primary_limb_type,
         base_hp: whole,
+        health_limit,
+        encumbrance_limit,
         id,
     })
 }

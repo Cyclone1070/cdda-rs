@@ -4233,6 +4233,7 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
         limb_scores: vec![("reaction".to_owned(), 0.3, 0.3)],
         base_hp: 60,
         primary_limb_type: None,
+        health_limit: 0,
         ..BodyPart::default()
     };
     let eyes = BodyPart {
@@ -4242,6 +4243,7 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
         limb_scores: vec![("reaction".to_owned(), 0.7, 0.7)],
         base_hp: 60,
         primary_limb_type: None,
+        health_limit: 0,
         ..BodyPart::default()
     };
     // **The dodge is multiplied by the balance, leg and foot figure as well** (`melee.cpp:1233-1235`), which a body of a head and two eyes has none of - so the fixture carries the parts
@@ -4252,6 +4254,7 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
         limb_scores: vec![("balance".to_owned(), 0.7, 0.7)],
         base_hp: 60,
         primary_limb_type: None,
+        health_limit: 0,
         ..BodyPart::default()
     });
     for arm in ["arm_l", "arm_r"] {
@@ -4260,6 +4263,7 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
             limb_scores: vec![("balance".to_owned(), 0.15, 0.15)],
             base_hp: 60,
             primary_limb_type: None,
+            health_limit: 0,
             ..BodyPart::default()
         });
     }
@@ -4269,6 +4273,7 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
             limb_scores: vec![("move_speed".to_owned(), 0.5, 0.5)],
             base_hp: 60,
             primary_limb_type: None,
+            health_limit: 0,
             ..BodyPart::default()
         });
     }
@@ -4278,6 +4283,7 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
             limb_scores: vec![("footing".to_owned(), 0.5, 0.5)],
             base_hp: 60,
             primary_limb_type: None,
+            health_limit: 0,
             ..BodyPart::default()
         });
     }
@@ -4321,6 +4327,7 @@ fn a_hurt_leg_in_the_store_multiplies_the_dodge() {
         limb_scores: vec![(score.to_owned(), figure, figure)],
         base_hp: 60,
         primary_limb_type: None,
+        health_limit: 0,
         ..BodyPart::default()
     };
     // **The reacting parts are part of the body too**: the reaction multiplies the dodge before this figure does, so a body without a head and eyes multiplies by zero and a dodge of ten

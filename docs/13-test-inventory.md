@@ -1511,3 +1511,6 @@ mutation check turned the `>=` into a `>` and the boundary gate failed - a compa
 
 **Round 1391 joined the limb rule to the body**: a part's kind and its wounds now answer a move's `limb_req`, and the gate ruins an arm and watches the two-arm aim disappear. The reference's
 `health_limit` is not in the dump yet, so a limb at exactly one hit point is counted here and refused there - recorded in the parity ledger rather than smoothed over.
+
+**Round 1392 closed the health-limit seam**: the anatomy dump carries `health_limit`, `encumbrance_limit` and `encumbrance_threshold`, the store keeps the limit on the part, and the count compares
+against it with the reference's strict `>`. The corpus states limits of one and five, so the gate walks an arm from six hit points down to five and watches it stop counting.

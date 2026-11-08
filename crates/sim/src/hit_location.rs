@@ -28,6 +28,9 @@ pub struct BodyPart {
     /// The reference caches this from the heaviest of a part's `limb_types` (`bodypart.cpp:359-370`); the port keeps the cached answer rather than the weights, because the only rules that ask are
     /// asking **which kind** a limb is, never how much of each.
     pub primary_limb_type: Option<String>,
+    /// The hit points **below which** the part stops counting towards a move's needs (`health_limit`, `bodypart.h:272`), which the data states and which loads as one when it says nothing
+    /// (`bodypart.cpp:414`).
+    pub health_limit: i32,
 }
 
 /// Picks one entry of a weighted list, given a draw.

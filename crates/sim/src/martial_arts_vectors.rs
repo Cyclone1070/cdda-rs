@@ -73,8 +73,8 @@ pub fn weighted_pick(aims: &[WeightedAim], fraction: f64) -> Option<String> {
 /// Reference: `choose_attack_vector` (`martialarts.cpp:1495-1515`): each `limb_req` counts the user's parts of that kind whose hit points are above the part's health limit, and the aim is discarded
 /// when the count falls short. The port reads a part's kind from its `primary_limb_type` and its health as **the hit points a wound has left**.
 ///
-/// **One named difference**: the reference's per-part `health_limit` defaults to `1` (`bodypart.cpp:414`) and the port does not load it, so a limb at exactly one hit point is refused by the
-/// reference and counted here. That is a one-point difference, named in `docs/parity.md`, and it closes when the dump carries the limit.
+/// The limit is the part's own `health_limit` (`bodypart.h:272`), which loads as one when the data says nothing (`bodypart.cpp:414`) - **the dump states it**, so the port compares against the
+/// reference's figure rather than a number it wrote down.
 #[must_use]
 pub fn aims_available(
     world: &bevy_ecs::prelude::World,
@@ -90,7 +90,8 @@ pub fn aims_available(
             .parts
             .iter()
             .filter(|part| part.primary_limb_type.as_deref() == Some(need.kind.as_str()))
-            .filter(|part| part.base_hp - crate::creature::wound_on(world, striker, &part.name) > 0)
+            // **A limb counts while its hit points are above its own health limit** (`martialarts.cpp:1500-1510`), which the dump now states rather than the port assuming.
+            .filter(|part| part.base_hp - crate::creature::wound_on(world, striker, &part.name) > part.health_limit)
             .count();
         i32::try_from(standing).unwrap_or(i32::MAX) >= need.count
     })

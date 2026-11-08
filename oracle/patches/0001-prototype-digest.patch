@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-08 20:18:24
-@@ -0,0 +1,7639 @@
++++ oracle/src/src/harness.cpp	2026-11-08 20:54:15
+@@ -0,0 +1,7642 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -7058,7 +7058,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +        // **How much health the part has**, which is what the wound adjustment scales a score by (`bodypart.cpp:967-976`): `base_hp` is the type's own figure, and a body's part
 +        // starts there rather than at a number the port would have to guess.
-+        std::fprintf( out, "],\"base_hp\":%d,\"primary_limb_type\":%s", part.base_hp,
++        // **The part's own limits** (`bodypart.h:265-273`): `health_limit` is the hit points below which a limb stops counting towards a move's needs (`martialarts.cpp:1495-1515`), and
++        // `encumbrance_limit` is where a limb stops contributing its scores. Both default to 0 in the struct and `health_limit` loads as 1 (`bodypart.cpp:410-415`).
++        std::fprintf( out, "],\"health_limit\":%d,\"encumbrance_limit\":%d,\"encumbrance_threshold\":%d,\"base_hp\":%d,\"primary_limb_type\":%s",
++                      part.health_limit, part.encumbrance_limit, part.encumbrance_threshold, part.base_hp,
 +                      part.primary_limb_type() == body_part_type::type::num_types ? "null" :
 +                      ("\"" + io::enum_to_string<body_part_type::type>( part.primary_limb_type() ) + "\"").c_str() );
 +        std::fprintf( out, "}" );

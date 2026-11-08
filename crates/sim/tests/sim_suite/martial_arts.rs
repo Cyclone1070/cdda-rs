@@ -803,6 +803,7 @@ fn the_store_answers_which_aims_a_striker_can_take() {
         limb_scores: Vec::new(),
         base_hp: 100,
         primary_limb_type: Some(kind.to_owned()),
+        health_limit: 0,
     };
     world.entity_mut(fighter).insert(cdda_sim::creature::Body {
         parts: vec![part("arm_l", "arm"), part("arm_r", "arm"), part("leg_l", "leg")],
@@ -840,5 +841,54 @@ fn the_store_answers_which_aims_a_striker_can_take() {
     assert!(
         aims_available(&world, fighter, &[needs_one_arm]),
         "but the whole one still satisfies a need for one"
+    );
+}
+
+/// A limb stops counting at **its own** health limit, not at nothing.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1500-1510`): the count is of parts whose current hit points are `> bp->health_limit`, and `health_limit` loads as **one** when the data says
+/// nothing (`bodypart.cpp:414`) while some parts state five. So a limb at five hit points is refused by a part whose limit is five, and a limb at one is refused by every part.
+#[test]
+fn a_limb_stops_counting_at_its_own_limit() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::martial_arts_vectors::{VectorNeed, aims_available};
+
+    let mut world = World::new();
+    let fighter = cdda_sim::creature::spawn_creature(&mut world, "the fighter", (0, 0, 0));
+    let arm = |name: &str, limit: i32| cdda_sim::hit_location::BodyPart {
+        name: name.to_owned(),
+        hit_size: 1.0,
+        hit_difficulty: 1.0,
+        upper: false,
+        lower: false,
+        limb_scores: Vec::new(),
+        base_hp: 100,
+        primary_limb_type: Some("arm".to_owned()),
+        health_limit: limit,
+    };
+    world.entity_mut(fighter).insert(cdda_sim::creature::Body {
+        parts: vec![arm("arm_l", 1), arm("arm_r", 5)],
+    });
+    let one_arm = [VectorNeed {
+        kind: "arm".to_owned(),
+        count: 2,
+    }];
+
+    // Both arms whole: two healthy limbs.
+    assert!(aims_available(&world, fighter, &one_arm), "two whole arms are enough");
+
+    // **Six hit points left on the arm whose limit is five**: the reference asks for strictly more than the limit, so it still counts.
+    world.entity_mut(fighter).insert(cdda_sim::creature::Wounds(
+        [("arm_r".to_owned(), 94)].into_iter().collect(),
+    ));
+    assert!(aims_available(&world, fighter, &one_arm), "an arm at six against a limit of five still counts");
+
+    // Five left is not more than five, and the arm stops counting.
+    world.entity_mut(fighter).insert(cdda_sim::creature::Wounds(
+        [("arm_r".to_owned(), 95)].into_iter().collect(),
+    ));
+    assert!(
+        !aims_available(&world, fighter, &one_arm),
+        "**an arm at exactly its own limit no longer counts**: the comparison is strictly greater"
     );
 }
