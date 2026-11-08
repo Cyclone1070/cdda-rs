@@ -16780,6 +16780,11 @@ with ammunition and is not ammunition), and `is_container` is asked of an **item
 not kilocalories: `nutrition::KCAL_PER_NUTR` is `base_metabolic_rate / (12 * 24)` = 8.68 kcal, and `nutr_from_kcal` truncates (`itype.h:132-133`, `:250-258`) - a 26 kcal item is **2** nutr.
 `items::every_kind_s_other_facts_are_the_reference_s` compares all 9,912 kinds against the reference for both, beside the gun-mod flag.
 
+**The frame capture now draws a game** (round 1401): the CLI's `shot` produced a black 200×200 picture of nothing, and three separate reasons had to be fixed - the demo world had **no terrain glyphs** in its
+table, the clock started at **turn zero, which is midnight**, and the daylight was never cast before the frame was read. A game now starts at **08:00** (`scenario.cpp:138`), the demo world is a room
+whose floor and walls have their glyphs, and `cli::capture::draw` casts the sun at the world's own turn and asks the frame with the ambient light and a character's vision threshold. The gate says a
+picture of a room is **not one flat colour**, because a black picture diffs equal to every other black picture.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

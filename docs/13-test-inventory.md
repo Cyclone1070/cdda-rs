@@ -1545,3 +1545,7 @@ ammunition), and `is_container` must be asked of an **item**, because an item's 
 **Round 1400 turned the whole-corpus comparison on three more facts**, and it found two rules the port had guessed: charges-to-use was read from a data member the reference never reads (it is the tool
 slot's rate, or **one** for a comestible, or nothing), and a food's energy is not kilocalories - the reference reports **nutr**, one being about 8.68 kcal, truncated. Both were ported from the
 reference's own body rather than adjusted to fit the dump.
+
+**Round 1401 found the QA surface was drawing nothing.** `shot` wrote a perfectly valid 200×200 PNG of a black field, and the QA table called the screen check green because a black picture diffs equal
+to every other black picture. Three causes, each hidden by the other two: no glyph table, a clock at midnight, and no sunlight cast. The capture test now asserts that a picture of a room contains more
+than one tint and at least one lit glyph, which is the weakest statement that still fails on a picture of nothing.

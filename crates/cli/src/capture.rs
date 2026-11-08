@@ -27,7 +27,28 @@ pub struct Capture {
 /// Draws the view around `origin`, one cell per square.
 #[must_use]
 pub fn draw(world: &mut bevy_ecs::prelude::World, origin: (i32, i32), radius: i32) -> Capture {
-    let frame = cdda_sim::frame::frame(world, origin, radius, 0.0, 0.0);
+    // **The picture is drawn by the world's own light.** `frame` takes the ambient light at the character and the character's vision threshold
+    // (`frame.rs:155-159`); passing zero for both drew every square as dark, which made every capture a black square that diffs equal to every other capture.
+    // The light comes from the sun at the world's own turn (`astronomy::sun_altitude_degrees` over the calendar), and the threshold from a character of ordinary
+    // perception, which is what the reference's draw loop asks of the avatar.
+    let turns = cdda_sim::calendar::of(world).map_or(0, |calendar| calendar.turn);
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let altitude = cdda_core_types::astronomy::sun_altitude_degrees(turns as f64) as f32;
+    let ambient = cdda_core_types::light::sun_light_from_altitude(altitude);
+    let senses = cdda_core_types::light::Senses {
+        perception: 10.0,
+        night_vision: 0.0,
+        bird_eye: false,
+        gnv: false,
+        limb_night_vis: 1.0,
+        enchantment_night_vis: 1.0,
+    };
+    let threshold = cdda_core_types::light::vision_threshold(ambient, &senses);
+    // The light map has to be cast before it can be read: the reference rebuilds the map's caches once per frame and draws from them (`map::build_map_cache`), so the daylight is put on the
+    // squares here rather than assumed to be there. Without this every square is dark however bright the sun is, which is how the first version of this capture came out black.
+    #[allow(clippy::cast_precision_loss)]
+    cdda_sim::cast_sunlight_with(world, turns as f64);
+    let frame = cdda_sim::frame::frame(world, origin, radius, ambient, threshold);
     let across = u32::try_from(radius * 2 + 1).unwrap_or(1);
     let mut image = Image::blank(across * CELL, across * CELL, [0, 0, 0, 255]);
     let mut lit_squares = 0;
@@ -142,3 +163,65 @@ mod tests {
         assert_eq!(one.image.png(), two.image.png(), "a capture is comparable byte for byte");
     }
 }
+
+#[cfg(test)]
+mod picture_tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+    use super::*;
+    use bevy_ecs::prelude::*;
+
+    /// A world whose terrain table knows its glyphs: floor is `.` and wall is `#`.
+    fn a_room() -> World {
+        let mut world = World::new();
+        // A capture is of a **game**, and a game is played in daylight: the reference's scenario starts at eight in the morning (`scenario.cpp:138`).
+        cdda_sim::calendar::set_turn(&mut world, 8 * 60 * 60);
+        let mut level = cdda_core_types::level::Level::new();
+        for y in 0..12 {
+            for x in 0..12 {
+                let edge = x == 0 || y == 0 || x == 11 || y == 11;
+                level.set_terrain(x, y, if edge { 2 } else { 1 }, 0);
+            }
+        }
+        let mut terrain = cdda_sim::terrain_table::TerrainTable::default();
+        terrain.insert_symbol(1, '.');
+        terrain.insert_symbol(2, '#');
+        cdda_sim::singletons::set_prototypes(
+            &mut world,
+            cdda_sim::Prototypes {
+                terrain,
+                furniture: cdda_sim::terrain_table::TerrainTable::default(),
+            },
+        );
+        cdda_sim::load_level(&mut world, &level);
+        world
+    }
+
+    /// **A picture of a room shows a room.** The capture used to come out black because the world had no terrain glyphs to draw, and a black picture diffs equal to every other black picture,
+    /// which is worse than no picture at all: it looks like a passing screen check.
+    #[test]
+    fn a_capture_of_a_room_is_not_one_flat_colour() {
+        let mut world = a_room();
+
+        let capture = draw(&mut world, (5, 5), 5);
+
+        let mut seen: std::collections::BTreeSet<[u8; 3]> = std::collections::BTreeSet::new();
+        for y in 0..capture.image.height {
+            for x in 0..capture.image.width {
+                let index = usize::try_from((y * capture.image.width + x) * 4).unwrap_or(0);
+                if let Some(colour) = capture.image.rgba.get(index..index + 4) {
+                    seen.insert([colour[0], colour[1], colour[2]]);
+                }
+            }
+        }
+        assert!(
+            seen.len() > 1,
+            "**the frame shows more than one tint**, and it shows {:?}",
+            seen
+        );
+        assert!(
+            seen.iter().any(|colour| colour[0] > 100),
+            "and at least one of them is a lit glyph rather than the near-black of an empty one"
+        );
+    }
+}
+

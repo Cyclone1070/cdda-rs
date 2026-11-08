@@ -60,14 +60,35 @@ fn usage() {
 }
 
 /// A world to run in: one submap of floor, which is the smallest thing that is a level.
+/// A small room with a fire on its floor: four walls, a floor inside, and a paper-thin terrain table that knows which glyph each of the two codes is drawn with.
+///
+/// The glyphs are not decoration. A frame draws the terrain's **symbol** (`frame.rs`), and a world whose table has no symbols draws every square as a blank space - which is a picture of nothing at
+/// all, and which every other such picture diffs equal to. The table also says which squares are indoors, because that is what the daylight pass reads to decide whether the sun reaches a square.
 fn load_demo_world(world: &mut World) -> &mut World {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
     let mut level = cdda_core_types::level::Level::new();
     for y in 0..12 {
         for x in 0..12 {
-            level.set_terrain(x, y, 1, 0);
+            let edge = x == 0 || y == 0 || x == 11 || y == 11;
+            level.set_terrain(x, y, if edge { WALL } else { FLOOR }, 0);
         }
     }
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::default();
+    terrain.insert_symbol(FLOOR, '.');
+    terrain.insert_symbol(WALL, '#');
+    terrain.insert(WALL, false);
+    cdda_sim::singletons::set_prototypes(
+        world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
     cdda_sim::load_level(world, &level);
+    // **A game starts at eight in the morning.** The reference's scenario sets `_start_of_game_hour = 8` (`src/scenario.cpp:138`), and the world clock starts there, which is why a capture of a
+    // fresh game is a daylight picture: at turn zero the sun is down and every square is dark.
+    cdda_sim::calendar::set_turn(world, 8 * 60 * 60);
     // A floor that feeds and a fire on it, so a turn has something to do: an empty world takes turns
     // that change nothing, which is a poor way to see whether the loop is wired up.
     for y in 0..12 {
