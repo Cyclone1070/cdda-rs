@@ -85,3 +85,39 @@ pub fn count(world: &mut World) -> usize {
         .get::<EffectTypes>(entity)
         .map_or(0, |types| types.by_id.len())
 }
+
+/// An effect type the data never defined, with the reference's own defaults for everything it says nothing about.
+///
+/// Reference: `effect::effect` (`src/effect.cpp:1560-1600`): an unknown id still has to answer *something*, and the reference answers a type whose intensity ceiling is one and whose every
+/// other field is the default. **This is for the test fixtures and for an id the corpus happens not to carry**; a rule that lands an effect asks [`kind_of`] first.
+#[must_use]
+pub fn bare(id: &str) -> EffectType {
+    EffectType {
+        id: id.to_owned(),
+        max_intensity: 1,
+        max_duration: cdda_content::effects::DEFAULT_MAX_DURATION,
+        dur_add_perc: 100,
+        int_add_val: 0,
+        int_decay_step: -1,
+        int_decay_tick: 0,
+        int_dur_factor: 0,
+        int_decay_remove: false,
+        main_parts_only: false,
+        show_in_info: false,
+        show_intensity: true,
+        pain_sizing: false,
+        hurt_sizing: false,
+        harmful_cough: false,
+        impairs_movement: false,
+        pkill_addict_reduces: false,
+        kill_chance: Vec::new(),
+        red_kill_chance: Vec::new(),
+        apply_ratings: Vec::new(),
+        flags: std::collections::BTreeSet::new(),
+        resist_traits: Vec::new(),
+        resist_effects: Vec::new(),
+        removes_effects: Vec::new(),
+        blocks_effects: Vec::new(),
+        mods: cdda_content::effects::ModTable::default(),
+    }
+}

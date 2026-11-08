@@ -3,7 +3,7 @@
 //! Source: `corpus/weakpoints/weakpoint-sets.json` is `--dump-weakpoint-sets`, which walks `weakpoints::get_all()` and writes every entry's coverage, direction, four multiplier maps and
 //! per-attack-type difficulty. **A weak-point set is data rather than code**: the reference has 48 of them, and a rule that wrote one down by hand would be wrong the day the data changed.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp)]
+#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
 
 use cdda_content::weakpoints::{WeakpointSet, load_objects};
 use cdda_json::{Value, parse};

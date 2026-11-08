@@ -525,3 +525,92 @@ fn the_swing_asks_the_style_and_leaves_the_move_it_made() {
         "**and a fighter with a style leaves the move it made**"
     );
 }
+
+/// A move's effects land on the body it hit, by the chance the data gives them.
+///
+/// Reference: `melee.cpp:1759-1785`: for each repeat, each of the technique's effects is added when **`x_in_y( chance, 100 )`** holds **and** either the blow drew blood or the effect does not
+/// need damage (`di.total_damage() != 0 || !eff.on_damage`). A move's `stun_dur` adds `stunned` for a random duration from one turn to that many, and `down_dur` does the same for `downed`.
+#[test]
+fn a_move_s_effects_land_by_their_own_chance() {
+    use cdda_sim::martial_arts::{AppliedMove, MoveEffect, apply_move};
+
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &["stunned", "downed", "bleed"]
+            .iter()
+            .map(|id| cdda_sim::effect_registry::bare(*id))
+            .collect::<Vec<_>>(),
+    );
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+
+    let always = MoveEffect {
+        id: "bleed".to_owned(),
+        duration: 5,
+        permanent: false,
+        on_damage: false,
+        chance: 100,
+    };
+    let needs_damage = MoveEffect {
+        id: "bleed".to_owned(),
+        duration: 5,
+        permanent: false,
+        on_damage: true,
+        chance: 100,
+    };
+    let half = MoveEffect {
+        id: "bleed".to_owned(),
+        duration: 5,
+        permanent: false,
+        on_damage: false,
+        chance: 50,
+    };
+    let move_with = |effects: Vec<MoveEffect>| AppliedMove {
+        effects,
+        stun_dur: 0,
+        down_dur: 0,
+    };
+
+    // An effect that does not need damage lands on a blow that drew nothing.
+    let landed = apply_move(&mut world, zombie, &move_with(vec![always.clone()]), 0);
+    assert_eq!(landed, vec!["bleed".to_owned()], "**an effect that needs no damage lands on a harmless blow**");
+    assert!(cdda_sim::applied_effects::has(&world, zombie, "bleed"), "and is on the body");
+
+    // One that needs damage does not.
+    cdda_sim::applied_effects::remove(&mut world, zombie, "bleed");
+    let landed = apply_move(&mut world, zombie, &move_with(vec![needs_damage.clone()]), 0);
+    assert!(landed.is_empty(), "**an effect that needs damage does not land on a blow that drew none**");
+    let landed = apply_move(&mut world, zombie, &move_with(vec![needs_damage]), 4);
+    assert_eq!(landed, vec!["bleed".to_owned()], "and does land when the blow drew blood");
+
+    // The chance is a roll out of a hundred, so half is the first half of the range.
+    cdda_sim::applied_effects::remove(&mut world, zombie, "bleed");
+    // **The comparison is inclusive**: `x_in_y( 50, 100 )` is `rng_float( 0, 1 ) <= 0.5` (`rng.cpp:120-123`), so a roll of exactly a half lands and the refusal starts just above it.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.51));
+    assert!(
+        apply_move(&mut world, zombie, &move_with(vec![half.clone()]), 0).is_empty(),
+        "**a fifty-in-a-hundred effect refuses a roll of fifty-one**"
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.1));
+    assert_eq!(
+        apply_move(&mut world, zombie, &move_with(vec![half]), 0),
+        vec!["bleed".to_owned()],
+        "and lands on a roll of ten"
+    );
+
+    // A stun lands on the body as `stunned`, for at least the one turn the reference never goes below.
+    let mut stunned = move_with(Vec::new());
+    stunned.stun_dur = 3;
+    let landed = apply_move(&mut world, zombie, &stunned, 0);
+    assert_eq!(landed, vec!["stunned".to_owned()], "a stunning move lands a stun");
+    let duration = cdda_sim::applied_effects::worn(&world, zombie)
+        .into_iter()
+        .find(|worn| worn.id == "stunned")
+        .map(|worn| worn.duration)
+        .expect("a stun with a duration");
+    assert!(
+        (1..=3).contains(&duration),
+        "**the stun lasts from one turn to three, never zero**: {duration}"
+    );
+}

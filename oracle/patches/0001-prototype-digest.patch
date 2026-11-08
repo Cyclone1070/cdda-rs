@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-08 07:02:52
-@@ -0,0 +1,7555 @@
++++ oracle/src/src/harness.cpp	2026-11-08 14:59:22
+@@ -0,0 +1,7572 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1790,6 +1790,23 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                << ",\"needs_ammo\":" << ( technique.needs_ammo ? "true" : "false" )
 +                << ",\"disarms\":" << ( technique.disarms ? "true" : "false" )
 +                << ",\"take_weapon\":" << ( technique.take_weapon ? "true" : "false" )
++                // **What the move does to the body it lands on** (`melee.cpp:1759-1785`): each effect it may add, with the chance out of a hundred, whether it needs damage to land, and how long it
++                // lasts - plus the two durations the reference keeps as bare numbers rather than as effects, `down_dur` and `stun_dur`.
++                << ",\"down_dur\":" << technique.down_dur
++                << ",\"stun_dur\":" << technique.stun_dur
++                << ",\"effects\":[";
++            bool first_effect = true;
++            for( const tech_effect_data &effect : technique.tech_effects ) {
++                if( !first_effect ) {
++                    out << ",";
++                }
++                first_effect = false;
++                out << "{\"id\":\"" << effect.id.str() << "\",\"duration\":" << effect.duration
++                    << ",\"permanent\":" << ( effect.permanent ? "true" : "false" )
++                    << ",\"on_damage\":" << ( effect.on_damage ? "true" : "false" )
++                    << ",\"chance\":" << effect.chance << "}";
++            }
++            out << "]"
 +                << ",\"unarmed_allowed\":" << ( technique.reqs.unarmed_allowed ? "true" : "false" )
 +                << ",\"melee_allowed\":" << ( technique.reqs.melee_allowed ? "true" : "false" )
 +                << ",\"strictly_unarmed\":" << ( technique.reqs.strictly_unarmed ? "true" : "false" )

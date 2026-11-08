@@ -16725,6 +16725,11 @@ otherwise answer nothing for the wrong reason.
 `martial_arts::LastMove` on the striker, because the port's blow is a function rather than a struct that could carry it. **A fighter with no style draws nothing** - the reference's `random_entry` over
 an empty list answers the default without touching the dice - and the first version of the wiring drew anyway, which shifted two pinned fixtures by one roll each.
 
+**A move's effects land by their own chance** (round 1386): `martial_arts::apply_move` is `melee.cpp:1759-1785` - each effect lands when `x_in_y( chance, 100 )` holds **and** either the blow drew
+blood or the effect does not need it, then `stun_dur` and `down_dur` land `stunned` and `downed` for a draw from **one turn up to that many**. **The roll comes from the store's own dice**, never a
+second source. The dump carries them: 14 moves leave an effect, 28 stun, 37 knock down - and **every effect in the corpus is a certainty that needs damage**, so the chance and harmless-blow
+branches are exercised by the sim's fixture rather than by the data.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

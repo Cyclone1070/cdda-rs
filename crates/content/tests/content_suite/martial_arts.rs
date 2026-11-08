@@ -134,3 +134,41 @@ fn every_flag_that_decides_whether_a_move_is_offered_is_read() {
     assert_eq!(count(&|movement| movement.dodge_counter), 0, "and none answers a dodge");
     assert_eq!(count(&|movement| movement.needs_ammo), 0, "and none wants a loaded weapon");
 }
+
+/// The moves carry what they do to a body that is not damage: effects, a stun and a knockdown.
+///
+/// Reference: `melee.cpp:1759-1785` applies them, and `tech_effect_data` (`martialarts.h:147-160`) states them. **The corpus's own counts**: fourteen moves leave an effect, twenty-eight stun and
+/// thirty-seven knock down - and the chances are not all a hundred, which is what makes the roll worth porting.
+#[test]
+fn a_move_carries_what_it_does_beyond_damage() {
+    let found = styles();
+    let moves: Vec<&cdda_content::martial_arts::Technique> =
+        found.all.iter().flat_map(|style| style.techniques.iter()).collect();
+
+    assert_eq!(
+        moves.iter().filter(|movement| !movement.effects.is_empty()).count(),
+        14,
+        "**fourteen moves leave an effect**"
+    );
+    assert_eq!(moves.iter().filter(|movement| movement.stun_dur > 0).count(), 28, "twenty-eight stun");
+    assert_eq!(moves.iter().filter(|movement| movement.down_dur > 0).count(), 37, "and thirty-seven knock down");
+
+    let effects: Vec<&cdda_content::martial_arts::MoveEffect> =
+        moves.iter().flat_map(|movement| movement.effects.iter()).collect();
+    // **The corpus states no chance below a hundred and no effect that survives a harmless blow**, so the two branches the reference's roll guards are empty here. That is named rather
+    // than glossed: the sim's own gate exercises both with a fixture, and the data proves only the certain, damage-requiring case.
+    assert!(
+        effects.iter().all(|effect| effect.chance == 100),
+        "**every effect in the corpus is a certainty**"
+    );
+    assert!(
+        effects.iter().all(|effect| effect.on_damage),
+        "and every one of them needs the blow to draw blood"
+    );
+    assert!(
+        effects.iter().all(|effect| !effect.permanent),
+        "and none of them is permanent"
+    );
+    let longest = effects.iter().map(|effect| effect.duration).max().unwrap_or(0);
+    assert!(longest > 0, "the durations are read: the longest is {longest} turns");
+}

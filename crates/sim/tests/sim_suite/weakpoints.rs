@@ -220,7 +220,7 @@ fn a_weak_point_needs_a_skilled_eye_to_find() {
 fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
     use bevy_ecs::prelude::*;
     use cdda_sim::item_registry::{Kind, set_item_types};
-    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, Weakpoint, WeakpointFactors};
+    use cdda_sim::weakpoints::{WeakPoint, WeakPoints, WeakpointFactors};
 
     /// One world, one swing: a survivor with a rock in hand against a body of nine hundred hit points, with or without a weak point that doubles the bash.
     fn blow(weak: bool) -> i32 {

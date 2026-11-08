@@ -53,6 +53,23 @@ pub struct Style {
     pub techniques: Vec<Technique>,
 }
 
+/// One effect a move may leave on the body it lands on.
+///
+/// Reference: `tech_effect_data` (`martialarts.h:147-160`): an id, how long it lasts, whether it is permanent, whether it needs the blow to draw blood, and a **chance out of a hundred**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MoveEffect {
+    /// Which effect.
+    pub id: String,
+    /// How long it lasts, in turns.
+    pub duration: i64,
+    /// Whether it never wears off.
+    pub permanent: bool,
+    /// Whether it only lands on a blow that drew blood.
+    pub on_damage: bool,
+    /// Its chance, out of a hundred.
+    pub chance: i32,
+}
+
 /// One technique a style offers.
 ///
 /// Reference: `ma_technique` (`martialarts.h:162-247`): the same `ma_requirements` a buff carries, plus what the move does - how likely it is to be chosen, whether it is defensive, and whether it
@@ -87,6 +104,12 @@ pub struct Technique {
     pub disarms: bool,
     /// Whether it takes the target's weapon for the striker.
     pub take_weapon: bool,
+    /// How long it may knock the target down, or nothing.
+    pub down_dur: i32,
+    /// How long it may stun the target, or nothing.
+    pub stun_dur: i32,
+    /// The effects it may leave on the body it lands on.
+    pub effects: Vec<MoveEffect>,
     /// The requirement it states.
     pub requirement: BuffRequirement,
 }
@@ -189,6 +212,29 @@ pub fn read_style(object: &Object) -> Option<Style> {
                 needs_ammo: flag(technique, "needs_ammo"),
                 disarms: flag(technique, "disarms"),
                 take_weapon: flag(technique, "take_weapon"),
+                down_dur: number(technique, "down_dur", 0),
+                stun_dur: number(technique, "stun_dur", 0),
+                effects: match technique.get("effects") {
+                    Some(Value::Array(entries)) => entries
+                        .iter()
+                        .filter_map(|entry| {
+                            let Value::Object(effect) = entry else {
+                                return None;
+                            };
+                            Some(MoveEffect {
+                                id: text(effect, "id")?,
+                                duration: match effect.get("duration") {
+                                    Some(Value::Int(turns)) => *turns,
+                                    _ => return None,
+                                },
+                                permanent: flag(effect, "permanent"),
+                                on_damage: flag(effect, "on_damage"),
+                                chance: number(effect, "chance", 0),
+                            })
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                },
                 requirement: BuffRequirement {
                     id: technique_id.clone(),
                     unarmed_allowed: flag(technique, "unarmed_allowed"),

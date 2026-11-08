@@ -430,3 +430,91 @@ pub fn learn_style(
 /// striker** where a turn, a test or a UI can read it - the same reason every other answer in this port is a component rather than a return value nobody keeps.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
 pub struct LastMove(pub Option<String>);
+
+/// One effect a move may leave on the body it lands on.
+///
+/// Reference: `tech_effect_data` (`martialarts.h:147-160`): an id, how long it lasts, whether it is permanent, whether it needs the blow to draw blood, and a chance **out of a hundred**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MoveEffect {
+    /// Which effect.
+    pub id: String,
+    /// How long it lasts, in turns.
+    pub duration: i64,
+    /// Whether it never wears off.
+    pub permanent: bool,
+    /// Whether it only lands on a blow that drew blood.
+    pub on_damage: bool,
+    /// Its chance, out of a hundred.
+    pub chance: i32,
+}
+
+/// What a move does to the body it lands on, beyond the damage.
+///
+/// Reference: `ma_technique`'s `tech_effects`, `down_dur` and `stun_dur` (`martialarts.h:147-243`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AppliedMove {
+    /// The effects it may leave.
+    pub effects: Vec<MoveEffect>,
+    /// How long it may knock the target down, or nothing.
+    pub down_dur: i32,
+    /// How long it may stun the target, or nothing.
+    pub stun_dur: i32,
+}
+
+/// Applies a move's effects to the body it hit, answering which ones landed.
+///
+/// Reference: `melee.cpp:1759-1785`. Each effect lands when **`x_in_y( chance, 100 )`** holds **and** either the blow drew blood or the effect does not need it
+/// (`di.total_damage() != 0 || !eff.on_damage`). Then `down_dur` lands `downed` and `stun_dur` lands `stunned`, each for a duration drawn from **one turn up to that many** - the reference's
+/// `rng( 1_turns, from_turns( n ) )`, so a move that stuns never stuns for nothing.
+#[must_use]
+pub fn apply_move(
+    world: &mut bevy_ecs::prelude::World,
+    target: bevy_ecs::prelude::Entity,
+    movement: &AppliedMove,
+    damage_dealt: i32,
+) -> Vec<String> {
+    let mut landed = Vec::new();
+    let mut rolls = crate::singletons::take_rolls(world);
+    for effect in &movement.effects {
+        if !(damage_dealt != 0 || !effect.on_damage) {
+            continue;
+        }
+        // **The effect's own numbers are the registry's**, so an id the data never defined cannot land as a bare name with invented limits.
+        let Some(kind) = crate::effect_registry::kind_of(world, &effect.id) else {
+            continue;
+        };
+        // **The roll comes from the store's own dice**, never from a second source: a rule that took its own roll
+        // would be a second source of truth for the same draw.
+        let this_roll = rolls.as_mut().map_or(1.0, |dice| dice.rng_float(0.0, 1.0));
+        if this_roll <= f64::from(effect.chance) / 100.0 {
+            crate::applied_effects::add(
+                world,
+                target,
+                crate::effects::ActiveEffect::new(&kind, effect.duration, 1),
+            );
+            landed.push(effect.id.clone());
+        }
+    }
+    for (duration_turns, id) in [(movement.stun_dur, "stunned"), (movement.down_dur, "downed")] {
+        if duration_turns <= 0 {
+            continue;
+        }
+        // The reference draws from **one turn up to that many**, so a stunning move never stuns for nothing.
+        let duration = i64::from(match rolls.as_mut() {
+            Some(dice) => dice.rng(1, duration_turns),
+            None => 1,
+        });
+        if let Some(kind) = crate::effect_registry::kind_of(world, id) {
+            crate::applied_effects::add(
+                world,
+                target,
+                crate::effects::ActiveEffect::new(&kind, duration, 1),
+            );
+            landed.push(id.to_owned());
+        }
+    }
+    if let Some(dice) = rolls {
+        crate::singletons::put_rolls(world, dice);
+    }
+    landed
+}

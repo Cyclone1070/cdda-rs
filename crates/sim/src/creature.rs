@@ -3315,7 +3315,6 @@ fn sharpen(amount: i32, bonus: crate::melee::CritBonus) -> i32 {
 }
 
 /// What a creature brings to being hit, read from the components it carries.
-#[must_use]
 #[allow(clippy::too_many_lines)]
 /// A character's limb score by name, wound-adjusted, summed over the parts that carry it.
 ///

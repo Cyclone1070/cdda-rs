@@ -1491,3 +1491,7 @@ and asks the store for a move. The mutation check let an unknown style install i
 
 **Round 1385 put the pick in the swing**: the blow asks its striker's style first and leaves the move on the striker as `LastMove`. The first wiring drew a roll even for a fighter with no style,
 which moved `a_swing_at_a_body_never_crits` and one sim gate by one draw each - the same class of defect the shot's weak-point draw exposed, and the same fix: **draw only when the reference would**.
+
+**Round 1386 gave the moves their effects**: the chance out of a hundred, the damage requirement, the stun and the knockdown, and the dump column behind them. Three fixtures in a row were wrong
+about their own boundary - the roll source was a parameter the store's dice overrode, and the comparison is **inclusive**, so a roll of exactly a half lands where the fixture said it refused. The
+corpus's fourteen effects are all chance-100 and all damage-requiring, which the content gate states rather than glosses.
