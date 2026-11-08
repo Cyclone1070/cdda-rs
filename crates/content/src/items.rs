@@ -119,8 +119,8 @@ pub struct ItemType {
     pub explode_in_fire: bool,
     /// The comestible slot, when the type has one (`src/itype.h:147-248`). `None` is not food at all, which is a different thing from food with no nutrition.
     pub comestible: Option<crate::comestible::Comestible>,
-    /// How many charges one use spends: one for food, the tool's own rate for tools.
-    pub charges_to_use: i32,
+    /// How many charges the tool slot spends per use. Only a kind whose `subtypes` names `TOOL` has one, and only its own data sets it; the default is the reference's own.
+    pub tool_charges_per_use: i32,
     /// The ammo effects it declares, which decide whether its ammunition cooks off.
     pub ammo_effects: BTreeSet<String>,
     /// Whether its ammo cooks off in a fire.
@@ -658,6 +658,22 @@ impl ItemType {
     #[must_use]
     pub fn is_tool(&self) -> bool {
         self.subtypes.contains("TOOL")
+    }
+
+    /// How many charges one use spends.
+    ///
+    /// Reference: `itype::charges_to_use` (`src/itype.cpp:151-159`) - a **tool** spends its own `charges_per_use`, a **comestible** spends **one** (one bite, one dose), and anything else spends
+    /// nothing. The port used to read a `charges_to_use` member from the data, which the reference never reads; the field it does read is the tool slot's `charges_per_use`, and the comestible's one is
+    /// a constant of the rule rather than a number in the data.
+    #[must_use]
+    pub fn charges_to_use(&self) -> i32 {
+        if self.subtypes.contains("TOOL") {
+            self.tool_charges_per_use
+        } else if self.comestible.is_some() {
+            1
+        } else {
+            0
+        }
     }
 
     /// Whether the item is a gun.
@@ -1368,7 +1384,7 @@ fn resolve(
         is_gunmod: false,
         explode_in_fire: false,
         comestible: None,
-        charges_to_use: 0,
+        tool_charges_per_use: 0,
         ammo_effects: BTreeSet::new(),
         cookoff: false,
         special_cookoff: false,
@@ -1722,6 +1738,11 @@ fn apply_flat_slots(
     }
     if let Some(explodes) = boolean(object, "explode_in_fire") {
         item.explode_in_fire = explodes;
+    }
+    // The tool slot's own rate: `islot_tool::charges_per_use`, read by `itype::charges_to_use` (`src/itype.cpp:151-155`). It only means anything on a kind that names `TOOL` in its
+    // subtypes, which is why the rule asks the subtype rather than this number alone.
+    if let Some(rate) = integer(object, "charges_per_use") {
+        item.tool_charges_per_use = i32::try_from(rate).unwrap_or(0);
     }
     if let Some(is_gun) = boolean(object, "is_gun") {
         item.is_gun = is_gun;
@@ -2367,6 +2388,21 @@ pub fn min_strength_required(min_strength: i32, archery_bonus: f32, is_bow: bool
         requirement -= reduction;
     }
     requirement.max(0)
+}
+
+/// Kilocalories in one nutrition unit: `base_metabolic_rate / ( 12 * 24 )` (`src/itype.h:132-133`, `:250`).
+///
+/// The reference keeps a food's energy in kilocalories and reports it in **nutr**, a metabolic unit defined by a male's daily need of 2,500 kcal spread over twelve waking hours a day. One nutr is
+/// therefore about 8.68 kcal, and [`nutr_from_kcal`] is the whole conversion the reference performs.
+pub const KCAL_PER_NUTR: f64 = 2500.0 / (12.0 * 24.0);
+
+/// A food's energy in nutrition units, as `islot_comestible::get_default_nutr` reports it.
+///
+/// Reference: `itype.h:256-258` - `default_nutrition.kcal() / kcal_per_nutr`, returned as an `int`, which **truncates**: a 26 kcal item is two nutr and not three.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn nutr_from_kcal(kcal: i64) -> i64 {
+    (kcal as f64 / KCAL_PER_NUTR) as i64
 }
 
 /// Whether these pockets make a kind a container.

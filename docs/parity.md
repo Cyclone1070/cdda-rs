@@ -16775,6 +16775,11 @@ the way the reference answers them: `is_tool` and `is_gun` are the type's slots,
 with ammunition and is not ammunition), and `is_container` is asked of an **item**, whose contents include the pockets its mods bring (`item.cpp:1350-1395`, `:10238-10241`).
 `items::every_kind_answers_what_it_is_the_way_the_reference_does` compares all 9,912 kinds against the reference's own answers.
 
+**An item's charges and feeding now follow the reference's own rules** (round 1400): `ItemType::charges_to_use` is `itype::charges_to_use` (`itype.cpp:151-159`) - a **tool** spends its slot's
+`charges_per_use`, a **comestible** spends exactly **one**, anything else spends nothing - replacing a `charges_to_use` member the reference never reads. And a food's energy is reported in **nutr** and
+not kilocalories: `nutrition::KCAL_PER_NUTR` is `base_metabolic_rate / (12 * 24)` = 8.68 kcal, and `nutr_from_kcal` truncates (`itype.h:132-133`, `:250-258`) - a 26 kcal item is **2** nutr.
+`items::every_kind_s_other_facts_are_the_reference_s` compares all 9,912 kinds against the reference for both, beside the gun-mod flag.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

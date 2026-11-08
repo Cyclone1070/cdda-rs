@@ -629,3 +629,53 @@ fn every_kind_answers_what_it_is_the_way_the_reference_does() {
         prototypes.len()
     );
 }
+
+/// **Every kind's other dumped facts agree with the reference too**: is it a gun mod, how many charges does one use cost, and what does it feed.
+///
+/// Reference: `item::is_gunmod` (`item.cpp`), `itype::charges_to_use` and the comestible slot's `get_default_nutr` (`src/itype.h:147-248`). The first whole-corpus comparison found two real defects in
+/// the four questions it checked, so the same treatment is given to the three facts beside them: the reference's own answer is in the dump, and the port's answer must be the same for all 9,912.
+#[test]
+fn every_kind_s_other_facts_are_the_reference_s() {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let loaded = items::load_paths(&[&data]).expect("the reference data loads");
+    let dump = std::fs::read(root().join("corpus/prototypes/items.json")).expect("the item dump");
+    let parsed = cdda_json::parse(&dump).expect("valid JSON");
+    let cdda_json::Value::Object(root_object) = parsed else {
+        panic!("the item dump is an object");
+    };
+    let Some(cdda_json::Value::Array(prototypes)) = root_object.get("prototypes") else {
+        panic!("the item dump has prototypes");
+    };
+    let ours: std::collections::BTreeMap<&str, &items::ItemType> =
+        loaded.iter().map(|kind| (kind.id.as_str(), kind)).collect();
+
+    let mut compared = 0;
+    for entry in prototypes {
+        let cdda_json::Value::Object(row) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(id)) = row.get("id") else {
+            continue;
+        };
+        let Some(kind) = ours.get(id.as_str()) else {
+            continue;
+        };
+        let said = |name: &str| matches!(row.get(name), Some(cdda_json::Value::Bool(true)));
+        let number = |name: &str| match row.get(name) {
+            Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+            _ => 0,
+        };
+        assert_eq!(kind.is_gunmod, said("is_gunmod"), "{id} is a gunmod");
+        assert_eq!(kind.charges_to_use(), number("charges_to_use"), "{id} costs charges");
+        // The slot keeps **kilocalories** and the dump carries the reference's `get_default_nutr()`, so the comparison is between the same fact in the same unit.
+        // The dump's `nutr` column **is** the reference's `get_default_nutr()` (`itype.h:256-258`), in nutrition units and not in kilocalories.
+        let our_calories = kind
+            .comestible
+            .as_ref()
+            .map_or(0, |slot| items::nutr_from_kcal(slot.calories() / 1000));
+        let their_calories = i64::from(number("nutr"));
+        assert_eq!(our_calories, their_calories, "{id} states calories");
+        compared += 1;
+    }
+    assert!(compared > 9_800, "**the bulk of the corpus was compared**: {compared}");
+}

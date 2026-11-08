@@ -1541,3 +1541,7 @@ by name, and the mutation that restored the old filter failed it.
 `subtypes` array, so nothing real was being dropped and the wide whitelist was reading syntax the reference refuses. The correction is in, and the fixtures that used `GENERIC`/`TOOL` types now state
 `ITEM`, the way the reference's own data does. Then the new whole-corpus gate found two real disagreements: `is_ammo` must ask the type's **slot** (a battery cell states an ammo type and is not
 ammunition), and `is_container` must be asked of an **item**, because an item's contents include the pockets its mods bring - which is why a stocked rifle is a container while its type is not.
+
+**Round 1400 turned the whole-corpus comparison on three more facts**, and it found two rules the port had guessed: charges-to-use was read from a data member the reference never reads (it is the tool
+slot's rate, or **one** for a comestible, or nothing), and a food's energy is not kilocalories - the reference reports **nutr**, one being about 8.68 kcal, truncated. Both were ported from the
+reference's own body rather than adjusted to fit the dump.
