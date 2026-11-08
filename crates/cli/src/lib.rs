@@ -844,7 +844,67 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
         cdda_sim::monster_registry::set_broken_itype(world, kind, &monster.broken_itype);
         cdda_sim::monster_registry::set_death_drops(world, kind, &monster.death_drops);
     }
+    // What each body butchers into, from the reference's own harvest definitions, and what it weighed while it was alive.
+    install_harvests(
+        world,
+        &monsters,
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json"),
+    );
     Some(monsters.len())
+}
+
+/// What each body butchers into, and how much it weighed, installed so a corpse can be cut up.
+///
+/// Reference: `mtype::harvest` names a `harvest_definition`, whose entries `butchery.cpp`'s finish loop walks; `mtype::weight` is what a bulk entry's `mass_ratio` is a share of. Both are read from the
+/// reference's data tree the same way the tests read it, because the harvest definitions are their own prototype list rather than a field of the monster.
+fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::MonsterType], data: &std::path::Path) {
+    let mut definitions = std::collections::BTreeMap::new();
+    if let Ok(files) = cdda_content::json_files_in_load_order(data) {
+        for path in files {
+            let Some(value) = cdda_content::read_json(&path) else {
+                continue;
+            };
+            definitions.extend(cdda_content::harvest::load_harvests(&value));
+        }
+    }
+    if definitions.is_empty() {
+        return;
+    }
+    let mut weights = Vec::new();
+    let mut tables = Vec::new();
+    for monster in monsters {
+        let Some(kind) = cdda_sim::monster_registry::id_of(world, &monster.id) else {
+            continue;
+        };
+        // The dump counts a monster's weight in **milligrams** and the harvest rule weighs the corpse in **grams**, so the two tables meet with the same division the item tables use.
+        weights.push((kind, monster.weight / 1_000));
+        let Some(definition) = definitions.get(&monster.harvest) else {
+            continue;
+        };
+        let mut specs = Vec::new();
+        let mut ids = Vec::new();
+        for entry in &definition.entries {
+            let part = match entry.part {
+                Some(cdda_content::harvest::Part::Flesh) => Some(cdda_sim::HarvestEntry::Flesh),
+                Some(cdda_content::harvest::Part::Offal) => Some(cdda_sim::HarvestEntry::Offal),
+                Some(cdda_content::harvest::Part::Skin) => Some(cdda_sim::HarvestEntry::Skin),
+                Some(cdda_content::harvest::Part::Bone) => Some(cdda_sim::HarvestEntry::Bone),
+                Some(cdda_content::harvest::Part::Blood) => Some(cdda_sim::HarvestEntry::Blood),
+                Some(cdda_content::harvest::Part::Other) | None => Some(cdda_sim::HarvestEntry::Other),
+            };
+            specs.push(cdda_sim::HarvestSpec {
+                part,
+                base_num: entry.base_num.unwrap_or((0, 0)),
+                scale_num: entry.scale_num.unwrap_or((0.0, 0.0)),
+                mass_ratio: entry.mass_ratio,
+                max: entry.max,
+            });
+            ids.push(entry.drop.clone());
+        }
+        tables.push((kind, specs, ids));
+    }
+    cdda_sim::monster_registry::set_weights(world, &weights);
+    cdda_sim::monster_registry::set_harvests(world, &tables);
 }
 
 /// Every monster type the game's data defines.

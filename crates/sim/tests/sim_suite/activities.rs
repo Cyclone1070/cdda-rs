@@ -224,13 +224,13 @@ fn every_activity_has_a_finisher() {
     );
     // Every activity the port can start. This list is the assertion: adding a `begin_*` means adding its id here, and a
     // missing finisher then fails this test instead of silently never finishing.
-    let started = ["craft", "pickup", "wear"];
+    let started = ["butcher", "craft", "pickup", "wear"];
     assert_eq!(
         known,
         started.iter().copied().collect(),
         "the table and the starters disagree"
     );
-    assert_eq!(FINISHERS.len(), 3, "three activities can be finished");
+    assert_eq!(FINISHERS.len(), 4, "four activities can be finished");
 }
 
 /// An activity nobody knows simply ends, which is the reference's answer to an unhandled activity.
@@ -357,7 +357,7 @@ fn every_activity_has_a_canceller() {
         finished, cancelled,
         "every activity that can end one way must be able to end the other"
     );
-    assert_eq!(cancelled.len(), 3, "three activities");
+    assert_eq!(cancelled.len(), 4, "four activities");
 }
 
 /// Work that was paused is picked up where it was left, not redone.

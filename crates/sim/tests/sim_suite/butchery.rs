@@ -216,3 +216,98 @@ fn every_recorded_corpse_takes_the_reference_s_time_to_cut() {
     }
     assert_eq!(seen, 160, "**every recorded row is compared**, not a sample");
 }
+
+/// **A finished butchery puts the harvest on the ground and takes the body away.** The activity is what spends the turns; this is what the last one leaves behind.
+///
+/// Reference: `butchery.cpp`'s finish - each entry of the monster's harvest definition is rolled, damaged, and turned into items on the corpse's square, and the corpse is consumed. The port's
+/// `butcher_finish` is that loop; this gate is the **activity's own finisher** calling it, which is the piece the sim was missing: the clock, the turn and the yields were all here, and nothing joined
+/// them to a creature doing the work.
+#[test]
+fn a_finished_butchery_leaves_the_harvest_on_the_ground() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(7));
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "corpse",
+                volume_ml: 1_000,
+                weight_g: 1_000,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "meat",
+                volume_ml: 250,
+                weight_g: 200,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+        ],
+    );
+    let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_butcherable", hp: 10 }],
+    );
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_butcherable").expect("the kind");
+    // One flesh entry: eight to twelve pieces, no scaling, no mass share, no ceiling.
+    cdda_sim::monster_registry::set_harvests(
+        &mut world,
+        &[(
+            kind,
+            vec![cdda_sim::HarvestSpec {
+                part: Some(cdda_sim::HarvestEntry::Flesh),
+                base_num: (8, 12),
+                scale_num: (0.0, 0.0),
+                mass_ratio: None,
+                max: None,
+            }],
+            vec!["meat".to_owned()],
+        )],
+    );
+
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let corpse = cdda_sim::drop_item(&mut world, (0, 0), corpse_kind, 1);
+    world.entity_mut(corpse).insert(cdda_sim::CorpseOf {
+        kind,
+        died_on: 0,
+        revives: false,
+        monster_volume_ml: 1_000,
+    });
+    world.entity_mut(survivor).insert(cdda_sim::creature::Doing {
+        activity: "butcher".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Time,
+        moves_total: 0,
+        subject: Some(corpse),
+    });
+
+    cdda_sim::creature::finish_activity(&mut world, survivor, "butcher", Some(corpse));
+
+    assert!(
+        world.get_entity(corpse).is_err(),
+        "**the body is used up**, which is what the reference's finish does at the end of the loop"
+    );
+    let meat = cdda_sim::item_registry::id_of(&mut world, "meat").expect("the meat type");
+    let dropped: i32 = world
+        .query::<(&cdda_sim::GroundItem, &cdda_sim::Position)>()
+        .iter(&world)
+        .filter(|(item, _)| item.kind == meat)
+        .map(|(item, _)| item.charges)
+        .sum();
+    assert!(
+        (8..=12).contains(&dropped),
+        "**eight to twelve cuts of meat are on the ground**, the entry's own range: {dropped}"
+    );
+}

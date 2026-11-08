@@ -592,6 +592,7 @@ pub const FINISHERS: &[(&str, Finish)] = &[
     ("craft", finish_crafting),
     ("pickup", finish_pickup),
     ("wear", finish_wearing),
+    ("butcher", finish_butchering),
 ];
 
 /// Reference: `activity_handlers::craft_finish`. The store knows what items are, so the loop can finish the work
@@ -599,6 +600,66 @@ pub const FINISHERS: &[(&str, Finish)] = &[
 /// so nothing is consumed and nothing is made - which is the honest outcome, not a crash.
 fn finish_crafting(world: &mut World, creature: Entity, _subject: Option<Entity>) {
     crate::crafting::finish_craft_in_store(world, creature);
+}
+
+/// Reference: the end of `butchery.cpp`'s finish - the harvest is drawn entry by entry onto the corpse's square and the body is used up.
+///
+/// The table is the **dead body's** own, from the monster registry; the skill is the butcher's; the corpse's damage, gibbing and skinning state come from the corpse item. Every one of those rules was
+/// ported before this finisher existed, which is why the finisher is short: it reads what the body and the butcher already are and hands them to `butcher_finish`.
+///
+/// A world with no dice, or a subject that is not a corpse, does nothing at all rather than inventing a harvest.
+fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity>) {
+    let Some(corpse) = subject else {
+        return;
+    };
+    let Some(corpse_of) = world.get::<crate::CorpseOf>(corpse).copied() else {
+        return;
+    };
+    let (entries, ids) = crate::monster_registry::harvest_of(world, corpse_of.kind);
+    if entries.is_empty() {
+        return;
+    }
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return;
+    };
+    let flags = world.get::<crate::ItemFlags>(corpse).cloned().unwrap_or_default();
+    let table = crate::HarvestTable {
+        entries: &entries,
+        ids: &ids.iter().map(String::as_str).collect::<Vec<&str>>(),
+        #[allow(clippy::cast_precision_loss)]
+        weight: crate::monster_registry::weight_of(world, corpse_of.kind) as f64,
+    };
+    let state = crate::ButcherFinish {
+        butchery: i32::from(skill_level(world, creature, "survival")),
+        damage: crate::CorpseDamage::Light,
+        gibbed: flags.0.iter().any(|flag| flag == "GIBBED"),
+        skinned: flags.0.iter().any(|flag| flag == "SKINNED"),
+    };
+    // The ids are resolved **before** the finish runs, because the rule takes the world mutably and a lookup cannot borrow it again. A drop the world holds no type for resolves to the default id and is
+    // dropped as nothing rather than as some other item.
+    let resolved: Vec<(String, crate::ItemTypeId)> = ids
+        .iter()
+        .map(|id| (id.clone(), crate::item_registry::id_of(world, id).unwrap_or_default()))
+        .collect();
+    let dropped = crate::butcher_finish(
+        world,
+        corpse,
+        table,
+        state,
+        |id| {
+            resolved
+                .iter()
+                .find(|(name, _)| name == id)
+                .map_or_else(crate::ItemTypeId::default, |(_, kind)| *kind)
+        },
+        &mut rolls,
+    );
+    crate::singletons::put_rolls(world, rolls);
+    for (kind, count) in dropped {
+        if let Some(name) = crate::item_registry::name_of(world, kind) {
+            crate::messages::push(world, &format!("You get {count} {name}."));
+        }
+    }
 }
 
 /// Reference: `activity_handlers::pickup_finish`, which puts the item in the character's hands.
@@ -631,7 +692,18 @@ pub const CANCELLERS: &[(&str, Finish)] = &[
     ("craft", cancel_crafting),
     ("pickup", cancel_nothing),
     ("wear", cancel_nothing),
+    ("butcher", cancel_butchering),
 ];
+
+/// Reference: `butchery`'s cancellation - the work comes off the body and nothing is consumed, because nothing had been until the finish.
+///
+/// The port keeps a butchery's progress on the **corpse** ([`crate::Butchery`]) rather than on the butcher, so giving up means taking that component off the body again. A craft looks the same from the
+/// outside: the ingredients are still there, and only the work is lost.
+fn cancel_butchering(world: &mut World, _creature: Entity, subject: Option<Entity>) {
+    if let Some(corpse) = subject {
+        world.entity_mut(corpse).remove::<crate::Butchery>();
+    }
+}
 
 /// Reference: `craft_activity_actor::canceled`, which stops the work and leaves the components where they were. The port
 /// drops [`crate::crafting::Making`]; the ingredients are carried items and nothing consumed them until the finish, so

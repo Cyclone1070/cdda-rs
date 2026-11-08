@@ -16798,6 +16798,11 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**Butchering a body is now an activity a creature can finish** (round 1407): the clock, the turn and the yields were ported rounds ago and **nothing joined them to a creature doing the work**, so the game
+could not butcher. `creature::FINISHERS` gains `butcher`, which reads the dead body's own harvest from the monster registry (installed from content by `install_harvests`, flat with a range per kind, and
+each kind's living weight in grams), hands it to `butcher_finish`, and the body is used up. The canceller takes the `Butchery` component back off the corpse, because the port keeps a butchery's progress on
+the **body** - the same way a craft keeps its work on the crafter. The reference's own armature here is `butchery.cpp`'s finish loop and `activity_handlers`' `butcher_finish`.
+
 **The butchery clock is now recorded, and it was already right** (round 1406): `--dump-butchery` writes `butcher_time_to_cut` (`butchery.cpp:382-487`) for five bodies - one per size class - in
 four flag states for all eight actions, and `sim_suite::butchery::every_recorded_corpse_takes_the_reference_s_time_to_cut` compares **all 160 rows**. The rule had been transcribed by hand a thousand rounds
 earlier and agreed with the reference on every one, including where the integer divisions truncate. **The recording cannot reach the three clamps**: the quality factor is a tool's quality, one to five in

@@ -1566,3 +1566,6 @@ two halves add up to the same half hour - the port makes both calls because the 
 
 **Round 1406 put a recording under a rule that had been transcribed by hand**, and the transcription was right on all 160 rows. The round's real lesson is narrower: the recording could not have proved
 the three clamps, because no real tool quality reaches them, so the gate says what it does not cover and the clamps stay pinned by a test that names itself a transcription lock.
+
+**Round 1407 found the pieces of butchery all ported and none of them joined.** The clock, the turn and the yields each had a rule and a gate; no creature could start or finish the work, so the game
+could not butcher a corpse at all. The finisher is four lines of reading and one call, which is what a port looks like when the rules were already right and only the wiring was missing.

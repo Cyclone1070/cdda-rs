@@ -25,7 +25,7 @@ pub struct MonsterKind<'a> {
 }
 
 /// Every monster kind's id, by the number the store uses for it.
-#[derive(Component, Debug, Clone, Default, PartialEq)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct MonsterTypes {
     /// The name of each kind, in registry order.
     names: Vec<String>,
@@ -53,6 +53,14 @@ pub struct MonsterTypes {
     families: Vec<cdda_content::weakpoints::Family>,
     /// Where each kind's families start and how many there are, by registry order.
     family_ranges: Vec<(u32, u32)>,
+    /// Every kind's butchering entries, one after another, with [`MonsterTypes::harvest_ranges`] saying where each kind's start.
+    harvest_entries: Vec<crate::HarvestSpec>,
+    /// The item ids those entries name, in the same order.
+    harvest_ids: Vec<String>,
+    /// Where each kind's harvest entries start and how many there are, by registry order.
+    harvest_ranges: Vec<(u32, u32)>,
+    /// What each kind weighed while it was alive, in grams, by registry order.
+    weights: Vec<i64>,
 }
 
 /// What killing each kind teaches, by kind.
@@ -99,6 +107,81 @@ pub fn families_of(world: &World, kind: crate::MonsterKindId) -> Vec<cdda_conten
         .map_or_else(Vec::new, <[cdda_content::weakpoints::Family]>::to_vec)
 }
 
+/// What butchering each kind of body yields, by kind.
+///
+/// Reference: `mtype::harvest` names a `harvest_definition`, whose entries `butchery.cpp`'s finish loop walks. **Laid flat with a range per kind**, the way the families and the item registry's pockets
+/// are: the sim does not own the content crate, so the numbers arrive installed rather than looked up, and a world that never installs them butchers nothing rather than inventing a yield.
+pub fn set_harvests(
+    world: &mut World,
+    entries: &[(crate::MonsterKindId, Vec<crate::HarvestSpec>, Vec<String>)],
+) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, specs, ids) in entries {
+        let at = kind.0 as usize;
+        if types.harvest_ranges.len() <= at {
+            types.harvest_ranges.resize(at + 1, (0, 0));
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let start = types.harvest_entries.len() as u32;
+        #[allow(clippy::cast_possible_truncation)]
+        let how_many = specs.len() as u32;
+        types.harvest_entries.extend(specs.iter().copied());
+        types.harvest_ids.extend(ids.iter().cloned());
+        if let Some(slot) = types.harvest_ranges.get_mut(at) {
+            *slot = (start, how_many);
+        }
+    }
+}
+
+/// What one kind's body yields when butchered: the entries and the ids their drops name, in the definition's order.
+///
+/// Empty when the world never installed them, which is the honest answer - a body with no recorded harvest butchers to nothing rather than to a guess.
+#[must_use]
+pub fn harvest_of(world: &World, kind: crate::MonsterKindId) -> (Vec<crate::HarvestSpec>, Vec<String>) {
+    let Some(types) = world.iter_entities().find_map(|entity| entity.get::<MonsterTypes>()) else {
+        return (Vec::new(), Vec::new());
+    };
+    let Some(&(start, how_many)) = types.harvest_ranges.get(kind.0 as usize) else {
+        return (Vec::new(), Vec::new());
+    };
+    let start = start as usize;
+    let end = start + how_many as usize;
+    (
+        types.harvest_entries.get(start..end).map_or_else(Vec::new, <[crate::HarvestSpec]>::to_vec),
+        types.harvest_ids.get(start..end).map_or_else(Vec::new, <[String]>::to_vec),
+    )
+}
+
+/// How much each kind of body weighed while it was alive, by kind, in grams.
+pub fn set_weights(world: &mut World, entries: &[(crate::MonsterKindId, i64)]) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, grams) in entries {
+        let at = kind.0 as usize;
+        if types.weights.len() <= at {
+            types.weights.resize(at + 1, 0);
+        }
+        if let Some(slot) = types.weights.get_mut(at) {
+            *slot = *grams;
+        }
+    }
+}
+
+/// How much one kind of body weighed while it was alive, in grams; zero when the world did not say.
+#[must_use]
+pub fn weight_of(world: &World, kind: crate::MonsterKindId) -> i64 {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+        .and_then(|types| types.weights.get(kind.0 as usize).copied())
+        .unwrap_or(0)
+}
+
 impl MonsterTypes {
     /// The id of a kind, which is what a rule that names monster types compares against.
     #[must_use]
@@ -131,6 +214,10 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
     world.entity_mut(entity).insert(MonsterTypes {
         families: Vec::new(),
         family_ranges: Vec::new(),
+        harvest_entries: Vec::new(),
+        harvest_ids: Vec::new(),
+        harvest_ranges: Vec::new(),
+        weights: Vec::new(),
         names,
         hit_points,
         by_name,
