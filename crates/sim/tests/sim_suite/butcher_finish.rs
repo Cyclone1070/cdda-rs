@@ -45,6 +45,8 @@ fn finish() -> ButcherFinish {
         damage: CorpseDamage::Light,
         gibbed: false,
         skinned: false,
+        field_dressed: false,
+        field_dress_failed: false,
     }
 }
 
@@ -401,4 +403,56 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
     let (fallback, names) = cdda_sim::monster_registry::list_for(&plain, bare, ButcherAction::Dissect);
     assert_eq!(fallback.len(), 1, "one entry, the harvest's own");
     assert_eq!(names, vec!["meat".to_owned()], "and its drop is the harvest's");
+}
+
+/// **A field-dressed body has given up its innards, and what is left of its bones is a roll.**
+///
+/// Reference: the block after the action (`butchery.cpp:792-800`) - a body carrying the `FIELD_DRESS` flag keeps no offal at all, and its bone roll becomes `roll / 2 + rng( roll / 2, roll )`, which is
+/// between three quarters and all of the roll. A body dressed badly carries `FIELD_DRESS_FAILED` instead, and there the flesh and the hide are rolled down too (`:801-812`).
+#[test]
+fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
+    let mut world = World::new();
+    let corpse = body(&mut world);
+    world
+        .entity_mut(corpse)
+        .insert(cdda_sim::ItemFlags(["FIELD_DRESS".to_owned()].into_iter().collect()));
+    let entries = [
+        entry(HarvestEntry::Bone, (20, 20)),
+        entry(HarvestEntry::Offal, (5, 5)),
+        entry(HarvestEntry::Flesh, (40, 40)),
+    ];
+    let mut rolls = Rolls::new(31);
+    let dropped = butcher_finish(
+        &mut world,
+        corpse,
+        HarvestTable {
+            entries: &entries,
+            ids: &["bone", "offal", "meat"],
+            weight: 0.0,
+        },
+        ButcherFinish {
+            field_dressed: true,
+            ..finish()
+        },
+        ids,
+        |_| 1_000,
+        &mut rolls,
+    );
+    let bones = dropped
+        .iter()
+        .find(|(kind, _)| *kind == BONE)
+        .map(|(_, count)| *count)
+        .unwrap_or(0);
+    assert!(
+        (15..=20).contains(&bones),
+        "**the bone roll is between three quarters and all of it**: {bones}"
+    );
+    assert!(
+        !dropped.iter().any(|(kind, _)| *kind == ItemTypeId(0)),
+        "**and the innards are gone**, which a field dressing takes: {dropped:?}"
+    );
+    assert!(
+        dropped.iter().any(|(kind, count)| *kind == MEAT && *count == 40),
+        "while the flesh is untouched - only a **botched** dressing rolls that: {dropped:?}"
+    );
 }

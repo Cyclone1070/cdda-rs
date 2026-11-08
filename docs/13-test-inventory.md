@@ -1585,3 +1585,6 @@ pin the two most different actions, and the mutation that stops quartering flesh
 
 **Round 1412 gave the finish its list and gave the game its action.** A dissection walks the body's `dissect` definition and falls back to the harvest list when it has none - the reference's own `&&`.
 The scenario then dropped from twenty cuts of tainted meat to five, because `butcher quick` had been running as a full job: the body-side `Butchery` had never been started by anything a player could reach.
+
+**Round 1413 ported the field-dressing flags.** A dressed body gives no offal and leaves its bones to a roll; a botched dressing also rolls the meat and the hide. The gate pins the bone roll's range and the
+missing offal, and putting the offal back is what the mutation does.

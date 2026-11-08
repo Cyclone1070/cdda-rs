@@ -7933,6 +7933,41 @@ pub fn after_the_action(entry: &HarvestSpec, count: i32, state: &ButcherFinish) 
     }
 }
 
+/// What one entry gives once the body's **field dressing** has had its say.
+///
+/// Reference: `butchery.cpp:792-812`, two blocks that both run only for a full or a quick job:
+///
+/// * a body carrying `FIELD_DRESS` keeps no offal, and its bone becomes `roll / 2 + rng( roll / 2, roll )` - between three quarters and the whole of it;
+/// * a body carrying `FIELD_DRESS_FAILED` keeps no offal either, rolls its bone the same way, and has its **flesh and hide** rolled down to `rng( 0, roll )`.
+///
+/// `between` is the caller's own dice, for the same reason every other rule takes its rolls from the caller.
+#[must_use]
+pub fn after_a_field_dressing(
+    entry: &HarvestSpec,
+    count: i32,
+    state: &ButcherFinish,
+    between: &mut impl FnMut(i32, i32) -> i32,
+) -> Option<i32> {
+    if !matches!(state.action, ButcherAction::Full | ButcherAction::Quick) {
+        return Some(count);
+    }
+    let part = entry.part;
+    if !state.field_dressed && !state.field_dress_failed {
+        return Some(count);
+    }
+    if part == Some(HarvestEntry::Offal) {
+        return None;
+    }
+    if part == Some(HarvestEntry::Bone) {
+        let half = count / 2;
+        return Some(half + between(half, count));
+    }
+    if state.field_dress_failed && matches!(part, Some(HarvestEntry::Flesh | HarvestEntry::Skin)) {
+        return Some(between(0, count));
+    }
+    Some(count)
+}
+
 /// One harvest entry, as the rule needs it: what it is and how much.
 ///
 /// The sim does not depend on the content crate, so the numbers arrive here rather than being looked up: the
@@ -8111,6 +8146,10 @@ pub struct ButcherFinish {
     pub yield_multiplier: f64,
     /// How big the body was, which a quick butchery halves the hide of only for a medium creature or larger (`butchery.cpp:748-752`).
     pub size: CreatureSize,
+    /// Whether the body was already field dressed, which leaves no offal and leaves the bones to a roll (`butchery.cpp:792-800`).
+    pub field_dressed: bool,
+    /// Whether the field dressing was botched, which rolls the flesh and the hide down as well (`butchery.cpp:801-812`).
+    pub field_dress_failed: bool,
     /// How badly the corpse was damaged.
     pub damage: CorpseDamage,
     /// Whether the body was smashed apart before it was cut up.
@@ -8152,7 +8191,17 @@ pub fn butcher_finish(
             state.skinned,
             draw,
         );
-        // Reference: the action's own block, which runs **before** the weight becomes items and can remove an entry outright (`butchery.cpp:700-790`).
+        // Reference: a body that has already been field dressed - or dressed badly - is handled **before** the action's own block (`butchery.cpp:792-812`).
+        let mut between = |low: i32, high: i32| -> i32 {
+            if high <= low {
+                return low;
+            }
+            rolls.rng(low, high)
+        };
+        let Some(count) = after_a_field_dressing(entry, count, &state, &mut between) else {
+            continue;
+        };
+        // Reference: the action's own block (`butchery.cpp:741-790`).
         let Some(count) = after_the_action(entry, count, &state) else {
             continue;
         };

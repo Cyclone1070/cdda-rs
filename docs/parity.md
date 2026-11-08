@@ -16798,6 +16798,13 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**A body already field dressed is not butchered the way it was** (round 1413): `after_a_field_dressing` is the reference's block that runs *before* the action's own (`butchery.cpp:792-812`). A body carrying
+`FIELD_DRESS` keeps **no offal**, and its bone becomes `roll / 2 + rng( roll / 2, roll )` - between three quarters and all of it, so the port's plain halving was wrong. A body carrying
+`FIELD_DRESS_FAILED` also rolls its **flesh and hide** down to `rng( 0, roll )`. Both flags are read off the corpse item's own `ItemFlags`, and the dice are the finish's own rolls.
+
+Still named: the **proficiency penalties** on the same loop (`butch_basic` divides flesh and offal by `1 + 0.15 ( 1 - butch_basic )`; `skin_basic` and `skin_adv` divide the hide by `1 + 2 ( 1 - skin_basic )`
+then `1 + 0.15 ( 1 - skin_adv )`), which the port does not apply; and `FIELD_DRESS`'s bone roll inside the action block, which the port halves instead of rolling (`:765-771`).
+
 **A dissection takes the body's own list, and the action now reaches the finish at all** (round 1412): `monster_registry::list_for` is the reference's `( action == DISSECT && !mt.dissect.is_empty() ) ?
 *mt.dissect : *mt.harvest` (`butchery.cpp:692-694`), with the dissection lists installed from the content's `mtype::dissect` beside the harvest lists. And `start_butchery` - the body-side clock the port has
 had since butchery was first ported - is now **used by the game**: the scenario step starts it, so the body's `Butchery` carries the action the finish reads. That made a real difference immediately:

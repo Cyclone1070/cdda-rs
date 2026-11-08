@@ -652,6 +652,8 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         damage: corpse_damage_of(world, corpse),
         gibbed: flags.0.iter().any(|flag| flag == "GIBBED"),
         skinned: flags.0.iter().any(|flag| flag == "SKINNED"),
+        field_dressed: flags.0.iter().any(|flag| flag == "FIELD_DRESS"),
+        field_dress_failed: flags.0.iter().any(|flag| flag == "FIELD_DRESS_FAILED"),
     };
     // The ids are resolved **before** the finish runs, because the rule takes the world mutably and a lookup cannot borrow it again. A drop the world holds no type for resolves to the default id and is
     // dropped as nothing rather than as some other item.
