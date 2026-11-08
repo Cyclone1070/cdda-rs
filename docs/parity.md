@@ -16789,6 +16789,11 @@ picture of a room is **not one flat colour**, because a black picture diffs equa
 a black picture diffs equal to every other black picture. `qa::screens` now reads the scenario's own `shot:` line and fails when it lit **zero** squares, the scenario world's floor has its `.`, and the
 scenario takes its picture at 08:00 with `date 28800`.
 
+**A kill now teaches what the body was worth knowing** (round 1403): the killing blow leaves `KilledBy` on the body (`hurt_by`, the reference's `kill_tracker::report_killed`, `kill_tracker.cpp:120-130`), and
+the reaper hands the body's weak-point families to `proficiencies::practise_a_kill`, which is `weakpoint_families::practice_kill` (`weakpoint.cpp:152-155`) - **one minute per family**. The families come
+from the content's `mtype::families` into the monster registry, laid flat with ranges so the architecture gate stays satisfied. **Named limit**: the port has no proficiency table, so a kill accrues
+practice and can never *learn* a proficiency yet.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

@@ -4447,3 +4447,94 @@ fn a_body_built_from_the_data_answers_its_own_scores() {
         "every part states the health it is measured against"
     );
 }
+
+/// **The blow that kills says who killed.** A body carries its killer, which is what the reference's `kill_tracker` records and what the weak-point families' practice reads; a blow that does not kill
+/// records nothing.
+///
+/// Reference: `kill_tracker::report_killed` (`kill_tracker.cpp:120-130`) is called from `Creature::deal_damage` with the attacker in hand, which is why the reference never has to guess - the strike
+/// knows who swung it. The port's reaper runs later, in the turn, so the fact has to be left on the body.
+#[test]
+fn the_blow_that_kills_says_who_killed() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 5, max_hp: 5 });
+
+    // A blow that does not kill leaves no killer.
+    cdda_sim::creature::hurt_by(&mut world, zombie, 2.0, Some(survivor));
+    assert_eq!(cdda_sim::creature::health_of(&world, zombie), Some(3), "the body is hurt");
+    assert!(
+        world.get::<cdda_sim::creature::KilledBy>(zombie).is_none(),
+        "**and a body that is still standing has no killer**"
+    );
+
+    // The blow that takes it to zero does.
+    cdda_sim::creature::hurt_by(&mut world, zombie, 3.0, Some(survivor));
+    assert_eq!(cdda_sim::creature::health_of(&world, zombie), Some(0), "the body is at zero");
+    assert_eq!(
+        world.get::<cdda_sim::creature::KilledBy>(zombie).map(|who| who.0),
+        Some(survivor),
+        "**the killer is on the body**"
+    );
+}
+
+/// **Killing a body practises what its families teach.** The reaper sees the killer the blow left on the body, and hands the body's weak-point families to the practice rule.
+///
+/// Reference: `kill_tracker::report_killed` (`kill_tracker.cpp:120-130`) calls `victim_type.obj().families.practice_kill( *killer )`, which practises every family's proficiency for a minute
+/// (`weakpoint.cpp:133-155`). The port's reaper is where a body leaves the world, so it is where the kill is reported.
+#[test]
+fn killing_a_body_practises_what_its_families_teach() {
+    use bevy_ecs::prelude::*;
+
+    let mut world = World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_teachable", hp: 5 }],
+    );
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_teachable").expect("the kind");
+    cdda_sim::monster_registry::set_weakpoint_families(
+        &mut world,
+        &[(
+            kind,
+            vec![cdda_content::weakpoints::Family {
+                id: "fam_x".to_owned(),
+                proficiency: "prof_x".to_owned(),
+                bonus: 0.1,
+                penalty: -0.1,
+            }],
+        )],
+    );
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "corpse",
+            volume_ml: 1,
+            weight_g: 1,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse");
+
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert((
+        cdda_sim::creature::Health { hp: 5, max_hp: 5 },
+        cdda_sim::creature::CreatureKind(kind),
+    ));
+    cdda_sim::creature::hurt_by(&mut world, zombie, 9.0, Some(survivor));
+
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 1);
+
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_x"),
+        60,
+        "**a killed body teaches its family's proficiency a minute**, and the port never had to ask who hit it last"
+    );
+}

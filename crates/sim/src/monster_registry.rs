@@ -25,7 +25,7 @@ pub struct MonsterKind<'a> {
 }
 
 /// Every monster kind's id, by the number the store uses for it.
-#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Default, PartialEq)]
 pub struct MonsterTypes {
     /// The name of each kind, in registry order.
     names: Vec<String>,
@@ -45,6 +45,58 @@ pub struct MonsterTypes {
     broken_itypes: Vec<String>,
     /// The item group a kind's body drops (`mtype::death_drops`, `mtype.h:404`).
     death_drops: Vec<String>,
+    /// Every kind's weak-point families, one after another, with [`MonsterTypes::family_ranges`] saying where each kind's start.
+    ///
+    /// Reference: `mtype::families` (`mtype.h:382`). **Laid flat rather than nested**, the same way the item registry lays pockets flat and for the same reason the architecture gate gives: a component
+    /// that holds one list per kind is a second table beside the store, and a range into one list is not. The families are what a **kill** teaches (`weakpoint.cpp:152-155`), and a world that never
+    /// installs them teaches nothing rather than pretending a body has none.
+    families: Vec<cdda_content::weakpoints::Family>,
+    /// Where each kind's families start and how many there are, by registry order.
+    family_ranges: Vec<(u32, u32)>,
+}
+
+/// What killing each kind teaches, by kind.
+///
+/// Reference: `mtype::families` (`mtype.h:382`), a `weakpoint_families`, installed once from the content the world loaded.
+pub fn set_weakpoint_families(
+    world: &mut World,
+    entries: &[(crate::MonsterKindId, Vec<cdda_content::weakpoints::Family>)],
+) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, families) in entries {
+        let at = kind.0 as usize;
+        if types.family_ranges.len() <= at {
+            types.family_ranges.resize(at + 1, (0, 0));
+        }
+        // This installer runs once, over kinds whose families nothing else has written, so the list is appended in registry order and each kind's range points into it.
+        #[allow(clippy::cast_possible_truncation)]
+        let start = types.families.len() as u32;
+        #[allow(clippy::cast_possible_truncation)]
+        let how_many = families.len() as u32;
+        types.families.extend(families.iter().cloned());
+        if let Some(slot) = types.family_ranges.get_mut(at) {
+            *slot = (start, how_many);
+        }
+    }
+}
+
+/// The weak-point families one kind's body rewards, empty when the world never installed them.
+#[must_use]
+pub fn families_of(world: &World, kind: crate::MonsterKindId) -> Vec<cdda_content::weakpoints::Family> {
+    let Some(types) = world.iter_entities().find_map(|entity| entity.get::<MonsterTypes>()) else {
+        return Vec::new();
+    };
+    let Some(&(start, how_many)) = types.family_ranges.get(kind.0 as usize) else {
+        return Vec::new();
+    };
+    let start = start as usize;
+    types
+        .families
+        .get(start..start + how_many as usize)
+        .map_or_else(Vec::new, <[cdda_content::weakpoints::Family]>::to_vec)
 }
 
 impl MonsterTypes {
@@ -77,6 +129,8 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
     }
     let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
     world.entity_mut(entity).insert(MonsterTypes {
+        families: Vec::new(),
+        family_ranges: Vec::new(),
         names,
         hit_points,
         by_name,

@@ -44,6 +44,33 @@ pub fn learn(world: &mut World, creature: Entity, proficiency: &str) {
     world.entity_mut(creature).insert(set);
 }
 
+/// What killing a body teaches: every weak-point family on it practises its proficiency for **one minute**.
+///
+/// Reference: `weakpoint_families::practice_kill` (`weakpoint.cpp:152-155`) is `practice( learner, 1_minutes )`, which walks the body's families and hands each one's proficiency that span
+/// (`:133-145`). A family whose proficiency the killer already knows is skipped by [`practice`] itself, exactly as the reference's `proficiency_set::practice` skips it.
+///
+/// The reference's `practice_proficiency` caps a single call at **1000 seconds** (`weakpoint.cpp:159-164`'s note, which is why `practice_dissect` splits its half hour into two calls). A minute is
+/// far under that cap, so the cap cannot be reached by this rule and is not modelled; the dissect half is named in `docs/parity.md`.
+///
+/// `learn_times` says how long each proficiency takes to learn, because the port has no proficiency table yet. It answers zero for a proficiency it does not know, which means such a proficiency
+/// accrues practice and is never learned - the honest answer when the data cannot say.
+#[must_use]
+pub fn practise_a_kill(
+    world: &mut World,
+    killer: Entity,
+    families: &[cdda_content::weakpoints::Family],
+    learn_times: &dyn Fn(&str) -> i64,
+) -> Vec<String> {
+    let mut taught = Vec::new();
+    for family in families {
+        let time_to_learn = learn_times(&family.proficiency);
+        if practice(world, killer, &family.proficiency, 60, time_to_learn) {
+            taught.push(family.proficiency.clone());
+        }
+    }
+    taught
+}
+
 /// Practises a proficiency for a span of time, learning it once the span is long enough.
 ///
 /// Reference: `proficiency_set::practice` (`proficiency.cpp:306-345`): nothing happens to a proficiency already known, and once the practised time reaches

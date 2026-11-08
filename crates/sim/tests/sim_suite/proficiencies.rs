@@ -316,3 +316,66 @@ fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
         "with the prerequisite known, the same craft is a minute against a minute and learns it"
     );
 }
+
+/// **A kill teaches what the body was worth knowing.** Every weak-point family on the monster practises its proficiency for **one minute**, and that is the whole of the rule the reference calls
+/// `practice_kill`.
+///
+/// Reference: `weakpoint_families::practice_kill` (`weakpoint.cpp:152-155`) is `practice( learner, 1_minutes )`, and `practice` (`:133-145`) adds that span to every family's proficiency. The
+/// reference's own note beside `practice_dissect` says proficiency experience is capped at **1000 seconds per call**, which a minute never reaches - the cap is named in `docs/parity.md` and not
+/// modelled here because nothing this rule asks for can hit it.
+#[test]
+fn a_kill_practises_the_families_the_body_names() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let killer = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // Two families, one of them the same proficiency twice, which the reference would practise twice because it walks the list.
+    let families = [
+        cdda_content::weakpoints::Family {
+            id: "fam_a".to_owned(),
+            proficiency: "prof_cutting".to_owned(),
+            bonus: 0.1,
+            penalty: -0.1,
+        },
+        cdda_content::weakpoints::Family {
+            id: "fam_b".to_owned(),
+            proficiency: "prof_bleeding".to_owned(),
+            bonus: 0.1,
+            penalty: -0.1,
+        },
+    ];
+    let learn_times = |id: &str| match id {
+        "prof_cutting" => 600,
+        "prof_bleeding" => 10_000,
+        _ => 0,
+    };
+
+    let taught = cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
+
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, killer, "prof_cutting"),
+        60,
+        "**one minute of practice**, which is what `practice_kill` adds"
+    );
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, killer, "prof_bleeding"),
+        60,
+        "and every family is practised, not just the first"
+    );
+    assert!(
+        !cdda_sim::proficiencies::knows(&world, killer, "prof_cutting"),
+        "**one minute is not a six-hundred-second proficiency**, so the first kill teaches and does not grant"
+    );
+    // The tenth kill of a body worth ten of those minutes is what learns it, and the rule says so on that kill and not before.
+    for _ in 1..10 {
+        cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
+    }
+    assert!(
+        cdda_sim::proficiencies::knows(&world, killer, "prof_cutting"),
+        "ten kills at a minute apiece are six hundred seconds, which is exactly the time to learn it"
+    );
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, killer, "prof_bleeding"),
+        600,
+        "while the proficiency that takes ten thousand seconds is still learning, at ten minutes"
+    );
+    assert!(taught.is_empty(), "none of them was learned by the **first** kill: {taught:?}");
+}

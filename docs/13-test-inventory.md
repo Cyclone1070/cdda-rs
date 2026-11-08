@@ -1553,3 +1553,7 @@ than one tint and at least one lit glyph, which is the weakest statement that st
 **Round 1402 found a gate with the bug baked into it.** `an_items_weight_and_volume_cross_over_unchanged` asserted that a kind's weight crossed into the registry unchanged - and it did, as **milligrams**
 into a field documented in **grams**, so every item in the game was a thousand times too heavy. The gate passed because it compared the wrong two numbers, and the only reason anyone noticed is that a
 scenario printed "rock (657000 g)". The gate now states the two units and the corpus says 657.
+
+**Round 1403 started the kill's teaching.** The killing blow records its striker (`hurt_by`, threaded from the swing through the strike), the reaper practises the dead body's weak-point families for a
+minute each, and the families reached the registry. The first attempt to add them failed an **architecture** gate - a component holding one list per kind - and the fix was the item registry's own
+answer: lay them flat and keep a range.

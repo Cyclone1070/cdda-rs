@@ -283,6 +283,27 @@ pub fn set_health_left(world: &mut World, entity: Entity, hp: i32) {
 /// it; the port reaps in the turn instead, and without this guard a body would keep absorbing hits until the turn ended - which is not just wasted damage but **overkill the corpse
 /// would carry**, turning a body that should leave a corpse into a splatter.
 pub fn hurt(world: &mut World, entity: Entity, damage: f32) {
+    hurt_by(world, entity, damage, NOBODY);
+}
+
+/// A creature nobody is credited with killing, for a blow whose source the caller does not know.
+///
+/// The reference always knows its attacker - a blow is struck by something - but several of the port's callers are the world itself: a fire, a fall, a field. Those take the damage and credit nobody,
+/// which is the honest answer rather than a guess.
+const NOBODY: Option<Entity> = None;
+
+/// What killed a creature, when the blow came from another creature.
+///
+/// Reference: `kill_tracker::report_killed` (`kill_tracker.cpp:120-130`), called from `Creature::deal_damage` with the attacker in hand. The port's reaper runs in the turn rather than inside the
+/// damage, so the fact has to be left on the body: the body is gone by the time anything could ask who struck it, and the proficiency practice a kill pays out reads exactly this.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KilledBy(pub Entity);
+
+/// [`hurt`] with the attacker known, so a killing blow records who struck it.
+///
+/// The rules are `hurt`'s own; the only difference is the [`KilledBy`] component, which is written **when the blow takes the body to zero** and never before - a body that is still standing has no
+/// killer, and a body that was already dead is not struck again at all (`hurt`'s early return, which this keeps).
+pub fn hurt_by(world: &mut World, entity: Entity, damage: f32, attacker: Option<Entity>) {
     if health_of(world, entity).is_some_and(|hp| hp <= 0) {
         return;
     }
@@ -292,6 +313,12 @@ pub fn hurt(world: &mut World, entity: Entity, damage: f32) {
         health.hp -= whole;
     }
     if whole > 0 {
+        // **The killing blow names its striker.** `KilledBy` is written only when the body reaches zero, so a survivor who wounds a monster and walks away leaves no killer behind.
+        if health_of(world, entity).is_some_and(|hp| hp <= 0)
+            && let Some(who) = attacker
+        {
+            world.entity_mut(entity).insert(KilledBy(who));
+        }
         // Reference: `Character::on_hurt` (`character.cpp:8564-8590`) raises `distraction_type::attacked` after the
         // damage lands, which is what makes being hit stop what you were doing. Only a creature that is doing
         // something is bothered; `disturb` answers `false` for the rest and changes nothing.
@@ -1923,6 +1950,17 @@ pub fn reap_dead_creatures_as_corpses(
         })
         .collect();
     for (entity, square, kind, revives, hp, max_hp, phantom, quiet_death) in &dead {
+        // **A kill is reported before the body is gone.** Reference: `kill_tracker::report_killed` (`kill_tracker.cpp:120-130`) practises the dead body's weak-point families for whoever the blow named,
+        // and the families are the body's own data. The port reads the killer from the component the killing blow left, because the body does not outlive this loop.
+        if let Some(kind) = kind
+            && let Some(killer) = world.get::<KilledBy>(*entity).map(|who| who.0)
+        {
+            let families = crate::monster_registry::families_of(world, *kind);
+            if !families.is_empty() {
+                // The port has no proficiency table, so no proficiency can be **learned** by a kill yet: the practice accrues and the learning waits for the data. Named in `docs/parity.md`.
+                drop(crate::proficiencies::practise_a_kill(world, killer, &families, &|_| 0));
+            }
+        }
         crate::singletons::index_mut(world).remove(*entity, *square);
         world.despawn(*entity);
         // Reference: `monster::die`'s hallucination branch (`monster.cpp:3046-3050`) returns before anything is left behind - no corpse, no blood, no gibs.
@@ -2496,7 +2534,7 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     }
     // Reference: a monster's weak-point skill is its type's melee skill (`monster::weakpoint_skill`, `monster.cpp:76-79`), which the port reads as its own melee level (round 1357).
     let weak_point_skill = f64::from(skill_level(world, attacker, "melee"));
-    let dealt = strike_with(world, victim, attack.0, None, weak_point_skill)?;
+    let dealt = strike_with(world, victim, attack.0, None, weak_point_skill, None)?;
     // Reference: `monster::melee_attack` puts a hit-and-run monster into `effect_run` for four turns after its blow (`monster.cpp:2134-2136`). The effect is only given when the
     // world has been told what that effect is: an effect the content does not define cannot be worn, and inventing one here would put a name in the store that nothing can read.
     // Reference: `monster::melee_attack` gives **itself** `effect_hit_by_player` for three turns when what it hit was the avatar (`monster.cpp:2130-2133`), which is how a monster
@@ -2998,7 +3036,7 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
             .map_or(&[][..], |weak| weak.families.as_slice()),
         &|proficiency| crate::proficiencies::knows(world, holder, proficiency),
     );
-    let dealt = strike_with(world, victim, attack, crit_inputs.as_ref(), weak_point_skill);
+    let dealt = strike_with(world, victim, attack, crit_inputs.as_ref(), weak_point_skill, Some(holder));
     // Reference: the technique's own effects run **after** the damage (`melee.cpp:1759-1785`), because `on_damage` asks whether the blow drew blood. The move was picked before the strike; this is
     // the other half of that choice, and it lands nothing when the move was never made.
     if let (Some(move_id), Some(damage)) = (
@@ -3064,6 +3102,7 @@ fn strike_with(
     attack: crate::melee::Attack,
     crit_for: Option<&crate::melee::CritInputs>,
     weak_point_skill: f64,
+    striker: Option<Entity>,
 ) -> Option<i32> {
     let mut rolls = crate::singletons::take_rolls(world)?;
     let defence = defence_of(world, victim);
@@ -3194,7 +3233,7 @@ fn strike_with(
             let arrived = f64::from(rolled.bash.max(0) + rolled.cut.max(0));
             settle_armour(world, victim, part, arrived, garment_roll);
         }
-        hurt(world, victim, swung.damage);
+        hurt_by(world, victim, swung.damage, striker);
         // Reference: `wkpt->apply_effects( *this, total_damage, attack )` (`creature.cpp:1453-1455`) runs **after** the damage lands, and is told the damage the body took rather than the blow's
         // face value - so a weak point's effect fires on what arrived and not on what was swung.
         if let Some(weak) = found.as_ref() {
