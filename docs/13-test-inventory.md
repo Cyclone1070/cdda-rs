@@ -1536,3 +1536,8 @@ six-prototype fixture loaded no kinds at all, and why is its own piece of work r
 **Round 1398 found why round 1397's fixture loaded nothing**: the item loader kept only `GENERIC` and `ITEM` and dropped every other type in silence, so a `TOOL`, a `GUN` and an `AMMO` never reached the
 port - a defect no gate could see, because every gate that loaded items loaded only the two types the filter allowed. The whitelist is now the reference's own list, a per-type gate asks for all twenty
 by name, and the mutation that restored the old filter failed it.
+
+**Round 1399 corrected round 1398's claim and then corrected its own gate.** The claim was that the loader was dropping tools and guns; the data shows every item prototype states `"type": "ITEM"` with a
+`subtypes` array, so nothing real was being dropped and the wide whitelist was reading syntax the reference refuses. The correction is in, and the fixtures that used `GENERIC`/`TOOL` types now state
+`ITEM`, the way the reference's own data does. Then the new whole-corpus gate found two real disagreements: `is_ammo` must ask the type's **slot** (a battery cell states an ammo type and is not
+ammunition), and `is_container` must be asked of an **item**, because an item's contents include the pockets its mods bring - which is why a stocked rifle is a container while its type is not.

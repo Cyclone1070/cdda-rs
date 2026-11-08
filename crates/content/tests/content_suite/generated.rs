@@ -48,12 +48,12 @@ fn an_inline_enchantment_is_named_after_its_parent_and_position() {
 fn every_mountable_gun_gets_a_turret_part() {
     let _dir = fixture(
         r#"[
-        { "type": "GENERIC", "subtypes": [ "GUN" ], "id": "test_rifle", "name": "rifle", "symbol": "(", "color": "black",
+        { "type": "ITEM", "subtypes": [ "GUN" ], "id": "test_rifle", "name": "rifle", "symbol": "(", "color": "black",
           "weight": "3 kg", "volume": "2 L", "price": "100 USD", "material": [ "steel" ] },
-        { "type": "GENERIC", "subtypes": [ "GUN" ], "id": "test_no_turret", "name": "gun", "symbol": "(", "color": "black",
+        { "type": "ITEM", "subtypes": [ "GUN" ], "id": "test_no_turret", "name": "gun", "symbol": "(", "color": "black",
           "weight": "3 kg", "volume": "2 L", "price": "100 USD", "material": [ "steel" ],
           "flags": [ "NO_TURRET" ] },
-        { "type": "GENERIC", "subtypes": [ "GUN", "GUNMOD" ], "id": "test_scope", "name": "scope", "symbol": ":", "color": "black",
+        { "type": "ITEM", "subtypes": [ "GUN", "GUNMOD" ], "id": "test_scope", "name": "scope", "symbol": ":", "color": "black",
           "weight": "300 g", "volume": "250 ml", "price": "20 USD", "material": [ "steel" ] }
         ]"#,
         "cdda-generated-turrets",

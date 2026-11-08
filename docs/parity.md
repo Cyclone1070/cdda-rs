@@ -16769,9 +16769,11 @@ that was learned, the move its weights offered, the aim the striker's own limbs 
 `CONTAINER` pocket, **not** a magazine, which holds rounds and takes no rocks - and `is_tool`, `is_gun` and `is_ammo` answer from the kind's own slots. **The reference's own answers are now in the
 dump**: of 9,912 kinds, 1,145 hold a container pocket, 1,237 are tools, 406 guns, 736 ammunition and 1,686 comestibles, and the corpus gate pins those counts.
 
-**And every item type the reference handles loads** (round 1398): the loader's type filter used to keep only `GENERIC` and `ITEM`, so a `TOOL`, a `GUN` or an `AMMO` was dropped **without a word** -
-a fixture of six prototypes found three of them missing. `items::ITEM_TYPES` is now the reference's own eighteen subtypes plus the two generic names
-(`item_factory.cpp:2862-2927`), and two gates ask for each type by name.
+**And the port's item corpus is the reference's, kind for kind** (rounds 1398-1399): the loader keeps exactly one item type, `ITEM` (`init.cpp:351`), and tells kinds apart by their `subtypes`
+(`item_factory.cpp:2930-2941`) - **the data uses no other type anywhere**, core or mod, so a wider filter would have read a syntax the reference refuses. The four "what is it" questions are answered
+the way the reference answers them: `is_tool` and `is_gun` are the type's slots, `is_ammo` is `!!type->ammo` and **not** "states an `ammo_type`" (`item.cpp:10040-10043` - a battery cell is charged
+with ammunition and is not ammunition), and `is_container` is asked of an **item**, whose contents include the pockets its mods bring (`item.cpp:1350-1395`, `:10238-10241`).
+`items::every_kind_answers_what_it_is_the_way_the_reference_does` compares all 9,912 kinds against the reference's own answers.
 
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated

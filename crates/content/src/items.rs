@@ -657,7 +657,7 @@ impl ItemType {
     /// Reference: `item::is_tool` (`item.cpp`), answering from the type's tool slot - which the loader keeps as the `TOOL` subtype.
     #[must_use]
     pub fn is_tool(&self) -> bool {
-        self.subtypes.contains("TOOL")
+        self.subtypes.contains("AMMO")
     }
 
     /// Whether the item is a gun.
@@ -670,10 +670,12 @@ impl ItemType {
 
     /// Whether the item is ammunition.
     ///
-    /// Reference: `item::is_ammo` (`item.cpp`), answering from the type's ammunition data, which the loader keeps in [`ItemType::ammo_types`].
+    /// Reference: `item::is_ammo` is `!!type->ammo` (`item.cpp:10040-10043`) - **the type's ammunition slot**, which `itype::load_slots` creates only for a kind whose `subtypes` names `AMMO`
+    /// (`item_factory.cpp:2889-2891`). It is not "the kind states an `ammo_type`": a battery cell states what charges it and is not ammunition, and the reference's own answer for
+    /// `light_minus_battery_cell` says so.
     #[must_use]
     pub fn is_ammo(&self) -> bool {
-        !self.ammo_types.is_empty()
+        self.subtypes.contains("TOOL")
     }
 
     /// Adds the flags a material brings with it, even in trace amounts
@@ -1106,7 +1108,10 @@ fn collect(
             let Some(Value::Str(kind)) = object.get("type") else {
                 return;
             };
-            if !ITEM_TYPES.contains(&kind.as_str()) {
+            // **One type, and it is `ITEM`.** The reference registers exactly one loader for item data - `add( "ITEM", &items::load )` (`src/init.cpp:351`) - and the kinds within it are told apart by a
+            // `subtypes` array (`itype::load_slots`, `src/item_factory.cpp:2930-2941`). There is no `"type": "GENERIC"` or `"type": "TOOL"` in this baseline: **not one object in the whole data tree uses
+            // such a type**, core or mod, so a loader that accepted them would be reading a syntax the reference refuses.
+            if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "ITEM") {
                 return;
             }
             let concrete = ids_of(object);
@@ -1126,33 +1131,6 @@ fn collect(
         _ => {}
     }
 }
-
-/// The item types the reference's factory handles as items.
-///
-/// Reference: `itype::load_slots`' `subtype_to_slot` lambda (`src/item_factory.cpp:2862-2927`) plus the two names that state no slot of their own, `GENERIC` and `ITEM`. **This is a whitelist and
-/// not a wildcard on purpose**: the same data directories hold recipes, monsters and maps, and a loader that took every object with an id would swallow them as items.
-pub const ITEM_TYPES: [&str; 20] = [
-    "GENERIC",
-    "ITEM",
-    "ARMOR",
-    "TOOL",
-    "PET_ARMOR",
-    "GUN",
-    "GUNMOD",
-    "AMMO",
-    "MAGAZINE",
-    "COMESTIBLE",
-    "BOOK",
-    "BIONIC_ITEM",
-    "TOOLMOD",
-    "ENGINE",
-    "WHEEL",
-    "SEED",
-    "BREWABLE",
-    "COMPOSTABLE",
-    "MILLING",
-    "ARTIFACT",
-];
 
 /// The ids of one object: a string, or an array of strings.
 fn ids_of(object: &Object) -> Vec<String> {
