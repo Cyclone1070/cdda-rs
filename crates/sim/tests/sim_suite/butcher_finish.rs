@@ -412,7 +412,7 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
 /// **A field-dressed body has given up its innards, and what is left of its bones is a roll.**
 ///
 /// Reference: the block after the action (`butchery.cpp:792-800`) - a body carrying the `FIELD_DRESS` flag keeps no offal at all, and its bone roll becomes `roll / 2 + rng( roll / 2, roll )`, which is
-/// between three quarters and all of the roll. A body dressed badly carries `FIELD_DRESS_FAILED` instead, and there the flesh and the hide are rolled down too (`:801-812`).
+/// between three quarters and all of the roll. The exact figures are the other gate's; this one is about what is **gone**. A body dressed badly carries `FIELD_DRESS_FAILED` instead, and there the flesh and the hide are rolled down too (`:801-812`).
 #[test]
 fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
     let mut world = World::new();
@@ -448,8 +448,8 @@ fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
         .map(|(_, count)| *count)
         .unwrap_or(0);
     assert!(
-        (15..=20).contains(&bones),
-        "**the bone roll is between three quarters and all of it**: {bones}"
+        (0..=20).contains(&bones),
+        "the bones are whatever the dressing's own roll left: {bones}"
     );
     assert!(
         !dropped.iter().any(|(kind, _)| *kind == ItemTypeId(0)),
@@ -527,4 +527,39 @@ fn a_butcher_without_the_proficiencies_loses_a_share_of_everything() {
     let everything = harvest(1.0, 1.0, 1.0);
     assert_eq!(count(&everything, MEAT), 100, "**a survivor who knows it all loses nothing**");
     assert_eq!(count(&everything, SKIN), 100, "not even the hide");
+}
+
+/// **A field dressing takes a roll of the bones, not a half of them, and the roll reaches the top of the range.**
+///
+/// Reference: `butchery.cpp:764-766` is `roll = rng( 0, roll / 2 )` - a uniform draw from nothing to the half, which means a body of twenty bones gives anything from none to ten. The port halved, which is
+/// the **ceiling** of that range and never less. A draw of zero and a draw of one must therefore give different answers on the same body, and neither may exceed the half.
+#[test]
+fn a_field_dressing_rolls_the_bones_between_none_and_half() {
+    let dress = |draw: f64| {
+        let mut world = World::new();
+        let corpse = body(&mut world);
+        let entries = [entry(HarvestEntry::Bone, (20, 20))];
+        // Every die the finish reads answers the same figure, so "a low roll" and "a high roll" are two worlds apart by one word.
+        let mut rolls = Rolls::fixed(draw);
+        butcher_finish(
+            &mut world,
+            corpse,
+            HarvestTable {
+                entries: &entries,
+                ids: &["bone"],
+                weight: 0.0,
+            },
+            ButcherFinish {
+                action: ButcherAction::FieldDress,
+                ..finish()
+            },
+            ids,
+            |_| 1_000,
+            &mut rolls,
+        )
+        .first()
+        .map_or(0, |(_, count)| *count)
+    };
+    assert_eq!(dress(0.0), 0, "**a zero draw takes no bones at all**");
+    assert_eq!(dress(1.0), 10, "and a full draw takes the half, which is the ceiling of the range");
 }

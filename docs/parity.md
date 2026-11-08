@@ -16798,6 +16798,9 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**A field dressing takes a roll of the bones, not the half** (round 1415): the action block's `FIELD_DRESS` bone is `roll = rng( 0, roll / 2 )` (`butchery.cpp:764-766`), so a body of twenty bones gives anything
+from none to ten - the port halved, which is that range's **ceiling** and never less. A quick job's bone stays a plain halving (`:748-750`), and the two arms are deliberately different.
+
 **The proficiencies take their share before anything else does** (round 1414): `after_the_proficiencies` is the reference's four divisions at `butchery.cpp:725-738` - flesh and offal divide by
 `1 + 0.15 ( 1 - butch_basic )`, and the hide divides by `1 + 2 ( 1 - skin_basic )` and then by `1 + 0.15 ( 1 - skin_adv )`, each a truncated integer division. The three figures are `pct_practiced`, ported as
 `creature::practised_fraction`: **one when the proficiency is known**, the fraction of its learning time practised otherwise, zero for one never started (`proficiency.cpp:473-484`). Bone and blood are untouched.
@@ -16821,7 +16824,8 @@ had since butchery was first ported - is now **used by the game**: the scenario 
 skin and halves bone; `BLEED` keeps only blood; `SKIN` keeps only hide. The finish had been ignoring the action entirely, so a quick job gave a full body's harvest. `ButcherFinish` now carries the action and the
 body's size, and the registry carries each kind's size class from the content (`set_sizes`/`size_of`, medium when the data says nothing).
 
-**Named divergence**: the two rng branches - a body whose field dressing failed, where bone and hide are rolled (`:791-808`) - are not modelled; the port applies the plain branch.
+**Named divergence**: the block for a **botched** field dressing (`:809-818`) is the one this port reads as the plain branch; the successful dressing's own rolls are modelled by `after_a_field_dressing`, from the
+corpse's `FIELD_DRESS` and `FIELD_DRESS_FAILED` flags.
 
 **A body's bulk becomes items by weight and by the butcher's own hands** (round 1410): `butchery_dissect_yield_mult` (`butchery.cpp:585-593`) is ported as `butchery_yield_multiplier` - half skill,
 three tenths blade, two tenths dexterity, **each clamped to one** - and `butcher_finish` now divides a `mass_ratio` entry's grams by one drop's weight, **rounding up**, as `butchery.cpp:829-840` does. A

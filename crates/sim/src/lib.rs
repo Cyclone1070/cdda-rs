@@ -7900,7 +7900,12 @@ pub fn harvest_after_damage(weight: i32, entry: HarvestEntry, damage: CorpseDama
 /// **The two rng branches are not here**: a body whose field dressing failed has its bone and hide rolled (`:791-808`), and that needs the caller's dice. The port's finish applies them with the same draw the
 /// count roll used, which is a divergence named in `docs/parity.md`.
 #[must_use]
-pub fn after_the_action(entry: &HarvestSpec, count: i32, state: &ButcherFinish) -> Option<i32> {
+pub fn after_the_action(
+    entry: &HarvestSpec,
+    count: i32,
+    state: &ButcherFinish,
+    between: &mut impl FnMut(i32, i32) -> i32,
+) -> Option<i32> {
     let part = entry.part;
     match state.action {
         ButcherAction::Quick => match part {
@@ -7918,7 +7923,8 @@ pub fn after_the_action(entry: &HarvestSpec, count: i32, state: &ButcherFinish) 
         ButcherAction::Dismember => Some(0),
         ButcherAction::FieldDress => match part {
             Some(HarvestEntry::Flesh | HarvestEntry::Skin) => None,
-            Some(HarvestEntry::Bone) => Some(count / 2),
+            // Reference: `roll = rng( 0, roll / 2 )` (`butchery.cpp:764-766`) - a **roll** from nothing to the half, not the half itself.
+            Some(HarvestEntry::Bone) => Some(between(0, count / 2)),
             _ => Some(count),
         },
         ButcherAction::Bleed => match part {
@@ -8239,7 +8245,7 @@ pub fn butcher_finish(
             continue;
         };
         // Reference: the action's own block (`butchery.cpp:741-790`).
-        let Some(count) = after_the_action(entry, count, &state) else {
+        let Some(count) = after_the_action(entry, count, &state, &mut between) else {
             continue;
         };
         if count <= 0 {

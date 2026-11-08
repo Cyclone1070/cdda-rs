@@ -1591,3 +1591,7 @@ missing offal, and putting the offal back is what the mutation does.
 
 **Round 1414 ported the proficiency penalties.** A hundred cuts of flesh become eighty-six without `butchering_basic`, and a hundred hides become twenty-eight without the two skinning proficiencies; a
 survivor who knows all three keeps every one. The gates that only wanted to see a harvest land now teach the survivor the job first, so each gate stays about one rule.
+
+**Round 1415 turned the field dressing's halving into the roll it is.** A zero draw takes no bones and a full draw takes the half, which is the range `rng( 0, roll / 2 )` and not the half alone. The
+mutation that restored the halving matched the **quick job's** arm first - a text mutation hitting the wrong function, the third time this arc has caught one - and the quick gate promptly failed with three
+bones where it promises ten, so the two arms are now pinned apart by two gates.
