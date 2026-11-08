@@ -51,7 +51,10 @@ pub fn install(world: &mut World, kinds: &[ItemType], chip_resistance: &std::col
         .map(|(kind, pockets)| Kind {
             id: &kind.id,
             volume_ml: kind.volume,
-            weight_g: kind.weight,
+            // **Milligrams in, grams out.** The content's `ItemType::weight` is the reference's `units::mass` base, one milligram (`items.rs:38-40`), while a `Kind` weighs in grams because that is
+            // what the reference's `item::weight()` reports. Copying the number across made every item in the game a thousand times too heavy - a 657 g rock weighed 657 kg - which only showed up in a
+            // log line until a gate asked.
+            weight_g: kind.weight / 1_000,
             pockets,
             thrown_damage: kind.thrown_damage,
             // Reference: `itype::melee_damage` (`item_factory.cpp:4109`) - the same map a swing reads, kept per damage type there and split here into the two the port's

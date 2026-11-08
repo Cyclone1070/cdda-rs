@@ -55,8 +55,13 @@ fn every_item_the_game_has_can_be_looked_up_by_name_and_number() {
     );
 }
 
+/// **Volume crosses unchanged and weight does not**, because the two sides count in different units: the content's volume is millilitres and its weight is milligrams, the reference's `units::mass` base,
+/// while the registry's `weight_of` answers grams, as `item::weight()` does.
+///
+/// This gate used to assert that both crossed **unchanged**, which is a gate that had the bug baked into it: it compared milligrams against grams, passed, and nobody had asked the reference's dump what a
+/// rock weighs. The dump says 657 grams - `item_data::a_kind_s_weight_reaches_the_store_in_grams` is the gate that asks.
 #[test]
-fn an_items_weight_and_volume_cross_over_unchanged() {
+fn an_items_volume_crosses_unchanged_and_its_weight_crosses_in_grams() {
     let kinds = the_games_items();
     let mut world = World::new();
     cdda_sim::item_data::install(&mut world, kinds, &std::collections::BTreeMap::new());
@@ -75,8 +80,8 @@ fn an_items_weight_and_volume_cross_over_unchanged() {
         );
         assert_eq!(
             cdda_sim::item_registry::weight_of(&mut world, number),
-            kind.weight,
-            "weight of {} did not survive",
+            kind.weight / 1_000,
+            "weight of {} did not cross from milligrams into grams",
             kind.id
         );
         checked += 1;
@@ -118,5 +123,27 @@ fn the_things_that_hold_things_still_hold_them() {
     assert!(
         held > 10_000,
         "the roomiest thing is {id} at {held} ml, which is smaller than any real container"
+    );
+}
+
+/// **A kind's weight reaches the store in grams, not milligrams.** The content keeps milligrams, the reference's base unit, and the store keeps grams - a straight copy made every item in the game a
+/// thousand times too heavy, which showed up as a 657 kg rock in a scenario log before any gate asked.
+///
+/// Reference: `units::mass` (`units.h`) has one milligram as its base, while `item::weight()` reports grams; the reference divides when it reports, and the port divides where the two tables meet. The
+/// figure is checked against the **reference's own dump**, which says a rock weighs 657 grams.
+#[test]
+fn a_kind_s_weight_reaches_the_store_in_grams() {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+    if !data.is_dir() {
+        return;
+    }
+    let kinds = cdda_content::items::load_paths(&[&data]).expect("the game data loads");
+    let mut world = bevy_ecs::prelude::World::new();
+    cdda_sim::item_data::install(&mut world, &kinds, &std::collections::BTreeMap::new());
+    let rock = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock is a kind");
+    assert_eq!(
+        cdda_sim::item_registry::weight_of(&mut world, rock),
+        657,
+        "**six hundred and fifty-seven grams**, as the reference's dump says, and not its milligrams"
     );
 }

@@ -7,6 +7,9 @@
 # against, and a gate that updates itself can never fail. `qa::screens` replays this scenario into a scratch file and compares the bytes with the recording in
 # `corpus/screens/a_thrown_rock_leaves_a_picture.png`.
 world 8 bare
+# **A picture is of a game, and a game is played in daylight.** A scenario world starts at turn zero, which is midnight, so the picture has to be taken at an hour a
+# survivor would be awake for: `date 28800` is eight in the morning, which is when the reference starts a game (`scenario.cpp:138`).
+date 28800
 survivor 2 2
 items
 seed 1234

@@ -1549,3 +1549,7 @@ reference's own body rather than adjusted to fit the dump.
 **Round 1401 found the QA surface was drawing nothing.** `shot` wrote a perfectly valid 200×200 PNG of a black field, and the QA table called the screen check green because a black picture diffs equal
 to every other black picture. Three causes, each hidden by the other two: no glyph table, a clock at midnight, and no sunlight cast. The capture test now asserts that a picture of a room contains more
 than one tint and at least one lit glyph, which is the weakest statement that still fails on a picture of nothing.
+
+**Round 1402 found a gate with the bug baked into it.** `an_items_weight_and_volume_cross_over_unchanged` asserted that a kind's weight crossed into the registry unchanged - and it did, as **milligrams**
+into a field documented in **grams**, so every item in the game was a thousand times too heavy. The gate passed because it compared the wrong two numbers, and the only reason anyone noticed is that a
+scenario printed "rock (657000 g)". The gate now states the two units and the corpus says 657.

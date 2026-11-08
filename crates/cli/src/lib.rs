@@ -646,6 +646,9 @@ pub fn build_world(world: &mut World, side: i32, flammable: bool) {
     let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
     terrain.insert(1, true);
     terrain.insert_move_cost(1, 2);
+    // **The floor has a glyph.** A scenario's floor was walkable and invisible: the table knew its transparency and its move cost and not its symbol, so every picture a scenario drew was a field of
+    // blank spaces - and a field of blank spaces is black, which is a picture that diffs equal to every other picture of nothing.
+    terrain.insert_symbol(1, '.');
     cdda_sim::set_prototypes(
         world,
         cdda_sim::Prototypes {

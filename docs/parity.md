@@ -16785,6 +16785,10 @@ table, the clock started at **turn zero, which is midnight**, and the daylight w
 whose floor and walls have their glyphs, and `cli::capture::draw` casts the sun at the world's own turn and asks the frame with the ambient light and a character's vision threshold. The gate says a
 picture of a room is **not one flat colour**, because a black picture diffs equal to every other black picture.
 
+**The QA screen check now refuses a picture of nothing** (round 1402): a scenario's floor had no glyph either, so its recorded picture was a field of blank spaces - and the byte comparison passed because
+a black picture diffs equal to every other black picture. `qa::screens` now reads the scenario's own `shot:` line and fails when it lit **zero** squares, the scenario world's floor has its `.`, and the
+scenario takes its picture at 08:00 with `date 28800`.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

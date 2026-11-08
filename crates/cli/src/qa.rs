@@ -314,15 +314,28 @@ pub fn screens(root: &Path) -> Check {
             Ok(outcome) if !outcome.passed() => {
                 failures.push(format!("{stem}: the scenario does not play: {:?}", outcome.failures));
             }
-            Ok(_) => match (std::fs::read(&drawn), std::fs::read(&path)) {
-                (Ok(fresh), Ok(said)) if fresh == said => {}
-                (Ok(fresh), Ok(said)) => failures.push(format!(
-                    "{stem}: the picture changed - {} bytes now against {} recorded",
-                    fresh.len(),
-                    said.len()
-                )),
-                _ => failures.push(format!("{stem}: the picture could not be read back")),
-            },
+            Ok(outcome) => {
+                // **A picture of nothing is not a picture.** A scenario reports how many squares it lit, and a recording taken before the frame could draw says zero - which is what this check was
+                // recording before the frame was fixed. A black picture diffs equal to every other black picture, so the byte comparison alone cannot tell a room from nothing.
+                let lit = outcome
+                    .lines
+                    .iter()
+                    .find(|line| line.starts_with("shot:"))
+                    .and_then(|line| line.rsplit_once(' '))
+                    .and_then(|(_, count)| count.parse::<u32>().ok());
+                if lit == Some(0) {
+                    failures.push(format!("{stem}: the picture has no lit square at all"));
+                }
+                match (std::fs::read(&drawn), std::fs::read(&path)) {
+                    (Ok(fresh), Ok(said)) if fresh == said => {}
+                    (Ok(fresh), Ok(said)) => failures.push(format!(
+                        "{stem}: the picture changed - {} bytes now against {} recorded",
+                        fresh.len(),
+                        said.len()
+                    )),
+                    _ => failures.push(format!("{stem}: the picture could not be read back")),
+                }
+            }
             Err(error) => failures.push(format!("{stem}: {error}")),
         }
         let _ = std::fs::remove_file(&drawn);
