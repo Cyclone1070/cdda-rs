@@ -1532,3 +1532,7 @@ reference does not have: `item_components` is the container a **craft** consumes
 **Round 1397 opened P3's predicate layer**: four questions an item answers about itself, with the reference's own counts pinned. The dump had to lose a column first - `is_gun` was already there, so adding
 it again produced a file whose duplicate key the Rust parser refuses and Python's accepts, which is the kind of dump defect that only shows up when a second reader arrives. **One gate was parked**: a
 six-prototype fixture loaded no kinds at all, and why is its own piece of work rather than a footnote; the predicate is gated on pockets directly in the meantime, and the loader's silent drop is named.
+
+**Round 1398 found why round 1397's fixture loaded nothing**: the item loader kept only `GENERIC` and `ITEM` and dropped every other type in silence, so a `TOOL`, a `GUN` and an `AMMO` never reached the
+port - a defect no gate could see, because every gate that loaded items loaded only the two types the filter allowed. The whitelist is now the reference's own list, a per-type gate asks for all twenty
+by name, and the mutation that restored the old filter failed it.

@@ -532,3 +532,51 @@ fn a_kind_is_a_container_only_when_it_states_a_container_pocket() {
         "and a kind with no pockets holds nothing"
     );
 }
+
+/// A fixture of six simple prototypes loads six kinds - and when it does not, this says which one went missing.
+///
+/// **This gate exists because a fixture silently loaded nothing** and a rule was gated around it. A loader that drops a prototype without a word is the same hazard as a dump whose labels lie: the
+/// gate above it asserts over a list it never saw. The assertions are per id so a failure names the kind rather than the count.
+#[test]
+fn a_simple_fixture_loads_every_kind_it_states() {
+    let loaded = fixture(
+        r#"[{ "type": "GENERIC", "id": "bag", "name": { "str": "bag" }, "symbol": "(", "color": "light_gray", "weight": "300 g", "volume": "1 L", "price": "1 USD", "material": [ "cotton" ], "pocket_data": [ { "pocket_type": "CONTAINER" } ] },
+            { "type": "GENERIC", "id": "mag", "name": { "str": "magazine" }, "symbol": "(", "color": "light_gray", "weight": "100 g", "volume": "250 ml", "price": "1 USD", "material": [ "steel" ], "pocket_data": [ { "pocket_type": "MAGAZINE" } ] },
+            { "type": "TOOL", "id": "lighter", "name": { "str": "lighter" }, "symbol": ";", "color": "light_gray", "weight": "10 g", "volume": "10 ml", "price": "1 USD", "material": [ "steel" ] },
+            { "type": "GUN", "id": "pistol", "name": { "str": "pistol" }, "symbol": "(", "color": "light_gray", "weight": "1 kg", "volume": "500 ml", "price": "1 USD", "material": [ "steel" ] },
+            { "type": "AMMO", "id": "ball", "name": { "str": "ball" }, "symbol": "=", "color": "light_gray", "weight": "1 g", "volume": "1 ml", "price": "1 USD", "material": [ "steel" ], "ammo_type": "9mm" },
+            { "type": "GENERIC", "id": "rock", "name": { "str": "rock" }, "symbol": "*", "color": "light_gray", "weight": "500 g", "volume": "250 ml", "price": "1 USD", "material": [ "stone" ] }]"#,
+        "six_kind_fixture",
+    );
+    for id in ["bag", "mag", "lighter", "pistol", "ball", "rock"] {
+        assert!(
+            loaded.iter().any(|kind| kind.id == id),
+            "**{id} went missing from the fixture**: the loader kept {:?}",
+            loaded.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>()
+        );
+    }
+    assert_eq!(loaded.len(), 6, "and nothing else was invented");
+}
+
+/// **Every item type the reference handles is an item here**, and the list is the reference's own.
+///
+/// Reference: `itype::load_slots`' `subtype_to_slot` lambda (`src/item_factory.cpp:2862-2927`). The loader used to keep only `GENERIC` and `ITEM`, which dropped a `TOOL`, a `GUN` and an `AMMO`
+/// without a word - so a port that had models for tools and guns could never load one. This gate asks for each type by name, one prototype apiece.
+#[test]
+fn every_item_type_the_reference_handles_loads() {
+    let mut prototypes = Vec::new();
+    for (at, kind) in cdda_content::items::ITEM_TYPES.iter().enumerate() {
+        prototypes.push(format!(
+            r##"{{ "type": "{kind}", "id": "kind_{at}", "name": {{ "str": "kind {at}" }}, "symbol": "#", "color": "light_gray", "weight": "10 g", "volume": "10 ml", "price": "1 USD", "material": [ "steel" ] }}"##
+        ));
+    }
+    let text = format!("[{}]", prototypes.join(",
+"));
+    let loaded = fixture(&text, "every_item_type_fixture");
+    assert_eq!(
+        loaded.len(),
+        cdda_content::items::ITEM_TYPES.len(),
+        "**every one of the reference's item types loaded**: kept {:?}",
+        loaded.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>()
+    );
+}

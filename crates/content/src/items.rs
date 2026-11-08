@@ -1100,8 +1100,13 @@ fn collect(
                 }
                 return;
             }
-            if !matches!(object.get("type"), Some(Value::Str(text)) if text == "GENERIC" || text == "ITEM")
-            {
+            // **Every type the reference's item factory handles**, and not only the two the port used to keep: `itype::load_slots` dispatches on the same eighteen names
+            // (`src/item_factory.cpp:2862-2927`), so a `TOOL`, a `GUN` or an `AMMO` is as much an item as a `GENERIC`. The old filter dropped them **without a word**, which is the
+            // defect a fixture of six prototypes found: three of the six never loaded.
+            let Some(Value::Str(kind)) = object.get("type") else {
+                return;
+            };
+            if !ITEM_TYPES.contains(&kind.as_str()) {
                 return;
             }
             let concrete = ids_of(object);
@@ -1121,6 +1126,33 @@ fn collect(
         _ => {}
     }
 }
+
+/// The item types the reference's factory handles as items.
+///
+/// Reference: `itype::load_slots`' `subtype_to_slot` lambda (`src/item_factory.cpp:2862-2927`) plus the two names that state no slot of their own, `GENERIC` and `ITEM`. **This is a whitelist and
+/// not a wildcard on purpose**: the same data directories hold recipes, monsters and maps, and a loader that took every object with an id would swallow them as items.
+pub const ITEM_TYPES: [&str; 20] = [
+    "GENERIC",
+    "ITEM",
+    "ARMOR",
+    "TOOL",
+    "PET_ARMOR",
+    "GUN",
+    "GUNMOD",
+    "AMMO",
+    "MAGAZINE",
+    "COMESTIBLE",
+    "BOOK",
+    "BIONIC_ITEM",
+    "TOOLMOD",
+    "ENGINE",
+    "WHEEL",
+    "SEED",
+    "BREWABLE",
+    "COMPOSTABLE",
+    "MILLING",
+    "ARTIFACT",
+];
 
 /// The ids of one object: a string, or an array of strings.
 fn ids_of(object: &Object) -> Vec<String> {
