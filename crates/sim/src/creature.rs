@@ -612,6 +612,20 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
     let Some(corpse) = subject else {
         return;
     };
+    let survival = i32::from(skill_level(world, creature, "survival"));
+    let dexterity = effective_dexterity(world, creature);
+    // The blade's quality is the closest thing the port has to `max_quality( qual_CUT_FINE )`; with no tool in hand it is zero, which is what the reference's own `max_quality` answers for an empty
+    // inventory.
+    let blade = 0;
+    let multiplier = crate::butchery_yield_multiplier(survival, dexterity, blade);
+    finish_butchering_with(world, creature, corpse, multiplier);
+}
+
+/// [`finish_butchering`] with the yield multiplier given rather than worked out, which is what a gate that is asking about the division needs.
+///
+/// The split is the port's own seam, not the reference's: `butchery.cpp` computes the multiplier from the character each time it draws an entry, and a test that wants to see the division on its own has
+/// no way to say "with this multiplier" through a survivor's stats - three numbers that only multiply to the wanted value by accident.
+pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entity, multiplier: f64) {
     let Some(corpse_of) = world.get::<crate::CorpseOf>(corpse).copied() else {
         return;
     };
@@ -631,6 +645,7 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
     };
     let state = crate::ButcherFinish {
         butchery: i32::from(skill_level(world, creature, "survival")),
+        yield_multiplier: multiplier,
         damage: corpse_damage_of(world, corpse),
         gibbed: flags.0.iter().any(|flag| flag == "GIBBED"),
         skinned: flags.0.iter().any(|flag| flag == "SKINNED"),
@@ -640,6 +655,15 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
     let resolved: Vec<(String, crate::ItemTypeId)> = ids
         .iter()
         .map(|id| (id.clone(), crate::item_registry::id_of(world, id).unwrap_or_default()))
+        .collect();
+    // A drop's weight is the divisor a bulk entry needs, and it is asked the same way the ids are: before the finish runs, because the rule takes the world mutably.
+    let weights: Vec<(String, i64)> = ids
+        .iter()
+        .map(|id| {
+            let grams = crate::item_registry::id_of(world, id)
+                .map_or(0, |kind| crate::item_registry::weight_of(world, kind));
+            (id.clone(), grams)
+        })
         .collect();
     let dropped = crate::butcher_finish(
         world,
@@ -651,6 +675,12 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
                 .iter()
                 .find(|(name, _)| name == id)
                 .map_or_else(crate::ItemTypeId::default, |(_, kind)| *kind)
+        },
+        |id| {
+            weights
+                .iter()
+                .find(|(name, _)| name == id)
+                .map_or(0, |(_, grams)| *grams)
         },
         &mut rolls,
     );

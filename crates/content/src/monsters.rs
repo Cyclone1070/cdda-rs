@@ -108,7 +108,8 @@ pub struct MonsterType {
     pub bleed_rate: i32,
     /// Aggression, from -100 to 100.
     pub aggression: i32,
-    /// Weight in milligrams.
+    /// Weight in **grams**, which is what the recording writes (`units::to_gram( proto.weight )`). This said milligrams and was wrong: the harvest rule weighs a corpse in grams, and a thousandfold
+    /// error here made every body's bulk a thousandth of what it should be.
     pub weight: i64,
     /// Volume in millilitres.
     pub volume: i64,

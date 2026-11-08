@@ -1,7 +1,8 @@
 # A body is cut up quickly, and its meat is on the ground when the work is done.
 #
-# **Twenty tainted meat, because the harvest is a share of the body**: the humanoid zombie's definition says `mass_ratio 0.25` of flesh, the body weighed 81,500 g, and a cut of tainted meat is a
-# kilogram - so twenty of them, which is the arithmetic the port's `harvest_yield` does and the recording cannot yet check.
+# **Twenty tainted meat, and every figure is the reference's**: the humanoid zombie's definition says `mass_ratio 0.25` of flesh and the body weighed 81,500 g, so the share is 20,375 g; the survivor's
+# own multiplier is `0.5 * 0/10 + 0.3 * (0 + 50)/100 + 0.2 * 8/20 = 0.23` - no survival skill, a blade of quality zero, eight dexterity - which leaves 4,686 g; a cut of tainted meat weighs 238 g, and
+# `ceil( 4,686 / 238 )` is twenty. The item's weight is the corpus's own, not an assumption about it: the first version of this comment guessed a kilogram a cut and expected four.
 #
 # The reference's butchery is an activity: `player_activity` with the butcher's clock on the **character**, the corpse as its subject, and a finish loop that draws the body's own harvest definition
 # onto the square and consumes the body. Every rule in that chain was ported and gated separately - the clock (`butcher_time_to_cut`), the yields (`harvest_yield`), the finish - and nothing joined them to

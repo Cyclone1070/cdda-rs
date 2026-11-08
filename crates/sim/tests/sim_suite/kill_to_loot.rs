@@ -114,11 +114,13 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
         },
         ButcherFinish {
             butchery: 0,
+            yield_multiplier: 1.0,
             damage: CorpseDamage::Light,
             gibbed: false,
             skinned: false,
         },
         drops,
+        |_| 1_000,
         &mut rolls,
     );
     assert_eq!(
@@ -169,12 +171,14 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
                 weight: 0.0,
             },
             ButcherFinish {
-                butchery: 0,
+                yield_multiplier: 1.0,
+            butchery: 0,
                 damage: CorpseDamage::Light,
                 gibbed: false,
                 skinned: false,
             },
             drops,
+            |_| 1_000,
             &mut rolls,
         )
     };

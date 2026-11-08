@@ -38,6 +38,8 @@ fn entry(part: HarvestEntry, base: (i32, i32)) -> HarvestSpec {
 fn finish() -> ButcherFinish {
     ButcherFinish {
         butchery: 0,
+        // Nothing extra: a share of a body is what the weight says, which keeps these gates about the count rule.
+        yield_multiplier: 1.0,
         damage: CorpseDamage::Light,
         gibbed: false,
         skinned: false,
@@ -72,6 +74,7 @@ fn the_yields_land_on_the_square_the_body_was_on() {
         },
         finish(),
         ids,
+        |_| 1_000,
         &mut rolls,
     );
     assert_eq!(dropped, vec![(MEAT, 3), (BONE, 2)]);
@@ -95,6 +98,7 @@ fn the_counts_are_charges_on_the_stacks_that_were_dropped() {
         },
         finish(),
         ids,
+        |_| 1_000,
         &mut rolls,
     );
     let here = items_at(&mut world, (4, 4));
@@ -127,6 +131,7 @@ fn a_body_that_gives_nothing_drops_nothing() {
             ..finish()
         },
         ids,
+        |_| 1_000,
         &mut rolls,
     );
     assert_eq!(
@@ -155,6 +160,7 @@ fn a_skinned_body_gives_no_hide() {
             ..finish()
         },
         ids,
+        |_| 1_000,
         &mut rolls,
     );
     assert!(dropped.is_empty(), "the hide was already taken");
@@ -176,6 +182,7 @@ fn the_body_is_used_up_and_gone_from_the_world() {
         },
         finish(),
         ids,
+        |_| 1_000,
         &mut rolls,
     );
     assert!(world.get_entity(corpse).is_err(), "the corpse is consumed");
@@ -201,12 +208,17 @@ fn the_same_seed_gives_the_same_harvest() {
             },
             finish(),
             ids,
+        |_| 1_000,
             &mut rolls,
         )
     };
     assert_eq!(harvest(4242), harvest(4242));
 }
 
+/// **A bulk entry's weight becomes items only after it is divided by one item's weight.** This gate used to assert the opposite - that fifty grams of flesh dropped **fifty** cuts - which was the
+/// rule the port had rather than the rule the reference has.
+///
+/// Reference: `butchery.cpp:829-840`: `roll = std::ceil( roll / to_gram( drop->weight ) )`, so fifty grams of a thousand-gram cut is one cut, not fifty.
 #[test]
 fn a_bulk_entry_uses_the_weight_it_was_given() {
     let mut world = World::new();
@@ -229,7 +241,12 @@ fn a_bulk_entry_uses_the_weight_it_was_given() {
         },
         finish(),
         ids,
+        |_| 40,
         &mut rolls,
     );
-    assert_eq!(dropped, vec![(MEAT, 50)], "half of a hundred grams");
+    assert_eq!(
+        dropped,
+        vec![(MEAT, 2)],
+        "and fifty grams of a forty-gram cut is two, because the division rounds **up**"
+    );
 }

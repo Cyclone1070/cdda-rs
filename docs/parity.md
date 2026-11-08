@@ -16798,6 +16798,14 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**A body's bulk becomes items by weight and by the butcher's own hands** (round 1410): `butchery_dissect_yield_mult` (`butchery.cpp:585-593`) is ported as `butchery_yield_multiplier` - half skill,
+three tenths blade, two tenths dexterity, **each clamped to one** - and `butcher_finish` now divides a `mass_ratio` entry's grams by one drop's weight, **rounding up**, as `butchery.cpp:829-840` does. A
+count entry takes neither, which is the reference's asymmetry.
+
+Two corrections came with it. The **monster weight crosses in grams, not milligrams**: the dump writes `units::to_gram( proto.weight )`, the content's field doc said milligrams, and the thousandfold error
+it caused was invisible until a playtest read twenty cuts of meat off an eighty-one-gram body. And the gate that asserted a bulk entry's **count is its weight** (`fifty grams, fifty cuts`) was encoding
+the bug it was written to prevent - it now asserts the division and the ceiling.
+
 **The finish now reads the body's damage, and the top damage level means nothing** (round 1409): the finisher had been handing `corpse_damage_effect` (`butchery.cpp:492-561`) a `Light` corpse for
 every body, so a corpse beaten into paste harvested as well as one that died cleanly. It now reads the corpse item's own damage, works out the level with `itype::damage_level`'s arithmetic
 (`itype.cpp:117-126`), and hands the rule the level's answer.

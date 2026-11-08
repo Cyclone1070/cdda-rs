@@ -887,8 +887,9 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
         let Some(kind) = cdda_sim::monster_registry::id_of(world, &monster.id) else {
             continue;
         };
-        // The dump counts a monster's weight in **milligrams** and the harvest rule weighs the corpse in **grams**, so the two tables meet with the same division the item tables use.
-        weights.push((kind, monster.weight / 1_000));
+        // The dump writes a monster's weight in **grams** (`units::to_gram( proto.weight )` in `dump_monsters`), which is the unit the harvest rule weighs a corpse in. **Not** milligrams: the content's own
+        // field doc said milligrams, and dividing by a thousand made an eighty-one kilogram zombie weigh eighty-one grams - which a playtest then read as twenty cuts of meat.
+        weights.push((kind, monster.weight));
         let Some(definition) = definitions.get(&monster.harvest) else {
             continue;
         };
@@ -2774,7 +2775,9 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool) {
         moves_total: moves,
         subject: Some(corpse),
     });
+    // What the body is worth, printed as the step starts: the weight is what a `mass_ratio` entry is a share of, so a body weighed in the wrong unit is visible here before the meat is counted.
+    let weight = cdda_sim::monster_registry::weight_of(world, corpse_of.kind);
     outcome.lines.push(format!(
-        "butcher: a {size:?} body, {moves} moves of work"
+        "butcher: a {size:?} body of {weight} g, {moves} moves of work"
     ));
 }

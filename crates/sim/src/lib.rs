@@ -7820,6 +7820,28 @@ impl CorpseDamage {
     }
 }
 
+/// How much of a body's **bulk** becomes items, from the butcher's skill, dexterity and blade.
+///
+/// Reference: `butchery_dissect_yield_mult` (`butchery.cpp:585-593`):
+///
+/// ```text
+/// skill_score = skill_level / 10
+/// tool_score  = ( tool_quality + 50 ) / 100
+/// dex_score   = dex / 20
+/// 0.5 * clamp( skill_score, 0, 1 ) + 0.3 * clamp( tool_score, 0, 1 ) + 0.2 * clamp( dex_score, 0, 1 )
+/// ```
+///
+/// **Each term is clamped on its own**, so the three weights sum to one and no amount of skill buys more than the whole. A negative tool quality - a bare hand, or a blade worse than nothing - pushes the
+/// tool term to zero rather than making the share negative.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn butchery_yield_multiplier(skill_level: i32, dex: i32, tool_quality: i32) -> f64 {
+    let skill_score = f64::from(skill_level) / 10.0;
+    let tool_score = f64::from(tool_quality + 50) / 100.0;
+    let dex_score = f64::from(dex) / 20.0;
+    skill_score.clamp(0.0, 1.0).mul_add(0.5, tool_score.clamp(0.0, 1.0) * 0.3) + dex_score.clamp(0.0, 1.0) * 0.2
+}
+
 /// What a damaged corpse still gives up, as a weight.
 ///
 /// Reference: `corpse_damage_effect` (`src/butchery.cpp`). The interesting part is how differently it treats the
@@ -8037,6 +8059,8 @@ pub struct HarvestTable<'a> {
 pub struct ButcherFinish {
     /// The butcher's effective skill, which scales counts.
     pub butchery: i32,
+    /// How much of a body's **bulk** becomes items: `butchery_dissect_yield_mult` (`butchery.cpp:585-593`), which the caller works out from the skill, the dexterity and the blade.
+    pub yield_multiplier: f64,
     /// How badly the corpse was damaged.
     pub damage: CorpseDamage,
     /// Whether the body was smashed apart before it was cut up.
@@ -8059,6 +8083,7 @@ pub fn butcher_finish(
     table: HarvestTable<'_>,
     state: ButcherFinish,
     drop_of: impl Fn(&str) -> ItemTypeId,
+    drop_grams: impl Fn(&str) -> i64,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> Vec<(ItemTypeId, i32)> {
     let Some(position) = world.get::<Position>(corpse).copied() else {
@@ -8077,6 +8102,20 @@ pub fn butcher_finish(
             state.skinned,
             draw,
         );
+        if count <= 0 {
+            continue;
+        }
+        // Reference: `butchery.cpp:829-840` - a **bulk** entry's roll is a weight in grams, and it becomes items only after the yield multiplier and a division by one item's weight, rounded **up**.
+        // A count entry's roll is already a number of items and takes neither.
+        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+        let count = match entry.mass_ratio {
+            Some(_) => {
+                let grams = count as f64 * state.yield_multiplier;
+                let each = drop_grams(id).max(1) as f64;
+                (grams / each).ceil().max(0.0) as i32
+            }
+            None => count,
+        };
         if count <= 0 {
             continue;
         }

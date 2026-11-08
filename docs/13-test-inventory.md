@@ -1576,3 +1576,6 @@ tainted meat on the ground.
 
 **Round 1409 found the finisher was passing a fixed damage level to the yield rule**, so corpse damage changed nothing. The gate that fixed it also pinned two things the reference does that a careful
 port would get "right": a count entry's minimum survives any damage, and the top damage level falls through the reference's switch to no reduction at all.
+
+**Round 1410 ported the bulk arithmetic and found two of its own numbers wrong.** The yield multiplier is three clamped terms, and a bulk entry's grams divide by one drop's weight rounding up - the port
+had been reporting the weight itself as a count. The gate that said so had the old rule written into it, and the monster's weight had been crossing as milligrams against a dump that writes grams.

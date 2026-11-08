@@ -326,17 +326,31 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
         cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(11));
         cdda_sim::item_registry::set_item_types(
             &mut world,
-            &[cdda_sim::item_registry::Kind {
-                id: "corpse",
-                volume_ml: 1_000,
-                weight_g: 1_000,
-                pockets: &[],
-                thrown_damage: 0.0,
-                melee_bash: 0.0,
-                melee_cut: 0.0,
-                melee_stab: 0.0,
-                to_hit: 0,
-            }],
+            &[
+                cdda_sim::item_registry::Kind {
+                    id: "corpse",
+                    volume_ml: 1_000,
+                    weight_g: 1_000,
+                    pockets: &[],
+                    thrown_damage: 0.0,
+                    melee_bash: 0.0,
+                    melee_cut: 0.0,
+                    melee_stab: 0.0,
+                    to_hit: 0,
+                },
+                // A gram a cut, so the item count reads the share of the body directly and the gate is about the damage and nothing else.
+                cdda_sim::item_registry::Kind {
+                    id: "cut",
+                    volume_ml: 1,
+                    weight_g: 1,
+                    pockets: &[],
+                    thrown_damage: 0.0,
+                    melee_bash: 0.0,
+                    melee_cut: 0.0,
+                    melee_stab: 0.0,
+                    to_hit: 0,
+                },
+            ],
         );
         let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
         cdda_sim::monster_registry::set_monster_types(
@@ -360,7 +374,7 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
                     mass_ratio: Some(0.25),
                     max: None,
                 }],
-                vec!["corpse".to_owned()],
+                vec!["cut".to_owned()],
             )],
         );
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -374,7 +388,8 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
             revives: false,
             monster_volume_ml: 1_000,
         });
-        cdda_sim::creature::finish_activity(&mut world, survivor, "butcher", Some(corpse));
+        // The multiplier is held at one so the gate is about the **damage** and not about the survivor's stats; the multiplier has its own gate.
+        cdda_sim::creature::finish_butchering_with(&mut world, survivor, corpse, 1.0);
         world
             .query::<&cdda_sim::GroundItem>()
             .iter(&world)
@@ -397,5 +412,133 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
         butchered(cdda_content::armour::DAMAGE_MAX),
         250,
         "a corpse at the maximum damage level falls to the switch's default and gives everything"
+    );
+}
+
+/// **A butcher's skill, dexterity and blade decide how much of a body's bulk becomes items**, and the arithmetic is the reference's own three-way average.
+///
+/// Reference: `butchery_dissect_yield_mult` (`butchery.cpp:585-593`) is `0.5 * clamp(skill/10) + 0.3 * clamp((quality + 50)/100) + 0.2 * clamp(dex/20)`, each term clamped to **one** - so a survivor with
+/// ten survival, a quality-fifty blade and twenty dexterity is the maximum, and anything above those numbers adds nothing. The three weights are half skill, three tenths tool, two tenths dexterity.
+#[test]
+fn a_butcher_s_skill_and_blade_decide_how_much_bulk_comes_off() {
+    // Nothing at all: no skill, a blade fifty worse than the best (-50 makes the tool term zero), and no dexterity.
+    assert_eq!(
+        cdda_sim::butchery_yield_multiplier(0, 0, -50),
+        0.0,
+        "a hopeless butcher with a useless blade gets nothing extra"
+    );
+    // Skill alone, at its ceiling: half of one.
+    assert_eq!(cdda_sim::butchery_yield_multiplier(10, 0, -50), 0.5, "ten survival is half the multiplier");
+    // The tool alone at its ceiling: three tenths.
+    assert_eq!(cdda_sim::butchery_yield_multiplier(0, 0, 50), 0.3, "a fine blade is three tenths");
+    // Dexterity alone at its ceiling: two tenths.
+    assert_eq!(cdda_sim::butchery_yield_multiplier(0, 20, -50), 0.2, "twenty dexterity is two tenths");
+    // Everything at its ceiling: exactly one, and no more however far past it the numbers go.
+    assert_eq!(
+        cdda_sim::butchery_yield_multiplier(10, 20, 50),
+        1.0,
+        "**the reference clamps each term**, so a master with a perfect blade and twenty dexterity is one, not one and a half"
+    );
+    assert_eq!(
+        cdda_sim::butchery_yield_multiplier(40, 80, 400),
+        1.0,
+        "and the clamps hold far past the ceiling"
+    );
+    // A middling survivor: five survival, a quality-zero blade, ten dexterity.
+    let middling = cdda_sim::butchery_yield_multiplier(5, 10, 0);
+    assert!(
+        (middling - (0.25 + 0.15 + 0.1)).abs() < 1e-12,
+        "five survival is a quarter, a middling blade three twentieths past its half, ten dexterity a tenth: {middling}"
+    );
+}
+
+/// **A share of a body's weight becomes items only after it is divided by one item's weight**, and the division rounds **up**.
+///
+/// Reference: `butchery.cpp:829-840`: a `mass_ratio` entry's roll is a weight in grams, it is multiplied by the yield multiplier, and then `roll = ceil( roll / to_gram( drop->weight ) )` - so a
+/// kilogram's share of meat at a hundred grams a cut is **ten** cuts, and one gram over a kilogram is eleven. The port used to report the weight itself as the count, which is right only for an item
+/// that happens to weigh a gram.
+#[test]
+fn a_weight_share_becomes_as_many_items_as_fit_in_it() {
+    // A thousand grams of a body, a quarter of it flesh: 250 grams' worth.
+    let cuts = |drop_grams: i64, multiplier: f64| {
+        let mut world = bevy_ecs::prelude::World::new();
+        cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(3));
+        cdda_sim::item_registry::set_item_types(
+            &mut world,
+            &[
+                cdda_sim::item_registry::Kind {
+                    id: "corpse",
+                    volume_ml: 1_000,
+                    weight_g: 1_000,
+                    pockets: &[],
+                    thrown_damage: 0.0,
+                    melee_bash: 0.0,
+                    melee_cut: 0.0,
+                    melee_stab: 0.0,
+                    to_hit: 0,
+                },
+                cdda_sim::item_registry::Kind {
+                    id: "cut",
+                    volume_ml: 100,
+                    weight_g: drop_grams,
+                    pockets: &[],
+                    thrown_damage: 0.0,
+                    melee_bash: 0.0,
+                    melee_cut: 0.0,
+                    melee_stab: 0.0,
+                    to_hit: 0,
+                },
+            ],
+        );
+        let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
+        cdda_sim::monster_registry::set_monster_types(
+            &mut world,
+            &[cdda_sim::monster_registry::MonsterKind { id: "mon_bulk", hp: 10 }],
+        );
+        let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_bulk").expect("the kind");
+        cdda_sim::monster_registry::set_weights(&mut world, &[(kind, 1_000)]);
+        cdda_sim::monster_registry::set_harvests(
+            &mut world,
+            &[(
+                kind,
+                vec![cdda_sim::HarvestSpec {
+                    part: Some(cdda_sim::HarvestEntry::Flesh),
+                    base_num: (0, 0),
+                    scale_num: (0.0, 0.0),
+                    mass_ratio: Some(0.25),
+                    max: None,
+                }],
+                vec!["cut".to_owned()],
+            )],
+        );
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let corpse = cdda_sim::drop_item(&mut world, (0, 0), corpse_kind, 1);
+        world.entity_mut(corpse).insert(cdda_sim::CorpseOf {
+            kind,
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 1_000,
+        });
+        cdda_sim::creature::finish_butchering_with(&mut world, survivor, corpse, multiplier);
+        let cut = cdda_sim::item_registry::id_of(&mut world, "cut").expect("the cut type");
+        world
+            .query::<&cdda_sim::GroundItem>()
+            .iter(&world)
+            .filter(|item| item.kind == cut)
+            .map(|item| item.charges)
+            .sum::<i32>()
+    };
+
+    assert_eq!(
+        cuts(100, 1.0),
+        3,
+        "**two hundred and fifty grams at a hundred grams a cut is two and a half, which rounds up to three**"
+    );
+    assert_eq!(cuts(250, 1.0), 1, "at a quarter of a kilo a cut it is exactly one");
+    assert_eq!(cuts(100, 0.5), 2, "half the multiplier halves the weight before the division: 125 grams is two cuts");
+    assert_eq!(
+        cuts(1_000, 1.0),
+        1,
+        "and a cut heavier than the share is still one cut, because nothing is left over to make zero"
     );
 }
