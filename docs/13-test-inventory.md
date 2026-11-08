@@ -1505,3 +1505,6 @@ that can be walked.
 
 **Round 1389 gave the moves their aims**: the attack vector column on the dump (141 moves), the loader behind it, and the limb-count rule the reference reads before it aims. The harness needed a
 printer for `body_part_type::type`, which the reference keeps as an enum with no `id_of` - the first attempt called a function that does not exist, and the build said so.
+
+**Round 1390 added the weighted aim**: a share of the total weight rather than a rank, the `>=` boundary that keeps a draw on the earlier aim, and the zero-weight list that aims at nothing. The
+mutation check turned the `>=` into a `>` and the boundary gate failed - a comparison that looks like a style choice is a behaviour here.

@@ -744,3 +744,41 @@ fn a_vector_that_needs_limbs_needs_enough_of_them() {
         "**a leg is not an arm**: the need names the kind of limb"
     );
 }
+
+/// A move's aims are picked **by weight**, and the weight is a share of the total rather than a rank.
+///
+/// Reference: `weighted_float_list::pick_ent` (`weighted_list.h:284-295`): the draw is `randi / UINT_MAX * total_weight`, the entries are walked accumulating weight, and the walk stops at the
+/// first whose accumulated weight is **`>=` the draw** - so a draw that lands exactly on a boundary goes to the **earlier** entry, not the later one, which is the opposite of what a boundary test
+/// written from habit would assert. And `pick` answers nothing at all when the total weight is zero (`:137-143`), so a list of zero-weight aims aims nowhere.
+#[test]
+fn aims_are_picked_by_their_share_of_the_weight() {
+    use cdda_sim::martial_arts_vectors::{WeightedAim, weighted_pick};
+
+    let aims = vec![
+        WeightedAim { id: "vector_head".to_owned(), weight: 1.0 },
+        WeightedAim { id: "vector_arm".to_owned(), weight: 3.0 },
+    ];
+    assert_eq!(weighted_pick(&aims, 0.0).as_deref(), Some("vector_head"), "a draw of nothing takes the first aim");
+    assert_eq!(
+        weighted_pick(&aims, 0.24).as_deref(),
+        Some("vector_head"),
+        "**a quarter of the weight is still the first aim**, because one of four is its whole share"
+    );
+    assert_eq!(weighted_pick(&aims, 0.26).as_deref(), Some("vector_arm"), "just past it, the second");
+    assert_eq!(weighted_pick(&aims, 0.99).as_deref(), Some("vector_arm"), "and the rest of the range is the second");
+
+    // **The boundary leans earlier**: a draw of exactly one quarter accumulates to exactly the first aim's weight, and `>=` keeps it there.
+    assert_eq!(
+        weighted_pick(&aims, 0.25).as_deref(),
+        Some("vector_head"),
+        "**a draw exactly on the boundary stays with the earlier aim**"
+    );
+
+    // Nothing weighs anything, so nothing is aimed at - which the reference spells as a null pointer.
+    let weightless = vec![
+        WeightedAim { id: "vector_a".to_owned(), weight: 0.0 },
+        WeightedAim { id: "vector_b".to_owned(), weight: 0.0 },
+    ];
+    assert_eq!(weighted_pick(&weightless, 0.5), None, "**a list of weightless aims aims at nothing**");
+    assert_eq!(weighted_pick(&[], 0.5), None, "and neither does an empty one");
+}

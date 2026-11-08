@@ -16743,6 +16743,10 @@ encumbrance and hit-point limits, and **the count of each limb kind it needs** -
 (`martialarts.cpp:1495-1515`): a limb counts only while it is **above its health limit**, so a move needing two arms is a move a one-armed fighter cannot make. The corpus carries 141 moves with a
 vector, and the kinds the data names are the body's own eleven.
 
+**And the aim a striker takes is chosen by weight** (round 1390): `martial_arts_vectors::weighted_pick` is `weighted_float_list::pick_ent` and `pick` (`weighted_list.h:137-143`, `:284-295`) - the
+draw is **a share of the total weight**, the walk stops at the first accumulated weight **`>=`** the draw, so **a draw exactly on a boundary stays with the earlier aim**, and a list whose total weight
+is zero aims at nothing rather than at its first entry.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
