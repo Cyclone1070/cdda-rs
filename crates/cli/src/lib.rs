@@ -884,6 +884,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     let mut weights = Vec::new();
     let mut sizes = Vec::new();
     let mut tables = Vec::new();
+    let mut dissections = Vec::new();
     for monster in monsters {
         let Some(kind) = cdda_sim::monster_registry::id_of(world, &monster.id) else {
             continue;
@@ -927,9 +928,35 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
             ids.push(entry.drop.clone());
         }
         tables.push((kind, specs, ids));
+        // The body's **dissection** list, when it names one: the reference's finish walks it instead of the harvest list for a dissection (`butchery.cpp:692-694`).
+        let Some(dissection) = definitions.get(&monster.dissect) else {
+            continue;
+        };
+        let mut specs = Vec::new();
+        let mut ids = Vec::new();
+        for entry in &dissection.entries {
+            let part = match entry.part {
+                Some(cdda_content::harvest::Part::Flesh) => Some(cdda_sim::HarvestEntry::Flesh),
+                Some(cdda_content::harvest::Part::Offal) => Some(cdda_sim::HarvestEntry::Offal),
+                Some(cdda_content::harvest::Part::Skin) => Some(cdda_sim::HarvestEntry::Skin),
+                Some(cdda_content::harvest::Part::Bone) => Some(cdda_sim::HarvestEntry::Bone),
+                Some(cdda_content::harvest::Part::Blood) => Some(cdda_sim::HarvestEntry::Blood),
+                Some(cdda_content::harvest::Part::Other) | None => Some(cdda_sim::HarvestEntry::Other),
+            };
+            specs.push(cdda_sim::HarvestSpec {
+                part,
+                base_num: entry.base_num.unwrap_or((0, 0)),
+                scale_num: entry.scale_num.unwrap_or((0.0, 0.0)),
+                mass_ratio: entry.mass_ratio,
+                max: entry.max,
+            });
+            ids.push(entry.drop.clone());
+        }
+        dissections.push((kind, specs, ids));
     }
     cdda_sim::monster_registry::set_weights(world, &weights);
     cdda_sim::monster_registry::set_sizes(world, &sizes);
+    cdda_sim::monster_registry::set_dissections(world, &dissections);
     cdda_sim::monster_registry::set_harvests(world, &tables);
 }
 
@@ -2781,7 +2808,12 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool) {
         skinning_basic: 0.0,
         helpers: 0,
     };
-    let moves = cdda_sim::butcher_time_to_cut(state);
+    // The work goes on the **body** (`Butchery`) as well as on the creature's turn, which is what the reference does: the activity is the character's clock and the corpse is what the finish reads its action
+    // from. `start_butchery` refuses a thing that is not a corpse, and its refusals are the reference's own.
+    let Some(moves) = cdda_sim::start_butchery(world, corpse, state) else {
+        outcome.failures.push("that thing is not a body to cut up".to_owned());
+        return;
+    };
     world.entity_mut(survivor).insert(cdda_sim::creature::Doing {
         activity: "butcher".to_owned(),
         moves_left: moves,

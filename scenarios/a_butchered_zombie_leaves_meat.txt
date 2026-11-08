@@ -1,8 +1,11 @@
 # A body is cut up quickly, and its meat is on the ground when the work is done.
 #
-# **Twenty tainted meat, and every figure is the reference's**: the humanoid zombie's definition says `mass_ratio 0.25` of flesh and the body weighed 81,500 g, so the share is 20,375 g; the survivor's
+# **Five tainted meat, and every figure is the reference's**: the humanoid zombie's definition says `mass_ratio 0.25` of flesh and the body weighed 81,500 g, so the share is 20,375 g; the survivor's
 # own multiplier is `0.5 * 0/10 + 0.3 * (0 + 50)/100 + 0.2 * 8/20 = 0.23` - no survival skill, a blade of quality zero, eight dexterity - which leaves 4,686 g; a cut of tainted meat weighs 238 g, and
 # `ceil( 4,686 / 238 )` is twenty. The item's weight is the corpus's own, not an assumption about it: the first version of this comment guessed a kilogram a cut and expected four.
+#
+# **And a quick job takes a quarter of that**: `QUICK` divides flesh by four (`butchery.cpp:741-746`), so twenty cuts become five. That is the check that the action reaches the finish at all - before the
+# body's `Butchery` carried it, this scenario found the full twenty off a quick job.
 #
 # The reference's butchery is an activity: `player_activity` with the butcher's clock on the **character**, the corpse as its subject, and a finish loop that draws the body's own harvest definition
 # onto the square and consumes the body. Every rule in that chain was ported and gated separately - the clock (`butcher_time_to_cut`), the yields (`harvest_yield`), the finish - and nothing joined them to
@@ -39,4 +42,4 @@ turn 1
 expect no monster at 1 0
 butcher quick
 turn 1080
-expect floor meat_tainted 20
+expect floor meat_tainted 5

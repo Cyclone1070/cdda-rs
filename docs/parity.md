@@ -16798,6 +16798,11 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**A dissection takes the body's own list, and the action now reaches the finish at all** (round 1412): `monster_registry::list_for` is the reference's `( action == DISSECT && !mt.dissect.is_empty() ) ?
+*mt.dissect : *mt.harvest` (`butchery.cpp:692-694`), with the dissection lists installed from the content's `mtype::dissect` beside the harvest lists. And `start_butchery` - the body-side clock the port has
+had since butchery was first ported - is now **used by the game**: the scenario step starts it, so the body's `Butchery` carries the action the finish reads. That made a real difference immediately:
+`butcher quick` had been running as a full job, and the playtest went from twenty cuts of tainted meat to **five**, which is `QUICK`'s quartering of flesh.
+
 **The action decides what survives the harvest** (round 1411): `after_the_action` is the reference's finish-loop block that runs after the damage and before a bulk share becomes items
 (`butchery.cpp:700-790`) - `QUICK` quarters flesh, halves bone and skin on a medium body or larger, divides offal by five and **drops everything else**; `DISMEMBER` zeroes every entry; `FIELD_DRESS` drops flesh and
 skin and halves bone; `BLEED` keeps only blood; `SKIN` keeps only hide. The finish had been ignoring the action entirely, so a quick job gave a full body's harvest. `ButcherFinish` now carries the action and the

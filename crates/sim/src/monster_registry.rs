@@ -63,6 +63,12 @@ pub struct MonsterTypes {
     weights: Vec<i64>,
     /// How big each kind is, by registry order.
     sizes: Vec<crate::CreatureSize>,
+    /// Every kind's dissection entries, with [`MonsterTypes::dissect_ranges`] saying where each kind's start.
+    dissect_entries: Vec<crate::HarvestSpec>,
+    /// The item ids those entries name.
+    dissect_ids: Vec<String>,
+    /// Where each kind's dissection entries start and how many there are, by registry order.
+    dissect_ranges: Vec<(u32, u32)>,
 }
 
 /// What killing each kind teaches, by kind.
@@ -136,6 +142,71 @@ pub fn set_harvests(
             *slot = (start, how_many);
         }
     }
+}
+
+/// What dissecting each kind of body yields, by kind.
+///
+/// Reference: `mtype::dissect`, a second `harvest_definition` that the finish loop walks **instead of** the harvest list when the action is a dissection and the body states one (`butchery.cpp:692-694`). Kept
+/// in its own table for the same reason the families are: a body may have neither, either, or both, and a world that installs no dissection lists dissects like any other butchery.
+pub fn set_dissections(
+    world: &mut World,
+    entries: &[(crate::MonsterKindId, Vec<crate::HarvestSpec>, Vec<String>)],
+) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, specs, ids) in entries {
+        let at = kind.0 as usize;
+        if types.dissect_ranges.len() <= at {
+            types.dissect_ranges.resize(at + 1, (0, 0));
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let start = types.dissect_entries.len() as u32;
+        #[allow(clippy::cast_possible_truncation)]
+        let how_many = specs.len() as u32;
+        types.dissect_entries.extend(specs.iter().copied());
+        types.dissect_ids.extend(ids.iter().cloned());
+        if let Some(slot) = types.dissect_ranges.get_mut(at) {
+            *slot = (start, how_many);
+        }
+    }
+}
+
+/// What one kind's body yields when dissected: the entries and their drop ids, empty when the data states none.
+#[must_use]
+pub fn dissect_of(world: &World, kind: crate::MonsterKindId) -> (Vec<crate::HarvestSpec>, Vec<String>) {
+    let Some(types) = world.iter_entities().find_map(|entity| entity.get::<MonsterTypes>()) else {
+        return (Vec::new(), Vec::new());
+    };
+    let Some(&(start, how_many)) = types.dissect_ranges.get(kind.0 as usize) else {
+        return (Vec::new(), Vec::new());
+    };
+    let start = start as usize;
+    let end = start + how_many as usize;
+    (
+        types.dissect_entries.get(start..end).map_or_else(Vec::new, <[crate::HarvestSpec]>::to_vec),
+        types.dissect_ids.get(start..end).map_or_else(Vec::new, <[String]>::to_vec),
+    )
+}
+
+/// Which list a butchery of a body walks: its dissection list when the action is a dissection and the body states one, and its harvest list otherwise.
+///
+/// Reference: `( action == butcher_type::DISSECT && !mt.dissect.is_empty() ) ? *mt.dissect : *mt.harvest` (`butchery.cpp:692-694`). The rule is the reference's `&&`: a dissection of a body that states no
+/// dissection list walks the harvest list like any other butchery, and a butchery that is not a dissection never looks at the dissection list at all.
+#[must_use]
+pub fn list_for(
+    world: &World,
+    kind: crate::MonsterKindId,
+    action: crate::ButcherAction,
+) -> (Vec<crate::HarvestSpec>, Vec<String>) {
+    if action == crate::ButcherAction::Dissect {
+        let (entries, ids) = dissect_of(world, kind);
+        if !entries.is_empty() {
+            return (entries, ids);
+        }
+    }
+    harvest_of(world, kind)
 }
 
 /// How big each kind of body is, by kind, which decides the base cost of cutting it up.
@@ -248,6 +319,9 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         harvest_ranges: Vec::new(),
         weights: Vec::new(),
         sizes: Vec::new(),
+        dissect_entries: Vec::new(),
+        dissect_ids: Vec::new(),
+        dissect_ranges: Vec::new(),
         names,
         hit_points,
         by_name,

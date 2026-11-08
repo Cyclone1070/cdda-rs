@@ -1582,3 +1582,6 @@ had been reporting the weight itself as a count. The gate that said so had the o
 
 **Round 1411 gave the butchery its action.** The finish loop branches five ways on what the butcher is doing; the port's finish had one path, so a quick job stripped a body as thoroughly as a full one. Two gates
 pin the two most different actions, and the mutation that stops quartering flesh fails on the first.
+
+**Round 1412 gave the finish its list and gave the game its action.** A dissection walks the body's `dissect` definition and falls back to the harvest list when it has none - the reference's own `&&`.
+The scenario then dropped from twenty cuts of tainted meat to five, because `butcher quick` had been running as a full job: the body-side `Butchery` had never been started by anything a player could reach.

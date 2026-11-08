@@ -321,3 +321,84 @@ fn skinning_takes_the_hide_and_nothing_else() {
     );
     assert_eq!(dropped, vec![(SKIN, 5)], "**only the hide**, and all five of it");
 }
+
+/// **Dissecting takes the body's dissection list, and a body with none falls back to its harvest.**
+///
+/// Reference: the finish loop's own choice of list - `( action == butcher_type::DISSECT && !mt.dissect.is_empty() ) ? *mt.dissect : *mt.harvest` (`butchery.cpp:692-694`). A body that states no dissection
+/// list is butchered the ordinary way even when the action is a dissection, which is the reference's `&&` and not a special case of its own.
+#[test]
+fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
+    let mut world = World::new();
+    let mut registry = cdda_sim::monster_registry::MonsterKind { id: "mon_probe", hp: 10 };
+    registry.id = "mon_probe";
+    cdda_sim::monster_registry::set_monster_types(&mut world, &[registry]);
+    let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_probe").expect("the kind");
+    // A dissection list that shares nothing with the harvest, so which list was walked is visible.
+    cdda_sim::monster_registry::set_harvests(
+        &mut world,
+        &[(
+            kind,
+            vec![entry(HarvestEntry::Flesh, (40, 40))],
+            vec!["meat".to_owned()],
+        )],
+    );
+    cdda_sim::monster_registry::set_dissections(
+        &mut world,
+        &[(
+            kind,
+            vec![entry(HarvestEntry::Bone, (3, 3))],
+            vec!["bone".to_owned()],
+        )],
+    );
+    let corpse = body(&mut world);
+    world.entity_mut(corpse).insert(CorpseOf {
+        kind,
+        died_on: 0,
+        revives: false,
+        monster_volume_ml: 1_000,
+    });
+    // Which list the rule picks, and then the finish over it: the two halves of the reference's own line.
+    let (entries, names) = cdda_sim::monster_registry::list_for(&world, kind, ButcherAction::Dissect);
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    let mut rolls = Rolls::new(21);
+    let dropped = butcher_finish(
+        &mut world,
+        corpse,
+        HarvestTable {
+            entries: &entries,
+            ids: &names,
+            weight: 0.0,
+        },
+        ButcherFinish {
+            action: ButcherAction::Dissect,
+            ..finish()
+        },
+        ids,
+        |_| 1_000,
+        &mut rolls,
+    );
+    assert_eq!(
+        dropped,
+        vec![(BONE, 3)],
+        "**the dissection list is walked, not the harvest**: three bones, and no meat at all"
+    );
+
+    // **And a body with no dissection list is butchered the ordinary way**, which is the reference's `&&` and not a special case.
+    let mut plain = World::new();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut plain,
+        &[cdda_sim::monster_registry::MonsterKind { id: "mon_probe", hp: 10 }],
+    );
+    let bare = cdda_sim::monster_registry::id_of(&mut plain, "mon_probe").expect("the kind");
+    cdda_sim::monster_registry::set_harvests(
+        &mut plain,
+        &[(
+            bare,
+            vec![entry(HarvestEntry::Flesh, (40, 40))],
+            vec!["meat".to_owned()],
+        )],
+    );
+    let (fallback, names) = cdda_sim::monster_registry::list_for(&plain, bare, ButcherAction::Dissect);
+    assert_eq!(fallback.len(), 1, "one entry, the harvest's own");
+    assert_eq!(names, vec!["meat".to_owned()], "and its drop is the harvest's");
+}

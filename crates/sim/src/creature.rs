@@ -629,7 +629,8 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
     let Some(corpse_of) = world.get::<crate::CorpseOf>(corpse).copied() else {
         return;
     };
-    let (entries, ids) = crate::monster_registry::harvest_of(world, corpse_of.kind);
+    let action = world.get::<crate::Butchery>(corpse).map_or(crate::ButcherAction::Full, |work| work.action);
+    let (entries, ids) = crate::monster_registry::list_for(world, corpse_of.kind, action);
     if entries.is_empty() {
         return;
     }
@@ -644,7 +645,7 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         weight: crate::monster_registry::weight_of(world, corpse_of.kind) as f64,
     };
     let state = crate::ButcherFinish {
-        action: crate::ButcherAction::Full,
+        action,
         size: crate::monster_registry::size_of(world, corpse_of.kind),
         butchery: i32::from(skill_level(world, creature, "survival")),
         yield_multiplier: multiplier,
