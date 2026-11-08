@@ -892,3 +892,24 @@ fn a_limb_stops_counting_at_its_own_limit() {
         "**an arm at exactly its own limit no longer counts**: the comparison is strictly greater"
     );
 }
+
+/// A limb is only worth aiming at while **its share of its own hit points** is above the aim's limit.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1559-1560`): `( 100 * bp_hp_cur / bp_hp_max ) > vec->bp_hp_limit`. **The arithmetic is integer division**, so a limb at one tenth of its
+/// health is a percentage of exactly ten and a limit of ten refuses it - the boundary that a floating-point port would answer the other way round.
+#[test]
+fn a_limb_is_aimed_at_while_its_health_is_above_the_limit() {
+    use cdda_sim::martial_arts_vectors::health_above_limit;
+
+    assert!(health_above_limit(60, 60, 10), "a whole limb is at a hundred, above ten");
+    assert!(health_above_limit(7, 60, 10), "**seven of sixty truncates to eleven**, which is above ten");
+    assert!(!health_above_limit(6, 60, 10), "**six of sixty is exactly ten, which is not above ten**");
+    assert!(!health_above_limit(0, 60, 10), "and a ruined limb is at nothing");
+
+    // A limit of zero is satisfied by any limb still standing, which is what most aims state.
+    assert!(health_above_limit(1, 60, 0), "one hit point is above a limit of nothing");
+    // **A limit of a hundred refuses even a whole limb**, because the comparison is strictly greater: nothing is above full health.
+    assert!(!health_above_limit(60, 60, 100), "a whole limb is at exactly a hundred, which is not above a hundred");
+    assert!(health_above_limit(60, 60, 99), "and is above ninety-nine");
+    assert!(!health_above_limit(59, 60, 99), "while a limb one hit point down is at ninety-eight");
+}

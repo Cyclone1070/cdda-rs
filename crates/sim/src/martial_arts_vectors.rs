@@ -96,3 +96,15 @@ pub fn aims_available(
         i32::try_from(standing).unwrap_or(i32::MAX) >= need.count
     })
 }
+
+/// Whether a limb's share of its own hit points is above an aim's limit.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1559-1560`): `( 100 * bp_hp_cur / bp_hp_max ) > vec->bp_hp_limit`. **The division is integer and truncating**, which is why a limb at six of
+/// sixty is a percentage of ten and not ten-something, and a limit of ten refuses it. A limit of a hundred is satisfied only by a limb at full health.
+#[must_use]
+pub fn health_above_limit(current: i32, maximum: i32, limit: i32) -> bool {
+    if maximum <= 0 {
+        return false;
+    }
+    (100 * current / maximum) > limit
+}

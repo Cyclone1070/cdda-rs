@@ -16752,6 +16752,10 @@ is zero aims at nothing rather than at its first entry.
 counting towards a need for two. **The limit is the part's own**: `health_limit` is dumped with the part and loads as **one** when the data says nothing (`bodypart.cpp:414`), and the comparison is **strictly greater**, so an arm at
 its own limit no longer counts. Round 1392 closed the one-point difference round 1391 named.
 
+**And a limb is aimed at only while its share of its own health is above the aim's limit** (round 1393): `martial_arts_vectors::health_above_limit` is `choose_attack_vector`'s
+`( 100 * bp_hp_cur / bp_hp_max ) > vec->bp_hp_limit` (`martialarts.cpp:1559-1560`). **The division is integer and the comparison is strictly greater**, so a limb at six of sixty is a percentage of
+exactly ten and a limit of ten refuses it, and a limit of a hundred refuses even a whole limb.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

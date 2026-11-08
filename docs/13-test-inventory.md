@@ -1514,3 +1514,6 @@ mutation check turned the `>=` into a `>` and the boundary gate failed - a compa
 
 **Round 1392 closed the health-limit seam**: the anatomy dump carries `health_limit`, `encumbrance_limit` and `encumbrance_threshold`, the store keeps the limit on the part, and the count compares
 against it with the reference's strict `>`. The corpus states limits of one and five, so the gate walks an arm from six hit points down to five and watches it stop counting.
+
+**Round 1393 added the health-share filter**: integer division, then a strictly greater comparison. The fixture was wrong on its first run in the way this rule invites - it expected a limit of a
+hundred to be satisfied by a whole limb - and the mutation check turned the `>` into a `>=` and failed on the boundary both times.
