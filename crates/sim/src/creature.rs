@@ -654,6 +654,9 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         skinned: flags.0.iter().any(|flag| flag == "SKINNED"),
         field_dressed: flags.0.iter().any(|flag| flag == "FIELD_DRESS"),
         field_dress_failed: flags.0.iter().any(|flag| flag == "FIELD_DRESS_FAILED"),
+        butch_basic: practised_fraction(world, creature, "prof_butchering_basic"),
+        skin_basic: practised_fraction(world, creature, "prof_skinning_basic"),
+        skin_adv: practised_fraction(world, creature, "prof_skinning_adv"),
     };
     // The ids are resolved **before** the finish runs, because the rule takes the world mutably and a lookup cannot borrow it again. A drop the world holds no type for resolves to the default id and is
     // dropped as nothing rather than as some other item.
@@ -1169,6 +1172,26 @@ pub fn effective_dexterity(world: &World, entity: Entity) -> i32 {
     });
     // Reference: `Character::get_dex` is `std::max( 0, get_dex_base() + dex_bonus )` (`character.cpp:4390-4392`), and the bonus is where every worn effect's `DEX` modifier lands.
     (base + effect_stat_bonus(world, entity, "DEX")).max(0)
+}
+
+/// How far along one proficiency is, from zero to one: **one when it is known**, the fraction of its learning time practised otherwise, and zero for one never started.
+///
+/// Reference: `proficiency_set::pct_practiced` (`proficiency.cpp:473-484`) - the learned check comes first and answers one, and a proficiency that is not in the learning list at all answers zero.
+#[must_use]
+pub fn practised_fraction(world: &World, creature: Entity, proficiency: &str) -> f64 {
+    if crate::proficiencies::knows(world, creature, proficiency) {
+        return 1.0;
+    }
+    let practised = crate::proficiencies::practiced_seconds(world, creature, proficiency);
+    let Some(total) = crate::proficiencies::time_to_learn(world, proficiency) else {
+        return 0.0;
+    };
+    if total <= 0 {
+        return 0.0;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let fraction = practised as f64 / total as f64;
+    fraction.clamp(0.0, 1.0)
 }
 
 /// What the effects a creature is wearing add to one of its stats: `STR`, `DEX`, `PER` or `INT`.

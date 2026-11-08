@@ -1588,3 +1588,6 @@ The scenario then dropped from twenty cuts of tainted meat to five, because `but
 
 **Round 1413 ported the field-dressing flags.** A dressed body gives no offal and leaves its bones to a roll; a botched dressing also rolls the meat and the hide. The gate pins the bone roll's range and the
 missing offal, and putting the offal back is what the mutation does.
+
+**Round 1414 ported the proficiency penalties.** A hundred cuts of flesh become eighty-six without `butchering_basic`, and a hundred hides become twenty-eight without the two skinning proficiencies; a
+survivor who knows all three keeps every one. The gates that only wanted to see a harvest land now teach the survivor the job first, so each gate stays about one rule.

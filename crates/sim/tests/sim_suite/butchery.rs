@@ -278,6 +278,10 @@ fn a_finished_butchery_leaves_the_harvest_on_the_ground() {
     );
 
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // A survivor who **knows the job**, so the gate is about the harvest landing on the ground and not about how much of it a beginner loses; that has its own gate.
+    for proficiency in ["prof_butchering_basic", "prof_skinning_basic", "prof_skinning_adv"] {
+        cdda_sim::proficiencies::learn(&mut world, survivor, proficiency);
+    }
     let corpse = cdda_sim::drop_item(&mut world, (0, 0), corpse_kind, 1);
     world.entity_mut(corpse).insert(cdda_sim::CorpseOf {
         kind,
@@ -388,7 +392,10 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
             revives: false,
             monster_volume_ml: 1_000,
         });
-        // The multiplier is held at one so the gate is about the **damage** and not about the survivor's stats; the multiplier has its own gate.
+        // The multiplier is held at one and the proficiencies are known, so the gate is about the **damage** and not about the survivor's hands; both have their own gates.
+        for proficiency in ["prof_butchering_basic", "prof_skinning_basic", "prof_skinning_adv"] {
+            cdda_sim::proficiencies::learn(&mut world, survivor, proficiency);
+        }
         cdda_sim::creature::finish_butchering_with(&mut world, survivor, corpse, 1.0);
         world
             .query::<&cdda_sim::GroundItem>()

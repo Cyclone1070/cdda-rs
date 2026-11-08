@@ -16798,6 +16798,12 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**The proficiencies take their share before anything else does** (round 1414): `after_the_proficiencies` is the reference's four divisions at `butchery.cpp:725-738` - flesh and offal divide by
+`1 + 0.15 ( 1 - butch_basic )`, and the hide divides by `1 + 2 ( 1 - skin_basic )` and then by `1 + 0.15 ( 1 - skin_adv )`, each a truncated integer division. The three figures are `pct_practiced`, ported as
+`creature::practised_fraction`: **one when the proficiency is known**, the fraction of its learning time practised otherwise, zero for one never started (`proficiency.cpp:473-484`). Bone and blood are untouched.
+So a beginner loses a seventh of the meat and two thirds of the hide, and a survivor who knows all three loses nothing - which is exactly what the reference does, and the port had been giving everyone a master's
+yield.
+
 **A body already field dressed is not butchered the way it was** (round 1413): `after_a_field_dressing` is the reference's block that runs *before* the action's own (`butchery.cpp:792-812`). A body carrying
 `FIELD_DRESS` keeps **no offal**, and its bone becomes `roll / 2 + rng( roll / 2, roll )` - between three quarters and all of it, so the port's plain halving was wrong. A body carrying
 `FIELD_DRESS_FAILED` also rolls its **flesh and hide** down to `rng( 0, roll )`. Both flags are read off the corpse item's own `ItemFlags`, and the dice are the finish's own rolls.

@@ -47,6 +47,10 @@ fn finish() -> ButcherFinish {
         skinned: false,
         field_dressed: false,
         field_dress_failed: false,
+        // Nothing known, which is the survivor a fresh game starts as and the worst case the reference allows.
+        butch_basic: 1.0,
+        skin_basic: 1.0,
+        skin_adv: 1.0,
     }
 }
 
@@ -455,4 +459,72 @@ fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
         dropped.iter().any(|(kind, count)| *kind == MEAT && *count == 40),
         "while the flesh is untouched - only a **botched** dressing rolls that: {dropped:?}"
     );
+}
+
+/// **A butcher without the proficiencies gets less of everything, by the reference's own percentages.**
+///
+/// Reference: `butchery.cpp:725-738`, the four lines before the action's block -
+///
+/// ```text
+/// flesh or offal:  roll /= 1 + 0.15 * ( 1 - butch_basic )
+/// skin:            roll /= 1 + 2.00 * ( 1 - skin_basic )
+///                  roll /= 1 + 0.15 * ( 1 - skin_adv )
+/// ```
+///
+/// where each figure is `pct_practiced`, which is **one when the proficiency is learned** and the fraction of its learning time practised otherwise (`proficiency.cpp:473-484`). So a survivor who knows
+/// nothing loses a seventh of the flesh - `100 / 1.15` is eighty-seven - and a survivor who knows everything loses nothing.
+#[test]
+fn a_butcher_without_the_proficiencies_loses_a_share_of_everything() {
+    let harvest = |butch_basic: f64, skin_basic: f64, skin_adv: f64| {
+        let mut world = World::new();
+        let corpse = body(&mut world);
+        let entries = [
+            entry(HarvestEntry::Flesh, (100, 100)),
+            entry(HarvestEntry::Skin, (100, 100)),
+            entry(HarvestEntry::Bone, (100, 100)),
+        ];
+        let mut rolls = Rolls::new(5);
+        butcher_finish(
+            &mut world,
+            corpse,
+            HarvestTable {
+                entries: &entries,
+                ids: &["meat", "skin", "bone"],
+                weight: 0.0,
+            },
+            ButcherFinish {
+                butch_basic,
+                skin_basic,
+                skin_adv,
+                ..finish()
+            },
+            ids,
+            |_| 1_000,
+            &mut rolls,
+        )
+    };
+
+    let nothing = harvest(0.0, 0.0, 0.0);
+    let count = |dropped: &[(ItemTypeId, i32)], kind: ItemTypeId| {
+        dropped.iter().find(|(each, _)| *each == kind).map_or(0, |(_, count)| *count)
+    };
+    assert_eq!(
+        count(&nothing, MEAT),
+        86,
+        "**a hundred cuts of flesh become eighty-six**: `100 / 1.15` is 86.9, and the reference truncates"
+    );
+    assert_eq!(
+        count(&nothing, SKIN),
+        28,
+        "and a hundred hides become twenty-eight: `100 / 3` is thirty-three and `33 / 1.15` is twenty-eight, truncated"
+    );
+    assert_eq!(
+        count(&nothing, BONE),
+        100,
+        "while the bones are untouched, which is the reference's asymmetry"
+    );
+
+    let everything = harvest(1.0, 1.0, 1.0);
+    assert_eq!(count(&everything, MEAT), 100, "**a survivor who knows it all loses nothing**");
+    assert_eq!(count(&everything, SKIN), 100, "not even the hide");
 }

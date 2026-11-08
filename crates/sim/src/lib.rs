@@ -7933,6 +7933,35 @@ pub fn after_the_action(entry: &HarvestSpec, count: i32, state: &ButcherFinish) 
     }
 }
 
+/// What one entry gives once the butcher's **proficiencies** have had their say, which is less than the roll.
+///
+/// Reference: `butchery.cpp:725-738`, four divisions, each a truncated integer division as C++ does it:
+///
+/// ```text
+/// flesh or offal:  roll /= 1 + 0.15 * ( 1 - butch_basic )
+/// skin:            roll /= 1 + 2.00 * ( 1 - skin_basic )
+///                  roll /= 1 + 0.15 * ( 1 - skin_adv )
+/// ```
+///
+/// Each figure is `pct_practiced`: **one when the proficiency is learned**, the fraction of its learning time practised otherwise, zero for one never started (`proficiency.cpp:473-484`). So the worst
+/// case is a seventh off the flesh and two thirds off the hide, and a survivor who knows all three loses nothing at all. Bone and blood are not touched.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn after_the_proficiencies(entry: &HarvestSpec, count: i32, state: &ButcherFinish) -> i32 {
+    let penalty_small = 0.15;
+    let penalty_big = 2.0;
+    let divide = |count: i32, by: f64| -> i32 { (f64::from(count) / by) as i32 };
+    let part = entry.part;
+    if matches!(part, Some(HarvestEntry::Flesh | HarvestEntry::Offal)) {
+        return divide(count, 1.0 + penalty_small * (1.0 - state.butch_basic));
+    }
+    if part == Some(HarvestEntry::Skin) {
+        let once = divide(count, 1.0 + penalty_big * (1.0 - state.skin_basic));
+        return divide(once, 1.0 + penalty_small * (1.0 - state.skin_adv));
+    }
+    count
+}
+
 /// What one entry gives once the body's **field dressing** has had its say.
 ///
 /// Reference: `butchery.cpp:792-812`, two blocks that both run only for a full or a quick job:
@@ -8150,6 +8179,12 @@ pub struct ButcherFinish {
     pub field_dressed: bool,
     /// Whether the field dressing was botched, which rolls the flesh and the hide down as well (`butchery.cpp:801-812`).
     pub field_dress_failed: bool,
+    /// How far along the **butchering** proficiency is, from zero to one, as `pct_practiced` answers.
+    pub butch_basic: f64,
+    /// How far along the **skinning** proficiency is, from zero to one.
+    pub skin_basic: f64,
+    /// How far along the **advanced skinning** proficiency is, from zero to one.
+    pub skin_adv: f64,
     /// How badly the corpse was damaged.
     pub damage: CorpseDamage,
     /// Whether the body was smashed apart before it was cut up.
@@ -8191,6 +8226,8 @@ pub fn butcher_finish(
             state.skinned,
             draw,
         );
+        // Reference: the proficiencies take their share **before** the field dressing and before the action (`butchery.cpp:725-738`).
+        let count = after_the_proficiencies(entry, count, &state);
         // Reference: a body that has already been field dressed - or dressed badly - is handled **before** the action's own block (`butchery.cpp:792-812`).
         let mut between = |low: i32, high: i32| -> i32 {
             if high <= low {
