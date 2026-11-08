@@ -1488,3 +1488,6 @@ move and a critical-only one, and the mutation check removed the criticality ref
 
 **Round 1384 loaded the styles into the store**: a `StyleTable` component with the corpus's 38 styles, `learn_style` refusing an id the data never defined, and a gate that learns aikido from the dump
 and asks the store for a move. The mutation check let an unknown style install itself empty, and the gate's second half failed - which is the confusion the refusal exists to prevent.
+
+**Round 1385 put the pick in the swing**: the blow asks its striker's style first and leaves the move on the striker as `LastMove`. The first wiring drew a roll even for a fighter with no style,
+which moved `a_swing_at_a_body_never_crits` and one sim gate by one draw each - the same class of defect the shot's weak-point draw exposed, and the same fix: **draw only when the reference would**.

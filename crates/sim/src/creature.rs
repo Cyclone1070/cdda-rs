@@ -2933,6 +2933,29 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     // The stance the swing is made in: the same one the stamina rule reads, so a blow from the floor costs more moves **and** more wind.
     let cost = crate::melee::attack_speed(weapon_time / 2, skill, dexterity, stamina, stance);
     spend_moves(world, holder, f64::from(cost));
+    // Reference: `Character::melee_attack` picks a technique **before** it strikes (`melee.cpp:754`), and the move travels with the blow. The port asks the style here and leaves the answer on the
+    // striker, because the blow is a function call rather than a struct that could carry it.
+    {
+        // **A fighter with no style draws nothing**, which is the reference's own `random_entry` over an empty list: it answers the default without touching the dice. Drawing anyway would
+        // shift every later roll for a blow that could not have made a move.
+        let chosen = if world.get::<crate::martial_arts::Practising>(holder).is_some() {
+            let moment = crate::martial_arts::Moment::ordinary();
+            let roll = match crate::singletons::take_rolls(world) {
+                Some(mut dice) => {
+                    let roll = dice.rng_float(0.0, 1.0);
+                    crate::singletons::put_rolls(world, dice);
+                    roll
+                }
+                None => 0.0,
+            };
+            crate::martial_arts::pick_for(world, holder, victim, &moment, roll)
+        } else {
+            None
+        };
+        world
+            .entity_mut(holder)
+            .insert(crate::martial_arts::LastMove(chosen));
+    }
     let crit_inputs = crit_inputs_of(world, holder);
     // Reference: the attacker's half of a weak point is `generic_weakpoint_skill` - the weapon's skill and melee averaged, the stat bonus, and the vision and reaction figures as a multiplier
     // (`weakpoint.cpp:82-90`) - which a monster answers with its melee skill alone (`monster.cpp:76-79`).

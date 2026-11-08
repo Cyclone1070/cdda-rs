@@ -438,3 +438,90 @@ fn a_style_is_learned_from_the_data() {
         "and the fighter still knows the style it had"
     );
 }
+
+/// The swing asks the style, and the move it made is left where a turn can see it.
+///
+/// Reference: `Character::melee_attack` picks a technique before it strikes (`melee.cpp:754`: `attack = pick_technique( t, cur_weapon, critical_hit, false, false )`) and the chosen move travels
+/// with that blow. The port's blow is a function call rather than a struct, so the move it chose is **left on the striker** as a component - a store fact a turn, a test or a UI can read, which is
+/// the same reason every other derived answer in this port is a component rather than a return value nobody keeps.
+#[test]
+fn the_swing_asks_the_style_and_leaves_the_move_it_made() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::martial_arts::{Practising, Style, Technique, TechniqueFlags, Requirement, LastMove};
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 50,
+            weight_g: 657,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 20.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 40,
+        }],
+    );
+    let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock");
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert((
+        cdda_sim::creature::Dexterity { base: 12 },
+        cdda_sim::creature::Perception { base: 12 },
+        cdda_sim::creature::Moves { left: 400 },
+        cdda_sim::creature::Wielding(kind),
+    ));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert((
+        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
+        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+    ));
+
+    // A fighter with no style leaves no move behind, which is the plain blow.
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert_eq!(
+        world.get::<LastMove>(survivor).and_then(|last| last.0.clone()),
+        None,
+        "**a fighter with no style makes no move**"
+    );
+
+    // A style with one move that can never be refused: the swing should leave it behind.
+    let flags = TechniqueFlags {
+        weighting: 1,
+        dummy: false,
+        defensive: false,
+        crit_tec: false,
+        crit_ok: true,
+        reach_tec: false,
+        reach_ok: false,
+        dodge_counter: false,
+        block_counter: false,
+        needs_ammo: false,
+        disarms: false,
+        take_weapon: false,
+    };
+    world.entity_mut(survivor).insert(Practising {
+        style: Style {
+            id: "style_test".to_owned(),
+            techniques: vec![Technique {
+                id: "tec_always".to_owned(),
+                requirement: Requirement {
+                    unarmed_allowed: true,
+                    melee_allowed: true,
+                    strictly_unarmed: false,
+                    wall_adjacent: false,
+                    weapon_categories: Vec::new(),
+                },
+                flags,
+            }],
+        },
+    });
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert_eq!(
+        world.get::<LastMove>(survivor).and_then(|last| last.0.clone()).as_deref(),
+        Some("tec_always"),
+        "**and a fighter with a style leaves the move it made**"
+    );
+}

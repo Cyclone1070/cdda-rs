@@ -16721,6 +16721,10 @@ component read rather than a table.
 behind it, and `from_content` copies each move's requirement and flags into the fight's own types. **The refusal is the point**: a fighter given an empty style and a fighter with none would
 otherwise answer nothing for the wrong reason.
 
+**The swing asks the style, and leaves the move it made** (round 1385): `creature::swing_what_the_character_holds` picks before it strikes (`melee.cpp:754`) and writes the answer to
+`martial_arts::LastMove` on the striker, because the port's blow is a function rather than a struct that could carry it. **A fighter with no style draws nothing** - the reference's `random_entry` over
+an empty list answers the default without touching the dice - and the first version of the wiring drew anyway, which shifted two pinned fixtures by one roll each.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

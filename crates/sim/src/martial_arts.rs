@@ -423,3 +423,10 @@ pub fn learn_style(
     world.entity_mut(creature).insert(Practising { style });
     true
 }
+
+/// The move a striker made on its last blow, or nothing when it made the plain one.
+///
+/// Reference: `Character::melee_attack` carries the chosen technique with the blow it applies to (`melee.cpp:754`). The port's blow is a function rather than a struct, so the choice is **left on the
+/// striker** where a turn, a test or a UI can read it - the same reason every other answer in this port is a component rather than a return value nobody keeps.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
+pub struct LastMove(pub Option<String>);
