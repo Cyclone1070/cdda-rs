@@ -44,6 +44,11 @@ fn a_bigger_body_takes_longer_to_cut() {
 
 /// The tool's quality takes a percentage off, and **the floor is a quarter of the time rather than none of it**.
 ///
+/// **A transcription lock, not a recording.** The reference scales by `max( 25, 100 - factor )` where the factor is a tool's *quality* — a small number, one to five in the content — so the floor of
+/// twenty-five percent cannot be reached by any real knife and no corpse the reference can be handed reaches the two action floors either. The recorded table (`every_recorded_corpse_takes_the_reference_s_time_to_cut`)
+/// therefore says nothing about the three clamps, which is why they are pinned here against the source's own arithmetic instead: a mutation of the quartering floor passes every recorded row and fails
+/// this test.
+///
 /// Reference: `butchery.cpp:412-413` - `time_to_cut *= std::max( 25, 100 - factor )`, whose own comment says "at factor 50 it's 50, at factor 75 it's 25". A blade past quality seventy-five buys
 /// nothing more, which is why a master's knife does not make a huge corpse free.
 #[test]
@@ -137,4 +142,77 @@ fn helpers_shorten_the_work_and_an_instant_bleed_takes_a_move() {
     let mut bleeding = state(CreatureSize::Medium, ButcherAction::Bleed);
     bleeding.instant_bleed = true;
     assert_eq!(butcher_time_to_cut(bleeding), 1, "a butcher who bleeds instantly needs a single move");
+}
+
+/// **Every recorded corpse takes the time the reference takes to cut it up**, over sizes, actions, corpse flags and quality factors.
+///
+/// The reference's `butcher_time_to_cut` (`butchery.cpp:382-487`) was transcribed into the port long before there was a recording of it, which is exactly the kind of rule that drifts: the order of the
+/// multiplications decides the number. `corpus/prototypes/butchery.json` is `--dump-butchery`: five bodies, one per size class, in four flag states, for all eight actions.
+#[test]
+fn every_recorded_corpse_takes_the_reference_s_time_to_cut() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/butchery.json");
+    let text = std::fs::read_to_string(path).expect("the butchery recording");
+    let recorded = cdda_json::parse(text.as_bytes()).expect("the recording parses");
+    let cdda_json::Value::Object(top) = &recorded else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(rows)) = top.get("rows") else {
+        panic!("the recording has rows");
+    };
+    let mut seen = 0;
+    for row in rows {
+        let cdda_json::Value::Object(object) = row else {
+            panic!("a row is an object");
+        };
+        let word = |member: &str| match object.get(member) {
+            Some(cdda_json::Value::Str(text)) => text.as_str(),
+            _ => panic!("a row states {member}"),
+        };
+        let size = match word("size") {
+            "tiny" => CreatureSize::Tiny,
+            "small" => CreatureSize::Small,
+            "medium" => CreatureSize::Medium,
+            "large" => CreatureSize::Large,
+            "huge" => CreatureSize::Huge,
+            other => panic!("a size the port does not know: {other}"),
+        };
+        let action = match word("action") {
+            "BLEED" => ButcherAction::Bleed,
+            "QUICK" => ButcherAction::Quick,
+            "FULL" => ButcherAction::Full,
+            "FIELD_DRESS" => ButcherAction::FieldDress,
+            "SKIN" => ButcherAction::Skin,
+            "QUARTER" => ButcherAction::Quarter,
+            "DISMEMBER" => ButcherAction::Dismember,
+            "DISSECT" => ButcherAction::Dissect,
+            other => panic!("an action the port does not know: {other}"),
+        };
+        let mut corpse = state(size, action);
+        match word("state") {
+            "plain" => {}
+            "field_dressed" => corpse.field_dressed = true,
+            "field_dress_failed" => {
+                corpse.field_dressed = true;
+                corpse.field_dress_failed = true;
+            }
+            "quartered" => corpse.quartered = true,
+            other => panic!("a state the port does not know: {other}"),
+        }
+        let mine = butcher_time_to_cut(corpse);
+        let Some(cdda_json::Value::Int(reference)) = object.get("moves") else {
+            panic!("a row states its moves");
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        let reference = *reference as i32;
+        assert_eq!(
+            mine,
+            reference,
+            "{} / {} / {}: port {mine}, reference {reference}",
+            word("monster"),
+            word("state"),
+            word("action"),
+        );
+        seen += 1;
+    }
+    assert_eq!(seen, 160, "**every recorded row is compared**, not a sample");
 }

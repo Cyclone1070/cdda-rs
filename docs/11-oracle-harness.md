@@ -64,6 +64,7 @@ one to write - a single call to that builder with the same id - before any dump 
 | `--dump-env <file>` | RNG position, calendar, and the options the simulation reads | Environment gate: needs an explicit `--seed` |
 | `--dump-prototype-digest <file>` | Sorted digest of every loaded prototype | Content gate |
 | `--dump-system-trace <file>` | Per-system fingerprints inside one turn | Localising a divergence |
+| `--dump-butchery <file>` | How long each butchery action takes on each size of corpse, in four flag states | The butchery clock's parity gate |
 
 Plus one build-level addition: **coverage instrumentation** (clang source-based
 coverage, the project already builds with clang in CI) so the harness can report

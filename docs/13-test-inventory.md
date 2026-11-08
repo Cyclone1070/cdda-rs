@@ -1563,3 +1563,6 @@ ported and wired. A gap list is a work queue, and a queue that lies wastes the n
 
 **Round 1405 closed `practice_dissect` and found the reference's own comment lying about it.** The split into two fifteen-minute calls blames a 1000-second cap that no caller in this baseline arms, so the
 two halves add up to the same half hour - the port makes both calls because the reference does, not because the arithmetic needs it.
+
+**Round 1406 put a recording under a rule that had been transcribed by hand**, and the transcription was right on all 160 rows. The round's real lesson is narrower: the recording could not have proved
+the three clamps, because no real tool quality reaches them, so the gate says what it does not cover and the clamps stay pinned by a test that names itself a transcription lock.

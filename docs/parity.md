@@ -16798,6 +16798,12 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**The butchery clock is now recorded, and it was already right** (round 1406): `--dump-butchery` writes `butcher_time_to_cut` (`butchery.cpp:382-487`) for five bodies - one per size class - in
+four flag states for all eight actions, and `sim_suite::butchery::every_recorded_corpse_takes_the_reference_s_time_to_cut` compares **all 160 rows**. The rule had been transcribed by hand a thousand rounds
+earlier and agreed with the reference on every one, including where the integer divisions truncate. **The recording cannot reach the three clamps**: the quality factor is a tool's quality, one to five in
+the content, so `max( 25, 100 - factor )` and the quartering and dismembering floors are unreachable from real data - they stay pinned by transcription tests, which say so in their own doc comments, and a
+mutation of the quartering floor passes every recorded row and fails those.
+
 **Dissecting teaches half an hour in two halves, and the reference's reason for the split is stale** (round 1405): `weakpoint_families::practice_dissect` (`weakpoint.cpp:157-168`) is two fifteen-minute
 practices ORed together, and its comment blames a **1000-second cap** on proficiency practice. That cap is not in this baseline - `Character::practice_proficiency` (`character_proficiency.cpp:71-92`) only
 forwards a `max` that no caller arms, and `proficiency_set::practice` (`proficiency.cpp:318-320`) merely refuses when the practised time is already past it. The port keeps the two calls because the

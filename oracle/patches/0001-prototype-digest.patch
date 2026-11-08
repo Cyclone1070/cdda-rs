@@ -358,10 +358,11 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-08 23:21:44
-@@ -0,0 +1,7679 @@
++++ oracle/src/src/harness.cpp	2026-11-09 01:57:19
+@@ -0,0 +1,7745 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
++#include "butchery.h"
 +#include "flag.h"
 +#include "martialarts.h"
 +
@@ -370,6 +371,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "weather_gen.h"
 +
 +#include "dependency_tree.h"
++#include "item.h"
 +#include "map.h"
 +#include "bionics.h"
 +#include "stomach.h"
@@ -7254,6 +7256,70 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++/// How long each kind of butchery takes on each size of corpse, exactly as the reference works it out.
++///
++/// `butcher_time_to_cut` (`butchery.cpp:383-...`) is a table of base times by **creature size**, scaled by the tool's quality, then by the action's own multiplier and clamps, then by the corpse's
++/// flags and by what the butcher has practised. The port has to reproduce that arithmetic - the divisions truncate, the clamps are floors, and the order decides both - so this dump is the table the port
++/// is held to, one row per size, action and flag state, with the quality factor recorded so the port's own term can be checked against a row that is not zero.
++void dump_butchery( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"butchery\",\"version\":1,\n\"rows\":[\n" );
++    avatar &u = get_avatar();
++    const std::pair<const char *, const char *> corpses[] = {
++        { "mon_chicken", "tiny" },
++        { "mon_turkey", "small" },
++        { "mon_zombie", "medium" },
++        { "mon_bear", "large" },
++        { "mon_fungal_wall", "huge" },
++    };
++    const std::pair<butcher_type, const char *> actions[] = {
++        { butcher_type::BLEED, "BLEED" },
++        { butcher_type::QUICK, "QUICK" },
++        { butcher_type::FULL, "FULL" },
++        { butcher_type::FIELD_DRESS, "FIELD_DRESS" },
++        { butcher_type::SKIN, "SKIN" },
++        { butcher_type::QUARTER, "QUARTER" },
++        { butcher_type::DISMEMBER, "DISMEMBER" },
++        { butcher_type::DISSECT, "DISSECT" },
++    };
++    // The flags the rule reads, as states rather than as a combination: a plain corpse, one already field dressed, one whose field dressing failed, and one already quartered.
++    const std::pair<const char *, std::vector<flag_id>> states[] = {
++        { "plain", {} },
++        { "field_dressed", { flag_FIELD_DRESS } },
++        { "field_dress_failed", { flag_FIELD_DRESS, flag_FIELD_DRESS_FAILED } },
++        { "quartered", { flag_QUARTERED } },
++    };
++    bool first = true;
++    for( const std::pair<const char *, const char *> &corpse : corpses ) {
++        const mtype_id type( corpse.first );
++        if( !type.is_valid() ) {
++            std::fprintf( stderr, "harness: no monster %s\n", corpse.first );
++            continue;
++        }
++        for( const std::pair<const char *, std::vector<flag_id>> &state : states ) {
++            item body = item::make_corpse( type );
++            for( const flag_id &flag : state.second ) {
++                body.set_flag( flag );
++            }
++            for( const std::pair<butcher_type, const char *> &action : actions ) {
++                const int moves = butcher_time_to_cut( u, body, action.first );
++                std::fprintf( out,
++                              "%s\n{\"monster\":\"%s\",\"size\":\"%s\",\"state\":\"%s\",\"action\":\"%s\","
++                              "\"moves\":%d}",
++                              first ? "" : ",", corpse.first, corpse.second, state.first, action.second, moves );
++                first = false;
++            }
++        }
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +/// What every spell's numbers are, as the reference resolved them.
 +///
 +/// `spell_type` holds most of its numbers as `dbl_or_var`, which is either a constant or a dice/arithmetic
@@ -8041,8 +8107,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-08 00:54:24
-@@ -0,0 +1,423 @@
++++ oracle/src/src/harness.h	2026-11-09 01:57:13
+@@ -0,0 +1,424 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8358,6 +8424,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_monsters( const std::string &path );
 +void dump_anatomy( const std::string &path );
 +void dump_weakpoint_chance( const std::string &path );
++void dump_butchery( const std::string &path );
 +void dump_weakpoint_sets( const std::string &path );
 +void dump_spells( const std::string &path );
 +
@@ -8640,7 +8707,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-08 00:54:24
++++ oracle/src/src/main.cpp	2026-11-09 02:10:37
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -8651,7 +8718,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,166 @@
+@@ -272,6 +275,167 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -8670,6 +8737,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    // Harness: anatomies and the body part numbers a hit location is chosen from.
 +    std::string dump_anatomy;
 +    std::string dump_weakpoint_chance;
++    std::string dump_butchery;
 +    std::string dump_weakpoint_sets;
 +    // Harness: every spell's numbers.
 +    std::string dump_spells;
@@ -8818,7 +8886,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +463,1430 @@
+@@ -300,6 +464,1440 @@
                  }
              },
              {
@@ -8848,6 +8916,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_weakpoint_chance = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-butchery", "<file>",
++                "Writes how long each butchery action takes on each size of corpse, with the flags that change it",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_butchery = params[0];
 +                    return 1;
 +                }
 +            },
@@ -10249,7 +10327,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2373,780 @@
+@@ -786,6 +2384,788 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -10931,6 +11009,14 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            // The measures are what the **rules** make of the data, so the data has to be there first - the same check the prototype dumps make.
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_item_measures( cli.dump_item_measures );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_butchery.empty() ) {
++            // The rule reads a corpse item and the monster type behind it, so the data has to be there first - the same check every prototype dump makes, and the reason this dump sat in the
++            // pre-load block for one build and recorded nothing at all.
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_butchery( cli.dump_butchery );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_items.empty() ) {
