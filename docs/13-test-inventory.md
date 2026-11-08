@@ -1508,3 +1508,6 @@ printer for `body_part_type::type`, which the reference keeps as an enum with no
 
 **Round 1390 added the weighted aim**: a share of the total weight rather than a rank, the `>=` boundary that keeps a draw on the earlier aim, and the zero-weight list that aims at nothing. The
 mutation check turned the `>=` into a `>` and the boundary gate failed - a comparison that looks like a style choice is a behaviour here.
+
+**Round 1391 joined the limb rule to the body**: a part's kind and its wounds now answer a move's `limb_req`, and the gate ruins an arm and watches the two-arm aim disappear. The reference's
+`health_limit` is not in the dump yet, so a limb at exactly one hit point is counted here and refused there - recorded in the parity ledger rather than smoothed over.

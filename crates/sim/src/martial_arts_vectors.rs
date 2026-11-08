@@ -1,7 +1,5 @@
 //! What a move aims at.
 
-use bevy_ecs::prelude::*;
-
 /// One limb of the striker, as far as a move's needs are concerned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LimbState {
@@ -68,4 +66,32 @@ pub fn weighted_pick(aims: &[WeightedAim], fraction: f64) -> Option<String> {
         }
     }
     chosen.map(|aim| aim.id.clone())
+}
+
+/// Whether the striker's body can meet every limb need of an aim.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1495-1515`): each `limb_req` counts the user's parts of that kind whose hit points are above the part's health limit, and the aim is discarded
+/// when the count falls short. The port reads a part's kind from its `primary_limb_type` and its health as **the hit points a wound has left**.
+///
+/// **One named difference**: the reference's per-part `health_limit` defaults to `1` (`bodypart.cpp:414`) and the port does not load it, so a limb at exactly one hit point is refused by the
+/// reference and counted here. That is a one-point difference, named in `docs/parity.md`, and it closes when the dump carries the limit.
+#[must_use]
+pub fn aims_available(
+    world: &bevy_ecs::prelude::World,
+    striker: bevy_ecs::prelude::Entity,
+    needs: &[VectorNeed],
+) -> bool {
+    let Some(body) = world.get::<crate::creature::Body>(striker) else {
+        // A body the port has not built has no limbs to count, which is the honest answer: a creature with no anatomy cannot claim to have two arms.
+        return needs.is_empty();
+    };
+    needs.iter().all(|need| {
+        let standing = body
+            .parts
+            .iter()
+            .filter(|part| part.primary_limb_type.as_deref() == Some(need.kind.as_str()))
+            .filter(|part| part.base_hp - crate::creature::wound_on(world, striker, &part.name) > 0)
+            .count();
+        i32::try_from(standing).unwrap_or(i32::MAX) >= need.count
+    })
 }

@@ -23,6 +23,11 @@ pub struct BodyPart {
     pub limb_scores: Vec<(String, f32, f32)>,
     /// How much health the part has (`base_hp`), which a wound is measured against.
     pub base_hp: i32,
+    /// The limb kind it mostly is (`primary_limb_type`), which is what a move's `limb_req` names.
+    ///
+    /// The reference caches this from the heaviest of a part's `limb_types` (`bodypart.cpp:359-370`); the port keeps the cached answer rather than the weights, because the only rules that ask are
+    /// asking **which kind** a limb is, never how much of each.
+    pub primary_limb_type: Option<String>,
 }
 
 /// Picks one entry of a weighted list, given a draw.

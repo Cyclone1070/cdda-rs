@@ -782,3 +782,63 @@ fn aims_are_picked_by_their_share_of_the_weight() {
     assert_eq!(weighted_pick(&weightless, 0.5), None, "**a list of weightless aims aims at nothing**");
     assert_eq!(weighted_pick(&[], 0.5), None, "and neither does an empty one");
 }
+
+/// The store answers which of a move's aims the striker can actually take, from its own body.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1495-1515`): an aim whose `limb_req` is not met is **discarded before it is ever weighted**, so a move that needs two arms has no aim at all
+/// for a fighter with one. The body's own answer is what decides it: the port reads its parts' kinds and their wounds and asks the same question.
+#[test]
+fn the_store_answers_which_aims_a_striker_can_take() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::martial_arts_vectors::{VectorNeed, aims_available};
+
+    let mut world = World::new();
+    let fighter = cdda_sim::creature::spawn_creature(&mut world, "the fighter", (0, 0, 0));
+    let part = |name: &str, kind: &str| cdda_sim::hit_location::BodyPart {
+        name: name.to_owned(),
+        hit_size: 1.0,
+        hit_difficulty: 1.0,
+        upper: false,
+        lower: false,
+        limb_scores: Vec::new(),
+        base_hp: 100,
+        primary_limb_type: Some(kind.to_owned()),
+    };
+    world.entity_mut(fighter).insert(cdda_sim::creature::Body {
+        parts: vec![part("arm_l", "arm"), part("arm_r", "arm"), part("leg_l", "leg")],
+    });
+
+    let needs_two_arms = VectorNeed {
+        kind: "arm".to_owned(),
+        count: 2,
+    };
+    let needs_one_arm = VectorNeed {
+        kind: "arm".to_owned(),
+        count: 1,
+    };
+    let needs_two_legs = VectorNeed {
+        kind: "leg".to_owned(),
+        count: 2,
+    };
+    assert!(
+        aims_available(&world, fighter, &[needs_two_arms.clone()]),
+        "**two whole arms satisfy a need for two**"
+    );
+    assert!(
+        !aims_available(&world, fighter, &[needs_two_legs]),
+        "and one leg does not satisfy a need for two"
+    );
+
+    // A wound past the part's hit points ruins the arm, and the aim goes with it.
+    world.entity_mut(fighter).insert(cdda_sim::creature::Wounds(
+        [("arm_r".to_owned(), 100)].into_iter().collect(),
+    ));
+    assert!(
+        !aims_available(&world, fighter, &[needs_two_arms]),
+        "**a ruined arm no longer counts towards a need for two**"
+    );
+    assert!(
+        aims_available(&world, fighter, &[needs_one_arm]),
+        "but the whole one still satisfies a need for one"
+    );
+}

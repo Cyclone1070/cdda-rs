@@ -16747,6 +16747,11 @@ vector, and the kinds the data names are the body's own eleven.
 draw is **a share of the total weight**, the walk stops at the first accumulated weight **`>=`** the draw, so **a draw exactly on a boundary stays with the earlier aim**, and a list whose total weight
 is zero aims at nothing rather than at its first entry.
 
+**And the store answers which aims a striker can take** (round 1391): a body part now carries the limb kind it mostly is (`primary_limb_type`, `bodypart.cpp:359-370`), and
+`martial_arts_vectors::aims_available` is `choose_attack_vector`'s `limb_req` check against the store's own body: a part counts while **the hit points a wound left** are above zero, so a ruined arm stops
+counting towards a need for two. **One named one-point difference**: the reference's per-part `health_limit` defaults to `1` (`bodypart.cpp:414`) and the port does not load it, so a limb at exactly
+one hit point is refused by the reference and counted here; the difference closes when the dump carries the limit.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

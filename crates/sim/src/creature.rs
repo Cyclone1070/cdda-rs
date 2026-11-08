@@ -379,6 +379,7 @@ pub fn body_named(
             // for a reason that has nothing to do with the rule.
             limb_scores: found.limb_scores.clone(),
             base_hp: found.base_hp,
+            primary_limb_type: found.primary_limb_type.clone(),
         });
     }
     Some(Body { parts: built })
@@ -2994,7 +2995,7 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
                     .map(|technique| technique.movement.clone())
             });
         if let Some(movement) = movement {
-            crate::martial_arts::apply_move(world, victim, &movement, damage);
+            drop(crate::martial_arts::apply_move(world, victim, &movement, damage));
         }
     }
     // Reference: `monster::deal_damage`'s last line before the enchantments - `type->families.practice_hit( *attacker )` (`monster.cpp:3888-3892`) - which teaches the attacker what the body it
