@@ -311,3 +311,91 @@ fn a_finished_butchery_leaves_the_harvest_on_the_ground() {
         "**eight to twelve cuts of meat are on the ground**, the entry's own range: {dropped}"
     );
 }
+
+/// **A pulped corpse gives half the flesh a fresh one does.** The damage the body took before it died is what the finish reads, and the port had it reading nothing.
+///
+/// Reference: `corpse_damage_effect` (`butchery.cpp:492-561`) halves a pulped body's flesh, three-quarters a mangled one, and nine-tenths a damaged one; the level is the **corpse item's own**
+/// `damage_level()`, which `itype::damage_level` computes from `damage_ / max_damage`.
+///
+/// **The entry is a share of the body's weight and not a count**, because a count entry's floor is applied *after* the damage: `roll = max( corpse_damage_effect( roll, ... ), base_num.first )`
+/// (`butchery.cpp:705-708`), so a body whose entry promises eight cuts gives eight however mangled it is. A bulk entry has no such floor, which is why the difference is visible here and nowhere else.
+#[test]
+fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
+    let butchered = |damage: i32| {
+        let mut world = bevy_ecs::prelude::World::new();
+        cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(11));
+        cdda_sim::item_registry::set_item_types(
+            &mut world,
+            &[cdda_sim::item_registry::Kind {
+                id: "corpse",
+                volume_ml: 1_000,
+                weight_g: 1_000,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            }],
+        );
+        let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
+        cdda_sim::monster_registry::set_monster_types(
+            &mut world,
+            &[cdda_sim::monster_registry::MonsterKind {
+                id: "mon_beaten",
+                hp: 10,
+            }],
+        );
+        let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_beaten").expect("the kind");
+        // A quarter of the body's weight in flesh, which is the reference's bulk path: no floor, so the damage shows.
+        cdda_sim::monster_registry::set_weights(&mut world, &[(kind, 1_000)]);
+        cdda_sim::monster_registry::set_harvests(
+            &mut world,
+            &[(
+                kind,
+                vec![cdda_sim::HarvestSpec {
+                    part: Some(cdda_sim::HarvestEntry::Flesh),
+                    base_num: (0, 0),
+                    scale_num: (0.0, 0.0),
+                    mass_ratio: Some(0.25),
+                    max: None,
+                }],
+                vec!["corpse".to_owned()],
+            )],
+        );
+        let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+        let corpse = cdda_sim::drop_item(&mut world, (0, 0), corpse_kind, 1);
+        if let Some(mut item) = world.get_mut::<cdda_sim::GroundItem>(corpse) {
+            item.damage = damage;
+        }
+        world.entity_mut(corpse).insert(cdda_sim::CorpseOf {
+            kind,
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 1_000,
+        });
+        cdda_sim::creature::finish_activity(&mut world, survivor, "butcher", Some(corpse));
+        world
+            .query::<&cdda_sim::GroundItem>()
+            .iter(&world)
+            .map(|item| item.charges)
+            .sum::<i32>()
+    };
+
+    let fresh = butchered(0);
+    // Level four is "pulped", and `itype::damage_level` reaches it at three quarters of the maximum: `1 + 4 * 3000 / 4000` is four.
+    let pulped = butchered(3 * cdda_content::armour::DAMAGE_MAX / 4);
+    assert_eq!(fresh, 250, "a quarter of a thousand grams, undamaged");
+    assert_eq!(
+        pulped, 125,
+        "**a pulped one gives half**, which is `corpse_damage_effect`'s own figure for flesh"
+    );
+    // **And a body at exactly its maximum damage is `pulped` no longer.** `itype::damage_level` clamps to five, `corpse_damage_effect`'s switch names two, three and four, and its `default: break`
+    // therefore returns the weight untouched - so the worst-damaged corpse in the game gives a full harvest. That is the reference's own arithmetic rather than a port's slip, and a port that
+    // "fixed" it would disagree with the game on every corpse beaten to its last point of damage.
+    assert_eq!(
+        butchered(cdda_content::armour::DAMAGE_MAX),
+        250,
+        "a corpse at the maximum damage level falls to the switch's default and gives everything"
+    );
+}

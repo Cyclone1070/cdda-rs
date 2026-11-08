@@ -16798,6 +16798,15 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**The finish now reads the body's damage, and the top damage level means nothing** (round 1409): the finisher had been handing `corpse_damage_effect` (`butchery.cpp:492-561`) a `Light` corpse for
+every body, so a corpse beaten into paste harvested as well as one that died cleanly. It now reads the corpse item's own damage, works out the level with `itype::damage_level`'s arithmetic
+(`itype.cpp:117-126`), and hands the rule the level's answer.
+
+Two of the reference's own details came out of writing the gate. **A count entry's floor is applied after the damage** (`butchery.cpp:705-708`), so a body whose entry promises eight cuts gives eight
+however mangled it is - only a `mass_ratio` entry shows the damage, which is why the gate uses one. And **level five is not "pulped"**: `itype::damage_level` clamps to five, which is reachable exactly
+at `damage == damage_max`, `corpse_damage_effect`'s switch names only two, three and four, and its `default: break` therefore returns the weight untouched. The worst-damaged corpse in the game gives a
+full harvest. That reads like a bug and is the reference's behaviour, and the gate says so in its own words so that nobody "fixes" the port away from the game.
+
 **A playtest now butchers a zombie, and it found the commonest body in the game had no harvest at all** (round 1408): `butcher` is a scenario step (with `quick`), reach covering the survivor's own
 square and the eight beside it, and `scenarios/a_butchered_zombie_leaves_meat.txt` kills a zombie, cuts it up over 1,080 turns, and finds **twenty tainted meat** on the square. The item is
 `meat_tainted` because that is what the humanoid zombie's definition says - the scenario names the item the data names, not the one the word "meat" suggests.

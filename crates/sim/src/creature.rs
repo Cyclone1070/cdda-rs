@@ -631,7 +631,7 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
     };
     let state = crate::ButcherFinish {
         butchery: i32::from(skill_level(world, creature, "survival")),
-        damage: crate::CorpseDamage::Light,
+        damage: corpse_damage_of(world, corpse),
         gibbed: flags.0.iter().any(|flag| flag == "GIBBED"),
         skinned: flags.0.iter().any(|flag| flag == "SKINNED"),
     };
@@ -660,6 +660,15 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
             crate::messages::push(world, &format!("You get {count} {name}."));
         }
     }
+}
+
+/// How badly a corpse was damaged, in the reference's own levels.
+///
+/// Reference: `corpse_damage_effect` reads `corpse_item.damage_level()`, which `item::damage_level` works out from `damage_ / max_damage` over five levels. The port reads the corpse item's own
+/// [`crate::GroundItem::damage`] and divides by the same maximum the worn-armour side uses, because a corpse is not counted by charges.
+fn corpse_damage_of(world: &World, corpse: Entity) -> crate::CorpseDamage {
+    let damage = world.get::<crate::GroundItem>(corpse).map_or(0, |item| item.damage);
+    crate::CorpseDamage::at_level(crate::damage_level(damage, cdda_content::armour::DAMAGE_MAX, false))
 }
 
 /// Reference: `activity_handlers::pickup_finish`, which puts the item in the character's hands.

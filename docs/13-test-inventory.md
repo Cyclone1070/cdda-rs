@@ -1573,3 +1573,6 @@ could not butcher a corpse at all. The finisher is four lines of reading and one
 **Round 1408 made butchery playable, and the playtest found that the ordinary zombie had no harvest.** The loader read `entries` and ignored `copy-from`/`extend`, which is how most of the content's
 harvest lists are written - so the commonest body in the game butchered to nothing. The fix is a resolution pass, gated in the content suite and shown end to end by a scenario that now leaves twenty
 tainted meat on the ground.
+
+**Round 1409 found the finisher was passing a fixed damage level to the yield rule**, so corpse damage changed nothing. The gate that fixed it also pinned two things the reference does that a careful
+port would get "right": a count entry's minimum survives any damage, and the top damage level falls through the reference's switch to no reduction at all.

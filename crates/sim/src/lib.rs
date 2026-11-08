@@ -7804,6 +7804,22 @@ pub enum CorpseDamage {
     Pulped,
 }
 
+impl CorpseDamage {
+    /// Which level of damage a corpse is at, from the level its item reports.
+    ///
+    /// Reference: `corpse_damage_effect`'s switch (`butchery.cpp:500-560`) - level **two** is "damaged", three is "mangled", four is "pulped", and everything else falls to the default, which leaves the
+    /// weight alone. So a level the switch does not name is **undamaged, not pulped**: the reference's `default: break` is the answer for zero, one, and any level above four.
+    #[must_use]
+    pub fn at_level(level: i32) -> Self {
+        match level {
+            2 => Self::Damaged,
+            3 => Self::Mangled,
+            4 => Self::Pulped,
+            _ => Self::Light,
+        }
+    }
+}
+
 /// What a damaged corpse still gives up, as a weight.
 ///
 /// Reference: `corpse_damage_effect` (`src/butchery.cpp`). The interesting part is how differently it treats the
