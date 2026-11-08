@@ -1524,3 +1524,7 @@ second filter is load-bearing.
 
 **Round 1395 recorded the aim**: the swing leaves `LastAim` beside `LastMove`, and the draw is taken only when an aim qualified. The mutation check removed the recording and the gate's second half
 failed; the first half - a move with no aim records none - passed either way, which is why both halves are asserted.
+
+**Round 1396 audited the roadmap against the tree**, and two of its evidence pointers named modules that do not exist (`sim_suite::shot`, `sim_suite::aim` - the files are `shot_rules` and `aim_rules`),
+which is the same failure as a stale gap: a reader following the pointer finds nothing and writes the work again. The P3 gap was also rewritten, because "the item-component model" named something the
+reference does not have: `item_components` is the container a **craft** consumes its materials into, and what an item actually carries is a set of **predicates** over its kind's data.
