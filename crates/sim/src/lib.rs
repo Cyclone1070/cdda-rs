@@ -65,6 +65,7 @@ pub mod hit_location;
 pub mod limbs;
 pub mod weakpoints;
 pub mod martial_arts;
+pub mod martial_arts_vectors;
 pub mod melee;
 pub mod sounds;
 pub mod timed_events;

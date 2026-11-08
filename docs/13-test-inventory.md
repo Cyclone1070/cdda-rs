@@ -1502,3 +1502,6 @@ call and the gate lost its stun - which is the only evidence that the two halves
 **Round 1388 opened P5 with the enchantment's arithmetic**: add, then multiply by one plus the fraction, and the first row winning a duplicate. The mutation check dropped the `1.0 +` and both
 gates failed. The data has no dump path yet, which is recorded in the roadmap rather than hidden: the reference reaches an enchantment through an item, a bionic or a mutation, not through a registry
 that can be walked.
+
+**Round 1389 gave the moves their aims**: the attack vector column on the dump (141 moves), the loader behind it, and the limb-count rule the reference reads before it aims. The harness needed a
+printer for `body_part_type::type`, which the reference keeps as an enum with no `id_of` - the first attempt called a function that does not exist, and the build said so.

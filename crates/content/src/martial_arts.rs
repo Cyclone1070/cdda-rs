@@ -110,8 +110,43 @@ pub struct Technique {
     pub stun_dur: i32,
     /// The effects it may leave on the body it lands on.
     pub effects: Vec<MoveEffect>,
+    /// What it may aim at: the reference's `attack_vectors` (`martialarts.h:70-97`).
+    pub attack_vectors: Vec<AttackVector>,
     /// The requirement it states.
     pub requirement: BuffRequirement,
+}
+
+/// What a move may aim at.
+///
+/// Reference: `attack_vector` (`martialarts.h:70-97`): the limbs it may strike, whether it wants a weapon in hand, how much encumbrance a limb may carry, and **the count of each limb kind it
+/// needs** (`limb_req`), which `choose_attack_vector` (`martialarts.cpp:1495-1515`) reads as a requirement rather than a preference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttackVector {
+    /// Its id.
+    pub id: String,
+    /// Whether it is used with a weapon rather than a bare hand.
+    pub weapon: bool,
+    /// Whether no limb substitution happens.
+    pub strict_limb_definition: bool,
+    /// The absolute encumbrance a limb may carry.
+    pub encumbrance_limit: i32,
+    /// The percentage of a limb's hit points it needs.
+    pub bp_hp_limit: i32,
+    /// The limbs it may strike.
+    pub limbs: Vec<String>,
+    /// The limbs it needs, by kind and count.
+    pub limb_req: Vec<VectorNeed>,
+}
+
+/// A move's need for a number of limbs of one kind.
+///
+/// Reference: `attack_vector::limb_req` (`martialarts.h:82`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VectorNeed {
+    /// What kind of limb it needs.
+    pub kind: String,
+    /// How many of them it needs.
+    pub count: i32,
 }
 
 /// Every style the data defines, in the reference's own order.
@@ -126,6 +161,37 @@ fn text(object: &Object, key: &str) -> Option<String> {
         Some(Value::Str(found)) => Some(found.clone()),
         _ => None,
     }
+}
+
+/// Reads one of a move's attack vectors.
+fn read_attack_vector(entry: &Value) -> Option<AttackVector> {
+    let Value::Object(vector) = entry else {
+        return None;
+    };
+    let limb_req = match vector.get("limb_req") {
+        Some(Value::Array(needs)) => needs
+            .iter()
+            .filter_map(|need| {
+                let Value::Object(need) = need else {
+                    return None;
+                };
+                Some(VectorNeed {
+                    kind: text(need, "type")?,
+                    count: number(need, "count", 0),
+                })
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    Some(AttackVector {
+        id: text(vector, "id")?,
+        weapon: flag(vector, "weapon"),
+        strict_limb_definition: flag(vector, "strict_limb_definition"),
+        encumbrance_limit: number(vector, "encumbrance_limit", 100),
+        bp_hp_limit: number(vector, "bp_hp_limit", 10),
+        limbs: words(vector, "limbs"),
+        limb_req,
+    })
 }
 
 fn number(object: &Object, key: &str, fallback: i32) -> i32 {
@@ -214,6 +280,13 @@ pub fn read_style(object: &Object) -> Option<Style> {
                 take_weapon: flag(technique, "take_weapon"),
                 down_dur: number(technique, "down_dur", 0),
                 stun_dur: number(technique, "stun_dur", 0),
+                attack_vectors: match technique.get("attack_vectors") {
+                    Some(Value::Array(entries)) => entries
+                        .iter()
+                        .filter_map(read_attack_vector)
+                        .collect(),
+                    _ => Vec::new(),
+                },
                 effects: match technique.get("effects") {
                     Some(Value::Array(entries)) => entries
                         .iter()

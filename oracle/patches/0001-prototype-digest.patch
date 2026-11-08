@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-08 14:59:22
-@@ -0,0 +1,7572 @@
++++ oracle/src/src/harness.cpp	2026-11-08 20:18:24
+@@ -0,0 +1,7639 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "flag.h"
@@ -1676,6 +1676,38 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// Writes what every recipe **makes**, rather than what it asks for: the result rule and the byproduct rule are rules about produced things, and reading them out of the
 +/// data is exactly the mistake `create_results` exists to prevent. For a batch of one and of two, the produced items are folded to `(item id, count)` - `item::count()`
 +/// is the charge count for a stack and one for a single thing, which is the number the port keeps as a stack's charges.
++/** The name of a limb's kind, which the reference keeps as an enum with no printer of its own (`body_part_type::type`, `bodypart.h:174-197`). */
++static const char *harness_limb_kind( body_part_type::type kind )
++{
++    switch( kind ) {
++        case body_part_type::type::head:
++            return "head";
++        case body_part_type::type::torso:
++            return "torso";
++        case body_part_type::type::sensor:
++            return "sensor";
++        case body_part_type::type::mouth:
++            return "mouth";
++        case body_part_type::type::arm:
++            return "arm";
++        case body_part_type::type::hand:
++            return "hand";
++        case body_part_type::type::leg:
++            return "leg";
++        case body_part_type::type::foot:
++            return "foot";
++        case body_part_type::type::wing:
++            return "wing";
++        case body_part_type::type::tail:
++            return "tail";
++        case body_part_type::type::other:
++            return "other";
++        case body_part_type::type::num_types:
++            break;
++    }
++    return "other";
++}
++
 +void dump_martial_arts( const std::string &path )
 +{
 +    std::ofstream out( path );
@@ -1792,6 +1824,41 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                << ",\"take_weapon\":" << ( technique.take_weapon ? "true" : "false" )
 +                // **What the move does to the body it lands on** (`melee.cpp:1759-1785`): each effect it may add, with the chance out of a hundred, whether it needs damage to land, and how long it
 +                // lasts - plus the two durations the reference keeps as bare numbers rather than as effects, `down_dur` and `stun_dur`.
++                // **What the move aims at** (`attack_vector`, `martialarts.h:70-97`): the limbs it may strike, whether it needs a weapon in hand, how much encumbrance a limb may carry, and the
++                // flags a limb must and must not have. `choose_attack_vector` (`martialarts.cpp:1475-1560`) is the rule that reads them.
++                << ",\"attack_vectors\":[";
++            bool first_vector = true;
++            for( const attack_vector_id &vector_id : technique.attack_vectors ) {
++                const attack_vector &vector = vector_id.obj();
++                if( !first_vector ) {
++                    out << ",";
++                }
++                first_vector = false;
++                out << "{\"id\":\"" << vector.id.str() << "\",\"weapon\":" << ( vector.weapon ? "true" : "false" )
++                    << ",\"strict_limb_definition\":" << ( vector.strict_limb_definition ? "true" : "false" )
++                    << ",\"encumbrance_limit\":" << vector.encumbrance_limit
++                    << ",\"bp_hp_limit\":" << vector.bp_hp_limit
++                    << ",\"limbs\":[";
++                bool first_limb = true;
++                for( const bodypart_str_id &limb : vector.limbs ) {
++                    if( !first_limb ) {
++                        out << ",";
++                    }
++                    first_limb = false;
++                    out << "\"" << limb.str() << "\"";
++                }
++                out << "],\"limb_req\":[";
++                bool first_req = true;
++                for( const std::pair<body_part_type::type, int> &requirement : vector.limb_req ) {
++                    if( !first_req ) {
++                        out << ",";
++                    }
++                    first_req = false;
++                    out << "{\"type\":\"" << harness_limb_kind( requirement.first ) << "\",\"count\":" << requirement.second << "}";
++                }
++                out << "]}";
++            }
++            out << "]"
 +                << ",\"down_dur\":" << technique.down_dur
 +                << ",\"stun_dur\":" << technique.stun_dur
 +                << ",\"effects\":[";

@@ -710,3 +710,37 @@ fn the_move_the_swing_picked_is_the_move_that_lands() {
     assert!(cdda_sim::applied_effects::has(&world, zombie, "stunned"), "**the move's stun lands on the body it hit**");
     assert!(cdda_sim::applied_effects::has(&world, zombie, "bleed"), "and so does its effect, because the blow drew blood");
 }
+
+/// A move that needs limbs needs **enough of them still standing**.
+///
+/// Reference: `character_martial_arts::choose_attack_vector` (`martialarts.cpp:1495-1515`): for each `limb_req` the reference counts the user's parts of that type whose hit points are **above
+/// their health limit**, and discards the vector when the count falls short. A vector needing two arms is refused by a fighter with one arm left, which is the whole point of stating it.
+#[test]
+fn a_vector_that_needs_limbs_needs_enough_of_them() {
+    use cdda_sim::martial_arts_vectors::{LimbState, VectorNeed, limbs_enough};
+
+    let two_arms = VectorNeed {
+        kind: "arm".to_owned(),
+        count: 2,
+    };
+    let one_arm = VectorNeed {
+        kind: "arm".to_owned(),
+        count: 1,
+    };
+    let both = vec![LimbState { kind: "arm".to_owned(), healthy: true }, LimbState { kind: "arm".to_owned(), healthy: true }];
+    assert!(limbs_enough(&both, &two_arms), "two healthy arms satisfy a need for two");
+    assert!(limbs_enough(&both, &one_arm), "and a need for one");
+
+    let one_left = vec![LimbState { kind: "arm".to_owned(), healthy: true }, LimbState { kind: "arm".to_owned(), healthy: false }];
+    assert!(
+        !limbs_enough(&one_left, &two_arms),
+        "**a ruined arm does not count towards a need for two**"
+    );
+    assert!(limbs_enough(&one_left, &one_arm), "but it satisfies a need for one");
+
+    let legs = vec![LimbState { kind: "leg".to_owned(), healthy: true }, LimbState { kind: "leg".to_owned(), healthy: true }];
+    assert!(
+        !limbs_enough(&legs, &one_arm),
+        "**a leg is not an arm**: the need names the kind of limb"
+    );
+}

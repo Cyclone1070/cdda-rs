@@ -172,3 +172,41 @@ fn a_move_carries_what_it_does_beyond_damage() {
     let longest = effects.iter().map(|effect| effect.duration).max().unwrap_or(0);
     assert!(longest > 0, "the durations are read: the longest is {longest} turns");
 }
+
+/// A move says what it aims at, and **some of its aims need limbs the striker must still have**.
+///
+/// Reference: `attack_vector` (`martialarts.h:70-97`) and the `limb_req` check in `choose_attack_vector` (`martialarts.cpp:1495-1515`). The corpus's own counts: 141 moves carry at least one vector,
+/// and a vector that needs two arms is a move a one-armed fighter cannot make.
+#[test]
+fn a_move_says_what_it_aims_at() {
+    let found = styles();
+    let moves: Vec<&cdda_content::martial_arts::Technique> =
+        found.all.iter().flat_map(|style| style.techniques.iter()).collect();
+    let vectors: Vec<&cdda_content::martial_arts::AttackVector> =
+        moves.iter().flat_map(|movement| movement.attack_vectors.iter()).collect();
+
+    assert_eq!(
+        moves.iter().filter(|movement| !movement.attack_vectors.is_empty()).count(),
+        141,
+        "**a hundred and forty-one moves say what they aim at**"
+    );
+    assert!(!vectors.is_empty(), "and the vectors carry their own data");
+
+    let grasp = vectors.iter().find(|vector| vector.id == "vector_grasp").expect("the grasp vector");
+    assert_eq!(grasp.limbs, vec!["hand_l".to_owned(), "hand_r".to_owned()], "a grasp aims at both hands");
+    assert_eq!(
+        grasp.limb_req,
+        vec![cdda_content::martial_arts::VectorNeed { kind: "arm".to_owned(), count: 2 }],
+        "**and needs two arms to do it**"
+    );
+
+    // The kinds the data names are the body's own kinds, which is what makes the requirement readable.
+    let kinds: std::collections::BTreeSet<&str> = vectors
+        .iter()
+        .flat_map(|vector| vector.limb_req.iter().map(|need| need.kind.as_str()))
+        .collect();
+    assert!(
+        kinds.iter().all(|kind| ["head", "torso", "sensor", "mouth", "arm", "hand", "leg", "foot", "wing", "tail", "other"].contains(kind)),
+        "**every kind is one of the body's own**: {kinds:?}"
+    );
+}

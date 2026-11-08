@@ -16738,6 +16738,11 @@ branches are exercised by the sim's fixture rather than by the data.
 enchantment never mentions is left exactly as it was. `merge` keeps the **first** row for a value, because the reference's loader fills a `std::map` with `emplace` (`:204-232`).
 **The enchantment's data has no dump path**: the reference reaches one only through an item, a bionic or a mutation, so its values are ported as a rule and await a dump that can walk them.
 
+**A move says what it aims at, and some aims need limbs** (round 1389): `content::martial_arts::AttackVector` reads `attack_vector` (`martialarts.h:70-97`) - the limbs, the weapon flag, the
+encumbrance and hit-point limits, and **the count of each limb kind it needs** - and `martial_arts_vectors::limbs_enough` is `choose_attack_vector`'s requirement check
+(`martialarts.cpp:1495-1515`): a limb counts only while it is **above its health limit**, so a move needing two arms is a move a one-armed fighter cannot make. The corpus carries 141 moves with a
+vector, and the kinds the data names are the body's own eleven.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
