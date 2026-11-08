@@ -379,3 +379,42 @@ fn a_kill_practises_the_families_the_body_names() {
     );
     assert!(taught.is_empty(), "none of them was learned by the **first** kill: {taught:?}");
 }
+
+/// **Dissecting a body teaches for two fifteen-minute halves.** The reference splits half an hour into two calls and ORs what they learned.
+///
+/// Reference: `weakpoint_families::practice_dissect` (`weakpoint.cpp:157-168`) is two `practice( learner, 15_minutes )` calls, and `learned = p1 || p2`. Its own comment blames a **1000-second cap on
+/// proficiency practice** for the split - and that cap is not in this baseline: `Character::practice_proficiency` (`character_proficiency.cpp:71-92`) passes its `max` argument through to
+/// `proficiency_set::practice` (`proficiency.cpp:306-345`), and the only reader of it is `if( max && current.practiced > *max ) return false;`, which `weakpoint.cpp` never arms. So the two calls add up
+/// to half an hour either way, and the split is kept because it is what the reference does, not because the arithmetic needs it.
+#[test]
+fn dissecting_teaches_two_halves_of_fifteen_minutes() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let butcher = cdda_sim::creature::spawn_creature(&mut world, "the butcher", (0, 0, 0));
+    let families = [cdda_content::weakpoints::Family {
+        id: "fam_d".to_owned(),
+        proficiency: "prof_anatomy".to_owned(),
+        bonus: 0.05,
+        penalty: -0.05,
+    }];
+
+    // Two thousand seconds to learn it, so half an hour is not enough and the second call is the one that gets close.
+    let learned = cdda_sim::proficiencies::practise_a_dissection(&mut world, butcher, &families, &|_| 2_000);
+
+    assert!(
+        !learned,
+        "**eighteen hundred seconds is not two thousand**, so this dissection teaches and does not grant"
+    );
+    assert_eq!(
+        cdda_sim::proficiencies::practiced_seconds(&world, butcher, "prof_anatomy"),
+        1_800,
+        "both halves are practised: fifteen minutes twice, which is half an hour"
+    );
+
+    // The OR: a body that takes exactly one of the two halves to learn it answers that it learned, even though the first call did not.
+    let mut world = bevy_ecs::prelude::World::new();
+    let quick = cdda_sim::creature::spawn_creature(&mut world, "the quick study", (0, 0, 0));
+    assert!(
+        cdda_sim::proficiencies::practise_a_dissection(&mut world, quick, &families, &|_| 1_000),
+        "**a thousand seconds is learned by the second half**, which is what `p1 || p2` says"
+    );
+}

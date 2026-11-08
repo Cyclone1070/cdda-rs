@@ -1560,3 +1560,6 @@ answer: lay them flat and keep a range.
 
 **Round 1404 audited the "named, not invented" list and found four of its items stale** - `effect_on_conditions`, `physical`/`non_physical`, `armour_mult`, and the families' bonus and penalty were all
 ported and wired. A gap list is a work queue, and a queue that lies wastes the next round's first hour; the audit is now part of the ledger's own paragraph rather than a claim about it.
+
+**Round 1405 closed `practice_dissect` and found the reference's own comment lying about it.** The split into two fifteen-minute calls blames a 1000-second cap that no caller in this baseline arms, so the
+two halves add up to the same half hour - the port makes both calls because the reference does, not because the arithmetic needs it.

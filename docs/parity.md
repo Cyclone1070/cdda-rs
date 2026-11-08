@@ -16798,11 +16798,16 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**Dissecting teaches half an hour in two halves, and the reference's reason for the split is stale** (round 1405): `weakpoint_families::practice_dissect` (`weakpoint.cpp:157-168`) is two fifteen-minute
+practices ORed together, and its comment blames a **1000-second cap** on proficiency practice. That cap is not in this baseline - `Character::practice_proficiency` (`character_proficiency.cpp:71-92`) only
+forwards a `max` that no caller arms, and `proficiency_set::practice` (`proficiency.cpp:318-320`) merely refuses when the practised time is already past it. The port keeps the two calls because the
+reference makes them, and says plainly that they add up to the same half hour.
+
 **And the accuracy enchantment sharpens a good weak point and never a bad one** (round 1404): `weakpoint::hit_chance` (`weakpoint.cpp:550-570`) multiplies the coverage by the attacker's
 `WEAKPOINT_ACCURACY` enchantment **inside the branch where the weak point helps the attacker**, and the branch where it hurts the monster never asks. The port's `Weakpoint::accuracy_multiplier` is that
 figure, one when the attacker has no enchantment.
 
 **The named gaps were audited against the tree this round and four of them were no longer true**, which is the same hazard as a stale roadmap: a gap that has been closed invites the work to be done
 again. `effect_on_conditions` is ported (`eoc_registry`, `sim_suite::eoc_programs`), `physical`/`non_physical` are filled in by the content's `finalize_damage_map`, `armour_mult` **is** applied
-(`weakpoints::factors_after`), the families' bonus and penalty **are** applied (`skill_with_families` at the swing), and `practice_hit` and `practice_kill` are both wired. What remains open is
-`bonus_container`'s numbers (unreachable from a dump), `practice_dissect` (needs butchery), and the effect's own message at the effect layer.
+(`weakpoints::factors_after`), the families' bonus and penalty **are** applied (`skill_with_families` at the swing), and `practice_hit` and `practice_kill` are both wired. What remains open after round 1405 is
+`bonus_container`'s numbers (unreachable from a dump) and the effect's own message at the effect layer.

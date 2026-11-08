@@ -71,6 +71,35 @@ pub fn practise_a_kill(
     taught
 }
 
+/// What dissecting a body teaches: every weak-point family's proficiency, for **half an hour in two halves**.
+///
+/// Reference: `weakpoint_families::practice_dissect` (`weakpoint.cpp:157-168`) - two `practice( learner, 15_minutes )` calls with `learned = p1 || p2`, plus a message the port's proficiency layer has no
+/// channel for.
+///
+/// **The comment above the reference's split is stale, and this port does not repeat it.** The split blames a 1000-second cap on proficiency practice; `Character::practice_proficiency`
+/// (`character_proficiency.cpp:71-92`) forwards its `max` argument to `proficiency_set::practice` (`proficiency.cpp:306-345`), whose only use of it is `if( max && current.practiced > *max ) return false;`
+/// - and no caller in this baseline arms it. The two halves therefore add up to the same half hour, and the split is kept because it is what the reference does.
+///
+/// Returns whether **either** half learned the proficiency, which is the reference's `p1 || p2`.
+#[must_use]
+pub fn practise_a_dissection(
+    world: &mut World,
+    butcher: Entity,
+    families: &[cdda_content::weakpoints::Family],
+    learn_times: &dyn Fn(&str) -> i64,
+) -> bool {
+    let mut taught = Vec::new();
+    for family in families {
+        let time_to_learn = learn_times(&family.proficiency);
+        let first = practice(world, butcher, &family.proficiency, 900, time_to_learn);
+        let second = practice(world, butcher, &family.proficiency, 900, time_to_learn);
+        if first || second {
+            taught.push(family.proficiency.clone());
+        }
+    }
+    !taught.is_empty()
+}
+
 /// Practises a proficiency for a span of time, learning it once the span is long enough.
 ///
 /// Reference: `proficiency_set::practice` (`proficiency.cpp:306-345`): nothing happens to a proficiency already known, and once the practised time reaches
