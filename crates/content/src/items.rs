@@ -657,7 +657,7 @@ impl ItemType {
     /// Reference: `item::is_tool` (`item.cpp`), answering from the type's tool slot - which the loader keeps as the `TOOL` subtype.
     #[must_use]
     pub fn is_tool(&self) -> bool {
-        self.subtypes.contains("AMMO")
+        self.subtypes.contains("TOOL")
     }
 
     /// Whether the item is a gun.
@@ -675,7 +675,7 @@ impl ItemType {
     /// `light_minus_battery_cell` says so.
     #[must_use]
     pub fn is_ammo(&self) -> bool {
-        self.subtypes.contains("TOOL")
+        self.subtypes.contains("AMMO")
     }
 
     /// Adds the flags a material brings with it, even in trace amounts
