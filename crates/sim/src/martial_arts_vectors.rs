@@ -165,3 +165,43 @@ fn limbs_healthy_enough(
     }
     any
 }
+
+/// The aim a striker took on its last blow, or nothing when it took none.
+///
+/// Reference: the aim travels with the blow in the reference's `attack` struct (`melee.cpp:754-760`). The port leaves it on the striker for the same reason it leaves the move there: the blow is a
+/// function, so the answer needs somewhere a turn, a test or a UI can read it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, bevy_ecs::component::Component)]
+pub struct LastAim(pub Option<String>);
+
+/// The aim this striker takes for these aims, drawing from the store's own dice **only when something qualified**.
+///
+/// Reference: `choose_attack_vector` (`martialarts.cpp:1600-1605`) calls `pick` only when the list is not empty, so a striker with nothing to aim at consumes no draw. The port keeps that: the
+/// eligible aims are counted first and the dice are untouched when there are none - the same rule that keeps a technique-less swing from moving every later roll.
+#[must_use]
+pub fn aim_with_roll(
+    world: &mut bevy_ecs::prelude::World,
+    striker: bevy_ecs::prelude::Entity,
+    vectors: &[Vector],
+) -> Option<String> {
+    let eligible: Vec<WeightedAim> = vectors
+        .iter()
+        .filter(|vector| aims_available(world, striker, &vector.needs))
+        .filter(|vector| limbs_healthy_enough(world, striker, vector))
+        .map(|vector| WeightedAim {
+            id: vector.id.clone(),
+            weight: 1.0,
+        })
+        .collect();
+    if eligible.is_empty() {
+        return None;
+    }
+    let roll = match crate::singletons::take_rolls(world) {
+        Some(mut dice) => {
+            let roll = dice.rng_float(0.0, 1.0);
+            crate::singletons::put_rolls(world, dice);
+            roll
+        }
+        None => 0.0,
+    };
+    weighted_pick(&eligible, roll)
+}

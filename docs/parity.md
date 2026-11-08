@@ -16761,6 +16761,10 @@ limb's share of its own health against the aim's limit - and draws one of what s
 the damage it would do, which needs unarmed limb damage the port does not model, so every eligible aim weighs one - the reference's own floor for an aim that would do none
 (`martialarts.cpp:1568-1571`).
 
+**And the aim a swing took is left on the striker** (round 1395): `martial_arts_vectors::aim_with_roll` filters, then draws **only when something qualified** - the reference calls `pick` on a
+non-empty list and consumes no draw otherwise (`martialarts.cpp:1600-1605`) - and the swing records the answer in `LastAim` beside `LastMove`. The whole chain is now observable in one blow: the style
+that was learned, the move its weights offered, the aim the striker's own limbs allowed, and the effects that landed.
+
 **The buffs' `bonus_container` is not reachable from a dump, and that is why its numbers are not loaded.** `ma_buff`'s bonuses live in a `bonus_container` whose only interface takes a `Character`
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.

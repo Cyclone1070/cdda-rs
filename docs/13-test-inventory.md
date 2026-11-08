@@ -1521,3 +1521,6 @@ hundred to be satisfied by a whole limb - and the mutation check turned the `>` 
 **Round 1394 chose the aim**: two filters kept apart, and the first version of the gate let both be satisfied by the same fixture, so the mutation that removed the health filter **survived**. The gate
 was rebuilt around an aim that may strike either arm, where the need is met by the whole one and only the health filter can refuse it - and the mutation then died, which is the only evidence that the
 second filter is load-bearing.
+
+**Round 1395 recorded the aim**: the swing leaves `LastAim` beside `LastMove`, and the draw is taken only when an aim qualified. The mutation check removed the recording and the gate's second half
+failed; the first half - a move with no aim records none - passed either way, which is why both halves are asserted.

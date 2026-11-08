@@ -2954,9 +2954,31 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         } else {
             None
         };
+        // **And the aim it took**, from the same move: the reference asks `choose_attack_vector` as part of deciding the technique is usable, so the aim is chosen before the blow lands just as the
+        // move is. A move of the striker's that names no aim records none.
+        let vectors = chosen
+            .as_ref()
+            .and_then(|move_id| {
+                world
+                    .get::<crate::martial_arts::Practising>(holder)
+                    .and_then(|practising| {
+                        practising
+                            .style
+                            .techniques
+                            .iter()
+                            .find(|technique| &technique.id == move_id)
+                            .map(|technique| technique.vectors.clone())
+                    })
+            })
+            .unwrap_or_default();
+        let aim = if vectors.is_empty() {
+            None
+        } else {
+            crate::martial_arts_vectors::aim_with_roll(world, holder, &vectors)
+        };
         world
             .entity_mut(holder)
-            .insert(crate::martial_arts::LastMove(chosen));
+            .insert((crate::martial_arts::LastMove(chosen), crate::martial_arts_vectors::LastAim(aim)));
     }
     let crit_inputs = crit_inputs_of(world, holder);
     // Reference: the attacker's half of a weak point is `generic_weakpoint_skill` - the weapon's skill and melee averaged, the stat bonus, and the vision and reaction figures as a multiplier

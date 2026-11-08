@@ -995,3 +995,114 @@ fn the_store_answers_which_aim_a_move_takes() {
         "**while an aim that may strike either arm is still on offer**"
     );
 }
+
+/// The aim the swing takes is left on the striker too, and **a swing with no aim to take draws nothing**.
+///
+/// Reference: `evaluate_technique` asks `choose_attack_vector`, which answers nothing when no aim qualified - and `pick` is only called on a non-empty list (`martialarts.cpp:1600-1605`), so a
+/// striker with nothing to aim at consumes no draw. That matters here for the same reason it did for the move itself: a draw is behaviour, and an extra one moves every later roll.
+#[test]
+fn the_swing_leaves_the_aim_it_took() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::martial_arts::{AppliedMove, Practising, Requirement, Style, Technique, TechniqueFlags, Vector, VectorNeed};
+    use cdda_sim::martial_arts_vectors::LastAim;
+
+    let mut world = World::new();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 50,
+            weight_g: 657,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 20.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 40,
+        }],
+    );
+    let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the rock");
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(survivor).insert((
+        cdda_sim::creature::Dexterity { base: 12 },
+        cdda_sim::creature::Perception { base: 12 },
+        cdda_sim::creature::Moves { left: 400 },
+        cdda_sim::creature::Wielding(kind),
+        cdda_sim::creature::Body {
+            parts: vec![cdda_sim::hit_location::BodyPart {
+                name: "arm_r".to_owned(),
+                hit_size: 1.0,
+                hit_difficulty: 1.0,
+                upper: false,
+                lower: false,
+                limb_scores: Vec::new(),
+                base_hp: 60,
+                primary_limb_type: Some("arm".to_owned()),
+                health_limit: 1,
+            }],
+        },
+    ));
+    let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert((
+        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
+        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+    ));
+
+    let flags = TechniqueFlags {
+        weighting: 1,
+        dummy: false,
+        defensive: false,
+        crit_tec: false,
+        crit_ok: true,
+        reach_tec: false,
+        reach_ok: false,
+        dodge_counter: false,
+        block_counter: false,
+        needs_ammo: false,
+        disarms: false,
+        take_weapon: false,
+    };
+    let requirement = Requirement {
+        unarmed_allowed: true,
+        melee_allowed: true,
+        strictly_unarmed: false,
+        wall_adjacent: false,
+        weapon_categories: Vec::new(),
+    };
+    let styled = |vectors: Vec<Vector>| Practising {
+        style: Style {
+            id: "style_test".to_owned(),
+            techniques: vec![Technique {
+                id: "tec_aimed".to_owned(),
+                requirement: requirement.clone(),
+                flags: flags.clone(),
+                movement: AppliedMove::default(),
+                vectors,
+            }],
+        },
+    };
+
+    // A move with no aim leaves no aim - and the plain blow is still a blow.
+    world.entity_mut(survivor).insert(styled(Vec::new()));
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert_eq!(
+        world.get::<LastAim>(survivor).and_then(|aim| aim.0.clone()),
+        None,
+        "**a move with no aim aims at nothing**"
+    );
+
+    // A move with one aim the striker's body can take.
+    world.entity_mut(survivor).insert(styled(vec![Vector {
+        id: "vector_elbow".to_owned(),
+        limbs: vec!["arm_r".to_owned()],
+        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 1 }],
+        health_limit: 10,
+    }]));
+    cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
+    assert_eq!(
+        world.get::<LastAim>(survivor).and_then(|aim| aim.0.clone()).as_deref(),
+        Some("vector_elbow"),
+        "**and a move with an aim the body can take leaves it**"
+    );
+}
