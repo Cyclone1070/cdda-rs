@@ -7820,6 +7820,41 @@ impl CorpseDamage {
     }
 }
 
+/// The butchery figure one entry's `scale_num` is multiplied by, rolled afresh for **every** entry.
+///
+/// Reference: `roll_butchery_dissect` (`butchery.cpp:566-583`):
+///
+/// ```text
+/// skill_shift  = rng_float( 0, skill_level - 3 )
+/// skill_shift += rng_float( 0, dex - 8 ) / 4.0
+/// tool_quality < 0  ->  skill_shift -= rng_float( 0, -tool_quality / 5.0 )
+/// tool_quality >= 0 ->  skill_shift += min( tool_quality, 4 )
+/// round( skill_shift )
+/// ```
+///
+/// Two things worth knowing. **A tool adds at most four however fine it is.** And a survivor below the reference's own thresholds loses ground: `rng_float( 0, skill_level - 3 )` with a skill under three is a
+/// range **below zero** (`rng.cpp:98-103` swaps the bounds, so the span is `[level - 3, 0]`), which is how a clumsy butcher takes up to five off before any tool is counted - and the reference clamps nothing,
+/// so the figure can be negative.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn roll_butchery_dissect(
+    skill_level: i32,
+    dex: i32,
+    tool_quality: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> i32 {
+    let mut shift = rolls.rng_float(0.0, f64::from(skill_level - 3));
+    shift += rolls.rng_float(0.0, f64::from(dex - 8)) / 4.0;
+    if tool_quality < 0 {
+        #[allow(clippy::cast_precision_loss)]
+        let reach = f64::from(-tool_quality) / 5.0;
+        shift -= rolls.rng_float(0.0, reach);
+    } else {
+        shift += f64::from(tool_quality.min(4));
+    }
+    shift.round() as i32
+}
+
 /// How much of a body's **bulk** becomes items, from the butcher's skill, dexterity and blade.
 ///
 /// Reference: `butchery_dissect_yield_mult` (`butchery.cpp:585-593`):
@@ -7972,7 +8007,8 @@ pub fn after_the_proficiencies(entry: &HarvestSpec, count: i32, state: &ButcherF
 ///
 /// Reference: `butchery.cpp:792-812`, two blocks that both run only for a full or a quick job:
 ///
-/// * a body carrying `FIELD_DRESS` keeps no offal, and its bone becomes `roll / 2 + rng( roll / 2, roll )` - between three quarters and the whole of it;
+/// * a body carrying `FIELD_DRESS` keeps no offal, and its bone becomes `roll / 2 + rng( roll / 2, roll )` - between the **whole** of the roll and **one and a half times** it, because a half is added to a draw
+///   that can itself be the whole;
 /// * a body carrying `FIELD_DRESS_FAILED` keeps no offal either, rolls its bone the same way, and has its **flesh and hide** rolled down to `rng( 0, roll )`.
 ///
 /// `between` is the caller's own dice, for the same reason every other rule takes its rolls from the caller.
@@ -8175,8 +8211,12 @@ pub struct HarvestTable<'a> {
 pub struct ButcherFinish {
     /// What kind of butchery is being done. The reference's finish loop branches on it for every entry, so it is part of the rule rather than of the caller's setup.
     pub action: ButcherAction,
-    /// The butcher's effective skill, which scales counts.
+    /// The butcher's effective skill, which the per-entry butchery roll spreads around.
     pub butchery: i32,
+    /// The butcher's dexterity, which the same roll reads.
+    pub dex: i32,
+    /// The blade's quality: below zero it takes ground off the roll, at or above zero it adds **at most four**.
+    pub tool_quality: i32,
     /// How much of a body's **bulk** becomes items: `butchery_dissect_yield_mult` (`butchery.cpp:585-593`), which the caller works out from the skill, the dexterity and the blade.
     pub yield_multiplier: f64,
     /// How big the body was, which a quick butchery halves the hide of only for a medium creature or larger (`butchery.cpp:748-752`).
@@ -8223,9 +8263,11 @@ pub fn butcher_finish(
     let mut dropped = Vec::new();
     for (entry, id) in table.entries.iter().zip(table.ids.iter()) {
         let draw = f64::from(rolls.rng(0, 10_000)) / 10_000.0;
+        // Reference: the figure the entry's `scale_num` multiplies is **rolled afresh for every entry** (`butchery.cpp:694`), not the skill level itself.
+        let butchery = roll_butchery_dissect(state.butchery, state.dex, state.tool_quality, rolls);
         let count = harvest_yield(
             *entry,
-            state.butchery,
+            butchery,
             table.weight,
             state.damage,
             state.gibbed,

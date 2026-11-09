@@ -39,7 +39,9 @@ fn finish() -> ButcherFinish {
     ButcherFinish {
         action: ButcherAction::Full,
         size: CreatureSize::Medium,
-        butchery: 0,
+        dex: 10,
+    tool_quality: 0,
+    butchery: 0,
         // Nothing extra: a share of a body is what the weight says, which keeps these gates about the count rule.
         yield_multiplier: 1.0,
         damage: CorpseDamage::Light,
@@ -411,8 +413,9 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
 
 /// **A field-dressed body has given up its innards, and what is left of its bones is a roll.**
 ///
-/// Reference: the block after the action (`butchery.cpp:792-800`) - a body carrying the `FIELD_DRESS` flag keeps no offal at all, and its bone roll becomes `roll / 2 + rng( roll / 2, roll )`, which is
-/// between three quarters and all of the roll. The exact figures are the other gate's; this one is about what is **gone**. A body dressed badly carries `FIELD_DRESS_FAILED` instead, and there the flesh and the hide are rolled down too (`:801-812`).
+/// Reference: the block after the action (`butchery.cpp:789-797`) - a body carrying the `FIELD_DRESS` flag keeps no offal at all, and its bone roll becomes `roll / 2 + rng( roll / 2, roll )`, which is between
+/// the **whole** of the roll and **one and a half times** it: the draw runs from the half to the whole and is added to another half. A dressed body's bones are worth *more* than a fresh one's, which is
+/// the reference's arithmetic and reads like a mistake; it is not the port's to correct. A body dressed badly carries `FIELD_DRESS_FAILED` instead, and there the flesh and the hide are rolled down too (`:801-812`).
 #[test]
 fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
     let mut world = World::new();
@@ -448,8 +451,8 @@ fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
         .map(|(_, count)| *count)
         .unwrap_or(0);
     assert!(
-        (0..=20).contains(&bones),
-        "the bones are whatever the dressing's own roll left: {bones}"
+        (20..=30).contains(&bones),
+        "the bones are whatever the dressing's own roll left: {bones} of {dropped:?}"
     );
     assert!(
         !dropped.iter().any(|(kind, _)| *kind == ItemTypeId(0)),
@@ -562,4 +565,64 @@ fn a_field_dressing_rolls_the_bones_between_none_and_half() {
     };
     assert_eq!(dress(0.0), 0, "**a zero draw takes no bones at all**");
     assert_eq!(dress(1.0), 10, "and a full draw takes the half, which is the ceiling of the range");
+}
+
+/// **The butchery roll is a spread around the skill, not the skill itself**, and it is that roll the entry's `scale_num` multiplies.
+///
+/// Reference: `roll_butchery_dissect` (`butchery.cpp:566-583`):
+///
+/// ```text
+/// skill_shift  = rng_float( 0, skill_level - 3 )
+/// skill_shift += rng_float( 0, dex - 8 ) / 4.0
+/// tool_quality < 0  ->  skill_shift -= rng_float( 0, -tool_quality / 5.0 )
+/// tool_quality >= 0 ->  skill_shift += min( tool_quality, 4 )
+/// return round( skill_shift )
+/// ```
+///
+/// So a survivor with five survival, ten dexterity and a quality-zero tool rolls between nothing and ten; a **tool worse than nothing** subtracts, and a good one adds **at most four** however fine it is. The
+/// port passed the raw survival level, which is the range's top and never the bottom.
+#[test]
+fn the_butchery_roll_spreads_around_the_skill_and_the_tool() {
+    // Low dice: nothing at all, whatever the skill.
+    let mut low = Rolls::fixed(0.0);
+    assert_eq!(
+        cdda_sim::roll_butchery_dissect(10, 20, 0, &mut low),
+        0,
+        "**a zero draw rolls nothing**, so no skill level is a floor"
+    );
+    // High dice: the top of every range at once.
+    let mut high = Rolls::fixed(1.0);
+    assert_eq!(
+        cdda_sim::roll_butchery_dissect(10, 20, 0, &mut high),
+        10,
+        "ten survival is seven, twenty dexterity is three, and a quality-zero tool adds nothing"
+    );
+    // A fine tool adds **four and no more**, however fine.
+    let mut high = Rolls::fixed(1.0);
+    assert_eq!(
+        cdda_sim::roll_butchery_dissect(10, 20, 9, &mut high),
+        14,
+        "**a masterwork blade is worth four**, not nine"
+    );
+    // A tool worse than nothing subtracts.
+    let mut high = Rolls::fixed(1.0);
+    assert_eq!(
+        cdda_sim::roll_butchery_dissect(10, 20, -10, &mut high),
+        8,
+        "a tool of quality minus ten takes two off the top"
+    );
+    // **A survivor below the reference's thresholds loses ground, and a bad tool on top of it.** The reference's `rng_float` swaps its bounds, so `rng_float( 0, -3 )` is the span `[-3, 0]`: a **low**
+    // draw takes the worst of it and a high draw takes none.
+    let mut low = Rolls::fixed(0.0);
+    assert_eq!(
+        cdda_sim::roll_butchery_dissect(0, 0, 0, &mut low),
+        -5,
+        "**no skill is up to three off and no dexterity up to two more**, with no clamp at zero"
+    );
+    let mut high = Rolls::fixed(1.0);
+    assert_eq!(
+        cdda_sim::roll_butchery_dissect(0, 0, -10, &mut high),
+        -2,
+        "a high draw takes none of the skill or dexterity loss, and the tool still takes its two"
+    );
 }

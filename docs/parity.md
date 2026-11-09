@@ -16798,6 +16798,13 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**The butchery figure is rolled for every entry, and a dressed body's bones are worth more than a fresh one's** (round 1416): `roll_butchery_dissect` (`butchery.cpp:566-583`) spreads the figure around the
+survivor's skill and dexterity, **adds at most four for a blade however fine it is**, and takes ground away for one worse than nothing; it can go negative, because the reference clamps nothing there. That figure -
+not the survival level - is what an entry's `scale_num` multiplies, and the port had been passing the level itself.
+
+Reading it properly corrected a claim this record made last round: a field-dressed body's bone is `roll / 2 + rng( roll / 2, roll )`, a half **plus** a draw that can itself reach the whole, so the result runs from
+the whole of the roll to **one and a half times** it. A dressed body's bones are therefore worth *more* than a fresh body's. That reads like an upstream slip and is what the game does.
+
 **A field dressing takes a roll of the bones, not the half** (round 1415): the action block's `FIELD_DRESS` bone is `roll = rng( 0, roll / 2 )` (`butchery.cpp:764-766`), so a body of twenty bones gives anything
 from none to ten - the port halved, which is that range's **ceiling** and never less. A quick job's bone stays a plain halving (`:748-750`), and the two arms are deliberately different.
 

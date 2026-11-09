@@ -1595,3 +1595,6 @@ survivor who knows all three keeps every one. The gates that only wanted to see 
 **Round 1415 turned the field dressing's halving into the roll it is.** A zero draw takes no bones and a full draw takes the half, which is the range `rng( 0, roll / 2 )` and not the half alone. The
 mutation that restored the halving matched the **quick job's** arm first - a text mutation hitting the wrong function, the third time this arc has caught one - and the quick gate promptly failed with three
 bones where it promises ten, so the two arms are now pinned apart by two gates.
+
+**Round 1416 ported the butchery roll and had to correct its own range.** The figure an entry's `scale_num` multiplies is rolled per entry, a fine blade adds four and no more, and a clumsy survivor rolls
+negative. Writing the gate also caught that a field-dressed body's bone runs from the whole roll to one and a half times it - last round's comment said three quarters, which was the port's halving talking.

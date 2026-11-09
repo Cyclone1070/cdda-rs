@@ -648,6 +648,9 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         action,
         size: crate::monster_registry::size_of(world, corpse_of.kind),
         butchery: i32::from(skill_level(world, creature, "survival")),
+        dex: effective_dexterity(world, creature),
+        // With no tool in hand the quality is zero, which is what the reference's own `max_quality` answers for an empty inventory.
+        tool_quality: 0,
         yield_multiplier: multiplier,
         damage: corpse_damage_of(world, corpse),
         gibbed: flags.0.iter().any(|flag| flag == "GIBBED"),
