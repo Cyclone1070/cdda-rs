@@ -8003,6 +8003,23 @@ pub fn after_the_proficiencies(entry: &HarvestSpec, count: i32, state: &ButcherF
     count
 }
 
+/// What one entry gives once a **quartered** body has had its say.
+///
+/// Reference: `butchery.cpp:813-821`. The block runs after the field dressing and before a share becomes items, and it is unconditional - no action gates it:
+///
+/// * a **skin** entry gives nothing at all, "not continue to show fail effect" in the reference's own words, so the failure message still appears;
+/// * every other entry gives a quarter.
+#[must_use]
+pub fn after_a_quartering(entry: &HarvestSpec, count: i32, state: &ButcherFinish) -> i32 {
+    if !state.quartered {
+        return count;
+    }
+    if entry.part == Some(HarvestEntry::Skin) {
+        return 0;
+    }
+    count / 4
+}
+
 /// What one entry gives once the body's **field dressing** has had its say.
 ///
 /// Reference: `butchery.cpp:792-812`, two blocks that both run only for a full or a quick job:
@@ -8225,6 +8242,8 @@ pub struct ButcherFinish {
     pub field_dressed: bool,
     /// Whether the field dressing was botched, which rolls the flesh and the hide down as well (`butchery.cpp:801-812`).
     pub field_dress_failed: bool,
+    /// Whether the body was quartered, which ruins the hide and takes three quarters of everything else (`butchery.cpp:813-821`).
+    pub quartered: bool,
     /// How far along the **butchering** proficiency is, from zero to one, as `pct_practiced` answers.
     pub butch_basic: f64,
     /// How far along the **skinning** proficiency is, from zero to one.
@@ -8286,6 +8305,8 @@ pub fn butcher_finish(
         let Some(count) = after_a_field_dressing(entry, count, &state, &mut between) else {
             continue;
         };
+        // Reference: a **quartered** body loses three quarters of everything and its hide entirely (`butchery.cpp:813-821`), which runs before a share becomes items.
+        let count = after_a_quartering(entry, count, &state);
         // Reference: the action's own block (`butchery.cpp:741-790`).
         let Some(count) = after_the_action(entry, count, &state, &mut between) else {
             continue;

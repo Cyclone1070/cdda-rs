@@ -657,6 +657,7 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         skinned: flags.0.iter().any(|flag| flag == "SKINNED"),
         field_dressed: flags.0.iter().any(|flag| flag == "FIELD_DRESS"),
         field_dress_failed: flags.0.iter().any(|flag| flag == "FIELD_DRESS_FAILED"),
+        quartered: flags.0.iter().any(|flag| flag == "QUARTERED"),
         butch_basic: practised_fraction(world, creature, "prof_butchering_basic"),
         skin_basic: practised_fraction(world, creature, "prof_skinning_basic"),
         skin_adv: practised_fraction(world, creature, "prof_skinning_adv"),

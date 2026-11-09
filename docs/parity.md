@@ -16798,6 +16798,9 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**A quartered body has ruined its hide** (round 1417): `after_a_quartering` is `butchery.cpp:813-821`, unconditional and before a share becomes items - a `QUARTERED` corpse gives **no skin at all** (the reference's
+own comment says the entry is zeroed rather than skipped so the failure message still shows) and a quarter of everything else. The port read three of the corpse's five butchery flags; now four.
+
 **The butchery figure is rolled for every entry, and a dressed body's bones are worth more than a fresh one's** (round 1416): `roll_butchery_dissect` (`butchery.cpp:566-583`) spreads the figure around the
 survivor's skill and dexterity, **adds at most four for a blade however fine it is**, and takes ground away for one worse than nothing; it can go negative, because the reference clamps nothing there. That figure -
 not the survival level - is what an entry's `scale_num` multiplies, and the port had been passing the level itself.

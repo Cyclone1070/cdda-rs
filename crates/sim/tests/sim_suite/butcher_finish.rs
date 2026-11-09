@@ -48,7 +48,8 @@ fn finish() -> ButcherFinish {
         gibbed: false,
         skinned: false,
         field_dressed: false,
-        field_dress_failed: false,
+        quartered: false,
+    field_dress_failed: false,
         // Nothing known, which is the survivor a fresh game starts as and the worst case the reference allows.
         butch_basic: 1.0,
         skin_basic: 1.0,
@@ -624,5 +625,45 @@ fn the_butchery_roll_spreads_around_the_skill_and_the_tool() {
         cdda_sim::roll_butchery_dissect(0, 0, -10, &mut high),
         -2,
         "a high draw takes none of the skill or dexterity loss, and the tool still takes its two"
+    );
+}
+
+/// **A quartered corpse has ruined its hide and lost three quarters of everything else.**
+///
+/// Reference: `butchery.cpp:813-821` - the block runs after the field dressing and before a share becomes items, and it is unconditional: a body carrying `QUARTERED` gives **no skin at all** ("not continue to
+/// show fail effect", the reference's own comment) and a quarter of its flesh, bone and everything else.
+#[test]
+fn a_quartered_body_has_ruined_its_hide_and_lost_three_quarters_of_the_rest() {
+    let mut world = World::new();
+    let corpse = body(&mut world);
+    world
+        .entity_mut(corpse)
+        .insert(cdda_sim::ItemFlags(["QUARTERED".to_owned()].into_iter().collect()));
+    let entries = [
+        entry(HarvestEntry::Flesh, (40, 40)),
+        entry(HarvestEntry::Bone, (20, 20)),
+        entry(HarvestEntry::Skin, (5, 5)),
+    ];
+    let mut rolls = Rolls::new(13);
+    let dropped = butcher_finish(
+        &mut world,
+        corpse,
+        HarvestTable {
+            entries: &entries,
+            ids: &["meat", "bone", "skin"],
+            weight: 0.0,
+        },
+        ButcherFinish {
+            quartered: true,
+            ..finish()
+        },
+        ids,
+        |_| 1_000,
+        &mut rolls,
+    );
+    assert_eq!(
+        dropped,
+        vec![(MEAT, 10), (BONE, 5)],
+        "**forty cuts of flesh become ten, twenty bones become five, and the hide is gone**"
     );
 }
