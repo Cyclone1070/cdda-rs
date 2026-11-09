@@ -20,12 +20,28 @@ ledger, so every entry was checked against the code this round, and the check is
 | Gap as carried | Still true? | The check |
 |---|---|---|
 The butchery's second clock (`Butchery.moves_left`) is unread | **closed** | `lib.rs:8425` reads it - `if moves <= 0 \|\| work.moves_left <= 0` - so a corpse that needs more work stops the step. The carried claim was stale. |
-Blade quality is always zero | **true** | `creature.rs:619` (`let blade = 0;`), `:664` and `:748` (`tool_quality: 0`): the survivor's held tool is not read, because the quality table is `max_quality( qual_CUT_FINE )` and the port has no item-quality reader for it. |
+Blade quality is always zero | **closed** (round 1435) | `creature::best_quality` now reads it: the best level among what the survivor carries **and** the ground within `PICKUP_RANGE` (six), which is `Character::max_quality( qual, radius )` (`visitable.cpp:269-300`). A butchery asks `BUTCHER` and a dissection asks `CUT_FINE` (`butchery.cpp:632`), and both are gated. |
 `Other` drop types are judged on the blade | **true** | `lib.rs:7808` gives an unnamed drop type the empty name, so it answers the blade and nothing else - which is the reference's answer for a type with no skills, but only because the port has no name for it. |
 Six rules are ported, gated and uncalled | **true** | `tools/check_dead_rules.py` allows exactly six, and each is named with its reason at "the rules with no caller" below. |
 
 **One of the four was stale and three are real.** The stale one is the interesting one: `moves_left` has been read since the step rule landed, and the record went on
 describing it as a gap because the sentence had never been revisited. That is the same failure the roadmap's census table had this arc, in a smaller place.
+
+## The blade is a tool now (round 1435)
+
+Every butchery this arc made cut with a blade of quality **zero**, and the record said so. The reason was not a missing rule but a missing reader: `Character::max_quality( qual,
+radius )` (`visitable.cpp:269-300`) takes the best level of a quality over the character's own items and then over the ground within `PICKUP_RANGE` - six squares
+(`game_constants.h:44`) - and the port had the quality table (`item_registry::qualities_of`) without ever asking it for a tool.
+
+| Question | Answer |
+|---|---|
+Which quality does a butchery ask? | `BUTCHER`, and `CUT_FINE` only for a dissection (`butchery.cpp:385`, `:632`) - so the two actions read different tools, which is the sort of detail a single "blade" would have lost |
+How far does a survivor reach? | six squares, the reference's own `PICKUP_RANGE`, gated at six and seven |
+What is the answer with nothing in reach? | zero - the reference's answer for an empty inventory, not a refusal |
+What the port still does not ask | bionics and mutations (`Character::max_quality` also walks those); the port has no bionic store, so the items half is the whole of it |
+
+The gates: a survivor holding nothing answers zero, a knife in the inventory answers its own level, a knife on the floor at six squares counts and at seven does not, and the
+quality the knife does not have still answers nothing. Removing the reach check or widening it fails them.
 
 ## Single-authority audit (round 294)
 

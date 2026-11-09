@@ -614,9 +614,18 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
     };
     let survival = i32::from(skill_level(world, creature, "survival"));
     let dexterity = effective_dexterity(world, creature);
-    // The blade's quality is the closest thing the port has to `max_quality( qual_CUT_FINE )`; with no tool in hand it is zero, which is what the reference's own `max_quality` answers for an empty
-    // inventory.
-    let blade = 0;
+    // Reference: `you.max_quality( action == butcher_type::DISSECT ? qual_CUT_FINE : qual_BUTCHER, PICKUP_RANGE )` (`butchery.cpp:632`): a dissection wants a fine blade and
+    // everything else wants a butchering tool, and either may be lying on the ground beside the corpse. The quality is read **before** the yield multiplier, because the
+    // multiplier is what it feeds; with nothing in reach it is zero, which is the reference's answer for an empty inventory rather than a refusal.
+    let action = world
+        .get::<crate::Butchery>(corpse)
+        .map_or(crate::ButcherAction::Full, |work| work.action);
+    let quality = if action == crate::ButcherAction::Dissect {
+        "CUT_FINE"
+    } else {
+        "BUTCHER"
+    };
+    let blade = best_quality(world, creature, quality);
     let multiplier = crate::butchery_yield_multiplier(survival, dexterity, blade);
     finish_butchering_with(world, creature, corpse, multiplier);
 }
@@ -4389,4 +4398,59 @@ pub fn gibs_scattered(
     } else {
         count
     }
+}
+
+/// The best level of a quality among everything the creature can reach.
+///
+/// Reference: `Character::max_quality( qual, radius )` (`visitable.cpp:269-300`): the best over the character's own visits - its inventory - and then, with a radius, over
+/// the ground within `PICKUP_RANGE`. The reference also asks its bionics and, for `qual_BUTCHER`, its mutations; the port has neither store, so what it answers is the items
+/// half, which is the half butchery actually uses.
+///
+/// How far a survivor can reach without moving, in squares. Reference: `PICKUP_RANGE`, six (`game_constants.h`), which `max_quality( qual, PICKUP_RANGE )` uses.
+pub const PICKUP_RANGE: i32 = 6;
+
+/// A quality nothing has is **zero**, which is the reference's answer for an empty inventory (`INT_MIN` from the visit walks, and no `res` beats it), not a refusal.
+#[must_use]
+pub fn best_quality(world: &mut World, creature: Entity, quality: &str) -> i32 {
+    let held: Vec<Entity> = world
+        .get::<crate::Inventory>(creature)
+        .map_or_else(Vec::new, |inventory| inventory.items.clone());
+    let mut best = 0;
+    for item in held {
+        let Some(kind) = world.get::<crate::GroundItem>(item).map(|item| item.kind) else {
+            continue;
+        };
+        let level = crate::item_registry::qualities_of(world, kind)
+            .get(quality)
+            .copied()
+            .unwrap_or(0);
+        best = best.max(level);
+    }
+    // Reference: `PICKUP_RANGE` squares of ground are reachable without moving (`visitable.cpp:291-295`). The port walks the item entities it holds as ground items and
+    // asks the same distance, because a corpse's own square is where a knife is usually dropped.
+    let Some(position) = world.get::<crate::Position>(creature).copied() else {
+        return best;
+    };
+    let nearby: Vec<(Entity, i32, i32)> = {
+        let mut query = world.query::<(Entity, &crate::GroundItem, &crate::Position)>();
+        query
+            .iter(world)
+            .map(|(entity, _item, at)| (entity, at.x, at.y))
+            .collect()
+    };
+    for (item, x, y) in nearby {
+        let distance = (x - position.x).abs().max((y - position.y).abs());
+        if distance > PICKUP_RANGE {
+            continue;
+        }
+        let Some(kind) = world.get::<crate::GroundItem>(item).map(|item| item.kind) else {
+            continue;
+        };
+        let level = crate::item_registry::qualities_of(world, kind)
+            .get(quality)
+            .copied()
+            .unwrap_or(0);
+        best = best.max(level);
+    }
+    best
 }

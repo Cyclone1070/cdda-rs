@@ -1645,3 +1645,6 @@ kind of placement a port gets wrong by putting the call inside the `else` where 
 
 **Round 1432 ported `u_emit` and moved the emission rule into one place.** A spell and a dialogue effect ask `map::emit_field` the same question, so the pouring logic that lived inside the spell path became
 `emit_at::emit_one` with `emit_field` beside it, and the spell now asks the shared rule. The census answered with its usual proof: seven refusing programs, 599 readable, and the leaf count down from 30 to 21.
+
+**Round 1435 read the blade.** `creature::best_quality` answers the best level of a quality among what a survivor carries and the ground within six squares, which is
+`Character::max_quality( qual, PICKUP_RANGE )`; a butchery asks `BUTCHER` and a dissection `CUT_FINE`. Three gates, and the reach one fails at seven squares as it should.
