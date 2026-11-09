@@ -367,3 +367,69 @@ fn a_mutation_runs_its_own_programs_when_it_is_switched_on() {
         "**and again on the second switch-on**, because the reference's program block sits outside the branch that spends the charge"
     );
 }
+
+/// **`npc_emit` puts a field on the square a variable names, not on the speaker.**
+///
+/// Reference: `f_emit` (`npctalk.cpp:7740-7749`): the target is `d.actor( is_npc )->pos_abs()` unless a `target_var` names one, and the emission's own chance is scaled by
+/// `chance_mult` before `here.emit_field` runs. The data uses exactly this shape to put a fog plume where a monster died (`EOC_YUGG_DEATH`).
+#[test]
+fn the_emit_effect_puts_a_field_where_the_variable_says() {
+    use cdda_content::dialogue::{AssignmentTarget, Effect, StringSource};
+
+    let mut world = World::new();
+    // An emission is asked for a die per attempt, so the world needs one before anything can be poured.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_smoke", 1, 1)]);
+    cdda_sim::emit_registry::set_emits(
+        &mut world,
+        &[(
+            "emit_fog_plume".to_owned(),
+            vec![cdda_content::emit::Emission {
+                field: "fd_smoke".to_owned(),
+                intensity: 1,
+                chance: 100,
+                qty: 1,
+            }],
+        )],
+    );
+    // `context_val` is held by the speaker itself (`holder_for_scope`), which is how a program carries a square from one entry to the next.
+    let actor = world
+        .spawn(cdda_sim::Position {
+            x: 0,
+            y: 0,
+            z: 0,
+        })
+        .id();
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        actor,
+        "death_loc",
+        cdda_sim::dialogue_values::Value::Position { x: 5, y: 7, z: 0 },
+    );
+
+    let effect = Effect::Emit {
+        emit: StringSource::Literal("emit_fog_plume".to_owned()),
+        chance_mult: None,
+        target: Some(AssignmentTarget::Variable {
+            scope: "context_val".to_owned(),
+            name: "death_loc".to_owned(),
+        }),
+        listener: false,
+    };
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, actor, None, &effect);
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect is answered"
+    );
+    let smoke = cdda_sim::field_registry::identity_of(&world, "fd_smoke").expect("the field");
+    assert!(
+        cdda_sim::field_strength_at(&world, (5, 7, 0), smoke) > 0,
+        "**the field is at the square the variable named**"
+    );
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (0, 0, 0), smoke),
+        0,
+        "and not where the actor stands"
+    );
+}

@@ -50,7 +50,8 @@ pub const NOW: Census = Census {
     // 584 after round 1049: `offer_mission` is a reader the data's programs were waiting on, so the readable count rises with the leaf count falling.
     // **598 after round 1430 read `u_activate_trait`**, which joins the mutation-activation rule to the program runner: one program stops refusing at its first entry, and the
     // effect census moves with it (1,580 -> 1,581) because the same reader is counted on both sides.
-    readable: 598,
+    // **599 after round 1432 read `u_emit`**, which is the same rule a spell already used, reached through a location variable.
+    readable: 599,
     ran: 395,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
@@ -59,15 +60,16 @@ pub const NOW: Census = Census {
     empty_programs: 22,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     ran_in_a_built_world: 400,
-    refused_at_run: 203,
+    refused_at_run: 204,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
-    leaves: 31,
+    // 21 after round 1432: the `u_emit` reader took nine leaves with it, because the effect is used by nine programs' worth of entries.
+    leaves: 21,
     one_gap: 13,
-    effects_runnable: 1_581,
+    effects_runnable: 1_582,
     effects_defined: 1_612,
-    effect_blamed: 87,
+    effect_blamed: 86,
     conditions_readable: 3_227,
 };
 

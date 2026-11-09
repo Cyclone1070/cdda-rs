@@ -345,7 +345,7 @@ port that no longer exists, and carrying it forward would have been the third st
 | Census | Now | Of | Measured by |
 |---|---|---|---|
 programs known by name | **913** | 913 | `content_suite::eocs::every_effect_on_condition_is_known_by_name` - 692 defined, 221 inline, **0 missing, 0 invented** |
-programs that refuse at their first unreadable entry | **8** | 913 | `content_suite::refusals`, whose assertion is pinned at eight |
+programs that refuse at their first unreadable entry | **7** | 913 | `content_suite::refusals`, whose assertion is pinned at seven |
 
 **The nine refusals are one member each, not a bucket:**
 
@@ -360,7 +360,8 @@ programs that refuse at their first unreadable entry | **8** | 913 | `content_su
 `loc` | a menu-driven location (the `u_run_inv_eocs` family) |
 `radius` | `math: rng(11, 36)` inside a `reveal_map` |
 
-**So the frontier is no longer a call graph, it is a list of eight one-off members**, and seven of the eight are a *store* or a *selection surface* rather than a reader: camps, event
+
+**So the frontier is no longer a call graph, it is a list of seven one-off members**, and six of the seven are a *store* or a *selection surface* rather than a reader: camps, event
 arguments, trade menus, inventory menus. **`u_activate_trait` was the one that was a plain rule, and it is ported** (rounds 1426-1430: the dump, the charge, the cost, the refusal, and the effect).
 
 That is the shape this section should keep: a measured count, the causes ranked, and the one cause that is a rule rather than a surface.

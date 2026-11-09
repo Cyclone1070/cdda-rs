@@ -2887,6 +2887,40 @@ pub fn run_effect(
             }
             Applied::Done
         }
+        Effect::Emit {
+            emit,
+            chance_mult,
+            target,
+            listener: about_listener,
+        } => {
+            let Some(creature) = actor(speaker, listener, *about_listener) else {
+                return Applied::CannotAnswer;
+            };
+            let Some(named) = crate::conditions::text_of(world, speaker, listener, emit) else {
+                return Applied::CannotAnswer;
+            };
+            // Reference: `d.actor( is_npc )->pos_abs()` unless a `target_var` names a square (`npctalk.cpp:7743-7748`), and `here.get_bub` turns either into a square.
+            let square = match target {
+                Some(held) => crate::dialogue_values::position_of(world, speaker, listener, held),
+                None => world
+                    .get::<crate::Position>(creature)
+                    .map(|position| (position.x, position.y, position.z)),
+            };
+            let Some(square) = square else {
+                return Applied::CannotAnswer;
+            };
+            let multiplier = match chance_mult {
+                None => 1.0,
+                Some(given) => match crate::conditions::value(world, speaker, listener, given) {
+                    Some(value) => value,
+                    None => return Applied::CannotAnswer,
+                },
+            };
+            match crate::emit_at::emit_field(world, square, &named, multiplier) {
+                Some(()) => Applied::Done,
+                None => Applied::CannotAnswer,
+            }
+        }
         Effect::ActivateTrait { trait_name, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;

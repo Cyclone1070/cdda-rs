@@ -3214,6 +3214,20 @@ pub enum Effect {
         /// Whether it applies to the listener rather than the speaker.
         listener: bool,
     },
+    /// Put one of the data's emissions down at a square.
+    ///
+    /// Reference: `f_emit` (`npctalk.cpp:7730-7750`): the emit id is a `str_or_var`, `chance_mult` scales every emission's own chance, and a `target_var` names a square
+    /// instead of the actor. The emission table and the pouring rule are the ones spells already use.
+    Emit {
+        /// The emission's id, which the data may give as a variable.
+        emit: StringSource,
+        /// What to multiply each emission's chance by, when the data gives one.
+        chance_mult: Option<Expression>,
+        /// The variable holding the square to emit at, when the data names one instead of the actor.
+        target: Option<AssignmentTarget>,
+        /// Whether it happens to the listener rather than the speaker.
+        listener: bool,
+    },
     /// Take a trait away from a creature.
     ///
     /// Reference: `f_remove_trait` (`npctalk.cpp:3536-3543`), which calls `unset_mutation`.
@@ -3467,6 +3481,7 @@ impl Effect {
             Self::RemoveEffect { .. } | Self::RemoveEffects { .. } => "u_lose_effect",
             Self::LearnTrait { .. } => "u_add_trait",
             Self::ActivateTrait { .. } => "u_activate_trait",
+            Self::Emit { .. } => "u_emit",
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
@@ -3710,6 +3725,27 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         return read_snippet(object);
     }
     if let Some(changed) = read_effect_change(object) { return Some(changed); }
+    // Reference: `f_emit` (`npctalk.cpp:7730-7750`). `chance_mult` and `target_var` are the reference's two optional companions; the actor's own square is the default.
+    for (member, listener) in [("u_emit", false), ("npc_emit", true)] {
+        if let Some(given) = object.get(member)
+            && let Some(emit) = read_string_source(given)
+        {
+            let target = match object.get("target_var") {
+                None => None,
+                Some(given) => Some(read_variable_target(given)?),
+            };
+            let chance_mult = match object.get("chance_mult") {
+                None => None,
+                Some(given) => Some(read_expression(given)?),
+            };
+            return Some(Effect::Emit {
+                emit,
+                chance_mult,
+                target,
+                listener,
+            });
+        }
+    }
     // Reference: `f_activate_trait` (`npctalk.cpp:3518-3525`): a `str_or_var` naming a mutation the creature already has.
     for (member, listener) in [("u_activate_trait", false), ("npc_activate_trait", true)] {
         if let Some(given) = object.get(member)

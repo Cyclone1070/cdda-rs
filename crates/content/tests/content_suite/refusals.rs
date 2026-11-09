@@ -77,6 +77,19 @@ fn first_refusal(entry: &cdda_json::Value, depth: usize) -> Option<(String, Stri
                 let Some(child) = given.get("effect") else {
                     continue;
                 };
+                // **The case's effects are a list**, and blaming the list itself said `<not an object>` for every `switch` refusal - a label that named the walker's own
+                // step rather than the entry that refused. The walk goes into the elements, which is what the `then`/`else`/`effect` loop above already does.
+                if let cdda_json::Value::Array(children) = child {
+                    for element in children {
+                        if let Some(deeper) = first_refusal(element, depth + 1) {
+                            return Some(deeper);
+                        }
+                        if cdda_content::dialogue::read_effect(element).is_none() {
+                            return Some((member_of(element), brief(element)));
+                        }
+                    }
+                    continue;
+                }
                 if let Some(deeper) = first_refusal(child, depth + 1) {
                     return Some(deeper);
                 }
@@ -143,9 +156,9 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     for line in shown {
         println!("REFUSED {line}");
     }
-    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **8**. Every bucket the round-976 roadmap listed is gone, and what is
-    // left is one program per cause: an array where an entry object is expected, and one each of `args`, `count`, `else`, `false_eocs`, `if`, `loc`, `radius`.
-    assert_eq!(refused_programs.len(), 8, "eight programs refuse at their first unreadable entry");
+    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **7**. Every bucket the round-976 roadmap listed is gone, and what is
+    // left is one program per cause: `args`, `count`, `else`, `false_eocs`, `if`, `loc`, `radius`.
+    assert_eq!(refused_programs.len(), 7, "seven programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()

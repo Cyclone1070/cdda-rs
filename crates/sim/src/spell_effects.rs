@@ -108,34 +108,8 @@ fn emit(
     let mut placed = 0;
     for square in squares {
         for emission in &emissions {
-            // Reference: `rng( 1, 100 ) <= chance`, drawn per square per emission.
-            if rolls.rng(1, 100) > emission.chance {
-                continue;
-            }
-            let Some(field) = crate::field_registry::id_of(world, &emission.field) else {
-                continue;
-            };
-            // Reference: `map::emit_field` on a square (`map_field.cpp:2212-2224`) - the chance decides whether anything is
-            // placed, and the quantity is then **poured out** from that square with `propagate_field`, so a gas spreads over
-            // the squares it can reach rather than thickening only the one it was emitted on.
-            if let Some(qty) = emission_qty(emission) {
-                // Reference: `map::propagate_field` stops at an impassable square unless it is `PERMEABLE`
-                // (`map_field.cpp:2264-2270`). The blocked squares are collected first, because placing the field is a write.
-                let blocked = crate::field_passage::blocked_within(world, square, qty);
-                let poured = crate::field_spread::propagate(
-                    world,
-                    square,
-                    field,
-                    qty,
-                    emission.intensity,
-                    &mut rolls,
-                    |x, y, z| !blocked.contains(&(x, y, z)),
-                );
-                if poured > 0 {
-                    placed += 1;
-                }
-            } else {
-                crate::add_field_strength(world, square, field, emission.intensity);
+            // Reference: `map::emit_field` per square (`map_field.cpp:2212-2224`), which is the same rule an `u_emit` effect asks for one square.
+            if crate::emit_at::emit_one(world, square, emission, 1.0, &mut rolls) {
                 placed += 1;
             }
         }

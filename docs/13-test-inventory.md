@@ -1642,3 +1642,6 @@ with it, and the move was the check: a reader that lands is supposed to shift th
 
 **Round 1431 ran a mutation's own programs.** The reference's `activated_eocs` block sits outside the branch that spends the charge, so the gate pins the second switch-on running the program again - the
 kind of placement a port gets wrong by putting the call inside the `else` where the cost is paid.
+
+**Round 1432 ported `u_emit` and moved the emission rule into one place.** A spell and a dialogue effect ask `map::emit_field` the same question, so the pouring logic that lived inside the spell path became
+`emit_at::emit_one` with `emit_field` beside it, and the spell now asks the shared rule. The census answered with its usual proof: seven refusing programs, 599 readable, and the leaf count down from 30 to 21.
