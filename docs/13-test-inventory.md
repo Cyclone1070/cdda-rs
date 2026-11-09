@@ -1656,3 +1656,8 @@ the only place a tool shows, because a blade does not change what a body yields.
 **Round 1437 made a dissection its own job.** It asks for a fine blade rather than a butchering one, reads the body's dissection list rather than its harvest list, and takes
 six times as long; the scenario pins 261,900 moves for a scalpel on a humanoid body, which is the reference's own arithmetic term for term. Its yields still drop nothing,
 because a `mutagen_group` entry names an item group and the port has no group resolution inside a butchery - written down, not papered over.
+
+**Round 1438 found the dissection's empty yields were correct.** A group entry drops nothing in the reference - the drop is resolved only for an item type, and every placement
+is guarded on the drop being non-null - so the port's `mutagen_group` entries should place nothing. It read them as item types, which would have dropped an item id if one
+collided; the drop type's `group` flag is now read from the data and carried on the entry, and the gate uses the case the corpus cannot supply: a group entry whose drop **is**
+a real item.

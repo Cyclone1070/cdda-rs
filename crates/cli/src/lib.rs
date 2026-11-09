@@ -924,6 +924,10 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     // **Most harvest lists are a `copy-from` plus an `extend`.** Resolving them here, once the whole data tree has been read, is what gives the commonest body in the game - the humanoid zombie - its
     // entries at all.
     cdda_content::harvest::resolve_harvests(&mut definitions);
+    // **The drop types first**, because an entry's own `is_group` is the drop type's flag (`harvest.h:36-42`) and the loop below needs it: loading them afterwards would
+    // have left every entry reading as an item type.
+    let drop_types = cdda_content::harvest_drops::load(&["../../oracle/src/data/json/harvest_drop_type.json"])
+        .unwrap_or_default();
     let mut weights = Vec::new();
     let mut sizes = Vec::new();
     let mut tables = Vec::new();
@@ -968,6 +972,10 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
                 scale_num: entry.scale_num.unwrap_or((0.0, 0.0)),
                 mass_ratio: entry.mass_ratio,
                 max: entry.max,
+                // Reference: whether the drop is a group is the **drop type's** own flag (`harvest.h:36-42`), and a group entry places nothing.
+                is_group: drop_types
+                    .get(&entry.type_name)
+                    .is_some_and(|drop_type| drop_type.group),
             });
             ids.push(entry.drop.clone());
         }
@@ -994,6 +1002,10 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
                 scale_num: entry.scale_num.unwrap_or((0.0, 0.0)),
                 mass_ratio: entry.mass_ratio,
                 max: entry.max,
+                // Reference: whether the drop is a group is the **drop type's** own flag (`harvest.h:36-42`), and a group entry places nothing.
+                is_group: drop_types
+                    .get(&entry.type_name)
+                    .is_some_and(|drop_type| drop_type.group),
             });
             ids.push(entry.drop.clone());
         }
@@ -1003,16 +1015,13 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     cdda_sim::monster_registry::set_sizes(world, &sizes);
     cdda_sim::monster_registry::set_dissections(world, &dissections);
     cdda_sim::monster_registry::set_leftovers(world, &leftovers);
-    // The skills each harvest drop type is judged on when a body is cut up (`harvest_drop_type.json`), which for the five ordinary tissues is nothing at all.
-    if let Ok(types) =
-        cdda_content::harvest_drops::load(&["../../oracle/src/data/json/harvest_drop_type.json"])
-    {
-        let by_type: std::collections::BTreeMap<String, Vec<String>> = types
-            .into_iter()
-            .map(|(id, drop_type)| (id, drop_type.harvest_skills))
-            .collect();
-        cdda_sim::harvest_skills::set(world, &by_type);
-    }
+    // The skills each harvest drop type is judged on when a body is cut up (`harvest_drop_type.json`), which for the five ordinary tissues is nothing at all - read from the
+    // same table the loop above took its group flags from.
+    let by_type: std::collections::BTreeMap<String, Vec<String>> = drop_types
+        .into_iter()
+        .map(|(id, drop_type)| (id, drop_type.harvest_skills))
+        .collect();
+    cdda_sim::harvest_skills::set(world, &by_type);
     cdda_sim::monster_registry::set_harvests(world, &tables);
 }
 

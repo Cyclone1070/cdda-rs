@@ -15,6 +15,7 @@ fn fish_flesh() -> HarvestSpec {
         scale_num: (0.0, 0.0),
         mass_ratio: Some(0.32),
         max: None,
+        is_group: false,
     }
 }
 
@@ -26,6 +27,7 @@ fn seeds() -> HarvestSpec {
         scale_num: (0.0, 0.0),
         mass_ratio: None,
         max: None,
+        is_group: false,
     }
 }
 
@@ -145,6 +147,7 @@ fn a_skinned_corpse_gives_no_skin_even_undamaged() {
         scale_num: (0.0, 0.0),
         mass_ratio: None,
         max: None,
+        is_group: false,
     };
     assert_eq!(
         harvest_yield(skin, 0, 0.0, CorpseDamage::Light, false, true, 0.5),
@@ -165,10 +168,42 @@ fn blood_is_not_reduced_by_damage() {
         scale_num: (0.0, 0.0),
         mass_ratio: Some(0.1),
         max: None,
+        is_group: false,
     };
     assert_eq!(
         harvest_yield(blood, 0, 1000.0, CorpseDamage::Pulped, false, false, 0.5),
         100,
         "a pulped body still had blood in it"
+    );
+}
+
+/// **A group entry places nothing, even when its `drop` names a real item.**
+///
+/// Reference: `butchery.cpp:713-716` resolves a drop only `if( entry.type->is_itype() )`, and every placement sits inside `if( drop != nullptr )` (`:829-914`) - so a
+/// `mutagen_group` or `bionic_group` entry walks the whole loop, consumes no weight, and leaves the floor empty. This gate is the one that would have been vacuous on the
+/// corpus (no group id is an item id), so it uses the sharpest case the rule allows: a group entry whose drop **is** a type the world knows.
+#[test]
+fn a_group_entry_drops_nothing_even_when_its_drop_is_a_real_item() {
+    let real = HarvestSpec {
+        part: Some(HarvestEntry::Other),
+        base_num: (5, 5),
+        scale_num: (0.0, 0.0),
+        mass_ratio: None,
+        max: None,
+        is_group: false,
+    };
+    let grouped = HarvestSpec {
+        is_group: true,
+        ..real
+    };
+    assert_eq!(
+        cdda_sim::harvest_yield(real, 0, 81_500.0, cdda_sim::CorpseDamage::Light, false, false, 0.5),
+        5,
+        "an ordinary entry gives its five"
+    );
+    assert_eq!(
+        cdda_sim::harvest_yield(grouped, 0, 81_500.0, cdda_sim::CorpseDamage::Light, false, false, 0.5),
+        0,
+        "**and the same entry marked a group gives none at all**"
     );
 }

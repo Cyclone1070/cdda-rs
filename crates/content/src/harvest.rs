@@ -49,6 +49,9 @@ pub struct HarvestEntry {
     pub drop: String,
     /// What part of the body it is.
     pub part: Option<Part>,
+    /// The **type id the data wrote**, kept beside the part because the part is the port's reading of it: `mutagen_group` and `bionic_group` are groups, and a
+    /// group entry drops nothing (`butchery.cpp:713-716`).
+    pub type_name: String,
     /// A count of items, low and high, before scaling.
     pub base_num: Option<(i32, i32)>,
     /// How the count grows with the corpse, low and high.
@@ -220,6 +223,10 @@ fn read_entry(value: &Value) -> Option<HarvestEntry> {
     let Some(Value::Str(drop)) = object.get("drop") else {
         return None;
     };
+    let type_name = match object.get("type") {
+        Some(Value::Str(name)) => name.clone(),
+        _ => String::new(),
+    };
     let part = match object.get("type") {
         Some(Value::Str(name)) => Some(Part::from_name(name)),
         _ => None,
@@ -247,6 +254,7 @@ fn read_entry(value: &Value) -> Option<HarvestEntry> {
     Some(HarvestEntry {
         drop: drop.clone(),
         part,
+        type_name,
         base_num: base.map(|(low, high)| {
             #[allow(clippy::cast_possible_truncation)]
             let pair = (low as i32, high as i32);

@@ -70,3 +70,29 @@ fn a_definition_that_names_no_leftovers_leaves_ruined_chunks() {
         .count();
     assert_eq!(named, 0, "and the shipped data names none at all, which is what makes the default the whole rule");
 }
+
+#[test]
+fn a_drop_type_says_whether_it_names_an_item_group() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../oracle/src/data/json/harvest_drop_type.json")
+        .to_string_lossy()
+        .into_owned();
+    let types = cdda_content::harvest_drops::load(&[&path]).expect("the drop types");
+    let groups: Vec<&str> = types
+        .values()
+        .filter(|drop_type| drop_type.group)
+        .map(|drop_type| drop_type.id.as_str())
+        .collect();
+    assert_eq!(
+        groups,
+        vec!["bionic_group", "mutagen_group"],
+        "**exactly two drop types name an item group**, and neither can drop an item the way an itype entry does"
+    );
+    assert!(
+        !types
+            .get("flesh")
+            .expect("flesh")
+            .group,
+        "and flesh, which is what most of a body gives, is an item type"
+    );
+}

@@ -8302,6 +8302,11 @@ pub struct HarvestSpec {
     pub mass_ratio: Option<f64>,
     /// A ceiling on the count.
     pub max: Option<i32>,
+    /// Whether this entry's `drop` names an **item group** rather than one item type: a group entry places nothing at all.
+    ///
+    /// Reference: `butchery.cpp:713-716` resolves a drop only `if( entry.type->is_itype() )`, and every placement is inside `if( drop != nullptr )`
+    /// (`:829-914`) - so a `mutagen_group` or `bionic_group` entry walks the loop and drops nothing, which is what this flag reproduces rather than "fixing".
+    pub is_group: bool,
 }
 
 /// How much of one harvest entry a butchered corpse gives, before the proficiency adjustments.
@@ -8329,6 +8334,11 @@ pub fn harvest_yield(
     draw: f64,
 ) -> i32 {
     let part = entry.part;
+    // **A group entry places nothing.** Reference: the drop is resolved only `if( entry.type->is_itype() )` (`butchery.cpp:713-716`) and every placement sits inside
+    // `if( drop != nullptr )` (`:829-914`), so the entry is walked, its weight is not consumed, and the floor gets nothing from it.
+    if entry.is_group {
+        return 0;
+    }
     let damages_anything = matches!(
         part,
         Some(HarvestEntry::Flesh | HarvestEntry::Offal | HarvestEntry::Skin | HarvestEntry::Bone)

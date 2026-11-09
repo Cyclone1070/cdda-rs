@@ -27,6 +27,23 @@ Six rules are ported, gated and uncalled | **true** | `tools/check_dead_rules.py
 **One of the four was stale and three are real.** The stale one is the interesting one: `moves_left` has been read since the step rule landed, and the record went on
 describing it as a gap because the sentence had never been revisited. That is the same failure the roadmap's census table had this arc, in a smaller place.
 
+## A group entry drops nothing, and that is the reference (round 1438)
+
+The gap named at the end of the last round - "a dissection's yields drop nothing, because its entries are `mutagen_group`" - turned out **not to be a port gap at all**. The
+reference resolves a drop only `if( entry.type->is_itype() )` (`butchery.cpp:713-716`), and every placement of an item sits inside `if( drop != nullptr )` (`:829-914`). A
+group entry therefore walks the whole loop, consumes no weight, and places nothing - and "group" is a flag on the drop type itself (`harvest.h:36-42`), read from the data's
+`"group": true`.
+
+| Question | Answer |
+|---|---|
+Which drop types are groups? | exactly two - `mutagen_group` and `bionic_group` - and the other seven are item types |
+What does a group entry do? | nothing: no item, no message, no weight consumed |
+Was the port wrong? | it would have been: it read every entry as an item type, so a group whose `drop` happened to be an item id would have dropped it |
+What is the gate? | the sharpest case the data cannot supply: **a group entry whose drop is a real item still drops nothing**, while the same entry unmarked gives its five |
+
+The flag is read where the data puts it - the drop type - and carried on the entry, because the entry is what the finish walks. The dissection scenario from the last round
+keeps asserting the clock and says nothing about yields, which is now the documented truth rather than an excuse.
+
 ## A dissection is its own job (round 1437)
 
 The gap named at the end of the last round - "what a dissection's clock does with `CUT_FINE` is untested, because no scenario dissects yet" - is closed, and it was not a small

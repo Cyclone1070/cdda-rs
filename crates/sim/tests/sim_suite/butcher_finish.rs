@@ -32,6 +32,7 @@ fn entry(part: HarvestEntry, base: (i32, i32)) -> HarvestSpec {
         scale_num: (0.0, 0.0),
         mass_ratio: None,
         max: None,
+        is_group: false,
     }
 }
 
@@ -247,6 +248,7 @@ fn a_bulk_entry_uses_the_weight_it_was_given() {
         scale_num: (0.0, 0.0),
         mass_ratio: Some(0.5),
         max: None,
+        is_group: false,
     }];
     let mut rolls = Rolls::new(6);
     let dropped = butcher_finish(

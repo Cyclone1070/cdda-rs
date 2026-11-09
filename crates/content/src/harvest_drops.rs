@@ -31,6 +31,12 @@ pub struct DropType {
     pub harvest_skills: Vec<String>,
     /// What a failed attempt at it says.
     pub messages: FailureMessages,
+    /// Whether its `drop` names an **item group** rather than one item type.
+    ///
+    /// Reference: `harvest_drop_type::is_group` (`harvest.h:36-42`), read from the data's `"group": true`. **A group entry drops nothing**: the reference
+    /// resolves a drop only `if( entry.type->is_itype() )` (`butchery.cpp:713-716`), and the walk that places items is guarded by `drop != nullptr`
+    /// (`:829-914`), so a `mutagen_group` entry passes through the whole loop without placing anything.
+    pub group: bool,
 }
 
 /// Reads every drop type the given files define, by id.
@@ -86,6 +92,7 @@ fn read_one(object: &Object) -> Option<DropType> {
             butcher_fail: text(object, "msg_butcher_fail"),
             dissect_fail: text(object, "msg_dissect_fail"),
         },
+        group: matches!(object.get("group"), Some(Value::Bool(true))),
     })
 }
 

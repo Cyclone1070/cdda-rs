@@ -94,6 +94,7 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
             scale_num: (0.0, 0.0),
             mass_ratio: None,
             max: None,
+        is_group: false,
         },
         HarvestSpec {
             part: Some(HarvestEntry::Bone),
@@ -101,6 +102,7 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
             scale_num: (0.0, 0.0),
             mass_ratio: None,
             max: None,
+        is_group: false,
         },
     ];
     let mut rolls = Rolls::new(2468);
@@ -172,6 +174,7 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
             scale_num: (0.0, 0.0),
             mass_ratio: None,
             max: None,
+        is_group: false,
         }];
         let mut rolls = Rolls::new(seed);
         butcher_finish(
