@@ -358,11 +358,10 @@ programs that refuse at their first unreadable entry | **7** | 913 | `content_su
 `false_eocs` | a whole-program spawn inside a false branch |
 `if` | `u_has_camp`, a condition the port has no store for |
 `loc` | a menu-driven location (the `u_run_inv_eocs` family) |
-`radius` | `math: rng(11, 36)` inside a `reveal_map` |
 
 
-**So the frontier is no longer a call graph, it is a list of seven one-off members**, and six of the seven are a *store* or a *selection surface* rather than a reader: camps, event
-arguments, trade menus, inventory menus. **`u_activate_trait` was the one that was a plain rule, and it is ported** (rounds 1426-1430: the dump, the charge, the cost, the refusal, and the effect).
+**So the frontier is no longer a call graph, it is a list of six one-off members**, and all six are a *store* or a *selection surface* rather than a reader: camps, event
+arguments, trade menus, inventory menus. The seventh, `radius`, closed when `reveal_map` learned to read its `dbl_or_var` and the overmap learned whose tiles are seen. **`u_activate_trait` was the one that was a plain rule, and it is ported** (rounds 1426-1430: the dump, the charge, the cost, the refusal, and the effect).
 
 That is the shape this section should keep: a measured count, the causes ranked, and the one cause that is a rule rather than a surface.
 

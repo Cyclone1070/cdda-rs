@@ -27,6 +27,24 @@ Six rules are ported, gated and uncalled | **true** | `tools/check_dead_rules.py
 **One of the four was stale and three are real.** The stale one is the interesting one: `moves_left` has been read since the step rule landed, and the record went on
 describing it as a gap because the sentence had never been revisited. That is the same failure the roadmap's census table had this arc, in a smaller place.
 
+## The map remembers what was seen (round 1439)
+
+`reveal_map` was one of the seven refused programs, and the reason was a **store**: the port had an overmap's terrain and no record of what a survivor had looked at. The store
+is small and the rule is exact.
+
+| Piece | Reference | Port |
+|---|---|---|
+the record | `overmap::set_seen( p, om_vision_level::full )` | a set of tiles, one component, no levels yet |
+the reach | `(2r+1)^2` tiles with `trigdist` off - the default (`overmapbuffer.cpp:887-905`) | the same square, gated at radius 2 marking 25 |
+the projection | `project_to<coords::omt>` before revealing | the square divided by the 24 squares an overmap tile is across |
+the radius | `dbl_or_var`, so a `math` expression is legal | read through the port's expression reader, rounded down |
+
+`EOC_CHECK_MAP_CACHE` is the data's own user of it - `"radius": { "math": [ "rng(11, 36)" ] }` - and `EOC_MAP_UPDATE_CACHE` is the other: a radius the reference draws for
+itself rather than a constant. Both read now, which took the refusal census from seven programs to **six**.
+
+**Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
+vision levels are one bit, full or nothing, because nothing has asked a partial one.
+
 ## A group entry drops nothing, and that is the reference (round 1438)
 
 The gap named at the end of the last round - "a dissection's yields drop nothing, because its entries are `mutagen_group`" - turned out **not to be a port gap at all**. The

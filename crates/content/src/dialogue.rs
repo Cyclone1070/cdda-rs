@@ -3214,6 +3214,16 @@ pub enum Effect {
         /// Whether it applies to the listener rather than the speaker.
         listener: bool,
     },
+    /// Reveal the overmap around a square.
+    ///
+    /// Reference: `f_reveal_map` (`npctalk.cpp:7752-7760`): a `var_info` names the centre, `radius` is a `dbl_or_var` defaulting to zero, and the reference projects the square
+    /// to an overmap tile before revealing (`overmapbuffer::reveal`, `overmapbuffer.cpp:880-905`).
+    RevealMap {
+        /// The variable holding the centre.
+        target: AssignmentTarget,
+        /// How far around it, when the data says.
+        radius: Option<Expression>,
+    },
     /// Put one of the data's emissions down at a square.
     ///
     /// Reference: `f_emit` (`npctalk.cpp:7730-7750`): the emit id is a `str_or_var`, `chance_mult` scales every emission's own chance, and a `target_var` names a square
@@ -3482,6 +3492,7 @@ impl Effect {
             Self::LearnTrait { .. } => "u_add_trait",
             Self::ActivateTrait { .. } => "u_activate_trait",
             Self::Emit { .. } => "u_emit",
+            Self::RevealMap { .. } => "reveal_map",
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
@@ -3725,6 +3736,15 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         return read_snippet(object);
     }
     if let Some(changed) = read_effect_change(object) { return Some(changed); }
+    // Reference: `f_reveal_map` (`npctalk.cpp:7752-7760`): a required `var_info` and an optional `radius` read as a `dbl_or_var`, which is why a `math` radius is legal here.
+    if let Some(given) = object.get("reveal_map") {
+        let target = read_variable_target(given)?;
+        let radius = match object.get("radius") {
+            None => None,
+            Some(given) => Some(read_expression(given)?),
+        };
+        return Some(Effect::RevealMap { target, radius });
+    }
     // Reference: `f_emit` (`npctalk.cpp:7730-7750`). `chance_mult` and `target_var` are the reference's two optional companions; the actor's own square is the default.
     for (member, listener) in [("u_emit", false), ("npc_emit", true)] {
         if let Some(given) = object.get(member)

@@ -69,6 +69,7 @@ mod body_from_content;
 mod character_swing;
 mod creature_fight;
 mod creatures;
+mod overmap_reveal;
 mod pathfinding;
 mod routing;
 mod walking;

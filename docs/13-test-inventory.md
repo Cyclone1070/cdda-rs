@@ -1661,3 +1661,7 @@ because a `mutagen_group` entry names an item group and the port has no group re
 is guarded on the drop being non-null - so the port's `mutagen_group` entries should place nothing. It read them as item types, which would have dropped an item id if one
 collided; the drop type's `group` flag is now read from the data and carried on the entry, and the gate uses the case the corpus cannot supply: a group entry whose drop **is**
 a real item.
+
+**Round 1439 gave the map a memory.** `reveal_map` was refused for want of a store: the overmap knew its terrain and not what had been seen. It keeps a set of seen tiles
+now, `reveal` marks the `(2r+1)^2` square the reference walks, the effect projects a square to its overmap tile first, and the radius is read as the `dbl_or_var` the
+reference makes it. Two gates - the square and the projection - both mutation-checked, and the refusal census fell from seven programs to six.

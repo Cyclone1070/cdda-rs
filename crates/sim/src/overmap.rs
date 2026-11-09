@@ -125,3 +125,47 @@ pub fn base_terrain(id: &str) -> &str {
     }
     id
 }
+
+/// The tiles a survivor has seen, which is what `reveal_map` writes.
+///
+/// Reference: `overmap::set_seen( p, om_vision_level::full )` and `overmap::seen( p )` (`overmapbuffer.cpp:887-905`). The port keeps the **set** rather than a level per tile,
+/// because nothing has asked for a partial level yet: a tile is seen or it is not, and the level's other values (cream, nothing) would be a store the port cannot fill.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct OvermapSeen(pub std::collections::BTreeSet<(i32, i32, i32)>);
+
+/// Marks the entity holding the seen set.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TheOvermapSeen;
+
+/// Marks every tile within `radius` of a point as seen, as `overmapbuffer::reveal` does.
+///
+/// Reference: `overmapbuffer::reveal( center, radius )` (`overmapbuffer.cpp:880-905`): `i` and `j` run from `-radius` to `+radius`, a tile already seen is skipped, and the rest
+/// are marked fully seen.
+pub fn reveal(world: &mut World, center: (i32, i32), radius: i32) {
+    let entity = crate::singletons::singleton::<OvermapSeen, TheOvermapSeen>(world);
+    if world.get::<OvermapSeen>(entity).is_none() {
+        world.entity_mut(entity).insert(OvermapSeen::default());
+    }
+    let Some(mut seen) = world.get_mut::<OvermapSeen>(entity) else {
+        return;
+    };
+    for i in -radius..=radius {
+        for j in -radius..=radius {
+            seen.0.insert((center.0 + i, center.1 + j, 0));
+        }
+    }
+}
+
+/// Every tile that has been seen, which is what a test counts.
+#[must_use]
+pub fn seen_tiles(world: &World) -> Vec<(i32, i32, i32)> {
+    let mut query = world.try_query_filtered::<&OvermapSeen, With<TheOvermapSeen>>();
+    let Some(mut query) = query else {
+        return Vec::new();
+    };
+    query
+        .iter(world)
+        .next()
+        .map(|seen| seen.0.iter().copied().collect())
+        .unwrap_or_default()
+}

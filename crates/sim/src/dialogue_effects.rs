@@ -2921,6 +2921,26 @@ pub fn run_effect(
                 None => Applied::CannotAnswer,
             }
         }
+        Effect::RevealMap { target, radius } => {
+            // Reference: `f_reveal_map` (`npctalk.cpp:7752-7760`): the `var_info` names a square, `radius` is a `dbl_or_var` that defaults to zero, and the square is
+            // projected to an overmap tile before the reveal (`project_to<coords::omt>`), which the overmap module's own `SQUARES_PER_OMT` division is.
+            let Some((x, y, _)) = crate::dialogue_values::position_of(world, speaker, listener, target) else {
+                return Applied::CannotAnswer;
+            };
+            let distance = match radius {
+                None => 0,
+                Some(given) => {
+                    let Some(value) = crate::conditions::value(world, speaker, listener, given) else {
+                        return Applied::CannotAnswer;
+                    };
+                    #[allow(clippy::cast_possible_truncation)]
+                    let rounded = value as i32;
+                    rounded
+                }
+            };
+            crate::overmap::reveal(world, crate::overmap::tile_of(x, y), distance);
+            Applied::Done
+        }
         Effect::ActivateTrait { trait_name, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;
