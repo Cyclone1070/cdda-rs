@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-09 15:38:39
-@@ -0,0 +1,7767 @@
++++ oracle/src/src/harness.cpp	2026-11-10 01:56:27
+@@ -0,0 +1,7806 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -7412,6 +7412,45 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
++/// What a spell costs a caster who carries nothing and wears nothing, at five levels.
++///
++/// Reference: `spell::energy_cost` (`magic.cpp:1163-1195`) - three branches on where `base_energy_cost` sits against `final_energy_cost`, each rounding
++/// `base + increment * effective_level`, then a somatic term for hand encumbrance, then a multiplier an enchantment may set. The encumbrance is recorded
++/// per case so a port can see whether that term was live rather than guess that it was not.
++void dump_spell_costs( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"spell_costs\",\"version\":1,\n\"cases\":[\n" );
++    avatar &u = get_avatar();
++    const int levels[] = { 0, 1, 2, 5, 10 };
++    bool first = true;
++    for( const spell_type &type : spell_type::get_all() ) {
++        if( type.id.is_null() ) {
++            continue;
++        }
++        for( const int level : levels ) {
++            spell sp( type.id );
++            // Reference: `spell::set_level( const Character &, int )` clamps to the spell's own ceiling, which is why it wants the caster.
++            sp.set_level( u, level );
++            const int cost = sp.energy_cost( u );
++            std::fprintf( out,
++                          "%s{\"id\":\"%s\",\"level\":%d,\"energy_cost\":%d,\"somatic_encumbrance\":%f,"
++                          "\"energy_source\":\"%s\",\"no_hands\":%s}",
++                          first ? "" : ",", harness_escape( type.id.str() ).c_str(), level, cost,
++                          static_cast<double>( u.avg_encumb_of_limb_type( body_part_type::type::hand ) ),
++                          harness_escape( io::enum_to_string( type.get_energy_source() ) ).c_str(),
++                          sp.no_hands() ? "true" : "false" );
++            first = false;
++        }
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
 +/// Whether a string id is a **name** rather than the debug marker an inline group is given when it loads.
 +///
 +/// Interned anonymous ids come back as `<marker> <number>`; a name is the data's own text. The marker is U+01F7, two bytes in UTF-8, which is why the test is on the bytes.
@@ -8129,8 +8168,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-09 01:57:13
-@@ -0,0 +1,424 @@
++++ oracle/src/src/harness.h	2026-11-10 00:17:56
+@@ -0,0 +1,425 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8449,6 +8488,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_butchery( const std::string &path );
 +void dump_weakpoint_sets( const std::string &path );
 +void dump_spells( const std::string &path );
++void dump_spell_costs( const std::string &path );
 +
 +// `--dump-state <file>`: the world the reference actually produced — random
 +// stream position, calendar, avatar, and a tile-level digest of the reality
@@ -8729,7 +8769,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-09 02:10:37
++++ oracle/src/src/main.cpp	2026-11-10 00:17:56
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -8740,7 +8780,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,167 @@
+@@ -272,6 +275,168 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -8763,6 +8803,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_weakpoint_sets;
 +    // Harness: every spell's numbers.
 +    std::string dump_spells;
++    std::string dump_spell_costs;
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
 +    // Harness: every weather type, with the numbers the game reads off it.
@@ -8908,7 +8949,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +464,1440 @@
+@@ -300,6 +465,1450 @@
                  }
              },
              {
@@ -8918,6 +8959,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_spells = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-spell-costs", "<file>",
++                "Writes what each spell costs a bare caster at levels 0, 1, 2, 5 and 10",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_spell_costs = params[0];
 +                    return 1;
 +                }
 +            },
@@ -10349,7 +10400,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2384,788 @@
+@@ -786,6 +2395,795 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11080,6 +11131,13 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_spells( cli.dump_spells );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_spell_costs.empty() ) {
++            // After the load, like every other prototype probe: an avatar alone is not enough, the spell registry has to be there.
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            harness::dump_spell_costs( cli.dump_spell_costs );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_melee_rolls.empty() ) {

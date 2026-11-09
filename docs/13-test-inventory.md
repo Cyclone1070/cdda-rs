@@ -1665,3 +1665,9 @@ a real item.
 **Round 1439 gave the map a memory.** `reveal_map` was refused for want of a store: the overmap knew its terrain and not what had been seen. It keeps a set of seen tiles
 now, `reveal` marks the `(2r+1)^2` square the reference walks, the effect projects a square to its overmap tile first, and the radius is read as the `dbl_or_var` the
 reference makes it. Two gates - the square and the projection - both mutation-checked, and the refusal census fell from seven programs to six.
+
+**Round 1440 priced a spell.** `--dump-spell-costs` is a new probe: what each of the 245 spells costs a bare caster at levels 0, 1, 2, 5 and 10, from `spell::energy_cost` itself. The port's
+`spellcasting::energy_cost` reproduces **all 1,225** recorded prices, with more than five hundred of the requests past a spell's ceiling so `set_level`'s clamp is exercised too. The recording also
+measured a fact worth more than the gate: **every spell in the content writes a base equal to its final value with a zero increment**, so the corpus cannot exercise the reference's three-branch
+climb - which is recorded, and pinned instead by transcribed cases for both directions, the equal branch (with a falling increment, the only shape that distinguishes it), the rounding, and the
+somatic term the recording's zero encumbrance could never show.

@@ -12,6 +12,59 @@ use cdda_content::spells::Spell;
 use crate::creature::{Body, armour_on, hurt};
 use crate::through_armour;
 
+/// What a caster's body does to a spell's price: how much its hands encumber it, and whether an enchantment has made the
+/// casting wordless and gestureless.
+///
+/// Reference: `spell::energy_cost` (`magic.cpp:1178-1192`) reads `avg_encumb_of_limb_type( hand ) - 5`, ignores the first ten
+/// points of combined encumbrance, and charges different rates per energy source; `json_flag_SUBTLE_SPELL` skips the term
+/// entirely. A caster that floats free of its hands is the same caster the reference calls `no_hands()`.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Somatic {
+    /// The caster's average hand encumbrance, in the reference's own units.
+    pub hand_encumbrance: i32,
+    /// Whether the caster has the subtle-spell flag, which makes every gesture free.
+    pub subtle_spell: bool,
+    /// Whether the spell itself needs no hands.
+    ///
+    /// Reference: `spell::no_hands()` is `has_flag( spell_flag::NO_HANDS ) || temp_somatic_difficulty_multiplyer <= 0`
+    /// (`magic.cpp:1204-1207`). **The port does not load spell flags yet**, so the caller states it - and with a caster that carries
+    /// nothing the whole term is zero whichever way it is stated, which is why no gate could tell the two apart today.
+    pub no_hands: bool,
+}
+
+/// What a spell costs to cast, in the units of its own energy source.
+///
+/// Reference: `spell::energy_cost` (`magic.cpp:1163-1195`). The price is not `Scaling::at`'s clamp: the reference branches on
+/// where the base sits against the final value and then **rounds** `base + increment * level`, so a spell whose increment
+/// runs away from its final value still stops there, and one whose base already equals its final ignores the increment
+/// altogether. `None` when the data wrote an expression where a number belongs, because a guessed price is a silent
+/// divergence in every cast.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
+pub fn energy_cost(spell: &Spell, level: i32, somatic: Somatic) -> Option<i32> {
+    let base = spell.energy.start?;
+    let increment = spell.energy.increment?;
+    let end = spell.energy.end?;
+    let climbed = base + increment * f64::from(level);
+    let mut cost = if base < end {
+        end.min(climbed.round())
+    } else if base > end {
+        end.max(climbed.round())
+    } else {
+        base
+    } as i32;
+    // Reference: `if( !no_hands() && !guy.has_flag( json_flag_SUBTLE_SPELL ) )` (`magic.cpp:1178`).
+    if !somatic.no_hands && !somatic.subtle_spell {
+        let encumbrance = 0.max(somatic.hand_encumbrance - 5);
+        cost += match spell.energy_source.as_str() {
+            "HP" => encumbrance,
+            "STAMINA" => 100 * encumbrance,
+            _ => 10 * encumbrance,
+        };
+    }
+    Some(cost.max(0))
+}
+
 /// What came of casting.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cast {
