@@ -957,6 +957,16 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     cdda_sim::monster_registry::set_weights(world, &weights);
     cdda_sim::monster_registry::set_sizes(world, &sizes);
     cdda_sim::monster_registry::set_dissections(world, &dissections);
+    // The skills each harvest drop type is judged on when a body is cut up (`harvest_drop_type.json`), which for the five ordinary tissues is nothing at all.
+    if let Ok(types) =
+        cdda_content::harvest_drops::load(&["../../oracle/src/data/json/harvest_drop_type.json"])
+    {
+        let by_type: std::collections::BTreeMap<String, Vec<String>> = types
+            .into_iter()
+            .map(|(id, drop_type)| (id, drop_type.harvest_skills))
+            .collect();
+        cdda_sim::harvest_skills::set(world, &by_type);
+    }
     cdda_sim::monster_registry::set_harvests(world, &tables);
 }
 

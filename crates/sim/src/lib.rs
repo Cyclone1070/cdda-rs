@@ -60,6 +60,7 @@ pub mod crafting;
 pub mod choices;
 pub mod creature;
 pub mod creature_flags;
+pub mod harvest_skills;
 pub mod hearing;
 pub mod hit_location;
 pub mod limbs;
@@ -7791,6 +7792,22 @@ pub enum HarvestEntry {
     Other,
 }
 
+impl HarvestEntry {
+    /// The reference's own id for this kind of drop, which is what `harvest_drop_type.json` names.
+    #[must_use]
+    pub const fn drop_type_name(self) -> &'static str {
+        match self {
+            Self::Flesh => "flesh",
+            Self::Offal => "offal",
+            Self::Skin => "skin",
+            Self::Bone => "bone",
+            Self::Blood => "blood",
+            // The reference would name the type here; the port kept no name for it, so it is answered as what the rule's own default is.
+            Self::Other => "",
+        }
+    }
+}
+
 /// How badly the corpse was damaged, in the reference's own levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CorpseDamage {
@@ -8374,7 +8391,7 @@ pub struct HarvestTable<'a> {
 }
 
 /// The facts a finished butchery needs that are not in the entries themselves.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ButcherFinish {
     /// What kind of butchery is being done. The reference's finish loop branches on it for every entry, so it is part of the rule rather than of the caller's setup.
     pub action: ButcherAction,
@@ -8384,6 +8401,9 @@ pub struct ButcherFinish {
     pub dex: i32,
     /// The blade's quality: below zero it takes ground off the roll, at or above zero it adds **at most four**.
     pub tool_quality: i32,
+    /// The skill each part of the body is judged at, which the reference works out **per entry** from that entry's drop type
+    /// (`butchery.cpp:694`, `:550-564`). A part that is not here falls back to [`ButcherFinish::butchery`].
+    pub skill_levels: Vec<(HarvestEntry, i32)>,
     /// How much of a body's **bulk** becomes items: `butchery_dissect_yield_mult` (`butchery.cpp:585-593`), which the caller works out from the skill, the dexterity and the blade.
     pub yield_multiplier: f64,
     /// How big the body was, which a quick butchery halves the hide of only for a medium creature or larger (`butchery.cpp:748-752`).
@@ -8453,7 +8473,18 @@ pub fn butcher_finish_recording(
     for (entry, id) in table.entries.iter().zip(table.ids.iter()) {
         let draw = f64::from(rolls.rng(0, 10_000)) / 10_000.0;
         // Reference: the figure the entry's `scale_num` multiplies is **rolled afresh for every entry** (`butchery.cpp:694`), not the skill level itself.
-        let butchery = roll_butchery_dissect(state.butchery, state.dex, state.tool_quality, rolls);
+        // Reference: the level is the **entry's own drop type's**, worked out inside the loop (`butchery.cpp:694`).
+        let level = entry
+            .part
+            .and_then(|part| {
+                state
+                    .skill_levels
+                    .iter()
+                    .find(|(each, _)| *each == part)
+                    .map(|(_, level)| *level)
+            })
+            .unwrap_or(state.butchery);
+        let butchery = roll_butchery_dissect(level, state.dex, state.tool_quality, rolls);
         butcheries.push(butchery);
         let count = harvest_yield(
             *entry,

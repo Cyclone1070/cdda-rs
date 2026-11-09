@@ -651,6 +651,12 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         dex: effective_dexterity(world, creature),
         // With no tool in hand the quality is zero, which is what the reference's own `max_quality` answers for an empty inventory.
         tool_quality: 0,
+        skill_levels: butchery_skill_levels(
+            world,
+            creature,
+            &entries.iter().filter_map(|entry| entry.part).collect::<Vec<_>>(),
+            0,
+        ),
         yield_multiplier: multiplier,
         damage: corpse_damage_of(world, corpse),
         gibbed: flags.0.iter().any(|flag| flag == "GIBBED"),
@@ -1208,6 +1214,34 @@ pub fn effective_dexterity(world: &World, entity: Entity) -> i32 {
     });
     // Reference: `Character::get_dex` is `std::max( 0, get_dex_base() + dex_bonus )` (`character.cpp:4390-4392`), and the bonus is where every worn effect's `DEX` modifier lands.
     (base + effect_stat_bonus(world, entity, "DEX")).max(0)
+}
+
+/// The skill each of a body's parts is judged at when it is cut up, per part, as the reference works it out **per entry**.
+///
+/// Reference: `butchery.cpp:694` calls `butchery_dissect_skill_level( you, tool_quality, entry.type )` inside the loop, and that function reads the drop type's own `harvest_skills` (`:550-564`). The five
+/// ordinary tissues name none, so they answer the blade and nothing else; a drop type the port kept no name for answers the blade too, which is the same figure the reference gives a type with no skills.
+#[must_use]
+pub fn butchery_skill_levels(
+    world: &World,
+    creature: Entity,
+    parts: &[crate::HarvestEntry],
+    tool_quality: i32,
+) -> Vec<(crate::HarvestEntry, i32)> {
+    let mut levels = Vec::new();
+    for part in parts {
+        if levels.iter().any(|(each, _)| each == part) {
+            continue;
+        }
+        let named: Vec<(String, i32)> = crate::harvest_skills::skills_for(world, part.drop_type_name())
+            .into_iter()
+            .map(|skill| {
+                let level = crate::skills_of::level_of(world, creature, &skill);
+                (skill, level)
+            })
+            .collect();
+        levels.push((*part, crate::dissect_skill_level(&named, tool_quality)));
+    }
+    levels
 }
 
 /// How far along one proficiency is, from zero to one: **one when it is known**, the fraction of its learning time practised otherwise, and zero for one never started.

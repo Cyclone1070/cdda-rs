@@ -43,7 +43,8 @@ fn finish() -> ButcherFinish {
     tool_quality: 0,
     butchery: 0,
         // Nothing extra: a share of a body is what the weight says, which keeps these gates about the count rule.
-        yield_multiplier: 1.0,
+        skill_levels: Vec::new(),
+    yield_multiplier: 1.0,
         damage: CorpseDamage::Light,
         gibbed: false,
         skinned: false,
@@ -845,5 +846,59 @@ fn a_dissection_s_skill_is_the_drop_type_s_own() {
         dissect_skill_level(&[("firstaid".to_owned(), 5)], -10),
         -5,
         "and a tool worse than nothing takes the figure below zero, which the reference lets it do"
+    );
+}
+
+/// **The finish judges each entry at its own drop type's skill, so survival buys nothing on ordinary tissue.**
+///
+/// Reference: `butchery.cpp:694` calls `butchery_dissect_skill_level( you, tool_quality, entry.type )` **inside** the entry loop, and that function reads the drop type's own skills (`:550-564`). Written as the
+/// port's own helper, the levels a job is judged at therefore do not move when the survivor's survival rises: a master and a beginner cut the same ordinary body with the same figure.
+#[test]
+fn the_finish_judges_each_entry_at_its_own_drop_type_s_skill() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    // A survival master, which is what used to decide the figure.
+    for _ in 0..40 {
+        cdda_sim::skills_of::practice(&mut world, survivor, "survival", 1_000, 10);
+    }
+
+    let levels = cdda_sim::creature::butchery_skill_levels(
+        &world,
+        survivor,
+        &[HarvestEntry::Flesh, HarvestEntry::Bone, HarvestEntry::Skin],
+        0,
+    );
+    assert_eq!(
+        levels,
+        vec![
+            (HarvestEntry::Flesh, 0),
+            (HarvestEntry::Bone, 0),
+            (HarvestEntry::Skin, 0)
+        ],
+        "**the five ordinary tissues are judged on the blade alone**, so a survival master's levels do not enter"
+    );
+
+    let with_blade =
+        cdda_sim::creature::butchery_skill_levels(&world, survivor, &[HarvestEntry::Flesh], 3);
+    assert_eq!(
+        with_blade,
+        vec![(HarvestEntry::Flesh, 3)],
+        "and a quality-three blade is the whole of the figure"
+    );
+
+    // **And a drop type that does name a skill is judged on it**, which is the half of the rule a body of ordinary tissue cannot show. The table is the world's own: this gate gives `bone` a skill the shipped
+    // data does not, because the point here is the wiring and not the data - the data has its own gate in the content suite.
+    // Practice is capped per call, so a level is reached by asking more than once - the same way the game does it, turn by turn.
+    for _ in 0..40 {
+        cdda_sim::skills_of::practice(&mut world, survivor, "firstaid", 1_000, 10);
+    }
+    let mut table = std::collections::BTreeMap::new();
+    table.insert("bone".to_owned(), vec!["firstaid".to_owned()]);
+    cdda_sim::harvest_skills::set(&mut world, &table);
+    let named = cdda_sim::creature::butchery_skill_levels(&world, survivor, &[HarvestEntry::Bone], 0);
+    assert_eq!(
+        named,
+        vec![(HarvestEntry::Bone, 10)],
+        "**a drop type that names first aid is judged at the survivor's level in it**, and survival still does not enter"
     );
 }
