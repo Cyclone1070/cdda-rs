@@ -1,0 +1,41 @@
+# **A knife is a tool, and a tool shortens the work.**
+#
+# Reference: `butcher_time_to_cut` (`butchery.cpp:380-392`) divides the base time by `max_quality( qual_BUTCHER, PICKUP_RANGE )`-driven factors, and `max_quality`
+# (`visitable.cpp:269-300`) walks what the survivor carries as well as the ground within six squares. `knife_hunting` is BUTCHER 30 in the data
+# (`items/swords_and_blades.json`), so the same body that took 1,080 turns of a quick job with bare hands takes a fraction of it with the knife - and the meat is the same,
+# because a blade's quality does not change what a body yields, only how long it takes to get it.
+#
+# The paired scenario is `a_butchered_zombie_leaves_meat.txt`: same world, same seed, no knife, 1,080 turns. Here the knife is carried, and the arithmetic is the point: without
+# a tool table every creature answered a blade of zero, which is what the audit of round 1434 found and this scenario now holds down.
+world 10 bare
+survivor 0 0
+items
+monsters
+seed 7
+give crowbar 1
+give knife_hunting 1
+wield crowbar
+monster mon_zombie 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+turn 1
+expect no monster at 1 0
+butcher quick
+# **75,599 moves**, measured from this scenario's own run, against the 108,000 the same body takes bare-handed (`a_butchered_zombie_leaves_meat.txt` needs 1,080 turns of a
+# hundred moves). The knife is BUTCHER 30, and `butcher_time_to_cut` gives a better tool a bigger divisor until it stops mattering. The assertion is the number, because the
+# clock is the only thing a tool changes: **the yields are identical either way**, so a scenario that counted meat could not tell a knife from no knife at all.
+expect work 75599

@@ -232,6 +232,11 @@ pub enum Step {
         /// How many.
         count: i32,
     },
+    /// The butchery the last `butcher` step started takes this many moves of work.
+    ///
+    /// Nothing else can tell a tool from no tool in a scenario: the yields are the same either way, and only the **clock** moves, so the moves are what a scenario about a blade
+    /// has to assert.
+    ExpectWork(i32),
     /// The survivor is carrying exactly this many of a thing.
     ExpectCarried {
         /// The item's id.
@@ -246,6 +251,8 @@ pub enum Step {
 pub struct Outcome {
     /// One line per step that did something worth reading.
     pub lines: Vec<String>,
+    /// The moves the last `butcher` step booked, so a scenario can assert the clock a tool bought.
+    pub last_work: Option<i32>,
     /// The assertions that did not hold, in the words of the scenario that made them.
     pub failures: Vec<String>,
 }
@@ -392,6 +399,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
             },
+            ["expect", "work", moves] => Step::ExpectWork(number_of(moves, number, "moves")?),
             ["expect", "carried", item, count] => Step::ExpectCarried {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
@@ -566,6 +574,15 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                 }
             }
         Step::Butcher { quick } => butcher_a_step(world, outcome, *quick),
+        Step::ExpectWork(moves) => match outcome.last_work {
+            Some(booked) if booked == *moves => outcome
+                .lines
+                .push(format!("the work is {booked} moves, as the scenario says")),
+            Some(booked) => outcome.failures.push(format!(
+                "the work is {booked} moves, not the {moves} the scenario expects"
+            )),
+            None => outcome.failures.push("no butchery has been started".to_owned()),
+        },
         Step::Wield { .. } | Step::Attack { .. } => take_a_swing(world, step, outcome),
         Step::Goal { x, y } => send_the_monsters_to(outcome, world, *x, *y),
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
@@ -762,6 +779,23 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         })
         .collect();
     cdda_sim::item_registry::set_item_weapon_categories(world, &categories);
+    // **The qualities the data gives each type**, which is what a butchery's blade is measured in: `max_quality` walks the items a survivor carries and the ground within
+    // six squares, and without this table every tool answers zero (`Character::max_quality`, `visitable.cpp:269-300`).
+    let qualities: Vec<(cdda_sim::ItemTypeId, Vec<(String, i32)>)> = items
+        .iter()
+        .filter(|item| !item.qualities.is_empty())
+        .filter_map(|item| {
+            cdda_sim::item_registry::id_of(world, &item.id).map(|kind| {
+                (
+                    kind,
+                    item.qualities.iter().map(|(name, level)| (name.clone(), *level)).collect(),
+                )
+            })
+        })
+        .collect();
+    let rows: Vec<(cdda_sim::ItemTypeId, &[(String, i32)])> =
+        qualities.iter().map(|(kind, held)| (*kind, held.as_slice())).collect();
+    cdda_sim::item_registry::set_item_qualities(world, &rows);
     // The category table and the proficiency bonuses, from the same data directory and the corpus: the swing's third input is what the swinger knows, and the second is these two tables.
     if let Ok(text) = std::fs::read_to_string(data.join("weapon_categories.json"))
         && let Ok(value) = cdda_json::parse(text.as_bytes())
@@ -2811,7 +2845,9 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool) {
         } else {
             cdda_sim::ButcherAction::Full
         },
-        tool_factor: 0,
+        // Reference: `butcher_time_to_cut` reads `max_quality( qual_BUTCHER, PICKUP_RANGE )` (`butchery.cpp:385`), so a knife on the survivor or on the floor beside the
+        // body shortens the work.
+        tool_factor: cdda_sim::creature::best_quality(world, survivor, "BUTCHER"),
         field_dressed: false,
         field_dress_failed: false,
         quartered: false,
@@ -2839,4 +2875,6 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool) {
     outcome.lines.push(format!(
         "butcher: a {size:?} body of {weight} g, {moves} moves of work"
     ));
+    // Kept for `expect work`: **the clock is the only thing a tool changes**, so it is the only thing a scenario about one can assert.
+    outcome.last_work = Some(moves);
 }

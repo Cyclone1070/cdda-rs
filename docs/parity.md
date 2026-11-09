@@ -27,6 +27,22 @@ Six rules are ported, gated and uncalled | **true** | `tools/check_dead_rules.py
 **One of the four was stale and three are real.** The stale one is the interesting one: `moves_left` has been read since the step rule landed, and the record went on
 describing it as a gap because the sentence had never been revisited. That is the same failure the roadmap's census table had this arc, in a smaller place.
 
+## The blade reaches the clock (round 1436)
+
+The reader of the previous round answered a survivor's best `BUTCHER` quality, and nothing asked it: the game's own butchery passed `tool_factor: 0`, and the item table the
+reader needs was never installed, so every tool in the game answered zero as well. Both are fixed, and the proof is a **clock**.
+
+| Question | Answer |
+|---|---|
+Is the quality table in the game's world? | it is now: `install_item_data` installs every type's `qualities`, which is what `max_quality` walks |
+Does the game pass the tool to the clock? | `butcher_time_to_cut` reads `max_quality( qual_BUTCHER, PICKUP_RANGE )` (`butchery.cpp:385`), and the butchery step passes it |
+What does a knife buy? | **75,599 moves** against 108,000 bare-handed, for the same body and the same yields |
+Why the clock and not the meat? | **a tool changes nothing about what a body yields**, only how long the work takes - so a scenario that counted meat could not tell a knife from no knife at all |
+
+The scenario is `a_sharp_knife_cuts_faster.txt`, and it exists because a new playtest step had to exist first: `expect work N` asserts the moves the last butchery booked,
+which is the only thing in a butchery a tool can be seen through. With the game's `tool_factor` set to zero the scenario fails with the bare-handed figure, which is exactly
+the bug it was written for.
+
 ## The blade is a tool now (round 1435)
 
 Every butchery this arc made cut with a blade of quality **zero**, and the record said so. The reason was not a missing rule but a missing reader: `Character::max_quality( qual,

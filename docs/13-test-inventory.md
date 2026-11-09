@@ -1648,3 +1648,7 @@ kind of placement a port gets wrong by putting the call inside the `else` where 
 
 **Round 1435 read the blade.** `creature::best_quality` answers the best level of a quality among what a survivor carries and the ground within six squares, which is
 `Character::max_quality( qual, PICKUP_RANGE )`; a butchery asks `BUTCHER` and a dissection `CUT_FINE`. Three gates, and the reach one fails at seven squares as it should.
+
+**Round 1436 carried the blade to the clock.** The quality reader existed and nothing asked it: the game passed a tool factor of zero and never installed the item quality
+table. Both are wired now, a playtest step `expect work N` asserts the moves a butchery books, and the knife scenario shows 75,599 against 108,000 bare-handed - the clock is
+the only place a tool shows, because a blade does not change what a body yields.

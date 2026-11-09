@@ -4412,9 +4412,15 @@ pub const PICKUP_RANGE: i32 = 6;
 /// A quality nothing has is **zero**, which is the reference's answer for an empty inventory (`INT_MIN` from the visit walks, and no `res` beats it), not a refusal.
 #[must_use]
 pub fn best_quality(world: &mut World, creature: Entity, quality: &str) -> i32 {
-    let held: Vec<Entity> = world
+    let mut held: Vec<Entity> = world
         .get::<crate::Inventory>(creature)
         .map_or_else(Vec::new, |inventory| inventory.items.clone());
+    // **And what the store says the creature carries**, which is the link the game itself uses: an item is an entity with `Carried` pointing at its holder, and an
+    // inventory list is only the reference's container view of the same thing.
+    {
+        let mut query = world.query::<(Entity, &crate::creature::Carried)>();
+        held.extend(query.iter(world).filter(|(_, carried)| carried.0 == creature).map(|(entity, _)| entity));
+    }
     let mut best = 0;
     for item in held {
         let Some(kind) = world.get::<crate::GroundItem>(item).map(|item| item.kind) else {
