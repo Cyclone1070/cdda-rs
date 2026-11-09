@@ -16805,7 +16805,11 @@ the drop type's `harvest_skills`, summed with the blade and divided by how many 
 
 **What is left of a body is ruined parts, and the figures are the reference's** (round 1422): `leftovers_after_butchery` is `butchery.cpp:916-948`, all of it **integer arithmetic on grams** - a fifth of the body
 runs off as gore, a field dressing keeps a quarter back, a skinning takes 85%, and a quartered body has given up more than that. The figure divided by one leftover's weight is how many ruined parts fall, and the
-reference drops none at all for a bleeding. **Wired in round 1423**: the finish subtracts what each drop weighed as it walks the entries (`monster_weight_remaining -= roll * to_gram( drop->weight )`), the table carries the definition's `leftovers`, and the
+reference drops none at all for a bleeding. **And the refuse falls as refuse** (round 1424): the finish resolves the harvest entries' ids before it runs, because the rule takes the world mutably and cannot look a name up itself - and the leftover's id was
+**not among them**, so it resolved to the default id and the refuse fell as a kind that names nothing. The playtest found it at zero; a unit gate on the count alone could not, because the count was never the
+question. The id is resolved with the rest now, and the playtest pins **221 ruined chunks** for an eighty-one-and-a-half-kilogram zombie.
+
+**Wired in round 1423**: the finish subtracts what each drop weighed as it walks the entries (`monster_weight_remaining -= roll * to_gram( drop->weight )`), the table carries the definition's `leftovers`, and the
 game installs each kind's from the content. **Every definition in the shipped data names none, and the reference's default is `ruined_chunks`** (`harvest.h:102`) - so every body in the game leaves ruined chunks,
 and a loader that read the field as "nothing" would drop none of them.
 

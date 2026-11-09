@@ -1620,3 +1620,6 @@ all for a bleeding or a quartering. The gate writes every figure the reference's
 **Round 1423 wired the leftover rule, and the data turned out to say nothing.** No definition in the shipped `harvest.json` names a `leftovers` id, and the reference's default is `ruined_chunks`
 (`harvest.h:102`) - so every body in the game leaves ruined chunks, and a loader that read the missing field as "nothing" would drop none of them. The finish now subtracts what each drop weighed as it walks the
 entries, and the leftover gate's arithmetic was wrong before it was right: 1,000 grams less 250 of cuts less 200 of gore is 550, which is five parts at 100 grams, not three.
+
+**Round 1424 found the refuse falling as nothing.** The finish resolves drop ids before it runs; the leftover's was left out, so the count was right and the kind was the default. The playtest saw zero ruined chunks;
+a gate on the count alone never could. The lesson is written into the record: the ids a rule needs resolved must be named where the resolving happens.
