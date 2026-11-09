@@ -48,23 +48,26 @@ pub struct Census {
 pub const NOW: Census = Census {
     defined: 692,
     // 584 after round 1049: `offer_mission` is a reader the data's programs were waiting on, so the readable count rises with the leaf count falling.
-    readable: 597,
-    ran: 394,
+    // **598 after round 1430 read `u_activate_trait`**, which joins the mutation-activation rule to the program runner: one program stops refusing at its first entry, and the
+    // effect census moves with it (1,580 -> 1,581) because the same reader is counted on both sides.
+    readable: 598,
+    ran: 395,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
-    silent: 288,
+    silent: 289,
     // Silent because the data gives the program no effects at all - a stub, not a rule the port is missing.
     empty_programs: 22,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
-    ran_in_a_built_world: 399,
+    ran_in_a_built_world: 400,
     refused_at_run: 203,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
-    leaves: 32,
-    one_gap: 14,
-    effects_runnable: 1_580,
+    // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
+    leaves: 31,
+    one_gap: 13,
+    effects_runnable: 1_581,
     effects_defined: 1_612,
-    effect_blamed: 88,
+    effect_blamed: 87,
     conditions_readable: 3_227,
 };
 

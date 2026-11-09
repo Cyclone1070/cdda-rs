@@ -2887,6 +2887,17 @@ pub fn run_effect(
             }
             Applied::Done
         }
+        Effect::ActivateTrait { trait_name, listener: about_listener } => {
+            let Some(creature) = actor(speaker, listener, *about_listener) else {
+                return Applied::CannotAnswer;
+            };
+            // Reference: `d.actor( is_npc )->activate_mutation( trait_id( new_trait.evaluate( d ) ) )` (`npctalk.cpp:3522-3524`).
+            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
+                return Applied::CannotAnswer;
+            };
+            crate::mutation_activation::switch_on(world, creature, &named);
+            Applied::Done
+        }
         Effect::LoseTrait { trait_name, listener: about_listener } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;

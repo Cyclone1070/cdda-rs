@@ -250,7 +250,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
         whole, crate::numbers::NOW.readable,
-        "two hundred and thirty-nine run whole: morale fourteen, snippets eight, mapgen updates eight, aiming six"
+        "five hundred and ninety-eight run whole"
     );
     assert_eq!(refused.get("effect"), Some(&crate::numbers::NOW.effect_blamed), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
@@ -463,7 +463,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     );
 
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 239 of them");
+    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 598 of them");
     assert_eq!(ran, crate::numbers::NOW.ran, "a hundred and thirty-two of the readable programs also ran");
     assert_eq!(
         empty_programs,

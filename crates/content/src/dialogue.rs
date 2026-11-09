@@ -3204,6 +3204,16 @@ pub enum Effect {
         /// Whether it goes to the listener rather than the speaker.
         listener: bool,
     },
+    /// Switch a mutation the creature has on.
+    ///
+    /// Reference: `f_activate_trait` (`npctalk.cpp:3518-3525`), which calls `Character::activate_mutation`. **Different from giving it one**: the creature must already
+    /// have the mutation, and what is switched on is its power, which costs one of four currencies (`mutation.cpp:821-880`).
+    ActivateTrait {
+        /// The mutation's id, which the data may give as a variable.
+        trait_name: StringSource,
+        /// Whether it applies to the listener rather than the speaker.
+        listener: bool,
+    },
     /// Take a trait away from a creature.
     ///
     /// Reference: `f_remove_trait` (`npctalk.cpp:3536-3543`), which calls `unset_mutation`.
@@ -3456,6 +3466,7 @@ impl Effect {
             // Both are the same member: the data writes one effect or an array of them under one name.
             Self::RemoveEffect { .. } | Self::RemoveEffects { .. } => "u_lose_effect",
             Self::LearnTrait { .. } => "u_add_trait",
+            Self::ActivateTrait { .. } => "u_activate_trait",
             Self::LoseTrait { .. } => "u_lose_trait",
             Self::RunEoc(_) => "run_eocs",
             Self::Switch { .. } => "switch",
@@ -3699,6 +3710,17 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
         return read_snippet(object);
     }
     if let Some(changed) = read_effect_change(object) { return Some(changed); }
+    // Reference: `f_activate_trait` (`npctalk.cpp:3518-3525`): a `str_or_var` naming a mutation the creature already has.
+    for (member, listener) in [("u_activate_trait", false), ("npc_activate_trait", true)] {
+        if let Some(given) = object.get(member)
+            && let Some(trait_name) = read_string_source(given)
+        {
+            return Some(Effect::ActivateTrait {
+                trait_name,
+                listener,
+            });
+        }
+    }
     // Reference: `f_add_trait` and `f_remove_trait` (`npctalk.cpp:3498-3543`). A `variant` member picks one of a trait's cosmetic variations, which the port records
     // beside the trait: `set_mutation( trait, variant )` keeps the choice, and no rule reads it.
     for (member, listener, learn) in [

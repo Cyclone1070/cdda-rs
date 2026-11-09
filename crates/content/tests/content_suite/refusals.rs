@@ -143,9 +143,9 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     for line in shown {
         println!("REFUSED {line}");
     }
-    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **16**. The **store** cause is gone - round 1054 built the
-    // snapshot and round 1055 read `revert_location` - so what is left is readers: `foreach` twice, and one each of `args`, `count`, `else`, `false_eocs`, `if`, `loc`.
-    assert_eq!(refused_programs.len(), 9, "nine programs refuse at their first unreadable entry");
+    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **8**. Every bucket the round-976 roadmap listed is gone, and what is
+    // left is one program per cause: an array where an entry object is expected, and one each of `args`, `count`, `else`, `false_eocs`, `if`, `loc`, `radius`.
+    assert_eq!(refused_programs.len(), 8, "eight programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()

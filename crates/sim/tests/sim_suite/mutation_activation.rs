@@ -273,3 +273,44 @@ fn switching_on_pays_once_remembers_the_charge_and_refuses_a_creature_that_canno
         "and the reference's own warning is said: {said:?}"
     );
 }
+
+/// **`u_activate_trait` runs the switch, on the creature the effect names.**
+///
+/// Reference: `f_activate_trait` (`npctalk.cpp:3518-3525`) reads a `str_or_var` and calls `d.actor( is_npc )->activate_mutation(...)`. The effect is used by
+/// `EOC_wing_insect_activate` and its family, which is why the census was refusing a program the data actually runs.
+#[test]
+fn the_activate_trait_effect_switches_the_mutation_on() {
+    let mut costing = cdda_content::mutations::Mutation {
+        cost: 400,
+        hunger: true,
+        cooldown_turns: 10,
+        ..cdda_content::mutations::Mutation::default()
+    };
+    costing.valid = true;
+    let mutations = cdda_content::mutations::Mutations::from_entries([("WINGS_INSECT".to_owned(), costing)]);
+    let mut world = World::new();
+    cdda_sim::mutation_data::install(&mut world, mutations, cdda_content::mutations::Categories::default());
+    let mut body = Body::new(2_500);
+    body.stored_calories = 40_000_000;
+    let creature = world.spawn(body).id();
+
+    let effect = cdda_content::dialogue::Effect::ActivateTrait {
+        trait_name: cdda_content::dialogue::StringSource::Literal("WINGS_INSECT".to_owned()),
+        listener: false,
+    };
+    let applied = cdda_sim::dialogue_effects::run_effect(&mut world, creature, None, &effect);
+    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect is answered");
+    assert_eq!(
+        cdda_sim::mutation_activation::state_of(&world, creature, "WINGS_INSECT"),
+        Switched {
+            powered: true,
+            charge: 9
+        },
+        "**and the mutation is switched on, through the effect**"
+    );
+    assert_eq!(
+        cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal(),
+        40_000 - 400,
+        "paying for it out of the body the acting creature wears"
+    );
+}
