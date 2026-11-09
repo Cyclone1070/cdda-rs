@@ -8170,6 +8170,64 @@ impl ButcheryTraining {
     }
 }
 
+/// What is left of a body after it has been cut up, as much as one leftover item's weight.
+///
+/// Reference: `butchery.cpp:916-948`. The arithmetic is **integer on grams**:
+///
+/// ```text
+/// remaining = corpse_grams - corpse_grams / 5          // a fifth runs off as gore
+/// a full job:            - corpse_grams / 4            if field dressed and not quartered
+///                        - ( corpse_grams - corpse_grams * 3 / 4 / 4 )   if quartered
+///                        - corpse_grams * 0.15          if skinned
+/// a field dressing:      - corpse_grams * 3 / 4
+/// a skinning:            - corpse_grams * 0.85
+/// charges = remaining / leftover_grams                 // and nothing at all when that is not positive
+/// ```
+///
+/// The reference drops the ruined parts only when the figure is positive and the action is not a bleeding (`:918`), so a body can be left with nothing and no message.
+#[derive(Debug, Clone, Copy)]
+pub struct CorpseLeftovers {
+    /// The whole body's weight, in grams.
+    pub corpse_grams: i64,
+    /// What one leftover item weighs, in grams.
+    pub leftover_grams: i64,
+    /// What kind of job it was.
+    pub action: ButcherAction,
+    /// Whether the body was field dressed.
+    pub field_dressed: bool,
+    /// Whether it was skinned.
+    pub skinned: bool,
+    /// Whether it was quartered.
+    pub quartered: bool,
+}
+
+/// How many ruined parts a body leaves, as [`CorpseLeftovers`] describes it.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn leftovers_after_butchery(leftovers: &CorpseLeftovers) -> i32 {
+    let weight = leftovers.corpse_grams;
+    let mut remaining = weight - weight / 5;
+    match leftovers.action {
+        ButcherAction::FieldDress => remaining -= weight * 3 / 4,
+        ButcherAction::Skin => remaining -= (weight as f64 * 0.85) as i64,
+        _ => {
+            if leftovers.field_dressed && !leftovers.quartered {
+                remaining -= weight / 4;
+            } else if leftovers.quartered {
+                remaining -= weight - (weight * 3 / 4 / 4);
+            }
+            if leftovers.skinned {
+                remaining -= (weight as f64 * 0.15) as i64;
+            }
+        }
+    }
+    if remaining <= 0 || leftovers.action == ButcherAction::Bleed {
+        return 0;
+    }
+    let each = leftovers.leftover_grams.max(1);
+    i32::try_from(remaining / each).unwrap_or(i32::MAX)
+}
+
 /// What one entry gives once a **quartered** body has had its say.
 ///
 /// Reference: `butchery.cpp:813-821`. The block runs after the field dressing and before a share becomes items, and it is unconditional - no action gates it:

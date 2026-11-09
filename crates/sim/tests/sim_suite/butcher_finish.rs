@@ -902,3 +902,70 @@ fn the_finish_judges_each_entry_at_its_own_drop_type_s_skill() {
         "**a drop type that names first aid is judged at the survivor's level in it**, and survival still does not enter"
     );
 }
+
+/// **What is left of a body is dropped as ruined parts, and the figures that decide how much are the reference's.**
+///
+/// Reference: `butchery.cpp:916-948`. A fifth of the body is liquid gore that no item represents, and what remains after the action's own allowance is divided by one leftover's weight:
+///
+/// ```text
+/// remaining = weight - weight / 5
+/// full, fresh:            remaining -= weight / 4  if field dressed and not quartered
+///                         remaining -= weight - ( weight * 3 / 4 / 4 )  if quartered
+///                         remaining -= weight * 0.15  if skinned
+/// field dressing:         remaining -= weight * 3 / 4
+/// skinning:               remaining -= weight * 0.85
+/// charges = remaining / one leftover's weight
+/// ```
+///
+/// All of it is **integer** arithmetic on grams, which is why a body of exactly a kilogram leaves eight hundred grams, and why a field-dressed one leaves fifty - no charge at all if a leftover weighs a
+/// hundred grams.
+#[test]
+fn what_is_left_of_a_body_is_dropped_as_ruined_parts() {
+    use cdda_sim::{CorpseLeftovers, leftovers_after_butchery};
+
+    let charges = |action: ButcherAction, field_dressed: bool, skinned: bool, quartered: bool| {
+        leftovers_after_butchery(&CorpseLeftovers {
+            corpse_grams: 1_000,
+            leftover_grams: 100,
+            action,
+            field_dressed,
+            skinned,
+            quartered,
+        })
+    };
+    assert_eq!(
+        charges(ButcherAction::Full, false, false, false),
+        8,
+        "**a kilo of body leaves eight hundred grams of ruined parts**, a fifth having run off as gore"
+    );
+    assert_eq!(
+        charges(ButcherAction::Full, true, false, false),
+        5,
+        "a field-dressed body leaves a quarter less again: five hundred and fifty grams"
+    );
+    assert_eq!(
+        charges(ButcherAction::Full, false, true, false),
+        6,
+        "and a skinned one six hundred and fifty, which is a seventh and a half off the eight hundred"
+    );
+    assert_eq!(
+        charges(ButcherAction::FieldDress, false, false, false),
+        0,
+        "**a field dressing leaves fifty grams**, which is no whole leftover at all"
+    );
+    assert_eq!(
+        charges(ButcherAction::Skin, false, false, false),
+        0,
+        "and a skinning leaves less than nothing, so there is nothing to drop"
+    );
+    assert_eq!(
+        charges(ButcherAction::Full, false, false, true),
+        0,
+        "a quartered body has given up more than a fifth: it leaves nothing either"
+    );
+    assert_eq!(
+        charges(ButcherAction::Bleed, false, false, false),
+        0,
+        "**and bleeding drops no ruined parts at all**, which the reference guards by name: its `action != BLEED` sits on the drop, so the eight hundred grams go nowhere"
+    );
+}

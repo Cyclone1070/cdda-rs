@@ -1613,3 +1613,6 @@ its two gates read the reference's own `harvest_drop_type.json`; the finish's wi
 **Round 1421 wired the per-entry judgement.** The drop type's figure is worked out inside the loop, so a survival master's level does not enter an ordinary body's yield while a type that names first aid is
 judged on the survivor's level in it. Worth recording how the gate was wrong first: with only ordinary tissue in it, the mutation that ignores the table **survived**, because blade-only and pipe-only are the
 same answer there. It now installs a table of its own and asks for a skill the shipped data does not name, which kills the mutation.
+
+**Round 1422 ported the leftover arithmetic.** A kilo of body leaves eight hundred grams of ruined parts after the gore, five hundred and fifty with a field dressing, six hundred and fifty skinned - and nothing at
+all for a bleeding or a quartering. The gate writes every figure the reference's integer arithmetic gives; the finish is not yet subtracting what the drops themselves weighed, and parity says so.
