@@ -1603,3 +1603,6 @@ negative. Writing the gate also caught that a field-dressed body's bone runs fro
 
 **Round 1418 gave the butchery its teaching.** The proficiency gains are shares of the **moves** the job took - four tenths each for a full job, seven tenths and one and a half tenths for a quick one - and each
 side practises the advanced proficiency when the basic one is known. Without it the previous round's penalties were permanent: nothing ever moved the figure off zero.
+
+**Round 1419 gave the butchery its skill practice.** Three entries rolled at three, four and five are seven from the shares plus three for the entries - ten - capped at four for a person's body and six for a
+huge one, and a dissection practises first aid against a cap its blade raises by at most three.

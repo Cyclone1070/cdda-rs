@@ -16798,6 +16798,11 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**The butchery is practice for a skill too** (round 1419): `ButcheryPractice` is `butchery.cpp:952-957`. Each entry adds `( 4 + butchery ) / entry_count` - an integer division that loses the remainders - and each
+finished entry adds one more; the total is laid on **survival** for anything but a dissection and on **first aid** for one, against a **blunt grinding cap** (`max( size - medium, 0 ) + 4` for survival,
+`size + min( tool_quality, 3 ) + 2` for dissection). The finish now returns the per-entry figures it rolled (`butcher_finish_recording`) rather than letting a caller re-roll them, because a second roll would
+be a different number on a different stream position.
+
 **The work teaches the proficiencies it uses** (round 1418): `ButcheryTraining` is `butchery.cpp:959-993` - a full job gives `moves * 0.4` to the butchering side and `moves * 0.4` to the skinning side, a quick
 job gives `moves * 0.7` and `moves * 0.15`, each side practises its **advanced** proficiency when the basic one is already known, and a body with neither flesh, offal nor skin teaches nothing. The finisher applies
 it after the drops land, through the port's own proficiencies, whose `time_to_learn` decides when the practice becomes knowledge. Until now a survivor could butcher all day and learn nothing - the penalties of

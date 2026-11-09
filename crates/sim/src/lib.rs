@@ -8003,6 +8003,76 @@ pub fn after_the_proficiencies(entry: &HarvestSpec, count: i32, state: &ButcherF
     count
 }
 
+/// What a finished butchery is worth as **skill** practice, and the cap that stops it being ground out.
+///
+/// Reference: `butchery.cpp:952-957`. Each entry contributes `( 4 + butchery ) / entry_count` to a running figure, an integer division that loses its remainder, and each finished entry adds one more; the
+/// total is then laid on a skill:
+///
+/// ```text
+/// anything but a dissection:  practice( skill_survival,  max( 0, practice ), max( size - medium, 0 ) + 4 )
+/// a dissection:              practice( skill_firstaid, max( 0, practice ), size + min( tool_quality, 3 ) + 2 )
+/// ```
+///
+/// The third figure is the reference's **blunt grinding cap**: practice of a skill already above the cap earns nothing.
+#[derive(Debug, Clone)]
+pub struct ButcheryPractice {
+    /// What kind of job it was, which decides the skill.
+    pub action: ButcherAction,
+    /// The butchery figure rolled for each entry, in the order the entries were walked.
+    pub butcheries: Vec<i32>,
+    /// How big the body was.
+    pub size: CreatureSize,
+    /// The blade's quality, which a dissection's cap reads.
+    pub tool_quality: i32,
+}
+
+/// How many size classes above a person a body is, which the practice cap measures from.
+const fn steps_above_medium(size: CreatureSize) -> i32 {
+    match size {
+        CreatureSize::Tiny => -2,
+        CreatureSize::Small => -1,
+        CreatureSize::Medium => 0,
+        CreatureSize::Large => 1,
+        CreatureSize::Huge => 2,
+    }
+}
+
+impl ButcheryPractice {
+    /// The skill this job practised, how much practice it laid on, and the cap it is judged against.
+    #[must_use]
+    pub fn against_skill(&self) -> Option<(String, i32, i32)> {
+        let count = self.butcheries.len();
+        if count == 0 {
+            // No entries, no practice: the reference's loop never runs and its figure stays at zero.
+            return match self.action {
+                ButcherAction::Dissect => Some((
+                    "firstaid".to_owned(),
+                    0,
+                    steps_above_medium(self.size) + 2 + self.tool_quality.min(3).max(0) + 2,
+                )),
+                _ => Some(("survival".to_owned(), 0, steps_above_medium(self.size).max(0) + 4)),
+            };
+        }
+        let each = i32::try_from(count).unwrap_or(i32::MAX);
+        let mut practice: i32 = self.butcheries.iter().map(|rolled| (4 + rolled) / each).sum();
+        practice += each;
+        practice = practice.max(0);
+        if self.action == ButcherAction::Dissect {
+            return Some((
+                "firstaid".to_owned(),
+                practice,
+                self.size_number() + self.tool_quality.min(3) + 2,
+            ));
+        }
+        Some(("survival".to_owned(), practice, steps_above_medium(self.size).max(0) + 4))
+    }
+
+    /// The reference's own numbering of the size classes, where a person is two.
+    const fn size_number(&self) -> i32 {
+        steps_above_medium(self.size) + 2
+    }
+}
+
 /// What a finished butchery teaches, as pairs of proficiency and **seconds** of practice.
 ///
 /// Reference: `butchery.cpp:959-993`. The gains are shares of the **moves the job took**, not of the time it took, and the action sets the share:
@@ -8332,6 +8402,26 @@ pub fn butcher_finish(
     drop_grams: impl Fn(&str) -> i64,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> Vec<(ItemTypeId, i32)> {
+    let mut nothing = Vec::new();
+    butcher_finish_recording(world, corpse, table, state, drop_of, drop_grams, rolls, &mut nothing)
+}
+
+/// [`butcher_finish`], with the butchery figure rolled for each entry left where the caller can find it.
+///
+/// The reference rolls that figure **once per entry** and keeps them: the finish loop's own practice is
+/// `( 4 + butchery ) / entry_count` per entry (`butchery.cpp:694`, `:952-957`), so a caller that wants to give the survivor the practice has to have the rolls rather than re-roll them - a second roll would be a
+/// different number and a different stream position.
+#[allow(clippy::too_many_arguments)]
+pub fn butcher_finish_recording(
+    world: &mut World,
+    corpse: Entity,
+    table: HarvestTable<'_>,
+    state: ButcherFinish,
+    drop_of: impl Fn(&str) -> ItemTypeId,
+    drop_grams: impl Fn(&str) -> i64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+    butcheries: &mut Vec<i32>,
+) -> Vec<(ItemTypeId, i32)> {
     let Some(position) = world.get::<Position>(corpse).copied() else {
         return Vec::new();
     };
@@ -8341,6 +8431,7 @@ pub fn butcher_finish(
         let draw = f64::from(rolls.rng(0, 10_000)) / 10_000.0;
         // Reference: the figure the entry's `scale_num` multiplies is **rolled afresh for every entry** (`butchery.cpp:694`), not the skill level itself.
         let butchery = roll_butchery_dissect(state.butchery, state.dex, state.tool_quality, rolls);
+        butcheries.push(butchery);
         let count = harvest_yield(
             *entry,
             butchery,

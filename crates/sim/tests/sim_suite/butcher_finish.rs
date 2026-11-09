@@ -753,3 +753,58 @@ fn the_work_teaches_the_proficiencies_it_uses() {
         "**a body of bone and blood teaches neither**: {boneless:?}"
     );
 }
+
+/// **The butchery itself is practice for survival, and a dissection is practice for first aid.**
+///
+/// Reference: `butchery.cpp:952-957`. Each entry adds `( 4 + butchery ) / entry_count` to a running figure - an **integer** division, so the shares lose their remainders - and each finished entry adds one
+/// more. Then:
+///
+/// ```text
+/// full or quick or skin or bleed:  practice( skill_survival,  max( 0, practice ), max( size - medium, 0 ) + 4 )
+/// dissect:                         practice( skill_firstaid, max( 0, practice ), size + min( tool_quality, 3 ) + 2 )
+/// ```
+///
+/// The cap is the reference's "blunt grinding cap": practice above it earns nothing. So three entries rolled at three, four and five are `( 7 / 3 ) + ( 8 / 3 ) + ( 9 / 3 )` is seven, plus three is **ten**.
+#[test]
+fn the_butchery_itself_is_practice_for_a_skill() {
+    use cdda_sim::ButcheryPractice;
+
+    let survival = ButcheryPractice {
+        action: ButcherAction::Full,
+        butcheries: vec![3, 4, 5],
+        size: CreatureSize::Medium,
+        tool_quality: 0,
+    }
+    .against_skill();
+    assert_eq!(
+        survival,
+        Some(("survival".to_owned(), 10, 4)),
+        "**seven from the shares and three from the entries themselves, capped at four for a person**"
+    );
+
+    let big = ButcheryPractice {
+        action: ButcherAction::Full,
+        butcheries: vec![],
+        size: CreatureSize::Huge,
+        tool_quality: 0,
+    }
+    .against_skill();
+    assert_eq!(
+        big,
+        Some(("survival".to_owned(), 0, 6)),
+        "a huge body's cap is two steps above a person's, and an empty job teaches nothing"
+    );
+
+    let dissect = ButcheryPractice {
+        action: ButcherAction::Dissect,
+        butcheries: vec![3, 4, 5],
+        size: CreatureSize::Small,
+        tool_quality: 9,
+    }
+    .against_skill();
+    assert_eq!(
+        dissect,
+        Some(("firstaid".to_owned(), 10, 6)),
+        "**a dissection practises first aid**, and a masterwork blade is worth three and no more"
+    );
+}

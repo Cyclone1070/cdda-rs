@@ -677,7 +677,8 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
             (id.clone(), grams)
         })
         .collect();
-    let dropped = crate::butcher_finish(
+    let mut butcheries = Vec::new();
+    let dropped = crate::butcher_finish_recording(
         world,
         corpse,
         table,
@@ -695,6 +696,7 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
                 .map_or(0, |(_, grams)| *grams)
         },
         &mut rolls,
+        &mut butcheries,
     );
     crate::singletons::put_rolls(world, rolls);
     for (kind, count) in dropped {
@@ -716,6 +718,16 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         knows_butchering_basic: crate::proficiencies::knows(world, creature, "prof_butchering_basic"),
         knows_skinning_basic: crate::proficiencies::knows(world, creature, "prof_skinning_basic"),
     };
+    // Reference: the butchery is practice for a skill as well (`butchery.cpp:952-957`), and the figure is the one this job rolled.
+    let practice = crate::ButcheryPractice {
+        action,
+        butcheries,
+        size: crate::monster_registry::size_of(world, corpse_of.kind),
+        tool_quality: 0,
+    };
+    if let Some((skill, amount, cap)) = practice.against_skill() {
+        crate::skills_of::practice(world, creature, &skill, amount, cap);
+    }
     for (proficiency, seconds) in training.taught() {
         let Some(time_to_learn) = crate::proficiencies::time_to_learn(world, &proficiency) else {
             continue;
