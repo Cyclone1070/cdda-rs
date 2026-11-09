@@ -12,6 +12,21 @@ Nothing is `gated` without a link to the run that proved it.
 
 ---
 
+## The carried gaps, audited (round 1433)
+
+The gaps this record has been carrying forward were written down over hundreds of rounds and read as a summary for most of them. A list copied forward is not a
+ledger, so every entry was checked against the code this round, and the check is written beside each answer.
+
+| Gap as carried | Still true? | The check |
+|---|---|---|
+The butchery's second clock (`Butchery.moves_left`) is unread | **closed** | `lib.rs:8425` reads it - `if moves <= 0 \|\| work.moves_left <= 0` - so a corpse that needs more work stops the step. The carried claim was stale. |
+Blade quality is always zero | **true** | `creature.rs:619` (`let blade = 0;`), `:664` and `:748` (`tool_quality: 0`): the survivor's held tool is not read, because the quality table is `max_quality( qual_CUT_FINE )` and the port has no item-quality reader for it. |
+`Other` drop types are judged on the blade | **true** | `lib.rs:7808` gives an unnamed drop type the empty name, so it answers the blade and nothing else - which is the reference's answer for a type with no skills, but only because the port has no name for it. |
+Six rules are ported, gated and uncalled | **true** | `tools/check_dead_rules.py` allows exactly six, and each is named with its reason at "the rules with no caller" below. |
+
+**One of the four was stale and three are real.** The stale one is the interesting one: `moves_left` has been read since the step rule landed, and the record went on
+describing it as a gap because the sentence had never been revisited. That is the same failure the roadmap's census table had this arc, in a smaller place.
+
 ## Single-authority audit (round 294)
 
 The field container was not an isolated slip, so the same question was asked of everything the port has built since:
