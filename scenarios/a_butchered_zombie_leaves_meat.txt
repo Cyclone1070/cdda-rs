@@ -43,3 +43,9 @@ expect no monster at 1 0
 butcher quick
 turn 1080
 expect floor meat_tainted 5
+
+# **And what nobody asked for is left behind.** Every harvest definition in the shipped data names no `leftovers`, and the reference's default is `ruined_chunks` (`harvest.h:102`) - so the body leaves
+# ruined chunks once the cuts are off it, weighed against one of them (`butchery.cpp:916-948`). The count is the reference's own arithmetic for this body: 81,500 g, less what the cuts themselves weighed, less the
+# fifth that runs off as gore, divided by a chunk's 250 g - **221 of them**. Before the leftover was among the ids the finish resolves, this expectation found none at all: the refuse fell as the default id, which
+# is nothing the world can show.
+expect floor ruined_chunks 221

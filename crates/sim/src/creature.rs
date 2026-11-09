@@ -681,12 +681,17 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
     };
     // The ids are resolved **before** the finish runs, because the rule takes the world mutably and a lookup cannot borrow it again. A drop the world holds no type for resolves to the default id and is
     // dropped as nothing rather than as some other item.
-    let resolved: Vec<(String, crate::ItemTypeId)> = ids
+    // **The leftover is one of the ids that must resolve**, or the refuse falls as whatever kind the default id names - which is nothing the world can show.
+    let mut every_id = ids.clone();
+    if !leftover_id.is_empty() {
+        every_id.push(leftover_id.clone());
+    }
+    let resolved: Vec<(String, crate::ItemTypeId)> = every_id
         .iter()
         .map(|id| (id.clone(), crate::item_registry::id_of(world, id).unwrap_or_default()))
         .collect();
     // A drop's weight is the divisor a bulk entry needs, and it is asked the same way the ids are: before the finish runs, because the rule takes the world mutably.
-    let weights: Vec<(String, i64)> = ids
+    let weights: Vec<(String, i64)> = every_id
         .iter()
         .map(|id| {
             let grams = crate::item_registry::id_of(world, id)
