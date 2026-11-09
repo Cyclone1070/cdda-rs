@@ -1636,3 +1636,6 @@ left alone. Mana is deliberately not charged: the port has no mana store, and a 
 
 **Round 1429 tied the switch together.** One call reads the data, refuses a creature that cannot pay - with the reference's warning, and without changing a thing - and otherwise pays once and remembers the
 charge in a per-creature record, so every later switch-on spends charge instead of money. The gate pins all three at once, and the mutation that removes the once-only payment is caught by it.
+
+**Round 1430 wired `u_activate_trait` into the program runner.** The effect reads its name and switches the mutation on for the creature it names, which is the whole of `f_activate_trait`. Six census pins moved
+with it, and the move was the check: a reader that lands is supposed to shift the numbers, and a round that landed one without shifting anything would have written a reader nothing calls.
