@@ -1736,6 +1736,17 @@ pub fn spell_named(id: &str) -> Option<cdda_content::spells::Spell> {
 /// This is the QA surface's side of P5: the rule lives in `cdda_sim::spellcasting`, and this only has to find a
 /// target and report the answer. Returns nothing when there is no such spell or nothing in reach - a cast that
 /// silently did nothing would be the hardest kind of bug to see in a playthrough.
+/// What a spell is paid with, in words, as `spell::energy_string` names it.
+fn energy_name(source: &str) -> &'static str {
+    match source {
+        "MANA" => "mana",
+        "STAMINA" => "stamina",
+        "BIONIC" => "bionic power",
+        "HP" => "hit points",
+        _ => "energy",
+    }
+}
+
 pub fn cast_at_nearest(
     world: &mut World,
     avatar: bevy_ecs::entity::Entity,
@@ -1765,6 +1776,33 @@ pub fn cast_at_nearest(
         }
     }
     let (_, target) = nearest?;
+    // **The price comes first, and it is asked for the way the reference asks it.** `Character::cast_spell` refuses with
+    // "You don't have enough %s to cast the spell." before any activity starts (`handle_action.cpp:1928-1931`), and it asks
+    // `known_magic::has_enough_energy` (`magic.cpp:2638-2661`) rather than comparing numbers here.
+    let somatic = cdda_sim::spellcasting::Somatic::default();
+    let price = cdda_sim::spellcasting::energy_cost(&spell, level, somatic).unwrap_or(0);
+    match cdda_sim::spellcasting::can_afford(world, avatar, &spell, level, somatic) {
+        cdda_sim::spellcasting::Afford::Yes => {}
+        cdda_sim::spellcasting::Afford::No { available } => {
+            return Some(format!(
+                "you don't have enough {} to cast {}: it costs {price} and you have {available}",
+                energy_name(&spell.energy_source),
+                spell.name
+            ));
+        }
+        cdda_sim::spellcasting::Afford::Unknown => {
+            return Some(format!(
+                "{} costs {price} {}, and how it is paid is not a rule this port has",
+                spell.name,
+                energy_name(&spell.energy_source)
+            ));
+        }
+    }
+    // Reference: `spell::consume_spell_cost` (`magic.cpp:1889-1912`) takes the price **after** the effect has run, and a cast that failed takes
+    // the failure share of it. The port's cast is one call, so the success share is the whole price.
+    if !cdda_sim::spellcasting::spend(world, avatar, &spell, level, somatic, true, 1.0) {
+        return Some(format!("{} could not be paid for", spell.name));
+    }
     // Drawn from the store's own generator, so a playtest seeded the same way casts the same fight.
     let outcome = cdda_sim::spellcasting::cast_at(world, caster, &spell, level, target);
     Some(match outcome {
@@ -1787,6 +1825,51 @@ pub fn cast_at_nearest(
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
+
+    /// **A cast the caster cannot pay for does not happen, and says what it costs.**
+    ///
+    /// Reference: `Character::cast_spell` refuses with "You don't have enough %s to cast the spell." before an activity is started
+    /// (`handle_action.cpp:1928-1931`), and only then does `spell::consume_spell_cost` take the price (`magic.cpp:1889-1912`). The QA verb is
+    /// where this is visible: `crates/sim` has the rule, and the headless game has to ask it.
+    #[test]
+    fn a_cast_without_the_energy_is_refused_and_the_energy_is_spent_when_it_happens() {
+        use cdda_sim::creature::Mana;
+        let mut world = World::new();
+        let avatar = cdda_sim::spawn_player(&mut world, (6, 6), 80, 0);
+        let zombie = cdda_sim::spawn_monster(&mut world, (7, 6), cdda_sim::MonsterKindId(0), 30);
+        let torso = cdda_sim::hit_location::BodyPart {
+            name: "torso".to_owned(),
+            hit_size: 36.0,
+            hit_difficulty: 1.0,
+            upper: false,
+            lower: false,
+            ..Default::default()
+        };
+        world
+            .entity_mut(zombie)
+            .insert(cdda_sim::creature::Body { parts: vec![torso] });
+        cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(1));
+        // `overcharge_yrax` is a hundred mana and an attack, so a pool of ninety-nine is one short.
+        world.entity_mut(avatar).insert(Mana { cur: 99, max: 200 });
+        let refused = cast_at_nearest(&mut world, avatar, "overcharge_yrax", 0).expect("the spell exists");
+        assert!(
+            refused.contains("99") && refused.contains("100"),
+            "**the refusal names the price and what the caster had**: {refused}"
+        );
+        assert_eq!(
+            world.get::<Mana>(avatar).map(|mana| mana.cur),
+            Some(99),
+            "and a cast that did not happen spends nothing"
+        );
+        world.entity_mut(avatar).insert(Mana { cur: 100, max: 200 });
+        let cast = cast_at_nearest(&mut world, avatar, "overcharge_yrax", 0).expect("the spell exists");
+        assert!(cast.contains("hits the torso"), "the cast lands: {cast}");
+        assert_eq!(
+            world.get::<Mana>(avatar).map(|mana| mana.cur),
+            Some(0),
+            "**and exactly its price comes off the pool**"
+        );
+    }
 
     /// A burst step fires several shots, and each one costs moves and is aimed worse than the one before.
     ///
@@ -1928,6 +2011,11 @@ mod tests {
     fn the_avatar_can_cast_the_taser_from_the_game_s_data_at_what_is_next_to_it() {
         let mut world = World::new();
         let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+        // The taser is a bionic spell and costs five kilojoules, so the caster has to have the power: what fills a character's
+        // stored power is not ported, and this test states it the way the QA world does.
+        world
+            .entity_mut(avatar)
+            .insert(cdda_sim::creature::BionicPower { joules: 200_000 });
         // A cast draws where it lands from the store's generator, so a world without one cannot cast - which is the
         // rule, not an accident: a cast that invented its own randomness could not be replayed.
         cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(3));

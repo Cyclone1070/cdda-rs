@@ -212,6 +212,12 @@ fn cast(args: &[String]) {
     let mut world = World::new();
     load_demo_world(&mut world);
     let avatar = cdda_sim::spawn_player(&mut world, (6, 6), 80, 0);
+    // **The pools are stated, not earned.** What fills a character's mana or its stored power - intelligence, level, the enchantments
+    // and the bionics that generate it - is not ported, so a QA world says what it starts with rather than pretending a spell is free.
+    world.entity_mut(avatar).insert(cdda_sim::creature::Mana { cur: 200, max: 200 });
+    world
+        .entity_mut(avatar)
+        .insert(cdda_sim::creature::BionicPower { joules: 200_000 });
     let torso = cdda_sim::hit_location::BodyPart {
         name: "torso".to_owned(),
         hit_size: 36.0,

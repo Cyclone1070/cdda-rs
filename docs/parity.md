@@ -45,6 +45,23 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The game asks before it casts (round 1442)
+
+Two rounds made a price and a way to pay it; this one put them in front of the verb a person types.
+
+| Piece | Reference | Port |
+|---|---|---|
+the refusal | "You don't have enough %s to cast the spell." before any activity starts (`handle_action.cpp:1928-1931`) | `cast` names the price and what the caster had, and nothing happens |
+the ask | `known_magic::has_enough_energy` | `can_afford`, already gated per source |
+the take | `spell::consume_spell_cost` after the effect | `spend` once the cast goes through |
+the pools | what intelligence, level and enchantments give | **stated by the caller**: the QA world starts the avatar with 200 mana and 200 kJ |
+
+The gate is the whole sentence: `overcharge_yrax` costs a hundred mana and a pool of ninety-nine is refused with both numbers in the answer, **and the pool is untouched**;
+with a hundred it lands and the pool is empty. Turning the spend off fails it, which is what makes the number worth pinning.
+
+**Named, not invented**: the demo avatar's pools are stated rather than earned, because nothing in the port yet works out what a character's mana ceiling is; and the failure discount
+(`get_failure_cost_percent`) is a parameter the port passes as the whole price, because a cast in this port either happens or is refused before it starts.
+
 ## Paying, asked for per source (round 1441)
 
 The price landed last round and nothing spent it. This round the two questions the reference asks around a price are in: **has the caster got it**, and **take it**.

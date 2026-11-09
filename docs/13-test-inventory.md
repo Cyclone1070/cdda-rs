@@ -1676,3 +1676,7 @@ somatic term the recording's zero encumbrance could never show.
 deduction for the four the port has stores for. Mana and bionic power became components on the creature - the pool is one creature's number the way its stamina is - and blood magic is
 refused as `Unknown` because the reference picks the part from a menu. The gate pins every boundary on both sides (four of five mana is short, five is enough; 1,999 joules is short of
 two kilojoules, 2,000 pays) and was mutation-checked by turning mana's `>=` into `>`.
+
+**Round 1442 put the price in front of the verb.** `cdda-cli cast` now refuses a spell the caster cannot afford, in the reference's own wording - the price and what the
+caster had - and takes the price from the pool only when the cast goes through. The gate drives `cast_at_nearest` on the data's own `overcharge_yrax` (a hundred mana): ninety-nine
+is refused with the pool untouched, a hundred lands and leaves nothing, and turning the spend off fails it.
