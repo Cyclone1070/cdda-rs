@@ -165,6 +165,7 @@ mod light_session;
 mod light_system;
 mod map_facts;
 mod morale;
+mod mutation_activation;
 mod mutations;
 mod monster_action;
 mod monster_blocked;

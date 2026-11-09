@@ -16809,8 +16809,10 @@ reference drops none at all for a bleeding. **The mutation dump now says what sw
 `activated_eocs`/`deactivated_eocs` are in `--dump-mutations`, read by `cdda_content::mutations`, and gated. **None of it was in the dump before**, which is why `u_activate_trait` - the one refusal among the nine
 that is a plain rule rather than a store - could not be carried out at all. The data now says: 20 mutations cost something, 10 have a cooldown, 6 run a program when switched on, 13 start switched on.
 
-**Still to come**: the rule itself (`Character::activate_mutation`, `mutation.cpp:813-880`, and `can_power_mutation`, `:411-419`) - the per-character `trait_data` that remembers what is switched on, and the
-charge that pays for it.
+**And the rule itself is ported** (round 1427): `mutation_activation::after_switching_on` is `activate_cached_mutation`'s two branches - a mutation that is **already on** spends a turn of its charge and pays
+nothing, while one that is off (or spent) pays and starts the clock at `cooldown - 1` - and `can_power_mutation` is the reference's four currency checks, each asked **only** in the currency the mutation is
+paid in: hunger under half the body's calories, thirst at 260, sleepiness at `EXHAUSTED` (575), and mana at `available <= cost`. Two of those boundaries read backwards until they are written down: exactly
+half the calories is still affordable, and exactly enough mana is **not**.
 
 **And the refuse falls as refuse** (round 1424): the finish resolves the harvest entries' ids before it runs, because the rule takes the world mutably and cannot look a name up itself - and the leftover's id was
 **not among them**, so it resolved to the default id and the refuse fell as a kind that names nothing. The playtest found it at zero; a unit gate on the count alone could not, because the count was never the

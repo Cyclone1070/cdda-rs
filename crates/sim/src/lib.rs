@@ -28,6 +28,7 @@ pub mod messages;
 pub mod missions;
 pub mod morale;
 pub mod mutation_data;
+pub mod mutation_activation;
 pub mod mutations;
 pub mod seeing;
 pub mod snippets;

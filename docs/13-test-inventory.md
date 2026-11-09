@@ -1627,3 +1627,6 @@ a gate on the count alone never could. The lesson is written into the record: th
 **Round 1426 put mutation activation into the oracle.** The harness dumped a mutation's points, prerequisites and enchantments and nothing about switching it on, so the one refusal among the nine that is a plain
 rule - `u_activate_trait` - could not be ported. The dump now carries the cost, the cooldown, the four currencies and the two program lists; the loader reads them and a gate pins BIOLUM3's four hundred hunger and
 its own activation program.
+
+**Round 1427 ported the switching rule.** A mutation already on spends a turn of charge instead of paying again; one that is off pays and starts its cooldown at one turn less. The affordability rule checks
+each of the four currencies only when the mutation is paid in it, and two of its boundaries are strict in opposite directions - half the calories is enough, exactly enough mana is not.
