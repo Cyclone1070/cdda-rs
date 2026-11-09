@@ -8003,6 +8003,63 @@ pub fn after_the_proficiencies(entry: &HarvestSpec, count: i32, state: &ButcherF
     count
 }
 
+/// What a finished butchery teaches, as pairs of proficiency and **seconds** of practice.
+///
+/// Reference: `butchery.cpp:959-993`. The gains are shares of the **moves the job took**, not of the time it took, and the action sets the share:
+///
+/// * **full**: `moves * 0.4` for the flesh-or-offal side and `moves * 0.4` for the skin side;
+/// * **quick**: `moves * 0.7` for the flesh-or-offal side and `moves * 0.15` for the skin side;
+/// * each side practises its **advanced** proficiency if the basic one is already known, and the basic one otherwise;
+/// * a body with neither flesh, offal nor skin teaches nothing, and no other action teaches anything at all.
+#[derive(Debug, Clone, Copy)]
+pub struct ButcheryTraining {
+    /// What kind of job it was.
+    pub action: ButcherAction,
+    /// The moves the job took, which every gain is a share of.
+    pub moves: i32,
+    /// Whether the body's list holds a flesh or an offal entry.
+    pub has_flesh_or_offal: bool,
+    /// Whether the body's list holds a skin entry.
+    pub has_skin: bool,
+    /// Whether the survivor already knows `prof_butchering_basic`, which decides basic against advanced.
+    pub knows_butchering_basic: bool,
+    /// The same for `prof_skinning_basic`.
+    pub knows_skinning_basic: bool,
+}
+
+impl ButcheryTraining {
+    /// The proficiencies this job practises, and how many seconds of practice each is worth.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn taught(self) -> Vec<(String, i64)> {
+        // The shares are the reference's own, and they are what a **full** and a **quick** job differ in.
+        let (meat_share, skin_share) = match self.action {
+            ButcherAction::Full => (0.4, 0.4),
+            ButcherAction::Quick => (0.7, 0.15),
+            _ => return Vec::new(),
+        };
+        let mut taught = Vec::new();
+        let moves = f64::from(self.moves.max(0));
+        if self.has_flesh_or_offal {
+            let which = if self.knows_butchering_basic {
+                "prof_butchering_adv"
+            } else {
+                "prof_butchering_basic"
+            };
+            taught.push((which.to_owned(), (moves * meat_share) as i64));
+        }
+        if self.has_skin {
+            let which = if self.knows_skinning_basic {
+                "prof_skinning_adv"
+            } else {
+                "prof_skinning_basic"
+            };
+            taught.push((which.to_owned(), (moves * skin_share) as i64));
+        }
+        taught
+    }
+}
+
 /// What one entry gives once a **quartered** body has had its say.
 ///
 /// Reference: `butchery.cpp:813-821`. The block runs after the field dressing and before a share becomes items, and it is unconditional - no action gates it:

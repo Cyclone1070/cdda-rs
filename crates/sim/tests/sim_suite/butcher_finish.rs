@@ -667,3 +667,89 @@ fn a_quartered_body_has_ruined_its_hide_and_lost_three_quarters_of_the_rest() {
         "**forty cuts of flesh become ten, twenty bones become five, and the hide is gone**"
     );
 }
+
+/// **The work itself teaches the proficiencies, and how much depends on the job and on what the body had.**
+///
+/// Reference: `butchery.cpp:959-993`. Every proficiency gain is a share of the **moves the job took**, and the share depends on the action:
+///
+/// * a **full** job, on a body with flesh or offal, gives `moves * 0.4` to `butchering_basic` - or to `butchering_adv` if the basic one is already known (`:959-968`);
+/// * a **full** job on a body with skin gives `moves * 0.4` to `skinning_basic`, or `skinning_adv` if that is known (`:970-978`);
+/// * a **quick** job gives the same choices at `moves * 0.7` for flesh and `moves * 0.15` for skin (`:980-993`).
+///
+/// A body with no flesh and no offal teaches nothing at all, however long the job took.
+#[test]
+fn the_work_teaches_the_proficiencies_it_uses() {
+    use cdda_sim::ButcheryTraining;
+
+    let full_flesh = ButcheryTraining {
+        action: ButcherAction::Full,
+        moves: 1_000,
+        has_flesh_or_offal: true,
+        has_skin: true,
+        knows_butchering_basic: false,
+        knows_skinning_basic: false,
+    }
+    .taught();
+    assert_eq!(
+        full_flesh,
+        vec![
+            ("prof_butchering_basic".to_owned(), 400),
+            ("prof_skinning_basic".to_owned(), 400)
+        ],
+        "**a full job gives four tenths of its own length to each of the two basics**"
+    );
+
+    let full_known = ButcheryTraining {
+        knows_butchering_basic: true,
+        knows_skinning_basic: true,
+        ..ButcheryTraining {
+            action: ButcherAction::Full,
+            moves: 1_000,
+            has_flesh_or_offal: true,
+            has_skin: true,
+            knows_butchering_basic: false,
+            knows_skinning_basic: false,
+        }
+    }
+    .taught();
+    assert_eq!(
+        full_known,
+        vec![
+            ("prof_butchering_adv".to_owned(), 400),
+            ("prof_skinning_adv".to_owned(), 400)
+        ],
+        "and a survivor who already knows the basics practises the **advanced** ones instead"
+    );
+
+    let quick = ButcheryTraining {
+        action: ButcherAction::Quick,
+        moves: 1_000,
+        has_flesh_or_offal: true,
+        has_skin: true,
+        knows_butchering_basic: false,
+        knows_skinning_basic: false,
+    }
+    .taught();
+    assert_eq!(
+        quick,
+        vec![
+            ("prof_butchering_basic".to_owned(), 700),
+            ("prof_skinning_basic".to_owned(), 150)
+        ],
+        "**a quick job is seven tenths butchery and one and a half tenths skinning**, which is the reference's split"
+    );
+
+    let boneless = ButcheryTraining {
+        action: ButcherAction::Full,
+        moves: 1_000,
+        has_flesh_or_offal: false,
+        has_skin: false,
+        knows_butchering_basic: false,
+        knows_skinning_basic: false,
+    }
+    .taught();
+    assert!(
+        boneless.is_empty(),
+        "**a body of bone and blood teaches neither**: {boneless:?}"
+    );
+}

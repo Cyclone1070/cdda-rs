@@ -16798,6 +16798,14 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**The work teaches the proficiencies it uses** (round 1418): `ButcheryTraining` is `butchery.cpp:959-993` - a full job gives `moves * 0.4` to the butchering side and `moves * 0.4` to the skinning side, a quick
+job gives `moves * 0.7` and `moves * 0.15`, each side practises its **advanced** proficiency when the basic one is already known, and a body with neither flesh, offal nor skin teaches nothing. The finisher applies
+it after the drops land, through the port's own proficiencies, whose `time_to_learn` decides when the practice becomes knowledge. Until now a survivor could butcher all day and learn nothing - the penalties of
+the previous round made that permanent, because nothing ever moved the figure off zero.
+
+Still named: the **survival skill** practice the same loop grants (`you.practice( skill_survival, ..., size - medium + 4 )`, `:952-955`), `butchery_dissect_skill_level`'s per-drop-type skills, and the
+corpse's weight accounting that turns what is left into bones and gore (`:886-950`).
+
 **A quartered body has ruined its hide** (round 1417): `after_a_quartering` is `butchery.cpp:813-821`, unconditional and before a share becomes items - a `QUARTERED` corpse gives **no skin at all** (the reference's
 own comment says the entry is zeroed rather than skipped so the failure message still shows) and a quarter of everything else. The port read three of the corpse's five butchery flags; now four.
 

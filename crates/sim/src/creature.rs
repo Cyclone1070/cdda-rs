@@ -702,6 +702,26 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
             crate::messages::push(world, &format!("You get {count} {name}."));
         }
     }
+    // Reference: the work itself teaches (`butchery.cpp:959-993`), and the gains are shares of the moves the job took.
+    let moves = world
+        .get::<Doing>(creature)
+        .map_or(0, |doing| doing.moves_total);
+    let training = crate::ButcheryTraining {
+        action,
+        moves,
+        has_flesh_or_offal: entries
+            .iter()
+            .any(|entry| matches!(entry.part, Some(crate::HarvestEntry::Flesh | crate::HarvestEntry::Offal))),
+        has_skin: entries.iter().any(|entry| entry.part == Some(crate::HarvestEntry::Skin)),
+        knows_butchering_basic: crate::proficiencies::knows(world, creature, "prof_butchering_basic"),
+        knows_skinning_basic: crate::proficiencies::knows(world, creature, "prof_skinning_basic"),
+    };
+    for (proficiency, seconds) in training.taught() {
+        let Some(time_to_learn) = crate::proficiencies::time_to_learn(world, &proficiency) else {
+            continue;
+        };
+        crate::proficiencies::practice(world, creature, &proficiency, seconds, time_to_learn);
+    }
 }
 
 /// How badly a corpse was damaged, in the reference's own levels.

@@ -1600,3 +1600,6 @@ bones where it promises ten, so the two arms are now pinned apart by two gates.
 negative. Writing the gate also caught that a field-dressed body's bone runs from the whole roll to one and a half times it - last round's comment said three quarters, which was the port's halving talking.
 
 **Round 1417 ported the quartering flag.** A quartered body's hide is worth nothing and everything else a quarter; the gate pins both halves and the mutation that lets the hide through fails on one skin.
+
+**Round 1418 gave the butchery its teaching.** The proficiency gains are shares of the **moves** the job took - four tenths each for a full job, seven tenths and one and a half tenths for a quick one - and each
+side practises the advanced proficiency when the basic one is known. Without it the previous round's penalties were permanent: nothing ever moved the figure off zero.
