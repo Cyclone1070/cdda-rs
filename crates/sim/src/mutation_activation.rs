@@ -99,3 +99,81 @@ pub fn pay_for_switching_on(world: &mut bevy_ecs::prelude::World, creature: bevy
         crate::needs::mod_sleepiness(world, creature, cost.cost);
     }
 }
+
+/// Every mutation a creature has switched on, and how much charge each has left.
+///
+/// Reference: `Character::cached_mutations` (`mutation.cpp:813-819`), the per-character half of a mutation's state - the data says what a mutation is, and this says what this body is doing with it.
+#[derive(Debug, Clone, Default, bevy_ecs::component::Component)]
+pub struct SwitchedMutations(pub std::collections::BTreeMap<String, Switched>);
+
+/// The record for one mutation, as it stands.
+#[must_use]
+pub fn state_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity, id: &str) -> Switched {
+    world
+        .get::<SwitchedMutations>(creature)
+        .and_then(|held| held.0.get(id).copied())
+        .unwrap_or_default()
+}
+
+/// Switches a mutation on: pays for it if it is off or spent, or spends a turn of its charge if it is already on, and refuses - with the reference's own warning - when the
+/// creature cannot afford it.
+///
+/// Reference: `Character::activate_mutation` (`mutation.cpp:813-819`) over `activate_cached_mutation` (`:821-880`). Returns whether the mutation ended up switched on, which a
+/// caller needs because a refusal is not a failure: the reference tells the player and returns.
+///
+/// The mutation's own `activated_eocs` are **not** run here: they are programs, and the port runs programs through the effect system rather than from inside a rule.
+#[must_use]
+pub fn switch_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity, id: &str) -> bool {
+    let Some(data) = crate::mutation_data::holder(world) else {
+        return false;
+    };
+    let Some(mutation) = data.get(id) else {
+        return false;
+    };
+    let cost = Affordability {
+        hunger: mutation.hunger,
+        thirst: mutation.thirst,
+        sleepiness: mutation.sleepiness,
+        mana: mutation.mana,
+        cost: mutation.cost,
+    };
+    let body = world.get::<crate::body::Body>(creature);
+    // The body's own healthy weight, from the creature's clock when it has one; twenty thousand kilocalories when it does not, which is the figure the port already uses for a
+    // creature nothing has told otherwise.
+    let healthy = world
+        .get::<crate::body::BodyClock>(creature)
+        .map_or(20_000, |clock| clock.healthy_kcal);
+    let kcal_percent = body.map_or(1.0, |body| body.kcal_percent(healthy));
+    let thirst = body.map_or(0, |body| body.thirst);
+    let sleepiness = crate::needs::sleepiness_of(world, creature);
+    // The port has no mana store, so nothing is measured for it: a mutation paid in mana is affordable, which is the reference's answer for a creature with mana to spare.
+    let mana = i32::MAX;
+    if !can_power_mutation(cost, kcal_percent, thirst, sleepiness, mana) {
+        // `You feel like using your %s would kill you!` (`mutation.cpp:830-835`), and **nothing changes**: no charge, no cost, no switch.
+        crate::messages::push_kind(
+            world,
+            &format!("You feel like using your {} would kill you!", id),
+            crate::messages::MessageKind::Warning,
+        );
+        return false;
+    }
+    let before = state_of(world, creature, id);
+    let already_on = before.powered && before.charge > 0;
+    if !already_on {
+        pay_for_switching_on(world, creature, cost);
+    }
+    let after = after_switching_on(before, mutation.cooldown_turns);
+    let mut entity = world.entity_mut(creature);
+    let mut held = entity.get_mut::<SwitchedMutations>();
+    match held.as_mut() {
+        Some(record) => {
+            record.0.insert(id.to_owned(), after);
+        }
+        None => {
+            let mut record = SwitchedMutations::default();
+            record.0.insert(id.to_owned(), after);
+            entity.insert(record);
+        }
+    }
+    true
+}

@@ -191,3 +191,85 @@ fn switching_a_mutation_on_pays_its_cost_out_of_the_body() {
         "and the calories it is not paid in do not move"
     );
 }
+
+/// **The whole switch, through the world: what it costs, what it remembers, and when it refuses.**
+///
+/// Reference: `Character::activate_mutation` (`mutation.cpp:813-819`) over `activate_cached_mutation` (`:821-880`). Three things are being pinned at once, and they are the three the
+/// reference does in one call: the cost leaves the body the **first** time only, the record remembers the charge, and a creature that cannot pay is told so and left exactly as it was.
+#[test]
+fn switching_on_pays_once_remembers_the_charge_and_refuses_a_creature_that_cannot_afford_it() {
+    fn world_with_body(stored_calories: i64) -> (World, Entity) {
+        let mut costing = cdda_content::mutations::Mutation {
+            cost: 400,
+            hunger: true,
+            cooldown_turns: 10,
+            ..cdda_content::mutations::Mutation::default()
+        };
+        costing.valid = true;
+        let mutations = cdda_content::mutations::Mutations::from_entries([("FLAMING_EYES".to_owned(), costing)]);
+        let mut world = World::new();
+        cdda_sim::mutation_data::install(&mut world, mutations, cdda_content::mutations::Categories::default());
+        let mut body = Body::new(2_500);
+        body.stored_calories = stored_calories;
+        let creature = world.spawn(body).id();
+        (world, creature)
+    }
+
+    let (mut world, creature) = world_with_body(40_000_000);
+    assert!(
+        cdda_sim::mutation_activation::switch_on(&mut world, creature, "FLAMING_EYES"),
+        "a creature with calories to spare switches it on"
+    );
+    assert_eq!(
+        cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal(),
+        40_000 - 400,
+        "**and pays for it once**"
+    );
+    assert_eq!(
+        cdda_sim::mutation_activation::state_of(&world, creature, "FLAMING_EYES"),
+        Switched {
+            powered: true,
+            charge: 9
+        },
+        "with nine turns of a ten-turn cooldown left"
+    );
+    assert!(
+        cdda_sim::mutation_activation::switch_on(&mut world, creature, "FLAMING_EYES"),
+        "switching it on again while it is already on still succeeds"
+    );
+    assert_eq!(
+        cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal(),
+        40_000 - 400,
+        "**but pays nothing more**: the charge is what an already-on mutation spends"
+    );
+    assert_eq!(
+        cdda_sim::mutation_activation::state_of(&world, creature, "FLAMING_EYES"),
+        Switched {
+            powered: true,
+            charge: 8
+        },
+        "it is eight turns left now"
+    );
+
+    // Half the body's healthy weight in calories is the reference's own limit, and a creature under it is refused.
+    let (mut starved, creature) = world_with_body(9_000_000);
+    assert!(
+        !cdda_sim::mutation_activation::switch_on(&mut starved, creature, "FLAMING_EYES"),
+        "**a creature under half its healthy calories cannot switch it on**"
+    );
+    assert_eq!(
+        cdda_sim::body::body_of(&starved, creature).expect("the body").stored_kcal(),
+        9_000,
+        "and nothing is taken from it"
+    );
+    assert_eq!(
+        cdda_sim::mutation_activation::state_of(&starved, creature, "FLAMING_EYES"),
+        Switched::default(),
+        "nor is anything recorded"
+    );
+    let said = cdda_sim::messages::lines(&starved);
+    assert!(
+        said.iter().any(|line| line.contains("would kill you")),
+        "and the reference's own warning is said: {said:?}"
+    );
+}

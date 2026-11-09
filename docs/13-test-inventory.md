@@ -1633,3 +1633,6 @@ each of the four currencies only when the mutation is paid in it, and two of its
 
 **Round 1428 made the switch cost something.** The currencies the data names are charged out of the body - kilocalories and thirst from `Body`, sleepiness through `needs` - and the ones it does not name are
 left alone. Mana is deliberately not charged: the port has no mana store, and a charge taken from somewhere else would be an invented number.
+
+**Round 1429 tied the switch together.** One call reads the data, refuses a creature that cannot pay - with the reference's warning, and without changing a thing - and otherwise pays once and remembers the
+charge in a per-creature record, so every later switch-on spends charge instead of money. The gate pins all three at once, and the mutation that removes the once-only payment is caught by it.

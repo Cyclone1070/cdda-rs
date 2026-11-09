@@ -83,6 +83,14 @@ pub struct Mutations {
 }
 
 impl Mutations {
+    /// A table built from entries, for a gate that needs one mutation and not the corpus.
+    #[must_use]
+    pub fn from_entries(entries: impl IntoIterator<Item = (String, Mutation)>) -> Self {
+        Self {
+            by_id: entries.into_iter().collect(),
+        }
+    }
+
     /// What the data says about one mutation.
     #[must_use]
     pub fn get(&self, id: &str) -> Option<&Mutation> {

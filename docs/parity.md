@@ -16813,7 +16813,8 @@ that is a plain rule rather than a store - could not be carried out at all. The 
 nothing, while one that is off (or spent) pays and starts the clock at `cooldown - 1` - and `can_power_mutation` is the reference's four currency checks, each asked **only** in the currency the mutation is
 paid in: hunger under half the body's calories, thirst at 260, sleepiness at `EXHAUSTED` (575), and mana at `available <= cost`. Two of those boundaries read backwards until they are written down: exactly
 half the calories is still affordable, and exactly enough mana is **not**. The cost is **taken** (round 1428): `pay_for_switching_on` charges the currencies the data names out of the body - stored
-kilocalories and thirst against the port's own `Body`, sleepiness through `needs::mod_sleepiness` - and leaves alone every currency the mutation is not paid in.
+kilocalories and thirst against the port's own `Body`, sleepiness through `needs::mod_sleepiness` - and leaves alone every currency the mutation is not paid in. The whole switch is one call (round 1429): `switch_on` reads the data, refuses with the reference's own warning when the creature cannot
+afford it - **and changes nothing at all** - and otherwise pays once, records the charge in a per-creature `SwitchedMutations`, and spends charge rather than money on every later switch-on.
 
 **And the refuse falls as refuse** (round 1424): the finish resolves the harvest entries' ids before it runs, because the rule takes the world mutably and cannot look a name up itself - and the leftover's id was
 **not among them**, so it resolved to the default id and the refuse fell as a kind that names nothing. The playtest found it at zero; a unit gate on the count alone could not, because the count was never the
