@@ -75,3 +75,27 @@ pub fn can_power_mutation(
     let out_of_mana = cost.mana && mana_available <= cost.cost;
     !(hungry || thirsty || sleepy || out_of_mana)
 }
+
+/// Takes the cost of one switch-on out of the body, in the currencies the mutation is paid in.
+///
+/// Reference: `activate_cached_mutation` (`mutation.cpp:846-855`), the `else` branch only - an already-on mutation spends a turn of charge and pays nothing, which is
+/// [`after_switching_on`]'s other branch. The four currencies are the reference's: stored kilocalories, thirst, sleepiness and mana, and a mutation is charged in **exactly**
+/// the ones its data names, so a mutation paid in hunger leaves thirst alone.
+///
+/// Mana is not paid here: the port has no mana store yet, and a charge taken from somewhere else would be an invented number rather than the reference's.
+pub fn pay_for_switching_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity, cost: Affordability) {
+    if cost.hunger {
+        if let Some(mut body) = world.get_mut::<crate::body::Body>(creature) {
+            body.mod_stored_kcal(-i64::from(cost.cost));
+        }
+    }
+    if cost.thirst {
+        if let Some(mut body) = world.get_mut::<crate::body::Body>(creature) {
+            let thirst = body.thirst.saturating_add(cost.cost);
+            body.set_thirst(thirst);
+        }
+    }
+    if cost.sleepiness {
+        crate::needs::mod_sleepiness(world, creature, cost.cost);
+    }
+}

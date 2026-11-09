@@ -3,9 +3,11 @@
 //! Reference: `Character::activate_mutation` and `activate_cached_mutation` (`mutation.cpp:813-880`). A mutation that is already on does not pay again: it spends a
 //! turn of its **charge**, and only an off or spent mutation pays the cost and starts a fresh cooldown.
 
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
-use cdda_sim::mutation_activation::{Switched, after_switching_on};
+use bevy_ecs::prelude::*;
+use cdda_sim::body::Body;
+use cdda_sim::mutation_activation::{Affordability, Switched, after_switching_on, can_power_mutation};
 
 /// **Switching on costs a cooldown's charge, and switching on again spends a turn of it instead.**
 ///
@@ -55,22 +57,10 @@ fn switching_a_mutation_on_starts_its_charge_and_switching_it_on_again_spends_a_
 
 /// **A mutation the creature cannot afford never switches on, and the four currencies are checked in the reference's own order.**
 ///
-/// Reference: `can_power_mutation` (`mutation.cpp:411-419`):
-///
-/// ```text
-/// hunger     = mutation.hunger     && kcal percent < 0.5
-/// thirst     = mutation.thirst     && thirst >= 260
-/// sleepiness = mutation.sleepiness && sleepiness >= EXHAUSTED
-/// mana       = mutation.mana       && available mana <= mutation.cost
-/// cannot power = hunger || sleepiness || thirst || mana
-/// ```
-///
-/// A mutation that costs nothing in a currency is not checked in it at all, which is why a creature starving to death can still use a mutation that is paid for in mana. The caller answers with
-/// what it is measuring - the reference reads the body's own figures, and the port reads them the same way, so the rule takes the numbers rather than the creature.
+/// Reference: `can_power_mutation` (`mutation.cpp:411-419`). A mutation that costs nothing in a currency is not checked in it at all, which is why a creature starving
+/// to death can still use a mutation that is paid for in mana.
 #[test]
 fn a_mutation_the_creature_cannot_afford_does_not_switch_on() {
-    use cdda_sim::mutation_activation::{Affordability, can_power_mutation};
-
     let hunger_only = Affordability {
         hunger: true,
         thirst: false,
@@ -78,7 +68,6 @@ fn a_mutation_the_creature_cannot_afford_does_not_switch_on() {
         mana: false,
         cost: 400,
     };
-    // Half the body's calories left is the boundary: `get_kcal_percent() < 0.5f` is a **strict** test, so exactly half is still affordable.
     assert!(
         can_power_mutation(hunger_only, 0.5, 0, 0, 0),
         "**half the calories is enough**, so hunger does not block it"
@@ -115,10 +104,7 @@ fn a_mutation_the_creature_cannot_afford_does_not_switch_on() {
         can_power_mutation(sleepy, 1.0, 0, 574, 0),
         "**exhaustion is 575** (`character.h:154`), so 574 is still allowed"
     );
-    assert!(
-        !can_power_mutation(sleepy, 1.0, 0, 575, 0),
-        "and 575 blocks it"
-    );
+    assert!(!can_power_mutation(sleepy, 1.0, 0, 575, 0), "and 575 blocks it");
 
     let mana_only = Affordability {
         hunger: false,
@@ -131,10 +117,7 @@ fn a_mutation_the_creature_cannot_afford_does_not_switch_on() {
         !can_power_mutation(mana_only, 0.0, 1_000, 0, 400),
         "**exactly enough mana is not enough**: the reference blocks at `available <= cost`"
     );
-    assert!(
-        can_power_mutation(mana_only, 0.0, 1_000, 0, 401),
-        "one over it is"
-    );
+    assert!(can_power_mutation(mana_only, 0.0, 1_000, 0, 401), "one over it is");
 
     let nothing = Affordability {
         hunger: false,
@@ -146,5 +129,65 @@ fn a_mutation_the_creature_cannot_afford_does_not_switch_on() {
     assert!(
         can_power_mutation(nothing, 0.0, 1_000, 1_000, 0),
         "and a mutation that is paid for in nothing is never blocked, however starved or exhausted the creature is"
+    );
+}
+
+/// **Switching a mutation on takes the cost out of the body.**
+///
+/// Reference: `activate_cached_mutation` (`mutation.cpp:846-855`): when the mutation is off or spent, the cost is subtracted from whichever of the four the data names - `mod_stored_kcal( -cost )` for
+/// hunger, `mod_thirst( cost )` for thirst, `mod_sleepiness( cost )` for sleepiness, `magic->mod_mana( -cost )` for mana. This gate covers the two the port has stores for, and asserts the
+/// currency it is **not** paid in is left alone.
+#[test]
+fn switching_a_mutation_on_pays_its_cost_out_of_the_body() {
+    fn world_with(body: Body) -> (World, Entity) {
+        let mut world = World::new();
+        let creature = world.spawn(body).id();
+        (world, creature)
+    }
+    let mut hungry = Body::new(2_500);
+    hungry.stored_calories = 40_000_000;
+    hungry.set_thirst(100);
+    let (mut world, creature) = world_with(hungry);
+    let before = cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal();
+    cdda_sim::mutation_activation::pay_for_switching_on(
+        &mut world,
+        creature,
+        Affordability {
+            hunger: true,
+            thirst: false,
+            sleepiness: false,
+            mana: false,
+            cost: 400,
+        },
+    );
+    let after = cdda_sim::body::body_of(&world, creature).expect("the body");
+    assert_eq!(
+        after.stored_kcal(),
+        before - 400,
+        "**four hundred kilocalories, which is `mod_stored_kcal( -cost )`**"
+    );
+    assert_eq!(after.thirst, 100, "and the thirst it is not paid in does not move");
+
+    let mut thirsty = Body::new(2_500);
+    thirsty.stored_calories = 40_000_000;
+    thirsty.set_thirst(100);
+    let (mut world, creature) = world_with(thirsty);
+    cdda_sim::mutation_activation::pay_for_switching_on(
+        &mut world,
+        creature,
+        Affordability {
+            hunger: false,
+            thirst: true,
+            sleepiness: false,
+            mana: false,
+            cost: 30,
+        },
+    );
+    let after = cdda_sim::body::body_of(&world, creature).expect("the body");
+    assert_eq!(after.thirst, 130, "**thirst goes up by the cost**");
+    assert_eq!(
+        after.stored_kcal(),
+        40_000,
+        "and the calories it is not paid in do not move"
     );
 }

@@ -1630,3 +1630,6 @@ its own activation program.
 
 **Round 1427 ported the switching rule.** A mutation already on spends a turn of charge instead of paying again; one that is off pays and starts its cooldown at one turn less. The affordability rule checks
 each of the four currencies only when the mutation is paid in it, and two of its boundaries are strict in opposite directions - half the calories is enough, exactly enough mana is not.
+
+**Round 1428 made the switch cost something.** The currencies the data names are charged out of the body - kilocalories and thirst from `Body`, sleepiness through `needs` - and the ones it does not name are
+left alone. Mana is deliberately not charged: the port has no mana store, and a charge taken from somewhere else would be an invented number.
