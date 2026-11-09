@@ -638,11 +638,22 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         return;
     };
     let flags = world.get::<crate::ItemFlags>(corpse).cloned().unwrap_or_default();
+    // What the body leaves behind that nobody asked for: the definition's `leftovers` - `ruined_chunks` when it names none, which is every definition in the shipped data - weighed against one of them.
+    let leftover_id = crate::monster_registry::leftovers_of(world, corpse_of.kind);
+    let leftover_grams = crate::item_registry::id_of(world, &leftover_id)
+        .map_or(0, |kind| crate::item_registry::weight_of(world, kind));
+    let leftovers: Option<(&str, i64)> = if leftover_id.is_empty() {
+        None
+    } else {
+        Some((leftover_id.as_str(), leftover_grams))
+    };
     let table = crate::HarvestTable {
         entries: &entries,
         ids: &ids.iter().map(String::as_str).collect::<Vec<&str>>(),
         #[allow(clippy::cast_precision_loss)]
         weight: crate::monster_registry::weight_of(world, corpse_of.kind) as f64,
+        // What the body leaves behind that nobody asked for: the definition's own `leftovers`, weighed against one of them.
+        leftovers: leftovers,
     };
     let state = crate::ButcherFinish {
         action,

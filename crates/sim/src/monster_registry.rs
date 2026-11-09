@@ -67,6 +67,8 @@ pub struct MonsterTypes {
     dissect_entries: Vec<crate::HarvestSpec>,
     /// The item ids those entries name.
     dissect_ids: Vec<String>,
+    /// The item each kind leaves behind after a butchery, by registry order.
+    leftovers: Vec<String>,
     /// Where each kind's dissection entries start and how many there are, by registry order.
     dissect_ranges: Vec<(u32, u32)>,
 }
@@ -142,6 +144,36 @@ pub fn set_harvests(
             *slot = (start, how_many);
         }
     }
+}
+
+/// What each kind of body leaves behind after a butchery, by kind: the item id its harvest definition names.
+///
+/// Reference: `harvest_definition::leftovers`, which every definition has - `ruined_chunks` by default (`harvest.h:102`).
+pub fn set_leftovers(world: &mut World, entries: &[(crate::MonsterKindId, String)]) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, leftover) in entries {
+        let at = kind.0 as usize;
+        if types.leftovers.len() <= at {
+            types.leftovers.resize(at + 1, String::new());
+        }
+        if let Some(slot) = types.leftovers.get_mut(at) {
+            *slot = leftover.clone();
+        }
+    }
+}
+
+/// What one kind leaves behind, or the reference's default when the world did not say.
+#[must_use]
+pub fn leftovers_of(world: &World, kind: crate::MonsterKindId) -> String {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+        .and_then(|types| types.leftovers.get(kind.0 as usize).cloned())
+        .filter(|leftover| !leftover.is_empty())
+        .unwrap_or_else(|| "ruined_chunks".to_owned())
 }
 
 /// What dissecting each kind of body yields, by kind.
@@ -321,6 +353,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         sizes: Vec::new(),
         dissect_entries: Vec::new(),
         dissect_ids: Vec::new(),
+        leftovers: Vec::new(),
         dissect_ranges: Vec::new(),
         names,
         hit_points,

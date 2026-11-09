@@ -16805,8 +16805,9 @@ the drop type's `harvest_skills`, summed with the blade and divided by how many 
 
 **What is left of a body is ruined parts, and the figures are the reference's** (round 1422): `leftovers_after_butchery` is `butchery.cpp:916-948`, all of it **integer arithmetic on grams** - a fifth of the body
 runs off as gore, a field dressing keeps a quarter back, a skinning takes 85%, and a quartered body has given up more than that. The figure divided by one leftover's weight is how many ruined parts fall, and the
-reference drops none at all for a bleeding. **Not yet wired**: the finish does not subtract what the drops themselves weighed (`monster_weight_remaining -= roll * to_gram( drop->weight )`), so the rule stands on its
-own with its gate and the finish will use it once the accounting is in.
+reference drops none at all for a bleeding. **Wired in round 1423**: the finish subtracts what each drop weighed as it walks the entries (`monster_weight_remaining -= roll * to_gram( drop->weight )`), the table carries the definition's `leftovers`, and the
+game installs each kind's from the content. **Every definition in the shipped data names none, and the reference's default is `ruined_chunks`** (`harvest.h:102`) - so every body in the game leaves ruined chunks,
+and a loader that read the field as "nothing" would drop none of them.
 
 **And the finish now judges every entry at its own drop type's figure** (round 1421): `butchery.cpp:694` asks `butchery_dissect_skill_level` *inside* the loop, so the level moves entry by entry, and the port's
 finisher works the levels out per part (`creature::butchery_skill_levels`) from the drop-type table the game installs. A survival master and a beginner cut an ordinary body at the same figure; a body whose drop

@@ -885,6 +885,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     let mut sizes = Vec::new();
     let mut tables = Vec::new();
     let mut dissections = Vec::new();
+    let mut leftovers = Vec::new();
     for monster in monsters {
         let Some(kind) = cdda_sim::monster_registry::id_of(world, &monster.id) else {
             continue;
@@ -928,6 +929,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
             ids.push(entry.drop.clone());
         }
         tables.push((kind, specs, ids));
+        leftovers.push((kind, definition.leftovers.clone()));
         // The body's **dissection** list, when it names one: the reference's finish walks it instead of the harvest list for a dissection (`butchery.cpp:692-694`).
         let Some(dissection) = definitions.get(&monster.dissect) else {
             continue;
@@ -957,6 +959,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     cdda_sim::monster_registry::set_weights(world, &weights);
     cdda_sim::monster_registry::set_sizes(world, &sizes);
     cdda_sim::monster_registry::set_dissections(world, &dissections);
+    cdda_sim::monster_registry::set_leftovers(world, &leftovers);
     // The skills each harvest drop type is judged on when a body is cut up (`harvest_drop_type.json`), which for the five ordinary tissues is nothing at all.
     if let Ok(types) =
         cdda_content::harvest_drops::load(&["../../oracle/src/data/json/harvest_drop_type.json"])

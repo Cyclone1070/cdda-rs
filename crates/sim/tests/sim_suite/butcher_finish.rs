@@ -82,7 +82,8 @@ fn the_yields_land_on_the_square_the_body_was_on() {
         HarvestTable {
             entries: &entries,
             ids: &["meat", "bone"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         finish(),
         ids,
@@ -106,7 +107,8 @@ fn the_counts_are_charges_on_the_stacks_that_were_dropped() {
         HarvestTable {
             entries: &entries,
             ids: &["meat"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         finish(),
         ids,
@@ -136,7 +138,8 @@ fn a_body_that_gives_nothing_drops_nothing() {
         HarvestTable {
             entries: &entries,
             ids: &["meat"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             damage: CorpseDamage::Mangled,
@@ -165,7 +168,8 @@ fn a_skinned_body_gives_no_hide() {
         HarvestTable {
             entries: &entries,
             ids: &["skin"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             skinned: true,
@@ -190,7 +194,8 @@ fn the_body_is_used_up_and_gone_from_the_world() {
         HarvestTable {
             entries: &[entry(HarvestEntry::Flesh, (1, 1))],
             ids: &["meat"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         finish(),
         ids,
@@ -216,7 +221,8 @@ fn the_same_seed_gives_the_same_harvest() {
             HarvestTable {
                 entries: &entries,
                 ids: &["meat", "bone"],
-                weight: 0.0,
+                leftovers: None,
+    weight: 0.0,
             },
             finish(),
             ids,
@@ -249,7 +255,8 @@ fn a_bulk_entry_uses_the_weight_it_was_given() {
         HarvestTable {
             entries: &entries,
             ids: &["meat"],
-            weight: 100.0,
+            leftovers: None,
+    weight: 100.0,
         },
         finish(),
         ids,
@@ -283,7 +290,8 @@ fn a_quick_butchery_takes_a_quarter_of_the_flesh_and_half_the_bone() {
         HarvestTable {
             entries: &entries,
             ids: &["meat", "bone", "blood"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             action: ButcherAction::Quick,
@@ -319,7 +327,8 @@ fn skinning_takes_the_hide_and_nothing_else() {
         HarvestTable {
             entries: &entries,
             ids: &["meat", "skin", "bone"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             action: ButcherAction::Skin,
@@ -377,7 +386,8 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
         HarvestTable {
             entries: &entries,
             ids: &names,
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             action: ButcherAction::Dissect,
@@ -437,7 +447,8 @@ fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
         HarvestTable {
             entries: &entries,
             ids: &["bone", "offal", "meat"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             field_dressed: true,
@@ -495,7 +506,8 @@ fn a_butcher_without_the_proficiencies_loses_a_share_of_everything() {
             HarvestTable {
                 entries: &entries,
                 ids: &["meat", "skin", "bone"],
-                weight: 0.0,
+                leftovers: None,
+    weight: 0.0,
             },
             ButcherFinish {
                 butch_basic,
@@ -552,7 +564,8 @@ fn a_field_dressing_rolls_the_bones_between_none_and_half() {
             HarvestTable {
                 entries: &entries,
                 ids: &["bone"],
-                weight: 0.0,
+                leftovers: None,
+    weight: 0.0,
             },
             ButcherFinish {
                 action: ButcherAction::FieldDress,
@@ -652,7 +665,8 @@ fn a_quartered_body_has_ruined_its_hide_and_lost_three_quarters_of_the_rest() {
         HarvestTable {
             entries: &entries,
             ids: &["meat", "bone", "skin"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             quartered: true,
@@ -926,6 +940,7 @@ fn what_is_left_of_a_body_is_dropped_as_ruined_parts() {
     let charges = |action: ButcherAction, field_dressed: bool, skinned: bool, quartered: bool| {
         leftovers_after_butchery(&CorpseLeftovers {
             corpse_grams: 1_000,
+            harvested_grams: 0,
             leftover_grams: 100,
             action,
             field_dressed,
@@ -967,5 +982,44 @@ fn what_is_left_of_a_body_is_dropped_as_ruined_parts() {
         charges(ButcherAction::Bleed, false, false, false),
         0,
         "**and bleeding drops no ruined parts at all**, which the reference guards by name: its `action != BLEED` sits on the drop, so the eight hundred grams go nowhere"
+    );
+}
+
+/// **The finish drops what nobody took, and what the drops themselves weighed comes off first.**
+///
+/// Reference: `butchery.cpp:832-840` subtracts each entry's own weight from the body as it goes - `roll * to_gram( drop->weight )` for a count and the whole share for a bulk entry - and only then
+/// (`:916-948`) takes the gore off what is left. A body of a thousand grams that gave five fifty-gram cuts has seven hundred and fifty left, the gore takes a fifth of the **body** - two hundred - and five hundred
+/// and fifty remain, which is **five** ruined parts at a hundred grams each. A body that gave nothing up leaves eight.
+#[test]
+fn the_finish_drops_what_nobody_took() {
+    let mut world = World::new();
+    let corpse = body(&mut world);
+    let entries = [entry(HarvestEntry::Flesh, (5, 5))];
+    let mut rolls = Rolls::new(17);
+    let dropped = butcher_finish(
+        &mut world,
+        corpse,
+        HarvestTable {
+            entries: &entries,
+            ids: &["meat"],
+            weight: 1_000.0,
+            leftovers: Some(("ruined", 100)),
+        },
+        finish(),
+        |name| match name {
+            "meat" => MEAT,
+            "ruined" => ItemTypeId(104),
+            _ => ItemTypeId(0),
+        },
+        |name| match name {
+            "ruined" => 100,
+            _ => 50,
+        },
+        &mut rolls,
+    );
+    assert_eq!(
+        dropped,
+        vec![(MEAT, 5), (ItemTypeId(104), 5)],
+        "**five cuts of fifty grams, then five ruined parts from what the gore did not take**"
     );
 }

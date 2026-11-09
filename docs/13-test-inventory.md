@@ -1616,3 +1616,7 @@ same answer there. It now installs a table of its own and asks for a skill the s
 
 **Round 1422 ported the leftover arithmetic.** A kilo of body leaves eight hundred grams of ruined parts after the gore, five hundred and fifty with a field dressing, six hundred and fifty skinned - and nothing at
 all for a bleeding or a quartering. The gate writes every figure the reference's integer arithmetic gives; the finish is not yet subtracting what the drops themselves weighed, and parity says so.
+
+**Round 1423 wired the leftover rule, and the data turned out to say nothing.** No definition in the shipped `harvest.json` names a `leftovers` id, and the reference's default is `ruined_chunks`
+(`harvest.h:102`) - so every body in the game leaves ruined chunks, and a loader that read the missing field as "nothing" would drop none of them. The finish now subtracts what each drop weighed as it walks the
+entries, and the leftover gate's arithmetic was wrong before it was right: 1,000 grams less 250 of cuts less 200 of gore is 550, which is five parts at 100 grams, not three.

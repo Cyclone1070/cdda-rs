@@ -397,9 +397,12 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
             cdda_sim::proficiencies::learn(&mut world, survivor, proficiency);
         }
         cdda_sim::creature::finish_butchering_with(&mut world, survivor, corpse, 1.0);
+        let cut = cdda_sim::item_registry::id_of(&mut world, "cut").expect("the cut type");
+        // **Only the cuts**, because the body also leaves ruined chunks now, and they are not what this gate is about.
         world
             .query::<&cdda_sim::GroundItem>()
             .iter(&world)
+            .filter(|item| item.kind == cut)
             .map(|item| item.charges)
             .sum::<i32>()
     };

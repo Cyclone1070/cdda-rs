@@ -8189,6 +8189,8 @@ impl ButcheryTraining {
 pub struct CorpseLeftovers {
     /// The whole body's weight, in grams.
     pub corpse_grams: i64,
+    /// What the drops themselves took off it, in grams - the reference subtracts each entry's own weight as it walks them (`:832-840`) and only then weighs what is left.
+    pub harvested_grams: i64,
     /// What one leftover item weighs, in grams.
     pub leftover_grams: i64,
     /// What kind of job it was.
@@ -8206,7 +8208,8 @@ pub struct CorpseLeftovers {
 #[allow(clippy::cast_possible_truncation)]
 pub fn leftovers_after_butchery(leftovers: &CorpseLeftovers) -> i32 {
     let weight = leftovers.corpse_grams;
-    let mut remaining = weight - weight / 5;
+    // Reference order: each entry's own weight came off during the loop (`:832-840`), and the fifth of gore comes off after it (`:916-918`).
+    let mut remaining = weight - leftovers.harvested_grams - weight / 5;
     match leftovers.action {
         ButcherAction::FieldDress => remaining -= weight * 3 / 4,
         ButcherAction::Skin => remaining -= (weight as f64 * 0.85) as i64,
@@ -8446,6 +8449,8 @@ pub struct HarvestTable<'a> {
     pub ids: &'a [&'a str],
     /// How much the creature weighed, in grams.
     pub weight: f64,
+    /// What the definition leaves behind that nobody asked for: the item id and one item's weight in grams, or nothing when the data names none.
+    pub leftovers: Option<(&'a str, i64)>,
 }
 
 /// The facts a finished butchery needs that are not in the entries themselves.
@@ -8528,6 +8533,7 @@ pub fn butcher_finish_recording(
     };
     let square = (position.x, position.y);
     let mut dropped = Vec::new();
+    let mut harvested: i64 = 0;
     for (entry, id) in table.entries.iter().zip(table.ids.iter()) {
         let draw = f64::from(rolls.rng(0, 10_000)) / 10_000.0;
         // Reference: the figure the entry's `scale_num` multiplies is **rolled afresh for every entry** (`butchery.cpp:694`), not the skill level itself.
@@ -8566,6 +8572,7 @@ pub fn butcher_finish_recording(
             continue;
         };
         // Reference: a **quartered** body loses three quarters of everything and its hide entirely (`butchery.cpp:813-821`), which runs before a share becomes items.
+        let count_before_division = count;
         let count = after_a_quartering(entry, count, &state);
         // Reference: the action's own block (`butchery.cpp:741-790`).
         let Some(count) = after_the_action(entry, count, &state, &mut between) else {
@@ -8588,9 +8595,34 @@ pub fn butcher_finish_recording(
         if count <= 0 {
             continue;
         }
+        // Reference: each entry's own weight comes off the body as the loop walks them (`:832-840`) - the grams for a bulk entry, and count times one item's weight for a count.
+        #[allow(clippy::cast_possible_truncation)]
+        let taken = match entry.mass_ratio {
+            Some(_) => (f64::from(count_before_division) * state.yield_multiplier) as i64,
+            None => i64::from(count) * drop_grams(id),
+        };
+        harvested += taken;
         let kind = drop_of(id);
         drop_item(world, square, kind, count);
         dropped.push((kind, count));
+    }
+    // Reference: what nobody took is left as ruined parts, weighed against one of them (`butchery.cpp:916-948`).
+    if let Some((leftover_id, grams)) = table.leftovers {
+        #[allow(clippy::cast_possible_truncation)]
+        let charges = leftovers_after_butchery(&CorpseLeftovers {
+            corpse_grams: table.weight as i64,
+            harvested_grams: harvested,
+            leftover_grams: grams,
+            action: state.action,
+            field_dressed: state.field_dressed || state.field_dress_failed,
+            skinned: state.skinned,
+            quartered: state.quartered,
+        });
+        if charges > 0 {
+            let kind = drop_of(leftover_id);
+            drop_item(world, square, kind, charges);
+            dropped.push((kind, charges));
+        }
     }
     // The body has been used up.
     world.despawn(corpse);

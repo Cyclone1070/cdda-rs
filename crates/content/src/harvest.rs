@@ -72,6 +72,10 @@ pub struct HarvestDefinition {
     pub copy_from: Option<String>,
     /// The entries this one adds to what it inherited (`extend`).
     pub extend: Vec<HarvestEntry>,
+    /// What is left of the body that nobody asked for, as an item id - the reference's `leftovers`, which is what a butchery
+    /// drops once every entry has been walked (`butchery.cpp:916-948`). **`ruined_chunks` when the definition names none**, which is the reference's own default (`harvest.h:102`) and the case for every
+    /// definition in the shipped data.
+    pub leftovers: String,
 }
 
 /// Reads every harvest definition in a file or list, keyed by id.
@@ -113,6 +117,12 @@ pub fn load_harvests(value: &Value) -> BTreeMap<String, HarvestDefinition> {
             },
             _ => Vec::new(),
         };
+        // **The default is `ruined_chunks`** (`harvest.h:102`), so a definition that names none still leaves something: no definition in the shipped data names one, which means every body in the game leaves
+        // ruined chunks and a port that read the field as "nothing" would drop none of them.
+        let leftovers = match object.get("leftovers") {
+            Some(Value::Str(name)) => name.clone(),
+            _ => "ruined_chunks".to_owned(),
+        };
         out.insert(
             id.clone(),
             HarvestDefinition {
@@ -120,6 +130,7 @@ pub fn load_harvests(value: &Value) -> BTreeMap<String, HarvestDefinition> {
                 entries,
                 copy_from,
                 extend,
+                leftovers,
             },
         );
     }
@@ -154,12 +165,18 @@ pub fn resolve_harvests(all: &mut BTreeMap<String, HarvestDefinition>) {
             }
             let mut entries = parent.entries.clone();
             entries.extend(definition.extend.iter().cloned());
+            let leftovers = if definition.leftovers.is_empty() {
+                parent.leftovers.clone()
+            } else {
+                definition.leftovers.clone()
+            };
             let inherited = entries != definition.entries;
             if let Some(definition) = all.get_mut(id) {
                 if inherited {
                     definition.entries = entries;
                     changed = true;
                 }
+                definition.leftovers = leftovers;
                 definition.copy_from = None;
             }
         }

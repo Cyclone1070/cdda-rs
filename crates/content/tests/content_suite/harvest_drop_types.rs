@@ -50,3 +50,23 @@ fn a_drop_type_keeps_its_own_spelling_of_the_messages_it_names() {
         "the failure message a dissection shows for flesh"
     );
 }
+
+#[test]
+fn a_definition_that_names_no_leftovers_leaves_ruined_chunks() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../oracle/src/data/json/harvest.json")
+        .to_string_lossy()
+        .into_owned();
+    let value = cdda_content::read_json(std::path::Path::new(&path)).expect("the harvest file");
+    let definitions = cdda_content::harvest::load_harvests(&value);
+    let humanoid = definitions.get("zombie_humanoid").expect("the commonest body");
+    assert_eq!(
+        humanoid.leftovers, "ruined_chunks",
+        "**no definition in the shipped data names one**, and the reference's default is `ruined_chunks` (`harvest.h:102`) - so every body in the game leaves ruined chunks"
+    );
+    let named = definitions
+        .values()
+        .filter(|definition| definition.leftovers != "ruined_chunks")
+        .count();
+    assert_eq!(named, 0, "and the shipped data names none at all, which is what makes the default the whole rule");
+}

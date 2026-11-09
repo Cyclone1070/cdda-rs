@@ -110,7 +110,8 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
         HarvestTable {
             entries: &entries,
             ids: &["meat", "bone"],
-            weight: 0.0,
+            leftovers: None,
+    weight: 0.0,
         },
         ButcherFinish {
             action: cdda_sim::ButcherAction::Full,
@@ -179,7 +180,8 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
             HarvestTable {
                 entries: &entries,
                 ids: &["meat"],
-                weight: 0.0,
+                leftovers: None,
+    weight: 0.0,
             },
             ButcherFinish {
                 action: cdda_sim::ButcherAction::Full,
