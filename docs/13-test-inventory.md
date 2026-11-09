@@ -1606,3 +1606,6 @@ side practises the advanced proficiency when the basic one is known. Without it 
 
 **Round 1419 gave the butchery its skill practice.** Three entries rolled at three, four and five are seven from the shares plus three for the entries - ten - capped at four for a person's body and six for a
 huge one, and a dissection practises first aid against a cap its blade raises by at most three.
+
+**Round 1420 read the drop-type data.** A dissection is judged on the skills its drop type names plus the blade - and the five ordinary tissues name none, so they are judged on the blade alone. The loader and
+its two gates read the reference's own `harvest_drop_type.json`; the finish's wiring to it is still to come.

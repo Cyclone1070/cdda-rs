@@ -808,3 +808,42 @@ fn the_butchery_itself_is_practice_for_a_skill() {
         "**a dissection practises first aid**, and a masterwork blade is worth three and no more"
     );
 }
+
+/// **A dissection's skill is the drop type's own, and for ordinary tissue that is only the blade.**
+///
+/// Reference: `butchery_dissect_skill_level` (`butchery.cpp:550-564`):
+///
+/// ```text
+/// sk_total = sum of the survivor's level in each of the drop type's harvest_skills
+/// sk_count = how many there are
+/// return round( ( sk_total + tool_quality ) / max( sk_count, 1 ) )
+/// ```
+///
+/// **Flesh, bone, skin, blood and offal list no harvest skills at all** (`harvest_drop_type.json`), so for the commonest bodies in the game the figure is `round( tool_quality / 1 )` - the blade and nothing
+/// else, however much survival the survivor has. Only the stranger drops, mutagen among them, name skills of their own.
+#[test]
+fn a_dissection_s_skill_is_the_drop_type_s_own() {
+    use cdda_sim::dissect_skill_level;
+
+    assert_eq!(
+        dissect_skill_level(&[], 0),
+        0,
+        "**a bare-handed dissection of ordinary tissue has no skill at all**, whatever the survivor knows"
+    );
+    assert_eq!(dissect_skill_level(&[], 3), 3, "and the blade is the whole of it");
+    assert_eq!(
+        dissect_skill_level(&[("chemistry".to_owned(), 4), ("firstaid".to_owned(), 8)], 0),
+        6,
+        "**a mutagen's two skills average to six**, and the blade is added before the division"
+    );
+    assert_eq!(
+        dissect_skill_level(&[("chemistry".to_owned(), 4), ("firstaid".to_owned(), 8)], 4),
+        8,
+        "a blade of four raises the same body to eight, because it joins the sum ahead of the division"
+    );
+    assert_eq!(
+        dissect_skill_level(&[("firstaid".to_owned(), 5)], -10),
+        -5,
+        "and a tool worse than nothing takes the figure below zero, which the reference lets it do"
+    );
+}

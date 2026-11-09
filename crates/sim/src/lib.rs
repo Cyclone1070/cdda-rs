@@ -7820,6 +7820,29 @@ impl CorpseDamage {
     }
 }
 
+/// The skill level one harvest entry is judged at, which is **the drop type's own skills and not the survivor's survival**.
+///
+/// Reference: `butchery_dissect_skill_level` (`butchery.cpp:550-564`):
+///
+/// ```text
+/// sk_total = sum of the survivor's level in each of the drop type's harvest_skills
+/// sk_count = how many of them there are
+/// round( ( sk_total + tool_quality ) / max( sk_count, 1 ) )
+/// ```
+///
+/// **Flesh, bone, skin, blood and offal list no `harvest_skills`**, so the commonest bodies in the game are judged on the blade alone - `round( tool_quality / 1 )` - and a survivor's survival level never enters.
+/// Only the stranger drops name skills, and a mutagen's `[ chemistry, firstaid ]` is the reference's own example.
+///
+/// The caller passes the levels because the reference reads the average of practice and knowledge, which the port's skill system answers.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn dissect_skill_level(skills: &[(String, i32)], tool_quality: i32) -> i32 {
+    let total: i32 = skills.iter().map(|(_, level)| *level).sum();
+    let count = i32::try_from(skills.len()).unwrap_or(1).max(1);
+    let sum = f64::from(total) + f64::from(tool_quality);
+    (sum / f64::from(count)).round() as i32
+}
+
 /// The butchery figure one entry's `scale_num` is multiplied by, rolled afresh for **every** entry.
 ///
 /// Reference: `roll_butchery_dissect` (`butchery.cpp:566-583`):

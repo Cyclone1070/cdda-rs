@@ -16798,6 +16798,13 @@ practice and can never *learn* a proficiency yet.
 (`bonuses.cpp:221-258`), so a dump could only recover them by probing a character and solving for the scale - a guess dressed as data. The rules that read such a container are ported and gated
 (round 1379); the *numbers* wait for a reachable accessor.
 
+**A dissection's skill is the drop type's own, and for ordinary tissue that is only the blade** (round 1420): `dissect_skill_level` is `butchery_dissect_skill_level` (`butchery.cpp:550-564`) - the survivor's levels in
+the drop type's `harvest_skills`, summed with the blade and divided by how many there are. **Flesh, bone, skin, blood and offal name no skills at all**, so for the commonest bodies in the game the figure is
+`round( tool_quality / 1 )`: a survivor's survival level never enters. Only the stranger drops name skills - a mutagen is `[ chemistry, firstaid ]` - and those lists now come from the data, through
+`cdda_content::harvest_drops`, which reads `harvest_drop_type.json` including the three failure messages each type states.
+
+The finish still passes the survival level into the per-entry roll; wiring the per-entry figure is the next round's work, and is named here so that it is not mistaken for done.
+
 **The butchery is practice for a skill too** (round 1419): `ButcheryPractice` is `butchery.cpp:952-957`. Each entry adds `( 4 + butchery ) / entry_count` - an integer division that loses the remainders - and each
 finished entry adds one more; the total is laid on **survival** for anything but a dissection and on **first aid** for one, against a **blunt grinding cap** (`max( size - medium, 0 ) + 4` for survival,
 `size + min( tool_quality, 3 ) + 2` for dissection). The finish now returns the per-entry figures it rolled (`butcher_finish_recording`) rather than letting a caller re-roll them, because a second roll would
