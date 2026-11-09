@@ -335,37 +335,36 @@ requirements, tools and skills against it (`recipe_requirements`, `recipe_tools`
 tool and quality availability, component counts, the time it takes) so the port's crafting has a red gate of its own. **The oracle must lead the loader**, and here it does
 not yet.
 
-### What the next round should pick up (updated at round 976)
+### What the next round should pick up (updated at round 1425)
 
-**The frontier is dialogue effects, not weather.** M2 is closed and the environment family is measured; since then the work has been the effect-on-condition census, which is
-the port's instrument for "how much of the data's scripting can this game carry out". The numbers below are pinned in `crates/sim/tests/sim_suite/numbers.rs` and printed by
-the census tests; every one of them is a *count of the corpus*, not an estimate.
+**The dialogue-effect frontier is down to nine programs, one cause each.** The previous version of this section was written at round 976 and listed
+`run_eocs` (53), `mapgen_update` (18), `place_override` (17), `u_spawn_monster` (14), `if` (12) and `math` (10) as the buckets to work through. **Every one of those is gone**, and the
+table that stood beside them (577 of 692 programs readable, 387 running, 190 refused, 3,226 of 3,708 conditions, 1,527 of 1,612 effect entries) is superseded: it was a count of a
+port that no longer exists, and carrying it forward would have been the third stale ledger this record has caught. What follows is measured, this round, on the corpus as it stands.
 
-| Census | Now | Of |
-|---|---|---|
-programs readable | **577** | 692 |
-programs that run in a fresh world | **387** | 692 |
-programs refused at run time | **190** | 692 |
-conditions readable | **3,226** | 3,708 |
-effect entries runnable | **1,527** | 1,612 |
+| Census | Now | Of | Measured by |
+|---|---|---|---|
+programs known by name | **913** | 913 | `content_suite::eocs::every_effect_on_condition_is_known_by_name` - 692 defined, 221 inline, **0 missing, 0 invented** |
+programs that refuse at their first unreadable entry | **9** | 913 | `content_suite::refusals`, whose assertion is pinned at nine |
 
-**What the remaining refusals are, in the order the call graph ranks them:**
+**The nine refusals are one member each, not a bucket:**
 
-1. **`run_eocs(calls a program that is not installed)` (53)** - upstream of thirty-two unreadable programs. **This is the bucket that shrinks when a reader lands**, and it
-   is the honest measure of how much of the corpus is one rule away.
-2. **`mapgen_update` (18)** - the census installs the update tables, so the refusal is inside `apply` or the aiming; needs one refusing entry's JSON.
-3. **`place_override` (17)** - a store the port lacks: the place's name and the turn it changes back.
-4. **`u_spawn_monster` (14)** - the monster spawn rule exists; these entries aim somewhere or name a group the census does not install.
-5. **`if` (12)** and **`math` (10)** - conditions inside a branch.
+| Member | What it needs |
+|---|---|
+`<not an object>` | an **array** where the reader expects an entry object - `map_spawn_item` with a `count` range and a `context_val` location |
+`args` | the event-argument store (`trigger_event`) |
+`count` | a count beside `u_sell_item`, which is a trade effect |
+`else` | a branch key on an `if` whose condition is `has_ammo` |
+`false_eocs` | a whole-program spawn inside a false branch |
+`if` | `u_has_camp`, a condition the port has no store for |
+`loc` | a menu-driven location (the `u_run_inv_eocs` family) |
+`radius` | `math: rng(11, 36)` inside a `reveal_map` |
+`u_activate_trait` | activating a mutation by id |
 
-**The remaining unreadable entries are now dominated by stores, not readers.** The diagnostic in `content_suite::refusals` ranks the thirty-two programs by the first
-entry that refuses: `key` (3, a `revert_location` needing a **submap baseline**), `effect` (2, a `foreach`), `else` (2, `map_in_city` needing the **city layer**),
-`false_eocs` (2, a trade branch), `group` (2, whole-group spawning), `run_eocs` (2), and a tail of one-offs. **Three of the six biggest causes are stores the port has
-never had**, which is why the last four rounds spent a diagnostic before each rule: the frontier moved from readers to storage, and no reader-shaped tool could say so.
+**So the frontier is no longer a call graph, it is a list of nine one-off members**, and eight of the nine are a *store* or a *selection surface* rather than a reader: camps, event
+arguments, trade menus, inventory menus. The one that is a plain rule is `u_activate_trait`, which is why it is the next thing to pick up.
 
-**And the stores the frontier is waiting on, named so they stop being rediscovered:** mutation categories, camps and allies (`npc_allies`), submap reverts
-(`revert_location`), event arguments (`trigger_event`), place renaming (`place_override`), and item selection menus (`u_run_inv_eocs: "manual"`).
-
+That is the shape this section should keep: a measured count, the causes ranked, and the one cause that is a rule rather than a surface.
 
 The gate reads: *per-turn state hash equality on environment-only sessions covering weather transitions, fire and gas spread, light changes across z-levels, scent
 diffusion, and vision.* All five clauses are now met, each by a replayed reference recording rather than by a hand-written case:
