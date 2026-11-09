@@ -16815,6 +16815,9 @@ paid in: hunger under half the body's calories, thirst at 260, sleepiness at `EX
 half the calories is still affordable, and exactly enough mana is **not**. The cost is **taken** (round 1428): `pay_for_switching_on` charges the currencies the data names out of the body - stored
 kilocalories and thirst against the port's own `Body`, sleepiness through `needs::mod_sleepiness` - and leaves alone every currency the mutation is not paid in. **`u_activate_trait` is wired** (round 1430): the effect reads its `str_or_var` and calls the switch on the creature the effect names, which is the whole of `f_activate_trait` (`npctalk.cpp:3518-3525`).
 The census moved for it - one program readable (598), one leaf gone (31), the effect side down to 87, and the refuse-at-first-entry total from nine to eight.
+**And its own programs run on every switch-on** (round 1431): `activate_cached_mutation` (`mutation.cpp:867-880`) runs each `activated_eocs` entry, and the block sits **outside** the branch that spends
+the charge - so a mutation switched on twice runs its programs twice. The reference refuses a program that is not an activation program and turns the mutation off; the port has no program types and runs
+whatever the data names, which is named here rather than assumed. `activated_is_setup` is not ported at all: it is not in the dump.
 The whole switch is one call (round 1429): `switch_on` reads the data, refuses with the reference's own warning when the creature cannot
 afford it - **and changes nothing at all** - and otherwise pays once, records the charge in a per-creature `SwitchedMutations`, and spends charge rather than money on every later switch-on.
 

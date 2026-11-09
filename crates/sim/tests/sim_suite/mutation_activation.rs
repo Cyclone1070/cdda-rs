@@ -314,3 +314,56 @@ fn the_activate_trait_effect_switches_the_mutation_on() {
         "paying for it out of the body the acting creature wears"
     );
 }
+
+/// **A mutation that names programs runs them when it is switched on, every time it is switched on.**
+///
+/// Reference: `activate_cached_mutation` (`mutation.cpp:867-880`) runs each `activated_eocs` entry after the charge is settled - and the block sits **outside** the
+/// already-on branch, so every switch-on runs them, not only the one that paid.
+#[test]
+fn a_mutation_runs_its_own_programs_when_it_is_switched_on() {
+    use cdda_sim::eoc_registry::Program;
+    use cdda_content::dialogue::{Effect, StringSource};
+
+    let mut costing = cdda_content::mutations::Mutation {
+        cost: 400,
+        hunger: true,
+        cooldown_turns: 10,
+        activated_eocs: vec!["EOC_TEST_ACTIVATED".to_owned()],
+        ..cdda_content::mutations::Mutation::default()
+    };
+    costing.valid = true;
+    let mutations = cdda_content::mutations::Mutations::from_entries([("FLAMING_EYES".to_owned(), costing)]);
+    let mut world = World::new();
+    cdda_sim::mutation_data::install(&mut world, mutations, cdda_content::mutations::Categories::default());
+    let program = Program {
+        id: "EOC_TEST_ACTIVATED".to_owned(),
+        condition: None,
+        effects: vec![Effect::Message {
+            text: StringSource::Literal("Your eyes catch fire.".to_owned()),
+            fallback: None,
+        }],
+    };
+    cdda_sim::eoc_registry::set_programs(&mut world, &[program]);
+    let mut body = Body::new(2_500);
+    body.stored_calories = 40_000_000;
+    let creature = world.spawn(body).id();
+
+    assert!(
+        cdda_sim::mutation_activation::switch_on(&mut world, creature, "FLAMING_EYES"),
+        "it switches on"
+    );
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        vec!["Your eyes catch fire.".to_owned()],
+        "**and the program it names has run, once**"
+    );
+    assert!(cdda_sim::mutation_activation::switch_on(&mut world, creature, "FLAMING_EYES"));
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        vec![
+            "Your eyes catch fire.".to_owned(),
+            "Your eyes catch fire.".to_owned()
+        ],
+        "**and again on the second switch-on**, because the reference's program block sits outside the branch that spends the charge"
+    );
+}

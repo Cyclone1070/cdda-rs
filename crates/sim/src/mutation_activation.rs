@@ -175,5 +175,11 @@ pub fn switch_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entit
             entity.insert(record);
         }
     }
+    // Reference: `activate_cached_mutation` (`mutation.cpp:867-880`) runs each `activated_eocs` entry, and the block sits **outside** the branch that spends the charge,
+    // so every switch-on runs them. The reference refuses a non-activation program with a debug message and turns the mutation off; the port has no program types, so it
+    // runs whatever the data names and says nothing.
+    for program in &mutation.activated_eocs {
+        crate::eoc_registry::run_program(world, creature, None, program, 0);
+    }
     true
 }

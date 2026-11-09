@@ -1639,3 +1639,6 @@ charge in a per-creature record, so every later switch-on spends charge instead 
 
 **Round 1430 wired `u_activate_trait` into the program runner.** The effect reads its name and switches the mutation on for the creature it names, which is the whole of `f_activate_trait`. Six census pins moved
 with it, and the move was the check: a reader that lands is supposed to shift the numbers, and a round that landed one without shifting anything would have written a reader nothing calls.
+
+**Round 1431 ran a mutation's own programs.** The reference's `activated_eocs` block sits outside the branch that spends the charge, so the gate pins the second switch-on running the program again - the
+kind of placement a port gets wrong by putting the call inside the `else` where the cost is paid.

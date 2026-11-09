@@ -112,8 +112,6 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
                 let Some((member, example)) = first_refusal(effect, 0) else {
                     continue;
                 };
-                let counted = examples.entry(member.clone()).or_insert((0, example));
-                counted.0 += 1;
                 let id = object
                     .get("id")
                     .and_then(|given| match given {
@@ -121,6 +119,8 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
                         _ => None,
                     })
                     .unwrap_or_else(|| format!("{path:?}"));
+                let counted = examples.entry(member.clone()).or_insert((0, format!("{id}: {example}")));
+                counted.0 += 1;
                 refused_programs.insert(id);
                 break;
             }
