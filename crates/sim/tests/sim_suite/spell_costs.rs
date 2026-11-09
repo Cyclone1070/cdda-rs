@@ -280,3 +280,117 @@ fn a_heavier_hand_costs_more_at_the_rate_its_energy_source_states() {
         "and a stamina spell pays a hundred times as much: fifteen hundred on top of ten"
     );
 }
+
+/// **What pays for a cast, and where the comparisons differ.**
+///
+/// Reference: `known_magic::has_enough_energy` (`magic.cpp:2638-2661`) and `spell::consume_spell_cost` (`magic.cpp:1889-1912`). Mana, stamina and stored power are compared
+/// with `>=`, so exactly enough is enough; blood magic asks for **more** than the price on one part, so exactly enough is not. The content has no stamina or blood spell at
+/// all, which is why these are transcribed cases rather than recorded ones - and the recording could not state a pool anyway.
+#[test]
+fn the_energy_a_cast_needs_is_asked_for_per_source_and_is_spent_by_source() {
+    use bevy_ecs::prelude::*;
+    use cdda_sim::creature::{BionicPower, Mana, Stamina};
+    use cdda_sim::spellcasting::{Afford, can_afford, spend};
+
+    let spell_of = |source: &str, price: f64| cdda_content::spells::Spell {
+        energy_source: source.to_owned(),
+        energy: cdda_content::spells::Scaling {
+            start: Some(price),
+            increment: Some(0.0),
+            end: Some(price),
+        },
+        ..fixture()
+    };
+    let mut world = World::new();
+    let caster = world.spawn(Mana { cur: 4, max: 10 }).id();
+    let five = spell_of("MANA", 5.0);
+    assert_eq!(
+        can_afford(&world, caster, &five, 0, Somatic::default()),
+        Afford::No { available: 4 },
+        "**four of the five mana it costs is not enough**"
+    );
+    world.entity_mut(caster).insert(Mana { cur: 5, max: 10 });
+    assert_eq!(
+        can_afford(&world, caster, &five, 0, Somatic::default()),
+        Afford::Yes,
+        "and exactly five is: the comparison is `>=`"
+    );
+    assert!(spend(&mut world, caster, &five, 0, Somatic::default(), true, 0.2));
+    assert_eq!(
+        world.get::<Mana>(caster).map(|mana| mana.cur),
+        Some(0),
+        "the price comes off the pool"
+    );
+
+    let stamina = spell_of("STAMINA", 1_000.0);
+    world.entity_mut(caster).insert(Stamina { cur: 1_000.0, max: 3_500.0 });
+    assert_eq!(
+        can_afford(&world, caster, &stamina, 0, Somatic::default()),
+        Afford::Yes,
+        "a thousand of three thousand five hundred is enough for a thousand"
+    );
+    assert!(spend(&mut world, caster, &stamina, 0, Somatic::default(), true, 0.2));
+    assert_eq!(
+        world.get::<Stamina>(caster).map(|held| held.cur),
+        Some(0.0),
+        "and it comes off the wind"
+    );
+
+    let bionic = spell_of("BIONIC", 2.0);
+    world.entity_mut(caster).insert(BionicPower { joules: 1_999 });
+    assert_eq!(
+        can_afford(&world, caster, &bionic, 0, Somatic::default()),
+        Afford::No { available: 1 },
+        "**a price of two kilojoules is two thousand joules**, so 1,999 is one short"
+    );
+    world.entity_mut(caster).insert(BionicPower { joules: 2_000 });
+    assert_eq!(
+        can_afford(&world, caster, &bionic, 0, Somatic::default()),
+        Afford::Yes,
+        "and exactly two thousand pays it"
+    );
+    assert!(spend(&mut world, caster, &bionic, 0, Somatic::default(), true, 0.2));
+    assert_eq!(
+        world.get::<BionicPower>(caster).map(|power| power.joules),
+        Some(0),
+        "leaving nothing stored"
+    );
+
+    let free = spell_of("NONE", 999.0);
+    assert_eq!(
+        can_afford(&world, caster, &free, 0, Somatic::default()),
+        Afford::Yes,
+        "**a spell with no energy source costs nothing to afford**, whatever its price says"
+    );
+    let blood = spell_of("HP", 1.0);
+    assert_eq!(
+        can_afford(&world, caster, &blood, 0, Somatic::default()),
+        Afford::Unknown,
+        "and blood magic is not answered at all, because choosing the part is a menu the port has not got"
+    );
+    assert!(
+        !spend(&mut world, caster, &blood, 0, Somatic::default(), true, 0.2),
+        "so nothing is drained by a cast the port cannot pay for"
+    );
+}
+
+/// A spell with everything but the members a test cares about.
+fn fixture() -> cdda_content::spells::Spell {
+    cdda_content::spells::Spell {
+        id: "fixture".to_owned(),
+        name: String::new(),
+        effect_name: String::new(),
+        effect_str: String::new(),
+        damage_type: String::new(),
+        shape: String::new(),
+        energy_source: String::new(),
+        damage: cdda_content::spells::Scaling::default(),
+        range: cdda_content::spells::Scaling::default(),
+        area: cdda_content::spells::Scaling::default(),
+        energy: cdda_content::spells::Scaling::default(),
+        duration: cdda_content::spells::Scaling::default(),
+        casting_time: cdda_content::spells::Scaling::default(),
+        difficulty: None,
+        max_level: None,
+    }
+}

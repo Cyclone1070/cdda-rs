@@ -65,6 +65,116 @@ pub fn energy_cost(spell: &Spell, level: i32, somatic: Somatic) -> Option<i32> {
     Some(cost.max(0))
 }
 
+/// Whether a caster can pay a spell's price.
+///
+/// Reference: `known_magic::has_enough_energy` (`magic.cpp:2638-2661`), which is one comparison per energy source, and where the comparisons differ on purpose: mana, stamina
+/// and stored power are compared with `>=`, so a caster with exactly the price can cast, while blood magic asks whether any part has **more** than the price (`>`), so a part
+/// that could pay exactly is not allowed to. A source the port has no store for answers [`Afford::Unknown`] rather than "yes", because a free cast of a spell that should cost
+/// something is a silent divergence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Afford {
+    /// The caster has enough.
+    Yes,
+    /// It has not, and this is what it has.
+    No {
+        /// What the store holds now, in the price's own units.
+        available: i64,
+    },
+    /// The port has no store for this source, so it cannot answer.
+    Unknown,
+}
+
+/// Whether a caster can pay for a spell at this level.
+#[must_use]
+pub fn can_afford(world: &World, caster: Entity, spell: &Spell, level: i32, somatic: Somatic) -> Afford {
+    let Some(cost) = energy_cost(spell, level, somatic) else {
+        return Afford::Unknown;
+    };
+    match spell.energy_source.as_str() {
+        "MANA" => match world.get::<crate::creature::Mana>(caster) {
+            Some(mana) => match i64::from(mana.cur).cmp(&i64::from(cost)) {
+                std::cmp::Ordering::Less => Afford::No {
+                    available: i64::from(mana.cur),
+                },
+                _ => Afford::Yes,
+            },
+            None => Afford::Unknown,
+        },
+        "STAMINA" => match world.get::<crate::creature::Stamina>(caster) {
+            Some(stamina) => {
+                #[allow(clippy::cast_possible_truncation)]
+                let available = stamina.cur as i64;
+                if available >= i64::from(cost) {
+                    Afford::Yes
+                } else {
+                    Afford::No { available }
+                }
+            }
+            None => Afford::Unknown,
+        },
+        "BIONIC" => match world.get::<crate::creature::BionicPower>(caster) {
+            Some(power) => {
+                // Reference: `guy.get_power_level() >= units::from_kilojoule( cost )`, a thousand joules a kilojoule.
+                let needed = i64::from(cost) * 1_000;
+                if power.joules >= needed {
+                    Afford::Yes
+                } else {
+                    Afford::No {
+                        available: power.joules / 1_000,
+                    }
+                }
+            }
+            None => Afford::Unknown,
+        },
+        "NONE" => Afford::Yes,
+        // Blood magic asks the caster to choose a part to draw from, and its own rule is a menu (`handle_action.cpp:1946-1949`, `magic.cpp:1867-1887`). The port has body
+        // parts and their wounds but no way to choose one, so it declines to answer rather than draining the wrong limb.
+        _ => Afford::Unknown,
+    }
+}
+
+/// Takes a spell's price from whatever pays it.
+///
+/// Reference: `spell::consume_spell_cost` (`magic.cpp:1889-1912`). The failure discount is the caller's business here (`cast_success` is a parameter, as in the reference), and
+/// blood magic arrives as [`Afford::Unknown`] from [`can_afford`] and is not spent at all.
+#[must_use]
+pub fn spend(world: &mut World, caster: Entity, spell: &Spell, level: i32, somatic: Somatic, cast_success: bool, failure_percent: f64) -> bool {
+    let Some(cost) = energy_cost(spell, level, somatic) else {
+        return false;
+    };
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let cost = if cast_success {
+        cost
+    } else {
+        (f64::from(cost) * failure_percent) as i32
+    };
+    match spell.energy_source.as_str() {
+        "MANA" => {
+            let Some(mut mana) = world.get_mut::<crate::creature::Mana>(caster) else {
+                return false;
+            };
+            mana.cur -= cost;
+            true
+        }
+        "STAMINA" => {
+            if world.get::<crate::creature::Stamina>(caster).is_none() {
+                return false;
+            }
+            crate::creature::spend_stamina(world, caster, -cost);
+            true
+        }
+        "BIONIC" => {
+            let Some(mut power) = world.get_mut::<crate::creature::BionicPower>(caster) else {
+                return false;
+            };
+            power.joules -= i64::from(cost) * 1_000;
+            true
+        }
+        "NONE" => true,
+        _ => false,
+    }
+}
+
 /// What came of casting.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cast {

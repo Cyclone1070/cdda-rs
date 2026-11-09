@@ -1671,3 +1671,8 @@ reference makes it. Two gates - the square and the projection - both mutation-ch
 measured a fact worth more than the gate: **every spell in the content writes a base equal to its final value with a zero increment**, so the corpus cannot exercise the reference's three-branch
 climb - which is recorded, and pinned instead by transcribed cases for both directions, the equal branch (with a falling increment, the only shape that distinguishes it), the rounding, and the
 somatic term the recording's zero encumbrance could never show.
+
+**Round 1441 spent the price.** `spellcasting::can_afford` and `spend` are `known_magic::has_enough_energy` and `spell::consume_spell_cost`, one comparison per energy source and the
+deduction for the four the port has stores for. Mana and bionic power became components on the creature - the pool is one creature's number the way its stamina is - and blood magic is
+refused as `Unknown` because the reference picks the part from a menu. The gate pins every boundary on both sides (four of five mana is short, five is enough; 1,999 joules is short of
+two kilojoules, 2,000 pays) and was mutation-checked by turning mana's `>=` into `>`.

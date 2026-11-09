@@ -3008,6 +3008,29 @@ impl Default for Stamina {
     }
 }
 
+/// How much magic a character has in it.
+///
+/// Reference: `known_magic::max_mana` and `available_mana` (`magic.cpp:2599-2636`), which a spell's price is checked against and then taken from. The port keeps the pool as a
+/// component on the creature rather than on a separate magic object, because it is one creature's number like its stamina and its pain; **what fills it** - intelligence, level,
+/// the enchantment modifiers - is not ported, so a caller states the ceiling instead of the port inventing one.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mana {
+    /// What is left.
+    pub cur: i32,
+    /// What it can hold.
+    pub max: i32,
+}
+
+/// How much stored power a character's bionics have.
+///
+/// Reference: `Character::get_power_level` and `mod_power_level` (`character.cpp`), measured in **joules**: a spell's price is a count of kilojoules, and the reference converts
+/// with `units::from_kilojoule` before comparing, which is a thousand apiece.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BionicPower {
+    /// What is left, in joules.
+    pub joules: i64,
+}
+
 /// Spends stamina, keeping it at zero or above and never above what the character can hold - and making the character **winded** when the spend goes past zero.
 ///
 /// Reference: `Character::mod_stamina` (`character.cpp:6961-6968`) adds the change, and on a result below zero puts every body part's windage effect on for **ten turns** - which in the

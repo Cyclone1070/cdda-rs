@@ -45,6 +45,27 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Paying, asked for per source (round 1441)
+
+The price landed last round and nothing spent it. This round the two questions the reference asks around a price are in: **has the caster got it**, and **take it**.
+
+| Question | Reference | Port |
+|---|---|---|
+can it pay | `known_magic::has_enough_energy` (`magic.cpp:2638-2661`) | `spellcasting::can_afford`, one comparison per source |
+spend it | `spell::consume_spell_cost` (`magic.cpp:1889-1912`) | `spellcasting::spend`, with the failure discount as a parameter |
+mana | `available_mana() >= cost` | a `Mana { cur, max }` component |
+stamina | `get_stamina() >= cost` | the port's own `Stamina`, spent through `spend_stamina` |
+bionic power | `get_power_level() >= from_kilojoule( cost )` | `BionicPower` in joules, a thousand apiece |
+blood | any part with `hp > cost`, **chosen from a menu** (`:1867-1887`) | not answered: `Afford::Unknown`, and nothing is drained |
+
+**The comparisons differ on purpose**, which is the whole reason this is a rule and not a lookup: mana, stamina and stored power are `>=`, so a caster with exactly the price can cast, while
+blood magic asks a part for *more* than the price. The gate pins both sides of each boundary - four of five mana is not enough and five is; 1,999 joules is one short of a two-kilojoule
+price - and the mutation that turns mana's `>=` into `>` fails it.
+
+**Named, not invented**: blood magic needs the part-choice menu the port has not got, so it answers `Unknown` rather than draining a limb nobody chose; what fills the mana pool
+(intelligence, level, enchantments) is not ported, so a caller states the ceiling; and the content holds **no stamina and no blood spell at all**, which is why these are transcribed
+cases and not a recording.
+
 ## A group entry drops nothing, and that is the reference (round 1438)
 
 The gap named at the end of the last round - "a dissection's yields drop nothing, because its entries are `mutagen_group`" - turned out **not to be a port gap at all**. The
