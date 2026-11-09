@@ -27,6 +27,25 @@ Six rules are ported, gated and uncalled | **true** | `tools/check_dead_rules.py
 **One of the four was stale and three are real.** The stale one is the interesting one: `moves_left` has been read since the step rule landed, and the record went on
 describing it as a gap because the sentence had never been revisited. That is the same failure the roadmap's census table had this arc, in a smaller place.
 
+## A dissection is its own job (round 1437)
+
+The gap named at the end of the last round - "what a dissection's clock does with `CUT_FINE` is untested, because no scenario dissects yet" - is closed, and it was not a small
+one: a dissection is a **different job** from a butchery in three ways at once, and the port had none of them wired to a caller.
+
+| Difference | The reference | What the port does now |
+|---|---|---|
+the tool | `qual_CUT_FINE` rather than `qual_BUTCHER` (`butchery.cpp:385`, `:632`) | the butchery step picks the quality by action |
+the list | the body's **dissection** table, not its harvest table (`list_for(kind, Dissect)`) | the action decides which list the finish reads |
+the clock | `time_to_cut *= 6` on top of the tool factor (`:406-471`) | measured at **261,900 moves**, which is 450 x `max(25, 100 - 3)` x 6 |
+
+The scenario is `a_dissection_reads_a_fine_blade.txt`: a `mon_civilian_zombiefighter` - the data gives it `dissect_human_sample_single` and a humanoid's 81,500 grams - killed
+and dissected with a scalpel (`CUT_FINE 3`). With the butchering quality wired in instead of the fine one the clock reads 248,400 and the scenario fails, which is what makes
+the number worth pinning.
+
+**Named, not invented**: the dissection's *yields* are mutagen samples, and a `mutagen_group` entry names an item **group** rather than a type. The port has no item-group
+resolution inside a butchery, so a dissection drops nothing at all - the scenario asserts the clock and says so in its own comment rather than pretending a count proves
+something.
+
 ## The blade reaches the clock (round 1436)
 
 The reader of the previous round answered a survivor's best `BUTCHER` quality, and nothing asked it: the game's own butchery passed `tool_factor: 0`, and the item table the

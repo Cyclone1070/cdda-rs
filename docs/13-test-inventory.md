@@ -1652,3 +1652,7 @@ kind of placement a port gets wrong by putting the call inside the `else` where 
 **Round 1436 carried the blade to the clock.** The quality reader existed and nothing asked it: the game passed a tool factor of zero and never installed the item quality
 table. Both are wired now, a playtest step `expect work N` asserts the moves a butchery books, and the knife scenario shows 75,599 against 108,000 bare-handed - the clock is
 the only place a tool shows, because a blade does not change what a body yields.
+
+**Round 1437 made a dissection its own job.** It asks for a fine blade rather than a butchering one, reads the body's dissection list rather than its harvest list, and takes
+six times as long; the scenario pins 261,900 moves for a scalpel on a humanoid body, which is the reference's own arithmetic term for term. Its yields still drop nothing,
+because a `mutagen_group` entry names an item group and the port has no group resolution inside a butchery - written down, not papered over.

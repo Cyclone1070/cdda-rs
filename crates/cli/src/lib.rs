@@ -172,6 +172,8 @@ pub enum Step {
     Butcher {
         /// Whether the job is the quick one, which is a different multiplier in `butcher_time_to_cut`.
         quick: bool,
+        /// Whether it is a **dissection**: it reads the body's dissection list and asks for a fine blade (`butchery.cpp:632`).
+        dissect: bool,
     },
     /// Swings at whatever stands on a square.
     Attack {
@@ -346,8 +348,15 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 item: (*item).to_owned(),
                 count: number_of(count, number, "count")?,
             },
-            ["butcher"] => Step::Butcher { quick: false },
-            ["butcher", "quick"] => Step::Butcher { quick: true },
+            ["butcher"] => Step::Butcher {
+                quick: false,
+                dissect: false,
+            },
+            ["butcher", "quick"] => Step::Butcher {
+                quick: true,
+                dissect: false,
+            },
+            ["butcher", "dissect"] => Step::Butcher { dissect: true, quick: false },
             ["wield", item] => Step::Wield {
                 item: (*item).to_owned(),
             },
@@ -573,7 +582,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
                         .insert(cdda_sim::creature::Carried(survivor));
                 }
             }
-        Step::Butcher { quick } => butcher_a_step(world, outcome, *quick),
+        Step::Butcher { quick, dissect } => butcher_a_step(world, outcome, *quick, *dissect),
         Step::ExpectWork(moves) => match outcome.last_work {
             Some(booked) if booked == *moves => outcome
                 .lines
@@ -2799,7 +2808,7 @@ mod round_naming_tests {
 ///
 /// The activity is the reference's shape - `player_activity` with `ACT_BUTCHER`, whose `moves_left` is `butcher_time_to_cut` and whose finish draws the body's harvest onto the square. The port keeps that
 /// clock on the **creature** (`Doing`), because that is where the reference keeps it and where the turn loop already spends every other activity's moves.
-fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool) {
+fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool, dissect: bool) {
     let Some(survivor) = survivor(world) else {
         outcome.failures.push("there is no survivor".to_owned());
         return;
@@ -2840,14 +2849,21 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool) {
         });
     let state = cdda_sim::ButcherState {
         size,
-        action: if quick {
+        action: if dissect {
+            cdda_sim::ButcherAction::Dissect
+        } else if quick {
             cdda_sim::ButcherAction::Quick
         } else {
             cdda_sim::ButcherAction::Full
         },
         // Reference: `butcher_time_to_cut` reads `max_quality( qual_BUTCHER, PICKUP_RANGE )` (`butchery.cpp:385`), so a knife on the survivor or on the floor beside the
         // body shortens the work.
-        tool_factor: cdda_sim::creature::best_quality(world, survivor, "BUTCHER"),
+        // Reference: a dissection asks for a **fine** blade and everything else for a butchering one (`butchery.cpp:385`, `:632`).
+        tool_factor: cdda_sim::creature::best_quality(
+            world,
+            survivor,
+            if dissect { "CUT_FINE" } else { "BUTCHER" },
+        ),
         field_dressed: false,
         field_dress_failed: false,
         quartered: false,

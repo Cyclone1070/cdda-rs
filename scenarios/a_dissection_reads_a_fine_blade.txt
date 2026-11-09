@@ -1,0 +1,40 @@
+# **A dissection asks for a different tool than a butchery, and reads a different list.**
+#
+# Reference: `butchery.cpp:385` and `:632` pick the quality by action - `qual_CUT_FINE` for a dissection, `qual_BUTCHER` for everything else - and the yields come from the
+# body's **dissection** list rather than its harvest list (`list_for(kind, Dissect)`). The body here is `mon_civilian_zombiefighter`, which the data gives
+# `dissect_human_sample_single` (`harvest_dissect.json:267`) and a humanoid's 81,500 grams, and the survivor carries a scalpel, which is `CUT_FINE 3` in the data
+# (`items/med.json`).
+#
+# The assertion is the clock, because that is what the tool changes: a dissection's yields are mutagen samples, which the port has no item-group resolution for yet, so the
+# count here would prove nothing and the moves prove the whole path - the action reaches the corpse, the fine blade is the one read, and the dissection's own clock runs.
+world 10 bare
+survivor 0 0
+items
+monsters
+seed 7
+give crowbar 1
+give scalpel 1
+wield crowbar
+monster mon_civilian_zombiefighter 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+attack 1 0
+turn 1
+expect no monster at 1 0
+butcher dissect
+# **261,900 moves**, and the number is the reference's own arithmetic, term for term: a medium body is 450 turns of base work, the scalpel's fine blade is 3 so the tool factor is
+# `max(25, 100 - 3)` = 97, and a dissection multiplies by six (`butchery.cpp:406-471`) - 450 x 97 x 6 = 261,900. Nothing about the port is in that number except that it agrees.
+expect work 261900
