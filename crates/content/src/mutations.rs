@@ -56,6 +56,24 @@ pub struct Mutation {
     pub cancels: Vec<String>,
     /// The categories it belongs to.
     pub categories: Vec<String>,
+    /// Whether the mutation starts switched on (`starts_active`), which is what the game shows at character creation.
+    pub starts_active: bool,
+    /// What switching it on costs, in whichever of the four currencies its flags name (`cost`).
+    pub cost: i32,
+    /// How many turns it stays on before it can be switched again (`cooldown`, in turns).
+    pub cooldown_turns: i32,
+    /// Whether the cost is paid in hunger.
+    pub hunger: bool,
+    /// Whether the cost is paid in thirst.
+    pub thirst: bool,
+    /// Whether the cost is paid in sleepiness.
+    pub sleepiness: bool,
+    /// Whether the cost is paid in mana.
+    pub mana: bool,
+    /// The programs that run when it is switched on (`activated_eocs`).
+    pub activated_eocs: Vec<String>,
+    /// The programs that run when it is switched off (`deactivated_eocs`).
+    pub deactivated_eocs: Vec<String>,
 }
 
 /// Every mutation the data defines.
@@ -130,6 +148,15 @@ fn mutation_of(entry: &Object) -> Mutation {
         prereqs2: strings(entry, "prereqs2"),
         cancels: strings(entry, "cancels"),
         categories: strings(entry, "category"),
+        starts_active: matches!(entry.get("starts_active"), Some(Value::Bool(true))),
+        cost: whole(entry, "cost"),
+        cooldown_turns: whole(entry, "cooldown_turns"),
+        hunger: matches!(entry.get("hunger"), Some(Value::Bool(true))),
+        thirst: matches!(entry.get("thirst"), Some(Value::Bool(true))),
+        sleepiness: matches!(entry.get("sleepiness"), Some(Value::Bool(true))),
+        mana: matches!(entry.get("mana"), Some(Value::Bool(true))),
+        activated_eocs: strings(entry, "activated_eocs"),
+        deactivated_eocs: strings(entry, "deactivated_eocs"),
     }
 }
 

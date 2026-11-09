@@ -1623,3 +1623,7 @@ entries, and the leftover gate's arithmetic was wrong before it was right: 1,000
 
 **Round 1424 found the refuse falling as nothing.** The finish resolves drop ids before it runs; the leftover's was left out, so the count was right and the kind was the default. The playtest saw zero ruined chunks;
 a gate on the count alone never could. The lesson is written into the record: the ids a rule needs resolved must be named where the resolving happens.
+
+**Round 1426 put mutation activation into the oracle.** The harness dumped a mutation's points, prerequisites and enchantments and nothing about switching it on, so the one refusal among the nine that is a plain
+rule - `u_activate_trait` - could not be ported. The dump now carries the cost, the cooldown, the four currencies and the two program lists; the loader reads them and a gate pins BIOLUM3's four hundred hunger and
+its own activation program.

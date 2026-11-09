@@ -162,3 +162,4 @@ mod gun_rules;
 mod shot_rules;
 mod weakpoints;
 mod harvest_drop_types;
+mod mutation_activation;

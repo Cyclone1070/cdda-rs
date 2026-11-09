@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-09 01:57:19
-@@ -0,0 +1,7745 @@
++++ oracle/src/src/harness.cpp	2026-11-09 15:38:39
+@@ -0,0 +1,7767 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1535,6 +1535,28 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        first_in = true;
 +        for( const trait_id &need : branch.prereqs2 ) {
 +            out << ( first_in ? "" : "," ) << "\"" << need.str() << "\"";
++            first_in = false;
++        }
++        // **What switching it on costs and what switching it on does** (`mutation.h:205-290`, `mutation.cpp:821-880`): `u_activate_trait` reaches
++        // `Character::activate_mutation`, which charges one of the four costs the data names, starts a cooldown, and runs the mutation's own activation
++        // programs. None of it was in the dump, so the port could not carry out the effect at all.
++        out << "],\"starts_active\":" << ( branch.starts_active ? "true" : "false" )
++            << ",\"cost\":" << branch.cost
++            << ",\"cooldown_turns\":" << to_turns<int>( branch.cooldown )
++            << ",\"hunger\":" << ( branch.hunger ? "true" : "false" )
++            << ",\"thirst\":" << ( branch.thirst ? "true" : "false" )
++            << ",\"sleepiness\":" << ( branch.sleepiness ? "true" : "false" )
++            << ",\"mana\":" << ( branch.mana ? "true" : "false" )
++            << ",\"activated_eocs\":[";
++        first_in = true;
++        for( const effect_on_condition_id &id : branch.activated_eocs ) {
++            out << ( first_in ? "" : "," ) << "\"" << id.str() << "\"";
++            first_in = false;
++        }
++        out << "],\"deactivated_eocs\":[";
++        first_in = true;
++        for( const effect_on_condition_id &id : branch.deactivated_eocs ) {
++            out << ( first_in ? "" : "," ) << "\"" << id.str() << "\"";
 +            first_in = false;
 +        }
 +        out << "],\"enchantments\":[";

@@ -68,6 +68,16 @@ fn trait_of(prereqs: &[&str], cancels: &[&str]) -> Mutation {
         prereqs2: Vec::new(),
         cancels: cancels.iter().map(|one| (*one).to_owned()).collect(),
         categories: Vec::new(),
+        // Nothing about switching on: these gates are about what a mutation needs to be **gained**, and activation has its own.
+        starts_active: false,
+        cost: 0,
+        cooldown_turns: 0,
+        hunger: false,
+        thirst: false,
+        sleepiness: false,
+        mana: false,
+        activated_eocs: Vec::new(),
+        deactivated_eocs: Vec::new(),
     }
 }
 

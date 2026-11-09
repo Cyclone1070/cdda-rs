@@ -16805,7 +16805,14 @@ the drop type's `harvest_skills`, summed with the blade and divided by how many 
 
 **What is left of a body is ruined parts, and the figures are the reference's** (round 1422): `leftovers_after_butchery` is `butchery.cpp:916-948`, all of it **integer arithmetic on grams** - a fifth of the body
 runs off as gore, a field dressing keeps a quarter back, a skinning takes 85%, and a quartered body has given up more than that. The figure divided by one leftover's weight is how many ruined parts fall, and the
-reference drops none at all for a bleeding. **And the refuse falls as refuse** (round 1424): the finish resolves the harvest entries' ids before it runs, because the rule takes the world mutably and cannot look a name up itself - and the leftover's id was
+reference drops none at all for a bleeding. **The mutation dump now says what switching a mutation on costs and does** (round 1426): `starts_active`, `cost`, `cooldown_turns`, the four currencies (`hunger`, `thirst`, `sleepiness`, `mana`), and
+`activated_eocs`/`deactivated_eocs` are in `--dump-mutations`, read by `cdda_content::mutations`, and gated. **None of it was in the dump before**, which is why `u_activate_trait` - the one refusal among the nine
+that is a plain rule rather than a store - could not be carried out at all. The data now says: 20 mutations cost something, 10 have a cooldown, 6 run a program when switched on, 13 start switched on.
+
+**Still to come**: the rule itself (`Character::activate_mutation`, `mutation.cpp:813-880`, and `can_power_mutation`, `:411-419`) - the per-character `trait_data` that remembers what is switched on, and the
+charge that pays for it.
+
+**And the refuse falls as refuse** (round 1424): the finish resolves the harvest entries' ids before it runs, because the rule takes the world mutably and cannot look a name up itself - and the leftover's id was
 **not among them**, so it resolved to the default id and the refuse fell as a kind that names nothing. The playtest found it at zero; a unit gate on the count alone could not, because the count was never the
 question. The id is resolved with the rest now, and the playtest pins **221 ruined chunks** for an eighty-one-and-a-half-kilogram zombie.
 
