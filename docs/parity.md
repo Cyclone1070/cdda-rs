@@ -16803,7 +16803,9 @@ the drop type's `harvest_skills`, summed with the blade and divided by how many 
 `round( tool_quality / 1 )`: a survivor's survival level never enters. Only the stranger drops name skills - a mutagen is `[ chemistry, firstaid ]` - and those lists now come from the data, through
 `cdda_content::harvest_drops`, which reads `harvest_drop_type.json` including the three failure messages each type states.
 
-The finish still passes the survival level into the per-entry roll; wiring the per-entry figure is the next round's work, and is named here so that it is not mistaken for done.
+**And the finish now judges every entry at its own drop type's figure** (round 1421): `butchery.cpp:694` asks `butchery_dissect_skill_level` *inside* the loop, so the level moves entry by entry, and the port's
+finisher works the levels out per part (`creature::butchery_skill_levels`) from the drop-type table the game installs. A survival master and a beginner cut an ordinary body at the same figure; a body whose drop
+type names a skill is judged on the survivor's level in it. A part the port kept no name for answers the blade, where the reference might name a skill - a gap of the data model, named here.
 
 **The butchery is practice for a skill too** (round 1419): `ButcheryPractice` is `butchery.cpp:952-957`. Each entry adds `( 4 + butchery ) / entry_count` - an integer division that loses the remainders - and each
 finished entry adds one more; the total is laid on **survival** for anything but a dissection and on **first aid** for one, against a **blunt grinding cap** (`max( size - medium, 0 ) + 4` for survival,
