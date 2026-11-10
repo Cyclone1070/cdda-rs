@@ -69,6 +69,7 @@ pub mod hearing;
 pub mod hit_location;
 pub mod limbs;
 pub mod weakpoints;
+pub mod kills;
 pub mod line;
 pub mod martial_arts;
 pub mod martial_arts_vectors;

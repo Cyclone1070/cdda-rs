@@ -318,6 +318,14 @@ pub fn hurt_by(world: &mut World, entity: Entity, damage: f32, attacker: Option<
             && let Some(who) = attacker
         {
             world.entity_mut(entity).insert(KilledBy(who));
+            // Reference: `kill_tracker::add_kill( mtype_id )` is called when a monster dies with the player as its killer (`game.cpp`), and `spell_effect::guilt` reads that
+            // count. The port records it where the death is decided, and only for a **character** striker - a monster killing a monster is not the player's conscience.
+            let striker_is_person = world.get::<crate::Player>(who).is_some() || crate::npcs::is_npc(world, who);
+            if striker_is_person
+                && let Some(kind) = world.get::<CreatureKind>(entity).map(|held| held.0)
+            {
+                crate::kills::record(world, kind);
+            }
         }
         // Reference: `Character::on_hurt` (`character.cpp:8564-8590`) raises `distraction_type::attacked` after the
         // damage lands, which is what makes being hit stop what you were doing. Only a creature that is doing

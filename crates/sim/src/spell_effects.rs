@@ -58,6 +58,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("ter_transform", ter_transform),
     ("flashbang", flashbang),
     ("add_trap", add_trap),
+    ("guilt", guilt),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -276,6 +277,111 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `guilt` spell makes a character feel bad about the monsters it has killed - and only a **monster** can cast it.
+///
+/// Reference: `spell_effect::guilt` (`magic_spell_effect.cpp:1617-1711`). The shape is a rising scale rather than a fixed penalty:
+///
+/// * the caster must be a monster, and **its kind** is what the tally is counted against (`guilt_kill_count`);
+/// * `max_kills` is the spell's damage - the count at which a character stops caring - and `guilt_mult` its level;
+/// * the malus is `-5 * guilt_mult * (1 - killRatio)`, capped at `-250 * (1 - killRatio)`, lasting `duration * (1 - killRatio)` with a decay delay of three minutes scaled
+///   the same way;
+/// * killing has less bite for a psychopath or a `PRED3`/`PRED4` (who feel nothing), five times the bite for a `PACIFIST`, and a quarter or a fifth for `PRED1`/`PRED2`;
+/// * and a character killing **its own species** feels it twice over.
+///
+/// The reference's threshold **messages** are interface, and the port records the morale point and leaves them to a caller that draws text.
+fn guilt(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(kind) = world.get::<crate::creature::CreatureKind>(caster).map(|held| held.0) else {
+        // Reference: `if( !caster.is_monster() ) { return; }` - a character casting this feels nothing.
+        return Effective::NothingAffected;
+    };
+    let Some(max_kills) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    let Some(seconds) = spell.duration.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let max_kills = max_kills as i32;
+    if max_kills <= 0 {
+        return Effective::NothingAffected;
+    }
+    let kill_count = crate::kills::count_of(world, kind);
+    let mut felt = 0;
+    for square in squares_in_area(world, caster, spell, level, centre) {
+        for held in crate::creature::creature_at(world, square) {
+            let person = world.get::<crate::Player>(held).is_some() || crate::npcs::is_npc(world, held);
+            if !person {
+                continue;
+            }
+            // Reference: a psychopath, or a `PRED3`/`PRED4`, has no conscience to move.
+            if crate::traits::has_trait(world, held, "PSYCHOPATH")
+                || crate::creature_flags::has_flag(world, held, "PRED3")
+                || crate::creature_flags::has_flag(world, held, "PRED4")
+            {
+                continue;
+            }
+            // Reference: `if( kill_count >= max_kills ) { return; }` - a character who has killed that many no longer cares.
+            if kill_count >= max_kills {
+                continue;
+            }
+            #[allow(clippy::cast_precision_loss)]
+            let ratio = f64::from(kill_count) / f64::from(max_kills);
+            let remaining = 1.0 - ratio;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+            let mut malus = -5.0 * level as f64 * remaining;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+            let cap = -250.0 * remaining;
+            if crate::traits::has_trait(world, held, "PACIFIST") {
+                malus *= 5.0;
+            } else if crate::creature_flags::has_flag(world, held, "PRED1") {
+                malus /= 4.0;
+            } else if crate::creature_flags::has_flag(world, held, "PRED2") {
+                malus /= 5.0;
+            }
+            // Reference: killing your own kind hurts more, asked either of the victim's species or of the species the spell names.
+            let shared = crate::creature_flags::has_flag(world, caster, &format!("SPECIES_{}", spell.effect_str))
+                || spell.effect_str.is_empty();
+            if shared {
+                malus *= 2.0;
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            let bonus = malus.round() as i32;
+            #[allow(clippy::cast_possible_truncation)]
+            let max_bonus = cap.round() as i32;
+            // Reference: `duration * ( 1 - killRatio )`, and a decay delay of three minutes scaled the same way.
+            #[allow(clippy::cast_possible_truncation)]
+            let duration = (seconds * remaining) as i64;
+            #[allow(clippy::cast_possible_truncation)]
+            let decay = (180.0 * remaining) as i64;
+            crate::morale::add(
+                world,
+                held,
+                crate::morale::MoralePoint {
+                    kind: "morale_killed_monster".to_owned(),
+                    bonus,
+                    max_bonus,
+                    duration,
+                    decay_start: decay,
+                    age: 0,
+                    capped: true,
+                },
+            );
+            felt += 1;
+        }
+    }
+    if felt == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

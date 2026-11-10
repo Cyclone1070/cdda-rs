@@ -1746,3 +1746,8 @@ fails it. The avatar's armour-based reductions are declared rather than guessed.
 **Round 1456 gave the map a trap.** A trap is now an entity standing on a square carrying a `Trap` component - the same shape furniture already had - so `trap_at` is a query
 and `set_trap` grows the store. `add_trap` sets one on the square it lands on and **refuses to overwrite**, which is the reference's own double guard (`tr_at == tr_null` in the
 spell, and `map::trap_set`'s own refusal). The gate casts onto a square that already holds a trap and requires it to still be there; removing the guard fails.
+
+**Round 1457 gave the port a memory for kills.** `guilt` needs `kill_tracker::guilt_kill_count`, and a corpse is reaped within a turn of dying, so the count cannot be read off the
+world. `hurt_by` records it where the death is decided - a body reaching zero with a **character** as its striker - and `kills::count_of` answers it. The gates pin all three of the
+spell's shape: only a monster can cast it, the penalty halves at fifty of a hundred kills (removing the fade fails), and a psychopath, or a character who has reached the spell's
+damage in kills, feels nothing at all.

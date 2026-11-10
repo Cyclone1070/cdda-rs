@@ -45,6 +45,29 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A monster can make you feel guilty (round 1457)
+
+`guilt` is two spells, and it needed the game to remember its kills.
+
+| Piece | Reference (`magic_spell_effect.cpp:1617-1711`) | Port |
+|---|---|---|
+who casts | `if( !caster.is_monster() ) { return; }` - a character casting it feels nothing | the same, and gated |
+the tally | `kill_tracker::guilt_kill_count( mtype_id )` | `kills::count_of`, written **where the death is decided**: a body reaching zero with a character as its striker |
+the scale | `-5 * guilt_mult * ( 1 - killRatio )`, capped at `-250 * ( 1 - killRatio)` | the same, and the gate halves the bite at fifty of a hundred kills |
+how long | `duration * ( 1 - killRatio )`, decaying after three minutes scaled the same way | the same |
+conscience | psychopath, `PRED3`, `PRED4` feel nothing; `PACIFIST` five times as much; `PRED1`/`PRED2` a quarter and a fifth | the same |
+own kind | killing your own species doubles it | the same when the spell names the caster's species |
+
+**The tally lives where the fact is decided.** A corpse is gone within a turn of dying (`reap_dead_creatures_as_corpses`), so "how many of these have I killed" cannot be answered by
+looking at the world; `hurt_by` records it at the moment the blow lands, and only for a character striker. That is the reference's own line too - `kill_tracker::add_kill` is called
+when a monster dies with the player as its killer, not when anything dies.
+
+**Named, not invented**: the reference's four threshold **messages** ("You feel awful about killing %s") are interface, so the port records the morale point and leaves the words to
+a caller that draws them. The `shared_species` branch reads the character's membership of a species, which the port's creature flags can express but its species data does not load
+yet - so the port takes the spell's own `effect_str` as the species named, states that in the module, and shows it doubling the malus in the test's fixture.
+
+Twenty-two effect kinds are ported now of the data's thirty-two, and **233 of 245 spells** name one of them.
+
 ## A trap is a thing standing on a square (round 1456)
 
 `add_trap` is one spell, and it needed a store the port did not have.
