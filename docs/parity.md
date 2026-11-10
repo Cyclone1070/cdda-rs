@@ -45,6 +45,27 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Spells finally know their own flags (round 1463)
+
+Four ported effects carried a named gap that all said the same thing: *the port does not load spell flags*. The oracle now dumps them, and three of those gaps are closed by
+reading the data instead of a constant.
+
+| Piece | Reference | Port |
+|---|---|---|
+the data | `spell_type::flags` (`magic.h:362`), the raw strings the JSON writes | `--dump-spells` now writes them: **233 of 245 spells carry at least one** |
+the reader | `spell_type::has_flag` | `Spell::has_flag`, matched by name |
+the charm | `mon->friendly == 0 \|\| sp.has_flag( RECHARM )` | the same; **no spell in this content has `RECHARM`**, which is why the charm gate's second cast still does nothing |
+the bash | `here.bash( p, force, SILENT )` | the same, and a silent spell's hit is no longer heard |
+the shapes | `ignore_walls = sp.has_flag( IGNORE_WALLS )` (`magic.h:805`) | `spell_area::cover` takes the flag: **7 spells** pass through walls, and a cone or line now does so when the data says to |
+
+**The loader moved first, and the dump had to move ahead of it.** Reading a flag the dump does not carry would have been a guess, so the harness gained a `flags` array,
+`apply_harness_patches.py --regen` rewrote the patch, `--verify` proved it still reproduces the working copy byte for byte, and the oracle was rebuilt and re-dumped before a
+line of the loader changed. The counts are pinned in a gate - 126 silent, 7 through walls, 54 not stopped short, 29 permanent, 1 unsafe teleport, 0 re-charm - so a dump that
+quietly stopped carrying them would fail rather than let the rules go dead.
+
+**Still a gap**: `UNSAFE_TELEPORT` is dumped and read but the teleport rule's safe branch has not been wired to it yet, and `PERMANENT` matters only to the summon rules. Both are
+now one line each rather than an unknown.
+
 ## The line shape is a wrapped walk, not a beam (round 1462)
 
 The nine line spells were answered by their blast since the shape round. They now have their own rule, transcribed from the reference's three helpers.

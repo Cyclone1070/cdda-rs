@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-10 01:56:27
-@@ -0,0 +1,7806 @@
++++ oracle/src/src/harness.cpp	2026-11-11 00:29:06
+@@ -0,0 +1,7816 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -7405,6 +7405,16 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        dump_one_number( out, "final_casting_time", spell.final_casting_time, first );
 +        std::fprintf( out, ",\"energy_source\":\"%s\"",
 +                      harness_escape( io::enum_to_string( spell.get_energy_source() ) ).c_str() );
++        // The spell's own flags, which five ported effects read and the dump did not carry: `SILENT` decides whether a bash is heard, `IGNORE_WALLS` whether a
++        // cone or a line stops at a wall, `RECHARM` whether a charm stacks, `UNSAFE_TELEPORT` whether a jump may kill, and `TARGET_TELEPORT` whether the caster or
++        // the aim point moves. Written as the raw names the data uses, because that is what a port has to match.
++        std::fprintf( out, ",\"flags\":[" );
++        bool first_flag = true;
++        for( const std::string &flag : spell.flags ) {
++            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", harness_escape( flag ).c_str() );
++            first_flag = false;
++        }
++        std::fprintf( out, "]" );
 +        std::fprintf( out, "}" );
 +        first_spell = false;
 +    }

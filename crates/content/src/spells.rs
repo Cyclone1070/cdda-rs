@@ -83,6 +83,21 @@ pub struct Spell {
     pub difficulty: Option<f64>,
     /// The highest level it can reach.
     pub max_level: Option<f64>,
+    /// The flags the data gives it, by name.
+    ///
+    /// Reference: `spell_type::flags`, the raw strings the JSON writes, of which the ones a rule reads are `SILENT` (a bash is not heard), `IGNORE_WALLS` (a cone or a
+    /// line passes through walls), `RECHARM` (a charm stacks on a monster that is already friendly), `UNSAFE_TELEPORT` (a jump may land somewhere that kills), `PERMANENT`
+    /// (a summon does not expire) and `TARGET_TELEPORT` (the aim point moves rather than the caster). Kept as names because that is what the data writes; the effects
+    /// ask [`Spell::has_flag`] rather than comparing strings themselves.
+    pub flags: std::collections::BTreeSet<String>,
+}
+
+impl Spell {
+    /// Whether the data gave the spell a flag.
+    #[must_use]
+    pub fn has_flag(&self, flag: &str) -> bool {
+        self.flags.contains(flag)
+    }
 }
 
 /// Reads one spell from a dump entry.
@@ -121,6 +136,16 @@ pub fn read_spell(object: &Object) -> Result<Spell, LoadError> {
         ),
         difficulty: number(object, "difficulty"),
         max_level: number(object, "max_level"),
+        flags: match object.get("flags") {
+            Some(Value::Array(flags)) => flags
+                .iter()
+                .filter_map(|flag| match flag {
+                    Value::Str(name) => Some(name.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => std::collections::BTreeSet::new(),
+        },
     })
 }
 

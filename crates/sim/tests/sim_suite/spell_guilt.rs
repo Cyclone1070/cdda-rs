@@ -53,6 +53,7 @@ fn a_spell(max_kills: f64, seconds: f64, area: f64) -> cdda_content::spells::Spe
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     }
 }
 
@@ -127,7 +128,7 @@ fn a_character_cannot_cast_it_a_psychopath_ignores_it_and_a_full_tally_stops_it(
         "a psychopath has no conscience to move"
     );
 
-    let (mut world, numb, caster) = a_world(10);
+    let (mut world, _numb, caster) = a_world(10);
     cdda_sim::PositionIndex::rebuild(&mut world);
     assert_eq!(
         cdda_sim::spell_effects::apply(&mut world, caster, &spell, 1, (0, 0, 0)),

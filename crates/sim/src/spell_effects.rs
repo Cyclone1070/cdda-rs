@@ -226,9 +226,15 @@ fn squares_in_area(
     };
     #[allow(clippy::cast_possible_truncation)]
     let range = spell.range.at(level).unwrap_or(0.0).max(0.0) as i32;
-    crate::spell_area::cover(&spell.shape, source, centre, area_of(spell, level), range, &|square| {
-        crate::routing::square_cost(world, square).is_some()
-    })
+    crate::spell_area::cover(
+        &spell.shape,
+        source,
+        centre,
+        area_of(spell, level),
+        range,
+        &|square| crate::routing::square_cost(world, square).is_some(),
+        spell.has_flag("IGNORE_WALLS"),
+    )
 }
 
 /// Reference: `spell_effect::remove_effect` (`magic_spell_effect.cpp:1712-1721`) - every creature in the spell's area
@@ -369,8 +375,7 @@ fn vomit(
 /// Reference: `spell_effect::bash` (`magic_spell_effect.cpp:1770-1781`): for each square the spell's area covers, `here.bash( potential_target, sp.damage( caster ), silent )` -
 /// the damage **is** the strength, and the reference's own comment says the bash makes its own noise.
 ///
-/// `SILENT` is a spell flag, and the port does not load spell flags yet, so every bash goes in loud. That is a named gap rather than a guess: the flag only changes whether the
-/// hit is heard.
+/// `SILENT` is the spell flag that says the hit is not heard, and the rule reads it from the data now that the dump carries flags.
 fn bash(
     world: &mut World,
     caster: Entity,
@@ -385,7 +390,7 @@ fn bash(
     let force = force as i32;
     let mut hits = 0;
     for square in squares_in_area(world, caster, spell, level, centre) {
-        let Some(outcome) = crate::bash::bash_square(world, square, force, false) else {
+        let Some(outcome) = crate::bash::bash_square(world, square, force, spell.has_flag("SILENT")) else {
             return Effective::NotPorted;
         };
         if outcome.did_bash {
@@ -623,8 +628,12 @@ fn charm_monster(
             if hurt > threshold {
                 continue;
             }
-            if crate::friendly::is_friendly(world, held) && crate::friendly::turns_of(world, held) > 0 {
-                // A monster that is already friendly for a count of turns is not re-charmed without `RECHARM`, which is a flag the port does not load.
+            if crate::friendly::is_friendly(world, held)
+                && crate::friendly::turns_of(world, held) > 0
+                && !spell.has_flag("RECHARM")
+            {
+                // Reference: `mon->friendly == 0 || ( mon->friendly != 0 && sp.has_flag( RECHARM ) )` - a monster that is already friendly is only re-charmed by a spell
+                // that says it may be, and then the charm **adds** to the count it already has.
                 continue;
             }
             crate::friendly::charm(world, held, turns);

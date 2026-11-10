@@ -132,6 +132,7 @@ fn a_short_range_teleport_spell_moves_its_caster() {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     };
     assert_eq!(
         cdda_sim::spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),

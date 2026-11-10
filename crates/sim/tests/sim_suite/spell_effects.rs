@@ -38,6 +38,7 @@ fn a_spell(effect_name: &str, damage: i64, area: i64) -> Spell {
         casting_time: scaling(0),
         difficulty: Some(0.0),
         max_level: Some(10.0),
+        flags: std::collections::BTreeSet::new(),
     }
 }
 

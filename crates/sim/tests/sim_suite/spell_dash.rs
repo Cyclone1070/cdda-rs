@@ -52,6 +52,7 @@ fn a_spell(range: f64, area: f64) -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     }
 }
 

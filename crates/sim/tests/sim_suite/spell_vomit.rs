@@ -96,6 +96,7 @@ fn a_spell(area: f64) -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     }
 }
 
@@ -145,7 +146,7 @@ fn a_vomit_spell_empties_the_stomach_and_leaves_bile_behind() {
 /// **A dry heave leaves nothing behind and does not wake you**, and a character already nauseous is not made more so.
 #[test]
 fn an_empty_stomach_leaves_no_bile_and_a_nauseous_character_is_not_re_nauseated() {
-    let (mut world, who) = a_world(0);
+    let (mut world, _who) = a_world(0);
     let caster = cdda_sim::spawn_monster(&mut world, (1, 0), cdda_sim::MonsterKindId(0), 40);
     cdda_sim::PositionIndex::rebuild(&mut world);
     let spell = a_spell(1.0);

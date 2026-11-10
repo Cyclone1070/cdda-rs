@@ -58,6 +58,7 @@ fn taser() -> cdda_content::spells::Spell {
         casting_time: Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     }
 }
 

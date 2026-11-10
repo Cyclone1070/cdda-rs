@@ -17,10 +17,10 @@ fn walled(wall_x: i32) -> impl Fn((i32, i32, i32)) -> bool {
 
 #[test]
 fn a_blast_covers_a_square_and_a_cone_does_not() {
-    let blast = cdda_sim::spell_area::cover("blast", (0, 0, 0), (5, 0, 0), 0, 5, &open);
+    let blast = cdda_sim::spell_area::cover("blast", (0, 0, 0), (5, 0, 0), 0, 5, &open, false);
     assert_eq!(blast.len(), 1, "an area of zero is the square aimed at alone");
 
-    let cone = cdda_sim::spell_area::cover("cone", (0, 0, 0), (5, 0, 0), 0, 5, &open);
+    let cone = cdda_sim::spell_area::cover("cone", (0, 0, 0), (5, 0, 0), 0, 5, &open, false);
     assert!(
         cone.contains(&(5, 0, 0)),
         "**a cone reaches the square it was aimed at**"
@@ -42,7 +42,7 @@ fn a_blast_covers_a_square_and_a_cone_does_not() {
 #[test]
 fn a_cone_stops_at_a_wall_where_a_blast_carries_on() {
     let stone = walled(3);
-    let cone = cdda_sim::spell_area::cover("cone", (0, 0, 0), (5, 0, 0), 0, 5, &stone);
+    let cone = cdda_sim::spell_area::cover("cone", (0, 0, 0), (5, 0, 0), 0, 5, &stone, false);
     assert!(
         cone.contains(&(2, 0, 0)),
         "the squares before the wall are covered"
@@ -51,7 +51,7 @@ fn a_cone_stops_at_a_wall_where_a_blast_carries_on() {
         !cone.contains(&(3, 0, 0)) && !cone.contains(&(5, 0, 0)),
         "**and nothing at or past the wall is**"
     );
-    let blast = cdda_sim::spell_area::cover("blast", (0, 0, 0), (5, 0, 0), 0, 5, &stone);
+    let blast = cdda_sim::spell_area::cover("blast", (0, 0, 0), (5, 0, 0), 0, 5, &stone, false);
     assert!(
         blast.contains(&(5, 0, 0)),
         "while a blast of area zero never looks at the ground"

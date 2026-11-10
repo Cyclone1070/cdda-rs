@@ -166,6 +166,7 @@ fn the_price_climbs_to_its_final_value_from_either_side() {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     };
     let bare = Somatic::default();
     let rising = spell(10.0, 5.0, 100.0);
@@ -234,6 +235,7 @@ fn a_heavier_hand_costs_more_at_the_rate_its_energy_source_states() {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     };
     let encumbered = Somatic {
         hand_encumbrance: 20,
@@ -392,5 +394,6 @@ fn fixture() -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        flags: std::collections::BTreeSet::new(),
     }
 }

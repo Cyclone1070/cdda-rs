@@ -1774,3 +1774,8 @@ shape - and the fix was a set per kind, not a ledger entry.
 `between_or_on` and `build_line` - were transcribed into `spell_line`. The gate holds three transcribed cases (a straight line, a band, a wall) and two mutations: swapping the
 uneven width split leans the odd rank the wrong way, and dropping the source erase puts the caster in its own line. **The band's near edge runs through the caster's column**,
 which my first expectation got wrong and the rule got right.
+
+**Round 1463 taught spells their flags.** Four ported effects each carried the same named gap - "the port does not load spell flags" - so the harness dump gained a `flags`
+array, the patch was regenerated and verified, the oracle rebuilt and re-dumped, and only then did the loader learn to read them. The counts are the data's and are pinned: 233
+of 245 spells carry a flag, 126 are silent, 7 pass through walls, 54 are not stopped short by one, 29 are permanent, one teleport is unsafe and none may re-charm. Three rules
+now read the flag rather than a constant: charm's `RECHARM`, bash's `SILENT`, and the cone/line wall test. Turning the reader off fails the count gate with `0` against `233`.
