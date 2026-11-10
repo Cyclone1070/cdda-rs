@@ -45,6 +45,32 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell's shape decides which squares it covers (round 1448)
+
+Until this round every spell in the port covered a **square blast**, whatever its `shape` said. That was wrong for 24 of the content's 245 spells - 15 cones and 9 lines - and
+wrong in the direction that matters: a blast reaches ground a cone never touches.
+
+| Piece | Reference | Port |
+|---|---|---|
+the dispatch | `spell_effect_area` (`magic_spell_effect.cpp:229-296`) | `spell_area::cover` |
+the blast | a square of half-width `area` on both axes (`:200-228`) | unchanged, which is 221 of 245 spells |
+the cone | `spell_effect_cone_range_override` (`:253-295`) | `spell_area::cone` |
+the rays | `coord_to_angle` in **radians**, `calc_ray_end` with `cos`/`sin`, both ends truncated to squares (`line.cpp:966-1003`) | the same, taking the reference's default `CIRCLEDIST` of **true** |
+the walls | each candidate's `line_to` walked while passable, breaking at the first wall | the same, and the gate walks a ray into a wall |
+
+Two things the port did not have and now does: a **line** rule (`line::between`, the reference's `bresenham` with `t = 0`) and the cone on top of it. The line rule's own gate
+records the property a reader assumes wrongly - **`line_to` does not include its origin** - because `bresenham` starts *on* the source and reports where it moves to, which
+is exactly what lets a cone walk a ray and never hit its caster.
+
+**Named, not invented**:
+
+* the **line** shape (`spell_effect_line`, `:308-420`) is not ported: its machine wraps an iterable path and offsets it along two legs, and until then a line-shaped spell
+  covers its blast - 9 spells, mostly `effect_on_condition`;
+* `ignore_walls` comes from the `IGNORE_WALLS` spell flag, and the port does not load spell flags, so a cone always respects walls - the reference's behaviour for every
+  spell that does not opt out. The gate flips the argument and fails;
+* `CIRCLEDIST` is an option and the port has no options store; it takes the reference's **default**, true - the `cos`/`sin` branch - and says so here rather than
+  pretending the other branch does not exist.
+
 ## A spell can turn one monster into another (round 1447)
 
 `targeted_polymorph` is three spells - the yrax's own - and its rule is about what **survives** a change of body.

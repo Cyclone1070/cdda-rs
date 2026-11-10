@@ -1705,3 +1705,8 @@ that check removed the unknown type adds a point and the gate fails on the count
 kind the spell names, at the same **hit percentage** of its new body, with moves spent and the new body's speed. The gate caught the trap the first version fell into - dividing
 by the body's own maximum reads 1.0 and hands back a whole new body, where the reference divides by the kind's own hit points. The second gate pins the strict `<` at the
 boundary: equal hit points resist, one point more of damage transforms.
+
+**Round 1448 gave spells their real shape.** A spell's `shape` had been ignored: every one of them covered a square blast. Three gates now hold the truth - the line rule
+(`line::between`, the reference's `bresenham`, whose origin is **excluded**, which surprised the first version of the test), the cone reaching where the blast over-reached and
+never its own caster, and the cone stopping at a wall where a blast carries on. The wall gate earned its keep immediately: `cover` passed `ignore_walls = true` and the ray
+walked straight through. Fifteen cones and nine lines in the content now mean something; the line shape itself is declared unported.

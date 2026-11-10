@@ -98,7 +98,7 @@ fn attack(
 /// of the blast rather than all or none of it.
 fn emit(
     world: &mut World,
-    _caster: Entity,
+    caster: Entity,
     spell: &Spell,
     level: i32,
     centre: (i32, i32, i32),
@@ -109,7 +109,7 @@ fn emit(
     let Some(mut rolls) = crate::singletons::take_rolls(world) else {
         return Effective::NotPorted;
     };
-    let squares = squares_in_area(spell, level, centre);
+    let squares = squares_in_area(world, caster, spell, level, centre);
     let mut placed = 0;
     for square in squares {
         for emission in &emissions {
@@ -195,19 +195,26 @@ fn area_of(spell: &Spell, level: i32) -> i32 {
     area
 }
 
-/// Every square a spell's area covers, which is what the area effects walk.
+/// Every square a spell covers, which is what the area effects walk.
 ///
-/// Reference: `spell_effect_area` (`magic_spell_effect.cpp`): a square is in the area when it is within the radius on both
-/// axes and on the same level - the same rule `creatures_in_reach` uses to pick creatures out of that area.
-fn squares_in_area(spell: &Spell, level: i32, centre: (i32, i32, i32)) -> Vec<(i32, i32, i32)> {
-    let area = area_of(spell, level);
-    let mut squares = Vec::new();
-    for dx in -area..=area {
-        for dy in -area..=area {
-            squares.push((centre.0 + dx, centre.1 + dy, centre.2));
-        }
-    }
-    squares
+/// Reference: `spell_effect_area` (`magic_spell_effect.cpp:229-296`): the shape decides. A **blast** is a square of half-width `area` on both axes; a **cone** runs from
+/// the caster towards where the spell landed, `area / 2` degrees to either side and `range` squares long, stopping at walls. The dispatch lives in
+/// [`crate::spell_area::cover`] so that "which squares" is one readable question rather than a table of shapes inside an effect.
+fn squares_in_area(
+    world: &World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Vec<(i32, i32, i32)> {
+    let Some(source) = world.get::<crate::Position>(caster).map(|at| (at.x, at.y, at.z)) else {
+        return crate::spell_area::blast(centre, area_of(spell, level));
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let range = spell.range.at(level).unwrap_or(0.0).max(0.0) as i32;
+    crate::spell_area::cover(&spell.shape, source, centre, area_of(spell, level), range, &|square| {
+        crate::routing::square_cost(world, square).is_some()
+    })
 }
 
 /// Reference: `spell_effect::remove_effect` (`magic_spell_effect.cpp:1712-1721`) - every creature in the spell's area
@@ -315,7 +322,7 @@ fn targeted_polymorph(
 /// and a spell whose type the data does not define is refused whole rather than applied to nobody in particular.
 fn morale(
     world: &mut World,
-    _caster: Entity,
+    caster: Entity,
     spell: &Spell,
     level: i32,
     centre: (i32, i32, i32),
@@ -334,7 +341,7 @@ fn morale(
     #[allow(clippy::cast_possible_truncation)]
     let turns = seconds.max(0.0) as i64;
     let mut felt = 0;
-    for square in squares_in_area(spell, level, centre) {
+    for square in squares_in_area(world, caster, spell, level, centre) {
         for held in crate::creature::creature_at(world, square) {
             // Reference: `creatures.creature_at<Character>` - a monster has no morale.
             let person = world.get::<crate::Player>(held).is_some()
@@ -425,7 +432,7 @@ fn effect_on_condition(
         return Effective::NothingAffected;
     }
     let mut ran = 0;
-    for square in squares_in_area(spell, level, centre) {
+    for square in squares_in_area(world, caster, spell, level, centre) {
         // Reference: the speaker is the creature standing on the square when there is one, and the caster is always the listener.
         let held = crate::creature::creature_at(world, square);
         let Some(&victim) = held.first() else {
