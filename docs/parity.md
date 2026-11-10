@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell knows what it may be aimed at (round 1474)
+
+The port had a comment admitting it: *the spell's targets are a property of its flags, which the port does not load*. The oracle dumps them now, and the rule exists.
+
+| Piece | Reference | Port |
+|---|---|---|
+the classes | `spell_type::valid_targets`, an `enum_bitset<spell_target>` (`magic.h:348`) | dumped by name: **self 147, hostile 140, ground 104, ally 88, field 2, item 1, none 1** |
+the rule | `spell::is_valid_target( caster, p )` (`magic.cpp:1697-1719`): a hostile creature, an ally that is not the caster, the caster's own square, or a bare square | `spell_targets::allows`, in the reference's order |
+the filters | `target_by_monster_id`, `target_by_species_id`, `ignore_by_species_id` (`:1721-1764`) - **narrowing**, never widening | the same, applied after the class test |
+no filter | an empty list accepts everything | the same, which is the difference between "no filter" and "filtered to nothing" |
+
+**The data states two of the three filters as empty.** Nine spells name the monsters they may affect - one names exactly `mon_creeper_vine` - and **no spell in this content names a
+species, wanted or ignored**. That is why the species half of the rule is gated from the reference rather than from the corpus: the data cannot exercise it, and a rule with no
+caller in the data is exactly the kind the dead-rule gate watches for. The gate builds the cases itself and says so.
+
+**A vehicle square is the one branch not taken.** The reference asks `veh_at( p )` and answers `vehicle || ground`; the port has no vehicles, so every square without a creature is
+`ground`. That is a named gap rather than an invention, and it closes the day vehicles arrive.
+
 ## A summoned body keeps its corpse and not its loot (round 1473)
 
 | Piece | Reference | Port |

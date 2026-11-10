@@ -136,6 +136,7 @@ mod recipe_tools;
 mod proficiencies;
 mod recipes;
 mod spell_flags;
+mod spell_targets;
 mod spells;
 mod resolve_placeholders;
 mod rules;

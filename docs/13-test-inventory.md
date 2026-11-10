@@ -1832,3 +1832,8 @@ arrives, without it nothing does, because the name is then a monster's and no mo
 tests it before drawing the type's `death_drops` group; the port's `NoExtraDeathDrops` marker does the same, and a body no spell touched still drops what its type names. Both
 directions are gated: the summoned body leaves no rag, the flagged one leaves exactly one, and a plain monster leaves one. Marking nobody, or ignoring the marker at the drop,
 fails the first.
+
+**Round 1474 taught spells what they may be aimed at.** The oracle now dumps `valid_targets` by name plus the three filters, and `spell_targets::allows` walks the reference's three
+creature cases - hostile, ally-not-the-caster, the caster's own square - before narrowing by monster id, wanted species and ignored species. The data exercises the first two filters
+barely (nine spells name monsters, one names exactly one) and the species filters not at all, so those cases are built by hand in the gate and the reason is written down. The
+corpus gate pins the class counts: 147 self, 140 hostile, 104 ground, 88 ally, 2 field, 1 item, 1 none.

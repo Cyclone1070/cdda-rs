@@ -48,6 +48,10 @@ fn a_spell(kind: &str, damage: f64) -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        valid_targets: std::collections::BTreeSet::new(),
+        targeted_monster_ids: std::collections::BTreeSet::new(),
+        targeted_species_ids: std::collections::BTreeSet::new(),
+        ignored_species_ids: std::collections::BTreeSet::new(),
         flags: std::collections::BTreeSet::new(),
     }
 }

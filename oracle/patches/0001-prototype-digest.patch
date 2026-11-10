@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-11 00:29:06
-@@ -0,0 +1,7816 @@
++++ oracle/src/src/harness.cpp	2026-11-11 06:54:09
+@@ -0,0 +1,7859 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -7413,6 +7413,49 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        for( const std::string &flag : spell.flags ) {
 +            std::fprintf( out, "%s\"%s\"", first_flag ? "" : ",", harness_escape( flag ).c_str() );
 +            first_flag = false;
++        }
++        std::fprintf( out, "]" );
++        // **Which things the spell may be aimed at**, and the species and monster filters on top (`spell::is_valid_target`, `magic.cpp:1671-1745`). The rule is
++        // `valid_targets[ t ]` for a target class, then `target_by_monster_id`, `target_by_species_id` and `ignore_by_species_id` narrowing it. Written with the names the data
++        // uses, because those are the names a port has to match; the classes are the enum's own order.
++        static const std::pair<spell_target, const char *> target_names[] = {
++            { spell_target::ally, "ally" },
++            { spell_target::hostile, "hostile" },
++            { spell_target::self, "self" },
++            { spell_target::ground, "ground" },
++            { spell_target::none, "none" },
++            { spell_target::item, "item" },
++            { spell_target::field, "field" },
++            { spell_target::vehicle, "vehicle" },
++        };
++        std::fprintf( out, ",\"valid_targets\":[" );
++        bool first_target = true;
++        for( const auto &entry : target_names ) {
++            if( spell.valid_targets[ entry.first ] ) {
++                std::fprintf( out, "%s\"%s\"", first_target ? "" : ",", entry.second );
++                first_target = false;
++            }
++        }
++        std::fprintf( out, "]" );
++        std::fprintf( out, ",\"targeted_monster_ids\":[" );
++        bool first_mon = true;
++        for( const mtype_id &id : spell.targeted_monster_ids ) {
++            std::fprintf( out, "%s\"%s\"", first_mon ? "" : ",", harness_escape( id.str() ).c_str() );
++            first_mon = false;
++        }
++        std::fprintf( out, "]" );
++        std::fprintf( out, ",\"targeted_species_ids\":[" );
++        bool first_sp = true;
++        for( const species_id &id : spell.targeted_species_ids ) {
++            std::fprintf( out, "%s\"%s\"", first_sp ? "" : ",", harness_escape( id.str() ).c_str() );
++            first_sp = false;
++        }
++        std::fprintf( out, "]" );
++        std::fprintf( out, ",\"ignored_species_ids\":[" );
++        bool first_ign = true;
++        for( const species_id &id : spell.ignored_species_ids ) {
++            std::fprintf( out, "%s\"%s\"", first_ign ? "" : ",", harness_escape( id.str() ).c_str() );
++            first_ign = false;
 +        }
 +        std::fprintf( out, "]" );
 +        std::fprintf( out, "}" );

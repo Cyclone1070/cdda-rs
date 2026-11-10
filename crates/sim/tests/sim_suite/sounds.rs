@@ -37,6 +37,10 @@ fn a_noise_spell(volume: i64) -> Spell {
         casting_time: scaling(0),
         difficulty: Some(0.0),
         max_level: Some(10.0),
+        valid_targets: std::collections::BTreeSet::new(),
+        targeted_monster_ids: std::collections::BTreeSet::new(),
+        targeted_species_ids: std::collections::BTreeSet::new(),
+        ignored_species_ids: std::collections::BTreeSet::new(),
         flags: std::collections::BTreeSet::new(),
     }
 }

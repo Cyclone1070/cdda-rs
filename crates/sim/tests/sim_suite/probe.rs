@@ -2145,6 +2145,10 @@ fn a_dialogue_cast_runs_the_spells_own_effect() {
         casting_time: flat,
         difficulty: None,
         max_level: None,
+        valid_targets: std::collections::BTreeSet::new(),
+        targeted_monster_ids: std::collections::BTreeSet::new(),
+        targeted_species_ids: std::collections::BTreeSet::new(),
+        ignored_species_ids: std::collections::BTreeSet::new(),
         flags: std::collections::BTreeSet::new(),
     };
     cdda_sim::spell_types::set_types(&mut world, vec![spell.clone()]);

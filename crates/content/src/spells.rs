@@ -83,6 +83,17 @@ pub struct Spell {
     pub difficulty: Option<f64>,
     /// The highest level it can reach.
     pub max_level: Option<f64>,
+    /// Which things the spell may be aimed at: `hostile`, `ally`, `self`, `ground`, `item`, `field`, `vehicle` (`spell_type::valid_targets`, `magic.h:348`).
+    ///
+    /// Reference: `spell::is_valid_target( t )` (`magic.cpp:1671-1674`) is a lookup in this set, and `spell::is_valid_target( caster, p )` (`:1697-1719`) asks it three times - once
+    /// for a hostile creature, once for a friendly one that is not the caster, and once for the caster's own square.
+    pub valid_targets: std::collections::BTreeSet<String>,
+    /// The monster ids the spell may affect, if it names any (`spell_type::targeted_monster_ids`).
+    pub targeted_monster_ids: std::collections::BTreeSet<String>,
+    /// The species the spell may affect, if it names any (`spell_type::targeted_species_ids`).
+    pub targeted_species_ids: std::collections::BTreeSet<String>,
+    /// The species the spell leaves alone, if it names any (`spell_type::ignored_species_ids`).
+    pub ignored_species_ids: std::collections::BTreeSet<String>,
     /// The flags the data gives it, by name.
     ///
     /// Reference: `spell_type::flags`, the raw strings the JSON writes, of which the ones a rule reads are `SILENT` (a bash is not heard), `IGNORE_WALLS` (a cone or a
@@ -90,6 +101,20 @@ pub struct Spell {
     /// (a summon does not expire) and `TARGET_TELEPORT` (the aim point moves rather than the caster). Kept as names because that is what the data writes; the effects
     /// ask [`Spell::has_flag`] rather than comparing strings themselves.
     pub flags: std::collections::BTreeSet<String>,
+}
+
+/// Reads a list of names out of an entry, empty when the entry does not state one.
+fn names(object: &Object, member: &str) -> std::collections::BTreeSet<String> {
+    match object.get(member) {
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Value::Str(name) => Some(name.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => std::collections::BTreeSet::new(),
+    }
 }
 
 impl Spell {
@@ -136,6 +161,10 @@ pub fn read_spell(object: &Object) -> Result<Spell, LoadError> {
         ),
         difficulty: number(object, "difficulty"),
         max_level: number(object, "max_level"),
+        valid_targets: names(object, "valid_targets"),
+        targeted_monster_ids: names(object, "targeted_monster_ids"),
+        targeted_species_ids: names(object, "targeted_species_ids"),
+        ignored_species_ids: names(object, "ignored_species_ids"),
         flags: match object.get("flags") {
             Some(Value::Array(flags)) => flags
                 .iter()

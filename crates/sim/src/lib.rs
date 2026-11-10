@@ -82,6 +82,7 @@ pub mod vomit;
 pub mod traits;
 pub mod spell_area;
 pub mod spell_line;
+pub mod spell_targets;
 pub mod spell_effects;
 pub mod spell_types;
 pub mod spellcasting;

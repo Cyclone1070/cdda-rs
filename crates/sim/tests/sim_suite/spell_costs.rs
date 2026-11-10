@@ -166,6 +166,10 @@ fn the_price_climbs_to_its_final_value_from_either_side() {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        valid_targets: std::collections::BTreeSet::new(),
+        targeted_monster_ids: std::collections::BTreeSet::new(),
+        targeted_species_ids: std::collections::BTreeSet::new(),
+        ignored_species_ids: std::collections::BTreeSet::new(),
         flags: std::collections::BTreeSet::new(),
     };
     let bare = Somatic::default();
@@ -235,6 +239,10 @@ fn a_heavier_hand_costs_more_at_the_rate_its_energy_source_states() {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        valid_targets: std::collections::BTreeSet::new(),
+        targeted_monster_ids: std::collections::BTreeSet::new(),
+        targeted_species_ids: std::collections::BTreeSet::new(),
+        ignored_species_ids: std::collections::BTreeSet::new(),
         flags: std::collections::BTreeSet::new(),
     };
     let encumbered = Somatic {
@@ -394,6 +402,10 @@ fn fixture() -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
+        valid_targets: std::collections::BTreeSet::new(),
+        targeted_monster_ids: std::collections::BTreeSet::new(),
+        targeted_species_ids: std::collections::BTreeSet::new(),
+        ignored_species_ids: std::collections::BTreeSet::new(),
         flags: std::collections::BTreeSet::new(),
     }
 }
