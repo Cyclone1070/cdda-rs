@@ -1822,3 +1822,8 @@ every layer bash fails both gates.
 electric, the vest's figure had nowhere to go but bash, and the blow passed untouched. The reference keeps a **map** from damage type to figure (`resistances::resist_vals`), so
 `PartArmour` is one now - the vest gates then read `15 - 5 = 10` again with the type named in the fixture. That failure is the reason the port keeps the corpus gates: the
 container was wrong in a way no count would have shown.
+
+**Round 1472 let a summon name a group.** `SPAWN_GROUP` (3 spells) makes `effect_str` a group's id, and `add_summoned_mon` draws a monster from it once per summon - so a group of
+two can put two different monsters down. The port asks `monster_groups::pick`, which fields already used; the dump beside the monsters states only entry counts, so the groups
+come from the reference's own `data/json/monstergroups` through the loader that already reads them. The gate asserts the flag both ways: with it the group's only monster
+arrives, without it nothing does, because the name is then a monster's and no monster answers it.

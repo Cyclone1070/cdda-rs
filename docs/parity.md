@@ -45,6 +45,22 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A summon can name a group, and the group decides what arrives (round 1472)
+
+| Piece | Reference | Port |
+|---|---|---|
+what the string means | `add_summoned_mon` (`magic_spell_effect.cpp:1322-1332`): a monster's id, or a **group's** id when the spell carries `SPAWN_GROUP` | `monster_to_summon`, from the flag |
+when the draw happens | once per summon, inside `add_summoned_mon` | once per monster, so a group of two can put two different monsters down |
+nesting | `MonsterGroupManager::GetRandomMonsterFromGroup` repeats inside a nested group | `monster_groups::pick`, already ported and used by fields |
+no groups at all | the reference's table is always loaded | a world that never installed them answers **nothing** rather than inventing a monster |
+
+**The dump could not answer this, and the data could.** `corpus/monsters/groups.json` states only how many entries each group has - it was written to prove the count, not to spawn
+from. The groups themselves come from the reference's own `data/json/monstergroups` through the loader that already reads them, which is the same source the reference reads and
+neither a second dump nor a second shape.
+
+**The flag is the whole difference**: the same string is a group's name or a monster's name depending on it, and the gate asserts both - the flagged cast brings the group's only
+monster, the unflagged one summons nothing at all because no monster answers that name.
+
 ## A worn garment protects by damage type too (round 1471)
 
 Round 1470 named this gap; now it is closed. The materials had the figures all along - the port was reading two of them and summing the rest into one.

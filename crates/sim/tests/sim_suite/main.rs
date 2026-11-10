@@ -237,6 +237,7 @@ mod spell_ter_transform;
 mod spell_timed_event;
 mod spell_vomit;
 mod spell_walls;
+mod summon_group;
 mod summon_lease;
 mod summon_loyalty;
 mod spell_effects_coverage;

@@ -881,6 +881,15 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
             .collect();
         cdda_sim::creature::set_corpse_kind(world, corpse_item, volumes);
     }
+    // **The groups a spawn point draws from**, which is also what a `SPAWN_GROUP` summon needs (`MonsterGroupManager`). A world without them answers nothing for a group rather
+    // than inventing a monster.
+    // The dump beside the monsters states only how many entries each group has, so the groups themselves come from the reference's own data - the same source and loader the
+    // reference reads them with.
+    let groups_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data/json/monstergroups");
+    if let Ok(groups) = cdda_content::monster_groups::load_paths(&[&groups_dir]) {
+        cdda_sim::monster_groups::set_groups(world, groups);
+    }
     let kinds: Vec<cdda_sim::monster_registry::MonsterKind<'_>> = monsters
         .iter()
         .map(|monster| cdda_sim::monster_registry::MonsterKind {

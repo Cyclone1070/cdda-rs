@@ -1061,10 +1061,9 @@ fn summon(
     };
     #[allow(clippy::cast_possible_truncation)]
     let how_many = how_many.max(0.0) as i32;
-    let Some(kind) = crate::monster_registry::id_of(world, &spell.effect_str) else {
-        return Effective::NothingAffected;
-    };
-    let hp = crate::monster_registry::hit_points(world, kind);
+    // Reference: `add_summoned_mon` (`magic_spell_effect.cpp:1322-1332`) reads `effect_str` as a monster's id **or**, when the spell carries `SPAWN_GROUP`, as a group's id and
+    // draws the monster from it - one draw per summon, so a group with two entries can put two different monsters on the ground.
+    let from_group = spell.has_flag("SPAWN_GROUP");
     // Reference: `spawn_summoned_monster` walks the spell's **own area** and draws a square from it for each summon, erasing the square whether or not it was used
     // (`magic_spell_effect.cpp:1345-1362`). The port had a ring order of its own, which is a second source of truth for "where inside the blast".
     let mut area = squares_in_area(world, caster, spell, level, centre);
@@ -1083,6 +1082,13 @@ fn summon(
         if !crate::creature::creature_at(world, square).is_empty() {
             continue;
         }
+        let Some(name) = monster_to_summon(world, spell, from_group) else {
+            break;
+        };
+        let Some(kind) = crate::monster_registry::id_of(world, &name) else {
+            continue;
+        };
+        let hp = crate::monster_registry::hit_points(world, kind);
         let spawned = crate::spawn_monster(world, (square.0, square.1), kind, hp);
         // Reference: `is_summon_friendly` (`:1306-1314`) - a summon is on the caster's side unless the spell says `HOSTILE_SUMMON`, and `HOSTILE_50` halves that with a draw.
         if friendly_summon(world, spell) {
@@ -1105,6 +1111,20 @@ fn summon(
     } else {
         Effective::Done
     }
+}
+
+/// Which monster a summon brings: a draw from the group the spell names, or the monster the spell names.
+///
+/// Reference: `std::string monster_id = sp.effect_data(); if( sp.has_flag( spell_flag::SPAWN_GROUP ) ) { monster_id = MonsterGroupManager::GetRandomMonsterFromGroup( ... ); }`
+/// (`magic_spell_effect.cpp:1322-1330`). **Three spells in this content name a group**, and a world that never installed the groups answers nothing rather than inventing a monster.
+fn monster_to_summon(world: &mut World, spell: &Spell, from_group: bool) -> Option<String> {
+    if !from_group {
+        return Some(spell.effect_str.clone());
+    }
+    let mut rolls = crate::singletons::take_rolls(world)?;
+    let picked = crate::monster_groups::pick(world, &spell.effect_str, &mut rolls);
+    crate::singletons::put_rolls(world, rolls);
+    picked
 }
 
 /// Whether a summoned monster arrives on the caster's side.
