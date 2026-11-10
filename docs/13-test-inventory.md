@@ -1738,3 +1738,7 @@ damage, which charms nothing still alive.
 The rule it pins is the reference's own shortcut - `one_in` is always true for a chance of one or less - which means the content's three terrain spells, all with a damage of zero,
 change **every** square their blast covers. The gate holds eleven times eleven squares changed and fails if zero is treated as never. A first mutation attempt turned out to be a
 no-op rewrite of the same function, which is its own lesson: a mutation has to change the rule, not its spelling.
+
+**Round 1455 split a bang from a flash.** `flashbang` is two rules with one name: deafness reaches whatever **hears** within eight squares, blindness only what is **looking**, and
+a robot is skipped whole because it has no ears to hurt - which the gate proves by standing a robot with `HEARS` beside the bang and demanding it be untouched. Removing the skip
+fails it. The avatar's armour-based reductions are declared rather than guessed.

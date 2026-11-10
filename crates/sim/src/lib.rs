@@ -51,6 +51,7 @@ pub mod dialogue_values;
 pub mod effect_registry;
 pub mod eoc_registry;
 pub mod explosion;
+pub mod flashbang;
 pub mod eating;
 pub mod effects;
 pub mod enchantments;

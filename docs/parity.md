@@ -45,6 +45,27 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can bang and flash (round 1455)
+
+`flashbang` is one spell - `AEA_FLASH` - and two rules wearing one name.
+
+| Piece | Reference (`explosion.cpp:657-707`) | Port |
+|---|---|---|
+the bang | every creature within eight squares that **hears**: `deaf` for `40 - dist * 4` turns | the same, gated at two squares giving thirty-two turns |
+the flash | only what is **looking**: `blind` for `18 - dist`, and `stunned` for `10 - dist` within four squares | the same |
+the skip | a monster of the `ROBOT` species is passed over whole | the same, and the gate fails when the skip is removed |
+the sound | `sounds::sound( p, 12, combat, "a huge boom!" )` | the same, a twelve-volume combat sound |
+the caster | `player_immune` when the caster is the avatar and the spell cannot target itself | the avatar half; the flag half is a named gap |
+
+**A robot has no ears to hurt**, and that is the whole of the reference's reason for skipping it - so the gate stands a robot with `HEARS` set right next to the bang and requires it to
+be untouched. Removing the skip fails it.
+
+**Named, not invented**: the avatar's own blindness is shortened by things this port cannot read yet - the `rm13` armour item and its active state - so the port applies the trait
+(`PER_SLIME_OK`) and worn-flag (`BLIND`, `FLASH_PROTECTION`, `GLARE_RESIST`) halves and says so. The reference's own `TODO: Blind/deafen NPC` is left as the reference left it:
+NPCs get neither effect, and the port's NPCs get only what the rules above as written give them.
+
+Twenty effect kinds are ported now of the data's thirty-two, and **230 of 245 spells** name one of them.
+
 ## A spell can change the ground, and `one_in( 0 )` is not "never" (round 1454)
 
 `ter_transform` is three spells. The transform table, the terrain writes and the radius walk were already ported for the dialogue effect `f_transform_radius`; what a spell adds

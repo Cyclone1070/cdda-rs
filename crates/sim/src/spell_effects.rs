@@ -56,6 +56,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("none", none),
     ("charm_monster", charm_monster),
     ("ter_transform", ter_transform),
+    ("flashbang", flashbang),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -274,6 +275,28 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `flashbang` spell is a bang and a flash at the square it landed on.
+///
+/// Reference: `spell_effect::flashbang` (`magic_spell_effect.cpp:1469-1473`): one call into `explosion_handler::flashbang`, with `player_immune` set when the caster is the
+/// avatar **and** the spell does not count the caster as a valid target - a caster who could hit itself does not get the immunity.
+fn flashbang(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    _level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    // Reference: `caster.is_avatar() && !sp.is_valid_target( spell_target::self )`. The spell's targets are a property of its flags, which the port does not load, so the
+    // port takes the avatar half and treats "can hit itself" as the exception it is: a self-targeting flashbang is the only case that would clear the immunity.
+    let immune = world.get::<crate::Player>(caster).is_some();
+    let outcome = crate::flashbang::flashbang(world, centre, immune);
+    if outcome.deafened.is_empty() && outcome.blinded.is_empty() && outcome.stunned.is_empty() {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

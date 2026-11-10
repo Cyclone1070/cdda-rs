@@ -218,6 +218,7 @@ mod spell_dash;
 mod spell_effects;
 mod spell_explosion;
 mod spell_morale;
+mod spell_flashbang;
 mod spell_map;
 mod spell_polymorph;
 mod spell_recover_energy;
