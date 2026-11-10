@@ -10,7 +10,7 @@
 //! summons one needs.
 
 use bevy_ecs::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::singletons;
 use crate::MonsterKindId;
@@ -47,6 +47,13 @@ pub struct MonsterTypes {
     broken_itypes: Vec<String>,
     /// The item group a kind's body drops (`mtype::death_drops`, `mtype.h:404`).
     death_drops: Vec<String>,
+    /// The flags each kind carries (`mtype::has_flag`), in registry order.
+    ///
+    /// The port keeps these **per kind** as well as per creature, because a rule that reads a kind's flags has only an id in hand: `spell_effect::revive` asks the kind of the
+    /// corpse whether it `REVIVES`, whether it is `DORMANT`, and whether it is `NO_NECRO`, and none of those questions have a creature to ask.
+    flags: Vec<BTreeSet<String>>,
+    /// The species each kind belongs to (`mtype::species`), in registry order. A `true` species answer is `in_species`, which is what a spell naming a species asks for.
+    species: Vec<BTreeSet<String>>,
     /// Every kind's weak-point families, one after another, with [`MonsterTypes::family_ranges`] saying where each kind's start.
     ///
     /// Reference: `mtype::families` (`mtype.h:382`). **Laid flat rather than nested**, the same way the item registry lays pockets flat and for the same reason the architecture gate gives: a component
@@ -367,6 +374,8 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         corpse_types: Vec::new(),
         broken_itypes: Vec::new(),
         death_drops: Vec::new(),
+        flags: Vec::new(),
+        species: Vec::new(),
     });
 }
 
@@ -414,6 +423,46 @@ pub fn set_speeds(world: &mut World, entries: &[(MonsterKindId, i32)]) {
             registry.speeds[index] = *speed;
         }
     }
+}
+
+/// Says what flags and species a kind has, which the rules that read a kind rather than a creature need.
+pub fn set_flags_and_species(
+    world: &mut World,
+    entries: &[(MonsterKindId, BTreeSet<String>, BTreeSet<String>)],
+) {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, flags, species) in entries {
+        let at = kind.0 as usize;
+        if registry.flags.len() <= at {
+            registry.flags.resize(at + 1, BTreeSet::new());
+            registry.species.resize(at + 1, BTreeSet::new());
+        }
+        registry.flags[at].clone_from(flags);
+        registry.species[at].clone_from(species);
+    }
+}
+
+/// Whether a kind has a flag, which is `mtype::has_flag`.
+#[must_use]
+pub fn kind_has_flag(world: &mut World, kind: MonsterKindId, flag: &str) -> bool {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.flags.get(kind.0 as usize))
+        .is_some_and(|flags| flags.iter().any(|held| held == flag))
+}
+
+/// Whether a kind belongs to a species, which is `mtype::in_species`.
+#[must_use]
+pub fn kind_in_species(world: &mut World, kind: MonsterKindId, species: &str) -> bool {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.species.get(kind.0 as usize))
+        .is_some_and(|held| held.iter().any(|name| name == species))
 }
 
 /// How fast a kind moves, or zero when the registry never said.

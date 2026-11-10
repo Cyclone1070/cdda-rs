@@ -223,6 +223,7 @@ mod spell_morale;
 mod spell_flashbang;
 mod spell_guilt;
 mod spell_map;
+mod spell_revive;
 mod spell_polymorph;
 mod spell_recover_energy;
 mod spell_shapes;

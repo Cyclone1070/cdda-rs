@@ -61,6 +61,8 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("guilt", guilt),
     ("bash", bash),
     ("vomit", vomit),
+    ("revive", revive),
+    ("revive_dormant", revive_dormant),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -279,6 +281,57 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `revive` spell stands up the first corpse of the species it names, on each square of its blast.
+///
+/// Reference: `spell_effect::revive` (`magic_spell_effect.cpp:1551-1568`): the spell's `effect_str` names a species, and each square of the area gives up one body that
+/// `REVIVES`, is **not** `DORMANT`, is not `NO_NECRO`, and belongs to that species. The raised monster is the corpse's own kind, and the corpse is gone.
+fn revive(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    stand_up(world, caster, spell, level, centre, false)
+}
+
+/// A `revive_dormant` spell is the same rule with the dormant clause the other way round.
+///
+/// Reference: `spell_effect::revive_dormant` (`magic_spell_effect.cpp:1570-1596`), whose own comment says it is "identical to above, but checks for REVIVES && DORMANT flag.
+/// Ignores NO_NECRO" - the relaxed revive, which is why a body that was dug up can be woken but not raised.
+fn revive_dormant(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    stand_up(world, caster, spell, level, centre, true)
+}
+
+/// The rule both revive spells share, with the dormant clause chosen by the caller.
+fn stand_up(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+    dormant: bool,
+) -> Effective {
+    let mut raised = 0;
+    for square in squares_in_area(world, caster, spell, level, centre) {
+        // Reference: one body per square, and a square it cannot use is simply skipped.
+        if crate::revive::revive(world, square, &spell.effect_str, dormant).is_ok() {
+            raised += 1;
+        }
+    }
+    if raised == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

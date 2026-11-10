@@ -45,6 +45,37 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Two spells that stand corpses up, and a registry that knows a kind's flags (round 1460)
+
+`revive` and `revive_dormant` are the same rule with one clause turned around.
+
+| Question | `revive` | `revive_dormant` |
+|---|---|---|
+the corpse can revive (`REVIVES`) | required | required |
+the kind is `DORMANT` | **refused** | **required** |
+the kind is `NO_NECRO` | refused | ignored |
+the kind is of the species the spell names | required | required |
+the corpse was butchered | refused | refused |
+
+That is the reference's own account (`magic_spell_effect.cpp:1551-1596`), including its comment on the second: *"identical to above, but checks for REVIVES && DORMANT flag. Ignores
+NO_NECRO."* The gate pins the difference by trying the plain spell on a dormant body (nothing happens) and the dormant spell on a `NO_NECRO` one (it wakes), and a mutation that
+drops the clause fails both halves.
+
+**The registry grew flags and species per kind.** Until this round a monster's flags lived only on a spawned creature, which is fine for `SEES` and `HEARS` and useless for a
+**corpse**: the questions `revive` asks are about the kind of a body that is not a creature any more. `monster_registry::kind_has_flag` and `kind_in_species` answer them, and the
+CLI installs them from the same dump the rest of the monster data comes from.
+
+**The architecture gate caught the first shape of that data, and was right to.** I wrote the flags as `Vec<Vec<String>>` - a vector per kind - and
+`architecture::no_component_holds_a_per_square_array` refused it, because a component holding `Vec<Vec<` is exactly the shape the port bans: an array keyed by something the
+store already knows. The honest answer was not a ledger entry but the right container, and the right container is a set per kind (`Vec<BTreeSet<String>>`), which is how the
+content's own `MonsterType` spells its flags and species anyway.
+
+**Named, not invented**: the reference's `game::revive_corpse` also reads the corpse's `active` flag and its `zombie_form` variable, and restores the monster's hit points and
+upgrades through `monster::init_from_item`. The port's corpses carry the kind, whether it revives and the volume taken up, but no damage figure and no upgrade list - so a raised
+monster comes back at its type's full hit points, which the gate states rather than leaves to be discovered.
+
+Twenty-six effect kinds are ported now of the data's thirty-two, and **237 of 245 spells** name one of them.
+
 ## A spell can make you throw up, and the player finally has a stomach (round 1459)
 
 `vomit` is one spell over one character rule.

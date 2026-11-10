@@ -1762,3 +1762,10 @@ write-back fails it immediately.
 stomach is emptied, so it is always the effect's floor - the mutation that swaps floor for ceiling returns `900` where the gate wants `7`. The round also found that
 `spawn_player` never gave a player a `body::Body`, so a player could not eat, digest or throw up while a monster could; a player is a character and now has one. A body without a
 meal clock still does not digest, so no other rule moved.
+
+**Round 1460 raised the dead, twice.** `revive` and `revive_dormant` are one rule with the dormant clause turned around, and the gate proves the difference rather than assuming it:
+the plain spell does nothing to a dormant body, the dormant spell wakes one that is also `NO_NECRO`, and dropping the clause fails both. The round also taught the monster
+registry its kinds' flags and species - a corpse is not a creature, so the questions these spells ask ("does this kind revive?", "is its species the one named?") had nowhere to be
+answered. Hit points come back at the type's figure because a corpse in this port carries no damage and no upgrade list, which is stated rather than guessed. The architecture gate earned
+its keep on the way: the first shape for that data was a `Vec<Vec<String>>` per kind, which `no_component_holds_a_per_square_array` refused as the banned array-keyed-by-position
+shape - and the fix was a set per kind, not a ledger entry.

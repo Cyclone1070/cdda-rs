@@ -937,6 +937,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     let mut weights = Vec::new();
     let mut sizes = Vec::new();
     let mut speeds = Vec::new();
+    let mut traits = Vec::new();
     let mut tables = Vec::new();
     let mut dissections = Vec::new();
     let mut leftovers = Vec::new();
@@ -949,6 +950,13 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
         weights.push((kind, monster.weight));
         // The speed the body moves at, which a polymorph resets its victim to (`monster.cpp:371`).
         speeds.push((kind, monster.speed));
+        // The kind's flags and species, which the revive spells ask **of a kind** rather than of a creature: a corpse's `REVIVES`, `DORMANT` and `NO_NECRO`, and whether it
+        // belongs to the species a spell names. `mtype::has_flag` and `mtype::in_species` are the two questions, and both are answered from the data the dump carries.
+        traits.push((
+            kind,
+            monster.flags.clone(),
+            monster.species.clone(),
+        ));
         // The size class is the data's own word for how big the body is, and a word the port does not know is left out rather than guessed at: the registry's default is a person's body.
         let size = match monster.size.as_str() {
             "TINY" => Some(cdda_sim::CreatureSize::Tiny),
@@ -1022,6 +1030,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     }
     cdda_sim::monster_registry::set_weights(world, &weights);
     cdda_sim::monster_registry::set_speeds(world, &speeds);
+    cdda_sim::monster_registry::set_flags_and_species(world, &traits);
     cdda_sim::monster_registry::set_sizes(world, &sizes);
     cdda_sim::monster_registry::set_dissections(world, &dissections);
     cdda_sim::monster_registry::set_leftovers(world, &leftovers);
