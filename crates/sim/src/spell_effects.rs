@@ -45,6 +45,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("remove_field", remove_field),
     ("summon", summon),
     ("effect_on_condition", effect_on_condition),
+    ("short_range_teleport", short_range_teleport),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -232,6 +233,33 @@ fn remove_effect(
 /// Reference: `spell_effect::summon` (`magic_spell_effect.cpp`), which spawns the monster the spell names, as many times as
 /// the spell's damage at that level, on free squares near the target. The port spawns them on the target square itself
 /// when it is free and on the nearest free square otherwise, because it has no path-finding to place a crowd yet.
+/// A `short_range_teleport` spell moves the caster somewhere between its range and its range plus its area.
+///
+/// Reference: `spell_effect::short_range_teleport` (`magic_spell_effect.cpp:159-182`): `min_distance` is the spell's range, `max_distance` that range plus its area, and
+/// safety is the **absence** of the `UNSAFE_TELEPORT` flag. The port does not load spell flags yet, so the caller states safety - and with nothing stated the teleport is
+/// safe, which is the reference's default for every spell that does not opt out.
+fn short_range_teleport(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    _centre: (i32, i32, i32),
+) -> Effective {
+    let Some(range) = spell.range.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let min_distance = range.max(0.0) as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let area = spell.area.at(level).unwrap_or(0.0).max(0.0) as i32;
+    match crate::teleport::creature(world, caster, min_distance, min_distance + area, true) {
+        crate::teleport::Teleport::Moved { .. } => Effective::Done,
+        crate::teleport::Teleport::Unchanged
+        | crate::teleport::Teleport::Refused
+        | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
 /// An `effect_on_condition` spell runs the program it names, once for each square of its area that holds a valid target.
 ///
 /// Reference: `spell_effect::effect_on_condition` (`magic_spell_effect.cpp:1910-1943`). The program is run with a **context variable** set: `spell_location` is the

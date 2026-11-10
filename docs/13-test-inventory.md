@@ -1685,3 +1685,8 @@ is refused with the pool untouched, a hundred lands and leaves nothing, and turn
 spell walks its area, and for every square holding a creature it writes `spell_location` into that creature's dialogue context and runs the program the spell names, with the
 victim as the speaker and the caster as the listener, exactly as `magic_spell_effect.cpp:1910-1943` builds it. Eight kinds are ported of the data's thirty-two and **198 of
 245 spells** name one of them, up from 135.
+
+**Round 1444 made a teleport a rule.** `crates/sim/src/teleport.rs` is `teleport_creature` and `teleport_to_point`: two draws from the store's generator - an angle in degrees
+used as radians, which is the reference's own arithmetic - up to twenty redraws, and then one of three answers on landing: no teleport, a refusal when safe, or death when not.
+Three gates hold the dice still (angle zero, so the landing is exactly `distance` east), refuse and kill on the same impassable square, and drive the spell effect end to end.
+Nine of the data's thirty-two effect kinds are ported and 200 of 245 spells name one.

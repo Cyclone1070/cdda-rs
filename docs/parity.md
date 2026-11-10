@@ -45,6 +45,27 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A teleport is drawn, and where it lands can kill you (round 1444)
+
+`short_range_teleport` is two spells, and it is the first movement rule in the port that is **not** a step: nothing walks, nothing is paid, and the creature arrives somewhere it
+did not walk to.
+
+| Piece | Reference | Port |
+|---|---|---|
+the draw | `rng( 0, 360 )` for an angle and `rng( min, max )` for a distance, up to twenty times (`teleport.cpp:164-168`) | the same two draws from the store's own generator |
+the arithmetic | `int( distance * std::cos( angle ) )` where the angle is **degrees used as radians** (`:166`) | the same, because it is the reference's own arithmetic and not a bug to tidy |
+the distance | the spell's range, to its range plus its area (`magic_spell_effect.cpp:175-181`) | the same two numbers |
+the landing | `teleport_to_point` (`:172-260`): same square is no teleport, solid **refuses** when safe and **kills** when not | all three answers, the last with the reference's 9,999 to the torso |
+
+**The three answers are the point.** A safe teleport into rock does nothing; an unsafe one is death, not damage a character might survive. The gate holds the dice still - an angle
+of zero is `cos(0)` and `sin(0)`, the one pair whose arithmetic cannot differ between platforms - and pins the landing square exactly, then refuses and kills on the same
+impassable square. Inverting the safety branch fails it with `Died` where `Refused` belongs.
+
+Nine effect kinds are ported now of the data's thirty-two, and **200 of 245 spells** name one of them.
+
+**Declared**: `UNSAFE_TELEPORT` is a spell flag and the port does not load spell flags, so the effect is always the safe kind - which is the reference's behaviour for every spell that
+does not opt out; `TARGET_TELEPORT` is a separate branch the port does not take, because it needs an area selection this content's two spells do not use.
+
 ## A spell can hand over to a program (round 1443)
 
 The largest single unported spell effect was `effect_on_condition` - not three spells, not ten, but **63 of 245**, one name the port's table did not have. It has it now.

@@ -71,6 +71,7 @@ pub mod martial_arts;
 pub mod martial_arts_vectors;
 pub mod melee;
 pub mod sounds;
+pub mod teleport;
 pub mod timed_events;
 pub mod traits;
 pub mod spell_effects;
