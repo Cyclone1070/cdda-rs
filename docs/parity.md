@@ -45,6 +45,21 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can hand over to a program (round 1443)
+
+The largest single unported spell effect was `effect_on_condition` - not three spells, not ten, but **63 of 245**, one name the port's table did not have. It has it now.
+
+| Piece | Reference | Port |
+|---|---|---|
+the walk | every square of the area that is a valid target (`magic_spell_effect.cpp:1915-1919`) | the same squares, creature by creature |
+the speaker | the victim, with the caster as listener (`:1925-1931`) | the same, and a square with nothing on it is skipped |
+the variable | `spell_location` written into the dialogue's context (`:1936-1939`) | the same name, a position on the program's own talker |
+the program | `eoc->activate( d )` | `eoc_registry::run_program` |
+
+The count moved with it: **8 effect kinds ported of 32 the data names, and 198 of 245 spells now name a kind the port has a rule for** (it was 135).
+
+**Declared**: the reference refuses a spell whose program is not an `ACTIVATION` program and `debugmsg`s instead; the port has no `eoc_type` on its programs yet, so it runs what it finds. Nothing in the content's 63 states a recurrence, which is what that check exists to catch - and the gate says so rather than the comment alone.
+
 ## The game asks before it casts (round 1442)
 
 Two rounds made a price and a way to pay it; this one put them in front of the verb a person types.

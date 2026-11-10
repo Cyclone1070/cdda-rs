@@ -1680,3 +1680,8 @@ two kilojoules, 2,000 pays) and was mutation-checked by turning mana's `>=` into
 **Round 1442 put the price in front of the verb.** `cdda-cli cast` now refuses a spell the caster cannot afford, in the reference's own wording - the price and what the
 caster had - and takes the price from the pool only when the cast goes through. The gate drives `cast_at_nearest` on the data's own `overcharge_yrax` (a hundred mana): ninety-nine
 is refused with the pool untouched, a hundred lands and leaves nothing, and turning the spend off fails it.
+
+**Round 1443 taught spells to hand over to a program.** `effect_on_condition` is the biggest single effect name in the data - 63 of 245 spells - and it is now a rule: the
+spell walks its area, and for every square holding a creature it writes `spell_location` into that creature's dialogue context and runs the program the spell names, with the
+victim as the speaker and the caster as the listener, exactly as `magic_spell_effect.cpp:1910-1943` builds it. Eight kinds are ported of the data's thirty-two and **198 of
+245 spells** name one of them, up from 135.

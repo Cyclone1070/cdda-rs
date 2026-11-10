@@ -44,6 +44,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("noise", noise),
     ("remove_field", remove_field),
     ("summon", summon),
+    ("effect_on_condition", effect_on_condition),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -231,6 +232,51 @@ fn remove_effect(
 /// Reference: `spell_effect::summon` (`magic_spell_effect.cpp`), which spawns the monster the spell names, as many times as
 /// the spell's damage at that level, on free squares near the target. The port spawns them on the target square itself
 /// when it is free and on the nearest free square otherwise, because it has no path-finding to place a crowd yet.
+/// An `effect_on_condition` spell runs the program it names, once for each square of its area that holds a valid target.
+///
+/// Reference: `spell_effect::effect_on_condition` (`magic_spell_effect.cpp:1910-1943`). The program is run with a **context variable** set: `spell_location` is the
+/// absolute square the program is running for, which is how a program written for a spell knows where it happened. The speaker is the victim when there is one and the
+/// caster is the listener, exactly as the reference builds it; a square with nothing on it runs with no speaker at all.
+///
+/// **Declared**: the reference refuses a spell whose program is not an `ACTIVATION` program (it `debugmsg`s rather than running it), and the port has no
+/// `eoc_type` on its programs yet, so it runs what it finds. Nothing in the content's 63 such spells states a recurrence, which is what that check exists for.
+fn effect_on_condition(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    if spell.effect_str.is_empty() {
+        return Effective::NothingAffected;
+    }
+    let mut ran = 0;
+    for square in squares_in_area(spell, level, centre) {
+        // Reference: the speaker is the creature standing on the square when there is one, and the caster is always the listener.
+        let held = crate::creature::creature_at(world, square);
+        let Some(&victim) = held.first() else {
+            continue;
+        };
+        crate::dialogue_values::set(
+            world,
+            victim,
+            "spell_location",
+            crate::dialogue_values::Value::Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
+        );
+        crate::eoc_registry::run_program(world, victim, Some(caster), &spell.effect_str, 0);
+        ran += 1;
+    }
+    if ran == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
+    }
+}
+
 fn summon(
     world: &mut World,
     _caster: Entity,

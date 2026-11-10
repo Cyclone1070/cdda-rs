@@ -139,8 +139,8 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        7,
-        "seven effects are ported, out of the {} the game names",
+        8,
+        "eight effects are ported, out of the {} the game names",
         named.len()
     );
 }
@@ -550,4 +550,52 @@ fn an_emission_of_a_quantity_spreads_over_the_squares_it_can_reach() {
     }
     assert!(squares > 1, "the gas spread over {squares} squares, not one");
     assert_eq!(total, 12, "holding exactly the quantity the emission stated");
+}
+
+/// **A spell can hand over to a program, and the program knows where it happened.**
+///
+/// Reference: `spell_effect::effect_on_condition` (`magic_spell_effect.cpp:1910-1943`): every square of the area that holds a valid target runs the program the spell
+/// names, with `spell_location` written into the dialogue's context and the **victim as the speaker**, the caster as the listener. 63 of the game's spells are this
+/// effect, which makes it the largest single unported name in the data.
+#[test]
+fn an_effect_on_condition_spell_runs_its_program_with_the_square_it_stands_on() {
+    let mut world = World::new();
+    let caster = world.spawn(cdda_sim::Position { x: 0, y: 0, z: 0 }).id();
+    let victim = world.spawn(cdda_sim::Position { x: 1, y: 0, z: 0 }).id();
+    for who in [caster, victim] {
+        world.entity_mut(who).insert(cdda_sim::creature::Creature {
+            name: "a survivor".to_owned(),
+            size: cdda_sim::CreatureSize::Medium,
+        });
+    }
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    // A program with no effects at all: what this gate reads is the **variable the reference writes before it runs**, so the program only has to be
+    // there and be runnable.
+    let program = cdda_json::parse(
+        br#"[{"id": "EOC_gate_mark", "type": "effect_on_condition", "effect": [{"u_message": "done"}]}]"#,
+    )
+    .expect("the program is json");
+    let cdda_json::Value::Array(entries) = &program else {
+        panic!("a list");
+    };
+    let programs: Vec<cdda_content::dialogue::Program> = entries
+        .iter()
+        .filter_map(|entry| cdda_content::dialogue::read_program(entry))
+        .collect();
+    assert_eq!(programs.len(), 1, "the program reads");
+    cdda_sim::eoc_registry::set_programs(&mut world, &programs);
+
+    let mut spell = a_spell("effect_on_condition", 1, 1);
+    spell.effect_str = "EOC_gate_mark".to_owned();
+    assert_eq!(
+        spell_effects::apply(&mut world, caster, &spell, 0, (1, 0, 0)),
+        Effective::Done,
+        "the effect ran for the square the victim stands on"
+    );
+    let stored = cdda_sim::dialogue_values::value_of(&world, victim, "spell_location");
+    assert_eq!(
+        stored,
+        Some(cdda_sim::dialogue_values::Value::Position { x: 1, y: 0, z: 0 }),
+        "**and the program's own talker was told the square as `spell_location`**, the variable the reference writes before it runs"
+    );
 }
