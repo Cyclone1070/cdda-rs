@@ -1807,3 +1807,8 @@ nobody and a `LOUD` one at seven. Swapping the volume for the raw damage fails o
 answer per kind in the registry, and hands it to every spawned monster. That closes the gap round 1468 named: an attack spell lands on a monster's torso and takes nine hit
 points, while a monster whose body type the world never resolved answers `NothingToHit` rather than being given one invented part. Dropping the body between the registry and the
 spawn fails both gates.
+
+**Round 1470 made armour answer by damage type.** `monster::get_armor_type` reads three figures from the data and the port read only bash, so a cut spell and a bash spell hit the same
+monster identically. `armour_on` now takes the type, `monster_registry::set_armours` carries the three figures, and `spawn_monster` hands them over: nine of blunt against four of
+armour is five, and the same body lets all nine of a cut through. A type with no figure is zero rather than the bash figure borrowed, and a melee blow - which carries three types
+at once - asks `None` and says so. Reading one figure for every type fails the cut half of the gate on `5` against `9`.

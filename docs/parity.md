@@ -45,6 +45,25 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Armour answers for the damage type it is asked about (round 1470)
+
+A monster states **three** armour figures and the port was reading one of them for every blow, so a club and a blade were the same hit.
+
+| Piece | Reference | Port |
+|---|---|---|
+the question | `Creature::get_armor_type( dt, bp )` - the type is an argument | `armour_on( ..., damage_type )` |
+the monster's answer | `mtype::armor_bash`, `armor_cut`, `armor_stab` (`mtype.h:216-220`) | `monster_registry::set_armours`, carried by `spawn_monster` |
+a type with no figure | the reference's default branch is zero | zero - **not** the bash figure borrowed |
+the mixed blow | a melee attack carries bash, cut and stab at once and subtracts each from its own | asks `None`, and the doc says the port has one figure for it |
+
+**`Some` and `None` are the difference between "one type" and "several".** A spell deals exactly one damage type, so it asks with `Some( type )` and gets that type's number. A melee blow
+carries three at once, and the port has a single number for it - so it asks `None` rather than picking one of the three and calling it bash. The signature says which question each
+caller is asking instead of hiding the choice in a comment.
+
+**A named gap this makes visible**: a **worn garment** still protects by one number against every type, because `creature::dress` sums each layer's single `resist`
+(`cdda_content::armour::Layer`) into one figure per part. The reference asks a material for its resist **per damage type**. Closing that means the content side emitting per-type
+layers, which is a round of its own - and the port says so in `armour_on` rather than pretending the garment figure is right.
+
 ## A monster has a body now, and a blow has somewhere to land (round 1469)
 
 Round 1468 named a gap: an attack spell could not hit a monster, because a body was built only for creatures the content described. The data already carried the answer.

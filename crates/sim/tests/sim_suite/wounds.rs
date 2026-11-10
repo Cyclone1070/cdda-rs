@@ -287,16 +287,16 @@ fn a_worn_out_garment_protects_less_of_the_part_it_covers() {
     world.entity_mut(jacket).insert(WornBy(survivor));
 
     cdda_sim::creature::dress(&mut world);
-    assert_eq!(armour_on(&world, survivor, "torso"), 4, "a whole jacket protects by four");
+    assert_eq!(armour_on(&world, survivor, "torso", None), 4, "a whole jacket protects by four");
 
     // **Four thousand points of damage is the fifth level, and the same jacket protects by two** - which `dress` has to be asked for again, because the armour is derived and not a rule of
     // the blow.
     world.entity_mut(jacket).insert(Wear { damage: 4_000 });
     cdda_sim::creature::dress(&mut world);
     assert_eq!(
-        armour_on(&world, survivor, "torso"),
+        armour_on(&world, survivor, "torso", None),
         2,
         "**a level-five jacket keeps half its protection, through the same derived figure**"
     );
-    assert_eq!(armour_on(&world, survivor, "head"), 0, "and a part it does not cover is still bare");
+    assert_eq!(armour_on(&world, survivor, "head", None), 0, "and a part it does not cover is still bare");
 }

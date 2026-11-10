@@ -891,6 +891,22 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
     cdda_sim::monster_registry::set_monster_types(world, &kinds);
     // **Every monster's body comes from its own `bodytype`** (`mtype::bodytype`, `mtype.h:236`), resolved through the same anatomy join the avatar uses. Without this a monster is a
     // creature with no parts, so a blow has nowhere to land and an attack spell cannot touch it.
+    // What each kind's hide stops, by damage type (`mtype::armor_bash`, `armor_cut`, `armor_stab`).
+    let armours: Vec<(cdda_sim::MonsterKindId, cdda_sim::creature::Armour)> = monsters
+        .iter()
+        .filter_map(|monster| {
+            let kind = cdda_sim::monster_registry::id_of(world, &monster.id)?;
+            Some((
+                kind,
+                cdda_sim::creature::Armour {
+                    bash: monster.armor_bash,
+                    cut: monster.armor_cut,
+                    stab: monster.armor_stab,
+                },
+            ))
+        })
+        .collect();
+    cdda_sim::monster_registry::set_armours(world, &armours);
     if let Some((anatomies, parts)) = body_corpus() {
         let bodies: Vec<(cdda_sim::MonsterKindId, cdda_sim::creature::Body)> = monsters
             .iter()
@@ -2037,10 +2053,10 @@ mod tests {
         let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
         let worn = dress_the_avatar(&mut world, avatar).expect("the game data is in the repository");
         assert!(worn.contains("point"), "the line says what it is worth: {worn}");
-        let torso = cdda_sim::creature::armour_on(&world, avatar, "torso");
+        let torso = cdda_sim::creature::armour_on(&world, avatar, "torso", None);
         assert!(torso >= 1, "a garment that protects nothing is not a garment: {worn}");
         assert_eq!(
-            cdda_sim::creature::armour_on(&world, avatar, "foot_l"),
+            cdda_sim::creature::armour_on(&world, avatar, "foot_l", None),
             0,
             "and it says nothing about a part it does not cover"
         );

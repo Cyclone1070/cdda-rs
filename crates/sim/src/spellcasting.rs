@@ -312,7 +312,8 @@ pub fn damage_one(
         // here would be a silent divergence in every fight that involves it.
         return Cast::NothingToHit;
     };
-    let armour = armour_on(world, target, &part);
+    // Reference: a spell's blow is **one damage type** (`sp.dmg_type`), so the armour it meets is that type's.
+    let armour = armour_on(world, target, &part, Some(&spell.damage_type));
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     let arrived = damage.round() as i32;
     // The garment that stopped the blow may not survive stopping it, and it is asked with what arrived rather than

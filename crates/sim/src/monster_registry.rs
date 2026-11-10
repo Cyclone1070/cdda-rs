@@ -72,6 +72,8 @@ pub struct MonsterTypes {
     weights: Vec<i64>,
     /// How big each kind is, by registry order.
     sizes: Vec<crate::CreatureSize>,
+    /// The armour each kind has against each damage type, by registry order (`mtype::armor_bash`, `armor_cut`, `armor_stab`, `mtype.h:216-220`).
+    armours: Vec<crate::creature::Armour>,
     /// The body each kind has, by registry order, or none when the data names a body type the port could not build.
     ///
     /// Reference: `mtype::bodytype` (`mtype.h:236`) is an **anatomy id**, and `mtype::get_all_body_parts()` asks the anatomy for the parts a blow can land on. The port keeps the
@@ -302,6 +304,37 @@ pub fn set_bodies(world: &mut World, entries: &[(crate::MonsterKindId, crate::cr
     }
 }
 
+/// Gives each kind the three armour figures its type states.
+///
+/// Reference: `monster::get_armor_type( dt, bp )` (`monster.cpp`) answers from `mtype::armor_bash`, `armor_cut` and `armor_stab`, **per damage type** - which is why a zombie that
+/// shrugs off a club can still be cut. A kind the world never resolved has no armour at all rather than zero of each, so a born-bodiless fixture does not silently look armoured.
+pub fn set_armours(world: &mut World, entries: &[(crate::MonsterKindId, crate::creature::Armour)]) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, armour) in entries {
+        let at = kind.0 as usize;
+        if types.armours.len() <= at {
+            types
+                .armours
+                .resize(at + 1, crate::creature::Armour { bash: 0, cut: 0, stab: 0 });
+        }
+        if let Some(slot) = types.armours.get_mut(at) {
+            *slot = *armour;
+        }
+    }
+}
+
+/// The armour one kind has, or `None` when the world never installed its figures.
+#[must_use]
+pub fn armour_of(world: &World, kind: crate::MonsterKindId) -> Option<crate::creature::Armour> {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+        .and_then(|types| types.armours.get(kind.0 as usize).copied())
+}
+
 /// The body one kind has, or `None` when the world never resolved its body type.
 ///
 /// `None` is the honest answer rather than an empty body: a creature with no parts is a creature a blow cannot land on, which is what a monster whose anatomy the port could not
@@ -398,6 +431,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         weights: Vec::new(),
         sizes: Vec::new(),
         bodies: Vec::new(),
+        armours: Vec::new(),
         dissect_entries: Vec::new(),
         dissect_ids: Vec::new(),
         leftovers: Vec::new(),

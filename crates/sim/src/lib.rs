@@ -3740,6 +3740,10 @@ pub fn spawn_monster(
     if let Some(body) = crate::monster_registry::body_of(world, kind) {
         world.entity_mut(entity).insert(body);
     }
+    // Reference: `monster::get_armor_type` answers from the type's own three figures, so a spawned monster carries them and every blow asks the type it deals.
+    if let Some(armour) = crate::monster_registry::armour_of(world, kind) {
+        world.entity_mut(entity).insert(armour);
+    }
     // A creature made this way is one the world is about to give a turn to - the older callers spawn and act
     // in the same breath, and a creature with no moves would silently stand still. `creature::spawn_creature`
     // is the reference's own constructor and leaves moves at zero; this one is the "ready to act" door.

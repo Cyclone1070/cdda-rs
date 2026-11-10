@@ -30,6 +30,7 @@ mod eoc_programs;
 mod activities;
 mod applied_effects;
 mod architecture;
+mod armour_by_type;
 mod attack_spells;
 mod bash_hits;
 mod blast;

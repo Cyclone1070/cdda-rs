@@ -72,12 +72,12 @@ fn a_vest_on_the_torso_becomes_armour_on_the_torso() {
     dress(&mut world);
 
     assert_eq!(
-        armour_on(&world, survivor, "torso"),
+        armour_on(&world, survivor, "torso", None),
         3,
         "half a millimetre of steel is three points"
     );
     assert_eq!(
-        armour_on(&world, survivor, "left arm"),
+        armour_on(&world, survivor, "left arm", None),
         0,
         "and the vest says nothing about an arm"
     );
@@ -91,13 +91,13 @@ fn taking_the_vest_off_takes_the_armour_away() {
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let worn = world.spawn((WornBy(survivor), vest())).id();
     dress(&mut world);
-    assert_eq!(armour_on(&world, survivor, "torso"), 3);
+    assert_eq!(armour_on(&world, survivor, "torso", None), 3);
 
     world.despawn(worn);
     dress(&mut world);
 
     assert_eq!(
-        armour_on(&world, survivor, "torso"),
+        armour_on(&world, survivor, "torso", None),
         0,
         "a derived answer must not survive the thing it was derived from"
     );
@@ -129,7 +129,7 @@ fn two_layers_on_one_part_add_up() {
 
     dress(&mut world);
 
-    assert_eq!(armour_on(&world, survivor, "torso"), 5, "three of steel and two of leather");
+    assert_eq!(armour_on(&world, survivor, "torso", None), 5, "three of steel and two of leather");
 }
 
 /// Putting something on and taking it off, which is what a survivor does with a vest.
@@ -143,23 +143,23 @@ fn a_garment_can_be_put_on_once_and_taken_off_again() {
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::creature::give_moves(&mut world, survivor, 1_000);
     let vest = world.spawn(vest()).id();
-    assert_eq!(armour_on(&world, survivor, "torso"), 0, "nothing on yet");
+    assert_eq!(armour_on(&world, survivor, "torso", None), 0, "nothing on yet");
 
     assert_eq!(wear(&mut world, survivor, vest), Wore::Worn);
-    assert_eq!(armour_on(&world, survivor, "torso"), 3, "half a millimetre of steel");
+    assert_eq!(armour_on(&world, survivor, "torso", None), 3, "half a millimetre of steel");
     assert_eq!(
         wear(&mut world, survivor, vest),
         Wore::AlreadyWorn,
         "and putting it on again is refused"
     );
     assert_eq!(
-        armour_on(&world, survivor, "torso"),
+        armour_on(&world, survivor, "torso", None),
         3,
         "so the protection is not doubled by asking twice"
     );
 
     assert!(take_off(&mut world, vest), "it came off");
-    assert_eq!(armour_on(&world, survivor, "torso"), 0, "and the armour went with it");
+    assert_eq!(armour_on(&world, survivor, "torso", None), 0, "and the armour went with it");
     assert!(!take_off(&mut world, vest), "taking it off twice is nothing to do");
 }
 
@@ -174,7 +174,7 @@ fn something_that_is_not_a_garment_cannot_be_worn() {
         "a thing that says nothing about what it protects is not clothing"
     );
     assert!(world.get::<WornBy>(rock).is_none(), "and it is not worn either");
-    assert_eq!(armour_on(&world, survivor, "torso"), 0);
+    assert_eq!(armour_on(&world, survivor, "torso", None), 0);
 }
 
 /// A vest wears out and then stops protecting, because a ruined vest is not a vest.
@@ -190,7 +190,7 @@ fn a_garment_wears_out_in_four_steps_and_is_gone_on_the_fifth() {
     let vest = world.spawn(vest()).id();
 
     assert_eq!(wear(&mut world, survivor, vest), Wore::Worn);
-    assert_eq!(armour_on(&world, survivor, "torso"), 3);
+    assert_eq!(armour_on(&world, survivor, "torso", None), 3);
 
     // A fraction of zero meets any chance there is, so every one of these blows damages the vest.
     for step in 1..=4 {
@@ -200,7 +200,7 @@ fn a_garment_wears_out_in_four_steps_and_is_gone_on_the_fifth() {
             "step {step}"
         );
         assert_eq!(world.get::<Wear>(vest).map(|wear| wear.damage), Some(step * 1000));
-        assert_eq!(armour_on(&world, survivor, "torso"), 3, "and it still protects");
+        assert_eq!(armour_on(&world, survivor, "torso", None), 3, "and it still protects");
     }
 
     assert_eq!(
@@ -213,7 +213,7 @@ fn a_garment_wears_out_in_four_steps_and_is_gone_on_the_fifth() {
         "a ruined garment is gone from the store"
     );
     assert_eq!(
-        armour_on(&world, survivor, "torso"),
+        armour_on(&world, survivor, "torso", None),
         0,
         "and its protection went with it"
     );
@@ -301,7 +301,7 @@ fn an_unbreakable_garment_is_never_damaged() {
         );
     }
     assert_eq!(world.get::<Wear>(garment).map(|wear| wear.damage), None);
-    assert_eq!(armour_on(&world, survivor, "torso"), 3, "and it still protects");
+    assert_eq!(armour_on(&world, survivor, "torso", None), 3, "and it still protects");
 }
 
 /// Whether a garment is damaged is a draw of its own, not a function of how hard the blow was.

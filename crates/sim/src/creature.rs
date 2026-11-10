@@ -442,14 +442,30 @@ pub struct SizeComparedToHuman(pub f64);
 ///
 /// Falls back to the creature's whole-body [`Armour`] when the part states nothing, and to nothing at all when
 /// neither does: a bare arm and an unstated arm are the same arm, not one of them invulnerable.
+///
+/// **`damage_type` is `Some` when the blow is one type and `None` when it is a mix.** Reference: `Creature::get_armor_type( dt, bp )` is asked **per damage type** - a monster's
+/// `armor_bash`, `armor_cut` and `armor_stab` are three figures from the data, and a zombie that shrugs off a club can be cut by a blade. A single-typed blow therefore asks with
+/// `Some( "bash" )` and gets the figure that type deserves; a melee attack carries fixed bash, cut and stab at once, and the port has one figure for it today, so it asks `None`
+/// and says so rather than picking one of the three.
 #[must_use]
-pub fn armour_on(world: &World, entity: Entity, part: &str) -> i32 {
+pub fn armour_on(world: &World, entity: Entity, part: &str, damage_type: Option<&str>) -> i32 {
+    // **The worn figure is the garment's own and has no damage type yet**: `creature::dress` sums each layer's single resist, so a worn shirt protects by the same number against a
+    // blade and a club. That is a named gap, and using the figure for every type is closer to the reference than dropping it would be.
     if let Some(armour) = world.get::<PartArmour>(entity)
         && let Some(found) = armour.0.get(part)
     {
         return *found;
     }
-    world.get::<Armour>(entity).map_or(0, |armour| armour.bash)
+    let Some(armour) = world.get::<Armour>(entity) else {
+        return 0;
+    };
+    match damage_type {
+        Some("cut") => armour.cut,
+        Some("stab") => armour.stab,
+        Some("bash") | None => armour.bash,
+        // Any other type the data names (`heat`, `electric`, `acid` ...) has no figure in this component, which is what the reference's default branch answers too.
+        Some(_) => 0,
+    }
 }
 
 /// A thing being worn, and by whom.
@@ -3400,7 +3416,7 @@ fn strike_with(
     });
     let resist = landed_on.as_deref().map_or(defence.resist, |part| {
         #[allow(clippy::cast_precision_loss)]
-        let armour = armour_on(world, victim, part) as f32;
+        let armour = armour_on(world, victim, part, None) as f32;
         armour
     });
     // **The worn garments are already in `resist`**: `armour_on` reads `PartArmour`, which `creature::dress` derives from the garment layers, so a second worn sum here would count the same
