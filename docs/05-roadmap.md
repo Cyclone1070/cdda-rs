@@ -335,6 +335,24 @@ requirements, tools and skills against it (`recipe_requirements`, `recipe_tools`
 tool and quality availability, component counts, the time it takes) so the port's crafting has a red gate of its own. **The oracle must lead the loader**, and here it does
 not yet.
 
+### The spell-effect sweep is closed at 26 of 32 (round 1461)
+
+The census that stood here counted effects; it is superseded by a list of the six kinds the port has not ported, each with the subsystem it is waiting for. Twenty-six kinds run,
+covering **237 of the 245 spells** the data defines, and the eight remaining spells are:
+
+| Kind | Spells | Waiting on |
+|---|---|---|
+`slime_split` | 3 | the blob family's mass and summoning rules |
+`area_pull` | 1 | `area_expander` and `knock_back_to` |
+`mutate` | 1 | the mutation roller |
+`upgrade` | 1 | `mtype::upgrades` |
+`fungalize` | 1 | `fungal_effects` |
+`banishment` | 1 | per-body-part hit points |
+
+**So the next round should not open the spell front again.** The two lines with unblocked work are the ones this document already ranks first: the dialogue frontier's six
+one-off **stores** (camps, event arguments, trade menus, inventory menus) and the **line shape** - nine spells whose behaviour is currently answered by their blast, which is a
+pure geometry transcription with no store behind it and therefore no blocker.
+
 ### What the next round should pick up (updated at round 1425)
 
 **The dialogue-effect frontier is down to nine programs, one cause each.** The previous version of this section was written at round 976 and listed

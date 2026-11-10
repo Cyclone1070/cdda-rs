@@ -45,6 +45,28 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The spell-effect sweep is closed: 26 of 32, and the six that wait (round 1461)
+
+Every effect kind whose rule the port can state has been ported. What is left is not a reading problem - each of the six needs a **subsystem the port has not reached**, and naming
+that is the honest way to stop rather than inventing a value:
+
+| Kind | Spells | What it actually needs |
+|---|---|---|
+`slime_split` | 3 | blob summoning: `mon_blob*` types by name, mass from `get_speed_base`, `set_summon_time`, `make_ally` - the blob family's own rules |
+`area_pull` | 1 | `area_expander` (a breadth-first area with `sort_ascending`) and `Creature::knock_back_to` |
+`mutate` | 1 | `Character::mutate` / `mutate_category` / `mutate_towards`: the mutation roller |
+`upgrade` | 1 | `mtype::upgrades` - the monster upgrade table, with half-lives and conditions |
+`fungalize` | 1 | `fungal_effects::fungalize`, which converts terrain **and** creatures and spreads spores |
+`banishment` | 1 | per-body-part hit points: the caster pays the monster's remaining hit points limb by limb, leaving one on each |
+
+Eight spells, and each one is a round of its own subsystem rather than a line in a match arm. **The four survivors of the census are all of one kind**: they need a store the port
+does not keep (part hit points, an upgrade table, a mutation roller) or a rule family that brings its own data (fungal spread, blob mass).
+
+**What the sweep taught that outlives it.** Three of the last ten rounds were decided by a gate rather than by the code: the bash round discovered that forty strength does not break
+a stone wall (the *guess* was wrong, not the port), the vomit round discovered that a player had no stomach, and the revive round discovered that a kind's flags had nowhere to be
+asked about a corpse. Two mutations were no-ops before they meant something, because they changed a rule's spelling rather than what it decides. Every one of those was found by
+writing the smallest gate that could fail.
+
 ## Two spells that stand corpses up, and a registry that knows a kind's flags (round 1460)
 
 `revive` and `revive_dormant` are the same rule with one clause turned around.
