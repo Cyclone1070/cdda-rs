@@ -936,6 +936,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
         .unwrap_or_default();
     let mut weights = Vec::new();
     let mut sizes = Vec::new();
+    let mut speeds = Vec::new();
     let mut tables = Vec::new();
     let mut dissections = Vec::new();
     let mut leftovers = Vec::new();
@@ -946,6 +947,8 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
         // The dump writes a monster's weight in **grams** (`units::to_gram( proto.weight )` in `dump_monsters`), which is the unit the harvest rule weighs a corpse in. **Not** milligrams: the content's own
         // field doc said milligrams, and dividing by a thousand made an eighty-one kilogram zombie weigh eighty-one grams - which a playtest then read as twenty cuts of meat.
         weights.push((kind, monster.weight));
+        // The speed the body moves at, which a polymorph resets its victim to (`monster.cpp:371`).
+        speeds.push((kind, monster.speed));
         // The size class is the data's own word for how big the body is, and a word the port does not know is left out rather than guessed at: the registry's default is a person's body.
         let size = match monster.size.as_str() {
             "TINY" => Some(cdda_sim::CreatureSize::Tiny),
@@ -1018,6 +1021,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
         dissections.push((kind, specs, ids));
     }
     cdda_sim::monster_registry::set_weights(world, &weights);
+    cdda_sim::monster_registry::set_speeds(world, &speeds);
     cdda_sim::monster_registry::set_sizes(world, &sizes);
     cdda_sim::monster_registry::set_dissections(world, &dissections);
     cdda_sim::monster_registry::set_leftovers(world, &leftovers);

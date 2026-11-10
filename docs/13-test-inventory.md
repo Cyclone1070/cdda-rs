@@ -1700,3 +1700,8 @@ Ten of thirty-two effect kinds ported, 203 of 245 spells covered.
 bonus, and only characters are reached - a monster standing on the same square is skipped, which the gate checks by standing one there. It also needed a piece the port did
 not have: the data's 91 morale types, loaded as content and held in a singleton, because the reference refuses a spell whose `effect_str` names a type nobody defined. With
 that check removed the unknown type adds a point and the gate fails on the count.
+
+**Round 1447 changed a body and kept its wounds.** `targeted_polymorph` joins three yrax spells to `creature::poly`: a monster strictly below the spell's damage becomes the
+kind the spell names, at the same **hit percentage** of its new body, with moves spent and the new body's speed. The gate caught the trap the first version fell into - dividing
+by the body's own maximum reads 1.0 and hands back a whole new body, where the reference divides by the kind's own hit points. The second gate pins the strict `<` at the
+boundary: equal hit points resist, one point more of damage transforms.

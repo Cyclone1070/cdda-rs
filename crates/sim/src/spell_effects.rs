@@ -48,6 +48,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("short_range_teleport", short_range_teleport),
     ("timed_event", timed_event),
     ("morale", morale),
+    ("targeted_polymorph", targeted_polymorph),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -259,6 +260,51 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `targeted_polymorph` spell turns the monster it hits into another kind, if the monster is hurt enough.
+///
+/// Reference: `spell_effect::targeted_polymorph` (`magic_spell_effect.cpp:742-754`): only a monster is a candidate, and only when its hit points are **below** the spell's
+/// damage - a whole victim resists. The new kind is the spell's `effect_str`, and the change itself is `monster::poly`.
+///
+/// **The empty case is refused, not invented.** The reference fills an empty `effect_str` with a random monster of nearby difficulty, drawn from the whole monster list in
+/// load order; the port's registry has no difficulty field and no load-ordered list, so `activate_yrax` - whose `effect_str` is empty - would need a number nobody dumped.
+/// It does nothing instead, and `docs/parity.md` names it.
+fn targeted_polymorph(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    if spell.effect_str.is_empty() {
+        return Effective::NothingAffected;
+    }
+    let Some(threshold) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    let Some(kind) = crate::monster_registry::id_of(world, &spell.effect_str) else {
+        return Effective::NothingAffected;
+    };
+    let mut changed = 0;
+    for held in crate::creature::creature_at(world, centre) {
+        if world.get::<crate::creature::CreatureKind>(held).is_none() {
+            continue;
+        }
+        let hurt = crate::creature::health_of(world, held).unwrap_or(0);
+        #[allow(clippy::cast_possible_truncation)]
+        let needed = threshold as i32;
+        if hurt >= needed {
+            continue;
+        }
+        crate::creature::poly(world, held, kind);
+        changed += 1;
+    }
+    if changed == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

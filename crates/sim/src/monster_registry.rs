@@ -31,6 +31,8 @@ pub struct MonsterTypes {
     names: Vec<String>,
     /// The hit points of each kind, in registry order.
     hit_points: Vec<i32>,
+    /// The speed of each kind, in registry order (`mtype::speed`, `mtype.h`).
+    speeds: Vec<i32>,
     /// The number of each kind, by name.
     by_name: BTreeMap<String, MonsterKindId>,
     /// What each kind bleeds, by registry order (`mtype::bloodType`, `mtype.cpp:431-454`).
@@ -358,6 +360,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         names,
         hit_points,
         by_name,
+        speeds: Vec::new(),
         blood: Vec::new(),
         gibs: Vec::new(),
         death_messages: Vec::new(),
@@ -393,6 +396,33 @@ pub fn hit_points(world: &mut World, kind: MonsterKindId) -> i32 {
     world
         .get::<MonsterTypes>(entity)
         .and_then(|registry| registry.hit_points.get(kind.0 as usize).copied())
+        .unwrap_or(0)
+}
+
+/// Records every kind's speed, which a polymorph resets its victim to.
+///
+/// Reference: `monster::poly` sets `Creature::set_speed_base( type->speed )` (`monster.cpp:371`) - the new body moves at the new body's own pace, so a slow thing that
+/// becomes a fast thing is fast immediately. The number is the data's own and the registry is where the port keeps it.
+pub fn set_speeds(world: &mut World, entries: &[(MonsterKindId, i32)]) {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    if let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) {
+        for (kind, speed) in entries {
+            let index = kind.0 as usize;
+            if registry.speeds.len() <= index {
+                registry.speeds.resize(index + 1, 0);
+            }
+            registry.speeds[index] = *speed;
+        }
+    }
+}
+
+/// How fast a kind moves, or zero when the registry never said.
+#[must_use]
+pub fn speed_of(world: &mut World, kind: MonsterKindId) -> i32 {
+    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    world
+        .get::<MonsterTypes>(entity)
+        .and_then(|registry| registry.speeds.get(kind.0 as usize).copied())
         .unwrap_or(0)
 }
 

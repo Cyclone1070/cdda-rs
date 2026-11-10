@@ -4483,3 +4483,38 @@ pub fn best_quality(world: &mut World, creature: Entity, quality: &str) -> i32 {
     }
     best
 }
+
+/// Turns a creature into another kind, keeping how hurt it was.
+///
+/// Reference: `monster::poly` (`monster.cpp:363-386`): the hit **percentage** survives the change and is applied to the new body's hit points, so a zombie at half health
+/// that becomes something with a hundred hit points has fifty. Moves are spent (`moves = 0`) and the speed becomes the new body's own - and the rest of the reference's
+/// body swap (anger, morale, faction, special attack cooldowns) belongs to the AI phase the port has not reached.
+pub fn poly(world: &mut World, who: Entity, kind: crate::MonsterKindId) {
+    let Some(health) = world.get::<Health>(who).copied() else {
+        return;
+    };
+    // Reference: `hp / type->hp` - the **kind's** own ceiling, not whatever a caller set as this body's maximum. A monster spawned hurt keeps its share of its type's
+    // health, which is also what makes the reference's percentage survive a change of body. A kind the registry never stated falls back to the body's own maximum.
+    let of_kind = world.get::<CreatureKind>(who).map(|held| held.0);
+    let of_kind = of_kind.map_or(0, |kind| crate::monster_registry::hit_points(world, kind));
+    let ceiling_before = if of_kind > 0 { of_kind } else { health.max_hp };
+    #[allow(clippy::cast_precision_loss)]
+    let fraction = if ceiling_before > 0 {
+        f64::from(health.hp) / f64::from(ceiling_before)
+    } else {
+        1.0
+    };
+    let ceiling = crate::monster_registry::hit_points(world, kind);
+    set_kind(world, who, kind);
+    #[allow(clippy::cast_possible_truncation)]
+    let new_hp = (fraction * f64::from(ceiling)).round() as i32;
+    if let Some(mut held) = world.get_mut::<Health>(who) {
+        held.hp = new_hp;
+        held.max_hp = ceiling;
+    }
+    set_moves(world, who, 0);
+    let speed = crate::monster_registry::speed_of(world, kind);
+    if world.get::<Speed>(who).is_some() {
+        set_speed(world, who, speed, 0);
+    }
+}

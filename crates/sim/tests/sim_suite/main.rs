@@ -214,6 +214,7 @@ mod weather;
 mod spell_costs;
 mod spell_effects;
 mod spell_morale;
+mod spell_polymorph;
 mod spell_timed_event;
 mod spell_effects_coverage;
 mod sounds;

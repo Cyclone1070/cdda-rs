@@ -45,6 +45,27 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can turn one monster into another (round 1447)
+
+`targeted_polymorph` is three spells - the yrax's own - and its rule is about what **survives** a change of body.
+
+| Piece | Reference | Port |
+|---|---|---|
+who | only a monster, and only while `hp < damage` (`magic_spell_effect.cpp:746-750`) | the same, with the strictness gated at the boundary |
+what | `monster::poly( new_id )` (`monster.cpp:363-386`) | `creature::poly` |
+the body | the hit **percentage** moves to the new type's ceiling | the same, and taken from the **kind's** registry hit points rather than a body's own maximum |
+speed | `set_speed_base( type->speed )`, moves to zero | the same, from a speed the registry now carries |
+
+The percentage is the trap. A victim spawned at half its kind's health must come out at half of the **new** kind's health; dividing by the body's own maximum instead reads
+1.0 and hands back a whole new body - which is what the port did first and what the gate caught. The reference divides by `type->hp`, the kind's number, so the registry now
+answers it.
+
+**Named, not invented**: the reference fills an empty `effect_str` with a random monster of nearby difficulty, drawn from the whole monster list in load order. The port's
+registry has neither a difficulty field nor a load-ordered list, so `activate_yrax` - whose `effect_str` is empty - does nothing, and this paragraph is why. The rest of
+`poly` (anger, morale, faction, special-attack cooldowns) is AI-phase work.
+
+Twelve effect kinds are ported now of the data's thirty-two, and **208 of 245 spells** name one of them.
+
 ## A spell can make a person feel something (round 1446)
 
 `morale` is two spells, and the rule they test is **who has feelings at all**.
