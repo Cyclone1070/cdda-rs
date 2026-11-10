@@ -100,11 +100,18 @@ pub struct Blast {
 
 /// Runs one blast.
 ///
-/// **Declared gaps:** the creatures and items on the squares, the fragments and shrapnel, the fire the blast starts, the sound it makes, the `NATURAL_UNDERGROUND` roof it
-/// puts back afterwards, and the drawing. `rolls` is the jitter the reference draws once per square it pops — handed in rather than drawn, so a recording is the rule and not the
-/// state of the generator; a short list is padded with ones, which is the unjittered geometry.
+/// **Declared gaps:** the creatures and items on the squares are the caller's ([`crate::explosion`] damages the creatures), the fragments and shrapnel, the fire the blast
+/// starts, the sound it makes, the `NATURAL_UNDERGROUND` roof it puts back afterwards, and the drawing. `rolls` is the jitter the reference draws **once per square it pops** -
+/// `rng_float( 1.0f, 1.2f )` - handed in as a source rather than drawn here, so a recording can hold it still: a source that always answers one is the unjittered geometry,
+/// which is what the recorded corpus pins.
 #[must_use]
-pub fn blast(grid: &impl BlastGrid, power: f32, factor: f32, fire: bool, rolls: &[f32]) -> Blast {
+pub fn blast(
+    grid: &impl BlastGrid,
+    power: f32,
+    factor: f32,
+    fire: bool,
+    rolls: &mut dyn FnMut() -> f32,
+) -> Blast {
     let mut outcome = Blast {
         pops: Vec::new(),
         centre_force: if fire { power } else { 2.0 * power },
@@ -120,13 +127,13 @@ pub fn blast(grid: &impl BlastGrid, power: f32, factor: f32, fire: bool, rolls: 
     let mut distance_of: BTreeMap<(i32, i32, i32), f32> = BTreeMap::new();
     queue.push(0.0, (0, 0, 0));
     distance_of.insert((0, 0, 0), 0.0);
-    let mut next_roll = 0_usize;
     // A square bashed by a blast is bashed **once**: the reference keeps a set of them, so a wavefront that reaches a square twice does not hit it twice.
     bashed.insert((0, 0, 0));
     while let Some((distance, (x, y, z))) = queue.pop() {
-        let roll = rolls.get(next_roll).copied().unwrap_or(1.0);
-        next_roll += 1;
-        let distance = distance * roll;
+        // **A roll per pop, including the centre.** The reference draws it for every square it pops and multiplies the distance by it, which for the centre is zero either way -
+        // so a source that answers one for every pop is exactly the unjittered geometry the recorded corpus pins, and a source that draws from the game's generator is the
+        // rule the game runs.
+        let distance = distance * rolls();
         if !closed.insert((x, y, z)) {
             continue;
         }

@@ -1719,3 +1719,8 @@ though the price is refunded afterwards.
 **Round 1450 moved a character's pools.** `recover_energy` names its pool in `effect_str` and its amount in the spell's damage, and a negative amount **spends** - which is what
 four of the content's six spells do. The pain branch is the reference's own documented oddity: `mod_pain( -healing )`, so the gate pins -5 damage becoming five pain and fails
 when the negation goes. `BIONIC` keeps its quirk too (positive charges the power pool, negative is spent as stamina).
+
+**Round 1451 taught a spell to explode.** The geometry already existed and was gated by a recording; this round added the creature half of `do_blast` - a monster's single
+blow against half its armour, a character's six blows against scaled armour - and the jitter became a *source* rather than a list so a spell can draw it from the game's own
+generator without changing what the recording pins. The falloff gate earned its keep: replacing the factor with one made the centre and three squares out both hit for two
+hundred, which is the assertion's whole point.

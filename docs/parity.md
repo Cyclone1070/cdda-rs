@@ -45,6 +45,32 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can explode (round 1451)
+
+`explosion` is five spells and one reference call: `explosion_handler::explosion( &caster, target, sp.damage( caster ), sp.aoe( caster ) / 10.0, true )`. The blast's geometry
+was ported rounds ago and gated by a recording; what was missing was the **creature half**, which is now [`crate::explosion`].
+
+| Piece | Reference | Port |
+|---|---|---|
+the force | `power * factor ^ distance`, the falloff jittered per square by `rng_float(1.0, 1.2)` | the same, the jitter drawn from the store's generator |
+a monster | `max( force - armour / 2, 0 )`, then `rng_float( dmg * 2, dmg * 3 )` (`explosion.cpp:413-421`) | the same two steps |
+a character | six blows, one per blastable part, `rng( force * low, force * high )` against `armour * 0.5` (head, torso) or `0.4` (limbs) (`:433-462`) | the same six parts with the same multipliers, recorded in the port's wound list |
+the spell | damage as the force, area over ten as the falloff, **fire always on** | the same three numbers |
+
+Two design notes worth stating rather than hiding:
+
+* **The blast's jitter is now a source, not a list.** `blast` takes `&mut dyn FnMut() -> f32`, so a recording holds it still at one and a spell draws from the game's own
+  generator. The recorded corpus is the unjittered geometry, which is what made the change safe: the gates that pin it pass a source that always answers one.
+* **A character's six blows are recorded as wounds and their total is taken from health.** The reference's per-part hit points are a model the port does not have - it keeps one
+  `Health` and a wound list - so the total is what reaches the pool and each part's share is what the wound list keeps. That is a translation of the reference's arithmetic into
+  the port's one-store shape, not a new rule, and this paragraph is where it is written down.
+
+**Named, not invented**: the reference's same loop also starts fires, smashes items, damages vehicles, throws shrapnel and bashes the terrain. None of those are ported, and
+`crate::blast`'s own doc has carried that list since the geometry landed. The fire the spell's `true` asks for is the largest of them and is now named twice - here and there -
+rather than being quietly skipped.
+
+Fifteen effect kinds are ported now of the data's thirty-two, and **223 of 245 spells** name one of them.
+
 ## A spell can move a character's pools, in either direction (round 1450)
 
 `recover_energy` is six spells, and its name is misleading in a way the reference itself documents: **a negative amount spends**. Four of the six are drains.

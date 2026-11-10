@@ -94,12 +94,13 @@ fn an_effect_the_port_does_not_know_spends_nothing_and_says_so() {
     let mut world = World::new();
     let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
     let other = cdda_sim::creature::spawn_creature(&mut world, "other", (0, 0, 0));
-    let spell = a_spell("explosion", 5, 0);
+    // A kind the data never names, so the gate cannot be quietly satisfied by a later round porting it.
+    let spell = a_spell("summon_bats", 5, 0);
 
     assert_eq!(
         spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
         Effective::NotPorted,
-        "`explosion` is in the data and not in the port, and it says so rather than pretending"
+        "**an effect kind the port has no rule for answers `NotPorted`** rather than pretending to have done something"
     );
     assert_eq!(
         cdda_sim::creature::moves_left(&world, other),
@@ -139,8 +140,8 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        14,
-        "fourteen effects are ported, out of the {} the game names",
+        15,
+        "fifteen effects are ported, out of the {} the game names",
         named.len()
     );
 }

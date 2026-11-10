@@ -51,6 +51,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("targeted_polymorph", targeted_polymorph),
     ("dash", dash),
     ("recover_energy", recover_energy),
+    ("explosion", explosion),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -269,6 +270,36 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// An `explosion` spell is a blast at the square it landed on.
+///
+/// Reference: `spell_effect::explosion` (`magic_spell_effect.cpp:1463-1467`): one call -
+/// `explosion_handler::explosion( &caster, target, sp.damage( caster ), sp.aoe( caster ) / 10.0, true )`. The damage is the blast's force at its centre, the area divided by ten
+/// is what the force is multiplied by per square of distance, and **the blast always sets things on fire**.
+fn explosion(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(power) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    let Some(area) = spell.area.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let power = power as f32;
+    #[allow(clippy::cast_possible_truncation)]
+    let factor = (area / 10.0) as f32;
+    let outcome = crate::explosion::explode(world, Some(caster), centre, power, factor, true);
+    if outcome.struck.is_empty() {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

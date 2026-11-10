@@ -208,7 +208,7 @@ fn compare(case: &Case, data: &BTreeMap<String, MapData>, half: i32) -> (Vec<Str
     let width = usize::try_from(half * 2 + 1).expect("small");
     assert_eq!(case.room.len(), width * width, "the room is square");
     let grid = room(case, data, half, width);
-    let outcome = blast(&grid, case.power, case.factor, case.fire, &[]);
+    let outcome = blast(&grid, case.power, case.factor, case.fire, &mut || 1.0);
     // Only the squares inside the room are compared: a blast's reach past a wall it cannot break is real, but it is a function of terrain the fixture does not own.
     let ours: Vec<(i32, i32, f32)> = outcome
         .hits
@@ -387,7 +387,7 @@ fn the_wavefront_pops_the_same_squares_in_the_same_order() {
         let recorded = recorded_pops(row);
         let width = usize::try_from(half * 2 + 1).expect("small");
         let grid = room(case, &data, half, width);
-        let outcome = blast(&grid, case.power, case.factor, case.fire, &[]);
+        let outcome = blast(&grid, case.power, case.factor, case.fire, &mut || 1.0);
         // Every level the dump records, which is every level the sealed fixture lets the wavefront reach.
         let ours: Vec<(i32, i32, i32, i32, i32)> = outcome
             .pops
