@@ -36,6 +36,34 @@ pub fn cover(
     }
 }
 
+/// Where a blast actually lands: the aim point, or the last passable square before a wall.
+///
+/// Reference: `calculate_spell_effect_area` (`magic_spell_effect.cpp:447-465`): for a **blast** without `NO_PROJECTILE`, the spell's trajectory from the caster to the aim point is
+/// walked and the first impassable square **stops** it - the epicentre moves back to the square before the wall, or onto the wall itself when the wall is the first square. A
+/// spell with `NO_PROJECTILE` (54 of the data's 245) is not stopped at all, which is what lets a blast land on the far side of a wall.
+#[must_use]
+pub fn epicentre(
+    source: (i32, i32, i32),
+    target: (i32, i32, i32),
+    stops_at_walls: bool,
+    passable: &dyn Fn((i32, i32, i32)) -> bool,
+) -> (i32, i32, i32) {
+    if !stops_at_walls {
+        return target;
+    }
+    let mut previous = source;
+    let mut first = true;
+    for square in crate::line::between((source.0, source.1), (target.0, target.1)) {
+        let at = (square.0, square.1, target.2);
+        if !passable(at) {
+            return if first { at } else { previous };
+        }
+        first = false;
+        previous = at;
+    }
+    target
+}
+
 /// A square area: every square within `area` on both axes, on the target's level.
 ///
 /// Reference: `spell_effect_blast` (`magic_spell_effect.cpp:200-228`): the radius is the spell's area, and a blast is square because `trigdist` is not consulted for it.

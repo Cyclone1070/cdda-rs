@@ -55,7 +55,10 @@ fn a_world() -> (World, Entity) {
     cdda_sim::bash::set_data(&mut world, loaded);
     // A generator that answers the bottom of every range, so a hit that can break the wall does.
     cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(7));
-    let caster = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
+    // **Adjacent to the fence, because a blast stops at the first wall it meets**: aiming from four squares away puts the epicentre on the near side of the fence and bashes
+    // the floor instead, which is exactly what the reference's `calculate_spell_effect_area` does. Aimed at from the next square, the fence itself is the first square of
+    // the trajectory and the blast lands on it.
+    let caster = cdda_sim::spawn_player(&mut world, (1, 0), 80, 0);
     cdda_sim::PositionIndex::rebuild(&mut world);
     (world, caster)
 }

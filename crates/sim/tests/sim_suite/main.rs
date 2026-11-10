@@ -231,6 +231,7 @@ mod spell_shapes;
 mod spell_ter_transform;
 mod spell_timed_event;
 mod spell_vomit;
+mod spell_walls;
 mod spell_effects_coverage;
 mod sounds;
 mod spell_data;

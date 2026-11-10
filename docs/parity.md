@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Two wall rules, now that spells have flags (round 1464)
+
+Both were one line once the flags existed, and both are rules the port had been quietly getting wrong.
+
+| Rule | Reference | Port |
+|---|---|---|
+where a blast lands | `calculate_spell_effect_area` (`magic_spell_effect.cpp:447-465`): a blast's trajectory from caster to aim point stops at the first impassable square, and the epicentre backs up to the square before it | `spell_area::epicentre`, called from the effect's area rule |
+who is not stopped | `NO_PROJECTILE`, **54 of the data's 245 spells** | the same, read from the spell's flags |
+whether a jump may kill | `spell_effect::short_range_teleport` (`:159-182`): `safe = !sp.has_flag( UNSAFE_TELEPORT )` | the same, and the one spell that carries the flag is the one that can jump into a wall and die |
+
+**A mutation survived, and it was the test's fault.** My first version of the blast gate rebuilt the epicentre arithmetic inside the test, so inverting the production flag changed
+nothing the gate could see. The lesson is the one this file keeps relearning: a gate that re-implements the rule proves the re-implementation. `squares_in_area` is public now -
+it is a rule, not plumbing - and the gate asks it, after which the inversion fails immediately.
+
+**One existing gate had to move, and its movement is the proof.** The bash gate aimed a blast at a chain fence four squares away and expected the fence to break. With the
+stop-short rule in place the epicentre lands on the square **before** the fence and bashes the floor instead - which is what the reference does too, and why the data's own
+`AEA_PULSE_bash_terrain` carries no `NO_PROJECTILE`. The gate now aims from the next square, where the fence is the first square of the trajectory and the blast lands on it.
+
 ## Spells finally know their own flags (round 1463)
 
 Four ported effects carried a named gap that all said the same thing: *the port does not load spell flags*. The oracle now dumps them, and three of those gaps are closed by

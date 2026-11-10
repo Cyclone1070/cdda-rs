@@ -1779,3 +1779,8 @@ which my first expectation got wrong and the rule got right.
 array, the patch was regenerated and verified, the oracle rebuilt and re-dumped, and only then did the loader learn to read them. The counts are the data's and are pinned: 233
 of 245 spells carry a flag, 126 are silent, 7 pass through walls, 54 are not stopped short by one, 29 are permanent, one teleport is unsafe and none may re-charm. Three rules
 now read the flag rather than a constant: charm's `RECHARM`, bash's `SILENT`, and the cone/line wall test. Turning the reader off fails the count gate with `0` against `233`.
+
+**Round 1464 spent the flags on two wall rules.** A blast now stops short at a wall unless the spell carries `NO_PROJECTILE` (54 spells), and a jump that lands in a wall kills
+only when the spell carries `UNSAFE_TELEPORT` - the safe one refuses after twenty tries, and the gate holds both against a plateau with nowhere else to land. The blast gate's
+first version rebuilt the epicentre arithmetic instead of asking for it, so the mutation survived; `squares_in_area` is public now, the gate asks the rule, and the inversion
+fails where it should.

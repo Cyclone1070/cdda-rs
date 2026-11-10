@@ -214,7 +214,9 @@ fn area_of(spell: &Spell, level: i32) -> i32 {
 /// Reference: `spell_effect_area` (`magic_spell_effect.cpp:229-296`): the shape decides. A **blast** is a square of half-width `area` on both axes; a **cone** runs from
 /// the caster towards where the spell landed, `area / 2` degrees to either side and `range` squares long, stopping at walls. The dispatch lives in
 /// [`crate::spell_area::cover`] so that "which squares" is one readable question rather than a table of shapes inside an effect.
-fn squares_in_area(
+///
+/// It is public because it **is** a rule rather than plumbing: the wall the blast stops at, and the shape it covers, are answers a caller can hold up to the reference.
+pub fn squares_in_area(
     world: &World,
     caster: Entity,
     spell: &Spell,
@@ -226,13 +228,20 @@ fn squares_in_area(
     };
     #[allow(clippy::cast_possible_truncation)]
     let range = spell.range.at(level).unwrap_or(0.0).max(0.0) as i32;
+    let passable = |square: (i32, i32, i32)| crate::routing::square_cost(world, square).is_some();
+    // Reference: only a blast is stopped short by a wall (`sp.shape() == spell_shape::blast`), and only when the spell does not carry `NO_PROJECTILE`.
+    let centre = if spell.shape == "blast" && !spell.has_flag("NO_PROJECTILE") {
+        crate::spell_area::epicentre(source, centre, true, &passable)
+    } else {
+        centre
+    };
     crate::spell_area::cover(
         &spell.shape,
         source,
         centre,
         area_of(spell, level),
         range,
-        &|square| crate::routing::square_cost(world, square).is_some(),
+        &passable,
         spell.has_flag("IGNORE_WALLS"),
     )
 }
@@ -282,7 +291,10 @@ fn short_range_teleport(
     let min_distance = range.max(0.0) as i32;
     #[allow(clippy::cast_possible_truncation)]
     let area = spell.area.at(level).unwrap_or(0.0).max(0.0) as i32;
-    match crate::teleport::creature(world, caster, min_distance, min_distance + area, true) {
+    // Reference: `const bool safe = !sp.has_flag( spell_flag::UNSAFE_TELEPORT );` (`magic_spell_effect.cpp:162`) - **one spell in this content** carries the flag, and an unsafe
+    // jump lands wherever the draw says even if that square kills.
+    let safe = !spell.has_flag("UNSAFE_TELEPORT");
+    match crate::teleport::creature(world, caster, min_distance, min_distance + area, safe) {
         crate::teleport::Teleport::Moved { .. } => Effective::Done,
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
