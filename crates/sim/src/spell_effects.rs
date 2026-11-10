@@ -47,6 +47,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("effect_on_condition", effect_on_condition),
     ("short_range_teleport", short_range_teleport),
     ("timed_event", timed_event),
+    ("morale", morale),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -258,6 +259,63 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `morale` spell makes the people its area covers feel something.
+///
+/// Reference: `spell_effect::morale` (`magic_spell_effect.cpp:1503-1527`): the spell's `effect_str` names a **morale type**, its damage is the bonus, its duration is how
+/// long the feeling lasts, and a tenth of the duration is when it starts to fade. Only creatures of the character kind are affected - a monster has no morale to move -
+/// and a spell whose type the data does not define is refused whole rather than applied to nobody in particular.
+fn morale(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    if spell.effect_str.is_empty() || !crate::morale::is_known(world, &spell.effect_str) {
+        return Effective::NothingAffected;
+    }
+    let Some(bonus) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    let Some(seconds) = spell.duration.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let bonus = bonus as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let turns = seconds.max(0.0) as i64;
+    let mut felt = 0;
+    for square in squares_in_area(spell, level, centre) {
+        for held in crate::creature::creature_at(world, square) {
+            // Reference: `creatures.creature_at<Character>` - a monster has no morale.
+            let person = world.get::<crate::Player>(held).is_some()
+                || crate::npcs::is_npc(world, held);
+            if !person {
+                continue;
+            }
+            crate::morale::add(
+                world,
+                held,
+                crate::morale::MoralePoint {
+                    kind: spell.effect_str.clone(),
+                    bonus,
+                    max_bonus: 0,
+                    duration: turns,
+                    decay_start: turns / 10,
+                    age: 0,
+                    capped: false,
+                },
+            );
+            felt += 1;
+        }
+    }
+    if felt == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

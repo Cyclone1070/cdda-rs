@@ -96,3 +96,21 @@ fn a_drop_type_says_whether_it_names_an_item_group() {
         "and flesh, which is what most of a body gives, is an item type"
     );
 }
+
+#[test]
+fn the_data_defines_ninety_one_morale_types() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../oracle/src/data/json/morale_types.json")
+        .to_string_lossy()
+        .into_owned();
+    let kinds = cdda_content::morale_types::load(&[&path]).expect("the morale types");
+    assert_eq!(
+        kinds.len(),
+        91,
+        "**ninety-one morale types**, which is what a spell's `effect_str` is checked against"
+    );
+    assert!(
+        kinds.contains("morale_feeling_good") && kinds.contains("morale_scream"),
+        "including the two the content's spells name"
+    );
+}

@@ -207,3 +207,35 @@ pub fn remove_kind(world: &mut World, creature: Entity, kind: &str) -> bool {
 pub const fn has_morale_to_read(morale_level: i32) -> bool {
     morale_level >= -40
 }
+
+/// The morale types the game's data defines, by id.
+///
+/// Reference: `morale_type::is_valid()` (`morale.cpp:60-80`). It matters because a spell whose `effect_str` names a type nobody defined is **refused** - the reference
+/// reports it and applies nothing - and a port that added the point anyway would give a character a feeling no content ever described.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct MoraleTypes(pub std::collections::BTreeSet<String>);
+
+/// Marks the entity holding the morale types.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TheMoraleTypes;
+
+/// Records every morale type the data defines.
+pub fn set_types(world: &mut World, kinds: &[String]) {
+    let entity = crate::singletons::singleton::<MoraleTypes, TheMoraleTypes>(world);
+    if let Some(mut table) = world.get_mut::<MoraleTypes>(entity) {
+        table.0 = kinds.iter().cloned().collect();
+    }
+}
+
+/// Whether the data defines a morale type, which is what the reference asks before it adds one.
+#[must_use]
+pub fn is_known(world: &World, kind: &str) -> bool {
+    let mut query = world.try_query_filtered::<&MoraleTypes, With<TheMoraleTypes>>();
+    let Some(mut query) = query else {
+        return false;
+    };
+    query
+        .iter(world)
+        .next()
+        .is_some_and(|known| known.0.contains(kind))
+}

@@ -1695,3 +1695,8 @@ Nine of the data's thirty-two effect kinds are ported and 200 of 245 spells name
 kept. The gate follows the real AEA_LIGHT from the data: booked for eighteen thousand turns, still pending at 17,999, due at exactly 18,000. And it pins the reference's own
 case sensitivity - `death_triffid_heart` says `ROOTS_DIE`, the reference's table is lowercase, so the spell books nothing - which makes a case-insensitive lookup fail the gate.
 Ten of thirty-two effect kinds ported, 203 of 245 spells covered.
+
+**Round 1446 taught a spell to make people feel things.** `morale` joins a spell's numbers to the port's morale store: a tenth of the duration is the fade, the damage is the
+bonus, and only characters are reached - a monster standing on the same square is skipped, which the gate checks by standing one there. It also needed a piece the port did
+not have: the data's 91 morale types, loaded as content and held in a singleton, because the reference refuses a spell whose `effect_str` names a type nobody defined. With
+that check removed the unknown type adds a point and the gate fails on the count.

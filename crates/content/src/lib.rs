@@ -46,6 +46,7 @@ pub mod pockets;
 pub mod use_actions;
 pub mod martial_arts;
 pub mod materials;
+pub mod morale_types;
 pub mod weather;
 pub mod weapon_categories;
 pub mod mods;

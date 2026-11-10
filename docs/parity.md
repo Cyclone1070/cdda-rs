@@ -45,6 +45,22 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can make a person feel something (round 1446)
+
+`morale` is two spells, and the rule they test is **who has feelings at all**.
+
+| Piece | Reference | Port |
+|---|---|---|
+who | `creatures.creature_at<Character>` only (`magic_spell_effect.cpp:1517-1522`) | a person is a creature with `Player` or `Npc`; a monster is skipped |
+what | `add_morale( type, damage, 0, duration, duration / 10, false )` (`:1523-1525`) | the same five numbers, a tenth of the duration being when it fades |
+which type | `morale_type( effect_str ).is_valid()`, checked **before** the walk (`:1511-1515`) | a registry of the data's 91 types, installed by the game |
+
+The type registry is the piece that did not exist: `morale_types.json` defines 91 types, and the reference refuses a spell whose `effect_str` names one nobody defined. The port
+adds the list as content, holds it in a singleton, and asks it before it touches anybody - which is why the gate's second half is not "the spell did nothing" but "**the person
+still feels exactly one thing**": with the check removed, the unknown type adds a point and the count goes to two.
+
+Eleven effect kinds are ported now of the data's thirty-two, and **205 of 245 spells** name one of them.
+
 ## A spell can book something for later (round 1445)
 
 `timed_event` is three spells, and it is the first effect that writes nothing to a creature and everything to the **world's clock**.

@@ -895,6 +895,12 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
         cdda_sim::monster_registry::set_broken_itype(world, kind, &monster.broken_itype);
         cdda_sim::monster_registry::set_death_drops(world, kind, &monster.death_drops);
     }
+    // **The morale types**, which a spell's `effect_str` is checked against before a character is made to feel anything (`magic_spell_effect.cpp:1511-1515`). Installed
+    // from the data for the same reason the harvest tables are: the list is the game's, not the port's.
+    if let Ok(kinds) = cdda_content::morale_types::load(&["../../oracle/src/data/json/morale_types.json"]) {
+        let named: Vec<String> = kinds.into_iter().collect();
+        cdda_sim::morale::set_types(world, &named);
+    }
     // What each body butchers into, from the reference's own harvest definitions, and what it weighed while it was alive.
     install_harvests(
         world,
