@@ -228,6 +228,7 @@ mod spell_revive;
 mod spell_polymorph;
 mod spell_recover_energy;
 mod spell_shapes;
+mod spell_sound;
 mod spell_ter_transform;
 mod spell_timed_event;
 mod spell_vomit;

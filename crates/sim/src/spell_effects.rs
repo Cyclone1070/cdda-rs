@@ -161,11 +161,10 @@ fn noise(
     level: i32,
     centre: (i32, i32, i32),
 ) -> Effective {
-    let Some(damage) = spell.damage.at(level) else {
+    // Reference: `spell_effect::noise` passes `sp.damage( caster )` straight through, and that is the **truncated** integer rather than the rounded one.
+    let Some(volume) = crate::spellcasting::damage_of(spell, level) else {
         return Effective::NothingAffected;
     };
-    #[allow(clippy::cast_possible_truncation)]
-    let volume = damage.round() as i32;
     if crate::sounds::make_sound(world, centre, volume).is_some() {
         Effective::Done
     } else {

@@ -1794,3 +1794,7 @@ standing on the twenty-ninth - and dropping the deadline entirely fails the firs
 `HOSTILE_50` (1 spell) making it a draw - and the friendly count is `INT_MAX` while a hostile one is zero. The placement was rewritten to draw from the spell's **own area**,
 which deleted `ring_offset`: a spiral of the port's own invention that agreed with the reference only while the blast happened to be centred on the caster. Removing the
 hostility flag from the rule fails the gate on the hostile half.
+
+**Round 1467 pinned a spell's loudness and its truncating damage.** `spell::sound_volume` is `SILENT` first, then `abs( damage ) / 3`, with `LOUD` adding `1 + damage / 3` - so
+nine damage is three, and nine loud damage is seven, which is the sum the gate states instead of the formula. `spell::damage` truncates toward zero, so 2.5 is 2 and -2.5 is -2,
+and the `noise` effect now takes that number rather than a rounded one. Both mutations fail: dropping the absolute value makes a healing spell silent, and rounding makes 2.5 into 3.

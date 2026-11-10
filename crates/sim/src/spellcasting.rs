@@ -227,6 +227,44 @@ pub fn cast_attack(
     damage_one(world, spell, level, target, fraction)
 }
 
+/// The damage a spell does at a level, as the reference's integer.
+///
+/// Reference: `spell::damage` (`magic.cpp:816-840`) returns `min_leveled_damage( caster )`, which is
+/// `static_cast<int>( min_damage.evaluate( d ) + damage_increment * level )` - a **truncation toward zero**, not a rounding. That difference is invisible for the whole numbers most
+/// of the data uses and decides the answer for the halves: 2.5 damage is 2 to the reference.
+///
+/// **Named gap**: the reference's `RANDOM_DAMAGE` branch draws between the minimum and the maximum, and no dump carries which spells have it, so the port answers the minimum
+/// branch for every spell rather than drawing with a generator the data did not ask for.
+#[must_use]
+pub fn damage_of(spell: &Spell, level: i32) -> Option<i32> {
+    let damage = spell.damage.at(level)?;
+    #[allow(clippy::cast_possible_truncation)]
+    let damage = damage as i32;
+    Some(damage)
+}
+
+/// How loud a spell is when it is cast the ordinary way.
+///
+/// Reference: `spell::sound_volume` (`magic.cpp:1630-1640`): nothing at all when the spell is `SILENT`; otherwise `abs( damage ) / 3`, with `LOUD` adding `1 + damage / 3`, and the
+/// whole thing multiplied by a temporary sound multiplier (which nothing in the port sets, so it is the identity) and clamped to at least zero.
+///
+/// **`SILENT` is checked here and not by every effect.** `spell_effect::noise` calls `make_sound( target, damage )` directly, so a silent spell that *is* a noise still makes one;
+/// what the flag silences is the ordinary cast's own sound.
+#[must_use]
+pub fn sound_volume(spell: &Spell, level: i32) -> i32 {
+    if spell.has_flag("SILENT") {
+        return 0;
+    }
+    let Some(damage) = damage_of(spell, level) else {
+        return 0;
+    };
+    let mut loudness = damage.abs() / 3;
+    if spell.has_flag("LOUD") {
+        loudness += 1 + damage / 3;
+    }
+    loudness.max(0)
+}
+
 /// Applies an `attack` spell to one creature, once the cast has decided it is in reach.
 ///
 /// Reference: `damage_targets` (`magic_spell_effect.cpp:546-563`), which is what every attack does to each thing it reaches:

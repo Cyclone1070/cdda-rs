@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## How loud a spell is, and the difference between truncating and rounding (round 1467)
+
+The port's `noise` effect rounded its damage to a volume; the reference truncates it, and loudness is a third of that same number.
+
+| Piece | Reference | Port |
+|---|---|---|
+the damage | `spell::damage` (`magic.cpp:816-840`) returns `static_cast<int>` of the scaled value - **truncation toward zero** | `spellcasting::damage_of`, and 2.5 damage is 2 |
+the volume | `spell::sound_volume` (`:1630-1640`): `SILENT` is zero, else `abs( damage ) / 3`, `LOUD` adds `1 + damage / 3`, clamped at zero | `spellcasting::sound_volume` |
+the effect | `spell_effect::noise` passes `sp.damage( caster )` **straight through** as a loudness | the same, through `damage_of` |
+the flag's reach | `SILENT` is checked by `sound_volume`, not by `noise` - a silent spell that *is* a noise still makes one | the same, and the doc says so where a reader would otherwise assume the flag covers everything |
+
+**Truncation is not rounding, and the data hides the difference.** Every whole number behaves the same either way; the halves do not, and a spell whose damage is 2.5 is a
+quarter louder under `round()`. The gate pins the three cases that separate the rules: 2.5 is 2, -2.5 is -2 (toward zero, not down), and 7 is 7.
+
+**A `LOUD` spell is nearly twice as loud as the arithmetic first suggests**: `9 / 3` of three, plus `1 + 9 / 3` of four, is seven. The gate states the sum rather than the
+formula, because the formula is what the port would get wrong by simplification.
+
+**Named gap**: the reference's `RANDOM_DAMAGE` branch draws between the spell's minimum and maximum damage, and no dump carries which spells carry the flag, so the port answers
+the minimum branch for all of them rather than drawing with a generator the data did not ask for.
+
 ## A summon has a side, and it lands inside its own blast (round 1466)
 
 Two rules the port had been making up.
