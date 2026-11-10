@@ -283,6 +283,9 @@ fn sounds_stage(world: &mut World) {
 
 fn creatures_stage(world: &mut World) {
     note(world, TurnStage::Creatures);
+    // Reference: `Creature::process_turn` opens with `decrement_summon_timer()` (`creature.cpp:372-378`), so a summon whose lease ran out is gone **before** anything else in the
+    // turn looks at it - which is why this is the first thing the creatures stage does.
+    crate::summoned::expire(world);
     // What every creature is wearing is worked out before anything acts: a blow this turn asks what the armour
     // was at the start of it, not what it became afterwards.
     focus_stage(world);

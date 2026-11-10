@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A summon has a lease, and `PERMANENT` means no lease at all (round 1465)
+
+The port's summons were permanent whether the spell said so or not - which was invisible, because nothing counted a summon's life down.
+
+| Piece | Reference | Port |
+|---|---|---|
+the lease | `Creature::set_summon_time( length )` stores `calendar::turn + length` (`creature.cpp:2249-2252`) | `summoned::set_summon_time`, an **absolute** deadline |
+the expiry | `decrement_summon_timer` (`:2263-2272`): past the deadline the creature `die( &get_map(), nullptr )` | `summoned::expire`, called first in the creatures stage |
+the flag | `summon` calls `set_summon_time` **unless** `PERMANENT` (`magic_spell_effect.cpp`) | the same; **29 spells** in this content are permanent |
+the edge | `lifespan_end <= calendar::turn` - the deadline is **inclusive** | the same, and the mutation that makes it exclusive fails on the thirtieth turn |
+
+**A deadline, not a countdown.** The reference stores the turn the lease ends on and compares it against the clock; a port that stored "turns left" and decremented it would agree
+only while every turn is one unit, and would drift the moment a rule changed the clock. The gate pins the edge that a countdown hides: at the thirtieth turn the summon ends, at
+the twenty-ninth it stands.
+
+**`PERMANENT` is the absence of a deadline**, not a very long one. The reference simply never calls `set_summon_time`, so a permanent creature has nothing to check; the port says
+the same thing by not adding the component, and the gate runs the clock to ten million turns to prove nothing expires.
+
 ## Two wall rules, now that spells have flags (round 1464)
 
 Both were one line once the flags existed, and both are rules the port had been quietly getting wrong.

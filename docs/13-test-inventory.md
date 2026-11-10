@@ -1784,3 +1784,8 @@ now read the flag rather than a constant: charm's `RECHARM`, bash's `SILENT`, an
 only when the spell carries `UNSAFE_TELEPORT` - the safe one refuses after twenty tries, and the gate holds both against a plateau with nowhere else to land. The blast gate's
 first version rebuilt the epicentre arithmetic instead of asking for it, so the mutation survived; `squares_in_area` is public now, the gate asks the rule, and the inversion
 fails where it should.
+
+**Round 1465 gave summons a lease.** `Creature::set_summon_time` stores an **absolute** deadline and `decrement_summon_timer` kills the creature when the clock passes it, and the
+port now does both: `summoned::Summoned { ends_on }`, expired at the top of the creatures stage, because that is where `Creature::process_turn` puts the check. `PERMANENT` (29
+spells) is the absence of the deadline rather than a long one, so a permanent summon carries no component at all. The gates pin the inclusive edge - gone on the thirtieth turn,
+standing on the twenty-ninth - and dropping the deadline entirely fails the first one.

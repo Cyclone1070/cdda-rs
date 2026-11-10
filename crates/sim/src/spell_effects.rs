@@ -1074,7 +1074,15 @@ fn summon(
         if !crate::creature::creature_at(world, (square.0, square.1, centre.2)).is_empty() {
             continue;
         }
-        crate::spawn_monster(world, square, kind, hp);
+        let spawned = crate::spawn_monster(world, square, kind, hp);
+        // Reference: `if( !sp.has_flag( spell_flag::PERMANENT ) ) { mon->set_summon_time( sp.duration_turns( caster ) ); }` - a permanent summon simply has no deadline, which
+        // is the reference's own way of saying "for good".
+        if !spell.has_flag("PERMANENT")
+            && let Some(seconds) = spell.duration.at(level)
+        {
+            #[allow(clippy::cast_possible_truncation)]
+            crate::summoned::set_summon_time(world, spawned, seconds.max(0.0) as i64);
+        }
         made += 1;
     }
     if made == 0 {

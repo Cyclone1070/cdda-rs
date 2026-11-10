@@ -85,6 +85,7 @@ pub mod spell_line;
 pub mod spell_effects;
 pub mod spell_types;
 pub mod spellcasting;
+pub mod summoned;
 pub mod pathfinding;
 pub mod routing;
 pub mod fire_facts;
