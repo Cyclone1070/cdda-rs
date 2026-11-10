@@ -46,6 +46,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("summon", summon),
     ("effect_on_condition", effect_on_condition),
     ("short_range_teleport", short_range_teleport),
+    ("timed_event", timed_event),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -258,6 +259,47 @@ fn short_range_teleport(
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
     }
+}
+
+/// The event names a `timed_event` spell may schedule, exactly as the reference spells them.
+///
+/// Reference: the map at `magic_spell_effect.cpp:1283-1293`. **It is matched case-sensitively**, and the data does not always agree with it: `death_triffid_heart` names
+/// `ROOTS_DIE`, which the reference's `find` misses, so it schedules its `NONE` sentinel instead - an event nothing can observe. The port schedules nothing in that case and says
+/// so rather than inventing a name the reference never matches.
+const TIMED_EVENT_NAMES: [&str; 9] = [
+    "help",
+    "spawn_wyrms",
+    "amigara",
+    "roots_die",
+    "temple_open",
+    "temple_flood",
+    "temple_spawn",
+    "dim",
+    "artifact_light",
+];
+
+/// A `timed_event` spell books an event for a time in the future.
+///
+/// Reference: `spell_effect::timed_event` (`magic_spell_effect.cpp:1281-1304`): the spell's `effect_str` names the event, the spell's duration says how far ahead, and the
+/// event is added at `calendar::turn + sp.duration_turns( caster )`.
+fn timed_event(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    _centre: (i32, i32, i32),
+) -> Effective {
+    if !TIMED_EVENT_NAMES.contains(&spell.effect_str.as_str()) {
+        return Effective::NothingAffected;
+    }
+    let Some(seconds) = spell.duration.at(level) else {
+        return Effective::NotPorted;
+    };
+    // Reference: `duration_turns` is the duration divided by one turn, and a turn **is** a second - so the number the dump states is the number of turns.
+    #[allow(clippy::cast_possible_truncation)]
+    let turns = seconds.max(0.0) as i64;
+    crate::timed_events::schedule(world, &spell.effect_str, turns);
+    Effective::Done
 }
 
 /// An `effect_on_condition` spell runs the program it names, once for each square of its area that holds a valid target.

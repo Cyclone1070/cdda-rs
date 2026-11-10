@@ -213,6 +213,7 @@ mod vision_levels;
 mod weather;
 mod spell_costs;
 mod spell_effects;
+mod spell_timed_event;
 mod spell_effects_coverage;
 mod sounds;
 mod spell_data;

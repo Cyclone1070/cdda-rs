@@ -45,6 +45,22 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can book something for later (round 1445)
+
+`timed_event` is three spells, and it is the first effect that writes nothing to a creature and everything to the **world's clock**.
+
+| Piece | Reference | Port |
+|---|---|---|
+the name | `effect_str` looked up in a table of nine (`magic_spell_effect.cpp:1283-1293`) | the same nine, **letter for letter** |
+the delay | the spell's duration in turns, and a turn is a second | the same number |
+the event | `get_timed_events().add( event, calendar::turn + duration )` | `timed_events::schedule`, the store the port already had |
+
+**The case matters, and the data gets it wrong.** `death_triffid_heart` names `ROOTS_DIE`; the reference's `std::map::find` misses, so it schedules its `NONE` sentinel - an event
+nothing ever asks about. The port schedules nothing, which is the same observable behaviour, and the gate is what stops a later round from "helpfully" lowercasing the name: with
+the lookup made case-insensitive the spell starts booking an event the content does not have.
+
+Ten effect kinds are ported now of the data's thirty-two, and **203 of 245 spells** name one of them.
+
 ## A teleport is drawn, and where it lands can kill you (round 1444)
 
 `short_range_teleport` is two spells, and it is the first movement rule in the port that is **not** a step: nothing walks, nothing is paid, and the creature arrives somewhere it

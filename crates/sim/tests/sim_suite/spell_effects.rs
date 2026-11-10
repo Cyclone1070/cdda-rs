@@ -139,8 +139,8 @@ fn the_port_can_do_one_effect_of_the_ones_the_game_names() {
     }
     assert_eq!(
         spell_effects::EFFECTS.len(),
-        9,
-        "nine effects are ported, out of the {} the game names",
+        10,
+        "ten effects are ported, out of the {} the game names",
         named.len()
     );
 }

@@ -1690,3 +1690,8 @@ victim as the speaker and the caster as the listener, exactly as `magic_spell_ef
 used as radians, which is the reference's own arithmetic - up to twenty redraws, and then one of three answers on landing: no teleport, a refusal when safe, or death when not.
 Three gates hold the dice still (angle zero, so the landing is exactly `distance` east), refuse and kill on the same impassable square, and drive the spell effect end to end.
 Nine of the data's thirty-two effect kinds are ported and 200 of 245 spells name one.
+
+**Round 1445 let a spell book the future.** `timed_event` schedules one of nine named events for a turn derived from the spell's duration, against the store the port already
+kept. The gate follows the real AEA_LIGHT from the data: booked for eighteen thousand turns, still pending at 17,999, due at exactly 18,000. And it pins the reference's own
+case sensitivity - `death_triffid_heart` says `ROOTS_DIE`, the reference's table is lowercase, so the spell books nothing - which makes a case-insensitive lookup fail the gate.
+Ten of thirty-two effect kinds ported, 203 of 245 spells covered.
