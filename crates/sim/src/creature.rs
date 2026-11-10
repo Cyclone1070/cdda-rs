@@ -378,6 +378,14 @@ pub struct Dodge {
     pub points: i32,
 }
 
+/// A body that leaves **no extra loot** when it dies.
+///
+/// Reference: `monster::no_extra_death_drops` (`monster.h:568`), which `monster::die` tests before `drop_items_on_death` and `spawn_dissectables_on_death` (`monster.cpp:3126-3129`).
+/// The corpse still falls and still holds what the body carried - what the flag suppresses is the `death_drops` group the type names, which is why a summoned monster does not
+/// scatter its loot over the floor. A creature without the component keeps the reference's default of `false`, so only a rule that sets it changes anything.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct NoExtraDeathDrops;
+
 /// The parts of a creature's body a blow can land on.
 ///
 /// Reference: a `Creature`'s anatomy (`src/anatomy.h`). A monster has none this port knows about, so the component
@@ -2226,6 +2234,9 @@ pub fn reap_dead_creatures_as_corpses(
         })
         .collect();
     for (entity, square, kind, revives, hp, max_hp, phantom, quiet_death) in &dead {
+        // Reference: `if( death_drops && !no_extra_death_drops )` (`monster.cpp:3126`) - a body told to leave no extra loot leaves none, and still leaves its corpse. Read here,
+        // at the top of the body's turn, so that everything the death goes on to do cannot change the answer halfway.
+        let leave_loot = world.get::<NoExtraDeathDrops>(*entity).is_none();
         // **A kill is reported before the body is gone.** Reference: `kill_tracker::report_killed` (`kill_tracker.cpp:120-130`) practises the dead body's weak-point families for whoever the blow named,
         // and the families are the body's own data. The port reads the killer from the component the killing blow left, because the body does not outlive this loop.
         if let Some(kind) = kind
@@ -2268,7 +2279,8 @@ pub fn reap_dead_creatures_as_corpses(
             // on. **Every body does this**, whatever it left behind - a robot that leaves scrap still drops what it carried, and a group the world does not hold drops nothing rather
             // than inventing an item.
             let group = crate::monster_registry::death_drops_of(world, *kind);
-            if !group.is_empty()
+            if leave_loot
+                && !group.is_empty()
                 && let Some(produced) = crate::item_groups::draw(world, &group)
             {
                 let names = crate::item_registry::snapshot(world);

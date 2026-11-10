@@ -45,6 +45,22 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A summoned body keeps its corpse and not its loot (round 1473)
+
+| Piece | Reference | Port |
+|---|---|---|
+the flag | `monster::no_extra_death_drops` (`monster.h:568`), default `false` | `creature::NoExtraDeathDrops`, **absent** meaning false |
+who sets it | `add_summoned_mon`: `no_extra_death_drops = !sp.has_flag( SPAWN_WITH_DEATH_DROPS )` (`magic_spell_effect.cpp:1343`) | the summon, unless **nine spells' worth** of the data say otherwise |
+what it suppresses | `monster::die` tests it before `drop_items_on_death` and `spawn_dissectables_on_death` (`monster.cpp:3126-3129`) | the `death_drops` draw, and nothing else |
+what it keeps | the corpse, and everything the body carried | the same |
+
+**Read once, at the top of the body's turn.** The reference tests the flag in the middle of `die`, which is fine when the flag cannot change; in the port the death path itself runs
+rules, so the answer is taken before any of them and cannot move halfway. That is a port decision, written down because the reference's placement would invite exactly that bug.
+
+**A probe found something and the probe was wrong.** Chasing a failure where the marker seemed to vanish mid-death, four instrumented reads all answered the same way once the
+flag was taken at the top - so the disappearance was in the instrumentation, not the store. The lesson kept: the rule reads its input **once**, at a place that is easy to point
+at, rather than being re-asked after every step that follows.
+
 ## A summon can name a group, and the group decides what arrives (round 1472)
 
 | Piece | Reference | Port |

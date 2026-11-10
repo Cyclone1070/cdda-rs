@@ -1827,3 +1827,8 @@ container was wrong in a way no count would have shown.
 two can put two different monsters down. The port asks `monster_groups::pick`, which fields already used; the dump beside the monsters states only entry counts, so the groups
 come from the reference's own `data/json/monstergroups` through the loader that already reads them. The gate asserts the flag both ways: with it the group's only monster
 arrives, without it nothing does, because the name is then a monster's and no monster answers it.
+
+**Round 1473 made a summoned body leave its corpse and not its loot.** `monster::no_extra_death_drops` is set from `!SPAWN_WITH_DEATH_DROPS` when a spell summons, and `monster::die`
+tests it before drawing the type's `death_drops` group; the port's `NoExtraDeathDrops` marker does the same, and a body no spell touched still drops what its type names. Both
+directions are gated: the summoned body leaves no rag, the flagged one leaves exactly one, and a plain monster leaves one. Marking nobody, or ignoring the marker at the drop,
+fails the first.

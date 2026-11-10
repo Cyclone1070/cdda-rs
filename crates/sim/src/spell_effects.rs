@@ -1090,6 +1090,11 @@ fn summon(
         };
         let hp = crate::monster_registry::hit_points(world, kind);
         let spawned = crate::spawn_monster(world, (square.0, square.1), kind, hp);
+        // Reference: `spawned_mon.no_extra_death_drops = !sp.has_flag( spell_flag::SPAWN_WITH_DEATH_DROPS );` (`:1343`) - a summoned body leaves its corpse and none of the loot its
+        // type names, unless the spell says otherwise. **Nine spells in this content keep the loot.**
+        if !spell.has_flag("SPAWN_WITH_DEATH_DROPS") {
+            world.entity_mut(spawned).insert(crate::creature::NoExtraDeathDrops);
+        }
         // Reference: `is_summon_friendly` (`:1306-1314`) - a summon is on the caster's side unless the spell says `HOSTILE_SUMMON`, and `HOSTILE_50` halves that with a draw.
         if friendly_summon(world, spell) {
             crate::friendly::make_friendly(world, spawned, i32::MAX);
