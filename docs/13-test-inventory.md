@@ -1757,3 +1757,8 @@ terrain, furniture, the level below and the damage it has kept, and `square::Bas
 square. The gate is transcribed from the bash dump rather than reasoned: my first attempt assumed forty strength breaks a stone wall, and the real data says it keeps eight
 points and stands, so the *guess* was wrong. Nine hundred and ninety-nine strength turns a chain fence into its posts; eleven strength marks it one point at a time. Dropping the
 write-back fails it immediately.
+
+**Round 1459 gave the port a retch.** `Character::vomit` is small and full of traps: the nausea duration looks like it scales with the meal, but the volume is read *after* the
+stomach is emptied, so it is always the effect's floor - the mutation that swaps floor for ceiling returns `900` where the gate wants `7`. The round also found that
+`spawn_player` never gave a player a `body::Body`, so a player could not eat, digest or throw up while a monster could; a player is a character and now has one. A body without a
+meal clock still does not digest, so no other rule moved.

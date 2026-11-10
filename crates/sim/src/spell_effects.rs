@@ -60,6 +60,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("add_trap", add_trap),
     ("guilt", guilt),
     ("bash", bash),
+    ("vomit", vomit),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -278,6 +279,35 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `vomit` spell makes every character its blast covers throw up.
+///
+/// Reference: `spell_effect::vomit` (`magic_spell_effect.cpp:1440-1455`): for each square, a **character** there is made to vomit - and the reference's own comment notes that
+/// ``Character::vomit`` does the rest, so this effect is a loop and a call. A monster in the blast is untouched: the rule is a character's stomach.
+fn vomit(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let mut retched = 0;
+    for square in squares_in_area(world, caster, spell, level, centre) {
+        for held in crate::creature::creature_at(world, square) {
+            if world.get::<crate::Player>(held).is_none() && !crate::npcs::is_npc(world, held) {
+                continue;
+            }
+            if crate::vomit::vomit(world, held).is_some() {
+                retched += 1;
+            }
+        }
+    }
+    if retched == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

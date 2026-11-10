@@ -77,6 +77,7 @@ pub mod melee;
 pub mod sounds;
 pub mod teleport;
 pub mod timed_events;
+pub mod vomit;
 pub mod traits;
 pub mod spell_area;
 pub mod spell_effects;
@@ -7085,6 +7086,10 @@ pub fn spawn_player(world: &mut World, square: (i32, i32), hp_max: i32, armour: 
             // Reference: a character always has wind - `Character::stamina`, with `get_stamina_max` as its ceiling (`character.cpp:6814-6832`). A survivor spawned without it could
             // swing for ever, which is what the exhaustion scenario found when it expected to be winded and was not.
             crate::creature::Stamina::default(),
+            // **A player is a character, and a character has a body.** The stomach, the guts and the health stat hang on [`crate::body::Body`], and a player spawned without
+            // one cannot eat, digest or throw up - which is what the vomit round found when the spell reached a player and found no stomach to empty. A creature with a body but
+            // no [`crate::body::BodyClock`] still does not digest, so this adds a stomach without starting a meal clock.
+            crate::body::Body::default(),
             Player,
         ))
         .id();

@@ -45,6 +45,29 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can make you throw up, and the player finally has a stomach (round 1459)
+
+`vomit` is one spell over one character rule.
+
+| Piece | Reference (`character.cpp:7520-7560`) | Port |
+|---|---|---|
+the stomach | `stomach.empty()`, with the volume read **before** | the same, through `body::Body` |
+the ground | `add_field( adjacent_tile(), fd_bile, 1 )` when there was anything to bring up | the same; the neighbour rule's trap and field checks are declared |
+the nausea | added only when the character is not already nauseous, for `max( max_duration * ml / 21, int_dur_factor )` | the same, which **always lands on the floor**, because `ml` is measured after emptying |
+the cost | `mod_moves( -100 )` | the same |
+the relief | thirty minutes off food poisoning, ten to fifty off being drunk, and every painkiller effect removed | the same |
+waking | `wake_up()` only when the stomach was not empty | the same |
+
+**The reference's own quirk is the rule worth pinning.** The nausea duration is written as if it scaled with the meal, but the volume it multiplies is read *after*
+`stomach.empty()` - so it is always the effect's `int_dur_factor`, the floor. A port that read the volume first would give a full stomach a longer nausea than the reference
+ever does; using the ceiling instead of the floor fails the gate with `900` against `7`.
+
+**A player had no stomach.** This round found that `spawn_player` gave a character position, creature, moves, speed, health, armour, stamina and the player marker - and no
+[`body::Body`]. `spawn_creature` has always given one, so monsters could digest and the player could not. The fix is one line and a reason: **a player is a character, and a
+character has a body.** A body without a `BodyClock` still does not digest, so nothing else moves.
+
+Twenty-four effect kinds are ported now of the data's thirty-two, and **235 of 245 spells** name one of them.
+
 ## Bashing reaches the world, and a square remembers its bruises (round 1458)
 
 The bash rule has been ported and dump-proven since the `--dump-bash` round, but **nothing in the world called it** - only its own gate did. `spell_effect::bash` gave it a
