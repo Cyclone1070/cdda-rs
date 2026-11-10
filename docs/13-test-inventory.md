@@ -1733,3 +1733,8 @@ same as for any effect with no rule: nothing changes and the cast is not an erro
 no rule had needed the number yet - its own doc said it would become a count when one did. It is a count now, `is_friendly` reads "a non-zero count", and the data-friendly spawn
 writes the reference's `-1`. The gates pin the threshold direction (a healthy monster resists; the mutation that flips it fails both), the addition, and the content's own zero
 damage, which charms nothing still alive.
+
+**Round 1454 changed the ground.** `ter_transform` reuses the transform table the dialogue effect already had and adds the one thing a spell brings: `one_in( damage )` per square.
+The rule it pins is the reference's own shortcut - `one_in` is always true for a chance of one or less - which means the content's three terrain spells, all with a damage of zero,
+change **every** square their blast covers. The gate holds eleven times eleven squares changed and fails if zero is treated as never. A first mutation attempt turned out to be a
+no-op rewrite of the same function, which is its own lesson: a mutation has to change the rule, not its spelling.

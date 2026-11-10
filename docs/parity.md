@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can change the ground, and `one_in( 0 )` is not "never" (round 1454)
+
+`ter_transform` is three spells. The transform table, the terrain writes and the radius walk were already ported for the dialogue effect `f_transform_radius`; what a spell adds
+is **odds per square**.
+
+| Piece | Reference | Port |
+|---|---|---|
+the odds | `if( one_in( sp.damage( caster ) ) )` per square (`magic_spell_effect.cpp:1429`) | the same, drawn from the store's generator |
+which squares | the spell's own blast | the shape rule from the round that gave spells their shapes |
+the change | `ter_furn_transform::transform( map, location )` | `terrain_transform::apply_at`, the same table read once per square |
+
+**`one_in` short-circuits at one or less** (`rng.cpp:196-199`: `return chance <= 1 || rng( 0, chance - 1 ) == 0;`). All three of the content's terrain spells state a damage of
+**zero**, so in this content the spell changes **every** square its blast covers - not none. That is the kind of rule a tidy-minded port would "fix", and the gate fails the
+moment zero is treated as never: the spell answers `NothingAffected` and not one square changes.
+
+The first mutation attempt is worth recording because it was not a mutation at all: I rewrote `one_in` inline as `!(chance <= 1 || chance > 1 && rng(...))`, which is the same
+function, so of course the gates passed. The mutation that means something is `chance == 0 || !one_in(chance)` - "zero never fires" - and that one fails.
+
+Nineteen effect kinds are ported now of the data's thirty-two, and **229 of 245 spells** name one of them.
+
 ## A spell can win a monster over (round 1453)
 
 `charm_monster` is one spell - `AEA_ENTRANCE` - and it forced a component to grow up.

@@ -55,6 +55,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("map", map),
     ("none", none),
     ("charm_monster", charm_monster),
+    ("ter_transform", ter_transform),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -273,6 +274,46 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `ter_transform` spell changes the ground its blast covers, one square at a time and only sometimes.
+///
+/// Reference: `spell_effect::transform_blast` (`magic_spell_effect.cpp:1423-1434`): the spell's `effect_str` names a `ter_furn_transform`, the blast's squares are walked, and
+/// **each square draws `one_in( sp.damage( caster ) )`** before it is transformed - so the damage is the odds, not a quantity.
+///
+/// `one_in`'s own rule is the surprise here: `chance <= 1` is **always true** (`rng.cpp:196-199`), so all three of the content's terrain spells - whose damage is zero - change
+/// every square their blast covers, and a later round that "fixed" the zero would change what the content does. The gate states that.
+fn ter_transform(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(chance) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let chance = chance as i32;
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return Effective::NotPorted;
+    };
+    let mut changed = 0;
+    for square in squares_in_area(world, caster, spell, level, centre) {
+        // Reference: `if( one_in( sp.damage( caster ) ) ) { transform->transform( ... ) }`.
+        if !rolls.one_in(chance) {
+            continue;
+        }
+        if crate::terrain_transform::apply_at(world, &spell.effect_str, square) {
+            changed += 1;
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    if changed == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 
