@@ -213,6 +213,7 @@ mod turn_light;
 mod vision_levels;
 mod weather;
 mod spell_costs;
+mod spell_add_trap;
 mod spell_charm;
 mod spell_dash;
 mod spell_effects;

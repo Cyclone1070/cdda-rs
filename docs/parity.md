@@ -45,6 +45,25 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A trap is a thing standing on a square (round 1456)
+
+`add_trap` is one spell, and it needed a store the port did not have.
+
+| Piece | Reference | Port |
+|---|---|---|
+the store | `map`'s per-square `trap_id` (`mapdata.h`) | a `Trap` component on an entity at the square - **the same shape as furniture** |
+the placement | `here.trap_set( target, tr_id )` guarded by `tr_at( target ) == tr_null` (`magic_spell_effect.cpp:1601-1604`) | `square::set_trap`, which refuses to overwrite and answers whether it placed |
+the spell | `effect_str` names the trap | the same |
+
+The trap is the second thing the port stores as **an entity standing on a square** rather than a code in an array beside the truth, and that is the whole architectural point: "is
+there a trap here" is a query, and "put one here" grows the store rather than writing a second copy of the level into a field.
+
+**The guard is the rule.** `trap_set` will not overwrite, and the reference guards it twice - once in the spell and once in the map - so the port puts the refusal in the one
+place both callers reach. The gate sets a trap, casts the spell on the same square, and requires `NothingAffected` with the original trap still standing; removing the guard
+fails it.
+
+Twenty-one effect kinds are ported now of the data's thirty-two, and **231 of 245 spells** name one of them.
+
 ## A spell can bang and flash (round 1455)
 
 `flashbang` is one spell - `AEA_FLASH` - and two rules wearing one name.

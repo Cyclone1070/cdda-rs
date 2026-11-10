@@ -1742,3 +1742,7 @@ no-op rewrite of the same function, which is its own lesson: a mutation has to c
 **Round 1455 split a bang from a flash.** `flashbang` is two rules with one name: deafness reaches whatever **hears** within eight squares, blindness only what is **looking**, and
 a robot is skipped whole because it has no ears to hurt - which the gate proves by standing a robot with `HEARS` beside the bang and demanding it be untouched. Removing the skip
 fails it. The avatar's armour-based reductions are declared rather than guessed.
+
+**Round 1456 gave the map a trap.** A trap is now an entity standing on a square carrying a `Trap` component - the same shape furniture already had - so `trap_at` is a query
+and `set_trap` grows the store. `add_trap` sets one on the square it lands on and **refuses to overwrite**, which is the reference's own double guard (`tr_at == tr_null` in the
+spell, and `map::trap_set`'s own refusal). The gate casts onto a square that already holds a trap and requires it to still be there; removing the guard fails.

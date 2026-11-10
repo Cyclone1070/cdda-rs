@@ -57,6 +57,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("charm_monster", charm_monster),
     ("ter_transform", ter_transform),
     ("flashbang", flashbang),
+    ("add_trap", add_trap),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -275,6 +276,27 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// An `add_trap` spell sets a trap on the square it landed on.
+///
+/// Reference: `spell_effect::add_trap` (`magic_spell_effect.cpp:1598-1605`): the spell's `effect_str` names the trap, and it is set **only where no trap is already set** -
+/// the reference's `if( here.tr_at( target ) == tr_null )`, which is `map::trap_set`'s own guard as well. Setting one over another is not an error; it simply does nothing.
+fn add_trap(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    _level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    if spell.effect_str.is_empty() {
+        return Effective::NothingAffected;
+    }
+    if crate::square::set_trap(world, centre, &spell.effect_str) {
+        Effective::Done
+    } else {
+        Effective::NothingAffected
     }
 }
 

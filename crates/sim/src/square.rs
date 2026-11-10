@@ -33,6 +33,48 @@ pub struct Furniture {
     pub code: u32,
 }
 
+/// A trap set on a square.
+///
+/// Reference: `map::tr_at` and `map::trap_set` (`src/map.cpp`), which keep a `trap_id` per square in the submap's own array. The port keeps it the way it keeps furniture -
+/// an entity standing on the square, naming the trap the data defines - so "is there a trap here" is a component rather than a code in an array beside the truth.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
+pub struct Trap {
+    /// The trap's id, exactly as the data spells it.
+    pub kind: String,
+}
+
+/// The trap set on a square, if any.
+#[must_use]
+pub fn trap_at(world: &World, square: (i32, i32, i32)) -> Option<String> {
+    entities_at(world, square)
+        .iter()
+        .find_map(|entity| world.get::<Trap>(*entity).map(|trap| trap.kind.clone()))
+}
+
+/// Sets a trap on a square, **only where one is not already set**.
+///
+/// Reference: `here.trap_set( target, tr_id )` guarded by `if( here.tr_at( target ) == tr_null )` (`magic_spell_effect.cpp:1601-1604`) - and the same guard is
+/// `map::trap_set`'s own, which refuses to overwrite. Answering whether the trap was set is what lets a caller tell "placed" from "there was already one".
+pub fn set_trap(world: &mut World, square: (i32, i32, i32), kind: &str) -> bool {
+    if trap_at(world, square).is_some() {
+        return false;
+    }
+    let entity = world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
+            Trap {
+                kind: kind.to_owned(),
+            },
+        ))
+        .id();
+    crate::singletons::index_mut(world).insert(entity, square);
+    true
+}
+
 /// What a materialised level made, so a caller can check it rather than count by hand.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Materialised {
