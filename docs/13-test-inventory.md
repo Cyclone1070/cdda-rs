@@ -1802,3 +1802,8 @@ and the `noise` effect now takes that number rather than a rounded one. Both mut
 **Round 1468 made an attack heard where it lands.** `damage_targets` makes the spell's sound on each target square before the damage, so the sound now comes from the victim's
 square rather than nowhere: the gate asserts the square `(3,0,0)` with the caster at `(0,0,0)`, then the volume of three for nine damage, then that a `SILENT` attack is heard by
 nobody and a `LOUD` one at seven. Swapping the volume for the raw damage fails on `9` against `3` while the square stays right, which is why both halves are asserted.
+
+**Round 1469 gave monsters bodies.** The dump already carried `mtype::bodytype`; the port now resolves it once, at load, through the same anatomy join the avatar uses, keeps the
+answer per kind in the registry, and hands it to every spawned monster. That closes the gap round 1468 named: an attack spell lands on a monster's torso and takes nine hit
+points, while a monster whose body type the world never resolved answers `NothingToHit` rather than being given one invented part. Dropping the body between the registry and the
+spawn fails both gates.

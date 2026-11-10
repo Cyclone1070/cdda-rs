@@ -72,6 +72,11 @@ pub struct MonsterTypes {
     weights: Vec<i64>,
     /// How big each kind is, by registry order.
     sizes: Vec<crate::CreatureSize>,
+    /// The body each kind has, by registry order, or none when the data names a body type the port could not build.
+    ///
+    /// Reference: `mtype::bodytype` (`mtype.h:236`) is an **anatomy id**, and `mtype::get_all_body_parts()` asks the anatomy for the parts a blow can land on. The port keeps the
+    /// resolved body here, per kind, so that a monster spawned from an id has somewhere for a blow to land - which is what an attack spell asks for.
+    bodies: Vec<Option<crate::creature::Body>>,
     /// Every kind's dissection entries, with [`MonsterTypes::dissect_ranges`] saying where each kind's start.
     dissect_entries: Vec<crate::HarvestSpec>,
     /// The item ids those entries name.
@@ -277,6 +282,38 @@ pub fn size_of(world: &World, kind: crate::MonsterKindId) -> crate::CreatureSize
         .unwrap_or(crate::CreatureSize::Medium)
 }
 
+/// Gives each kind the body its data type names, by kind.
+///
+/// The caller resolves `bodytype` through [`crate::creature::body_named`] because that is where the anatomies and their parts live; this table only remembers the answer, so a
+/// monster spawned from an id can carry it.
+pub fn set_bodies(world: &mut World, entries: &[(crate::MonsterKindId, crate::creature::Body)]) {
+    let entity = crate::singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
+    let Some(mut types) = world.get_mut::<MonsterTypes>(entity) else {
+        return;
+    };
+    for (kind, body) in entries {
+        let at = kind.0 as usize;
+        if types.bodies.len() <= at {
+            types.bodies.resize(at + 1, None);
+        }
+        if let Some(slot) = types.bodies.get_mut(at) {
+            *slot = Some(body.clone());
+        }
+    }
+}
+
+/// The body one kind has, or `None` when the world never resolved its body type.
+///
+/// `None` is the honest answer rather than an empty body: a creature with no parts is a creature a blow cannot land on, which is what a monster whose anatomy the port could not
+/// build really is. A monster whose parts are known but few says so with a body of few parts.
+#[must_use]
+pub fn body_of(world: &World, kind: crate::MonsterKindId) -> Option<crate::creature::Body> {
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+        .and_then(|types| types.bodies.get(kind.0 as usize).cloned().flatten())
+}
+
 /// What one kind's body yields when butchered: the entries and the ids their drops name, in the definition's order.
 ///
 /// Empty when the world never installed them, which is the honest answer - a body with no recorded harvest butchers to nothing rather than to a guess.
@@ -360,6 +397,7 @@ pub fn set_monster_types(world: &mut World, kinds: &[MonsterKind<'_>]) {
         harvest_ranges: Vec::new(),
         weights: Vec::new(),
         sizes: Vec::new(),
+        bodies: Vec::new(),
         dissect_entries: Vec::new(),
         dissect_ids: Vec::new(),
         leftovers: Vec::new(),

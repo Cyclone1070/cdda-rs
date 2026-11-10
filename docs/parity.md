@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A monster has a body now, and a blow has somewhere to land (round 1469)
+
+Round 1468 named a gap: an attack spell could not hit a monster, because a body was built only for creatures the content described. The data already carried the answer.
+
+| Piece | Reference | Port |
+|---|---|---|
+the hook | `mtype::bodytype` (`mtype.h:236`) is an **anatomy id** | `MonsterType::bodytype`, already in the dump |
+the join | `mtype::get_all_body_parts()` asks the anatomy for the parts | `monster_registry::set_bodies`, resolved once at load through `creature::body_named` |
+the carry | a spawned monster has the parts its type names | `spawn_monster` inserts the body |
+no body at all | a monster whose anatomy is unknown has nothing to hit | the component is **absent**, not empty - a creature with no parts is a creature a blow misses |
+
+**The body is resolved at load and remembered per kind**, which is what keeps a spawn from redoing the join every time. The registry stores the answer rather than the anatomy id: the
+id would need the anatomies and parts tables beside it wherever a monster is spawned, which is the second source of truth this port keeps deleting.
+
+**`body_corpus()` is one reader for two callers.** The avatar's body and a monster's body are the same join, so the CLI reads the two corpus files once and both use it - and the
+duplication that would have grown a second copy of the parsing is gone before it could drift.
+
+**A named gap closes, not moves**: an attack spell now lands on a monster's torso and takes nine hit points, and the same cast against a monster whose body type the world never
+resolved answers `NothingToHit` - the honest answer, which the gate asserts beside the hit.
+
 ## An attack spell is heard where it lands (round 1468)
 
 The volume rule was written in round 1467 and had no caller; now the attack path uses it, which is what the reference does.

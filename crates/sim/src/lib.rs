@@ -3735,6 +3735,11 @@ pub fn spawn_monster(
     let entity = crate::creature::spawn_creature(world, "", (square.0, square.1, 0));
     crate::creature::set_kind(world, entity, kind);
     crate::creature::set_health(world, entity, hp);
+    // Reference: `mtype::get_all_body_parts()` is what every blow asks where it landed, so a monster spawned from a kind carries the body its type names. A world that never
+    // resolved that kind's `bodytype` gives the monster no body at all, which is the honest answer rather than one invented part.
+    if let Some(body) = crate::monster_registry::body_of(world, kind) {
+        world.entity_mut(entity).insert(body);
+    }
     // A creature made this way is one the world is about to give a turn to - the older callers spawn and act
     // in the same breath, and a creature with no moves would silently stand still. `creature::spawn_creature`
     // is the reference's own constructor and leaves moves at zero; this one is the "ready to act" door.

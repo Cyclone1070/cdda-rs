@@ -839,6 +839,31 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
 ///
 /// The definitions stay in `cdda-content`: the store is given the two things a scenario needs - which number each name is, and how many hit points it starts with - so a
 /// scenario that places `mon_zombie` gets the zombie's own numbers rather than a fixture's.
+/// The two corpus files that describe bodies: an anatomy says which parts a body type has, and the parts table gives each part the numbers a blow needs.
+///
+/// The reference finalises both at load (`anatomy::finalize`, `anatomy.cpp:78-90`) and every later rule - which part a blow lands on, what armour covers it - reads the
+/// result. One reader for both callers, because the avatar's body and a monster's body are the same join.
+pub fn body_corpus() -> Option<(
+    Vec<cdda_content::anatomies::Anatomy>,
+    Vec<cdda_content::body_parts::BodyPartType>,
+)> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
+    let anatomies_text = std::fs::read_to_string(root.join("anatomy-parts.json")).ok()?;
+    let parts_text = std::fs::read_to_string(root.join("anatomy.json")).ok()?;
+    let cdda_json::Value::Array(anatomies) = cdda_json::parse(anatomies_text.as_bytes()).ok()? else {
+        return None;
+    };
+    let cdda_json::Value::Object(root_object) = cdda_json::parse(parts_text.as_bytes()).ok()? else {
+        return None;
+    };
+    let Some(cdda_json::Value::Array(parts)) = root_object.get("parts") else {
+        return None;
+    };
+    let anatomies = cdda_content::anatomies::load_objects(&anatomies).ok()?;
+    let parts = cdda_content::body_parts::load_objects(parts).ok()?;
+    Some((anatomies, parts))
+}
+
 pub fn install_monster_data(world: &mut World) -> Option<usize> {
     let monsters = monster_types()?;
     // What a corpse is, installed with the monsters that make them: the item the content calls `corpse`, and each monster's own volume, which is what its corpse is measured from
@@ -864,6 +889,19 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
         })
         .collect();
     cdda_sim::monster_registry::set_monster_types(world, &kinds);
+    // **Every monster's body comes from its own `bodytype`** (`mtype::bodytype`, `mtype.h:236`), resolved through the same anatomy join the avatar uses. Without this a monster is a
+    // creature with no parts, so a blow has nowhere to land and an attack spell cannot touch it.
+    if let Some((anatomies, parts)) = body_corpus() {
+        let bodies: Vec<(cdda_sim::MonsterKindId, cdda_sim::creature::Body)> = monsters
+            .iter()
+            .filter_map(|monster| {
+                let kind = cdda_sim::monster_registry::id_of(world, &monster.id)?;
+                let body = cdda_sim::creature::body_named(&monster.bodytype, &anatomies, &parts)?;
+                Some((kind, body))
+            })
+            .collect();
+        cdda_sim::monster_registry::set_bodies(world, &bodies);
+    }
     // What each kind bleeds and splatters into, computed once from its own flags, materials and species (`mtype.cpp:431-470`) and kept where a death can ask for it. A monster
     // whose blood falls through to `get_bleed_type` registers **nothing**, which is the honest answer until the species' `bleeds` field is dumped.
     let species_bleeds: std::collections::BTreeMap<String, String> = monster_species()
