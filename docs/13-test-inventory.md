@@ -1724,3 +1724,7 @@ when the negation goes. `BIONIC` keeps its quirk too (positive charges the power
 blow against half its armour, a character's six blows against scaled armour - and the jitter became a *source* rather than a list so a spell can draw it from the game's own
 generator without changing what the recording pins. The falloff gate earned its keep: replacing the factor with one made the centre and three squares out both hit for two
 hundred, which is the assertion's whole point.
+
+**Round 1452 added the two effects that decide nothing on the ground.** `map` reveals overmap tiles around the avatar - a radius in **tiles**, not squares, which the gate pins by
+standing an avatar at square (48, 72) and requiring tile (2, 3) to be the centre. `none` is the reference's own "this spell's effect is a mistake", and the port's answer is the
+same as for any effect with no rule: nothing changes and the cast is not an error.

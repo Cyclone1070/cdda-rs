@@ -52,6 +52,8 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("dash", dash),
     ("recover_energy", recover_energy),
     ("explosion", explosion),
+    ("map", map),
+    ("none", none),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -271,6 +273,48 @@ fn short_range_teleport(
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
     }
+}
+
+/// A `map` spell shows the avatar the overmap around it.
+///
+/// Reference: `spell_effect::map` (`magic_spell_effect.cpp:1492-1501`): only the avatar has a map to reveal, the centre is the avatar's own overmap tile, and the radius is the
+/// spell's area **in overmap tiles** - which is why `AEA_MAP`'s twenty is a window forty-one tiles across and not forty-one squares.
+fn map(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    _centre: (i32, i32, i32),
+) -> Effective {
+    if world.get::<crate::Player>(caster).is_none() {
+        // Reference: `if( !you ) { return; }` - a monster's map spell reveals nothing, because a monster has no map.
+        return Effective::NothingAffected;
+    }
+    let Some(at) = world.get::<crate::Position>(caster).map(|held| (held.x, held.y)) else {
+        return Effective::NotPorted;
+    };
+    let Some(area) = spell.area.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let radius = area.max(0.0) as i32;
+    let tile = crate::overmap::tile_of(at.0, at.1);
+    crate::overmap::reveal(world, tile, radius);
+    Effective::Done
+}
+
+/// An effect kind the data names but which does nothing at all.
+///
+/// Reference: `spell_effect::none` (`magic_spell_effect.cpp:1418-1421`): the reference reports the spell as having an invalid effect and returns. `AEA_BUGS` is the content's one
+/// such spell, and the port answers the same way it answers every other effect that decides nothing: the world is unchanged and the cast is not an error.
+fn none(
+    _world: &mut World,
+    _caster: Entity,
+    _spell: &Spell,
+    _level: i32,
+    _centre: (i32, i32, i32),
+) -> Effective {
+    Effective::NothingAffected
 }
 
 /// An `explosion` spell is a blast at the square it landed on.

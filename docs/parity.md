@@ -45,6 +45,23 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can show the map, and a spell can do nothing at all (round 1452)
+
+Two effect kinds, one spell each, and both are about **refusing to do the wrong thing**.
+
+| Effect | Reference | Port |
+|---|---|---|
+`map` | `spell_effect::map` (`magic_spell_effect.cpp:1492-1501`: only an avatar, centred on its own **overmap tile**, radius `aoe`) | the same three facts, against the overmap store the port keeps |
+`none` | `spell_effect::none` (`:1418-1421`: reports the spell as invalid and returns) | `NothingAffected`, and the world untouched |
+
+`map` is the one with a trap in it: the radius is a count of **overmap tiles**, not squares. `AEA_MAP`'s twenty is a window forty-one tiles across, and the centre is the avatar's
+own tile - twenty-four squares to a tile. The gate stands an avatar at square `(48, 72)`, which is tile `(2, 3)`, and fails if the centre is passed as a square instead.
+
+`none` is the reference admitting a spell's effect is a mistake. The content has exactly one (`AEA_BUGS`), and the port answers the way it answers every effect that decides
+nothing: no change, no error.
+
+Seventeen effect kinds are ported now of the data's thirty-two, and **225 of 245 spells** name one of them.
+
 ## A spell can explode (round 1451)
 
 `explosion` is five spells and one reference call: `explosion_handler::explosion( &caster, target, sp.damage( caster ), sp.aoe( caster ) / 10.0, true )`. The blast's geometry
