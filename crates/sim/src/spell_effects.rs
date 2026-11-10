@@ -59,6 +59,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("flashbang", flashbang),
     ("add_trap", add_trap),
     ("guilt", guilt),
+    ("bash", bash),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -277,6 +278,41 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `bash` spell hits every square of its blast with the spell's damage as the force.
+///
+/// Reference: `spell_effect::bash` (`magic_spell_effect.cpp:1770-1781`): for each square the spell's area covers, `here.bash( potential_target, sp.damage( caster ), silent )` -
+/// the damage **is** the strength, and the reference's own comment says the bash makes its own noise.
+///
+/// `SILENT` is a spell flag, and the port does not load spell flags yet, so every bash goes in loud. That is a named gap rather than a guess: the flag only changes whether the
+/// hit is heard.
+fn bash(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(force) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let force = force as i32;
+    let mut hits = 0;
+    for square in squares_in_area(world, caster, spell, level, centre) {
+        let Some(outcome) = crate::bash::bash_square(world, square, force, false) else {
+            return Effective::NotPorted;
+        };
+        if outcome.did_bash {
+            hits += 1;
+        }
+    }
+    if hits == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

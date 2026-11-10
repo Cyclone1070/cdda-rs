@@ -33,6 +33,47 @@ pub struct Furniture {
     pub code: u32,
 }
 
+/// How much bashing a square has taken.
+///
+/// Reference: `map::damage_level( const tripoint &p )` (`src/map.cpp`) reads `m->get_damage()`, a per-square number the submap keeps beside the terrain. It is **state
+/// between hits**, not a property of one: a failed hit that exceeded `str_min` leaves damage behind, and the next hit's strength is raised by it. The port keeps it on the
+/// square entity, where the square's own facts live.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Component)]
+pub struct BashDamage(pub i32);
+
+/// How much bashing a square has taken, or zero for a square that has taken none.
+#[must_use]
+pub fn bash_damage_at(world: &World, square: (i32, i32, i32)) -> i32 {
+    entities_at(world, square)
+        .iter()
+        .find_map(|entity| world.get::<BashDamage>(*entity).map(|held| held.0))
+        .unwrap_or(0)
+}
+
+/// Records how much bashing a square has taken.
+pub fn set_bash_damage(world: &mut World, square: (i32, i32, i32), damage: i32) {
+    let standing = entities_at(world, square)
+        .iter()
+        .copied()
+        .find(|entity| world.get::<Square>(*entity).is_some());
+    if let Some(entity) = standing {
+        world.entity_mut(entity).insert(BashDamage(damage));
+        return;
+    }
+    let entity = world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
+            Square,
+            BashDamage(damage),
+        ))
+        .id();
+    crate::singletons::index_mut(world).insert(entity, square);
+}
+
 /// A trap set on a square.
 ///
 /// Reference: `map::tr_at` and `map::trap_set` (`src/map.cpp`), which keep a `trap_id` per square in the submap's own array. The port keeps it the way it keeps furniture -

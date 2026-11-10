@@ -12,8 +12,83 @@
 //! 3. **`success` is not "something broke".** Under `destroy` the strength check is skipped entirely and `success` stays false, while the square is destroyed anyway — the
 //!    reference's `params.success |= success` (`src/map.cpp:4241`) is what carries that quirk out.
 
+use bevy_ecs::prelude::*;
 use cdda_content::mapdata::MapData;
 use std::collections::BTreeMap;
+
+/// The map data bashing reads, by id.
+///
+/// Reference: `map::bash_ter_furn` reads each square's `ter_t` and `furn_t` prototypes - their `bash` blocks - out of the loaded game data. The port keeps the same table in
+/// one component so [`bash_square`] can read a square's rules by the name on it.
+#[derive(Component, Debug, Clone, Default)]
+pub struct BashData(pub BTreeMap<String, MapData>);
+
+/// Marks the entity carrying [`BashData`].
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct TheBashData;
+
+/// Installs the map data bashing reads.
+pub fn set_data(world: &mut World, entries: impl IntoIterator<Item = MapData>) {
+    let table = BashData(entries.into_iter().map(|data| (data.id.clone(), data)).collect());
+    let entity = crate::singletons::singleton::<BashData, TheBashData>(world);
+    world.entity_mut(entity).insert(table);
+}
+
+/// Hits one square of the world, reading it and writing back what the hit did.
+///
+/// This is the join between the rule and the store: [`bash`] decides, and this reads the square's terrain, furniture, the square below and the damage it has kept, then writes
+/// the answers back through the same functions every other rule uses. The **roll** the reference draws inside its own strength check is drawn here, from the store's generator.
+///
+/// Reference: `map::bash( pos, force, silent )` (`src/map.cpp:4251-4261`), which is `bash_ter_furn` plus the writing back. Answering `None` means the world had no map data to
+/// bash with, which is a setup fault rather than a rule.
+pub fn bash_square(
+    world: &mut World,
+    at: (i32, i32, i32),
+    strength: i32,
+    silent: bool,
+) -> Option<BashOutcome> {
+    let data = {
+        let holder = crate::singletons::holder::<TheBashData>(world)?;
+        world.get::<BashData>(holder)?.0.clone()
+    };
+    let ground = crate::square::terrain_at(world, at).and_then(|code| crate::terrain_types::name_of(world, code))?;
+    let furniture = crate::square::furniture_at(world, at)
+        .and_then(|code| crate::furniture_types::name_of(world, code))
+        .unwrap_or_else(|| "f_null".to_owned());
+    let below = crate::square::terrain_at(world, (at.0, at.1, at.2 - 1))
+        .and_then(|code| crate::terrain_types::name_of(world, code))
+        .unwrap_or_else(|| "t_open_air".to_owned());
+    let target = BashTarget {
+        terrain: ground,
+        furniture,
+        below,
+        damage: crate::square::bash_damage_at(world, at),
+    };
+    let mut rolls = crate::singletons::take_rolls(world)?;
+    #[allow(clippy::cast_possible_truncation)]
+    let roll = rolls.rng_float(0.0, 1.0) as f32;
+    crate::singletons::put_rolls(world, rolls);
+    let params = BashParams {
+        strength,
+        silent,
+        destroy: false,
+        bash_floor: false,
+        roll,
+        bashing_from_above: false,
+    };
+    let outcome = bash(&target, params, &data);
+    if !outcome.did_bash {
+        return Some(outcome);
+    }
+    if let Some(code) = crate::terrain_types::code_of(world, &outcome.terrain) {
+        crate::square::set_terrain(world, at, code);
+    }
+    if let Some(code) = crate::furniture_types::code_of(world, &outcome.furniture) {
+        crate::square::set_furniture(world, at, code);
+    }
+    crate::square::set_bash_damage(world, at, outcome.damage);
+    Some(outcome)
+}
 
 /// The knob the reference's own strength is handed in through (`bash_params`, `src/map.h:139-176`).
 // The struct **is** the reference's `bash_params` (`src/map.h:139-176`), which is a bag of six knobs by design; splitting it to please a count would put a translation

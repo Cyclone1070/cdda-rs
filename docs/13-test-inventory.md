@@ -1751,3 +1751,9 @@ spell, and `map::trap_set`'s own refusal). The gate casts onto a square that alr
 world. `hurt_by` records it where the death is decided - a body reaching zero with a **character** as its striker - and `kills::count_of` answers it. The gates pin all three of the
 spell's shape: only a monster can cast it, the penalty halves at fifty of a hundred kills (removing the fade fails), and a psychopath, or a character who has reached the spell's
 damage in kills, feels nothing at all.
+
+**Round 1458 gave the bash rule a caller.** `spell_effect::bash` needed the rule joined to the world, and joined means two additions: `bash::bash_square` reads a square's
+terrain, furniture, the level below and the damage it has kept, and `square::BashDamage` is where that last one lives - a bruise is state between hits, so it belongs to the
+square. The gate is transcribed from the bash dump rather than reasoned: my first attempt assumed forty strength breaks a stone wall, and the real data says it keeps eight
+points and stands, so the *guess* was wrong. Nine hundred and ninety-nine strength turns a chain fence into its posts; eleven strength marks it one point at a time. Dropping the
+write-back fails it immediately.

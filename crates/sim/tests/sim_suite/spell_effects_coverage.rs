@@ -33,7 +33,7 @@ fn spells_by_effect() -> BTreeMap<String, usize> {
 
 /// The count of kinds the port runs, and the count of spells those kinds belong to.
 #[test]
-fn the_port_runs_twenty_two_of_the_data_s_effect_kinds() {
+fn the_port_runs_twenty_three_of_the_data_s_effect_kinds() {
     let effects = spells_by_effect();
     let ported: Vec<(&String, &usize)> = effects
         .iter()
@@ -57,9 +57,9 @@ fn the_port_runs_twenty_two_of_the_data_s_effect_kinds() {
         32,
         "the data's spells name 32 distinct effect kinds"
     );
-    assert_eq!(ported.len(), 22, "the port runs twenty-two of them");
+    assert_eq!(ported.len(), 23, "the port runs twenty-three of them");
     assert_eq!(
-        spells_covered, 233,
+        spells_covered, 234,
         "**223 spells name an effect kind the port has a rule for**: 63 arrived with `effect_on_condition`, and the movement and pool effects followed"
     );
     // Not the same thing as reachable. `emit` is in the table, and every one of its six spells names an emission of a
@@ -72,11 +72,11 @@ fn the_port_runs_twenty_two_of_the_data_s_effect_kinds() {
     // also the reachable count.
     assert_eq!(
         spells_covered - emit_spells,
-        227,
-        "227 are runnable without `emit`"
+        228,
+        "228 are runnable without `emit`"
     );
     assert_eq!(
-        spells_covered, 233,
+        spells_covered, 234,
         "and all 223 are runnable now that an emission of a quantity spreads and a spell can hand over to a program"
     );
 }

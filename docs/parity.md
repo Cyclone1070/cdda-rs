@@ -45,6 +45,31 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Bashing reaches the world, and a square remembers its bruises (round 1458)
+
+The bash rule has been ported and dump-proven since the `--dump-bash` round, but **nothing in the world called it** - only its own gate did. `spell_effect::bash` gave it a
+caller, and the caller needed two things the port did not have.
+
+| Piece | Reference | Port |
+|---|---|---|
+the rule | `map::bash_ter_furn` (`map.cpp:3932-4245`) | `bash::bash`, unchanged, dump-pinned |
+the join | `map::bash( pos, force, silent )` (`map.cpp:4251-4261`) | `bash::bash_square`, which reads the square and writes the answer back |
+a square's bruise | `m->get_damage()`, read by `map::damage_level` | `square::BashDamage`, a component on the square entity |
+the spell | `here.bash( target, sp.damage( caster ), SILENT )` | the same, with the flag a named gap |
+
+**The damage a square has taken is state between hits, not a property of one.** A failed hit that exceeds `str_min` leaves damage behind and the next hit's strength is raised by
+it - so the port had to keep it somewhere, and the honest place is the square. `BashDamage` is that: an entity-standing-on-a-square fact, like the furniture and the trap.
+
+**The gate's numbers are the dump's, not mine.** My first version guessed that forty strength breaks a stone wall; the real data says a `t_wall` shrugs it off and keeps eight
+points of damage, so the gate failed and the guess was wrong, not the code. The rewritten gate uses the dump's own cases: nine hundred and ninety-nine strength turns a
+`t_chainfence` into `t_chainfence_posts`, and eleven strength hits it four times for one, two, three and four points of kept damage. Dropping the write-back fails the second of
+those on the first hit.
+
+**Named, not invented**: `SILENT` is a spell flag and the port does not load spell flags yet, so every bash goes in loud; and a spell's `is_valid_target` check is the flag rule
+again, so the port bashes every square of the blast.
+
+Twenty-three effect kinds are ported now of the data's thirty-two, and **234 of 245 spells** name one of them.
+
 ## A monster can make you feel guilty (round 1457)
 
 `guilt` is two spells, and it needed the game to remember its kills.
