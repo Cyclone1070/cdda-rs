@@ -45,6 +45,29 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The line shape is a wrapped walk, not a beam (round 1462)
+
+The nine line spells were answered by their blast since the shape round. They now have their own rule, transcribed from the reference's three helpers.
+
+| Piece | Reference (`magic_spell_effect.cpp`) | Port |
+|---|---|---|
+the walk | `spell_detail::line_iterable` (`:103-130`), an index into a path plus an origin that steps whenever the index wraps | `spell_line::LineIterable`, the same |
+the side test | `side_of` (`:132-136`), the sign of a cross product | the same |
+the band | `between_or_on` (`:138-142`), bounded by perpendiculars through the **source** and the **target** | the same |
+one pass | `build_line` (`:144-156`), which stops at an impassable square rather than skipping it | the same |
+the width | `ccw_len = aoe / 2`, `cw_len = aoe - ccw_len` (`:333-334`) | the same, and the gate fails when the two swap |
+the end | `result.erase( source )` (`:437`) | the same, and the gate fails when the erase is dropped |
+
+**The band's near edge runs through the caster, and that is not a bug.** My first gate expected a widened line to start one square away from its caster; the rule says the
+caster's **column** is inside the band, because a point exactly on the near perpendicular satisfies `between_or_on`. Only the caster's own square is erased. The transcription
+was right and the expectation was the guess - the second time in ten rounds that a hand-derived case was the thing that needed fixing rather than the code.
+
+**Named gaps**: the reference narrows the width by `( |dx| + |dy| ) / dist` when the `trigdist` option is off, and the port fixes `CIRCLEDIST` on, so that branch is not
+transcribed; and `ignore_walls` comes from an `IGNORE_WALLS` spell flag the port does not load, so a line always stops at a wall, which is the reference's behaviour for every
+spell that does not opt out.
+
+**This is why the line shape could be closed and `area_pull` could not**: the line is geometry with no store behind it, so nothing but the transcription stood in the way.
+
 ## The spell-effect sweep is closed: 26 of 32, and the six that wait (round 1461)
 
 Every effect kind whose rule the port can state has been ported. What is left is not a reading problem - each of the six needs a **subsystem the port has not reached**, and naming

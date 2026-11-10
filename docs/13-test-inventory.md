@@ -1769,3 +1769,8 @@ registry its kinds' flags and species - a corpse is not a creature, so the quest
 answered. Hit points come back at the type's figure because a corpse in this port carries no damage and no upgrade list, which is stated rather than guessed. The architecture gate earned
 its keep on the way: the first shape for that data was a `Vec<Vec<String>>` per kind, which `no_component_holds_a_per_square_array` refused as the banned array-keyed-by-position
 shape - and the fix was a set per kind, not a ledger entry.
+
+**Round 1462 gave the line shape its own rule.** Nine spells were answered by their blast until the reference's three geometry helpers - `line_iterable`, `side_of`,
+`between_or_on` and `build_line` - were transcribed into `spell_line`. The gate holds three transcribed cases (a straight line, a band, a wall) and two mutations: swapping the
+uneven width split leans the odd rank the wrong way, and dropping the source erase puts the caster in its own line. **The band's near edge runs through the caster's column**,
+which my first expectation got wrong and the rule got right.

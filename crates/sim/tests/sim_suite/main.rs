@@ -222,6 +222,7 @@ mod spell_explosion;
 mod spell_morale;
 mod spell_flashbang;
 mod spell_guilt;
+mod spell_line_shape;
 mod spell_map;
 mod spell_revive;
 mod spell_polymorph;

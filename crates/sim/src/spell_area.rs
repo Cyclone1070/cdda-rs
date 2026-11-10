@@ -23,6 +23,9 @@ pub fn cover(
         // The reference's `ignore_walls` comes from a spell **flag** (`IGNORE_WALLS`), and the port does not load spell flags - so a cone always respects walls, which is
         // the reference's behaviour for every spell that does not opt out. A gate walks a ray into a wall and fails if this argument is flipped back to true.
         "cone" => cone(source, target, area, range, false, passable),
+        // A line runs from the caster towards the aim point, as wide as the spell's area and stopped by anything impassable. `ignore_walls` is an `IGNORE_WALLS` spell
+        // flag the port does not load, so a line always stops at a wall - the reference's behaviour for every spell that does not opt out.
+        "line" => crate::spell_line::line((source.0, source.1), (target.0, target.1), area, passable, target.2),
         _ => blast(target, area),
     }
 }
