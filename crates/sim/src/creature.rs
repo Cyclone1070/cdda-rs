@@ -4518,3 +4518,34 @@ pub fn poly(world: &mut World, who: Entity, kind: crate::MonsterKindId) {
         set_speed(world, who, speed, 0);
     }
 }
+
+/// Changes how much pain a creature is in, never letting it go below zero.
+///
+/// Reference: `Character::mod_pain` (`character.cpp:12671-12694`) down to `Creature::set_pain` (`creature.cpp:2189-2196`): the amount is added and the result floored at zero. The
+/// reference's ceiling is not a constant - pain is only clamped upward - and its **enchantment multipliers** are not ported, which `docs/parity.md` names. A positive amount is
+/// what a spell that drains pain-resistance does, and a negative one is what a painkiller does.
+pub fn mod_pain(world: &mut World, entity: Entity, amount: i32) {
+    if let Some(mut pain) = world.get_mut::<Pain>(entity) {
+        pain.0 = (pain.0 + amount).max(0);
+    }
+}
+
+/// Gives a character mana back, or takes it away, without going below zero or above its ceiling.
+///
+/// Reference: `Character::mod_mana` (`character.cpp`), which clamps between zero and the character's maximum. The maximum is a field the port already keeps on [`Mana`], so a
+/// spell that refills more than a character can hold fills it exactly.
+pub fn mod_mana(world: &mut World, entity: Entity, amount: i32) {
+    if let Some(mut mana) = world.get_mut::<Mana>(entity) {
+        mana.cur = (mana.cur + amount).clamp(0, mana.max);
+    }
+}
+
+/// Gives a character stored power back, or takes it away, in **joules**.
+///
+/// Reference: `Character::mod_power_level` (`character.cpp`), which clamps at zero. The reference also caps at the character's maximum capacity, and what sets that capacity is
+/// bionic and mutation data the port does not load yet - so the ceiling is a named gap and the floor is not.
+pub fn mod_power(world: &mut World, entity: Entity, joules: i64) {
+    if let Some(mut power) = world.get_mut::<BionicPower>(entity) {
+        power.joules = (power.joules + joules).max(0);
+    }
+}

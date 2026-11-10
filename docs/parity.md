@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can move a character's pools, in either direction (round 1450)
+
+`recover_energy` is six spells, and its name is misleading in a way the reference itself documents: **a negative amount spends**. Four of the six are drains.
+
+| Pool | Reference (`magic_spell_effect.cpp:1253-1274`) | Port |
+|---|---|---|
+`MANA` | `mod_mana( healing )`, clamped zero to the maximum | the same, against the ceiling the port already keeps |
+`STAMINA` | `mod_stamina( healing )`, which winds a character that goes past zero | `spend_stamina`, the port's own `mod_stamina`, winded effect included |
+`PAIN` | **`mod_pain( -healing )`** - "pain is backwards" - floored at zero | the same two facts, both gated |
+`BIONIC` | positive: kilojoules into the power pool; **negative: spent as stamina** | the same quirk, kept whole |
+`SLEEPINESS`, `HEALTH` | their own stores | refused, because the port has no store for them |
+
+The pain branch is the one worth the ink: the reference's own comment says the sign is backwards, and "fixing" it would make a spell that drains pain-resistance into a
+painkiller. The gate pins `-5` damage becoming **five pain** and fails when the negation is removed. The floor at zero is `Creature::set_pain`'s, and the gate walks past it.
+
+Fourteen effect kinds are ported now of the data's thirty-two, and **218 of 245 spells** name one of them.
+
+**Declared**: the power pool's **ceiling** is not ported - what sets a character's capacity is bionic and mutation data the port does not load, so `mod_power` floors at zero and
+does not cap; and `Character::mod_pain`'s enchantment multipliers are not applied.
+
 ## A spell can carry its caster across the ground (round 1449)
 
 `dash` is four spells - the leaps - and it is the first effect in the port that **moves the caster as part of its own rule** rather than as a consequence of one.

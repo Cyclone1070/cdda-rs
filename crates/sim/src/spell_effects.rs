@@ -50,6 +50,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("morale", morale),
     ("targeted_polymorph", targeted_polymorph),
     ("dash", dash),
+    ("recover_energy", recover_energy),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -269,6 +270,51 @@ fn short_range_teleport(
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
     }
+}
+
+/// A `recover_energy` spell moves one of a character's pools, up or down, by the spell's damage.
+///
+/// Reference: `spell_effect::recover_energy` (`magic_spell_effect.cpp:1241-1279`). The pool is named by `effect_str` and **a negative amount spends rather than restores**,
+/// which is not a mistake to tidy: four of the content's six spells are drains, and `STAMINA` of -1500 is a spell that winds its victim. Two of the reference's branches carry
+/// a comment saying the sign is backwards (`PAIN`, `SLEEPINESS`), and `BIONIC` spends *stamina* when the amount is negative - a quirk kept whole.
+///
+/// Only a character has these pools: a monster standing on the square is not affected, which the reference says by asking for a `Character`.
+fn recover_energy(
+    world: &mut World,
+    _caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(healing) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let healing = healing as i32;
+    let Some(person) = crate::creature::creature_at(world, centre)
+        .into_iter()
+        .find(|held| {
+            world.get::<crate::Player>(*held).is_some() || crate::npcs::is_npc(world, *held)
+        })
+    else {
+        return Effective::NothingAffected;
+    };
+    match spell.effect_str.as_str() {
+        "MANA" => crate::creature::mod_mana(world, person, healing),
+        "STAMINA" => crate::creature::spend_stamina(world, person, healing),
+        // Reference: `PAIN` is backwards - `mod_pain( -healing )` - so a spell that "recovers" pain with a negative amount **adds** it.
+        "PAIN" => crate::creature::mod_pain(world, person, -healing),
+        // Reference: a positive amount charges the bionic pool in kilojoules, and a negative one is spent as **stamina** instead (`:1260-1265`).
+        "BIONIC" => {
+            if healing > 0 {
+                crate::creature::mod_power(world, person, i64::from(healing) * 1_000);
+            } else {
+                crate::creature::spend_stamina(world, person, healing);
+            }
+        }
+        _ => return Effective::NothingAffected,
+    }
+    Effective::Done
 }
 
 /// A `dash` spell leaps the caster along a line and hits what stands in the cone it leaves behind.

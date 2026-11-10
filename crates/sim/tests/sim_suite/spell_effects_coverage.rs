@@ -33,7 +33,7 @@ fn spells_by_effect() -> BTreeMap<String, usize> {
 
 /// The count of kinds the port runs, and the count of spells those kinds belong to.
 #[test]
-fn the_port_runs_thirteen_of_the_data_s_effect_kinds() {
+fn the_port_runs_fourteen_of_the_data_s_effect_kinds() {
     let effects = spells_by_effect();
     let ported: Vec<(&String, &usize)> = effects
         .iter()
@@ -57,10 +57,10 @@ fn the_port_runs_thirteen_of_the_data_s_effect_kinds() {
         32,
         "the data's spells name 32 distinct effect kinds"
     );
-    assert_eq!(ported.len(), 13, "the port runs thirteen of them");
+    assert_eq!(ported.len(), 14, "the port runs fourteen of them");
     assert_eq!(
-        spells_covered, 212,
-        "**203 spells name an effect kind the port has a rule for**: 63 arrived with `effect_on_condition`, two with `short_range_teleport` and three with `timed_event`"
+        spells_covered, 218,
+        "**218 spells name an effect kind the port has a rule for**: 63 arrived with `effect_on_condition`, and the movement and pool effects followed"
     );
     // Not the same thing as reachable. `emit` is in the table, and every one of its six spells names an emission of a
     // *quantity*, which the reference spreads with `map::propagate_field` - a machine the port has not written. So six of the
@@ -72,11 +72,11 @@ fn the_port_runs_thirteen_of_the_data_s_effect_kinds() {
     // also the reachable count.
     assert_eq!(
         spells_covered - emit_spells,
-        206,
-        "206 are runnable without `emit`"
+        212,
+        "212 are runnable without `emit`"
     );
     assert_eq!(
-        spells_covered, 212,
-        "and all 212 are runnable now that an emission of a quantity spreads and a spell can hand over to a program"
+        spells_covered, 218,
+        "and all 218 are runnable now that an emission of a quantity spreads and a spell can hand over to a program"
     );
 }

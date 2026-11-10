@@ -1715,3 +1715,7 @@ walked straight through. Fifteen cones and nine lines in the content now mean so
 walk spent and strikes a cone of `aoe` width and length from where the leap began. Only an avatar walks - the reference's own `if( caster_you != nullptr )` - and the gate
 fails the moment a monster does. The moves being borrowed rather than free is the subtlety the first gate run taught: six squares need six squares' worth of moves even
 though the price is refunded afterwards.
+
+**Round 1450 moved a character's pools.** `recover_energy` names its pool in `effect_str` and its amount in the spell's damage, and a negative amount **spends** - which is what
+four of the content's six spells do. The pain branch is the reference's own documented oddity: `mod_pain( -healing )`, so the gate pins -5 damage becoming five pain and fails
+when the negation goes. `BIONIC` keeps its quirk too (positive charges the power pool, negative is spent as stamina).
