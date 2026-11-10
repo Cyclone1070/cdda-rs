@@ -180,6 +180,27 @@ fn a_summoning_spell_brings_the_monster_it_names() {
     );
     assert_eq!(monster_registry::hit_points(&mut world, MonsterKindId(1)), 80);
 
+    // **A summon draws the square it lands on**, so the world needs dice: the reference's `rng( 0, area.size() - 1 )` is what picks the square, and a world with none would have
+    // the rule guess one. It also needs **ground**: a blast stops at the first impassable square, and a world with no terrain has nothing but impassable ones - so the aimed point
+    // would never be reached.
+    cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(9));
+    let mut ground = cdda_sim::terrain_table::TerrainTable::default();
+    ground.insert(1, true);
+    ground.insert_move_cost(1, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain: ground,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
+    let mut level = cdda_core_types::level::Level::new();
+    for y in -2..=8 {
+        for x in -2..=8 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
     let caster = cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
     let mut spell = a_spell("summon", 3, 1);
     spell.effect_str = "mon_zombie".to_owned();

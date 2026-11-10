@@ -1052,7 +1052,7 @@ fn effect_on_condition(
 
 fn summon(
     world: &mut World,
-    _caster: Entity,
+    caster: Entity,
     spell: &Spell,
     level: i32,
     centre: (i32, i32, i32),
@@ -1066,15 +1066,31 @@ fn summon(
         return Effective::NothingAffected;
     };
     let hp = crate::monster_registry::hit_points(world, kind);
+    // Reference: `spawn_summoned_monster` walks the spell's **own area** and draws a square from it for each summon, erasing the square whether or not it was used
+    // (`magic_spell_effect.cpp:1345-1362`). The port had a ring order of its own, which is a second source of truth for "where inside the blast".
+    let mut area = squares_in_area(world, caster, spell, level, centre);
     let mut made = 0;
-    for step in 0..how_many {
-        // A ring of squares around the centre: the first is the centre itself, so a single summon lands where aimed.
-        let offset = ring_offset(step);
-        let square = (centre.0 + offset.0, centre.1 + offset.1);
-        if !crate::creature::creature_at(world, (square.0, square.1, centre.2)).is_empty() {
+    while made < how_many && !area.is_empty() {
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            break;
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        let pick = rolls.rng(0, area.len() as i32 - 1).max(0) as usize;
+        crate::singletons::put_rolls(world, rolls);
+        let Some(square) = area.get(pick).copied() else {
+            break;
+        };
+        area.swap_remove(pick);
+        if !crate::creature::creature_at(world, square).is_empty() {
             continue;
         }
-        let spawned = crate::spawn_monster(world, square, kind, hp);
+        let spawned = crate::spawn_monster(world, (square.0, square.1), kind, hp);
+        // Reference: `is_summon_friendly` (`:1306-1314`) - a summon is on the caster's side unless the spell says `HOSTILE_SUMMON`, and `HOSTILE_50` halves that with a draw.
+        if friendly_summon(world, spell) {
+            crate::friendly::make_friendly(world, spawned, i32::MAX);
+        } else {
+            crate::friendly::make_friendly(world, spawned, 0);
+        }
         // Reference: `if( !sp.has_flag( spell_flag::PERMANENT ) ) { mon->set_summon_time( sp.duration_turns( caster ) ); }` - a permanent summon simply has no deadline, which
         // is the reference's own way of saying "for good".
         if !spell.has_flag("PERMANENT")
@@ -1092,23 +1108,21 @@ fn summon(
     }
 }
 
-/// The square to try when placing the `step`th summon: the centre, then its neighbours, then the next ring out.
-#[must_use]
-fn ring_offset(step: i32) -> (i32, i32) {
-    let mut left = step;
-    let mut radius = 0;
-    loop {
-        let side = radius * 2 + 1;
-        let in_ring = side * side;
-        if left < in_ring {
-            let along = left;
-            let row = along / side - radius;
-            let column = along % side - radius;
-            return if radius == 0 { (0, 0) } else { (row, column) };
-        }
-        left -= in_ring;
-        radius += 1;
+/// Whether a summoned monster arrives on the caster's side.
+///
+/// Reference: `is_summon_friendly` (`magic_spell_effect.cpp:1306-1314`): not hostile unless `HOSTILE_SUMMON`, and `HOSTILE_50` makes that a coin flip-
+/// `rng( 0, 1000 ) < 500`. **Thirty spells in this content are hostile summons and exactly one is the half-hostile one.**
+fn friendly_summon(world: &mut World, spell: &Spell) -> bool {
+    let mut friendly = !spell.has_flag("HOSTILE_SUMMON");
+    if spell.has_flag("HOSTILE_50") {
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            return friendly;
+        };
+        let flip = rolls.rng(0, 1000) < 500;
+        crate::singletons::put_rolls(world, rolls);
+        friendly = friendly && flip;
     }
+    friendly
 }
 
 /// Reference: `spell_effect::mod_moves` (`magic_spell_effect.cpp:1475-1490`) - every creature in the spell's area has

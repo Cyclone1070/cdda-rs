@@ -233,6 +233,7 @@ mod spell_timed_event;
 mod spell_vomit;
 mod spell_walls;
 mod summon_lease;
+mod summon_loyalty;
 mod spell_effects_coverage;
 mod sounds;
 mod spell_data;

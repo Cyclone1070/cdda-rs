@@ -45,6 +45,29 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A summon has a side, and it lands inside its own blast (round 1466)
+
+Two rules the port had been making up.
+
+| Piece | Reference | Port |
+|---|---|---|
+whose side | `is_summon_friendly` (`magic_spell_effect.cpp:1306-1314`): friendly unless `HOSTILE_SUMMON`, and `HOSTILE_50` halves that with `rng( 0, 1000 ) < 500` | the same, read from the spell's flags - **30 hostile spells, 1 half-hostile** |
+the friendly count | `spawned_mon.friendly = INT_MAX` | `friendly::make_friendly( ..., i32::MAX )`, so it never runs out |
+the hostile count | `spawned_mon.friendly = 0` | the same, which is not friendly at all |
+where it lands | `spawn_summoned_monster` draws `rng( 0, area.size() - 1 )` from the spell's **own area**, erasing each square whether or not it was used | the same |
+
+**The placement was a second source of truth and is gone.** The port had a `ring_offset` helper that placed summons in a spiral of its own - a rule that agreed with the reference
+by luck for the first few squares and disagreed as soon as the blast was not centred on the caster. It is deleted rather than kept alongside the real rule, which is what the
+architecture gate would have said if it had caught it first.
+
+**Two old gates had to grow up, and both grew for the same reason.** `spell_effects`'s summon gate ran in a world with no dice and no ground: no dice because the square is drawn
+now, and no ground because a blast stops at the first impassable square and a world without terrain is all walls - so the aimed point was never reached. Both are the rule working
+as the reference works, not the gate being wrong: the fixture was.
+
+**A count of zero is not a monster.** The reference sets a hostile summon's `friendly` to **zero**, and the port's `Friendly` component treats a zero count as "not friendly",
+which is why `make_friendly` clamps at zero rather than refusing to write: the component exists and says nobody's side, and `is_friendly` answers false for both a zero count and
+no component at all.
+
 ## A summon has a lease, and `PERMANENT` means no lease at all (round 1465)
 
 The port's summons were permanent whether the spell said so or not - which was invisible, because nothing counted a summon's life down.

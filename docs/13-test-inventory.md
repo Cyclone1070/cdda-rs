@@ -1789,3 +1789,8 @@ fails where it should.
 port now does both: `summoned::Summoned { ends_on }`, expired at the top of the creatures stage, because that is where `Creature::process_turn` puts the check. `PERMANENT` (29
 spells) is the absence of the deadline rather than a long one, so a permanent summon carries no component at all. The gates pin the inclusive edge - gone on the thirtieth turn,
 standing on the twenty-ninth - and dropping the deadline entirely fails the first one.
+
+**Round 1466 gave summons a side and a square from the right place.** `is_summon_friendly` is now read from the data - friendly unless `HOSTILE_SUMMON` (30 spells), with
+`HOSTILE_50` (1 spell) making it a draw - and the friendly count is `INT_MAX` while a hostile one is zero. The placement was rewritten to draw from the spell's **own area**,
+which deleted `ring_offset`: a spiral of the port's own invention that agreed with the reference only while the blast happened to be centred on the caster. Removing the
+hostility flag from the rule fails the gate on the hostile half.
