@@ -1728,3 +1728,8 @@ hundred, which is the assertion's whole point.
 **Round 1452 added the two effects that decide nothing on the ground.** `map` reveals overmap tiles around the avatar - a radius in **tiles**, not squares, which the gate pins by
 standing an avatar at square (48, 72) and requiring tile (2, 3) to be the centre. `none` is the reference's own "this spell's effect is a mistake", and the port's answer is the
 same as for any effect with no rule: nothing changes and the cast is not an error.
+
+**Round 1453 grew a component to fit a rule.** `charm_monster` adds `duration / 100` to how long a monster stays friendly, and the port's `Friendly` was a marker precisely because
+no rule had needed the number yet - its own doc said it would become a count when one did. It is a count now, `is_friendly` reads "a non-zero count", and the data-friendly spawn
+writes the reference's `-1`. The gates pin the threshold direction (a healthy monster resists; the mutation that flips it fails both), the addition, and the content's own zero
+damage, which charms nothing still alive.

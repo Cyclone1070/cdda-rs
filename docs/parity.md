@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can win a monster over (round 1453)
+
+`charm_monster` is one spell - `AEA_ENTRANCE` - and it forced a component to grow up.
+
+| Piece | Reference | Port |
+|---|---|---|
+who | a monster the area covers, **and only while `hp <= damage`** (`magic_spell_effect.cpp:1543-1547`) | the same, with the boundary gated |
+the charm | `mon->friendly += duration / 100` - an **addition**, not a reset | the same, so charming twice lasts twice as long |
+who resists | a monster already friendly, unless the spell carries `RECHARM` | the same, and the flag is a named gap |
+the data | `AEA_ENTRANCE` states damage **zero** | the same: it charms only a monster with no hit points left |
+
+**`Friendly` used to be a marker**, and its own doc said so: "when the turn count earns its keep ... it becomes a component with a number". A charm is exactly that case - the rule
+*adds* `duration / 100` to a count - so the component now carries `turns`, `is_friendly` answers "a non-zero count", and the spawn path writes the reference's `-1`, which is
+"friendly for good". Nothing else had to change: the two call sites already went through the module's own functions.
+
+The content's zero damage is worth stating because it looks like a bug and is not: `hp <= 0` is a corpse, so `AEA_ENTRANCE` in this content charms nothing that is still standing.
+The gate says so in its own words, and a transcribed damage of one hundred shows the rule working.
+
+Eighteen effect kinds are ported now of the data's thirty-two, and **226 of 245 spells** name one of them.
+
 ## A spell can show the map, and a spell can do nothing at all (round 1452)
 
 Two effect kinds, one spell each, and both are about **refusing to do the wrong thing**.

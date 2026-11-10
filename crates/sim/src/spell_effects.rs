@@ -54,6 +54,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("explosion", explosion),
     ("map", map),
     ("none", none),
+    ("charm_monster", charm_monster),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -272,6 +273,57 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `charm_monster` spell wins a monster over, if it is already hurt enough.
+///
+/// Reference: `spell_effect::charm_monster` (`magic_spell_effect.cpp:1530-1549`): for every monster the spell's area covers, **nothing happens unless its hit points are at
+/// or below the spell's damage**, and a monster that is already friendly is left alone unless the spell carries `RECHARM` (a flag the port does not load yet). The charm
+/// itself is an **addition** to how long it stays friendly - the spell's duration over a hundred - so charming twice lasts twice as long.
+///
+/// `AEA_ENTRANCE` - the content's one such spell - states a damage of **zero**, so it can only charm a monster with no hit points left. That is the data's own arithmetic and
+/// the gate states it rather than quietly treating zero as "always".
+fn charm_monster(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(threshold) = spell.damage.at(level) else {
+        return Effective::NotPorted;
+    };
+    let Some(seconds) = spell.duration.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let threshold = threshold as i32;
+    // Reference: `mon->friendly += sp.duration( caster ) / 100` - whole turns of a hundredth of the duration.
+    #[allow(clippy::cast_possible_truncation)]
+    let turns = (seconds / 100.0) as i32;
+    let mut charmed = 0;
+    for square in squares_in_area(world, caster, spell, level, centre) {
+        for held in crate::creature::creature_at(world, square) {
+            if world.get::<crate::creature::CreatureKind>(held).is_none() {
+                continue;
+            }
+            let hurt = crate::creature::health_of(world, held).unwrap_or(0);
+            if hurt > threshold {
+                continue;
+            }
+            if crate::friendly::is_friendly(world, held) && crate::friendly::turns_of(world, held) > 0 {
+                // A monster that is already friendly for a count of turns is not re-charmed without `RECHARM`, which is a flag the port does not load.
+                continue;
+            }
+            crate::friendly::charm(world, held, turns);
+            charmed += 1;
+        }
+    }
+    if charmed == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

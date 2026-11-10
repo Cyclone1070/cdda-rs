@@ -1917,6 +1917,9 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
     Applied::Done
 }
 
+/// What a spawn marked friendly by data is marked with: the reference's `monster::friendly = -1`, which is "friendly for good" rather than for a count of turns.
+const FOREVER_FRIENDLY: i32 = -1;
+
 /// Gives one spawn the marks the data asks for: imagined, friendly, and how long it stays.
 ///
 /// Reference: `f_spawn_monster` (`npctalk.cpp:7371-7450`) marks hallucinations, sets `monster::friendly` when the data asks, and calls
@@ -1931,10 +1934,10 @@ fn dress_spawn(
     if imagined {
         world.entity_mut(spawn).insert(crate::monster_spawning::Hallucination);
     }
-    // The port has no attitudes yet, so friendliness is a **marker** on the creature - one component, no second source of truth - and the attitude rules can
-    // read it when they land.
+    // The port has no attitudes yet, so friendliness is a **count** on the creature - one component, no second source of truth - and the attitude rules can read it
+    // when they land. A spawn the data marks friendly starts with a count that never runs out, which is the reference's `friendly = -1` ("friendly for good").
     if friendly {
-        world.entity_mut(spawn).insert(crate::friendly::Friendly);
+        crate::friendly::make_friendly(world, spawn, FOREVER_FRIENDLY);
     }
     if let Some((lower, upper)) = lifespan
         && let Some(turns) = draw_between(world, lower, upper)
