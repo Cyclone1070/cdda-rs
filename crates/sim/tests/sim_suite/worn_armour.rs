@@ -40,6 +40,7 @@ use cdda_sim::hit_location::BodyPart;
 fn steel_layer() -> cdda_content::armour::Layer {
     // Half a millimetre of steel: six per millimetre, so three points of protection.
     cdda_content::armour::Layer {
+        damage_type: "bash".to_owned(),
         resist: 6.0,
         thickness: 0.5,
         cover: 100,
@@ -118,6 +119,7 @@ fn two_layers_on_one_part_add_up() {
             layers: vec![(
                 "torso".to_owned(),
                 cdda_content::armour::Layer {
+                    damage_type: "bash".to_owned(),
                     resist: 1.0,
                     thickness: 2.0,
                     cover: 100,
@@ -295,7 +297,7 @@ fn an_unbreakable_garment_is_never_damaged() {
 
     for _ in 0..10 {
         assert_eq!(
-            settle_armour(&mut world, survivor, "torso", 500.0, 0.0),
+            settle_armour(&mut world, survivor, "torso", 500.0, 0.0, None),
             Struck::Untouched,
             "not once"
         );
@@ -327,6 +329,7 @@ fn two_identical_blows_do_not_have_to_leave_the_same_vest() {
                     layers: vec![(
                         "torso".to_owned(),
                         cdda_content::armour::Layer {
+                            damage_type: "bash".to_owned(),
                             resist: 1.0,
                             thickness: 1.0,
                             cover: 100,

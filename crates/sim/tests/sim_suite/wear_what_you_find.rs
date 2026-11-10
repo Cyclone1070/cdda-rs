@@ -43,6 +43,7 @@ fn a_vest_on_the_floor(world: &mut World) -> Entity {
         layers: vec![(
             "torso".to_owned(),
             cdda_content::armour::Layer {
+                damage_type: "bash".to_owned(),
                 resist: 6.0,
                 thickness: 0.5,
                 cover: 100,

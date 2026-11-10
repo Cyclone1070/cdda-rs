@@ -45,6 +45,29 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A worn garment protects by damage type too (round 1471)
+
+Round 1470 named this gap; now it is closed. The materials had the figures all along - the port was reading two of them and summing the rest into one.
+
+| Piece | Reference | Port |
+|---|---|---|
+a material's resistances | `material_type::_resistances`, a **map** from damage type to figure (`material.cpp:85-88`) | `Material::resists`, every type the data states |
+a type the data omits | `resistances::type_resist` (`damage.cpp:719-723`) answers **zero** | `Material::resist_for` answers zero |
+a layer | `item::_resist` asks each material for the type of the blow | `Layer.damage_type`, one stack of layers per type |
+the garment's total | `Character::get_armor_type( dt, bp )` sums what the type's layers give | `dress` sums per part **and per type** into `PartArmour`, a map from type name to figure |
+the blow's damage | `damage_armor_durability` takes the layer the blow reaches | `settle_armour` takes a damage type and damages that layer |
+
+**Zero is the reference's answer, not a fallback.** The data's `resist` objects state bash, cut, acid, heat and bullet, and **no stab at all** - so a coat stops a club and a blade
+and nothing against a point. A port that borrowed cut's figure for stab, which is what a plausible-looking fallback would do, would be quietly wrong about every thrust in the
+game. The gate states the zero with the reason beside it.
+
+**`Layer` lost `Copy` and that is the point**: a layer now carries a `String` naming its type, so it is a small piece of data rather than a number triad - and the compiler
+pointed at each place that had been copying it, which is where the type had to be thought about.
+
+**The triple was the wrong container and the test found it.** With `PartArmour` as an `Armour` of bash/cut/stab, an electric vest's figure landed in bash and a taser read zero -
+which is what the two vest gates said the moment the type was honoured. The reference's own shape is a **map from damage type to figure** (`resistances::resist_vals`), so
+`PartArmour` is one now: any type the data states has somewhere to go, and a type it does not state is absent, which `armour_on` answers as zero.
+
 ## Armour answers for the damage type it is asked about (round 1470)
 
 A monster states **three** armour figures and the port was reading one of them for every blow, so a club and a blade were the same hit.

@@ -134,6 +134,7 @@ mod frame_oracle;
 mod frame_smoke;
 mod fun_for;
 mod fun_for_recorded;
+mod garment_by_type;
 mod gas_effects;
 mod gas_haze;
 mod gas_one_rule;

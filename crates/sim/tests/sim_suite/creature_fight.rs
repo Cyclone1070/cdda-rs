@@ -3767,14 +3767,14 @@ fn the_store_says_what_a_creature_wears_over_its_vitals() {
     world.spawn((
         cdda_sim::creature::WornBy(survivor),
         cdda_sim::creature::Garment {
-            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { resist: 1.0, thickness: 1.0, cover: 100 })],
+            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { damage_type: "bash".to_owned(), resist: 1.0, thickness: 1.0, cover: 100 })],
             vitals: vec![("torso".to_owned(), 90)],
         },
     ));
     world.spawn((
         cdda_sim::creature::WornBy(survivor),
         cdda_sim::creature::Garment {
-            layers: vec![("head".to_owned(), cdda_content::armour::Layer { resist: 1.0, thickness: 1.0, cover: 100 })],
+            layers: vec![("head".to_owned(), cdda_content::armour::Layer { damage_type: "bash".to_owned(), resist: 1.0, thickness: 1.0, cover: 100 })],
             vitals: vec![("head".to_owned(), 90)],
         },
     ));
@@ -3789,7 +3789,7 @@ fn the_store_says_what_a_creature_wears_over_its_vitals() {
     world.spawn((
         cdda_sim::creature::WornBy(survivor),
         cdda_sim::creature::Garment {
-            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { resist: 1.0, thickness: 1.0, cover: 100 })],
+            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { damage_type: "bash".to_owned(), resist: 1.0, thickness: 1.0, cover: 100 })],
             vitals: Vec::new(),
         },
     ));

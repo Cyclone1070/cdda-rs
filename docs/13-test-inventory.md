@@ -1812,3 +1812,13 @@ spawn fails both gates.
 monster identically. `armour_on` now takes the type, `monster_registry::set_armours` carries the three figures, and `spawn_monster` hands them over: nine of blunt against four of
 armour is five, and the same body lets all nine of a cut through. A type with no figure is zero rather than the bash figure borrowed, and a melee blow - which carries three types
 at once - asks `None` and says so. Reading one figure for every type fails the cut half of the gate on `5` against `9`.
+
+**Round 1471 split a garment's armour by damage type.** Materials carry a resist map (`material_type::_resistances`) and the port read two entries and summed the rest into one
+figure; now every stated type is kept, `Layer` names the type it is in the way of, `dress` sums per part **and** per type, and the blow damages the layer its own type meets. A
+type the data omits is **zero** - `resistances::type_resist` says so - which is why the coat in the gate stops four of bash, one of cut, and nothing at all against a stab. Making
+every layer bash fails both gates.
+
+**A correction inside round 1471, worth writing down.** `PartArmour` was first a bash/cut/stab triple, and the two long-standing vest gates failed immediately: a taser deals
+electric, the vest's figure had nowhere to go but bash, and the blow passed untouched. The reference keeps a **map** from damage type to figure (`resistances::resist_vals`), so
+`PartArmour` is one now - the vest gates then read `15 - 5 = 10` again with the type named in the fixture. That failure is the reason the port keeps the corpus gates: the
+container was wrong in a way no count would have shown.

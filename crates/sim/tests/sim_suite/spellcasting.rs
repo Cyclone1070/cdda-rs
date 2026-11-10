@@ -94,6 +94,8 @@ fn a_vest_stops_five_of_it() {
             layers: vec![(
                 "torso".to_owned(),
                 cdda_content::armour::Layer {
+                    // **The layer names the type the spell deals**, because a garment now protects by type: the taser is electric, so a layer that resists bash would stop nothing.
+                    damage_type: "electric".to_owned(),
                     resist: 5.0,
                     thickness: 1.0,
                     cover: 100,
@@ -248,6 +250,8 @@ fn a_vest_that_stops_blow_after_blow_comes_apart_and_then_the_flesh_does() {
                 layers: vec![(
                     "torso".to_owned(),
                     cdda_content::armour::Layer {
+                        // **The layer names the type the spell deals**, because a garment now protects by type: the taser is electric, so a layer that resists bash would stop nothing.
+                    damage_type: "electric".to_owned(),
                         resist: 5.0,
                         thickness: 1.0,
                         cover: 100,

@@ -198,6 +198,7 @@ fn armour_protects_the_part_it_covers_and_no_other() {
             layers: vec![(
                 part.to_owned(),
                 cdda_content::armour::Layer {
+                    damage_type: "bash".to_owned(),
                     // Four per millimetre, one millimetre thick: four points.
                     resist: 4.0,
                     thickness: 1.0,
@@ -276,6 +277,7 @@ fn a_worn_out_garment_protects_less_of_the_part_it_covers() {
             layers: vec![(
                 "torso".to_owned(),
                 Layer {
+                    damage_type: "bash".to_owned(),
                     resist: 4.0,
                     thickness: 1.0,
                     cover: 100,

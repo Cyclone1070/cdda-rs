@@ -13,17 +13,18 @@ use crate::corpus;
 #[test]
 fn a_layer_only_counts_when_the_hit_meets_it() {
     let layer = Layer {
+        damage_type: "bash".to_owned(),
         resist: 6.0,
         thickness: 0.5,
         cover: 60,
     };
     assert_eq!(
-        resist_of(&[layer], 59),
+        resist_of(std::slice::from_ref(&layer), 59),
         3.0,
         "a roll of fifty-nine beats a coverage of sixty, so steel at six per millimetre contributes three"
     );
     assert_eq!(
-        resist_of(&[layer], 60),
+        resist_of(std::slice::from_ref(&layer), 60),
         0.0,
         "and sixty does not: the test is `<`, so the boundary is the hit's to lose"
     );
@@ -32,17 +33,19 @@ fn a_layer_only_counts_when_the_hit_meets_it() {
 #[test]
 fn layers_add_and_thickness_multiplies() {
     let thin = Layer {
+        damage_type: "bash".to_owned(),
         resist: 6.0,
         thickness: 0.25,
         cover: 100,
     };
     let thick = Layer {
+        damage_type: "bash".to_owned(),
         resist: 1.0,
         thickness: 2.0,
         cover: 100,
     };
-    assert_eq!(resist_of(&[thin], 0), 1.5, "a quarter of a millimetre of steel");
-    assert_eq!(resist_of(&[thick], 0), 2.0, "two millimetres of flesh");
+    assert_eq!(resist_of(std::slice::from_ref(&thin), 0), 1.5, "a quarter of a millimetre of steel");
+    assert_eq!(resist_of(std::slice::from_ref(&thick), 0), 2.0, "two millimetres of flesh");
     assert_eq!(resist_of(&[thin, thick], 0), 3.5, "and both together");
     assert_eq!(resist_of(&[], 0), 0.0, "nothing in the way protects nothing");
 }
@@ -54,7 +57,7 @@ fn a_real_garment_is_worth_what_its_materials_and_thickness_say() {
     // Every garment in the data that covers a torso with a material the loader describes.
     let mut checked = 0;
     for item in &items {
-        let layers = layers_on(item, &materials, "torso", false);
+        let layers = layers_on(item, &materials, "torso", "bash");
         if layers.is_empty() {
             continue;
         }
@@ -241,11 +244,13 @@ fn the_materials_are_summed_before_the_wear_scales_them() {
 
     let layers = [
         Layer {
+            damage_type: "bash".to_owned(),
             resist: 1.0,
             thickness: 2.0,
             cover: 100,
         },
         Layer {
+            damage_type: "bash".to_owned(),
             resist: 0.5,
             thickness: 4.0,
             cover: 100,

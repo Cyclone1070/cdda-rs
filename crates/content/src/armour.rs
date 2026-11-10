@@ -8,9 +8,14 @@
 use crate::materials::Material;
 
 /// One material in the way of a blow, as the sum needs it.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Layer {
-    /// What the material resists per millimetre, for the damage type in question.
+    /// Which damage type this layer is in the way of, by the data's own name.
+    ///
+    /// **A layer knows its type** because a material resists bash, cut and the rest by different figures (`material_type::resist`), and a garment is therefore a stack of
+    /// layers per type rather than one stack for all of them.
+    pub damage_type: String,
+    /// What the material resists per millimetre, for that type.
     pub resist: f64,
     /// How many millimetres of it are there.
     pub thickness: f32,
@@ -23,7 +28,7 @@ pub struct Layer {
 /// Reference: `item::_resist` tests `internal_roll < m->cover` before counting a material - a garment covering
 /// sixty per cent of a torso is not in the way of every blow that reaches the torso.
 #[must_use]
-pub fn layer_resist(layer: Layer, roll: i32) -> f64 {
+pub fn layer_resist(layer: &Layer, roll: i32) -> f64 {
     if roll < layer.cover {
         layer.resist * f64::from(layer.thickness)
     } else {
@@ -36,7 +41,7 @@ pub fn layer_resist(layer: Layer, roll: i32) -> f64 {
 pub fn resist_of(layers: &[Layer], roll: i32) -> f64 {
     layers
         .iter()
-        .map(|layer| layer_resist(*layer, roll))
+        .map(|layer| layer_resist(layer, roll))
         .sum()
 }
 
@@ -134,7 +139,7 @@ pub fn layers_on(
     item: &crate::items::ItemType,
     materials: &[Material],
     part: &str,
-    cutting: bool,
+    damage_type: &str,
 ) -> Vec<Layer> {
     item.armor_parts
         .iter()
@@ -142,11 +147,8 @@ pub fn layers_on(
         .filter_map(|entry| {
             let material = materials.iter().find(|one| one.id == entry.material)?;
             Some(Layer {
-                resist: if cutting {
-                    material.cut_resist
-                } else {
-                    material.bash_resist
-                },
+                damage_type: damage_type.to_owned(),
+                resist: material.resist_for(damage_type),
                 thickness: entry.thickness,
                 cover: entry.cover,
             })

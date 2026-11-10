@@ -427,8 +427,13 @@ pub fn body_named(
 /// part**, because that is the whole reason a blow asks which part it landed on. The port keeps the total for
 /// bash per part; the pieces the reference adds together (worn, bionic, mutation, the part's own resistance) are
 /// already summed by the time they reach here, which is the same arithmetic with one fewer place to disagree.
+/// What a garment resists on each part, **per damage type**, and it is a map rather than a [`Armour`] triple because the data states types the triple does not hold.
+///
+/// Reference: `Character::get_armor_type( dt, bp )` sums `item::_resist` over the worn items, and `item::_resist` asks each material for the type of the blow. A material may
+/// state `electric`, `acid` or `heat` as easily as bash - the data does - so a part's answer is a figure **by type name**, and a type with no figure is zero, which is what
+/// `resistances::type_resist` answers.
 #[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
-pub struct PartArmour(pub std::collections::BTreeMap<String, i32>);
+pub struct PartArmour(pub std::collections::BTreeMap<String, std::collections::BTreeMap<String, i32>>);
 
 /// How big a creature is next to a human, as `anatomy::get_size_ratio` answers it.
 ///
@@ -454,7 +459,8 @@ pub fn armour_on(world: &World, entity: Entity, part: &str, damage_type: Option<
     if let Some(armour) = world.get::<PartArmour>(entity)
         && let Some(found) = armour.0.get(part)
     {
-        return *found;
+        let wanted = damage_type.unwrap_or("bash");
+        return found.get(wanted).copied().unwrap_or(0);
     }
     let Some(armour) = world.get::<Armour>(entity) else {
         return 0;
@@ -1706,6 +1712,7 @@ pub fn settle_armour(
     part: &str,
     premitigated: f64,
     fraction: f64,
+    damage_type: Option<&str>,
 ) -> Struck {
     let mut in_the_way: Vec<(Entity, Vec<(String, cdda_content::armour::Layer)>)> = Vec::new();
     {
@@ -1718,10 +1725,14 @@ pub fn settle_armour(
     }
     let mut worst = Struck::Untouched;
     for (item, layers) in in_the_way {
+        // **The layer the blow actually meets is the one for its own damage type**; a garment is a stack per type now, and taking the first for the part would damage the
+        // stack belonging to a different blow. A caller with a mixed blow passes `None` and gets the first, which is what it had before the stacks were split.
         let Some(layer) = layers
             .iter()
-            .find(|(covered, _)| covered == part)
-            .map(|(_, layer)| *layer)
+            .find(|(covered, layer)| {
+                covered == part && damage_type.is_none_or(|wanted| layer.damage_type == wanted)
+            })
+            .map(|(_, layer)| layer.clone())
         else {
             continue;
         };
@@ -1935,7 +1946,8 @@ pub fn dress(world: &mut World) {
         query.iter(world).map(|(entity, _)| entity).collect()
     };
     for wearer in wearers {
-        let mut tenths_of: std::collections::BTreeMap<String, i32> = std::collections::BTreeMap::new();
+        // **A tenths table per part and per damage type**, because a garment's figure for bash and its figure for cut are different numbers (`material_type::resist`).
+        let mut tenths_of: std::collections::BTreeMap<(String, String), i32> = std::collections::BTreeMap::new();
         for (owner, layers, level) in &worn {
             if *owner != wearer {
                 continue;
@@ -1946,8 +1958,11 @@ pub fn dress(world: &mut World) {
                 // because a garment's protection is a fraction - a shirt is a third of a point - and truncating each
                 // layer as it is added would throw away the difference between one shirt and three.
                 #[allow(clippy::cast_possible_truncation)]
-                let tenths = (cdda_content::armour::resist_as_worn(&[*layer], 0, *level) * 10.0).round() as i32;
-                *tenths_of.entry(part.clone()).or_insert(0) += tenths;
+                let tenths =
+                    (cdda_content::armour::resist_as_worn(std::slice::from_ref(layer), 0, *level) * 10.0).round() as i32;
+                *tenths_of
+                    .entry((part.clone(), layer.damage_type.clone()))
+                    .or_insert(0) += tenths;
             }
         }
         if tenths_of.is_empty() {
@@ -1955,10 +1970,13 @@ pub fn dress(world: &mut World) {
         } else {
             // One conversion at the end, the way `Character::get_armor_type` returns an `int`: the fraction is kept
             // while the layers are added and dropped once, so two thin layers can make a point between them.
-            let armour = tenths_of
-                .into_iter()
-                .map(|(part, tenths)| (part, tenths / 10))
-                .collect();
+            let mut armour: std::collections::BTreeMap<
+                String,
+                std::collections::BTreeMap<String, i32>,
+            > = std::collections::BTreeMap::new();
+            for ((part, damage_type), tenths) in tenths_of {
+                armour.entry(part).or_default().insert(damage_type, tenths / 10);
+            }
             world.entity_mut(wearer).insert(PartArmour(armour));
         }
     }
@@ -3512,7 +3530,7 @@ fn strike_with(
     if swung.hit {
         if let Some(part) = landed_on.as_deref() {
             let arrived = f64::from(rolled.bash.max(0) + rolled.cut.max(0));
-            settle_armour(world, victim, part, arrived, garment_roll);
+            settle_armour(world, victim, part, arrived, garment_roll, None);
         }
         hurt_by(world, victim, swung.damage, striker);
         // Reference: `wkpt->apply_effects( *this, total_damage, attack )` (`creature.cpp:1453-1455`) runs **after** the damage lands, and is told the damage the body took rather than the blow's

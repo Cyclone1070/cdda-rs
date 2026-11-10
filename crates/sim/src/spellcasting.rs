@@ -318,7 +318,7 @@ pub fn damage_one(
     let arrived = damage.round() as i32;
     // The garment that stopped the blow may not survive stopping it, and it is asked with what arrived rather than
     // what got through (`character_armor.cpp`).
-    crate::creature::settle_armour(world, target, &part, damage, fraction);
+    crate::creature::settle_armour(world, target, &part, damage, fraction, Some(&spell.damage_type));
     let dealt = through_armour(arrived, armour);
     #[allow(clippy::cast_precision_loss)]
     let as_float = dealt as f32;

@@ -1716,14 +1716,14 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
     let covering = |item: &cdda_content::items::ItemType| -> std::collections::BTreeSet<String> {
         item.armor_parts
             .iter()
-            .filter(|entry| !cdda_content::armour::layers_on(item, &materials, "torso", false).is_empty()
+            .filter(|entry| !cdda_content::armour::layers_on(item, &materials, "torso", "bash").is_empty()
                 || entry.thickness > 0.0)
             .flat_map(|entry| entry.covers.clone())
             .collect()
     };
     let candidates: Vec<(std::collections::BTreeSet<String>, &cdda_content::items::ItemType)> = items
         .iter()
-        .filter(|item| !cdda_content::armour::layers_on(item, &materials, "torso", false).is_empty())
+        .filter(|item| !cdda_content::armour::layers_on(item, &materials, "torso", "bash").is_empty())
         .map(|item| (covering(item), item))
         .collect();
     // Among the garments that cover a torso **and** an arm - which rules out a canteen on a strap - take the least
@@ -1731,7 +1731,7 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
     // playtest that dressed itself differently each time would be no playtest at all.
     let protection = |item: &cdda_content::items::ItemType, part: &str| -> f64 {
         cdda_content::armour::resist_of(
-            &cdda_content::armour::layers_on(item, &materials, part, false),
+            &cdda_content::armour::layers_on(item, &materials, part, "bash"),
             0,
         )
     };
@@ -1763,10 +1763,15 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
         .collect();
     parts.sort();
     parts.dedup();
+    // **One stack of layers per damage type**, because a material resists bash and cut by different figures and states nothing at all for a type it does not name
+    // (`material_type::resist` over `resistances::type_resist`). The three types are the three the port's `Armour` models; the data's `acid`, `heat` and `bullet`
+    // figures stay unread until a rule asks for them.
     let mut layers = Vec::new();
     for part in parts {
-        for layer in cdda_content::armour::layers_on(shirt, &materials, &part, false) {
-            layers.push((part.clone(), layer));
+        for damage_type in ["bash", "cut", "stab"] {
+            for layer in cdda_content::armour::layers_on(shirt, &materials, &part, damage_type) {
+                layers.push((part.clone(), layer));
+            }
         }
     }
     if layers.is_empty() {
@@ -1786,7 +1791,7 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
     cdda_sim::creature::dress(world);
     let torso = world
         .get::<cdda_sim::creature::PartArmour>(avatar)
-        .and_then(|armour| armour.0.get("torso").copied())
+        .and_then(|armour| armour.0.get("torso").and_then(|figure| figure.get("bash").copied()))
         .unwrap_or(0);
     Some(format!("{} — {torso} point(s) on the torso", shirt.id))
 }

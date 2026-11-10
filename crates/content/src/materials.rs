@@ -17,6 +17,10 @@ pub struct Material {
     pub name: String,
     /// Density relative to powder, which is 1.
     pub density: f64,
+    /// What this material resists, by damage type, exactly as the data states it (`material_type::_resistances`).
+    ///
+    /// A type the data does not name is **absent**, and the reference answers zero for it (`type_resist`, `damage.cpp:719-723`) rather than borrowing another type's figure.
+    pub resists: BTreeMap<String, f64>,
     /// Resistance of the item itself to physical damage.
     pub chip_resist: i32,
     /// Its resistance to bash, per millimetre of thickness (`material::resist` on bash).
@@ -75,6 +79,7 @@ fn defaults(id: &str) -> Material {
         name: String::new(),
         density: 1.0,
         chip_resist: 0,
+        resists: BTreeMap::new(),
         bash_resist: 0.0,
         cut_resist: 0.0,
         breathability: 0,
@@ -133,20 +138,41 @@ impl std::fmt::Display for LoadError {
 
 impl std::error::Error for LoadError {}
 
-/// The material's resistances, from the `resist` object (`material::load`).
+impl Material {
+    /// What this material takes off a blow of one damage type, per millimetre.
+    ///
+    /// Reference: `material_type::resist( dmg_type )` (`material.cpp:213-216`) over `resistances::type_resist` (`damage.cpp:719-723`) - **zero when the data does not
+    /// state the type**, which is the reference's own answer and not a fallback to a neighbouring type.
+    #[must_use]
+    pub fn resist_for(&self, damage_type: &str) -> f64 {
+        self.resists.get(damage_type).copied().unwrap_or(0.0)
+    }
+}
+
+/// The material's resistances, from the `resist` object (`material_type::load`, `material.cpp:85-88`, through `load_resistances_instance`,
+/// `damage.cpp:841-847`).
 ///
-/// Only bash and cut are read: they are the two an ordinary blow carries, and storing a type the port has no rule
-/// for would be keeping a number nothing reads.
+/// **Every type the data states is kept, by name**, because that is what the reference keeps: a `resistances` holds a map from damage type to figure, and
+/// `type_resist` (`damage.cpp:719-723`) answers **zero for a type the material does not state** - which is why a garment protects nothing against a stab unless
+/// its material names one. The port used to keep bash and cut alone, which made the other types unanswerable rather than zero.
 fn resistances(material: &mut Material, object: &Object) {
     let Some(Value::Object(resist)) = object.get("resist") else {
         return;
     };
-    if let Some(bash) = number(resist, "bash") {
-        material.bash_resist = bash;
+    for (damage_type, value) in resist.members() {
+        #[allow(clippy::cast_precision_loss)]
+        let figure = match value {
+            Value::Int(figure) => Some(*figure as f64),
+            Value::Float(figure) => Some(*figure),
+            _ => None,
+        };
+        if let Some(figure) = figure {
+            material.resists.insert(damage_type.clone(), figure);
+        }
     }
-    if let Some(cut) = number(resist, "cut") {
-        material.cut_resist = cut;
-    }
+    // The two readers that predate the map keep answering the same way, so nothing that asks `bash_resist` has to change at the same moment.
+    material.bash_resist = material.resists.get("bash").copied().unwrap_or(0.0);
+    material.cut_resist = material.resists.get("cut").copied().unwrap_or(0.0);
 }
 
 fn collect(value: &Value, out: &mut BTreeMap<String, Object>, order: &mut Vec<String>) {
