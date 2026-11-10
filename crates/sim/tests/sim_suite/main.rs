@@ -215,6 +215,7 @@ mod weather;
 mod spell_costs;
 mod spell_add_trap;
 mod spell_bash;
+mod spell_cast_sound;
 mod spell_charm;
 mod spell_dash;
 mod spell_effects;

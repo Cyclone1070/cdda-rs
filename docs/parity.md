@@ -45,6 +45,23 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## An attack spell is heard where it lands (round 1468)
+
+The volume rule was written in round 1467 and had no caller; now the attack path uses it, which is what the reference does.
+
+| Piece | Reference | Port |
+|---|---|---|
+where the sound is made | `damage_targets` (`magic_spell_effect.cpp:523-560`) calls `sp.make_sound( target, caster )` **on each target square**, before the effect and the damage | `spellcasting::damage_one`, at the victim's square |
+how loud | `spell::sound_volume` | `spellcasting::sound_volume` |
+what it means | a spell that hits three creatures is heard from each of them, and a silent attack is a silent hit | the same; the gate hears the sound at `(3,0,0)` while the caster stands at `(0,0,0)` |
+
+**The gate proves a location, not just a count.** A port that made the sound at the caster's square would pass any assertion about loudness and still be wrong about where a
+creature hears it from - so the gate asserts the square, then the volume, and the mutation that swaps the volume for the raw damage fails on the second while the first stays green.
+
+**A named gap this round ran into**: `damage_one` picks a body part from [`crate::creature::Body`], and the port gives that component only to a creature built from an anatomy -
+which means **an attack spell cannot hit a monster yet**, because a monster's anatomy (`mtype::bodytype`) is not loadable. The gate uses a character, where the body is known,
+and the gap is named here rather than papered over with a one-part body for every monster.
+
 ## How loud a spell is, and the difference between truncating and rounding (round 1467)
 
 The port's `noise` effect rounded its damage to a volume; the reference truncates it, and loudness is a third of that same number.

@@ -1798,3 +1798,7 @@ hostility flag from the rule fails the gate on the hostile half.
 **Round 1467 pinned a spell's loudness and its truncating damage.** `spell::sound_volume` is `SILENT` first, then `abs( damage ) / 3`, with `LOUD` adding `1 + damage / 3` - so
 nine damage is three, and nine loud damage is seven, which is the sum the gate states instead of the formula. `spell::damage` truncates toward zero, so 2.5 is 2 and -2.5 is -2,
 and the `noise` effect now takes that number rather than a rounded one. Both mutations fail: dropping the absolute value makes a healing spell silent, and rounding makes 2.5 into 3.
+
+**Round 1468 made an attack heard where it lands.** `damage_targets` makes the spell's sound on each target square before the damage, so the sound now comes from the victim's
+square rather than nowhere: the gate asserts the square `(3,0,0)` with the caster at `(0,0,0)`, then the volume of three for nine damage, then that a `SILENT` attack is heard by
+nobody and a `LOUD` one at seven. Swapping the volume for the raw damage fails on `9` against `3` while the square stays right, which is why both halves are asserted.

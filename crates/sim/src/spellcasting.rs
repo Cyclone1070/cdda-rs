@@ -293,6 +293,14 @@ pub fn damage_one(
             crate::effects::ActiveEffect::new(&kind, turns, 1),
         );
     }
+    // Reference: `damage_targets` (`magic_spell_effect.cpp:523-560`) calls `sp.make_sound( target, caster )` for **each square of the area** before the field and the damage, so a
+    // spell that hits three creatures is heard from each of them, and the loudness is `spell::sound_volume` rather than the damage itself.
+    if let Some(at) = world.get::<crate::Position>(target).map(|held| (held.x, held.y, held.z)) {
+        let loudness = sound_volume(spell, level);
+        if loudness > 0 {
+            crate::sounds::make_sound(world, at, loudness);
+        }
+    }
     let Some(body) = world.get::<Body>(target) else {
         return Cast::NothingToHit;
     };
