@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A spell can carry its caster across the ground (round 1449)
+
+`dash` is four spells - the leaps - and it is the first effect in the port that **moves the caster as part of its own rule** rather than as a consequence of one.
+
+| Piece | Reference | Port |
+|---|---|---|
+the walk | `line_to( source, target )`, stopping at a creature or a refused move (`magic_spell_effect.cpp:1803-1820`) | the same line, one `try_step` per square |
+who walks | only an avatar - `if( caster_you != nullptr )` | the same, and the gate fails when a monster walks |
+the price | `caster.set_moves( cur_moves )` afterwards (`:1822`) | the same, so the leap costs the casting and not the walking - **but each square still has to be affordable while it happens** |
+the hit | a cone of `aoe` width and `aoe` length from the source towards where the walk stopped (`:1824-1832`) | the same cone, from the shape rule the last round added |
+
+**The moves are borrowed, not free.** The reference gives back what the walk spent, but `walk_move` refuses a step the caster cannot pay for, so a leap across seven squares with
+five squares' worth of moves stops where the money ran out. The gate states that the moves come back and the first version of it failed for exactly this reason: it asked for
+six squares with five squares' worth.
+
+All four of the content's dash spells state an area of **zero**, which makes the damage cone empty and the leap the whole effect. The code for a wider cone is there because
+the rule states it, and the gate says which case it covers rather than leaving it to be discovered.
+
+Thirteen effect kinds are ported now of the data's thirty-two, and **212 of 245 spells** name one of them.
+
 ## A spell's shape decides which squares it covers (round 1448)
 
 Until this round every spell in the port covered a **square blast**, whatever its `shape` said. That was wrong for 24 of the content's 245 spells - 15 cones and 9 lines - and

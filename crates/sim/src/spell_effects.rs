@@ -49,6 +49,7 @@ pub const EFFECTS: &[(&str, Apply)] = &[
     ("timed_event", timed_event),
     ("morale", morale),
     ("targeted_polymorph", targeted_polymorph),
+    ("dash", dash),
 ];
 
 /// An `attack` spell damages everything its area covers.
@@ -267,6 +268,92 @@ fn short_range_teleport(
         crate::teleport::Teleport::Unchanged
         | crate::teleport::Teleport::Refused
         | crate::teleport::Teleport::Died => Effective::NothingAffected,
+    }
+}
+
+/// A `dash` spell leaps the caster along a line and hits what stands in the cone it leaves behind.
+///
+/// Reference: `spell_effect::dash` (`magic_spell_effect.cpp:1783-1833`). The reference's own shape is unusual and is kept whole:
+///
+/// * the walk is `line_to( source, target )`, and a step is refused when a creature stands there or the move is not valid - so a dash **stops short** rather than pushing
+///   through;
+/// * **only an avatar walks at all** (`caster_you` is null for a monster, whose loop body does nothing) - a monster's dash leaves it where it started;
+/// * the moves spent on the walk are **given back** afterwards (`caster.set_moves( cur_moves )`), so a dash costs the caster nothing but the turns its own casting already
+///   took;
+/// * the damage cone starts at the source, points at `calc_ray_end( angle, aoe, where_it_stopped )` and is `aoe` wide and `aoe` long.
+///
+/// All four of the content's dash spells state an area of **zero**, which makes that cone empty and the leap the whole effect - the code is here for the spells that will
+/// state otherwise, and a gate states the zero case rather than leaving it to be discovered.
+fn dash(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    centre: (i32, i32, i32),
+) -> Effective {
+    let Some(source) = world.get::<crate::Position>(caster).map(|at| (at.x, at.y, at.z)) else {
+        return Effective::NotPorted;
+    };
+    let Some(area) = spell.area.at(level) else {
+        return Effective::NotPorted;
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let area = area.max(0.0) as i32;
+    let mut trajectory = crate::line::between((source.0, source.1), (centre.0, centre.1));
+    // Reference: `if( here.get_bub( *walk_point ) == source ) { ++walk_point; }` - the line normally starts *after* the caster, and only a dash aimed at its own square
+    // hands back the square it is standing on.
+    if trajectory.first() == Some(&(source.0, source.1)) {
+        trajectory.remove(0);
+    }
+    let saved = world
+        .get::<crate::creature::Moves>(caster)
+        .map_or(0, |moves| moves.left);
+    let mut reached = source;
+    // Reference: `if( caster_you != nullptr )` - a monster's dash does not walk.
+    if world.get::<crate::Player>(caster).is_some() {
+        for square in &trajectory {
+            let at = (square.0, square.1, source.2);
+            if !crate::creature::creature_at(world, at).is_empty() {
+                break;
+            }
+            let Some(cost_here) = crate::routing::square_cost(world, reached) else {
+                break;
+            };
+            let Some(cost_next) = crate::routing::square_cost(world, at) else {
+                break;
+            };
+            let axes = usize::from(at.0 != reached.0) + usize::from(at.1 != reached.1);
+            let cost = crate::creature::combined_move_cost(cost_here, cost_next, 0, axes);
+            if crate::creature::try_step(world, caster, at, cost)
+                != crate::creature::StepOutcome::Moved
+            {
+                break;
+            }
+            reached = at;
+        }
+    }
+    if let Some(mut moves) = world.get_mut::<crate::creature::Moves>(caster) {
+        moves.left = saved;
+    }
+    // Reference: `calc_ray_end( coord_to_angle( source, target ), sp.aoe( caster ), *walk_point, far_target )`, then a cone of `params.range = sp.aoe( caster )`.
+    let far = crate::spell_area::ray_end(crate::spell_area::angle_of(source, centre), area, reached);
+    let hit = crate::spell_area::cone(source, far, area, area, false, &|square| {
+        crate::routing::square_cost(world, square).is_some()
+    });
+    let mut struck = 0;
+    for square in hit {
+        for victim in crate::creature::creature_at(world, square) {
+            if victim == caster {
+                continue;
+            }
+            crate::spellcasting::damage_one(world, spell, level, victim, 1.0);
+            struck += 1;
+        }
+    }
+    if reached == source && struck == 0 {
+        Effective::NothingAffected
+    } else {
+        Effective::Done
     }
 }
 

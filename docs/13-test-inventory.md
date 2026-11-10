@@ -1710,3 +1710,8 @@ boundary: equal hit points resist, one point more of damage transforms.
 (`line::between`, the reference's `bresenham`, whose origin is **excluded**, which surprised the first version of the test), the cone reaching where the blast over-reached and
 never its own caster, and the cone stopping at a wall where a blast carries on. The wall gate earned its keep immediately: `cover` passed `ignore_walls = true` and the ray
 walked straight through. Fifteen cones and nine lines in the content now mean something; the line shape itself is declared unported.
+
+**Round 1449 let a spell carry its caster.** `dash` walks the caster along a line, stopping short of a creature or of a step it cannot pay for, then hands back every move the
+walk spent and strikes a cone of `aoe` width and length from where the leap began. Only an avatar walks - the reference's own `if( caster_you != nullptr )` - and the gate
+fails the moment a monster does. The moves being borrowed rather than free is the subtlety the first gate run taught: six squares need six squares' worth of moves even
+though the price is refunded afterwards.
