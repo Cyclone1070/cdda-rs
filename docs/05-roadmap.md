@@ -367,6 +367,9 @@ rather than from a broader rule:
 `if` | `EOC_TOOK_OVER_CAMP_NOTICE` | the condition `u_has_camp` |
 `loc` | `EOC_map_item_test1` | an inventory selection whose `loc` is a context variable |
 
+**Two of the six have closed since this table was written** (rounds 1482-1484): `false_eocs` was the `npc_run_inv_eocs` member the port did not read, and the beggar program now
+reads whole because `search_data` learned the `condition` member. The census stands at **five**.
+
 **The `false_eocs` one is a reader question, not a store.** Its entry is the reference's `load_inline_eoc` case exactly: an object carrying `id` **beside** `effect`
 (`effect_on_condition.cpp:119-133`, where a string is a program's name and an object is a program installed under its own `id`). The port's reader already builds
 `ProgramRef::Inline { id: Some( .. ) }` and `eoc_registry::inline_definitions` already installs those, so the refusal is somewhere inside that body - most likely

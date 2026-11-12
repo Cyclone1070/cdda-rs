@@ -982,8 +982,6 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
 fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
     let Effect::RunInvEocs {
         search_data,
-        wielded_only,
-        worn_only,
         random,
         listener: on_listener,
         manual,
@@ -1004,48 +1002,47 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
         return Applied::CannotAnswer;
     };
-    // Each match keeps its **entity**, because the reference hands the picked item to the program as the dialogue's `beta` - which is what lets an effect inside the
-    // list act on that item (`f_transform_item`, `npctalk.cpp:6119-6129`) rather than on whatever the dialogue was already talking to.
-    let mut matches: Vec<(Entity, String, i32)> = Vec::new();
-    // The names are read **before** the query borrows the world mutably: `name_of` needs `&mut World` and a query's iterator holds it for the loop.
-    let mut carried: Vec<(Entity, crate::ItemTypeId, i32)> = Vec::new();
-    let wielded = if *wielded_only {
-        world
-            .try_query::<(Entity, &crate::creature::WieldedBy, &crate::GroundItem)>()
-            .and_then(|mut query| {
-                query
-                    .iter(world)
-                    .find(|(_, who, _)| who.0 == holder)
-                    .map(|(entity, _, item)| (entity, item.kind, item.charges.max(1)))
-            })
-    } else {
-        None
-    };
-    if *worn_only {
-        let mut query = world.query::<(Entity, &crate::creature::WornBy, &crate::GroundItem)>();
-        for (entity, who, item) in query.iter(world) {
+    // Every item the creature carries, with how it is held - which is what a filter entry may ask about.
+    let mut carried: Vec<(Entity, crate::ItemTypeId, i32, bool, bool)> = Vec::new();
+    {
+        let mut wielded_query = world.query::<(Entity, &crate::creature::WieldedBy, &crate::GroundItem)>();
+        let wielded: std::collections::BTreeSet<Entity> = wielded_query
+            .iter(world)
+            .filter(|(_, who, _)| who.0 == holder)
+            .map(|(entity, _, _)| entity)
+            .collect();
+        let mut worn_query = world.query::<(Entity, &crate::creature::WornBy, &crate::GroundItem)>();
+        let worn: std::collections::BTreeSet<Entity> = worn_query
+            .iter(world)
+            .filter(|(_, who, _)| who.0 == holder)
+            .map(|(entity, _, _)| entity)
+            .collect();
+        let mut carried_query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
+        for (entity, who, item) in carried_query.iter(world) {
             if who.0 == holder {
-                carried.push((entity, item.kind, item.charges.max(1)));
-            }
-        }
-    } else if let Some(held) = wielded {
-        carried.push(held);
-    } else if !*wielded_only {
-        let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
-        for (entity, who, item) in query.iter(world) {
-            if who.0 == holder {
-                carried.push((entity, item.kind, item.charges.max(1)));
+                carried.push((
+                    entity,
+                    item.kind,
+                    item.charges.max(1),
+                    wielded.contains(&entity),
+                    worn.contains(&entity),
+                ));
             }
         }
     }
-    for (entity, kind, charges) in carried {
+    let mut matches: Vec<(Entity, String, i32)> = Vec::new();
+    for (entity, kind, charges, is_wielded, is_worn) in carried {
         let Some(name) = crate::item_registry::name_of(world, kind) else {
             continue;
         };
-        if !search_data.is_empty() && !search_data.contains(&name) {
-            continue;
+        // Reference: `run_item_eocs` (`npctalk.cpp:3341-3348`) - an empty list matches everything, otherwise **any one** entry matching is enough.
+        let matched = search_data.is_empty()
+            || search_data.iter().any(|filter| {
+                filter_matches(world, speaker, entity, &name, is_wielded, is_worn, filter)
+            });
+        if matched {
+            matches.push((entity, name, charges));
         }
-        matches.push((entity, name, charges));
     }
     // Reference: **nothing matched runs the false branch once** (`npctalk.cpp:3376-3378`, and the same answer in every mode). It belongs to the dialogue rather than to an
     // item: there is no item to hand the program as its beta, which is why it is run once rather than per item that failed the filter.
@@ -3027,4 +3024,36 @@ fn offer_mission(world: &mut World, _speaker: Entity, listener: Option<Entity>, 
         crate::missions::offer(world, npc, mission);
     }
     Applied::Done
+}
+
+/// Whether one `search_data` entry matches an item.
+///
+/// Reference: `item_search_data::check` (`npctalk.cpp:325-441`): every member the entry states must pass, and a member it omits asks nothing. The condition is asked with the
+/// item as the dialogue's **beta** (`:430-435`), which is how a filter can read the item's own contents.
+fn filter_matches(
+    world: &mut World,
+    speaker: Entity,
+    item: Entity,
+    name: &str,
+    is_wielded: bool,
+    is_worn: bool,
+    filter: &cdda_content::dialogue::SearchFilter,
+) -> bool {
+    if let Some(id) = filter.id.as_deref()
+        && id != name
+    {
+        return false;
+    }
+    if filter.wielded_only && !is_wielded {
+        return false;
+    }
+    if filter.worn_only && !is_worn {
+        return false;
+    }
+    match filter.condition.as_deref() {
+        None => true,
+        // Reference: `const_dialogue dial( d.const_actor( false )->const_clone(), get_const_talker_for( loc ) )` (`:432`) - the **item** is the dialogue's beta, so the
+        // condition reads the item where it would otherwise read the listener.
+        Some(condition) => crate::conditions::holds_with(world, speaker, Some(item), condition),
+    }
 }

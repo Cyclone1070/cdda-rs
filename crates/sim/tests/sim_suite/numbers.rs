@@ -51,8 +51,9 @@ pub const NOW: Census = Census {
     // **598 after round 1430 read `u_activate_trait`**, which joins the mutation-activation rule to the program runner: one program stops refusing at its first entry, and the
     // effect census moves with it (1,580 -> 1,581) because the same reader is counted on both sides.
     // **599 after round 1432 read `u_emit`**, which is the same rule a spell already used, reached through a location variable.
-    // **600 after round 1439 read `reveal_map`**, whose radius is a `dbl_or_var` the port already had a reader for: one program gained.
-    readable: 600,
+    // **600 after round 1439 read `reveal_map`**, whose radius is a `dbl_or_var` the port already had a reader for: one program gained. **601 after round 1484** taught
+    // `search_data` the `condition` member and the alternative semantics, which is the beggar program that had been blamed on `false_eocs`.
+    readable: 601,
     ran: 395,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
@@ -62,18 +63,22 @@ pub const NOW: Census = Census {
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     ran_in_a_built_world: 400,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
-    refused_at_run: 205,
+    // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
+    refused_at_run: 206,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
     // 21 after round 1432: the `u_emit` reader took nine leaves with it, because the effect is used by nine programs' worth of entries.
     // 20 and 12 after round 1439: `reveal_map`'s radius was the last leaf in its program and the only gap in one more.
-    leaves: 20,
-    one_gap: 12,
-    effects_runnable: 1_583,
+    // 19 after round 1484: the beggar program's `search_data` reads, so its last unreadable member is gone.
+    leaves: 19,
+    // 11 after round 1484: the program that stopped refusing at its `search_data` was one member short of reading, so the gap closed with it.
+    one_gap: 11,
+    effects_runnable: 1_584,
     effects_defined: 1_612,
     // 85 after round 1439: the same program no longer blames an effect, because its first refusal is now past the effect list.
-    effect_blamed: 85,
+    // 84 after round 1484: same program, one fewer entry refused at its effect list.
+    effect_blamed: 84,
     conditions_readable: 3_227,
 };
 

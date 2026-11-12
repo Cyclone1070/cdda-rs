@@ -371,3 +371,51 @@ fn a_search_that_matches_nothing_runs_the_false_branch_once() {
         "and the true branch does not run"
     );
 }
+
+/// **The entries are alternatives, and an entry may be a condition.**
+///
+/// Reference: `run_item_eocs` (`npctalk.cpp:3341-3348`) starts `true_tgt = data.empty()` and **breaks on the first entry that matches**, so two entries mean "a rock *or*
+/// whatever is in my hand". The port kept one id list beside two flags and applied the flags to every item, which is a different question - and it had no way to read an entry
+/// whose member is a `condition` (`item_search_data::check`, `:430-435`, asked with the item as the dialogue's beta).
+#[test]
+fn entries_are_alternatives_and_one_may_be_a_condition() {
+    fn messages(search_data: &str, names: &[&str]) -> Vec<String> {
+        let mut world = World::new();
+        let items = a_survivor_with(&mut world, names);
+        let speaker = items
+            .first()
+            .and_then(|item| world.get::<cdda_sim::creature::Carried>(*item))
+            .map(|carried| carried.0)
+            .unwrap_or_else(|| cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0)));
+        let text = format!(
+            r#"{{ "u_run_inv_eocs": "all", "search_data": {search_data},
+                "true_eocs": [ {{ "id": "EOC_YES", "effect": [ {{ "u_message": "matched" }} ] }} ],
+                "false_eocs": [ {{ "id": "EOC_NO", "effect": [ {{ "u_message": "no match" }} ] }} ] }}"#
+        );
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the filter is readable");
+        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+        cdda_sim::messages::lines(&world)
+    }
+
+    // The rock is carried but **not wielded**, so a port that ANDed the entries would find nothing.
+    // **The entry that matches is the second one**, so a reader that stopped at the first would answer nothing.
+    let either = messages(r#"[ { "wielded_only": true }, { "id": "rock" } ]"#, &["rock"]);
+    assert!(
+        either.iter().any(|line| line.contains("matched")),
+        "**the rock passes the first entry alone**: {either:?}"
+    );
+
+    // A condition that is false leaves the item out, and the false branch answers instead.
+    let refused = messages(r#"[ { "condition": { "math": [ "1 == 2" ] } } ]"#, &["rock"]);
+    assert!(
+        refused.iter().any(|line| line.contains("no match")),
+        "**a condition that does not hold excludes the item**: {refused:?}"
+    );
+
+    let allowed = messages(r#"[ { "condition": { "math": [ "1 == 1" ] } } ]"#, &["rock"]);
+    assert!(
+        allowed.iter().any(|line| line.contains("matched")),
+        "and one that holds keeps it: {allowed:?}"
+    );
+}

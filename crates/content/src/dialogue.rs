@@ -2451,6 +2451,22 @@ pub enum EffectDuration {
     Computed(crate::dialogue::Expression),
 }
 
+/// One `search_data` entry: what an item must be for this entry to match it.
+///
+/// Reference: `item_search_data` (`npctalk.cpp:235-441`) - a bag of optional filters whose `check` answers true only when every stated one passes. The port reads the four
+/// members the content uses that it can answer: an id, the wielded item, a worn item, and a **condition** asked with the item as the dialogue's beta.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchFilter {
+    /// The item id this entry wants, if it names one.
+    pub id: Option<String>,
+    /// Whether this entry matches only the wielded item.
+    pub wielded_only: bool,
+    /// Whether this entry matches only a worn item.
+    pub worn_only: bool,
+    /// A condition the item must satisfy, asked with the item as the dialogue's beta (`npctalk.cpp:430-435`).
+    pub condition: Option<Box<Condition>>,
+}
+
 /// An effect a dialogue program can run.
 ///
 /// Reference: `talk_effect_fun_t`'s table (`npctalk.cpp:8039-8135`), which maps each member name to a function. The port keeps
@@ -2620,12 +2636,11 @@ pub enum Effect {
     /// `search_data` narrows which items count by id. The port reads the `"all"` form and refuses `"manual"`, because a menu is a question the headless port can only
     /// answer from its queue and the reference's menu picks **one** item, not many.
     RunInvEocs {
-        /// The item ids the entries must match; empty means every item.
-        search_data: Vec<String>,
-        /// Whether only the wielded item counts.
-        wielded_only: bool,
-        /// Whether only **worn** items count.
-        worn_only: bool,
+        /// The filters an item must pass **any one of**; empty means every item passes.
+        ///
+        /// Reference: `run_item_eocs` (`npctalk.cpp:3341-3348`) starts `true_tgt = data.empty()` and breaks on the first `item_search_data` that matches, so the entries are
+        /// **alternatives**, not conditions. The port kept one id list beside two flags and treated the flags as filters over every entry, which is not what the data says.
+        search_data: Vec<SearchFilter>,
         /// Whether **one** match is drawn rather than every match being run on.
         random: bool,
         /// Whether the items are the **listener's** rather than the speaker's: the `npc_run_inv_eocs` member, which is the same rule as `u_run_inv_eocs` aimed at the
@@ -4449,44 +4464,41 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
         return None;
     }
     let mut search_data = Vec::new();
-    let mut wielded_only = false;
-    let mut worn_only = false;
     match object.get("search_data") {
         None => {}
         Some(Value::Array(entries)) => {
             for entry in entries {
-                // A filter that names anything but an item id is a different question - a flag, a category, a charge count - and refuses.
                 let Value::Object(filter) = entry else {
                     return None;
                 };
-                // A filter may name an **id** or ask for the wielded item; anything else is a question the port has not written.
-                if !filter
-                    .members()
-                    .iter()
-                    .all(|(key, _)| matches!(key.as_str(), "id" | "wielded_only" | "worn_only"))
-                {
+                // A member the port cannot answer - a category, a material, a flag, a charge count - refuses the entry rather than being ignored, because ignoring a filter
+                // would run a program on items the data meant to leave alone.
+                if !filter.members().iter().all(|(key, _)| {
+                    matches!(key.as_str(), "id" | "wielded_only" | "worn_only" | "condition" | "//")
+                }) {
                     return None;
                 }
-                if let Some(Value::Bool(true)) = filter.get("wielded_only") {
-                    wielded_only = true;
-                }
-                if let Some(Value::Bool(true)) = filter.get("worn_only") {
-                    worn_only = true;
-                }
-                if let Some(given) = filter.get("id") {
-                    let Value::Str(id) = given else {
-                        return None;
-                    };
-                    search_data.push(id.clone());
-                }
+                let id = match filter.get("id") {
+                    None => None,
+                    Some(Value::Str(id)) => Some(id.clone()),
+                    Some(_) => return None,
+                };
+                let condition = match filter.get("condition") {
+                    None => None,
+                    Some(condition) => Some(Box::new(read_condition(condition)?)),
+                };
+                search_data.push(SearchFilter {
+                    id,
+                    wielded_only: matches!(filter.get("wielded_only"), Some(Value::Bool(true))),
+                    worn_only: matches!(filter.get("worn_only"), Some(Value::Bool(true))),
+                    condition,
+                });
             }
         }
         Some(_) => return None,
     }
     Some(Effect::RunInvEocs {
         search_data,
-        wielded_only,
-        worn_only,
         random: mode == "random",
         listener,
         manual: mode.starts_with("manual"),

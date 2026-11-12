@@ -1872,3 +1872,12 @@ speaker's pack is not what the member names; ignoring the member fails it.
 when the first had nothing to run on - a branch the port never read, so a program's "there was nothing" line never ran. The gate proves both directions: a match runs the true
 branch and leaves the false one quiet, a miss runs the false branch and not the true one; deleting the false branch fails it. `inline_definitions` walks both lists, because an
 inline program named only in `false_eocs` has to be installed too.
+
+**Round 1484 made the filters alternatives and gave them conditions.** `search_data` is a list of filter objects where **any one** matching is enough, and an entry may state a
+condition asked with the item as the dialogue's beta - the port had flattened the list into an id list beside two global flags, which could not read the beggar programs' entry.
+The refusal census falls from six to five, and the gate proves both halves: the matching entry is the *second* one (so stopping at the first fails), and a condition that does not
+hold excludes the item while one that holds keeps it.
+
+The census moved with it and every pin was re-measured: **601** programs readable (was 600), **1,584** effect entries runnable, **19** unreadable leaves, **11** programs one leaf
+away, **84** blaming their effect list, and **206** refusing at run - the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the
+item's own table has not got. Five programs refuse at their first unreadable entry, down from six.

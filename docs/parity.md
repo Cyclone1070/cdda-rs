@@ -45,6 +45,23 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The filters are alternatives, and one of them may be a condition (round 1484)
+
+`search_data` is a **list of filter objects**, and an item passes when **any one** of them matches (`run_item_eocs`, `npctalk.cpp:3341-3348`, which breaks on the first match). The
+port had flattened the list into one id list beside two booleans that it applied to every item - a different question, and one that could not read the entry the beggar programs
+actually use.
+
+| Piece | Reference | Port |
+|---|---|---|
+the list | `std::vector<item_search_data>`, any one matching wins | `Vec<SearchFilter>`, `iter().any( .. )` |
+an entry | a bag of optional filters, every stated one must pass | `id`, `wielded_only`, `worn_only`, `condition` |
+a condition | asked with the **item** as the dialogue's beta (`:430-435`) | `conditions::holds_with( .., Some( item ), .. )` |
+a member the port cannot answer | - | the entry is refused rather than ignored, because ignoring a filter runs a program on items the data meant to leave alone |
+
+**This closed the beggar program.** `EOC_BEGGAR_TEST_IF_FOOD_CANNIBAL` was the one the census blamed on `false_eocs` two rounds ago; the refusal count falls from six to
+**five**, and the pin moves with it. The program now reads because `search_data` learned the `condition` member - the same member that had been called "a separate rule with its
+own store" one round earlier, which was wrong: it needed no store at all.
+
 ## A search that finds nothing has something to say (round 1483)
 
 `f_run_inv_eocs` reads **two** program lists, `true_eocs` and `false_eocs` (`npctalk.cpp:6789-6791`), and `run_item_eocs` answers the second when the first had nothing to run

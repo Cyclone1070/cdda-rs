@@ -227,7 +227,7 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
     crate::numbers::NOW.accounts_for_every_program();
-    assert_eq!(runnable, crate::numbers::NOW.effects_runnable, "of which the port runs 1,581 entries");
+    assert_eq!(runnable, crate::numbers::NOW.effects_runnable, "of which the port runs 1,584 entries");
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are

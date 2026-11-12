@@ -156,9 +156,9 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
     for line in shown {
         println!("REFUSED {line}");
     }
-    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **6**. Every bucket the round-976 roadmap listed is gone, and what is
-    // left is one program per cause: `args`, `count`, `else`, `false_eocs`, `if`, `loc`. The seventh, `radius`, closed when `reveal_map` learned its `dbl_or_var` radius.
-    assert_eq!(refused_programs.len(), 6, "six programs refuse at their first unreadable entry");
+    // Pinned so a round that changes the frontier sees it here first: the total has fallen from 35 to **5**. Every bucket the round-976 roadmap listed is gone, and what is
+    // left is one program per cause: `args`, `count`, `else`, `if`, `loc`. `false_eocs` closed at round 1484, when `search_data` learned the `condition` member. The seventh, `radius`, closed when `reveal_map` learned its `dbl_or_var` radius.
+    assert_eq!(refused_programs.len(), 5, "five programs refuse at their first unreadable entry");
     assert_eq!(
         ranked
             .iter()
