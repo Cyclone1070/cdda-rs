@@ -2105,6 +2105,11 @@ pub fn spawn_monster_of_type(
     monster_speed_percent: i32,
 ) -> Entity {
     let entity = spawn_creature(world, &monster_type.name, square);
+    if !monster_type.species.is_empty() {
+        world
+            .entity_mut(entity)
+            .insert(Species(monster_type.species.clone()));
+    }
     if !monster_type.materials.is_empty() {
         world.entity_mut(entity).insert(Materials(monster_type.materials.clone()));
     }
@@ -2223,6 +2228,14 @@ pub fn size_named(name: &str) -> Option<crate::CreatureSize> {
 /// prototype behind it, and inventing a kind for it would put a number in the world that content never gave.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreatureKind(pub crate::MonsterKindId);
+
+/// What a creature is made of, by species id.
+///
+/// Reference: `mtype::species` (`monstergenerator.cpp`), read by `monster::has_species` and by every rule that asks what kind of thing it is fighting - a bonus against the
+/// undead, a bleed type, a corpse's harvest. The list belongs to the **type** in the reference; the port copies it onto the creature when the creature is made, so a rule never
+/// needs the catalogue in the room. A person carries no species at all, which is what a `Character` answers too.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct Species(pub std::collections::BTreeSet<String>);
 
 /// Says what kind of creature this is, so that its death can leave the right body.
 pub fn set_kind(world: &mut World, entity: Entity, kind: crate::MonsterKindId) {

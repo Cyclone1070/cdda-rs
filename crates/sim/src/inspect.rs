@@ -40,6 +40,8 @@ named_components! {
     "Focus" => crate::skills::Focus,
     "Creature" => crate::creature::Creature,
     "CreatureKind" => crate::creature::CreatureKind,
+    "Species" => crate::creature::Species,
+    "Ally" => crate::npcs::Ally,
     "Health" => crate::creature::Health,
     "Speed" => crate::creature::Speed,
     "Moves" => crate::creature::Moves,

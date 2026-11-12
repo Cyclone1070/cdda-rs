@@ -514,6 +514,8 @@ fn holds_within(
         Condition::MapInCity { .. } => map_in_city(world, speaker, listener, condition),
         Condition::MapTerFurnWithFlag { .. } => map_ter_furn_with_flag(world, speaker, listener, condition),
         Condition::IsOnTerrain { .. } => is_on_terrain(world, speaker, listener, condition),
+        Condition::HasSpecies { .. } => has_species(world, speaker, listener, condition),
+        Condition::NpcAllies { .. } => npc_allies(world, speaker, listener, condition),
         Condition::IsDeaf { .. } => is_deaf(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
@@ -2013,4 +2015,38 @@ fn is_on_terrain(world: &World, speaker: Entity, listener: Option<Entity>, condi
         return false;
     };
     crate::terrain_types::name_of(world, code).as_deref() == Some(wanted.as_str())
+}
+
+/// Whether one of the dialogue's creatures is of a species.
+///
+/// Reference: `f_has_species` (`condition.cpp:646-654`). The species list belongs to the monster's **type** (`mtype::species`), and the port copies it onto the creature when the
+/// creature is made - which is what `monster::has_species` reads, since the type is not in the world.
+fn has_species(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::HasSpecies { species, listener: about_listener } = condition else {
+        return false;
+    };
+    let Some(actor) = actor_for(speaker, listener, *about_listener) else {
+        return false;
+    };
+    let Some(wanted) = text_of(world, speaker, listener, species) else {
+        return false;
+    };
+    world
+        .get::<crate::creature::Species>(actor)
+        .is_some_and(|carried| carried.0.contains(&wanted))
+}
+
+/// Whether the player has at least this many allies.
+///
+/// Reference: `f_npc_allies` (`condition.cpp:1159-1165`) compares `g->allies().size()` with the number; `f_npc_allies_global` (`:1167-1179`) counts the allies that are alive.
+/// The port's store is one bubble, so both questions read [`crate::npcs::allies`].
+fn npc_allies(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::NpcAllies { needed, global: _ } = condition else {
+        return false;
+    };
+    let cdda_content::dialogue::CountRange::One(target) = needed else {
+        // A count the port cannot draw - an expression with a name it does not know - answers no, the same way an unreadable value does everywhere else.
+        return false;
+    };
+    crate::npcs::allies(world) >= usize::try_from((*target).max(0)).unwrap_or(0)
 }

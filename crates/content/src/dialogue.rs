@@ -63,6 +63,26 @@ pub enum Condition {
         /// Whether it asks about the listener rather than the speaker.
         listener: bool,
     },
+    /// Whether the player has at least this many allies.
+    ///
+    /// Reference: `f_npc_allies` (`condition.cpp:1159-1165`) and `f_npc_allies_global` (`:1167-1179`): the first counts the people following the player nearby, the second every
+    /// ally on the overmap. The port keeps one reality bubble, so the two answer the same count - a difference the doc names rather than a difference the code invents.
+    NpcAllies {
+        /// The number the count must reach.
+        needed: CountRange,
+        /// Whether it is the global question rather than the nearby one.
+        global: bool,
+    },
+    /// Whether one of the dialogue's creatures is of a species.
+    ///
+    /// Reference: `f_has_species` (`condition.cpp:646-654`): `actor->has_species( species_id( name ) )`, which for a monster asks its type's `species` list and for a person
+    /// answers no, because a `Character` has no species list at all.
+    HasSpecies {
+        /// The species id, which the data may give as a variable.
+        species: StringSource,
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether the ground under one of the dialogue's creatures is a named terrain.
     ///
     /// Reference: `f_is_on_terrain` (`condition.cpp:2124-2133`): `here.ter( pos ) == ter_id( name )`, compared **exactly** - the sibling of the flag question, and the
@@ -711,7 +731,10 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
             });
         }
     }
-    if let Some(found) = read_is_on_terrain(object) {
+    if let Some(found) = read_has_species(object)
+        .or_else(|| read_npc_allies(object))
+        .or_else(|| read_is_on_terrain(object))
+    {
         return Some(found);
     }
     if let Some(found) = read_map_flag_condition(object).or_else(|| read_city_condition(object)) {
@@ -5007,6 +5030,34 @@ fn read_city_condition(object: &cdda_json::Object) -> Option<Condition> {
     Some(Condition::MapInCity {
         target: named_variable(target)?,
     })
+}
+
+/// Reads `npc_allies` and `npc_allies_global`, which differ only in how far the count reaches.
+///
+/// Reference: both are `jarg::member | jarg::array` (`condition.cpp:2561-2562`); the port reads the member form, and a list refuses rather than being read as its first number.
+fn read_npc_allies(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, global) in [("npc_allies", false), ("npc_allies_global", true)] {
+        if let Some(value) = object.get(member) {
+            return Some(Condition::NpcAllies {
+                needed: read_count(Some(value))?,
+                global,
+            });
+        }
+    }
+    None
+}
+
+/// Reads `u_has_species` and `npc_has_species`, which differ only in whose list is asked.
+fn read_has_species(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_has_species", false), ("npc_has_species", true)] {
+        if let Some(value) = object.get(member) {
+            return Some(Condition::HasSpecies {
+                species: read_string_source(value)?,
+                listener,
+            });
+        }
+    }
+    None
 }
 
 /// Reads `u_is_on_terrain` and `npc_is_on_terrain`, which differ only in whose square is asked.

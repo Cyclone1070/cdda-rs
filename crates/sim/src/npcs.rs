@@ -28,6 +28,39 @@ pub fn is_npc(world: &World, creature: Entity) -> bool {
     world.get::<Npc>(creature).is_some()
 }
 
+/// Marks a person as one of the player's allies.
+///
+/// Reference: `npc::is_player_ally` (`npc.cpp`), the flag `f_npc_allies`/`f_npc_allies_global` count (`condition.cpp:1159-1179`). It is a state a person is in, so it is a marker
+/// component rather than a field beside the store - the follower rule sets it when a person agrees to follow.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Ally;
+
+/// Makes a person one of the player's allies.
+pub fn make_ally(world: &mut World, creature: Entity) {
+    world.entity_mut(creature).insert(Ally);
+}
+
+/// How many of the player's allies the store holds.
+///
+/// Reference: `f_npc_allies_global` (`condition.cpp:1167-1179`) counts the NPCs that are allies, are not hallucinations and are not dead. The port has no hallucinations, and a
+/// dead person is one whose [`crate::creature::Health`] has run out - which is the same set the death rule removes.
+#[must_use]
+pub fn allies(world: &World) -> usize {
+    let Some(mut query) = world.try_query::<(Entity, &Ally)>() else {
+        return 0;
+    };
+    query
+        .iter(world)
+        .filter(|(entity, _)| {
+            // Reference: `!ptr->is_dead()` - a person whose hit points have run out is no longer counted among the living. A creature the port invented has no health
+            // record at all, and nothing has hurt it, so it is alive.
+            world
+                .get::<crate::creature::Health>(*entity)
+                .is_none_or(|health| health.hp > 0)
+        })
+        .count()
+}
+
 /// One person's id, when the creature is one.
 #[must_use]
 pub fn unique_id_of(world: &World, creature: Entity) -> Option<&str> {

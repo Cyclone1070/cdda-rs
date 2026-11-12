@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Species and allies: two questions the data asks about people (round 1494)
+
+| Condition | Reference | Port |
+|---|---|---|
+`u_has_species` / `npc_has_species` | `actor->has_species( species_id( name ) )` (`condition.cpp:646-654`) | the **species list copied onto the creature** when it is made, from its type's `mtype::species` |
+`npc_allies` | `g->allies().size() >= n` (`condition.cpp:1159-1165`) | the count of people carrying the `Ally` marker, alive |
+`npc_allies_global` | every NPC that is `is_player_ally()`, not a hallucination, not dead (`:1167-1179`) | the **same count**, because this port has one reality bubble |
+
+**A person is of no species, and that is the rule rather than an omission.** `Character::has_species` answers false - a character has no species list at all - so the survivor
+answers no to every species question, which the gate pins.
+
+**The two ally questions answer the same number here, and the doc says why.** The reference's `npc_allies` counts the people following the player *in the bubble* and
+`npc_allies_global` counts every ally on the overmap; the port has one bubble, so "nearby" and "global" coincide until the overmap holds NPCs. That is a named difference, not a
+silently missing one.
+
+**`Ally` is a marker component, not a field.** `npc::is_player_ally` is a state a person is in, and the port's rule is that a state is a marker; the follower rule will set it.
+The dead are excluded by hit points, which is `!ptr->is_dead()` exactly.
+
 ## Two conditions the census had one member from (round 1493)
 
 | Condition | Reference | Port |

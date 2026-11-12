@@ -1931,3 +1931,9 @@ census is now zero** - six programs at round 1482, each closed at a named member
 the flag question the port already answered. `u_is_character` asks whether a talker is a **person** - the avatar and every NPC, not a monster - and `u_is_avatar` stays the narrower
 question; they had been one answer until `monsters/singularities.json:52` asked `{"and": ["npc_is_character", ...]}`. Two gates, both mutation-checked: comparing nothing fails the
 terrain gate, and making a monster a person fails the character gate. The census reads **608** of 692 programs, 11 leaves, 5 one-gap.
+
+**Round 1494 answered species and allies.** `u_has_species`/`npc_has_species` read the species list the monster's type gives it - copied onto the creature when it is made, because
+`monster::has_species` asks the type and a rule in this port never holds the catalogue. `npc_allies` and `npc_allies_global` count people carrying the new `Ally` marker and
+exclude the dead by hit points; the port keeps one reality bubble, so both answer the same count and the doc says so. Two gates, both mutation-checked: any species answering yes
+fails the first, and one ally always being enough fails the second. The census reads **611** of 692 programs, 8 leaves, and only **two** one-gap members remain (`get_condition`,
+`npc_is_underwater`).
