@@ -45,6 +45,23 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A body can die quietly and leave nothing (round 1481)
+
+`monster::no_corpse_quiet` is the twin of the flag the summons round added, and the two promise opposite things.
+
+| Flag | Corpse | Loot | Message | Reference |
+|---|---|---|---|---|
+`no_extra_death_drops` | kept | **suppressed** | kept | `monster::die` (:3126-3129) |
+`no_corpse_quiet` | **suppressed** | kept | suppressed | `mdeath::normal` (:44-46) |
+both | gone | gone | silent | - |
+
+**The order is what makes the two work.** `mdeath::normal` answers before it says anything, so a quiet body is silent as well as corpse-less; the loot is dropped by `monster::die`
+**before** that branch runs, which is why a quiet body still scatters what its group says. The port's reap now does the same in the same order, and both directions are gated: the quiet
+body leaves a rag and no corpse while the same kind leaves a corpse when nothing marked it.
+
+**The summon sets both**, from the two spell flags that name them (`magic_spell_effect.cpp:1343-1344`). Nine spells carry `SPAWN_WITH_DEATH_DROPS` and **none carries
+`NO_CORPSE_QUIET`**, so that half is gated by a hand-built spell and the data is named as silent - a rule the data cannot exercise is still a rule the store must honour.
+
 ## A blow meets each kind of armour it carries (round 1480)
 
 The port had been reading **one** garment figure for all three damage types: `armour_on( part, None )` filled the bash resistance and left the cut and stab ones at the creature's

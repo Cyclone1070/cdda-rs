@@ -1119,6 +1119,11 @@ fn summon(
         if !spell.has_flag("SPAWN_WITH_DEATH_DROPS") {
             world.entity_mut(spawned).insert(crate::creature::NoExtraDeathDrops);
         }
+        // Reference: `spawned_mon.no_corpse_quiet = sp.has_flag( spell_flag::NO_CORPSE_QUIET );` (`:1344`) - the other half of the same block, and a **different** promise: this one
+        // leaves no corpse and still leaves the loot. No spell in this content carries it, so the sum path is gated by a hand-built spell and the data is named as silent.
+        if spell.has_flag("NO_CORPSE_QUIET") {
+            world.entity_mut(spawned).insert(crate::creature::NoCorpseQuiet);
+        }
         // Reference: `is_summon_friendly` (`:1306-1314`) - a summon is on the caster's side unless the spell says `HOSTILE_SUMMON`, and `HOSTILE_50` halves that with a draw.
         if friendly_summon(world, spell) {
             crate::friendly::make_friendly(world, spawned, i32::MAX);

@@ -386,6 +386,14 @@ pub struct Dodge {
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct NoExtraDeathDrops;
 
+/// A body that dies quietly and leaves **no corpse at all**.
+///
+/// Reference: `monster::no_corpse_quiet` (`monster.h:570`), which `mdeath::normal` tests first and answers with an empty item location (`mondeath.cpp:44-46`) - so the body says
+/// nothing and leaves nothing behind. **It is not the same flag as [`NoExtraDeathDrops`]**: that one keeps the corpse and drops the loot, this one drops the corpse and keeps the loot.
+/// The reference sets it on a fish (`game.cpp:1578`), on a summoned body whose spell says `NO_CORPSE_QUIET` (`magic_spell_effect.cpp:1344`), and on a body raised from the dead.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct NoCorpseQuiet;
+
 /// The parts of a creature's body a blow can land on.
 ///
 /// Reference: a `Creature`'s anatomy (`src/anatomy.h`). A monster has none this port knows about, so the component
@@ -2235,7 +2243,7 @@ pub fn reap_dead_creatures_as_corpses(
     corpse_kind: crate::ItemTypeId,
     volume_of: impl Fn(crate::MonsterKindId) -> i64,
 ) -> usize {
-    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32, bool, bool);
+    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32, bool, bool, bool);
     let dead: Vec<Dead> = world
         .query::<(
             Entity,
@@ -2244,10 +2252,11 @@ pub fn reap_dead_creatures_as_corpses(
             Option<&CreatureKind>,
             Option<&crate::creature_flags::CreatureFlags>,
             Option<&Hallucination>,
+            Option<&NoCorpseQuiet>,
         )>()
         .iter(world)
-        .filter(|(_, health, _, _, _, _)| health.hp <= 0)
-        .map(|(entity, health, position, kind, flags, phantom)| {
+        .filter(|(_, health, _, _, _, _, _)| health.hp <= 0)
+        .map(|(entity, health, position, kind, flags, phantom, quiet_corpse)| {
             (
                 entity,
                 (position.x, position.y, position.z),
@@ -2257,10 +2266,11 @@ pub fn reap_dead_creatures_as_corpses(
                 health.max_hp,
                 phantom.is_some(),
                 flags.is_some_and(|carried| carried.0.contains("QUIETDEATH")),
+                quiet_corpse.is_some(),
             )
         })
         .collect();
-    for (entity, square, kind, revives, hp, max_hp, phantom, quiet_death) in &dead {
+    for (entity, square, kind, revives, hp, max_hp, phantom, quiet_death, no_corpse_quiet) in &dead {
         // Reference: `if( death_drops && !no_extra_death_drops )` (`monster.cpp:3126`) - a body told to leave no extra loot leaves none, and still leaves its corpse. Read here,
         // at the top of the body's turn, so that everything the death goes on to do cannot change the answer halfway.
         let leave_loot = world.get::<NoExtraDeathDrops>(*entity).is_none();
@@ -2283,7 +2293,8 @@ pub fn reap_dead_creatures_as_corpses(
         }
         // Reference: `mdeath::normal` (`mondeath.cpp:50-56`) says "The %s dies!" as **good news** unless the body is quiet. The flag is the data's; `monster::quiet_death`, the
         // other half of the reference's test, is a monster field the dump does not carry yet and is named in `docs/parity.md`.
-        let quiet = *quiet_death;
+        // Reference: `mdeath::normal` answers an empty corpse **before** it says anything (`mondeath.cpp:44-46`), so a body told to leave no corpse dies silently as well.
+        let quiet = *quiet_death || *no_corpse_quiet;
         let name = world
             .get::<Creature>(*entity)
             .map(|creature| creature.name.clone())
@@ -2321,7 +2332,9 @@ pub fn reap_dead_creatures_as_corpses(
             // bleeding lives inside the normal branch), and `splatter` splatters however gently the body was killed. `broken` is loaded and still leaves a corpse - the reference's
             // broken branch makes a *different item* (`broken_<id>`), which waits on the item-id lookup, and that is recorded in `docs/parity.md`.
             let declared = crate::monster_registry::corpse_type_of(world, *kind);
-            if declared == "none" {
+            // Reference: `mdeath::normal`'s first line (`mondeath.cpp:44-46`) answers an empty item location, so **the body leaves nothing at all** - the loot above has already
+            // been dropped, which is the difference between this flag and [`NoExtraDeathDrops`].
+            if declared == "none" || *no_corpse_quiet {
                 continue;
             }
             // Reference: `mdeath::broken` (`mondeath.cpp:204-228`) leaves **the broken thing**, not a corpse - the id comes from the type's own name by

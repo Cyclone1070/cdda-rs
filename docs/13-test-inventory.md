@@ -1859,3 +1859,7 @@ been reading the area after the cast instead of before.
 nothing; it now asks the figure for each type, and `settle_armour_blow` wears each garment face by its own amount instead of settling the whole blow under one figure. Two gates:
 a cutting blow of ten meets five (not the bash four, and not nothing), and a blow carrying both faces wears both garments. Both mutations die - one figure for all three, and the
 cutting face never settled.
+
+**Round 1481 finished the pair of death flags.** `no_corpse_quiet` suppresses the corpse and the message and keeps the loot, where `no_extra_death_drops` keeps the corpse and suppresses
+the loot; the reap does both in the reference's order, and a summon sets each from its own spell flag. Two gates: the quiet body leaves a rag and no corpse, the same kind leaves a
+corpse when nothing marked it. Ignoring the flag at the corpse branch fails the first.

@@ -173,6 +173,7 @@ mod mutation_activation;
 mod mutations;
 mod monster_action;
 mod monster_body;
+mod no_corpse_quiet;
 mod monster_blocked;
 mod monster_damage;
 mod monster_moves;
