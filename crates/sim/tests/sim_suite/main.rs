@@ -27,6 +27,7 @@ mod missions;
 mod numbers;
 mod traits;
 mod eoc_programs;
+mod events;
 mod activities;
 mod applied_effects;
 mod architecture;

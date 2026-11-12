@@ -1890,3 +1890,10 @@ item's own table has not got. Five programs refuse at their first unreadable ent
 position means is the event type's own field order. `cata::event::get_fields` returns an unordered map, so the oracle now dumps the order instead - `--dump-events` walks the 107
 event types and prints each one's fields in declaration order, with the switch that recovers it **generated** from the `event_type` enum rather than typed by hand
 (`oracle/src/src/harness_event_order.inc`). `corpus/events.json` holds the dump; `u_var_changed` reads `["var", "value"]`, `avatar_enters_omt` reads `["pos", "oter_id"]`.
+
+**Round 1487 sent the first event.** `trigger_event` reads its type and its `args` list, evaluates each argument (a literal, or a variable whose number prints as text - a rule
+the first gate caught), and appends to **one queue** that a declared drain empties. The text rule has **two** modes and the port now has both: `str_or_var::evaluate(d, false)`
+is `diag_value::str()`, the string variant only, and `evaluate(d, true)` is `to_string()`, which prints a double. Widening the single helper broke two older gates that had pinned
+the strict reading, which is how the split was found.
+The reference calls subscribers mid-send; the port does not, and the queue's `sent` record lets a test say what happened without draining. The gate proves the argument order and
+the evaluated value, and fails if the queue never fills.

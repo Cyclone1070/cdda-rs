@@ -119,12 +119,44 @@ pub fn number_of(world: &World, holder: Entity, name: &str) -> Option<f64> {
 }
 
 /// The text a name holds, or nothing - which is also what a name holding a number answers.
+///
+/// Reference: `str_or_var::evaluate( d, false )` (`dialogue_helpers.cpp:60-80`) returns `diag_value::str()`, and `str()` (`math_parser_diag_value.cpp:198-201`) hands back
+/// the **string** variant only. A number is therefore not text, and asking for the wrong kind answers nothing rather than a conversion.
 #[must_use]
 pub fn text_of(world: &World, holder: Entity, name: &str) -> Option<String> {
     match value_of(world, holder, name) {
         Some(Value::Text(text)) => Some(text),
         _ => None,
     }
+}
+
+/// The same question where the reference **converts**: a number prints as its own text.
+///
+/// Reference: `str_or_var::evaluate( d, true )` returns `diag_value::to_string()` (`math_parser_diag_value.cpp:101-116`), which prints a double through an `ostringstream` in
+/// the classic locale - `7` prints as `7`, `7.5` as `7.5`. `f_trigger_event` (`npctalk.cpp:7904-7911`) asks this way, and answering nothing for a number made every argument
+/// written as `{"u_val": ..}` refuse instead of sending its value.
+#[must_use]
+pub fn converted_text_of(world: &World, holder: Entity, name: &str) -> Option<String> {
+    match value_of(world, holder, name) {
+        Some(Value::Text(text)) => Some(text),
+        Some(Value::Number(number)) => Some(printed(number)),
+        _ => None,
+    }
+}
+
+/// A number as the reference's `ostringstream` prints it: up to six significant digits, no trailing zeros.
+#[must_use]
+pub fn printed(number: f64) -> String {
+    if number.is_finite() && number.fract() == 0.0 && number.abs() < 1e15 {
+        // An integer prints without a decimal point, which is what the stream's default formatting does.
+        #[allow(clippy::cast_possible_truncation, clippy::as_conversions)]
+        let whole = number as i64;
+        return whole.to_string();
+    }
+    let text = format!("{number:.6}");
+    // The stream keeps six **significant** digits, not six decimals: trim the padding its default formatting would not print.
+    let trimmed = text.trim_end_matches('0').trim_end_matches('.');
+    trimmed.to_owned()
 }
 
 /// Sets a value on a holder.

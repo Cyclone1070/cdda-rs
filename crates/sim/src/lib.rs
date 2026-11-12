@@ -48,6 +48,7 @@ pub mod body;
 pub mod digest;
 pub mod dispersion;
 pub mod dialogue_effects;
+pub mod events;
 pub mod dialogue_values;
 pub mod effect_registry;
 pub mod eoc_registry;

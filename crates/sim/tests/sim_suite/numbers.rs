@@ -53,15 +53,17 @@ pub const NOW: Census = Census {
     // **599 after round 1432 read `u_emit`**, which is the same rule a spell already used, reached through a location variable.
     // **600 after round 1439 read `reveal_map`**, whose radius is a `dbl_or_var` the port already had a reader for: one program gained. **601 after round 1484** taught
     // `search_data` the `condition` member and the alternative semantics, which is the beggar program that had been blamed on `false_eocs`.
-    readable: 601,
-    ran: 395,
+    // **602 after round 1487 read `trigger_event`**, which closes the census's `args+trigger_event` bucket: the effect reads a type's name and its `args`, and the
+    // argument order is the dumped table's.
+    readable: 602,
+    ran: 396,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
-    silent: 289,
+    silent: 290,
     // Silent because the data gives the program no effects at all - a stub, not a rule the port is missing.
     empty_programs: 22,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
-    ran_in_a_built_world: 400,
+    ran_in_a_built_world: 401,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     refused_at_run: 206,
@@ -71,14 +73,17 @@ pub const NOW: Census = Census {
     // 21 after round 1432: the `u_emit` reader took nine leaves with it, because the effect is used by nine programs' worth of entries.
     // 20 and 12 after round 1439: `reveal_map`'s radius was the last leaf in its program and the only gap in one more.
     // 19 after round 1484: the beggar program's `search_data` reads, so its last unreadable member is gone.
-    leaves: 19,
+    // 18 after round 1487: the trigger_event reader took one leaf with it.
+    leaves: 18,
     // 11 after round 1484: the program that stopped refusing at its `search_data` was one member short of reading, so the gap closed with it.
-    one_gap: 11,
-    effects_runnable: 1_584,
+    one_gap: 10,
+    // 1,585 after round 1487: `trigger_event` is one more entry the reader can carry out, and the entry it unblocked is another.
+    effects_runnable: 1_585,
     effects_defined: 1_612,
     // 85 after round 1439: the same program no longer blames an effect, because its first refusal is now past the effect list.
     // 84 after round 1484: same program, one fewer entry refused at its effect list.
-    effect_blamed: 84,
+    // 83 after round 1487: one fewer program blames its effect list, because that list now reads.
+    effect_blamed: 83,
     conditions_readable: 3_227,
 };
 

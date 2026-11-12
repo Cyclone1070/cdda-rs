@@ -1942,3 +1942,21 @@ pub fn value_of_variable_text(
         },
     )
 }
+
+/// The same source where the reference **converts** a number to its text.
+///
+/// Reference: `str_or_var::evaluate( d, true )`, which `f_trigger_event` uses (`npctalk.cpp:7904-7911`) and most other sites do not.
+pub fn converted_text_of(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    source: &StringSource,
+) -> Option<String> {
+    match source {
+        StringSource::Literal(text) => Some(text.clone()),
+        StringSource::Variable { scope, name } => {
+            let holder = holder_for_scope(world, speaker, listener, scope)?;
+            crate::dialogue_values::converted_text_of(world, holder, name)
+        }
+    }
+}

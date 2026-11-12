@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## An event is sent, and its arguments are evaluated (round 1487)
+
+`trigger_event` now exists: the effect reads the type's name and an `args` list of strings or variables (`npctalk.cpp:7894-7911`), works each argument out when it runs, and
+**sends the list onto one queue** that a declared drain empties.
+
+| Piece | Reference | Port |
+|---|---|---|
+sending | `get_event_bus().send( .. )` calls subscribers **as it sends** | `events::send` appends to a queue; nothing runs inside the sender |
+the record | the bus keeps no history | `events::sent` keeps every event in order, so a test can say what happened |
+a position's meaning | `event_spec<Type>::fields[n]` | the dumped table (`corpus/events.json`), which the port binds next round |
+a number as text | `diag_value::to_string`, an `ostringstream` in the classic locale | `dialogue_values::printed`, integers without a point, others to six significant digits |
+
+**The reference calls subscribers mid-send, and the port does not.** That is the same decision this port makes everywhere a call would nest: a sender that re-enters the rules which
+sent it is a second control flow nobody declared, and the queue is drained at a named point instead.
+
+**A variable holding a number prints as its text - but only where the reference converts.** `str_or_var` has two readings: `evaluate( d, false )` returns `diag_value::str()`,
+which hands back the **string** variant only (`math_parser_diag_value.cpp:198-201`), and `evaluate( d, true )` returns `to_string()`, which prints a double. The port had only the
+strict one, so the first `trigger_event` gate refused; widening the one helper broke two older gates that had correctly pinned "a number is not text". The port now has both -
+`conditions::text_of` (strict) and `conditions::converted_text_of` - and `trigger_event` is the site that asks the converting one, exactly as `f_trigger_event` does.
+
 ## The event table comes from the reference, not from memory (round 1486)
 
 `trigger_event` is the one effect in the census `args+trigger_event` that the port has never had, and the interrogative part is not the effect but the **table**: an `args` list is

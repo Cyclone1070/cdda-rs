@@ -1806,6 +1806,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_custom_light_level(object))
         .or_else(|| read_transform_radius(object))
         .or_else(|| read_give_achievement(object))
+        .or_else(|| read_trigger_event(object))
         .or_else(|| read_run_inv_eocs(object))
         .or_else(|| read_location_variable_adjust(object))
         .or_else(|| read_mutation(object))
@@ -2630,6 +2631,17 @@ pub enum Effect {
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
     },
+    /// Sends an event on the bus, which anything watching that kind answers.
+    ///
+    /// Reference: `f_trigger_event` (`npctalk.cpp:7894-7911`) reads the member as the event type's name and `args` as a list of strings or variables, evaluated when the
+    /// effect runs. The arguments are **positional**: position `n` is the type's `n`th field (`cdda_content::events::EventTable`), which is why the table is dumped rather
+    /// than assumed.
+    TriggerEvent {
+        /// The event type's name, exactly as the reference's own table spells it.
+        kind: String,
+        /// The arguments, in the order the type's table gives its fields.
+        args: Vec<StringSource>,
+    },
     /// Runs programs on the items a creature carries.
     ///
     /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): `u_run_inv_eocs` says how the items are chosen - `"all"` for every match, `"manual"` for a menu - and
@@ -3445,6 +3457,7 @@ impl Effect {
             Self::RunMonsterEocs { .. } => "u_run_monster_eocs",
             Self::OfferMission { .. } => "offer_mission",
             Self::Nothing => "//",
+            Self::TriggerEvent { .. } => "trigger_event",
             Self::PlaySoundEffect { .. } => "sound_effect",
             // The store-writing effects' names live in `store_kind`, which `kind` already asked; this arm exists so the match stays exhaustive without repeating the
             // table. A variant that reached here without a name would be a bug in `store_kind`, not a rule the port is missing.
@@ -4442,6 +4455,24 @@ fn read_offer_mission(object: &cdda_json::Object) -> Option<Effect> {
         return None;
     }
     Some(Effect::OfferMission { missions })
+}
+
+/// Reads a `trigger_event` entry, or nothing.
+///
+/// Reference: `f_trigger_event` (`npctalk.cpp:7894-7911`): both members are mandatory - the type's name and an `args` array, which may be empty.
+fn read_trigger_event(object: &cdda_json::Object) -> Option<Effect> {
+    let Some(Value::Str(kind)) = object.get("trigger_event") else {
+        return None;
+    };
+    let args = match object.get("args") {
+        None => Vec::new(),
+        Some(Value::Array(values)) => read_string_sources(values)?,
+        Some(_) => return None,
+    };
+    Some(Effect::TriggerEvent {
+        kind: kind.clone(),
+        args,
+    })
 }
 
 /// Reads a `u_run_inv_eocs` entry, or nothing.

@@ -2794,6 +2794,7 @@ fn run_store_effect(
         Effect::CustomLightLevel { .. } => custom_light_level(world, speaker, listener, effect),
         Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
+        Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::RevertLocation { .. } => revert_location(world, speaker, listener, effect),
@@ -3056,4 +3057,26 @@ fn filter_matches(
         // condition reads the item where it would otherwise read the listener.
         Some(condition) => crate::conditions::holds_with(world, speaker, Some(item), condition),
     }
+}
+
+/// Sends an event, with its arguments worked out where the data wrote them as variables.
+///
+/// Reference: `f_trigger_event` (`npctalk.cpp:7904-7911`) evaluates every argument as a `str_or_var` and hands the list to `event::make_dyn`, which maps position `n` onto
+/// the type's `n`th field name. The port sends the same list onto the queue, so **the meaning of a position is the reference's table**, not this function's idea.
+fn trigger_event(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    kind: &str,
+    args: &[cdda_content::dialogue::StringSource],
+) -> Applied {
+    let mut worked = Vec::with_capacity(args.len());
+    for source in args {
+        let Some(text) = crate::conditions::converted_text_of(world, speaker, listener, source) else {
+            return Applied::CannotAnswer;
+        };
+        worked.push(text);
+    }
+    crate::events::send(world, crate::events::Event::new(kind, worked));
+    Applied::Done
 }
