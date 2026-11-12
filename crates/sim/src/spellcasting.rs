@@ -214,12 +214,20 @@ pub fn cast_attack(
     if spell.effect_name != "attack" {
         return Cast::NotAnAttack;
     }
-    let Some(place) = world.get::<crate::Position>(target) else {
+    let Some(place) = world
+        .get::<crate::Position>(target)
+        .map(|at| (at.x, at.y, at.z))
+    else {
         return Cast::NothingToHit;
     };
+    // Reference: `damage_targets` (`magic_spell_effect.cpp:529-533`) skips a creature the spell may not affect **before** the sound and the damage, so a spell that names only the
+    // ground cannot be aimed at a creature even when the creature is in reach.
+    if !crate::spell_targets::allows(world, caster, spell, place) {
+        return Cast::NothingToHit;
+    }
     // Reference: `spell::range()` is the level-scaled reach and `rl_dist` is the distance it is measured against -
     // the larger of the two axes, not the diagonal.
-    let away = (place.x - caster.0).abs().max((place.y - caster.1).abs());
+    let away = (place.0 - caster.0).abs().max((place.1 - caster.1).abs());
     let reach = spell.range.at(level).unwrap_or(f64::from(away));
     if f64::from(away) > reach {
         return Cast::OutOfRange;

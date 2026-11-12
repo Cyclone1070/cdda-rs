@@ -83,7 +83,21 @@ fn attack(
     let Some(mut rolls) = crate::singletons::take_rolls(world) else {
         return Effective::NotPorted;
     };
-    let targets = creatures_in_reach(world, caster, spell, level, centre);
+    // Reference: `damage_targets` (`magic_spell_effect.cpp:529-533`) skips a square whose creature the spell may not affect **before** the sound and the damage - so a spell that
+    // only names the ground passes over a monster standing in its blast, and one that names `mon_dog` passes over a zombie.
+    let from = world
+        .get::<crate::Position>(caster)
+        .map(|at| (at.x, at.y, at.z));
+    let targets: Vec<Entity> = creatures_in_reach(world, caster, spell, level, centre)
+        .into_iter()
+        .filter(|target| {
+            let at = world.get::<crate::Position>(*target).map(|seen| (seen.x, seen.y, seen.z));
+            match (from, at) {
+                (Some(from), Some(at)) => crate::spell_targets::allows(world, from, spell, at),
+                _ => true,
+            }
+        })
+        .collect();
     let mut hit = 0;
     for target in targets {
         // Reference: `Creature::get_random_body_part()` draws over the parts' hit sizes, which `lands_on` replays from a unit

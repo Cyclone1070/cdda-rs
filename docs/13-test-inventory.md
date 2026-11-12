@@ -1837,3 +1837,15 @@ fails the first.
 creature cases - hostile, ally-not-the-caster, the caster's own square - before narrowing by monster id, wanted species and ignored species. The data exercises the first two filters
 barely (nine spells name monsters, one names exactly one) and the species filters not at all, so those cases are built by hand in the gate and the reason is written down. The
 corpus gate pins the class counts: 147 self, 140 hostile, 104 ground, 88 ally, 2 field, 1 item, 1 none.
+
+**Round 1475 gave the target rule its callers.** `cast_attack` now answers `NothingToHit` when the spell may not be aimed at that creature, and the attack effect filters its reach
+list per square - both where `damage_targets` asks. The gate proves the whole sentence: a ground-only spell leaves a monster in its blast untouched at full health, a spell naming
+the dog passes over the zombie, and the same spell naming the zombie lands. Removing the cast's question fails the first with `Hit { dealt: 1 }` against `NothingToHit`.
+
+**Round 1476 followed the target rule into the sweeps.** Four gates broke and none of them was the rule: two built spells with no target classes at all, the attack sweep had
+claimed 77 of 77 landing when the data says 71 + 5 filtered + 1 ground-only (`death_portal`, which the reference also refuses to let touch a creature), and two more had counted the
+caster as its own target. All four now state the reason they pass, and two spells that no sweep can stand a target for are named rather than dropped.
+
+**Round 1477 gave the rule the argument the reference asks for.** `spell_targets::allows` took the caster entity and read its position, which forced every fixture to stand a
+creature on the caster's square - five did not, and casts with nothing wrong with them were refused. The rule takes a square now, because `p == caster.pos()` and `p != caster.pos()`
+are the whole of what the reference asks a caster; the invented `creature_at( caster ).first()` lookup is gone with it. Whole suite green: 1,421 sim_suite tests.

@@ -1923,7 +1923,17 @@ mod tests {
         use cdda_sim::creature::Mana;
         let mut world = World::new();
         let avatar = cdda_sim::spawn_player(&mut world, (6, 6), 80, 0);
-        let zombie = cdda_sim::spawn_monster(&mut world, (7, 6), cdda_sim::MonsterKindId(0), 30);
+        // **The spell names the monsters it may affect** (`overcharge_yrax`: `mon_yrax_delta`, `mon_yrax_quadraphract`), and round 1475 made that rule decide, so the body it is
+        // aimed at is one of them rather than whatever the world happened to hold.
+        cdda_sim::monster_registry::set_monster_types(
+            &mut world,
+            &[cdda_sim::monster_registry::MonsterKind {
+                id: "mon_yrax_delta",
+                hp: 30,
+            }],
+        );
+        let named = cdda_sim::monster_registry::id_of(&mut world, "mon_yrax_delta").expect("just registered");
+        let zombie = cdda_sim::spawn_monster(&mut world, (7, 6), named, 30);
         let torso = cdda_sim::hit_location::BodyPart {
             name: "torso".to_owned(),
             hit_size: 36.0,

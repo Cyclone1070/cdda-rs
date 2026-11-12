@@ -11,15 +11,15 @@ use bevy_ecs::prelude::*;
 
 use cdda_content::spells::Spell;
 
-/// Whether a spell may affect the creature or square it was aimed at.
+/// Whether a spell may affect the creature or square it was aimed at, cast from `caster_square`.
 ///
 /// Reference: `spell::is_valid_target( const Creature &caster, const tripoint &p )`. The three creature cases are tried in the reference's order and any one of them may validate the
 /// square; the filters then **narrow** the answer rather than widening it, which is why they are applied with `&&` after the class test.
+///
+/// **The caster is its square, not its entity.** Everything the reference asks a caster here is `p != caster.pos()` and `p == caster.pos()`; a square is therefore the whole
+/// question, and taking it that way keeps this rule callable from a cast that was handed a square - which `spellcasting::cast_attack` is.
 #[must_use]
-pub fn allows(world: &mut World, caster: Entity, spell: &Spell, square: (i32, i32, i32)) -> bool {
-    let caster_square = world
-        .get::<crate::Position>(caster)
-        .map(|at| (at.x, at.y, at.z));
+pub fn allows(world: &mut World, caster_square: (i32, i32, i32), spell: &Spell, square: (i32, i32, i32)) -> bool {
     let creature = crate::creature::creature_at(world, square).first().copied();
     let Some(creature) = creature else {
         // Reference: a square with no creature and no vehicle is `ground`, and a vehicle square is either `vehicle` or `ground` - the port has no vehicles, so both answers are the
@@ -31,10 +31,10 @@ pub fn allows(world: &mut World, caster: Entity, spell: &Spell, square: (i32, i3
     if !friendly && spell.valid_targets.contains("hostile") {
         valid = true;
     }
-    if friendly && spell.valid_targets.contains("ally") && Some(square) != caster_square {
+    if friendly && spell.valid_targets.contains("ally") && square != caster_square {
         valid = true;
     }
-    if spell.valid_targets.contains("self") && Some(square) == caster_square {
+    if spell.valid_targets.contains("self") && square == caster_square {
         valid = true;
     }
     valid && by_monster_id(world, spell, creature)

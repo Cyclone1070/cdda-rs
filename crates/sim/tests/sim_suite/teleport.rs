@@ -132,7 +132,7 @@ fn a_short_range_teleport_spell_moves_its_caster() {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
-        valid_targets: std::collections::BTreeSet::new(),
+        valid_targets: ["hostile".to_owned()].into_iter().collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),

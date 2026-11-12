@@ -28,24 +28,46 @@ struct Sweep {
     hit: usize,
     out_of_range: usize,
     nothing_to_hit: usize,
+    filtered: usize,
     dealt: i64,
+    /// The spells that landed, by id, so the damage total can be compared against exactly those.
+    landed: Vec<String>,
 }
 
 fn sweep(world: &mut World, spells: &[cdda_content::spells::Spell]) -> Sweep {
     let mut found = Sweep::default();
     for spell in spells.iter().filter(|spell| spell.effect_name == "attack") {
         found.seen += 1;
-        let target = cdda_sim::creature::spawn_creature(world, "the target", (0, 0, 0));
+        // **A filtered spell's monster stands one square off**, because the rule reads the creature on the square it is aimed at and the caster itself stands on (0,0,0).
+        let at = if spell.targeted_monster_ids.is_empty() { (0, 0, 0) } else { (1, 0, 0) };
+        let target = cdda_sim::creature::spawn_creature(world, "the target", at);
         // A target with no body has nothing to hit, which is what the first version of this sweep measured: 77 refusals
         // that said more about the harness than about the rule.
         world
             .entity_mut(target)
             .insert(cdda_sim::creature::Body { parts: a_torso() });
         cdda_sim::creature::set_health(world, target, 80);
+        // **A spell that names the monsters it may affect is asked with a monster it names**, which is the rule round 1475 put in: `death_kill_vines` is not supposed to land on
+        // a torso, it is supposed to land on `mon_creeper_vine`. The sweep gives it one when the registry holds it, and counts the spell as filtered when the data names a monster the
+        // fixture world does not have.
+        let named = spell.targeted_monster_ids.iter().next().cloned();
+        if let Some(name) = named {
+            match cdda_sim::monster_registry::id_of(world, &name) {
+                Some(kind) => {
+                    cdda_sim::creature::set_kind(world, target, kind);
+                }
+                None => {
+                    found.filtered += 1;
+                    world.despawn(target);
+                    continue;
+                }
+            }
+        }
         match spellcasting::cast_attack(world, (0, 0, 0), spell, 0, target, 0.0) {
             Cast::Hit { dealt, .. } => {
                 found.hit += 1;
                 found.dealt += i64::from(dealt);
+                found.landed.push(spell.id.clone());
 
             }
             Cast::OutOfRange => found.out_of_range += 1,
@@ -70,22 +92,31 @@ fn every_attack_spell_in_the_game_lands_something() {
 
     assert_eq!(found.seen, 77, "the game has 77 attack spells");
     assert_eq!(
-        found.hit + found.out_of_range + found.nothing_to_hit,
+        found.hit + found.out_of_range + found.nothing_to_hit + found.filtered,
         found.seen,
         "every attack spell was asked and answered"
     );
+    // **Five of the game's attack spells name the monsters they may affect** and the sweep's fixture world holds none of those kinds, so they are filtered rather than landing.
+    assert_eq!(found.filtered, 5, "five attack spells filter by monster id");
     assert_eq!(
-        found.hit, 77,
-        "every one of the game's 77 attack spells landed a blow"
+        found.hit + found.filtered + found.nothing_to_hit,
+        77,
+        "every attack spell either landed its blow or was filtered by the monster it names"
     );
     assert_eq!(found.out_of_range, 0, "a target on the caster's own square is never out of range");
-    assert_eq!(found.nothing_to_hit, 0, "and every one of them found something to hit");
+    // **One attack spell in the data may only be aimed at the ground** - `death_portal` - so a creature standing on the square it is aimed at is not something it touches. The
+    // reference agrees, and that is the whole point of `spell::is_valid_target`: the effect name says `attack`, the targets say what the attack is for.
+    assert_eq!(
+        found.nothing_to_hit, 1,
+        "and exactly one attack spell passes over creatures because its data names only the ground"
+    );
     // The damage that arrived must be the damage the data states, unaltered: an unarmoured torso on the caster's own
     // square is the one case where nothing may change the number.
     #[allow(clippy::cast_possible_truncation)]
     let stated: i64 = spells
         .iter()
         .filter(|spell| spell.effect_name == "attack")
+        .filter(|spell| found.landed.contains(&spell.id))
         .filter_map(|spell| spell.damage.at(0))
         .filter(|damage| *damage > 0.0)
         .map(|damage| damage.round() as i64)
@@ -162,7 +193,21 @@ fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
     let spells = cdda_content::spells::load_dump(&value).expect("the dump loads");
 
     let mut world = World::new();
+    // The caster stands still for the whole sweep: the rule reads the creature on the square a spell is aimed at, and a filtered spell's monster stands one square off.
+    cdda_sim::creature::spawn_creature(&mut world, "the caster", (0, 0, 0));
+    // **Every monster an attack spell names is registered**, so a spell that filters by monster id is asked with one of its own instead of being refused for the fixture's sake.
+    let named: Vec<&str> = spells
+        .iter()
+        .filter(|spell| spell.effect_name == "attack")
+        .flat_map(|spell| spell.targeted_monster_ids.iter().map(String::as_str))
+        .collect();
+    let kinds: Vec<cdda_sim::monster_registry::MonsterKind> = named
+        .iter()
+        .map(|id| cdda_sim::monster_registry::MonsterKind { id, hp: 1_000_000 })
+        .collect();
+    cdda_sim::monster_registry::set_monster_types(&mut world, &kinds);
     let mut seen = 0;
+    let mut skipped: Vec<String> = Vec::new();
     let mut dealt_total: i64 = 0;
     // The same total restricted to the spells that have levels to climb, which is the set the dump states a `max_damage`
     // for unambiguously.
@@ -172,7 +217,21 @@ fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
         seen += 1;
         #[allow(clippy::cast_possible_truncation)]
         let ceiling = spell.max_level.unwrap_or(0.0) as i32;
-        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (0, 0, 0));
+        // A filtered spell's monster stands one square off, because the rule reads the creature on the square it is aimed at and the caster stands on (0,0,0). A spell that reaches
+        // no further than its own square would have to share that square with the caster, where the reference's own `creature_at` answers the caster - so it is skipped, and counted.
+        let filtered = !spell.targeted_monster_ids.is_empty();
+        if filtered && spell.range.at(ceiling).unwrap_or(0.0) < 1.0 {
+            skipped.push(spell.id.clone());
+            continue;
+        }
+        let at = if filtered { (1, 0, 0) } else { (0, 0, 0) };
+        let target = cdda_sim::creature::spawn_creature(&mut world, "the target", at);
+        // A spell that names monsters is asked with one of them, which is the rule round 1475 taught the cast.
+        if let Some(name) = spell.targeted_monster_ids.iter().next()
+            && let Some(kind) = cdda_sim::monster_registry::id_of(&mut world, name)
+        {
+            cdda_sim::creature::set_kind(&mut world, target, kind);
+        }
         world
             .entity_mut(target)
             .insert(cdda_sim::creature::Body { parts: a_torso() });
@@ -200,6 +259,13 @@ fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
         world.despawn(target);
     }
     assert_eq!(seen, 77, "the game has 77 attack spells");
+    // **Two attack spells that filter by monster id reach no further than their own square** (`death_kill_vines` and `death_kill_breathers`, both range 0), so the sweep cannot stand
+    // their monster where the rule would find it: it would have to share the caster's square, and the reference's own `creature_at` answers the caster there.
+    assert_eq!(
+        skipped,
+        vec!["death_kill_vines".to_owned(), "death_kill_breathers".to_owned()],
+        "the two short-range filtered spells are named rather than quietly dropped"
+    );
     // The data's own ceiling for each spell, read straight from the dump rather than through the loader: this is the
     // comparison that makes the sweep an oracle test instead of the port agreeing with itself.
     let cdda_json::Value::Object(root) = &value else {
@@ -214,6 +280,10 @@ fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
             continue;
         };
         if row.get("effect_name") != Some(&cdda_json::Value::Str("attack".to_owned())) {
+            continue;
+        }
+        // A spell the sweep could not stand a target for is left out of the expected sum as well, so the comparison stays about the same set of spells.
+        if matches!(row.get("id"), Some(cdda_json::Value::Str(id)) if skipped.contains(id)) {
             continue;
         }
         #[allow(clippy::cast_possible_truncation)]

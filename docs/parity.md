@@ -45,6 +45,55 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The QA cast aims at the monster its spell names (round 1478)
+
+The suite's last failure was the QA verb: `cast_at_nearest` cast `overcharge_yrax` at whatever monster the fixture world held, and the spell's data says it may only affect a
+`mon_yrax_delta` or a `mon_yrax_quadraphract`. **The world now registers the yrax and spawns one**, which is what the rule asks of a cast and what the data asks of a spell.
+
+That closes the round's sweep: the target rule reached five fixtures, and every one of them now states the thing it had been leaving out.
+
+## The rule asks a square, because a square is the whole question (round 1477)
+
+`spell_targets::allows` took the caster **entity** and read its position. Every spellcasting fixture then had to stand a creature on the caster's square, and five of them did not -
+so the rule refused casts that had nothing wrong with them.
+
+**What the reference asks a caster is only where it stands**: `p != caster.pos()` for the ally case and `p == caster.pos()` for the self case. So the rule takes a square. The
+hand-waving that went with the entity - `creature_at( caster ).first()` - was the port inventing an amiability lookup the reference never performs, and it is gone.
+
+The attack effect keeps the entity, because it needs the caster's square *and* the reach list; it reads the square out of the store and passes it on.
+
+## What the target rule taught the sweeps (round 1476)
+
+Putting the rule in front of every cast broke four gates. **None of them was the rule being wrong** - each was a fixture that had been passing for a reason nobody had written down.
+
+| Gate | What it had been doing | What it says now |
+|---|---|---|
+`armour_by_type`, `monster_body` | spells built by hand with **no target classes at all**, which the rule reads as "may be aimed at nothing" | every fixture spell names `hostile`, which is what an attack fixture means |
+`attack_spells` (sweep) | 77 of 77 attack spells landed a blow, because nothing asked what they may be aimed at | **71 land, 5 are filtered by the monster id they name, 1 passes over creatures** - `death_portal`, whose data names only the ground |
+`attack_spells` (ceiling) | a target standing on the caster's square doubled as the caster | a standing caster, and a filtered spell's monster one square off |
+`attack_spells` (ceiling) | summed the data's damage for all 77 | sums it for the spells it could actually ask, and **names the two it could not** |
+
+**`death_portal` is the finding.** An effect named `attack` whose `valid_targets` is `["ground"]` does not hurt creatures - the reference's `damage_targets` skips every creature for it
+too. The port had been quietly damaging whatever stood there, because nothing asked. That is the class of bug this round exists to close.
+
+**Two spells cannot be asked by a sweep at all.** `death_kill_vines` and `death_kill_breathers` both filter by monster id and both have range zero: their monster would have to
+share the caster's square, where the reference's own `creature_at` answers the caster first. The sweep names them, counts them and leaves them out of both sums - the honest
+alternative to pretending they landed.
+
+## The target rule has callers now (round 1475)
+
+Round 1474 wrote `spell_targets::allows`; a rule nothing calls is a rule nothing proves, so this round put it where the reference asks it.
+
+| Caller | Reference | Port |
+|---|---|---|
+a single cast | `damage_targets` skips a creature the spell may not affect (`magic_spell_effect.cpp:529-533`) | `cast_attack` answers `NothingToHit` before it draws |
+every creature in a blast | the same skip, per square, before the sound and the damage | the attack effect filters its reach list |
+what it means | a spell that may only be aimed at the ground passes over a monster standing in it | the same, and the gate asserts the monster is untouched at full health |
+
+**The gate learned a second rule on the way.** The first version of "a cast the spell may not aim at does nothing" passed the refusal half and failed the landing half, because the
+fixture's monster had no `creature::Body` - the round-1469 rule that a blow needs a part to land on. Giving the kind a torso fixed it, and that is the shape of the port now: rules
+answer each other, and a gate that skips one of them is wrong rather than the rule being wrong.
+
 ## A spell knows what it may be aimed at (round 1474)
 
 The port had a comment admitting it: *the spell's targets are a property of its flags, which the port does not load*. The oracle dumps them now, and the rule exists.

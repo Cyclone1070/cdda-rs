@@ -47,6 +47,23 @@ fn a_world() -> (World, Entity, Entity) {
             (cdda_sim::MonsterKindId(2), BTreeSet::new(), ["MAMMAL".to_owned()].into_iter().collect()),
         ],
     );
+    // A body for the zombie kind, because a blow needs a part to land on and the cast gate at the end of this file hits one.
+    cdda_sim::monster_registry::set_bodies(
+        &mut world,
+        &[(
+            cdda_sim::MonsterKindId(1),
+            cdda_sim::creature::Body {
+                parts: vec![cdda_sim::hit_location::BodyPart {
+                    name: "torso".to_owned(),
+                    hit_size: 36.0,
+                    hit_difficulty: 1.0,
+                    upper: false,
+                    lower: false,
+                    ..Default::default()
+                }],
+            },
+        )],
+    );
     cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(1));
     let caster = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     let zombie = cdda_sim::spawn_monster(&mut world, (3, 0), cdda_sim::MonsterKindId(1), 40);
@@ -90,23 +107,23 @@ fn a_spell_may_be_aimed_at_a_creature_or_at_the_ground() {
     use cdda_sim::spell_targets::allows;
     let (mut world, caster, zombie) = a_world();
     assert!(
-        allows(&mut world, caster, &a_spell(&["hostile"], &[], &[], &[]), (3, 0, 0)),
+        allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &[]), (3, 0, 0)),
         "**a spell that names hostile creatures may be aimed at a monster**"
     );
     assert!(
-        !allows(&mut world, caster, &a_spell(&["ground"], &[], &[], &[]), (3, 0, 0)),
+        !allows(&mut world, (0, 0, 0), &a_spell(&["ground"], &[], &[], &[]), (3, 0, 0)),
         "**and one that names only the ground may not**, however empty the square would be"
     );
     assert!(
-        allows(&mut world, caster, &a_spell(&["ground"], &[], &[], &[]), (5, 5, 0)),
+        allows(&mut world, (0, 0, 0), &a_spell(&["ground"], &[], &[], &[]), (5, 5, 0)),
         "while a square with nothing on it is exactly what `ground` means"
     );
     assert!(
-        allows(&mut world, caster, &a_spell(&["self"], &[], &[], &[]), (0, 0, 0)),
+        allows(&mut world, (0, 0, 0), &a_spell(&["self"], &[], &[], &[]), (0, 0, 0)),
         "**`self` is the caster's own square**"
     );
     assert!(
-        !allows(&mut world, caster, &a_spell(&["self"], &[], &[], &[]), (3, 0, 0)),
+        !allows(&mut world, (0, 0, 0), &a_spell(&["self"], &[], &[], &[]), (3, 0, 0)),
         "and not somebody else's"
     );
     let _ = zombie;
@@ -119,15 +136,15 @@ fn a_charmed_monster_is_an_ally_and_never_the_self() {
     let (mut world, caster, zombie) = a_world();
     cdda_sim::friendly::make_friendly(&mut world, zombie, 10);
     assert!(
-        !allows(&mut world, caster, &a_spell(&["hostile"], &[], &[], &[]), (3, 0, 0)),
+        !allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &[]), (3, 0, 0)),
         "**a charmed monster is nobody's hostile target**"
     );
     assert!(
-        allows(&mut world, caster, &a_spell(&["ally"], &[], &[], &[]), (3, 0, 0)),
+        allows(&mut world, (0, 0, 0), &a_spell(&["ally"], &[], &[], &[]), (3, 0, 0)),
         "it is an ally's"
     );
     assert!(
-        !allows(&mut world, caster, &a_spell(&["ally"], &[], &[], &[]), (0, 0, 0)),
+        !allows(&mut world, (0, 0, 0), &a_spell(&["ally"], &[], &[], &[]), (0, 0, 0)),
         "**and the caster's own square is not an ally**, which the reference says with `p != caster.pos()`"
     );
 }
@@ -138,27 +155,77 @@ fn a_named_monster_and_a_named_species_narrow_the_rule() {
     use cdda_sim::spell_targets::allows;
     let (mut world, caster, _zombie) = a_world();
     assert!(
-        allows(&mut world, caster, &a_spell(&["hostile"], &["mon_zombie"], &[], &[]), (3, 0, 0)),
+        allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &["mon_zombie"], &[], &[]), (3, 0, 0)),
         "a spell naming the zombie may hit the zombie"
     );
     assert!(
-        !allows(&mut world, caster, &a_spell(&["hostile"], &["mon_dog"], &[], &[]), (3, 0, 0)),
+        !allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &["mon_dog"], &[], &[]), (3, 0, 0)),
         "**and one naming the dog may not**, even though the square holds a hostile creature"
     );
     assert!(
-        allows(&mut world, caster, &a_spell(&["hostile"], &[], &["ZOMBIE"], &[]), (3, 0, 0)),
+        allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &[], &["ZOMBIE"], &[]), (3, 0, 0)),
         "a species the creature is in is accepted"
     );
     assert!(
-        !allows(&mut world, caster, &a_spell(&["hostile"], &[], &["MAMMAL"], &[]), (3, 0, 0)),
+        !allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &[], &["MAMMAL"], &[]), (3, 0, 0)),
         "and one it is not in is refused"
     );
     assert!(
-        !allows(&mut world, caster, &a_spell(&["hostile"], &[], &[], &["ZOMBIE"]), (3, 0, 0)),
+        !allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &["ZOMBIE"]), (3, 0, 0)),
         "**an ignored species is left alone**"
     );
     assert!(
-        allows(&mut world, caster, &a_spell(&["hostile"], &[], &[], &["MAMMAL"]), (3, 0, 0)),
+        allows(&mut world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &["MAMMAL"]), (3, 0, 0)),
         "while some other ignored species leaves it a target"
     );
+}
+
+/// **A cast that the spell may not aim at does nothing**, which is what makes the rule a rule rather than a table.
+#[test]
+fn a_cast_at_a_creature_the_spell_does_not_want_does_nothing() {
+    let (mut world, caster, zombie) = a_world();
+    assert_eq!(
+        cdda_sim::spellcasting::cast_attack(
+            &mut world,
+            (0, 0, 0),
+            &a_spell(&["ground"], &[], &[], &[]),
+            0,
+            zombie,
+            0.5
+        ),
+        cdda_sim::spellcasting::Cast::NothingToHit,
+        "**a spell that may only be aimed at the ground finds nothing to hit**, however close the monster is"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, zombie),
+        Some(40),
+        "and the monster is untouched"
+    );
+    assert_eq!(
+        cdda_sim::spellcasting::cast_attack(
+            &mut world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &["mon_dog"], &[], &[]),
+            0,
+            zombie,
+            0.5
+        ),
+        cdda_sim::spellcasting::Cast::NothingToHit,
+        "**and one that names the dog passes over the zombie**"
+    );
+    assert!(
+        matches!(
+            cdda_sim::spellcasting::cast_attack(
+                &mut world,
+                (0, 0, 0),
+                &a_spell(&["hostile"], &["mon_zombie"], &[], &[]),
+                0,
+                zombie,
+                0.5
+            ),
+            cdda_sim::spellcasting::Cast::Hit { .. }
+        ),
+        "while the same spell naming the zombie lands"
+    );
+    let _ = caster;
 }
