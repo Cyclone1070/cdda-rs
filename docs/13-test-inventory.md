@@ -1885,3 +1885,8 @@ item's own table has not got. Five programs refuse at their first unreadable ent
 **Round 1485 made the refusal census honest.** It named the first member of a refusing object, which sent two earlier rounds at the wrong target (`args` when the missing effect was
 `trigger_event`, `count` when it was `u_sell_item`). It now asks each member on its own and names **every** member no reader knows, joined by `+`: `args+trigger_event`,
 `count+u_sell_item`, `else+if+then`, `if+then`, `loc+…+u_map_run_item_eocs`. Five programs refuse, and the labels are now the effects and conditions a round would write.
+
+**Round 1486 put the event table in the corpus.** `trigger_event` is the effect behind the census's `args+trigger_event` refusal, and its `args` are **positional**: what each
+position means is the event type's own field order. `cata::event::get_fields` returns an unordered map, so the oracle now dumps the order instead - `--dump-events` walks the 107
+event types and prints each one's fields in declaration order, with the switch that recovers it **generated** from the `event_type` enum rather than typed by hand
+(`oracle/src/src/harness_event_order.inc`). `corpus/events.json` holds the dump; `u_var_changed` reads `["var", "value"]`, `avatar_enters_omt` reads `["pos", "oter_id"]`.

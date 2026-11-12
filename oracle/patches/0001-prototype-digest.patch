@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-11 06:54:09
-@@ -0,0 +1,7859 @@
++++ oracle/src/src/harness.cpp	2026-11-12 23:38:30
+@@ -0,0 +1,7910 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -8217,12 +8217,63 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    std::fclose( out );
 +}
 +
-+}  // namespace harness
++template<event_type Type>
++std::vector<std::string> field_order()
++{
++    std::vector<std::string> names;
++    for( const auto &field : cata::event_detail::event_spec<Type>::fields ) {
++        names.emplace_back( field.first );
++    }
++    return names;
++}
 +
++std::vector<std::string> field_order_for( event_type type )
++{
++    switch( type ) {
++#define HARNESS_EVENT_ORDER( name ) case event_type::name: return field_order<event_type::name>();
++#include "harness_event_order.inc"
++#undef HARNESS_EVENT_ORDER
++        default:
++            return {};
++    }
++}
++
++void dump_events( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"events\",\"version\":1,\n\"events\":[\n" );
++    bool first_event = true;
++    for( int index = 0; index < static_cast<int>( event_type::num_event_types ); ++index ) {
++        const event_type type = static_cast<event_type>( index );
++        const cata::event::fields_type fields = cata::event::get_fields( type );
++        const std::vector<std::string> order = field_order_for( type );
++        std::fprintf( out, "%s\n{\"type\":\"%s\",\"fields\":[", first_event ? "" : ",",
++                      harness_escape( io::enum_to_string( type ) ).c_str() );
++        bool first_field = true;
++        for( const std::string &name : order ) {
++            const auto found = fields.find( name );
++            std::fprintf( out, "%s{\"name\":\"%s\",\"kind\":\"%s\"}", first_field ? "" : ",",
++                          harness_escape( name ).c_str(),
++                          found == fields.end() ? "unknown"
++                          : harness_escape( io::enum_to_string( found->second ) ).c_str() );
++            first_field = false;
++        }
++        std::fprintf( out, "]}" );
++        first_event = false;
++    }
++    std::fprintf( out, "\n]}\n" );
++    std::fclose( out );
++}
++
++}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-10 00:17:56
-@@ -0,0 +1,425 @@
++++ oracle/src/src/harness.h	2026-11-12 23:32:39
+@@ -0,0 +1,428 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8541,6 +8592,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_butchery( const std::string &path );
 +void dump_weakpoint_sets( const std::string &path );
 +void dump_spells( const std::string &path );
++
++/// Writes every event type's name and its fields, which is what a `trigger_event` argument's meaning comes from.
++void dump_events( const std::string &path );
 +void dump_spell_costs( const std::string &path );
 +
 +// `--dump-state <file>`: the world the reference actually produced — random
@@ -8648,6 +8702,119 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void harness_set_blast_rolls( const std::vector<float> &rolls );
 +void harness_do_blast( map *m, const tripoint_bub_ms &p, float power, float factor, bool fire );
 +#endif
+diff -ruN references/Cataclysm-DDA/src/harness_event_order.inc oracle/src/src/harness_event_order.inc
+--- references/Cataclysm-DDA/src/harness_event_order.inc	1970-01-01 10:00:00
++++ oracle/src/src/harness_event_order.inc	2026-11-12 23:32:54
+@@ -0,0 +1,109 @@
++// Generated from the `event_type` enum in `event.h`: one line per type, so the harness can ask each type for its fields **in order**.
++// The order is what an `args` list fills, and `get_fields` hands back an unordered map, so a map alone cannot say which argument means what.
++HARNESS_EVENT_ORDER( activates_artifact )
++HARNESS_EVENT_ORDER( activates_mininuke )
++HARNESS_EVENT_ORDER( administers_mutagen )
++HARNESS_EVENT_ORDER( angers_amigara_horrors )
++HARNESS_EVENT_ORDER( avatar_enters_omt )
++HARNESS_EVENT_ORDER( avatar_moves )
++HARNESS_EVENT_ORDER( avatar_dies )
++HARNESS_EVENT_ORDER( awakes_dark_wyrms )
++HARNESS_EVENT_ORDER( becomes_wanted )
++HARNESS_EVENT_ORDER( broken_bone )
++HARNESS_EVENT_ORDER( broken_bone_mends )
++HARNESS_EVENT_ORDER( buries_corpse )
++HARNESS_EVENT_ORDER( camp_taken_over )
++HARNESS_EVENT_ORDER( causes_resonance_cascade )
++HARNESS_EVENT_ORDER( character_casts_spell )
++HARNESS_EVENT_ORDER( character_consumes_item )
++HARNESS_EVENT_ORDER( character_dies )
++HARNESS_EVENT_ORDER( character_eats_item )
++HARNESS_EVENT_ORDER( character_finished_activity )
++HARNESS_EVENT_ORDER( character_forgets_spell )
++HARNESS_EVENT_ORDER( character_gains_effect )
++HARNESS_EVENT_ORDER( character_gets_headshot )
++HARNESS_EVENT_ORDER( character_heals_damage )
++HARNESS_EVENT_ORDER( character_kills_character )
++HARNESS_EVENT_ORDER( character_kills_monster )
++HARNESS_EVENT_ORDER( character_learns_spell )
++HARNESS_EVENT_ORDER( character_loses_effect )
++HARNESS_EVENT_ORDER( character_melee_attacks_character )
++HARNESS_EVENT_ORDER( character_melee_attacks_monster )
++HARNESS_EVENT_ORDER( character_radioactively_mutates )
++HARNESS_EVENT_ORDER( character_ranged_attacks_character )
++HARNESS_EVENT_ORDER( character_ranged_attacks_monster )
++HARNESS_EVENT_ORDER( character_smashes_tile )
++HARNESS_EVENT_ORDER( character_starts_activity )
++HARNESS_EVENT_ORDER( character_takes_damage )
++HARNESS_EVENT_ORDER( monster_takes_damage )
++HARNESS_EVENT_ORDER( character_triggers_trap )
++HARNESS_EVENT_ORDER( character_attempt_to_fall_asleep )
++HARNESS_EVENT_ORDER( character_falls_asleep )
++HARNESS_EVENT_ORDER( character_wakes_up )
++HARNESS_EVENT_ORDER( character_wields_item )
++HARNESS_EVENT_ORDER( character_wears_item )
++HARNESS_EVENT_ORDER( character_takeoff_item )
++HARNESS_EVENT_ORDER( character_armor_destroyed )
++HARNESS_EVENT_ORDER( consumes_marloss_item )
++HARNESS_EVENT_ORDER( crosses_marloss_threshold )
++HARNESS_EVENT_ORDER( crosses_mutation_threshold )
++HARNESS_EVENT_ORDER( crosses_mycus_threshold )
++HARNESS_EVENT_ORDER( cuts_tree )
++HARNESS_EVENT_ORDER( dermatik_eggs_hatch )
++HARNESS_EVENT_ORDER( dermatik_eggs_injected )
++HARNESS_EVENT_ORDER( destroys_triffid_grove )
++HARNESS_EVENT_ORDER( dies_from_asthma_attack )
++HARNESS_EVENT_ORDER( dies_from_drug_overdose )
++HARNESS_EVENT_ORDER( dies_from_bleeding )
++HARNESS_EVENT_ORDER( dies_from_hypovolemia )
++HARNESS_EVENT_ORDER( dies_from_redcells_loss )
++HARNESS_EVENT_ORDER( dies_of_infection )
++HARNESS_EVENT_ORDER( dies_of_starvation )
++HARNESS_EVENT_ORDER( dies_of_thirst )
++HARNESS_EVENT_ORDER( digs_into_lava )
++HARNESS_EVENT_ORDER( disarms_nuke )
++HARNESS_EVENT_ORDER( eats_sewage )
++HARNESS_EVENT_ORDER( evolves_mutation )
++HARNESS_EVENT_ORDER( exhumes_grave )
++HARNESS_EVENT_ORDER( fails_to_install_cbm )
++HARNESS_EVENT_ORDER( fails_to_remove_cbm )
++HARNESS_EVENT_ORDER( falls_asleep_from_exhaustion )
++HARNESS_EVENT_ORDER( fuel_tank_explodes )
++HARNESS_EVENT_ORDER( gains_addiction )
++HARNESS_EVENT_ORDER( gains_mutation )
++HARNESS_EVENT_ORDER( gains_proficiency )
++HARNESS_EVENT_ORDER( gains_skill_level )
++HARNESS_EVENT_ORDER( game_avatar_death )
++HARNESS_EVENT_ORDER( game_avatar_new )
++HARNESS_EVENT_ORDER( game_load )
++HARNESS_EVENT_ORDER( game_begin )
++HARNESS_EVENT_ORDER( game_over )
++HARNESS_EVENT_ORDER( game_save )
++HARNESS_EVENT_ORDER( game_start )
++HARNESS_EVENT_ORDER( installs_cbm )
++HARNESS_EVENT_ORDER( installs_faulty_cbm )
++HARNESS_EVENT_ORDER( learns_martial_art )
++HARNESS_EVENT_ORDER( loses_addiction )
++HARNESS_EVENT_ORDER( loses_mutation )
++HARNESS_EVENT_ORDER( npc_becomes_hostile )
++HARNESS_EVENT_ORDER( opens_portal )
++HARNESS_EVENT_ORDER( opens_spellbook )
++HARNESS_EVENT_ORDER( opens_temple )
++HARNESS_EVENT_ORDER( player_fails_conduct )
++HARNESS_EVENT_ORDER( player_gets_achievement )
++HARNESS_EVENT_ORDER( player_levels_spell )
++HARNESS_EVENT_ORDER( reads_book )
++HARNESS_EVENT_ORDER( releases_subspace_specimens )
++HARNESS_EVENT_ORDER( removes_cbm )
++HARNESS_EVENT_ORDER( seals_hazardous_material_sarcophagus )
++HARNESS_EVENT_ORDER( spellcasting_finish )
++HARNESS_EVENT_ORDER( telefrags_creature )
++HARNESS_EVENT_ORDER( teleglow_teleports )
++HARNESS_EVENT_ORDER( teleports_into_wall )
++HARNESS_EVENT_ORDER( terminates_subspace_specimens )
++HARNESS_EVENT_ORDER( throws_up )
++HARNESS_EVENT_ORDER( triggers_alarm )
++HARNESS_EVENT_ORDER( uses_debug_menu )
++HARNESS_EVENT_ORDER( u_var_changed )
++HARNESS_EVENT_ORDER( vehicle_moves )
++HARNESS_EVENT_ORDER( character_butchered_corpse )
 diff -ruN references/Cataclysm-DDA/src/iexamine.cpp oracle/src/src/iexamine.cpp
 --- references/Cataclysm-DDA/src/iexamine.cpp	2026-10-19 18:15:04
 +++ oracle/src/src/iexamine.cpp	2026-10-25 20:19:53
@@ -8822,7 +8989,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-10 00:17:56
++++ oracle/src/src/main.cpp	2026-11-12 23:32:39
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -8833,7 +9000,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,168 @@
+@@ -272,6 +275,169 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -8856,6 +9023,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_weakpoint_sets;
 +    // Harness: every spell's numbers.
 +    std::string dump_spells;
++    std::string dump_events;
 +    std::string dump_spell_costs;
 +    // Harness: the state of a freshly started game.
 +    std::string dump_state;
@@ -9002,7 +9170,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +465,1450 @@
+@@ -300,6 +466,1460 @@
                  }
              },
              {
@@ -9012,6 +9180,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_spells = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-events", "<file>",
++                "Writes every event type's name and the names and kinds of its fields",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_events = params[0];
 +                    return 1;
 +                }
 +            },
@@ -10453,7 +10631,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2395,795 @@
+@@ -786,6 +2406,802 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11184,6 +11362,13 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_spells( cli.dump_spells );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_events.empty() ) {
++            // The event table is a compile-time template table, so this is the only way to learn what the data's
++            // `trigger_event` arguments mean: a type's names, in the order its `args` are read.
++            test_mode = true;
++            harness::dump_events( cli.dump_events );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_spell_costs.empty() ) {

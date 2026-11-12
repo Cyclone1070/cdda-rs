@@ -25,6 +25,7 @@ pub mod digest;
 pub mod enchantments;
 pub mod faults;
 pub mod dialogue;
+pub mod events;
 pub mod effects;
 pub mod emit;
 pub mod eocs;

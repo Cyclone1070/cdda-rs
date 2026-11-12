@@ -45,6 +45,19 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The event table comes from the reference, not from memory (round 1486)
+
+`trigger_event` is the one effect in the census `args+trigger_event` that the port has never had, and the interrogative part is not the effect but the **table**: an `args` list is
+positional, and what each position means comes from the event type's own field list (`event_spec<Type>::fields`, `event.h:173-990`). `cata::event::get_fields` hands back an
+**unordered** map, so it can say which names exist and not which argument fills which.
+
+The oracle now dumps the table: `--dump-events` walks the 107 event types and prints each type's name with its fields **in declaration order**, recovered by a generated switch over
+`event_type` (`oracle/src/src/harness_event_order.inc`, one line per enum value, produced from `event.h` rather than typed by hand). The port binds a `trigger_event` argument to
+that order and nothing else - **the names are the reference's, and the order is the reference's own array**.
+
+`cdda_content::events::EventTable` reads that dump, and the gate pins three answers: 107 types, `u_var_changed` reading `["var", "value"]`, `avatar_enters_omt` reading
+`["pos", "oter_id"]` - plus an unknown type answering `None` rather than an empty list, because "no such event" and "an event with no arguments" are different facts.
+
 ## A refusal names the member nobody knows (round 1485)
 
 The dialogue census blamed the **first member** of a refusing object, and that label was wrong often enough to send two rounds at the wrong target: `{"args": .., "trigger_event": ..}`.
