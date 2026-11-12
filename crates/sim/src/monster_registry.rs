@@ -460,12 +460,19 @@ pub fn id_of(world: &mut World, name: &str) -> Option<MonsterKindId> {
         .and_then(|registry| registry.by_name.get(name).copied())
 }
 
+/// The registry, when the world holds one, without creating it.
+///
+/// **A read-only question needs a read-only lookup**: [`singleton`] would make the entity to answer for its absence, which a rule that only wants to know a name must not do.
+#[must_use]
+pub fn registry(world: &World) -> Option<&MonsterTypes> {
+    let entity = singletons::holder::<TheMonsterTypes>(world)?;
+    world.get::<MonsterTypes>(entity)
+}
+
 /// The name of a kind, as the data spells it.
 #[must_use]
-pub fn name_of(world: &mut World, kind: MonsterKindId) -> Option<String> {
-    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
-    world
-        .get::<MonsterTypes>(entity)
+pub fn name_of(world: &World, kind: MonsterKindId) -> Option<String> {
+    registry(world)
         .and_then(|registry| registry.names.get(kind.0 as usize).cloned())
         .filter(|name| !name.is_empty())
 }
@@ -529,10 +536,8 @@ pub fn kind_has_flag(world: &mut World, kind: MonsterKindId, flag: &str) -> bool
 
 /// Whether a kind belongs to a species, which is `mtype::in_species`.
 #[must_use]
-pub fn kind_in_species(world: &mut World, kind: MonsterKindId, species: &str) -> bool {
-    let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
-    world
-        .get::<MonsterTypes>(entity)
+pub fn kind_in_species(world: &World, kind: MonsterKindId, species: &str) -> bool {
+    registry(world)
         .and_then(|registry| registry.species.get(kind.0 as usize))
         .is_some_and(|held| held.iter().any(|name| name == species))
 }

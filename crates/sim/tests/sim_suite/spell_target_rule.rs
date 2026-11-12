@@ -229,3 +229,66 @@ fn a_cast_at_a_creature_the_spell_does_not_want_does_nothing() {
     );
     let _ = caster;
 }
+
+/// The same spell with a blast wide enough for the area rule to apply.
+///
+/// **An area under one square is the reference's own exception**: `calculate_spell_effect_area` returns the bare epicentre then and never asks the rule, so a gate about the rule
+/// has to give the spell an area worth filtering.
+fn a_wide_spell(targets: &[&str]) -> cdda_content::spells::Spell {
+    let mut spell = a_spell(targets, &[], &[], &[]);
+    spell.area = cdda_content::spells::Scaling {
+        start: Some(1.0),
+        increment: Some(0.0),
+        end: Some(1.0),
+    };
+    spell
+}
+
+/// **A blast leaves an ally out of its own area**, which is the rule the reference applies to a whole area before any effect sees it.
+#[test]
+fn a_blast_leaves_an_ally_out_of_its_area() {
+    let (mut world, caster, zombie) = a_world();
+    let spell = a_wide_spell(&["hostile"]);
+    let scorched = |world: &mut World| -> Vec<(i32, i32)> {
+        cdda_sim::spell_effects::squares_in_area(world, caster, &spell, 0, (3, 0, 0))
+            .into_iter()
+            .map(|(x, y, _)| (x, y))
+            .collect()
+    };
+    let before = scorched(&mut world);
+    assert!(
+        before.contains(&(3, 0)),
+        "**a hostile creature's square is in the blast**: {before:?}"
+    );
+    cdda_sim::friendly::make_friendly(&mut world, zombie, 10);
+    let after = scorched(&mut world);
+    assert!(
+        !after.contains(&(3, 0)),
+        "**and the same square is out of it once the creature is an ally**: {after:?}"
+    );
+    assert_eq!(
+        after.len() + 1,
+        before.len(),
+        "only that square left: {} became {}",
+        before.len(),
+        after.len()
+    );
+}
+
+/// **The effect behind the area inherits the rule**, so an ally in a hostile blast is not hurt by it.
+#[test]
+fn an_ally_in_a_hostile_blast_is_not_hurt() {
+    let (mut world, caster, zombie) = a_world();
+    let spell = a_wide_spell(&["hostile"]);
+    cdda_sim::friendly::make_friendly(&mut world, zombie, 10);
+    assert_eq!(
+        cdda_sim::spell_effects::apply(&mut world, caster, &spell, 0, (3, 0, 0)),
+        cdda_sim::spell_effects::Effective::NothingAffected,
+        "**nothing in the blast may be affected**, because the only creature in it is an ally"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, zombie),
+        Some(40),
+        "and the ally is untouched at full health"
+    );
+}

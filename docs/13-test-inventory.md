@@ -1849,3 +1849,8 @@ caster as its own target. All four now state the reason they pass, and two spell
 **Round 1477 gave the rule the argument the reference asks for.** `spell_targets::allows` took the caster entity and read its position, which forced every fixture to stand a
 creature on the caster's square - five did not, and casts with nothing wrong with them were refused. The rule takes a square now, because `p == caster.pos()` and `p != caster.pos()`
 are the whole of what the reference asks a caster; the invented `creature_at( caster ).first()` lookup is gone with it. Whole suite green: 1,421 sim_suite tests.
+
+**Round 1479 filtered the whole area instead of the single cast.** `squares_in_area` now erases every square the target rule refuses, before any effect sees the list - the
+reference asks it once per area in `calculate_spell_effect_area`, and it keeps the `aoe < 1` shortcut that returns the bare epicentre unfiltered. An ally standing in a hostile blast
+is neither hurt nor counted; making it an ally takes its square out of the area. Eight fixtures had to say what they are aimed at (`ground` as well as `hostile`), and one gate had
+been reading the area after the cast instead of before.

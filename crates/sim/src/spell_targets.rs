@@ -19,7 +19,7 @@ use cdda_content::spells::Spell;
 /// **The caster is its square, not its entity.** Everything the reference asks a caster here is `p != caster.pos()` and `p == caster.pos()`; a square is therefore the whole
 /// question, and taking it that way keeps this rule callable from a cast that was handed a square - which `spellcasting::cast_attack` is.
 #[must_use]
-pub fn allows(world: &mut World, caster_square: (i32, i32, i32), spell: &Spell, square: (i32, i32, i32)) -> bool {
+pub fn allows(world: &World, caster_square: (i32, i32, i32), spell: &Spell, square: (i32, i32, i32)) -> bool {
     let creature = crate::creature::creature_at(world, square).first().copied();
     let Some(creature) = creature else {
         // Reference: a square with no creature and no vehicle is `ground`, and a vehicle square is either `vehicle` or `ground` - the port has no vehicles, so both answers are the
@@ -45,7 +45,7 @@ pub fn allows(world: &mut World, caster_square: (i32, i32, i32), spell: &Spell, 
 /// Whether the creature's kind is one the spell names, or the spell names none.
 ///
 /// Reference: `spell::target_by_monster_id` (`magic.cpp:1721-1735`).
-fn by_monster_id(world: &mut World, spell: &Spell, creature: Entity) -> bool {
+fn by_monster_id(world: &World, spell: &Spell, creature: Entity) -> bool {
     if spell.targeted_monster_ids.is_empty() {
         return true;
     }
@@ -63,7 +63,7 @@ fn by_monster_id(world: &mut World, spell: &Spell, creature: Entity) -> bool {
 ///
 /// Reference: `spell::target_by_species_id` (`magic.cpp:1737-1750`). A creature with no kind at all - a character - is not in any species, so a spell that names species leaves it
 /// alone.
-fn by_species(world: &mut World, spell: &Spell, creature: Entity) -> bool {
+fn by_species(world: &World, spell: &Spell, creature: Entity) -> bool {
     if spell.targeted_species_ids.is_empty() {
         return true;
     }
@@ -82,7 +82,7 @@ fn by_species(world: &mut World, spell: &Spell, creature: Entity) -> bool {
 /// Whether the creature's species is one the spell leaves alone.
 ///
 /// Reference: `spell::ignore_by_species_id` (`magic.cpp:1752-1764`) - the same walk as `by_species`, answering the opposite, and true when the spell names none.
-fn not_ignored_species(world: &mut World, spell: &Spell, creature: Entity) -> bool {
+fn not_ignored_species(world: &World, spell: &Spell, creature: Entity) -> bool {
     if spell.ignored_species_ids.is_empty() {
         return true;
     }

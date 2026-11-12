@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A blast leaves an ally out of its own area (round 1479)
+
+The reference asks the target rule **once per area**, before any effect sees it: `calculate_spell_effect_area` erases every square `is_valid_target` refuses
+(`magic_spell_effect.cpp:461-476`). The port asks it in `spell_effects::squares_in_area`, so every effect that draws its squares from there inherits the rule instead of each one
+remembering it.
+
+| Piece | Reference | Port |
+|---|---|---|
+the filter | every square of the area, before the effect | `squares_in_area`, after the cover |
+the exception | `aoe < 1 && shape != line` returns the bare epicentre **unfiltered** (`:461-464`) | the same, which is why a summon aimed at a square is not refused by its own target list |
+what it means | an ally standing in a hostile blast is neither hurt nor counted | the same, and the gate says the square leaves the area when the creature changes sides |
+
+**Eight gates broke and every one was a spell that had never said what it was aimed at.** Summons, emissions, terrain transforms, revivals and wall blasts were all hand-built with
+`valid_targets: ["hostile"]` and cast onto bare ground, which the rule refuses - correctly. They name `ground` now, which is what those spells are for; the data's own spells had
+said so all along, and only the fixtures had not.
+
+**A gate had been asking the area after the cast.** `every_summon_lands_inside_the_spells_own_area` read `squares_in_area` once the summons stood there, and the squares they had
+landed on answered differently - they held allies, and an ally is not what a hostile-and-ground spell was aimed at. The area is read before the cast now, which is the order the
+reference works in.
+
 ## The QA cast aims at the monster its spell names (round 1478)
 
 The suite's last failure was the QA verb: `cast_at_nearest` cast `overcharge_yrax` at whatever monster the fixture world held, and the spell's data says it may only affect a

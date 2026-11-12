@@ -97,7 +97,7 @@ fn a_spell(effect: &str, species: &str, area: f64) -> cdda_content::spells::Spel
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
-        valid_targets: ["hostile".to_owned()].into_iter().collect(),
+        valid_targets: ["hostile".to_owned(), "ground".to_owned()].into_iter().collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),

@@ -248,7 +248,7 @@ pub fn squares_in_area(
     } else {
         centre
     };
-    crate::spell_area::cover(
+    let squares = crate::spell_area::cover(
         &spell.shape,
         source,
         centre,
@@ -256,7 +256,17 @@ pub fn squares_in_area(
         range,
         &passable,
         spell.has_flag("IGNORE_WALLS"),
-    )
+    );
+    // Reference: `calculate_spell_effect_area` erases every square the spell may not affect before any effect sees it (`magic_spell_effect.cpp:461-476`), which is why a blast
+    // that names only hostile creatures leaves an ally standing in it untouched. **The shortcut above it is the exception**: an area smaller than one square returns the bare
+    // epicentre without asking, so a summon aimed at a square is not refused by its own target list.
+    if area_of(spell, level) < 1 {
+        return squares;
+    }
+    squares
+        .into_iter()
+        .filter(|square| crate::spell_targets::allows(world, source, spell, *square))
+        .collect()
 }
 
 /// Reference: `spell_effect::remove_effect` (`magic_spell_effect.cpp:1712-1721`) - every creature in the spell's area

@@ -67,7 +67,7 @@ fn a_blast(flag: Option<&str>) -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
-        valid_targets: ["hostile".to_owned()].into_iter().collect(),
+        valid_targets: ["hostile".to_owned(), "ground".to_owned()].into_iter().collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),
