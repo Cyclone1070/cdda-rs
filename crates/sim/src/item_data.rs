@@ -104,6 +104,8 @@ pub fn install(world: &mut World, kinds: &[ItemType], chip_resistance: &std::col
                 // The dump's own figure, joined by id to the number the registry gave this kind; the reference's fallback of 2 when the dump does not mention it.
                 chip_resistance: chip_resistance.get(&kind.id).copied().unwrap_or(2),
                 faults: kind.faults.clone(),
+                count_by_charges: kind.count_by_charges(),
+                is_comestible: kind.is_comestible(),
             },
         ));
     }

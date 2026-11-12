@@ -55,7 +55,8 @@ pub const NOW: Census = Census {
     // `search_data` the `condition` member and the alternative semantics, which is the beggar program that had been blamed on `false_eocs`.
     // **602 after round 1487 read `trigger_event`**, which closes the census's `args+trigger_event` bucket: the effect reads a type's name and its `args`, and the
     // argument order is the dumped table's.
-    readable: 602,
+    // **603 after round 1489 read `has_ammo`**, the second of the dialogue census's five refusals to close.
+    readable: 603,
     ran: 396,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
@@ -66,7 +67,8 @@ pub const NOW: Census = Census {
     ran_in_a_built_world: 401,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
-    refused_at_run: 206,
+    // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
+    refused_at_run: 207,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
@@ -74,17 +76,21 @@ pub const NOW: Census = Census {
     // 20 and 12 after round 1439: `reveal_map`'s radius was the last leaf in its program and the only gap in one more.
     // 19 after round 1484: the beggar program's `search_data` reads, so its last unreadable member is gone.
     // 18 after round 1487: the trigger_event reader took one leaf with it.
-    leaves: 18,
+    // 17 after round 1489: the `has_ammo` reader took one leaf with it.
+    leaves: 17,
     // 11 after round 1484: the program that stopped refusing at its `search_data` was one member short of reading, so the gap closed with it.
-    one_gap: 10,
+    one_gap: 9,
     // 1,585 after round 1487: `trigger_event` is one more entry the reader can carry out, and the entry it unblocked is another.
-    effects_runnable: 1_585,
+    // 1,586 after round 1489: the `has_ammo` condition is one more entry the reader can carry out.
+    effects_runnable: 1_586,
     effects_defined: 1_612,
     // 85 after round 1439: the same program no longer blames an effect, because its first refusal is now past the effect list.
     // 84 after round 1484: same program, one fewer entry refused at its effect list.
     // 83 after round 1487: one fewer program blames its effect list, because that list now reads.
-    effect_blamed: 83,
-    conditions_readable: 3_227,
+    // 82 after round 1489: one fewer program blames its effect list.
+    effect_blamed: 82,
+    // 3,228 after round 1489: `has_ammo` is one more condition every one of the data's condition sites can now read.
+    conditions_readable: 3_228,
 };
 
 impl Census {

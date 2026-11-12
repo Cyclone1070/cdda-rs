@@ -514,6 +514,14 @@ fn holds_within(
         Condition::IsOutside { .. } => is_outside(world, speaker, listener, condition),
         Condition::HasWornWithFlag { .. } => worn_flag(world, speaker, listener, condition),
         Condition::HasFlag { .. } => creature_flag(world, speaker, listener, condition),
+        Condition::HasAmmo => {
+            // Reference: `f_has_ammo` (`condition.cpp:1963-1974`) reads `d.const_actor( true )->get_const_item()` and debug-messages when the beta is not an item, answering
+            // **false**. The port answers the same way, because a creature in that slot is a question the rule cannot answer rather than one it answers no to.
+            let Some(item) = listener else {
+                return false;
+            };
+            return crate::item_registry::has_enough_charges(world, item);
+        }
         Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)
             .is_some_and(|actor| crate::seeing::can_see(world, actor)),
         Condition::Simple { name } => simple_holds(world, speaker, listener, name),

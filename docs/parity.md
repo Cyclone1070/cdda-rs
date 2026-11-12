@@ -45,6 +45,22 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## `has_ammo` asks the item in the other slot (round 1489)
+
+The second of the five dialogue refusals to close. `f_has_ammo` (`condition.cpp:1963-1974`) reads the dialogue's **beta**, which in an inventory effect is the item, and asks
+`item::ammo_sufficient` (`item.cpp:11569-11582`) whether it can be used once.
+
+| Piece | Reference | Port |
+|---|---|---|
+which item | `const_actor( true )->get_const_item()` | the entity in the listener slot |
+charge-counted kind | `ammo_remaining_linked >= qty` | its charges |
+comestible | always sufficient - one bite spends one charge | the same, and it is the branch a mutation catches |
+anything else | `shots_remaining >= qty` | its charges, because the port has no magazines; a magazine-fed gun is the named gap |
+a creature in that slot | `debugmsg`, then false | false, and the port says why |
+
+**Two tables had to exist before the rule could be asked.** `count_by_charges` was not loaded at all and the kind-facts table had no "is it edible" flag, so the condition would have
+been answered from a guess. Both are now part of the one kind-facts pass - `KindFacts` gains the two, and a single `KindTraits` component carries them where the rule reads.
+
 ## An event program answers its own event (round 1488)
 
 The other half of the bus. A program that says `eoc_type: EVENT` and `required_event: <kind>` is not called by name: it **answers** an event of that kind, with the event's

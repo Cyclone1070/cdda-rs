@@ -2135,6 +2135,8 @@ fn a_fragile_weapon_wears_at_its_weakest_part_when_it_is_swung() {
         qualities: Vec::new(),
         chip_resistance: chip,
         faults: Vec::new(),
+        count_by_charges: false,
+        is_comestible: false,
     };
     cdda_sim::item_registry::install_kind_facts(
         &mut world,
@@ -2183,6 +2185,8 @@ fn a_fragile_weapon_breaks_apart_instead_of_being_destroyed() {
         qualities: Vec::new(),
         chip_resistance: chip,
         faults: Vec::new(),
+        count_by_charges: false,
+        is_comestible: false,
     };
     // Chip resistance zero makes the wear chance zero, and a chance of zero **always** damages - the reference's inverted guard (`melee.cpp:291`).
     cdda_sim::item_registry::install_kind_facts(
@@ -2322,6 +2326,8 @@ fn the_biggest_part_of_a_broken_weapon_goes_into_the_hand() {
         qualities: Vec::new(),
         chip_resistance: chip,
         faults: Vec::new(),
+        count_by_charges: false,
+        is_comestible: false,
     };
     cdda_sim::item_registry::install_kind_facts(
         &mut world,
@@ -2375,6 +2381,8 @@ fn a_weapon_that_breaks_drops_what_was_inside_it() {
         qualities: Vec::new(),
         chip_resistance: chip,
         faults: Vec::new(),
+        count_by_charges: false,
+        is_comestible: false,
     };
     cdda_sim::item_registry::install_kind_facts(&mut world, &[(weapon, facts(0)), (flask, facts(10))]);
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));

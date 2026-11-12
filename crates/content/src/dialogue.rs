@@ -10,6 +10,11 @@ use cdda_json::Value;
 /// A condition the port can evaluate.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
+    /// Whether the item in the dialogue's **other slot** has enough charges to be used.
+    ///
+    /// Reference: `f_has_ammo` (`condition.cpp:1963-1974`): the beta is read as an item and `item::ammo_sufficient` (`item.cpp:11569-11582`) answers from its charges - a
+    /// charge-counted stack compares its charges, a comestible is always sufficient, and anything else answers from its remaining shots.
+    HasAmmo,
     /// Whether the **player** can see one of the dialogue's creatures.
     ///
     /// Reference: `f_player_see` (`condition.cpp:1366-1377`): the player's view is asked whether it sees the creature the dialogue holds - the speaker for
@@ -554,6 +559,9 @@ fn read_knows_recipe(object: &cdda_json::Object) -> Option<Condition> {
 fn read_bare_condition(name: &str) -> Option<Condition> {
     match name {
         "u_can_see" => return Some(Condition::CanSee { listener: false }),
+        // Reference: `{"has_ammo", &conditional_fun::f_has_ammo}` (`condition.cpp:2670`), argument-less: it asks the dialogue's **beta**, which is the item in an
+        // inventory effect (`condition.cpp:1963-1974`).
+        "has_ammo" => return Some(Condition::HasAmmo),
         // Reference: `{"u_is_deaf", "npc_is_deaf", &conditional_fun::f_is_deaf}` (`condition.cpp:2659`), argument-less in the data.
         "u_is_deaf" | "npc_is_deaf" => {
             return Some(Condition::IsDeaf {

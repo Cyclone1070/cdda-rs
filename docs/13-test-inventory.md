@@ -1902,3 +1902,11 @@ the evaluated value, and fails if the queue never fills.
 answer (`effect_on_condition.cpp:526-544`), and `events::dispatch` drains the queue and runs only those, binding each argument to its field name from the dumped table. The gate
 proves three things at once: one program answers, a program for **another** event does not, and the answering program reads the **second** argument through the name the table
 gives it. Two mutations die - indexing every program under every event, and binding nothing.
+
+**Round 1489 closed `has_ammo`.** It reads the dialogue's **beta** as an item and answers `item::ammo_sufficient` (`item.cpp:11569-11582`): a charge-counted stack compares its
+charges, a comestible is always sufficient, and anything else answers from its charges - with a magazine-fed gun named as the gap, because the port has no magazines. Two
+tables had to exist first: `count_by_charges` was not loaded and the kind facts had no "edible" flag, so both joined the one kind-facts pass. The gate pins all three branches and
+a creature in the item slot answering false; dropping the comestible branch fails it.
+
+The census moved with it: **603** programs readable, 1,586 entries runnable, 17 leaves, 9 one-gap, 82 effect-blamed, 207 refusing at run, and the dialogue refusal census
+falls from four to **three** - `has_ammo` is gone, leaving `u_sell_item`, `u_has_camp` and `u_map_run_item_eocs`.

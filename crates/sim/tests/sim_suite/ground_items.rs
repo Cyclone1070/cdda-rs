@@ -176,6 +176,8 @@ fn one_pass_fills_every_kind_table() {
                     qualities: vec![("CUT".to_owned(), 1)],
                     chip_resistance: 9,
                     faults: vec![("dented".to_owned(), 3)],
+                    count_by_charges: false,
+                    is_comestible: false,
                 },
             ),
             (ItemTypeId(8), KindFacts { chip_resistance: 20, ..KindFacts::default() }),
@@ -425,6 +427,8 @@ fn a_no_unload_container_keeps_what_it_holds() {
         qualities: Vec::new(),
         chip_resistance: 10,
         faults: Vec::new(),
+        count_by_charges: false,
+        is_comestible: false,
     };
     cdda_sim::item_registry::install_kind_facts(
         &mut world,

@@ -613,6 +613,30 @@ pub struct KindFacts {
     pub chip_resistance: i32,
     /// The faults it can catch, with weights, in the data's order.
     pub faults: Vec<(String, i32)>,
+    /// Whether the kind is measured in charges rather than in units - `item::count_by_charges`.
+    pub count_by_charges: bool,
+    /// Whether it can be eaten or drunk, which is the branch `item::ammo_sufficient` answers `true` for.
+    pub is_comestible: bool,
+}
+
+/// What a kind says about **how it is counted and used**, which is one table because the two questions are read together.
+///
+/// Reference: `itype::count_by_charges` (`itype.h:1592`) and `itype::comestible`, both read by `item::ammo_sufficient` (`item.cpp:11569-11582`).
+#[derive(Debug, Clone, Default, PartialEq, Component)]
+pub struct KindTraits(pub std::collections::BTreeMap<ItemTypeId, (bool, bool)>);
+
+/// Marks the entity holding [`KindTraits`].
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheKindTraits;
+
+/// Installs the counting and edible tables.
+pub fn set_kind_traits(world: &mut World, kinds: &[(ItemTypeId, bool, bool)]) {
+    let holder = singletons::singleton::<KindTraits, TheKindTraits>(world);
+    let by_kind = kinds
+        .iter()
+        .map(|(kind, counted, edible)| (*kind, (*counted, *edible)))
+        .collect();
+    world.entity_mut(holder).insert(KindTraits(by_kind));
 }
 
 /// Fills every kind table from one list, so no two of them can disagree about what a kind is.
@@ -632,6 +656,11 @@ pub fn install_kind_facts(world: &mut World, kinds: &[(ItemTypeId, KindFacts)]) 
     set_item_chip_resistance(world, &chip);
     let faults: Vec<(ItemTypeId, Vec<(String, i32)>)> = kinds.iter().map(|(kind, facts)| (*kind, facts.faults.clone())).collect();
     set_item_fault_weights(world, &faults);
+    let traits: Vec<(ItemTypeId, bool, bool)> = kinds
+        .iter()
+        .map(|(kind, facts)| (*kind, facts.count_by_charges, facts.is_comestible))
+        .collect();
+    set_kind_traits(world, &traits);
 }
 
 /// What kind of damage each fault is, filed by fault id: `Fault::fault_type` from the catalogue, which is what `set_random_fault_of_type` filters on.
@@ -740,4 +769,33 @@ pub fn weapon_categories_of(world: &mut World, kind: ItemTypeId) -> Vec<String> 
         .get::<ItemWeaponCategories>(entity)
         .and_then(|table| table.0.get(&kind).cloned())
         .unwrap_or_default()
+}
+
+/// Whether an item has enough charges to be used once.
+///
+/// Reference: `item::ammo_sufficient( carrier, qty = 1 )` (`item.cpp:11569-11582`), which is the rule `f_has_ammo` asks (`condition.cpp:1963-1974`):
+/// a **charge-counted** kind compares its charges, a **comestible** is always sufficient (one bite spends one charge, and eating never fails for want of ammunition), and
+/// anything else answers from its remaining shots - which the port reads as its charges, because it has no magazines and a magazine-fed gun's rounds are its charges until it does.
+#[must_use]
+pub fn has_enough_charges(world: &World, item: Entity) -> bool {
+    let Some(ground) = world.get::<crate::GroundItem>(item) else {
+        return false;
+    };
+    let kind = ground.kind;
+    let charges = ground.charges;
+    let (counted, edible) = traits_of(world, kind).unwrap_or((false, false));
+    if edible {
+        return true;
+    }
+    // A charge-counted stack and a plain item both answer from their charges; the reference's third branch (`shots_remaining`) is the same number for a magazine the port does
+    // not have, and a magazine-fed gun whose rounds live elsewhere is a named gap.
+    let _ = counted;
+    charges >= 1
+}
+
+/// Whether a kind is counted in charges, and whether it is edible - or nothing when the table has never seen it.
+#[must_use]
+pub fn traits_of(world: &World, kind: ItemTypeId) -> Option<(bool, bool)> {
+    let entity = singletons::holder::<TheKindTraits>(world)?;
+    world.get::<KindTraits>(entity)?.0.get(&kind).copied()
 }

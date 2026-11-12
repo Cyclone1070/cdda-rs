@@ -62,6 +62,11 @@ pub struct ItemType {
     pub longest_side: i64,
     /// How many of it make a whole stack, which is what a charge count is divided by when the volume of a pile is worked out.
     pub stack_size: i32,
+    /// Whether the kind is measured in **charges** rather than in units.
+    ///
+    /// Reference: `itype::count_by_charges` (`itype.h:1592`), loaded from `"count_by_charges"` (`item_factory.cpp`). A stack of nails is so many nails, so the number a stack
+    /// holds is a charge count - which is the first branch of `item::ammo_sufficient` (`item.cpp:11569-11582`).
+    pub count_by_charges: bool,
     /// The default number of charges the type is created with, which is `"count"` in the data (`src/item_factory.cpp:2988`) and is the fallback for a stack size.
     pub default_charges: i32,
     /// What the item takes up when its caller asks for the **integral** volume, in millilitres.
@@ -587,6 +592,14 @@ impl ItemType {
         self.cookoff =
             self.ammo_effects.contains("INCENDIARY") || self.ammo_effects.contains("COOKOFF");
         self.special_cookoff = self.ammo_effects.contains("SPECIAL_COOKOFF");
+    }
+
+    /// Whether the kind is measured in **charges** rather than in units.
+    ///
+    /// Reference: `itype::count_by_charges` (`itype.h:1592`), the dump's own boolean - a stack of nails is so many nails, and the number in a stack is a charge count.
+    #[must_use]
+    pub fn count_by_charges(&self) -> bool {
+        self.count_by_charges
     }
 
     /// Whether it can be eaten or drunk at all.
@@ -1356,6 +1369,7 @@ fn resolve(
         color: color_from_string("white").unwrap_or_default(),
         weight: 0,
         stack_size: 0,
+        count_by_charges: false,
         default_charges: 1,
         // Unset until the data or the fallback says otherwise.
         integral_weight: -1,
@@ -1603,6 +1617,9 @@ fn apply_slots(
     adjust_melee_slots(item, object);
     throw_slot(item, object);
     // Kept as the data states it, **including zero**: zero is what tells the finalisation to use the default charge count, and clamping it here would hide that.
+    if let Some(Value::Bool(charges)) = object.get("count_by_charges") {
+        item.count_by_charges = *charges;
+    }
     if let Some(Value::Int(size)) = object.get("stack_size") {
         item.stack_size = i32::try_from(*size).unwrap_or(0).max(0);
     }
