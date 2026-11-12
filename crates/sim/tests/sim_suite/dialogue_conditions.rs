@@ -1343,6 +1343,8 @@ fn an_opinion_number_comes_from_the_creature_and_is_zero_when_absent() {
             anger: 7,
             trust: -2,
             fear: 1,
+            debt: 0,
+            sold: 0,
         },
     );
 

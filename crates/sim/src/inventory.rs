@@ -191,3 +191,77 @@ pub fn remove_all_of(world: &mut World, creature: Entity, name: &str) -> bool {
     }
     take(world, creature, name, stacks, 0)
 }
+
+/// Moves items from one creature to another, which is what selling them is.
+///
+/// Reference: `f_u_sell_item` (`npctalk.cpp:3897-3911`) calls `use_charges`/`use_amount` on the **player** and `i_add` on the **NPC**: the item objects leave one inventory
+/// and arrive in the other. The port moves the same entities where a whole stack goes, and splits a stack where only some of its charges are sold.
+///
+/// Answers false when the giver does not have that much, and changes nothing in that case.
+pub fn hand_over(
+    world: &mut World,
+    from: Entity,
+    to: Entity,
+    name: &str,
+    stacks: i32,
+    charges: i32,
+) -> bool {
+    let mut found = Vec::new();
+    let Some(mut query) = world.try_query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>() else {
+        return false;
+    };
+    for (entity, carried, item) in query.iter(world) {
+        if carried.0 != from {
+            continue;
+        }
+        if crate::item_registry::name_in(world, item.kind).as_deref() != Some(name) {
+            continue;
+        }
+        found.push((entity, item.kind, item.charges));
+    }
+    let (held_stacks, held_charges) = found.iter().fold((0, 0), |(many, held), (_, _, charges)| {
+        (many + 1, held + (*charges).max(1))
+    });
+    if stacks > 0 && held_stacks < stacks {
+        return false;
+    }
+    if charges > 0 && held_charges < charges {
+        return false;
+    }
+    let mut left_stacks = stacks;
+    let mut left_charges = charges;
+    for (entity, kind, held) in found {
+        if left_stacks > 0 {
+            left_stacks -= 1;
+            // **The stack changes hands**: the same entity, the same charges, a different owner.
+            world.entity_mut(entity).insert(crate::creature::Carried(to));
+            continue;
+        }
+        if left_charges <= 0 {
+            break;
+        }
+        let taken = left_charges.min(held.max(1));
+        left_charges -= taken;
+        let remaining = held.max(1) - taken;
+        if remaining <= 0 {
+            world.entity_mut(entity).insert(crate::creature::Carried(to));
+        } else {
+            if let Some(mut item) = world.get_mut::<crate::GroundItem>(entity) {
+                item.charges = remaining;
+            }
+            // The sold part becomes its own stack in the buyer's hands, which is the same shape the reference's `i_add` leaves behind.
+            let sold = world
+                .spawn(crate::GroundItem {
+                    kind,
+                    charges: taken,
+                    age: 0,
+                    burnt: 0,
+                    damage: 0,
+                    burn: None,
+                })
+                .id();
+            world.entity_mut(sold).insert(crate::creature::Carried(to));
+        }
+    }
+    true
+}

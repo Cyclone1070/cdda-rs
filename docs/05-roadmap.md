@@ -362,7 +362,7 @@ member on its own and names **every** member no reader knows, so the label is th
 | Program | Unknown members | What it is |
 |---|---|---|
 `EOC_CANCEL_PORTAL_STORM` | `args+trigger_event` | the **event bus**: `trigger_event` is not ported at all, and `args` belongs to it |
-`EOC_MISSION_GET_DRIVEBELTS_done` | `count+u_sell_item` | selling an item back: the trade store |
+~~`EOC_MISSION_GET_DRIVEBELTS_done`~~ | ~~`count+u_sell_item`~~ | **closed at round 1490**: selling is a transfer, and the buyer's `debt` is `npc_opinion`'s own number |
 `EOC_toolweapon_activate` | `else+if+then` | the `has_ammo` **condition**, inside an `if` whose branches are fine |
 `EOC_TOOK_OVER_CAMP_NOTICE` | `if+then` | the `u_has_camp` **condition** |
 `EOC_map_item_test1` | `loc+…+u_map_run_item_eocs` | the map item picker |
@@ -395,7 +395,7 @@ programs that refuse at their first unreadable entry | **7** | 913 | `content_su
 |---|---|
 `<not an object>` | an **array** where the reader expects an entry object - `map_spawn_item` with a `count` range and a `context_val` location |
 `args` | the event-argument store (`trigger_event`) |
-`count` | a count beside `u_sell_item`, which is a trade effect |
+~~`count`~~ | **closed at round 1490** - `u_sell_item` reads `count` and hands the items over |
 `else` | a branch key on an `if` whose condition is `has_ammo` |
 `false_eocs` | a whole-program spawn inside a false branch |
 `if` | `u_has_camp`, a condition the port has no store for |

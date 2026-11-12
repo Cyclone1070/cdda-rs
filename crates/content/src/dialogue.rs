@@ -1815,6 +1815,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_transform_radius(object))
         .or_else(|| read_give_achievement(object))
         .or_else(|| read_trigger_event(object))
+        .or_else(|| read_sell_item(object))
         .or_else(|| read_run_inv_eocs(object))
         .or_else(|| read_location_variable_adjust(object))
         .or_else(|| read_mutation(object))
@@ -2638,6 +2639,25 @@ pub enum Effect {
         max_radius: i32,
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
+    },
+    /// Hands items to the other creature and raises what it is owed.
+    ///
+    /// Reference: `f_u_sell_item` (`npctalk.cpp:3884-3930`): the member names the item, `count` how many (defaulting to one unless a `charges` member is present, in which case
+    /// it defaults to zero - the reference's own quirk), and `cost` what the buyer is owed. Charges are handed over when the kind is counted in charges and the seller has
+    /// them; whole items otherwise; and when neither is enough the reference says so and runs `false_eocs` instead.
+    SellItem {
+        /// The item's id, which the data may write as a variable.
+        item: StringSource,
+        /// How many are handed over.
+        count: CountRange,
+        /// What the buyer is owed, which is `cost` in the reference.
+        cost: CountRange,
+        /// Whether the kind is sold by its **charges** rather than by whole items - the entry said `charges`.
+        by_charges: bool,
+        /// The programs to run on a sale.
+        true_programs: Vec<ProgramRef>,
+        /// The programs to run when the seller has too few.
+        false_programs: Vec<ProgramRef>,
     },
     /// Sends an event on the bus, which anything watching that kind answers.
     ///
@@ -3466,6 +3486,7 @@ impl Effect {
             Self::OfferMission { .. } => "offer_mission",
             Self::Nothing => "//",
             Self::TriggerEvent { .. } => "trigger_event",
+            Self::SellItem { .. } => "u_sell_item",
             Self::PlaySoundEffect { .. } => "sound_effect",
             // The store-writing effects' names live in `store_kind`, which `kind` already asked; this arm exists so the match stays exhaustive without repeating the
             // table. A variant that reached here without a name would be a bug in `store_kind`, not a rule the port is missing.
@@ -4493,6 +4514,31 @@ fn read_offer_mission(object: &cdda_json::Object) -> Option<Effect> {
         return None;
     }
     Some(Effect::OfferMission { missions })
+}
+
+/// Reads a `u_sell_item` entry, or nothing.
+///
+/// Reference: `f_u_sell_item` (`npctalk.cpp:3884-3896`): `count` defaults to one, **but to zero when the entry states `charges`** - the reference reads the member only to
+/// change that default, and the number itself is how many are handed over.
+fn read_sell_item(object: &cdda_json::Object) -> Option<Effect> {
+    let item = object.get("u_sell_item")?;
+    let by_charges = object.get("charges").is_some();
+    let count = match object.get("count") {
+        None => CountRange::One(i32::from(!by_charges)),
+        Some(value) => read_count(Some(value))?,
+    };
+    let cost = match object.get("cost") {
+        None => CountRange::One(0),
+        Some(value) => read_count(Some(value))?,
+    };
+    Some(Effect::SellItem {
+        item: read_string_source(item)?,
+        count,
+        cost,
+        by_charges,
+        true_programs: read_program_refs(object.get("true_eocs"))?,
+        false_programs: read_program_refs(object.get("false_eocs"))?,
+    })
 }
 
 /// Reads a `trigger_event` entry, or nothing.

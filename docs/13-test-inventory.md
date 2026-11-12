@@ -1910,3 +1910,8 @@ a creature in the item slot answering false; dropping the comestible branch fail
 
 The census moved with it: **603** programs readable, 1,586 entries runnable, 17 leaves, 9 one-gap, 82 effect-blamed, 207 refusing at run, and the dialogue refusal census
 falls from four to **three** - `has_ammo` is gone, leaving `u_sell_item`, `u_has_camp` and `u_map_run_item_eocs`.
+
+**Round 1490 made selling a transfer.** `u_sell_item` hands charges (when the kind is counted in charges) or whole stacks to the **buyer**, raises the buyer's `debt` by the
+entry's `cost`, and runs `false_eocs` with nothing moved when the seller is short - which is `f_u_sell_item` exactly. `debt` joined the `Opinion` component, because the
+reference's `npc_opinion` is one struct of six numbers and a second table is the thing this port does not have. Two gates: a sale moves three drivebelts and records five owed;
+a short sale runs the false branch and leaves the drivebelt where it was. Both mutations die - destroying the stack instead of moving it, and dropping the cost.

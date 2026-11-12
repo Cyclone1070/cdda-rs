@@ -250,7 +250,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
         whole, crate::numbers::NOW.readable,
-        "six hundred and three run whole"
+        "six hundred and four run whole"
     );
     assert_eq!(refused.get("effect"), Some(&crate::numbers::NOW.effect_blamed), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
@@ -900,7 +900,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     );
 
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 603 of them");
+    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 604 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 

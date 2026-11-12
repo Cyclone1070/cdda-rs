@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Selling moves the items and records what is owed (round 1490)
+
+`u_sell_item` (`npctalk.cpp:3884-3930`) is not a deletion: the player's items go **into the buyer's hands**, and the buyer's `debt` rises by the entry's `cost`.
+
+| Piece | Reference | Port |
+|---|---|---|
+what is handed over | `use_charges` when the kind is charge-counted and the seller has them, else `use_amount` | `inventory::hand_over`, charges branch first, whole stacks second |
+where it goes | `i_add` on the buyer | the **same entities**, re-owned: a whole stack moves, a partial one splits |
+what the buyer is owed | `op_of_u.debt += cost` (`npc::add_debt`) | `npc_opinion::add_debt`, on the component that already held `value`/`anger`/`trust`/`fear` |
+too few | a popup and `run_eoc_vector( false_eocs, d )` | the false branch runs, and **nothing moves** |
+`count`'s default | one, or **zero** when the entry states `charges` | the same quirk, kept because the data may rely on it |
+
+**The debt lives where the reference keeps it.** `npc_opinion` is one struct of six numbers (`value`, `anger`, `fear`, `trust`, `debt`, `sold`), so the port's `Opinion` component
+gained the last two rather than growing a second table beside it - a second table is the thing this port does not have.
+
+**A mutation found a real hazard.** Making `hand_over` despawn instead of re-owning failed the transfer gate, and restoring it by text edit hit `take`'s identical line first - the port
+had two near-identical loops and the repair broke the other one. Both loops now say what they do in a sentence above the line.
+
 ## `has_ammo` asks the item in the other slot (round 1489)
 
 The second of the five dialogue refusals to close. `f_has_ammo` (`condition.cpp:1963-1974`) reads the dialogue's **beta**, which in an inventory effect is the item, and asks

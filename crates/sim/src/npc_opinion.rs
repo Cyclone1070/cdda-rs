@@ -19,6 +19,13 @@ pub struct Opinion {
     pub trust: i32,
     /// How afraid of them it is.
     pub fear: i32,
+    /// What the NPC is owed for what it has given away - the reference's `debt`.
+    ///
+    /// Reference: `npc_opinion::debt` (`npc.h`), raised by `npc::add_debt` (`npc.cpp`), which `f_u_sell_item` calls after the player hands goods over
+    /// (`npctalk.cpp:3925`).
+    pub debt: i32,
+    /// What the player has already been paid for - the reference's `sold`, the other half of the same account.
+    pub sold: i32,
 }
 
 /// Which of the four numbers a rule asked about.
@@ -51,4 +58,19 @@ pub fn feeling_of(world: &World, npc: Entity, feeling: Feeling) -> i32 {
         Feeling::Trust => opinion.trust,
         Feeling::Fear => opinion.fear,
     })
+}
+
+/// Raises one creature's debt by an amount, which is what handing goods over does.
+///
+/// Reference: `npc::add_debt` (`npc.cpp:4724-4726`): `op_of_u.debt += amount`. A creature with no opinion yet gets one, because the reference's `op_of_u` always exists.
+pub fn add_debt(world: &mut World, npc: Entity, amount: i32) {
+    let mut opinion = world.get::<Opinion>(npc).copied().unwrap_or_default();
+    opinion.debt += amount;
+    world.entity_mut(npc).insert(opinion);
+}
+
+/// What one creature is owed, answering zero when it has never traded.
+#[must_use]
+pub fn debt_of(world: &World, npc: Entity) -> i32 {
+    world.get::<Opinion>(npc).copied().map_or(0, |opinion| opinion.debt)
 }

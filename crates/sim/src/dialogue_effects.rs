@@ -2795,6 +2795,7 @@ fn run_store_effect(
         Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
+        Effect::SellItem { .. } => sell_item(world, speaker, listener, effect),
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::RevertLocation { .. } => revert_location(world, speaker, listener, effect),
@@ -3078,5 +3079,52 @@ fn trigger_event(
         worked.push(text);
     }
     crate::events::send(world, crate::events::Event::new(kind, worked));
+    Applied::Done
+}
+
+/// Hands items to the other creature and raises what it is owed.
+///
+/// Reference: `f_u_sell_item` (`npctalk.cpp:3897-3930`). The charges branch is tried first and only when the kind is counted in charges (`item::count_by_charges`), then the
+/// whole-item branch; neither having enough runs `false_eocs` **on the dialogue**, exactly as the reference's `run_eoc_vector( false_eocs, d )` does.
+fn sell_item(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::SellItem {
+        item,
+        count,
+        cost,
+        by_charges,
+        true_programs,
+        false_programs,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    let Some(buyer) = listener else {
+        return Applied::CannotAnswer;
+    };
+    let Some(name) = crate::conditions::text_of(world, speaker, listener, item) else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(many), Some(owed)) = (
+        draw_count(world, speaker, listener, count),
+        draw_count(world, speaker, listener, cost),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    let counted = crate::item_registry::id_of(world, &name)
+        .and_then(|kind| crate::item_registry::traits_of(world, kind))
+        .is_some_and(|(counted, _)| counted);
+    // Reference: the charges branch asks `item::count_by_charges` **and** `has_charges`; the whole-item branch asks `has_amount`; anything else is the false branch.
+    let handed = (*by_charges && counted && crate::inventory::hand_over(world, speaker, buyer, &name, 0, many))
+        || crate::inventory::hand_over(world, speaker, buyer, &name, many, 0);
+    if !handed {
+        for program in false_programs {
+            let _ = crate::eoc_registry::run_ref(world, speaker, listener, program, 1);
+        }
+        return Applied::Done;
+    }
+    crate::npc_opinion::add_debt(world, buyer, owed);
+    for program in true_programs {
+        let _ = crate::eoc_registry::run_ref(world, speaker, listener, program, 1);
+    }
     Applied::Done
 }
