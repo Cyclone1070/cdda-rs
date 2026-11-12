@@ -399,6 +399,14 @@ fn player_sees(world: &World, speaker: Entity, listener: Option<Entity>, conditi
     crate::sees(world, (from.x, from.y), (to.x, to.y), cdda_core_types::grid::MAX_VIEW_DISTANCE)
 }
 
+/// Whether a creature is a person rather than a monster.
+///
+/// Reference: `talker::get_const_character` (`talker.h`) answers non-null for the avatar and for every `Character`, and null for a `monster`. A monster is the one kind of
+/// creature that carries a [`crate::creature::CreatureKind`] - its type id - so "a person" is "a creature with no monster type behind it".
+fn is_person(world: &World, creature: Entity) -> bool {
+    world.get::<crate::Position>(creature).is_some() && world.get::<crate::creature::CreatureKind>(creature).is_none()
+}
+
 /// Whether a creature is wielding an item.
 ///
 /// Reference: `Character::get_wielded_item` being non-empty; the port stores the wielded item as a creature relation (`WieldedBy`), so the question is whether any item
@@ -418,9 +426,12 @@ fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: 
         "has_weapon" | "u_has_weapon" => wields(world, speaker),
         "npc_has_weapon" => listener.is_some_and(|them| wields(world, them)),
         "has_beta" => listener.is_some(),
-        // Reference: `u_is_avatar` / `u_is_character` ask what kind of talker the speaker is. The port knows one character kind, so both answer "is this the entity
-        // the player drives".
-        "u_is_avatar" | "u_is_character" => crate::missions::avatar(world) == Some(speaker),
+        // Reference: `f_is_avatar` asks whether the talker **is** the player, and `f_is_character` (`condition.cpp:1331-1336`) asks whether it is a person at all - true for
+        // the avatar **and** for every NPC, false for a monster. They were one answer here until a data site (`{"and": ["npc_is_character", ...]}`) needed the difference.
+        "u_is_avatar" => crate::missions::avatar(world) == Some(speaker),
+        "npc_is_avatar" => listener.is_some_and(|them| crate::missions::avatar(world) == Some(them)),
+        "u_is_character" => is_person(world, speaker),
+        "npc_is_character" => listener.is_some_and(|them| is_person(world, them)),
         // Reference: `is_day( p )` (`calendar.cpp:368-371`) is `sun_altitude >= sunrise_angle`, and `is_night` is `sun_altitude <= civil_dawn` - six degrees below the
         // horizon, so the two are **not** each other's negation and the twilight between them answers neither.
         "is_day" => calendar_turn(world).is_some_and(cdda_core_types::astronomy::is_day),
@@ -502,6 +513,7 @@ fn holds_within(
         Condition::CanSeeLocation { .. } => can_see_asked(world, speaker, listener, condition),
         Condition::MapInCity { .. } => map_in_city(world, speaker, listener, condition),
         Condition::MapTerFurnWithFlag { .. } => map_ter_furn_with_flag(world, speaker, listener, condition),
+        Condition::IsOnTerrain { .. } => is_on_terrain(world, speaker, listener, condition),
         Condition::IsDeaf { .. } => is_deaf(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
@@ -1978,4 +1990,27 @@ pub fn converted_text_of(
             crate::dialogue_values::converted_text_of(world, holder, name)
         }
     }
+}
+
+/// Whether the ground under one of the dialogue's creatures is a named terrain.
+///
+/// Reference: `f_is_on_terrain` (`condition.cpp:2124-2133`): the actor's own square, `here.ter( pos )`, compared to `ter_id( name )` **exactly** - not by flag, not by
+/// base terrain, which is what `u_at_om_location` and `u_is_on_terrain_with_flag` ask instead.
+fn is_on_terrain(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::IsOnTerrain { terrain, listener: about_listener } = condition else {
+        return false;
+    };
+    let Some(actor) = actor_for(speaker, listener, *about_listener) else {
+        return false;
+    };
+    let Some(wanted) = text_of(world, speaker, listener, terrain) else {
+        return false;
+    };
+    let Some(position) = world.get::<crate::Position>(actor) else {
+        return false;
+    };
+    let Some(code) = crate::square::terrain_at(world, (position.x, position.y, position.z)) else {
+        return false;
+    };
+    crate::terrain_types::name_of(world, code).as_deref() == Some(wanted.as_str())
 }

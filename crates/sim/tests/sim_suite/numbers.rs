@@ -59,20 +59,23 @@ pub const NOW: Census = Census {
     // **604 after round 1490 read `u_sell_item`**, the third of the census's refusals to close.
     // **605 after round 1491 read `u_map_run_item_eocs`**: the census's last effect refusal closes, leaving only the `u_has_camp` condition.
     // **606 after round 1492 read `u_has_camp`**, the last of the dialogue census's refusals: **zero programs now refuse at their first member**.
-    readable: 606,
-    ran: 398,
+    // **608 after round 1493 answered `u_is_on_terrain` and `npc_is_character`**, two conditions the census had one member from.
+    readable: 608,
+    ran: 399,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
     silent: 292,
     // Silent because the data gives the program no effects at all - a stub, not a rule the port is missing.
     empty_programs: 22,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
-    ran_in_a_built_world: 403,
+    // 404 after round 1493.
+    ran_in_a_built_world: 404,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
     // 208 after round 1491: the map-item program reads now and refuses at run, because its only data use is a menu.
-    refused_at_run: 208,
+    // 209 after round 1493.
+    refused_at_run: 209,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
@@ -84,9 +87,10 @@ pub const NOW: Census = Census {
     // 15 after round 1490: `u_sell_item` and the `count` it reads are two more members the reader knows.
     // 14 after round 1491.
     // 13 after round 1492.
-    leaves: 13,
+    // 11 after round 1493.
+    leaves: 11,
     // 11 after round 1484: the program that stopped refusing at its `search_data` was one member short of reading, so the gap closed with it.
-    one_gap: 7,
+    one_gap: 5,
     // 1,585 after round 1487: `trigger_event` is one more entry the reader can carry out, and the entry it unblocked is another.
     // 1,586 after round 1489: the `has_ammo` condition is one more entry the reader can carry out.
     // 1,587 after round 1490: `u_sell_item` is one more entry the reader can carry out.
@@ -104,7 +108,8 @@ pub const NOW: Census = Census {
     effect_blamed: 79,
     // 3,228 after round 1489: `has_ammo` is one more condition every one of the data's condition sites can now read.
     // 3,240 after round 1492: `u_has_camp` is one more condition every condition site can read.
-    conditions_readable: 3_240,
+    // 3,242 after round 1493: two more conditions every condition site can read.
+    conditions_readable: 3_243,
 };
 
 impl Census {

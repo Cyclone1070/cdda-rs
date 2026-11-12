@@ -63,6 +63,16 @@ pub enum Condition {
         /// Whether it asks about the listener rather than the speaker.
         listener: bool,
     },
+    /// Whether the ground under one of the dialogue's creatures is a named terrain.
+    ///
+    /// Reference: `f_is_on_terrain` (`condition.cpp:2124-2133`): `here.ter( pos ) == ter_id( name )`, compared **exactly** - the sibling of the flag question, and the
+    /// difference is the rule rather than the spelling.
+    IsOnTerrain {
+        /// The terrain's id, which the data may give as a variable.
+        terrain: StringSource,
+        /// Whether it asks about the listener rather than the speaker.
+        listener: bool,
+    },
     /// Whether the terrain or furniture at a square carries a flag.
     ///
     /// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): `map_terrain_with_flag` asks the tile's terrain, `map_furniture_with_flag` its furniture, and
@@ -601,6 +611,8 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
             | "npc_has_weapon"
             | "u_is_avatar"
             | "u_is_character"
+            | "npc_is_character"
+            | "npc_is_avatar"
             | "is_day"
             | "is_night"
             | "u_driving"
@@ -698,6 +710,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
                 listener,
             });
         }
+    }
+    if let Some(found) = read_is_on_terrain(object) {
+        return Some(found);
     }
     if let Some(found) = read_map_flag_condition(object).or_else(|| read_city_condition(object)) {
         return Some(found);
@@ -4992,6 +5007,19 @@ fn read_city_condition(object: &cdda_json::Object) -> Option<Condition> {
     Some(Condition::MapInCity {
         target: named_variable(target)?,
     })
+}
+
+/// Reads `u_is_on_terrain` and `npc_is_on_terrain`, which differ only in whose square is asked.
+fn read_is_on_terrain(object: &cdda_json::Object) -> Option<Condition> {
+    for (member, listener) in [("u_is_on_terrain", false), ("npc_is_on_terrain", true)] {
+        if let Some(value) = object.get(member) {
+            return Some(Condition::IsOnTerrain {
+                terrain: read_string_source(value)?,
+                listener,
+            });
+        }
+    }
+    None
 }
 
 /// Reads `map_terrain_with_flag` and `map_furniture_with_flag`, which differ only in what they ask.

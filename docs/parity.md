@@ -45,6 +45,21 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Two conditions the census had one member from (round 1493)
+
+| Condition | Reference | Port |
+|---|---|---|
+`u_is_on_terrain` / `npc_is_on_terrain` | `here.ter( pos ) == ter_id( name )` (`condition.cpp:2124-2133`) | the actor's own square, compared **exactly** - the sibling of the flag question, which compares a flag instead |
+`u_is_character` / `npc_is_character` | `get_const_character() != nullptr` (`condition.cpp:1331-1336`) | a creature with no monster type behind it |
+`u_is_avatar` / `npc_is_avatar` | `f_is_avatar` (`condition.cpp`) | the entity the player drives |
+
+**One conflation had to go.** `u_is_avatar` and `u_is_character` were the same answer here - "is this the avatar" - until a data site asked `{"and": ["npc_is_character", ...]}` in
+`monsters/singularities.json:52`. A character is a person: the avatar **and** every NPC, and a monster is not one. The gate pins all four cases; making a monster a person fails
+it, and so does dropping the terrain name comparison.
+
+**The port's own answer to `u_is_on_terrain` was missing, not wrong**: `u_at_om_location` asks the *overmap* tile and the flag question asks a flag, and no rule asked the
+terrain **id** under a creature until a nether EOC needed it (`vitrification_effect_on_condition.json:41`).
+
 ## A camp is a place somebody owns (round 1492)
 
 The **last** dialogue refusal. `f_u_has_camp` (`condition.cpp:1985-2001`) walks the player's camp tiles, finds the camp on each, and answers true for the first one whose

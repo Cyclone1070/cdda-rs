@@ -250,7 +250,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
         whole, crate::numbers::NOW.readable,
-        "six hundred and six run whole"
+        "six hundred and eight run whole"
     );
     assert_eq!(refused.get("effect"), Some(&crate::numbers::NOW.effect_blamed), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
@@ -900,7 +900,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     );
 
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 606 of them");
+    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 608 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
@@ -1040,7 +1040,7 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // 1,190 leaves once the descent follows **membership** rather than member order. The old count was lower because an `if` written
     // `{"else": …, "if": …, "then": …}` had its branches skipped and counted as one unnameable gap; now every gap names a member that could be
     // ported, and the `<nested>` residue is zero.
-    assert_eq!(gaps_total, crate::numbers::NOW.leaves, "the data's programs hold 1,127 unreadable leaves");
+    assert_eq!(gaps_total, crate::numbers::NOW.leaves, "the data's programs hold the unreadable leaves the census counts");
     // 198 programs are one leaf away, but the eight members above would finish only 115 of them - the rest sit behind a long tail. Reading the
     // printed line as "the top eight members would finish" is the honest reading, not "there are 115 such programs".
     assert_eq!(single, crate::numbers::NOW.one_gap, "a hundred and eighty-eight programs are one leaf away");

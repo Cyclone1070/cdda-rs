@@ -1926,3 +1926,8 @@ bounds entirely.
 player's faction is the reference's own constant `your_followers` (`avatar.cpp:102`). Factions themselves are not ported, and the doc says so - this is the one line that changes
 when they are. The gate pins all three answers: no camps, another faction's camp, and the player's own; dropping the ownership check fails the middle one. **The dialogue refusal
 census is now zero** - six programs at round 1482, each closed at a named member.
+
+**Round 1493 closed two one-gap conditions.** `u_is_on_terrain`/`npc_is_on_terrain` compare the terrain **id** under the actor exactly (`condition.cpp:2124-2133`), the sibling of
+the flag question the port already answered. `u_is_character` asks whether a talker is a **person** - the avatar and every NPC, not a monster - and `u_is_avatar` stays the narrower
+question; they had been one answer until `monsters/singularities.json:52` asked `{"and": ["npc_is_character", ...]}`. Two gates, both mutation-checked: comparing nothing fails the
+terrain gate, and making a monster a person fails the character gate. The census reads **608** of 692 programs, 11 leaves, 5 one-gap.

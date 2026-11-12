@@ -266,3 +266,5 @@ mod enchantments;
 mod sell_item;
 mod map_run_item;
 mod has_camp;
+mod is_on_terrain;
+mod is_character;
