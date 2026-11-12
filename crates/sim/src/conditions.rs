@@ -516,6 +516,8 @@ fn holds_within(
         Condition::IsOnTerrain { .. } => is_on_terrain(world, speaker, listener, condition),
         Condition::HasSpecies { .. } => has_species(world, speaker, listener, condition),
         Condition::NpcAllies { .. } => npc_allies(world, speaker, listener, condition),
+        Condition::GetCondition { .. } => get_condition(world, speaker, listener, condition),
+        Condition::GetCondition { .. } => get_condition(world, speaker, listener, condition),
         Condition::IsDeaf { .. } => is_deaf(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
@@ -2049,4 +2051,40 @@ fn npc_allies(world: &World, speaker: Entity, listener: Option<Entity>, conditio
         return false;
     };
     crate::npcs::allies(world) >= usize::try_from((*target).max(0)).unwrap_or(0)
+}
+
+
+/// Whether a condition stored under a name holds.
+///
+/// Reference: `f_get_condition` (`condition.cpp:1941-1948`) asking `evaluate_conditional` (`npctalk.cpp:2670-2674`): an unknown name answers **false**, and a stored one is
+/// evaluated against the dialogue that asked for it, not against the one that stored it.
+///
+/// **The stored thing is the condition, not its answer** - `set_condition` writes a [`crate::dialogue_values::Value::Condition`], which is why a name set on one turn can answer
+/// differently on the next. `set_condition` writes the *global* holder by default, so that is where this looks first, then at the speaker's own values for a name the data scoped
+/// to an actor.
+fn get_condition(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+    let Condition::GetCondition { name } = condition else {
+        return false;
+    };
+    let Some(text) = text_of(world, speaker, listener, name) else {
+        return false;
+    };
+    let mut holders = Vec::new();
+    if let Some(global) = crate::dialogue_values::global_holder(world) {
+        holders.push(global);
+    }
+    holders.push(speaker);
+    if let Some(them) = listener {
+        holders.push(them);
+    }
+    let stored = holders
+        .into_iter()
+        .find_map(|holder| match crate::dialogue_values::value_of(world, holder, &text) {
+            Some(crate::dialogue_values::Value::Condition(condition)) => Some(*condition),
+            _ => None,
+        });
+    let Some(stored) = stored else {
+        return false;
+    };
+    holds_with(world, speaker, listener, &stored)
 }

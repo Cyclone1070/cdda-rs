@@ -1937,3 +1937,9 @@ terrain gate, and making a monster a person fails the character gate. The census
 exclude the dead by hit points; the port keeps one reality bubble, so both answer the same count and the doc says so. Two gates, both mutation-checked: any species answering yes
 fails the first, and one ally always being enough fails the second. The census reads **611** of 692 programs, 8 leaves, and only **two** one-gap members remain (`get_condition`,
 `npc_is_underwater`).
+
+**Round 1495 paired `get_condition` with the `set_condition` the port already had.** The new condition reads a name and evaluates what was stored under it, answering false for a
+name nobody stored - `evaluate_conditional`'s own answer. The first draft added a second table of named conditions; the architecture rule caught it before the gate did, and
+`get_condition` now reads the global values holder `set_condition` already writes. It also exposed a real bug: the **first** `set_condition` refused because the global holder did
+not exist yet, so the store now makes it. One gate, mutation-checked (any stored name answering yes fails it). The census reads **612** of 692 programs with a single one-gap member
+left, `npc_is_underwater`.

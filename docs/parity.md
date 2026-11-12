@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A named condition is stored as a condition, not as an answer (round 1495)
+
+`get_condition` (`condition.cpp:1941-1948`) closes the last member a program was one gap from. It reads a name and hands it to `evaluate_conditional`
+(`npctalk.cpp:2670-2674`), which answers **false** for a name nobody stored - an unknown key is a no, not an error.
+
+| Piece | Reference | Port |
+|---|---|---|
+the store | `dialogue::conditionals`, shared by every dialogue | the dialogue's **global values** holder, which `set_condition` already writes |
+what is stored | the condition itself, not its answer | `Value::Condition`, the same thing - so a name can answer differently next turn |
+an unknown name | `false` | `false` |
+whose dialogue evaluates it | the one that **asks** | the one that asks |
+
+**The port already had the store, and the first draft made a second one.** `set_condition` has stored a `Value::Condition` since it was ported; the new `get_condition` started as a
+separate table of named conditions - a second source of truth for the same data - and the architecture rule caught it before the gate did. The table is deleted and `get_condition`
+reads where `set_condition` writes.
+
+**A missing holder was a real bug this exposed.** `set_condition` used `holder_for_scope`, which answers `None` when the global holder does not exist yet - so the *first*
+condition the data ever stored refused. `d.set_conditional` in the reference writes into a map that exists from the start; the port now makes the holder when the first store
+happens.
+
 ## Species and allies: two questions the data asks about people (round 1494)
 
 | Condition | Reference | Port |

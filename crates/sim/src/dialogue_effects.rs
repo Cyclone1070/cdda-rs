@@ -1546,8 +1546,15 @@ fn set_condition(world: &mut World, speaker: Entity, listener: Option<Entity>, e
     let Effect::SetCondition { name, condition, scope } = effect else {
         return Applied::CannotAnswer;
     };
-    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
-        return Applied::CannotAnswer;
+    // Reference: `d.set_conditional` writes into the dialogue's own map, which exists whether or not anything has been stored yet - so the global holder is **made** when the
+    // first condition is stored, rather than the store failing for want of one.
+    let holder = if scope == "global_val" {
+        crate::dialogue_values::holder_for(world, speaker, true)
+    } else {
+        match crate::conditions::holder_for_scope(world, speaker, listener, scope) {
+            Some(holder) => holder,
+            None => return Applied::CannotAnswer,
+        }
     };
     let Some(stored) = crate::conditions::text_of(world, speaker, listener, name) else {
         return Applied::CannotAnswer;

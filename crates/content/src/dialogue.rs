@@ -63,6 +63,14 @@ pub enum Condition {
         /// Whether it asks about the listener rather than the speaker.
         listener: bool,
     },
+    /// Whether a condition stored under a name holds.
+    ///
+    /// Reference: `f_get_condition` (`condition.cpp:1941-1948`): the name is read and handed to `evaluate_conditional` (`npctalk.cpp:2670-2674`), which answers **false** when
+    /// nobody has stored that name - an unknown key is a no, not an error. The pair to `set_condition`, which stores it.
+    GetCondition {
+        /// The name the condition was stored under.
+        name: StringSource,
+    },
     /// Whether the player has at least this many allies.
     ///
     /// Reference: `f_npc_allies` (`condition.cpp:1159-1165`) and `f_npc_allies_global` (`:1167-1179`): the first counts the people following the player nearby, the second every
@@ -730,6 +738,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
                 listener,
             });
         }
+    }
+    if let Some(found) = read_get_condition(object) {
+        return Some(found);
     }
     if let Some(found) = read_has_species(object)
         .or_else(|| read_npc_allies(object))
@@ -2135,6 +2146,23 @@ fn read_set_condition(object: &cdda_json::Object) -> Option<Effect> {
         name: read_string_source(name)?,
         condition: Box::new(read_condition(condition)?),
         scope,
+    })
+}
+
+/// Reads a `get_condition` entry.
+///
+/// Reference: `f_get_condition` (`condition.cpp:1941-1948`) is `jarg::member` (`:2603`), so the object holds the name and nothing else.
+fn read_get_condition(object: &cdda_json::Object) -> Option<Condition> {
+    let name = object.get("get_condition")?;
+    if !object
+        .members()
+        .iter()
+        .all(|(key, _)| matches!(key.as_str(), "get_condition" | "//"))
+    {
+        return None;
+    }
+    Some(Condition::GetCondition {
+        name: read_string_source(name)?,
     })
 }
 
