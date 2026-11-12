@@ -980,7 +980,7 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) with the `"all"` mode runs `true_eocs` on every matching item, handing each one to the program through the
 /// invocation's context. The port sets the context the data reads - `id` for the item's id and `count` for how many the stack holds - and runs the programs.
 fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RunInvEocs { search_data, wielded_only, worn_only, random, manual, programs } = effect else {
+    let Effect::RunInvEocs { search_data, wielded_only, worn_only, random, listener: on_listener, manual, programs } = effect else {
         return Applied::CannotAnswer;
     };
     // A `manual` menu asks the player which items to act on, and the port has no chooser: refusing is the honest answer, where picking for the player would run the
@@ -988,7 +988,10 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
     if *manual {
         return Applied::CannotAnswer;
     }
-    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, "u_val") else {
+    // **`npc_run_inv_eocs` works on the listener's items**, which is the only difference between the two members: the same rule, aimed at the other creature. The scope name
+    // is the dialogue's own way of saying whose items are being asked about.
+    let scope = if *on_listener { "n_val" } else { "u_val" };
+    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
         return Applied::CannotAnswer;
     };
     // Each match keeps its **entity**, because the reference hands the picked item to the program as the dialogue's `beta` - which is what lets an effect inside the

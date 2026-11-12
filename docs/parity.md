@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## An inventory effect can be aimed at the other creature (round 1482)
+
+`f_run_inv_eocs` is registered twice in the reference, once for `u_run_inv_eocs` and once for `npc_run_inv_eocs`, and the member decides **whose** items are searched
+(`npctalk.cpp:6760-6805`). The port read only the first.
+
+| Piece | Reference | Port |
+|---|---|---|
+the members | two names, one rule | `read_run_inv_eocs` takes either, and remembers which |
+whose pack | the dialogue's alpha for `u_`, its beta for `npc_` | `holder_for_scope( "u_val" )` or `( "n_val" )` |
+with no listener | there is no pack to search | the effect answers `CannotAnswer` rather than quietly searching the speaker's |
+
+**The census had been blaming the wrong member.** Its line for `EOC_BEGGAR_TEST_IF_FOOD_CANNIBAL` said `false_eocs`, and the real cause was the `npc_run_inv_eocs` member the
+port did not read at all - the `false_eocs` it reached was simply where the walk stopped. Reading one program's JSON by hand, as the roadmap's own note asked, found that in a
+single round where two earlier attempts at the same family had cost 11 programs and 35 `switch` entries.
+
+**What still refuses in that program, precisely**: its `search_data` holds `{ "condition": { "math": [ .. ] } }`, a **condition** filter over items rather than an id filter. That
+is a separate rule with its own store, and the roadmap now names it as the beggar program's only remaining cause.
+
 ## A body can die quietly and leave nothing (round 1481)
 
 `monster::no_corpse_quiet` is the twin of the flag the summons round added, and the two promise opposite things.
@@ -230,13 +248,13 @@ the monster's answer | `mtype::armor_bash`, `armor_cut`, `armor_stab` (`mtype.h:
 a type with no figure | the reference's default branch is zero | zero - **not** the bash figure borrowed |
 the mixed blow | a melee attack carries bash, cut and stab at once and subtracts each from its own | asks `None`, and the doc says the port has one figure for it |
 
-**`Some` and `None` are the difference between "one type" and "several".** A spell deals exactly one damage type, so it asks with `Some( type )` and gets that type's number. A melee blow
-carries three at once, and the port has a single number for it - so it asks `None` rather than picking one of the three and calling it bash. The signature says which question each
-caller is asking instead of hiding the choice in a comment.
+**`Some` and `None` are the difference between "one type" and "several".** A spell deals exactly one damage type, so it asks with `Some( type )` and gets that type's number.
 
-**A named gap this makes visible**: a **worn garment** still protects by one number against every type, because `creature::dress` sums each layer's single `resist`
-(`cdda_content::armour::Layer`) into one figure per part. The reference asks a material for its resist **per damage type**. Closing that means the content side emitting per-type
-layers, which is a round of its own - and the port says so in `armour_on` rather than pretending the garment figure is right.
+**The gap this paragraph used to name is closed** (rounds 1470-1480). A worn garment now protects by a figure **per damage type**: `creature::dress` sums each layer per type, a melee blow
+asks `armour_on( part, Some( type ) )` for each of its three, and `settle_armour_blow` wears each face by its own amount. `None` survives as the one-type shorthand for a caller that
+has no type to name, and no production caller uses it for a blow any more.
+
+*Kept here because the wrong sentence was believed for ten rounds: a stale "named gap" is a duplicate waiting to be written.*
 
 ## A monster has a body now, and a blow has somewhere to land (round 1469)
 

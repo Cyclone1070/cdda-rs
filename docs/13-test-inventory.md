@@ -1863,3 +1863,7 @@ cutting face never settled.
 **Round 1481 finished the pair of death flags.** `no_corpse_quiet` suppresses the corpse and the message and keeps the loot, where `no_extra_death_drops` keeps the corpse and suppresses
 the loot; the reap does both in the reference's order, and a summon sets each from its own spell flag. Two gates: the quiet body leaves a rag and no corpse, the same kind leaves a
 corpse when nothing marked it. Ignoring the flag at the corpse branch fails the first.
+
+**Round 1482 gave the inventory effect its NPC half.** `npc_run_inv_eocs` is the same rule as `u_run_inv_eocs` aimed at the dialogue's other participant, and the port read only
+the avatar's member - which is why the beggar programs refused and why the census blamed `false_eocs` for it. The gate runs a program on the listener's rock and shows that the
+speaker's pack is not what the member names; ignoring the member fails it.

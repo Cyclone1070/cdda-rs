@@ -349,9 +349,29 @@ covering **237 of the 245 spells** the data defines, and the eight remaining spe
 `fungalize` | 1 | `fungal_effects` |
 `banishment` | 1 | per-body-part hit points |
 
-**So the next round should not open the spell front again.** The two lines with unblocked work are the ones this document already ranks first: the dialogue frontier's six
-one-off **stores** (camps, event arguments, trade menus, inventory menus) and the **line shape** - nine spells whose behaviour is currently answered by their blast, which is a
-pure geometry transcription with no store behind it and therefore no blocker.
+**So the next round should not open the spell front again.** The two lines with unblocked work are the dialogue frontier's six one-off **stores** (camps, event arguments, trade
+menus, inventory menus) and the **line shape**.
+
+**The line shape is done** (it was, in fact, done when this paragraph was written - the shape has run since `spell_area::cover` learned it, and the sentence above was stale). Seven
+shapes and their geometry are gated: 221 blasts, 15 cones, 9 lines.
+
+**What the six dialogue refusals actually say, measured at round 1482** - the census prints them, and the roadmap should carry them so the next round starts from one program's JSON
+rather than from a broader rule:
+
+| Member blamed | Program | What the entry is |
+|---|---|---|
+`args` | `EOC_CANCEL_PORTAL_STORM` | `trigger_event` with an `args` array of `[name, u_val]` pairs |
+`count` | `EOC_MISSION_GET_DRIVEBELTS_done` | `u_sell_item` with a `count` beside it |
+`else` | `EOC_toolweapon_activate` | an `if` whose condition is `has_ammo`, with an `else` branch |
+`false_eocs` | `EOC_BEGGAR_TEST_IF_FOOD_CANNIBAL` | `npc_run_inv_eocs` whose `false_eocs` holds an `{id, effect}` inline program |
+`if` | `EOC_TOOK_OVER_CAMP_NOTICE` | the condition `u_has_camp` |
+`loc` | `EOC_map_item_test1` | an inventory selection whose `loc` is a context variable |
+
+**The `false_eocs` one is a reader question, not a store.** Its entry is the reference's `load_inline_eoc` case exactly: an object carrying `id` **beside** `effect`
+(`effect_on_condition.cpp:119-133`, where a string is a program's name and an object is a program installed under its own `id`). The port's reader already builds
+`ProgramRef::Inline { id: Some( .. ) }` and `eoc_registry::inline_definitions` already installs those, so the refusal is somewhere inside that body - most likely
+`{"npc_add_effect": "beggar_has_eaten", "duration": 3600}` or the `math` form `[ "n_npc_trust()", "+=", "1" ]`. **The next round starts by reading that one program's JSON**, which is
+what this document's own note from the last two attempts says to do.
 
 ### What the next round should pick up (updated at round 1425)
 

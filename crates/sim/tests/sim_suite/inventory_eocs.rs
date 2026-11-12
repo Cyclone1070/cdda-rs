@@ -222,3 +222,92 @@ fn mutations_from(ids: &[&str]) -> cdda_content::mutations::Mutations {
     let (table, _) = cdda_content::mutations::from_dump(&value).expect("the table reads");
     table
 }
+
+/// **`npc_run_inv_eocs` is the same rule aimed at the other creature.**
+///
+/// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) is registered twice, once for each member name, and the member decides **whose** items are searched. The port read
+/// only `u_run_inv_eocs` until the beggar programs showed the other half: their whole effect refused, and the census blamed `false_eocs` because that was the member it reached.
+#[test]
+fn the_npc_member_searches_the_listeners_items() {
+    let mut world = World::new();
+    // The speaker holds nothing; the listener holds the rock. A search of the speaker's pack finds nothing, a search of the listener's finds the rock.
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let listener = cdda_sim::creature::spawn_creature(&mut world, "the beggar", (1, 0, 0));
+    let rock = cdda_sim::item_registry::id_of(&mut world, "rock");
+    let rock = match rock {
+        Some(kind) => kind,
+        None => {
+            cdda_sim::item_registry::set_item_types(
+                &mut world,
+                &[cdda_sim::item_registry::Kind {
+                    id: "rock",
+                    volume_ml: 250,
+                    weight_g: 500,
+                    pockets: &[],
+                    thrown_damage: 0.0,
+                    melee_bash: 0.0,
+                    melee_cut: 0.0,
+                    melee_stab: 0.0,
+                    to_hit: -2,
+                }],
+            );
+            cdda_sim::item_registry::id_of(&mut world, "rock").expect("just registered")
+        }
+    };
+    let carried = cdda_sim::drop_item(&mut world, (1, 0), rock, 1);
+    world.entity_mut(carried).remove::<cdda_sim::Position>();
+    world
+        .entity_mut(carried)
+        .insert(cdda_sim::creature::Carried(listener));
+
+    let text = r#"{
+        "npc_run_inv_eocs": "all",
+        "search_data": [ { "id": "rock" } ],
+        "true_eocs": [ { "id": "EOC_BLESS", "effect": [ { "u_message": "the beggar has a rock" } ] } ]
+    }"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
+        panic!("**the port reads the npc form**, which it did not before this round");
+    };
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        Some(listener),
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect runs on the listener"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("the beggar has a rock")),
+        "**and the program ran on the listener's rock**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+
+    // The same member with no listener to search finds nothing at all, which is what separates it from the avatar's own pack.
+    let mut other = World::new();
+    let alone = cdda_sim::creature::spawn_creature(&mut other, "the survivor", (0, 0, 0));
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut other,
+        alone,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    // **The member names the listener, so a dialogue with no listener has nothing to search** - and the port answers that it cannot rather than quietly searching the
+    // speaker's pack, which would be the wrong creature's items.
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "with nobody to search, the effect cannot answer"
+    );
+    assert!(
+        !cdda_sim::messages::lines(&other)
+            .iter()
+            .any(|line| line.contains("the beggar has a rock")),
+        "**but nothing ran**, because the speaker's pack is not what the member names"
+    );
+}

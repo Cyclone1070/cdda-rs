@@ -2628,6 +2628,9 @@ pub enum Effect {
         worn_only: bool,
         /// Whether **one** match is drawn rather than every match being run on.
         random: bool,
+        /// Whether the items are the **listener's** rather than the speaker's: the `npc_run_inv_eocs` member, which is the same rule as `u_run_inv_eocs` aimed at the
+        /// other creature (`f_run_inv_eocs` takes the member name it was registered under, `npctalk.cpp:6760-6805`).
+        listener: bool,
         /// Whether the data asks the player to pick the items: `manual` or `manual_mult`. The port reads the mode so a program that uses one is a **known**
         /// question rather than an unreadable entry, and refuses it when it runs, because a menu is a choice this headless port cannot make.
         manual: bool,
@@ -4426,7 +4429,13 @@ fn read_offer_mission(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`): the member is the selection mode, `search_data` a list of filters, and `true_eocs` the programs. A mode
 /// other than `"all"` needs a menu, and the menu picks one item - a rule the headless port has not written, so it refuses rather than running on everything.
 fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
-    let option = object.get("u_run_inv_eocs")?;
+    // **Two members, one rule**: `u_run_inv_eocs` works on the speaker's items and `npc_run_inv_eocs` on the listener's. The port read only the first until the beggar
+    // programs showed the second, which is why their whole effect refused.
+    let (option, listener) = match (object.get("u_run_inv_eocs"), object.get("npc_run_inv_eocs")) {
+        (Some(option), _) => (option, false),
+        (None, Some(option)) => (option, true),
+        (None, None) => return None,
+    };
     let Value::Str(mode) = option else {
         return None;
     };
@@ -4474,6 +4483,7 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
         wielded_only,
         worn_only,
         random: mode == "random",
+        listener,
         manual: mode.starts_with("manual"),
         programs: read_program_refs(object.get("true_eocs"))?,
     })
