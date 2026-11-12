@@ -355,7 +355,9 @@ menus, inventory menus) and the **line shape**.
 **The line shape is done** (it was, in fact, done when this paragraph was written - the shape has run since `spell_area::cover` learned it, and the sentence above was stale). Seven
 shapes and their geometry are gated: 221 blasts, 15 cones, 9 lines.
 
-**What the five remaining dialogue refusals actually say, measured at round 1485.** The census used to name the *first* member of a refusing object, and that label lied twice: an
+**The dialogue refusal census is now zero** (round 1492). What follows is the record of how it got there: at round 1485 five programs still refused, each at a named member.
+
+**What the five remaining dialogue refusals said, measured at round 1485.** The census used to name the *first* member of a refusing object, and that label lied twice: an
 event entry reported `args` when the effect the port has never written is `trigger_event`, and a trade entry reported `count` when the effect is `u_sell_item`. It now asks each
 member on its own and names **every** member no reader knows, so the label is the thing a round would have to write:
 

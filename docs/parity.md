@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A camp is a place somebody owns (round 1492)
+
+The **last** dialogue refusal. `f_u_has_camp` (`condition.cpp:1985-2001`) walks the player's camp tiles, finds the camp on each, and answers true for the first one whose
+**owner** is the player's faction.
+
+| Piece | Reference | Port |
+|---|---|---|
+a camp | `basecamp`, one per overmap tile | an **entity** carrying `Camp { tile, owner }` |
+the player's camps | `character::camps`, a set of tiles | the camps whose owner is the player - the same question, asked of one store |
+whose it is | `get_player_character().get_faction()->id` | `camps::PLAYERS_FACTION`, the reference's own constant `your_followers` |
+standing in it | not a question this condition asks | not one here either: ownership decides |
+
+**Factions are not ported, and the constant is.** `avatar::get_faction` returns `faction_your_followers` (`avatar.cpp:102`, `:1182-1185`) - a constant of the rule rather than
+something the data states - so the port keeps the id as one, and a camp's owner is compared as the string it is. When factions arrive, this is the one line that changes.
+
+**The dialogue refusal census is now zero.** Six programs refused at round 1482; each closed at a named member, and the last was a condition whose store did not exist. The census
+still counts unreadable *members* in other places (14 leaves over 692 programs), but no program in the data refuses at its first member any more.
+
 ## An item on the map can be the dialogue's other participant (round 1491)
 
 `u_map_run_item_eocs` (`npctalk.cpp:6806-6875`) is the last of the dialogue census's refusals. It searches the **map** rather than an inventory: every square within

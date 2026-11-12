@@ -8,6 +8,7 @@ pub mod transform;
 pub mod blast;
 pub mod bionics;
 pub mod calendar;
+pub mod camps;
 pub mod cities;
 pub mod dialogue_context;
 pub mod npc_opinion;

@@ -514,6 +514,7 @@ fn holds_within(
         Condition::IsOutside { .. } => is_outside(world, speaker, listener, condition),
         Condition::HasWornWithFlag { .. } => worn_flag(world, speaker, listener, condition),
         Condition::HasFlag { .. } => creature_flag(world, speaker, listener, condition),
+        Condition::HasCamp => return crate::camps::owns_any(world, crate::camps::PLAYERS_FACTION),
         Condition::HasAmmo => {
             // Reference: `f_has_ammo` (`condition.cpp:1963-1974`) reads `d.const_actor( true )->get_const_item()` and debug-messages when the beta is not an item, answering
             // **false**. The port answers the same way, because a creature in that slot is a question the rule cannot answer rather than one it answers no to.

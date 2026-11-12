@@ -265,3 +265,4 @@ mod aim_rules;
 mod enchantments;
 mod sell_item;
 mod map_run_item;
+mod has_camp;

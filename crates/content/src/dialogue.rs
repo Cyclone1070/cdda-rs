@@ -23,6 +23,11 @@ pub enum Condition {
         /// Whether it asks about the listener rather than the speaker.
         listener: bool,
     },
+    /// Whether the player owns a camp anywhere.
+    ///
+    /// Reference: `f_u_has_camp` (`condition.cpp:1985-2001`): the player's known camp tiles are joined to the camps on them, and the answer is whether any of those camps is
+    /// owned by the player's own faction.
+    HasCamp,
     /// Whether the dialogue has an **alpha** actor.
     ///
     /// Reference: `f_has_alpha` (`condition.cpp:1412-1417`): `d.has_alpha`, set when the dialogue has someone to talk **as**. The port's dialogue always has one - an
@@ -562,6 +567,8 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
         // Reference: `{"has_ammo", &conditional_fun::f_has_ammo}` (`condition.cpp:2670`), argument-less: it asks the dialogue's **beta**, which is the item in an
         // inventory effect (`condition.cpp:1963-1974`).
         "has_ammo" => return Some(Condition::HasAmmo),
+        // Reference: `{"u_has_camp", &conditional_fun::f_u_has_camp}` (`condition.cpp:2652`), argument-less - the only spelling of the condition the reference registers.
+        "u_has_camp" => return Some(Condition::HasCamp),
         // Reference: `{"u_is_deaf", "npc_is_deaf", &conditional_fun::f_is_deaf}` (`condition.cpp:2659`), argument-less in the data.
         "u_is_deaf" | "npc_is_deaf" => {
             return Some(Condition::IsDeaf {

@@ -1921,3 +1921,8 @@ a short sale runs the false branch and leaves the drivebelt where it was. Both m
 mode is a menu and refuses at run, which is what the data's only use of the effect (`EOC_map_item_test1`) needs. Three gates: a radius touches the two near rocks and not the far
 one; a rock under the actor is inside `min_radius` and excluded; a menu mode refuses without running anything. Two mutations die - dropping the inner radius, and ignoring the
 bounds entirely.
+
+**Round 1492 closed the last dialogue refusal.** `u_has_camp` asks whether any camp is owned by the player's faction; a camp is an entity carrying `Camp { tile, owner }`, and the
+player's faction is the reference's own constant `your_followers` (`avatar.cpp:102`). Factions themselves are not ported, and the doc says so - this is the one line that changes
+when they are. The gate pins all three answers: no camps, another faction's camp, and the player's own; dropping the ownership check fails the middle one. **The dialogue refusal
+census is now zero** - six programs at round 1482, each closed at a named member.
