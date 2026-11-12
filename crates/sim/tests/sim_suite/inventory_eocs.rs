@@ -311,3 +311,63 @@ fn the_npc_member_searches_the_listeners_items() {
         "**but nothing ran**, because the speaker's pack is not what the member names"
     );
 }
+
+/// **The false branch belongs to the dialogue, and it runs exactly when nothing matched.**
+///
+/// Reference: `run_item_eocs` (`npctalk.cpp:3372-3414`) answers `run_eoc_vector( false_eocs, d )` in every mode when nothing matched - once, on the dialogue, because there is no
+/// item to hand the program as its beta. The port read `true_eocs` only, so a program's "there was nothing" branch never ran at all.
+#[test]
+fn a_search_that_matches_nothing_runs_the_false_branch_once() {
+    fn run_on(names: &[&str]) -> Vec<String> {
+        let mut world = World::new();
+        let items = a_survivor_with(&mut world, names);
+        let Some(speaker) = items
+            .first()
+            .and_then(|item| world.get::<cdda_sim::creature::Carried>(*item))
+            .map(|carried| carried.0)
+        else {
+            // No items at all: the fixture still needs a speaker to run the dialogue from.
+            let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+            let text = r#"{
+                "u_run_inv_eocs": "all",
+                "search_data": [ { "id": "smart_phone_locked" } ],
+                "true_eocs": [ { "id": "EOC_GOT", "effect": [ { "u_message": "found one" } ] } ],
+                "false_eocs": [ { "id": "EOC_NONE", "effect": [ { "u_message": "found none" } ] } ]
+            }"#;
+            let value = cdda_json::parse(text.as_bytes()).expect("json");
+            let effect = cdda_content::dialogue::read_effect(&value).expect("the port reads both branches");
+            cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+            return cdda_sim::messages::lines(&world);
+        };
+        let text = r#"{
+            "u_run_inv_eocs": "all",
+            "search_data": [ { "id": "smart_phone_locked" } ],
+            "true_eocs": [ { "id": "EOC_GOT", "effect": [ { "u_message": "found one" } ] } ],
+            "false_eocs": [ { "id": "EOC_NONE", "effect": [ { "u_message": "found none" } ] } ]
+        }"#;
+        let value = cdda_json::parse(text.as_bytes()).expect("json");
+        let effect = cdda_content::dialogue::read_effect(&value).expect("the port reads both branches");
+        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+        cdda_sim::messages::lines(&world)
+    }
+
+    let found = run_on(&["smart_phone_locked"]);
+    assert!(
+        found.iter().any(|line| line.contains("found one")),
+        "**a match runs the true branch**: {found:?}"
+    );
+    assert!(
+        !found.iter().any(|line| line.contains("found none")),
+        "and the false branch stays quiet"
+    );
+
+    let none = run_on(&["rock"]);
+    assert!(
+        none.iter().any(|line| line.contains("found none")),
+        "**a search that matches nothing runs the false branch**: {none:?}"
+    );
+    assert!(
+        !none.iter().any(|line| line.contains("found one")),
+        "and the true branch does not run"
+    );
+}

@@ -1867,3 +1867,8 @@ corpse when nothing marked it. Ignoring the flag at the corpse branch fails the 
 **Round 1482 gave the inventory effect its NPC half.** `npc_run_inv_eocs` is the same rule as `u_run_inv_eocs` aimed at the dialogue's other participant, and the port read only
 the avatar's member - which is why the beggar programs refused and why the census blamed `false_eocs` for it. The gate runs a program on the listener's rock and shows that the
 speaker's pack is not what the member names; ignoring the member fails it.
+
+**Round 1483 gave the inventory search its other answer.** `f_run_inv_eocs` reads `true_eocs` **and** `false_eocs`, and `run_item_eocs` answers the second once, on the dialogue,
+when the first had nothing to run on - a branch the port never read, so a program's "there was nothing" line never ran. The gate proves both directions: a match runs the true
+branch and leaves the false one quiet, a miss runs the false branch and not the true one; deleting the false branch fails it. `inline_definitions` walks both lists, because an
+inline program named only in `false_eocs` has to be installed too.

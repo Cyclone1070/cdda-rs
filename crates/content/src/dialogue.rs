@@ -2636,6 +2636,11 @@ pub enum Effect {
         manual: bool,
         /// The programs to run on each matching item.
         programs: Vec<ProgramRef>,
+        /// The programs to run **instead, once**, when nothing matched.
+        ///
+        /// Reference: `run_item_eocs` (`npctalk.cpp:3372-3414`) answers `run_eoc_vector( false_eocs, d )` in every mode when `true_items` came out empty - a branch that
+        /// belongs to the dialogue rather than to an item, because there is no item to be the dialogue's beta.
+        false_programs: Vec<ProgramRef>,
     },
     /// Marks an achievement completed on the character.
     ///
@@ -4486,6 +4491,7 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
         listener,
         manual: mode.starts_with("manual"),
         programs: read_program_refs(object.get("true_eocs"))?,
+        false_programs: read_program_refs(object.get("false_eocs"))?,
     })
 }
 

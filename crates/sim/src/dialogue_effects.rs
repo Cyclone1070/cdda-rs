@@ -980,7 +980,17 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) with the `"all"` mode runs `true_eocs` on every matching item, handing each one to the program through the
 /// invocation's context. The port sets the context the data reads - `id` for the item's id and `count` for how many the stack holds - and runs the programs.
 fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RunInvEocs { search_data, wielded_only, worn_only, random, listener: on_listener, manual, programs } = effect else {
+    let Effect::RunInvEocs {
+        search_data,
+        wielded_only,
+        worn_only,
+        random,
+        listener: on_listener,
+        manual,
+        programs,
+        false_programs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     // A `manual` menu asks the player which items to act on, and the port has no chooser: refusing is the honest answer, where picking for the player would run the
@@ -1037,7 +1047,15 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
         }
         matches.push((entity, name, charges));
     }
+    // Reference: **nothing matched runs the false branch once** (`npctalk.cpp:3376-3378`, and the same answer in every mode). It belongs to the dialogue rather than to an
+    // item: there is no item to hand the program as its beta, which is why it is run once rather than per item that failed the filter.
     if matches.is_empty() {
+        if false_programs.is_empty() {
+            return Applied::Done;
+        }
+        for program in false_programs {
+            let _ = crate::eoc_registry::run_ref(world, speaker, listener, program, 1);
+        }
         return Applied::Done;
     }
     // Reference: the `"random"` mode picks **one** of the matching items with the game's dice; `"all"` runs on every one.
