@@ -22,6 +22,11 @@ pub const DEPTH_LIMIT: usize = 16;
 #[derive(Component, Debug, Clone, Default)]
 pub struct Programs {
     by_id: BTreeMap<String, Program>,
+    /// The event programs, by the event they answer.
+    ///
+    /// Reference: `eoc_events::notify` caches `event_EOCs[required_event]` (`effect_on_condition.cpp:526-544`) and runs only that vector for an event, so an event program
+    /// is never a candidate for another kind. The port keeps the same index, built when the programs are installed.
+    events: BTreeMap<String, Vec<String>>,
 }
 
 /// Marks the entity holding the programs.
@@ -97,12 +102,22 @@ pub fn set_programs(world: &mut World, programs: &[Program]) {
             by_id.entry(body.id.clone()).or_insert(body);
         }
     }
+    let events: BTreeMap<String, Vec<String>> = {
+        let mut index: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for program in by_id.values() {
+            if let Some(kind) = &program.event {
+                index.entry(kind.clone()).or_default().push(program.id.clone());
+            }
+        }
+        index
+    };
     let holder = singletons::singleton::<Programs, ThePrograms>(world);
     if let Some(mut existing) = world.get_mut::<Programs>(holder) {
         existing.by_id = by_id;
+        existing.events = events;
         return;
     }
-    world.entity_mut(holder).insert(Programs { by_id });
+    world.entity_mut(holder).insert(Programs { by_id, events });
 }
 
 /// A program by id, or nothing when the data does not define it.
@@ -408,4 +423,21 @@ pub fn run_ref(
         crate::dialogue_context::restore(world, speaker, previous);
     }
     started
+}
+
+/// The programs that answer an event of a kind, in the order the data defines them.
+///
+/// Reference: `eoc_events::notify` (`effect_on_condition.cpp:526-544`), which builds the same list once and runs it for every matching event.
+#[must_use]
+pub fn event_programs(world: &World, kind: &str) -> Vec<String> {
+    singletons::holder::<ThePrograms>(world)
+        .and_then(|entity| world.get::<Programs>(entity))
+        .and_then(|programs| programs.events.get(kind).cloned())
+        .unwrap_or_default()
+}
+
+/// Whether a program answers events rather than being called by name.
+#[must_use]
+pub fn is_event(world: &World, id: &str) -> bool {
+    program_of(world, id).is_some_and(|program| program.event.is_some())
 }

@@ -1897,3 +1897,8 @@ is `diag_value::str()`, the string variant only, and `evaluate(d, true)` is `to_
 the strict reading, which is how the split was found.
 The reference calls subscribers mid-send; the port does not, and the queue's `sent` record lets a test say what happened without draining. The gate proves the argument order and
 the evaluated value, and fails if the queue never fills.
+
+**Round 1488 made an event program answer its own event.** `eoc_type: EVENT` with `required_event` is read into the program, the registry caches the programs by the event they
+answer (`effect_on_condition.cpp:526-544`), and `events::dispatch` drains the queue and runs only those, binding each argument to its field name from the dumped table. The gate
+proves three things at once: one program answers, a program for **another** event does not, and the answering program reads the **second** argument through the name the table
+gives it. Two mutations die - indexing every program under every event, and binding nothing.

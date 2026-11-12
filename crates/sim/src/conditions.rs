@@ -1788,7 +1788,17 @@ pub fn text_of(
     match source {
         StringSource::Literal(text) => Some(text.clone()),
         StringSource::Variable { scope, name } => {
+            // Reference: `context_val( '..' )` reads the **invocation's context** rather than a holder (`dialogue.h`, filled by `run_eocs`' `variables` and by
+            // `eoc_events::notify` from an event's fields). Consulted here for text as well as for numbers: a message that names an event's field is the data's own way of
+            // saying where something happened, and reading a holder instead answered nothing.
             let holder = holder_for_scope(world, speaker, listener, scope)?;
+            if scope == "context_val" {
+                // **The invocation's context first**, then the speaker's own variables - which is where an earlier effect in the same list writes. A context the
+                // caller filled (`run_eocs`' variables, an event's fields) is the specific answer; the speaker's store is the general one the port has always read.
+                if let Some(held) = crate::dialogue_context::values(world, speaker).get(name) {
+                    return Some(held.clone());
+                }
+            }
             crate::dialogue_values::text_of(world, holder, name)
         }
     }

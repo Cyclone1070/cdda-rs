@@ -337,6 +337,8 @@ fn a_mutation_runs_its_own_programs_when_it_is_switched_on() {
     cdda_sim::mutation_data::install(&mut world, mutations, cdda_content::mutations::Categories::default());
     let program = Program {
         id: "EOC_TEST_ACTIVATED".to_owned(),
+        event: None,
+        run_for_npcs: false,
         condition: None,
         effects: vec![Effect::Message {
             text: StringSource::Literal("Your eyes catch fire.".to_owned()),

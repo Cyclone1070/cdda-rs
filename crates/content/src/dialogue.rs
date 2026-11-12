@@ -3595,6 +3595,16 @@ pub enum ProgramRef {
 pub struct Program {
     /// Its id, which is how another effect names it.
     pub id: String,
+    /// The event that runs it, when it is an **event** program.
+    ///
+    /// Reference: `eoc_type::EVENT` with `required_event` (`effect_on_condition.cpp:106-120`, `:541`). An event program is not called by name: it answers the event whose
+    /// type it names, and the event's arguments become its context - which is why the port reads this member even though nothing has answered an event yet.
+    pub event: Option<String>,
+    /// Whether an **global** event program also runs for every NPC, not only for the avatar.
+    ///
+    /// Reference: `run_for_npcs` (`effect_on_condition.cpp:108-112`, which rejects it on anything but a global program; `:344-357`, where the loop over
+    /// `g->all_npcs()` runs the effect with each NPC as the alpha).
+    pub run_for_npcs: bool,
     /// What must hold before it runs, when it states a condition.
     pub condition: Option<Condition>,
     /// What it does when it runs.
@@ -3625,8 +3635,28 @@ pub fn read_program(value: &Value) -> Option<Program> {
         .iter()
         .map(read_effect)
         .collect::<Option<Vec<_>>>()?;
+    // Reference: only an **event** program names an event, and the reference throws when `required_event` sits on any other type (`effect_on_condition.cpp:115-120`), so a
+    // program that counts as one here is exactly a program whose type says `EVENT`.
+    let event = match object.get("required_event") {
+        None => None,
+        Some(Value::Str(kind)) => {
+            let is_event = matches!(object.get("eoc_type"), Some(Value::Str(spelled)) if spelled == "EVENT");
+            if !is_event {
+                return None;
+            }
+            Some(kind.clone())
+        }
+        Some(_) => return None,
+    };
+    let run_for_npcs = match object.get("run_for_npcs") {
+        None => false,
+        Some(Value::Bool(value)) => *value,
+        Some(_) => return None,
+    };
     Some(Program {
         id: id.clone(),
+        event,
+        run_for_npcs,
         condition,
         effects,
     })
@@ -5096,6 +5126,8 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
                 return Some(ProgramRef::Inline {
                     program: Box::new(Program {
                         id: String::new(),
+                        event: None,
+                        run_for_npcs: false,
                         condition: None,
                         effects: vec![one],
                     }),
@@ -5116,6 +5148,9 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
             Some(ProgramRef::Inline {
                 program: Box::new(Program {
                     id: named.clone().unwrap_or_default(),
+                    // An **inline** body is never an event program: it is installed under its id and called by name.
+                    event: None,
+                    run_for_npcs: false,
                     condition,
                     effects,
                 }),

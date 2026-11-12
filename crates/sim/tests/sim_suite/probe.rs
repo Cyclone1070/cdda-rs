@@ -3193,6 +3193,8 @@ fn a_program_defined_inline_is_installed_under_its_id() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let programs = [
         cdda_sim::eoc_registry::Program {
+            event: None,
+            run_for_npcs: false,
             id: "EOC_outer".to_owned(),
             condition: None,
             effects: vec![
@@ -3207,6 +3209,8 @@ fn a_program_defined_inline_is_installed_under_its_id() {
             ],
         },
         cdda_sim::eoc_registry::Program {
+            event: None,
+            run_for_npcs: false,
             id: "EOC_caller".to_owned(),
             condition: None,
             effects: vec![

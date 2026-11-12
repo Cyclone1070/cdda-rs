@@ -45,6 +45,25 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## An event program answers its own event (round 1488)
+
+The other half of the bus. A program that says `eoc_type: EVENT` and `required_event: <kind>` is not called by name: it **answers** an event of that kind, with the event's
+arguments put where it can read them (`effect_on_condition.cpp:519-580`).
+
+| Piece | Reference | Port |
+|---|---|---|
+which programs run | `event_EOCs[required_event]`, a cached vector | `eoc_registry::event_programs`, built once when the programs are installed |
+what it can read | every field of the event, in the dialogue's **context** | the same, bound by position through the dumped table |
+`run_for_npcs` | a global event program also runs for every NPC | read and carried on the program; the NPC loop is a named gap |
+a program called by name that is an event program | it is still callable | the same - `event` is a label, not a lock |
+
+**Text from the context was missing.** A message written `{"context_val": "oter_id"}` - which is exactly how the data says *where* something happened - answered nothing, because
+only the **numeric** path consulted the context (`conditions.rs`). The event gate found it on its first run.
+
+The fix has an order, and the order is the rule: **the invocation's context first, then the speaker's own variables**. The port had always read `context_val` as the speaker's store,
+which is where an earlier effect in the same list writes, and two older gates pinned exactly that; a context the caller filled is the specific answer, and the speaker's store is the
+general one. Reading the context *instead* broke both. The first attempt at this fix did, and the suite said so in the same run.
+
 ## An event is sent, and its arguments are evaluated (round 1487)
 
 `trigger_event` now exists: the effect reads the type's name and an `args` list of strings or variables (`npctalk.cpp:7894-7911`), works each argument out when it runs, and

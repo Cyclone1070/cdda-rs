@@ -80,3 +80,53 @@ pub fn sent(world: &World) -> Vec<Event> {
         .and_then(|entity| world.get::<EventQueue>(entity))
         .map_or_else(Vec::new, |held| held.sent.clone())
 }
+
+/// The event vocabulary in the world, so a dispatch can name a position.
+#[derive(Debug, Default, Component)]
+pub struct EventVocabulary {
+    table: cdda_content::events::EventTable,
+}
+
+/// Marks the entity holding the [`EventVocabulary`].
+#[derive(Debug, Default, Clone, Copy, Component)]
+pub struct TheEventVocabulary;
+
+/// Installs the reference's event table, which is what an argument's position means.
+pub fn install_vocabulary(world: &mut World, table: cdda_content::events::EventTable) {
+    let entity = singletons::singleton::<EventVocabulary, TheEventVocabulary>(world);
+    world.entity_mut(entity).insert(EventVocabulary { table });
+}
+
+/// What each position of an event's arguments is called, or nothing when the world has no table for that type.
+#[must_use]
+pub fn field_names(world: &World, kind: &str) -> Option<Vec<String>> {
+    singletons::holder::<TheEventVocabulary>(world)
+        .and_then(|entity| world.get::<EventVocabulary>(entity))
+        .and_then(|held| held.table.fields_of(kind).map(<[String]>::to_vec))
+}
+
+/// Answers every event waiting, and says how many programs ran.
+///
+/// Reference: `eoc_events::notify` (`effect_on_condition.cpp:519-580`). The reference picks a character for the program from the event's own fields - `avatar_id`,
+/// `character`, `attacker`, `killer`, `npc`, in that order - and falls back to the avatar; it puts every field of the event into the dialogue's **context**, so a program
+/// reads them with `context_val( .. )`. The port binds the arguments by position through the dumped table, which is the same statement with the order made explicit.
+pub fn dispatch(world: &mut World, avatar: Entity) -> usize {
+    let waiting = drain(world);
+    let mut ran = 0;
+    for event in waiting {
+        let names = field_names(world, &event.kind).unwrap_or_default();
+        let mut bindings = std::collections::BTreeMap::new();
+        for (position, value) in event.args.iter().enumerate() {
+            if let Some(name) = names.get(position) {
+                bindings.insert(name.clone(), value.clone());
+            }
+        }
+        for id in crate::eoc_registry::event_programs(world, &event.kind) {
+            let previous = crate::dialogue_context::put(world, avatar, bindings.clone());
+            let _ = crate::eoc_registry::run_program(world, avatar, None, &id, 0);
+            crate::dialogue_context::restore(world, avatar, previous);
+            ran += 1;
+        }
+    }
+    ran
+}
