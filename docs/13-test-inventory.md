@@ -1881,3 +1881,7 @@ hold excludes the item while one that holds keeps it.
 The census moved with it and every pin was re-measured: **601** programs readable (was 600), **1,584** effect entries runnable, **19** unreadable leaves, **11** programs one leaf
 away, **84** blaming their effect list, and **206** refusing at run - the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the
 item's own table has not got. Five programs refuse at their first unreadable entry, down from six.
+
+**Round 1485 made the refusal census honest.** It named the first member of a refusing object, which sent two earlier rounds at the wrong target (`args` when the missing effect was
+`trigger_event`, `count` when it was `u_sell_item`). It now asks each member on its own and names **every** member no reader knows, joined by `+`: `args+trigger_event`,
+`count+u_sell_item`, `else+if+then`, `if+then`, `loc+…+u_map_run_item_eocs`. Five programs refuse, and the labels are now the effects and conditions a round would write.

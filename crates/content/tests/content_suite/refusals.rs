@@ -30,14 +30,35 @@ fn json_files(root: &std::path::Path) -> Vec<PathBuf> {
 }
 
 /// The name of the member an effect entry is built from, which is how the data spells its rule.
+/// **The member whose name no reader knows**, which is what a refusal actually says.
+///
+/// The first version named the first member of the object, and that label was wrong twice over: `{"args": .., "trigger_event": ..}` blamed `args` when the truth was that
+/// `trigger_event` is not ported at all, and `{"//": .., "<unknown>": ..}` blamed the comment. A member is unknown when a one-member object holding it does not read, so the walk
+/// asks each member on its own and names the first that fails - which is the name a round would have to port.
 fn member_of(entry: &cdda_json::Value) -> String {
     let cdda_json::Value::Object(object) = entry else {
         return "<not an object>".to_owned();
     };
-    object
+    let named: Vec<&(String, cdda_json::Value)> = object
         .members()
         .iter()
-        .find(|(name, _)| !name.starts_with("//"))
+        .filter(|(name, _)| !name.starts_with("//"))
+        .collect();
+    let mut unknown: Vec<String> = Vec::new();
+    for (name, value) in &named {
+        let mut alone = cdda_json::Object::new();
+        alone.insert(name.clone(), (*value).clone());
+        if cdda_content::dialogue::read_effect(&cdda_json::Value::Object(alone)).is_none() {
+            unknown.push(name.clone());
+        }
+    }
+    // **Every** unknown member is named, joined by `+`. Naming only the first hid the real cause twice: `{"args": .., "trigger_event": ..}` reported `args`, and the effect the
+    // round would have to write is `trigger_event`; a trade entry reported `count` when the effect is `u_sell_item`.
+    if !unknown.is_empty() {
+        return unknown.join("+");
+    }
+    named
+        .first()
         .map_or_else(|| "<empty>".to_owned(), |(name, _)| name.clone())
 }
 

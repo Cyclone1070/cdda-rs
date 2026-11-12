@@ -355,20 +355,21 @@ menus, inventory menus) and the **line shape**.
 **The line shape is done** (it was, in fact, done when this paragraph was written - the shape has run since `spell_area::cover` learned it, and the sentence above was stale). Seven
 shapes and their geometry are gated: 221 blasts, 15 cones, 9 lines.
 
-**What the six dialogue refusals actually say, measured at round 1482** - the census prints them, and the roadmap should carry them so the next round starts from one program's JSON
-rather than from a broader rule:
+**What the five remaining dialogue refusals actually say, measured at round 1485.** The census used to name the *first* member of a refusing object, and that label lied twice: an
+event entry reported `args` when the effect the port has never written is `trigger_event`, and a trade entry reported `count` when the effect is `u_sell_item`. It now asks each
+member on its own and names **every** member no reader knows, so the label is the thing a round would have to write:
 
-| Member blamed | Program | What the entry is |
+| Program | Unknown members | What it is |
 |---|---|---|
-`args` | `EOC_CANCEL_PORTAL_STORM` | `trigger_event` with an `args` array of `[name, u_val]` pairs |
-`count` | `EOC_MISSION_GET_DRIVEBELTS_done` | `u_sell_item` with a `count` beside it |
-`else` | `EOC_toolweapon_activate` | an `if` whose condition is `has_ammo`, with an `else` branch |
-`false_eocs` | `EOC_BEGGAR_TEST_IF_FOOD_CANNIBAL` | `npc_run_inv_eocs` whose `false_eocs` holds an `{id, effect}` inline program |
-`if` | `EOC_TOOK_OVER_CAMP_NOTICE` | the condition `u_has_camp` |
-`loc` | `EOC_map_item_test1` | an inventory selection whose `loc` is a context variable |
+`EOC_CANCEL_PORTAL_STORM` | `args+trigger_event` | the **event bus**: `trigger_event` is not ported at all, and `args` belongs to it |
+`EOC_MISSION_GET_DRIVEBELTS_done` | `count+u_sell_item` | selling an item back: the trade store |
+`EOC_toolweapon_activate` | `else+if+then` | the `has_ammo` **condition**, inside an `if` whose branches are fine |
+`EOC_TOOK_OVER_CAMP_NOTICE` | `if+then` | the `u_has_camp` **condition** |
+`EOC_map_item_test1` | `loc+…+u_map_run_item_eocs` | the map item picker |
 
-**Two of the six have closed since this table was written** (rounds 1482-1484): `false_eocs` was the `npc_run_inv_eocs` member the port did not read, and the beggar program now
-reads whole because `search_data` learned the `condition` member. The census stands at **five**.
+**Two of the five are conditions and one is an effect the port has never had.** The cheapest next round is the event bus (`trigger_event` plus the EVENT-type programs that answer
+it, which `eoc_registry` already labels); the two conditions want `has_ammo` (the item's charge count against its `charges_to_use`) and `u_has_camp` (a camp store the port has
+none of).
 
 **The `false_eocs` one is a reader question, not a store.** Its entry is the reference's `load_inline_eoc` case exactly: an object carrying `id` **beside** `effect`
 (`effect_on_condition.cpp:119-133`, where a string is a program's name and an object is a program installed under its own `id`). The port's reader already builds

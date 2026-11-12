@@ -45,6 +45,15 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A refusal names the member nobody knows (round 1485)
+
+The dialogue census blamed the **first member** of a refusing object, and that label was wrong often enough to send two rounds at the wrong target: `{"args": .., "trigger_event": ..}`.
+reported `args` while the effect the port has never written is `trigger_event`, and `{"count": 3, "u_sell_item": ..}` reported `count` while the effect is `u_sell_item`.
+
+The walk now asks **each member on its own** - a one-member object holding just that member - and names every member that no reader knows, joined by `+`. The five refusals read as
+`args+trigger_event`, `count+u_sell_item`, `else+if+then`, `if+then` and `loc+…+u_map_run_item_eocs`, which is the list of effects and conditions a round would have to write rather
+than a list of the first words in alphabetical order.
+
 ## The filters are alternatives, and one of them may be a condition (round 1484)
 
 `search_data` is a **list of filter objects**, and an item passes when **any one** of them matches (`run_item_eocs`, `npctalk.cpp:3341-3348`, which breaks on the first match). The
