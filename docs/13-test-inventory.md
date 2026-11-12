@@ -1854,3 +1854,8 @@ are the whole of what the reference asks a caster; the invented `creature_at( ca
 reference asks it once per area in `calculate_spell_effect_area`, and it keeps the `aoe < 1` shortcut that returns the bare epicentre unfiltered. An ally standing in a hostile blast
 is neither hurt nor counted; making it an ally takes its square out of the area. Eight fixtures had to say what they are aimed at (`ground` as well as `hostile`), and one gate had
 been reading the area after the cast instead of before.
+
+**Round 1480 gave melee the per-type armour the reference asks for.** `strike_with` filled one garment figure for all three damage types, so a coat's cut resistance decided
+nothing; it now asks the figure for each type, and `settle_armour_blow` wears each garment face by its own amount instead of settling the whole blow under one figure. Two gates:
+a cutting blow of ten meets five (not the bash four, and not nothing), and a blow carrying both faces wears both garments. Both mutations die - one figure for all three, and the
+cutting face never settled.

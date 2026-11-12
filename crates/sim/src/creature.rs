@@ -1698,6 +1698,33 @@ pub fn damage_worn(world: &mut World, item: Entity, blow: &GarmentBlow) -> Struc
     Struck::Damaged
 }
 
+/// Damages whatever a creature is wearing on the part a blow reached, **once per damage type the blow carries**.
+///
+/// Reference: `Character::absorb_hit` walks the blow's `damage_units` and calls `damage_armor_durability( elem, ... )` for each one (`character_armor.cpp:88-104`), so a garment
+/// whose cut face was in the way is worn by the cutting and not by the blunt part of the same blow. A type the blow does not carry is not walked at all, which is why a zero
+/// amount is skipped rather than settled for nothing.
+pub fn settle_armour_blow(
+    world: &mut World,
+    victim: Entity,
+    part: &str,
+    bash: f64,
+    cut: f64,
+    stab: f64,
+    fraction: f64,
+) -> Struck {
+    let mut worst = Struck::Untouched;
+    for (damage_type, amount) in [("bash", bash), ("cut", cut), ("stab", stab)] {
+        if amount <= 0.0 {
+            continue;
+        }
+        let struck = settle_armour(world, victim, part, amount, fraction, Some(damage_type));
+        if struck != Struck::Untouched {
+            worst = struck;
+        }
+    }
+    worst
+}
+
 /// Damages whatever a creature is wearing on the part a blow reached.
 ///
 /// Reference: `Character::absorb_hit` (`character_armor.cpp`) walks the worn items that cover the struck part and,
@@ -3444,14 +3471,28 @@ fn strike_with(
         crate::hit_location::struck_part(&parts, spread, false, fraction)
             .map(|part| part.name.clone())
     });
-    let resist = landed_on.as_deref().map_or(defence.resist, |part| {
-        #[allow(clippy::cast_precision_loss)]
-        let armour = armour_on(world, victim, part, None) as f32;
-        armour
-    });
+    // **Each damage type meets its own figure.** Reference: `Creature::deal_melee_hit` hands the whole blow to `absorb_hit`, which walks its `damage_units` and asks
+    // `get_armor_type( dt, bp )` for each unit's own type (`character_armor.cpp:70-86`) - so a coat's five against a blade is worth five to the cut and none of it to the bash. The
+    // port asked one figure for all three types until round 1480, which made a stated cut figure decide nothing.
+    #[allow(clippy::cast_precision_loss)]
+    let (resist, cut_resist, stab_resist) = landed_on.as_deref().map_or(
+        (defence.resist, defence.cut_resist, defence.stab_resist),
+        |part| {
+            (
+                armour_on(world, victim, part, Some("bash")) as f32,
+                armour_on(world, victim, part, Some("cut")) as f32,
+                armour_on(world, victim, part, Some("stab")) as f32,
+            )
+        },
+    );
     // **The worn garments are already in `resist`**: `armour_on` reads `PartArmour`, which `creature::dress` derives from the garment layers, so a second worn sum here would count the same
     // jacket twice - which the round that added one did, and `wounds::armour_protects_the_part_it_covers_and_no_other` caught with `six through four points is two` answering zero.
-    let defence = crate::melee::Defence { resist, ..defence };
+    let defence = crate::melee::Defence {
+        resist,
+        cut_resist,
+        stab_resist,
+        ..defence
+    };
     let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.fixed, attack.dice, attack.sides);
     // Reference: `Character::melee_attack` asks `scored_crit( dodge, weap )` - one real against the chance `crit_chance` works out (`melee.cpp:1103-1106`) - and hands the answer to
     // `roll_all_damage( crit, ... )`, which sharpens each damage type by its own figure (`melee.cpp:1356-1373`). **The crit is rolled only for a blow that lands**; a miss has nothing to
@@ -3541,8 +3582,15 @@ fn strike_with(
     let mut dealt = 0;
     if swung.hit {
         if let Some(part) = landed_on.as_deref() {
-            let arrived = f64::from(rolled.bash.max(0) + rolled.cut.max(0));
-            settle_armour(world, victim, part, arrived, garment_roll, None);
+            settle_armour_blow(
+                world,
+                victim,
+                part,
+                f64::from(rolled.bash.max(0)),
+                f64::from(rolled.cut.max(0)),
+                f64::from(rolled.stab.max(0)),
+                garment_roll,
+            );
         }
         hurt_by(world, victim, swung.damage, striker);
         // Reference: `wkpt->apply_effects( *this, total_damage, attack )` (`creature.cpp:1453-1455`) runs **after** the damage lands, and is told the damage the body took rather than the blow's

@@ -45,6 +45,21 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A blow meets each kind of armour it carries (round 1480)
+
+The port had been reading **one** garment figure for all three damage types: `armour_on( part, None )` filled the bash resistance and left the cut and stab ones at the creature's
+own body armour. A leather coat's stated cut figure therefore decided nothing, and its five against a blade was worth nothing at all.
+
+| Piece | Reference | Port |
+|---|---|---|
+the resistance | `absorb_hit` walks the blow's units and asks `get_armor_type( dt, bp )` **per unit's type** (`character_armor.cpp:70-86`) | `armour_on( part, Some( "bash"/"cut"/"stab" ) )`, one figure each |
+the worn garment's fate | `damage_armor_durability( elem, ... )` once per unit (`:88-104`) | `settle_armour_blow`, which settles each face for its own amount and skips a face the blow does not carry |
+what it changes | ten of cutting against a coat's five leaves five | the same, where the port used to leave ten |
+
+**The gate says where the die lands.** A monster's dice are **bash** (`monster_melee_damage` adds them to the blunt part), so a cutting blow with one die is ten cut against five
+plus one bash against four - five through, not six. The first version of the gate expected six and the rule answered five; the reference's own arithmetic was right and the gate was
+wrong, which is worth writing down because it is the usual direction.
+
 ## A blast leaves an ally out of its own area (round 1479)
 
 The reference asks the target rule **once per area**, before any effect sees it: `calculate_spell_effect_area` erases every square `is_valid_target` refuses
