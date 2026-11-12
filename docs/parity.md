@@ -45,6 +45,23 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## An item on the map can be the dialogue's other participant (round 1491)
+
+`u_map_run_item_eocs` (`npctalk.cpp:6806-6875`) is the last of the dialogue census's refusals. It searches the **map** rather than an inventory: every square within
+`max_radius` of `loc` (or of the actor, when the data names no place), skipping the ones inside `min_radius`.
+
+| Piece | Reference | Port |
+|---|---|---|
+the centre | `read_var_value( loc )`, or `pos_abs()` | the same, through `item_place` |
+distance | `rl_dist`, a **Chebyshev** step count | the same three-axis maximum |
+the inner bound | `rl_dist >= min_radius`, so a rock under the actor is outside a search that starts at one | the same, and a gate pins it |
+filters | `item_search_data`, the same shape an inventory search reads | **one shared `read_search_filter`**, because two readers of one shape is how they drift |
+a menu mode | `inventory_picker` | refuses: choosing for the player is not something a headless port can do |
+no items found | `run_eoc_vector( false_eocs, d )` | the same, once, on the dialogue |
+
+**The data's only use of the effect is `manual_mult`** (`EOC_map_item_test1`, `example_eocs.json`), so the refusal the census reports is still a refusal at run - but it is now a
+**known** question rather than an unreadable entry, which is the difference between "the port cannot show a menu" and "the port does not know what this effect is".
+
 ## Selling moves the items and records what is owed (round 1490)
 
 `u_sell_item` (`npctalk.cpp:3884-3930`) is not a deletion: the player's items go **into the buyer's hands**, and the buyer's `debt` rises by the entry's `cost`.

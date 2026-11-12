@@ -1915,3 +1915,9 @@ falls from four to **three** - `has_ammo` is gone, leaving `u_sell_item`, `u_has
 entry's `cost`, and runs `false_eocs` with nothing moved when the seller is short - which is `f_u_sell_item` exactly. `debt` joined the `Opinion` component, because the
 reference's `npc_opinion` is one struct of six numbers and a second table is the thing this port does not have. Two gates: a sale moves three drivebelts and records five owed;
 a short sale runs the false branch and leaves the drivebelt where it was. Both mutations die - destroying the stack instead of moving it, and dropping the cost.
+
+**Round 1491 closed the last dialogue refusal's reader.** `u_map_run_item_eocs` searches the map inside a radius - a `loc` variable or the actor's own square, `rl_dist`
+(Chebyshev) between `min_radius` and `max_radius`, the same `item_search_data` filters an inventory search reads, and `false_eocs` when nothing is found. The `manual_mult`
+mode is a menu and refuses at run, which is what the data's only use of the effect (`EOC_map_item_test1`) needs. Three gates: a radius touches the two near rocks and not the far
+one; a rock under the actor is inside `min_radius` and excluded; a menu mode refuses without running anything. Two mutations die - dropping the inner radius, and ignoring the
+bounds entirely.

@@ -57,7 +57,8 @@ pub const NOW: Census = Census {
     // argument order is the dumped table's.
     // **603 after round 1489 read `has_ammo`**, the second of the dialogue census's five refusals to close.
     // **604 after round 1490 read `u_sell_item`**, the third of the census's refusals to close.
-    readable: 604,
+    // **605 after round 1491 read `u_map_run_item_eocs`**: the census's last effect refusal closes, leaving only the `u_has_camp` condition.
+    readable: 605,
     ran: 397,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
@@ -69,7 +70,8 @@ pub const NOW: Census = Census {
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
-    refused_at_run: 207,
+    // 208 after round 1491: the map-item program reads now and refuses at run, because its only data use is a menu.
+    refused_at_run: 208,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
@@ -79,20 +81,23 @@ pub const NOW: Census = Census {
     // 18 after round 1487: the trigger_event reader took one leaf with it.
     // 17 after round 1489: the `has_ammo` reader took one leaf with it.
     // 15 after round 1490: `u_sell_item` and the `count` it reads are two more members the reader knows.
-    leaves: 15,
+    // 14 after round 1491.
+    leaves: 14,
     // 11 after round 1484: the program that stopped refusing at its `search_data` was one member short of reading, so the gap closed with it.
-    one_gap: 9,
+    one_gap: 8,
     // 1,585 after round 1487: `trigger_event` is one more entry the reader can carry out, and the entry it unblocked is another.
     // 1,586 after round 1489: the `has_ammo` condition is one more entry the reader can carry out.
     // 1,587 after round 1490: `u_sell_item` is one more entry the reader can carry out.
-    effects_runnable: 1_588,
+    // 1,589 after round 1491: the map-item search is one more entry the reader can carry out.
+    effects_runnable: 1_589,
     effects_defined: 1_612,
     // 85 after round 1439: the same program no longer blames an effect, because its first refusal is now past the effect list.
     // 84 after round 1484: same program, one fewer entry refused at its effect list.
     // 83 after round 1487: one fewer program blames its effect list, because that list now reads.
     // 82 after round 1489: one fewer program blames its effect list.
     // 81 after round 1490.
-    effect_blamed: 81,
+    // 80 after round 1491.
+    effect_blamed: 80,
     // 3,228 after round 1489: `has_ammo` is one more condition every one of the data's condition sites can now read.
     conditions_readable: 3_228,
 };

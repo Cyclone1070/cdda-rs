@@ -1816,6 +1816,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_give_achievement(object))
         .or_else(|| read_trigger_event(object))
         .or_else(|| read_sell_item(object))
+        .or_else(|| read_map_run_item_eocs(object))
         .or_else(|| read_run_inv_eocs(object))
         .or_else(|| read_location_variable_adjust(object))
         .or_else(|| read_mutation(object))
@@ -2639,6 +2640,27 @@ pub enum Effect {
         max_radius: i32,
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
+    },
+    /// Runs programs on the items lying on the map within a radius.
+    ///
+    /// Reference: `f_map_run_item_eocs` (`npctalk.cpp:6806-6875`): the target is `loc` or the actor's own square, every square within `max_radius` and outside
+    /// `min_radius` is searched, and the programs run on the items found - `"all"` for every one, `"random"` for one. A `manual` mode is a **menu**, and the port has no
+    /// chooser, so it reads the mode and refuses when the effect runs rather than picking for the player.
+    MapRunItemEocs {
+        /// How the items are chosen: `all`, `random`, or a menu.
+        mode: String,
+        /// The location to search around, when the data names one.
+        loc: Option<(String, String)>,
+        /// The closest a square may be, inclusive.
+        min_radius: CountRange,
+        /// The furthest a square may be, inclusive.
+        max_radius: CountRange,
+        /// The filters an item must pass any one of.
+        search_data: Vec<SearchFilter>,
+        /// The programs to run on each chosen item.
+        programs: Vec<ProgramRef>,
+        /// The programs to run when nothing was found.
+        false_programs: Vec<ProgramRef>,
     },
     /// Hands items to the other creature and raises what it is owed.
     ///
@@ -3487,6 +3509,7 @@ impl Effect {
             Self::Nothing => "//",
             Self::TriggerEvent { .. } => "trigger_event",
             Self::SellItem { .. } => "u_sell_item",
+            Self::MapRunItemEocs { .. } => "u_map_run_item_eocs",
             Self::PlaySoundEffect { .. } => "sound_effect",
             // The store-writing effects' names live in `store_kind`, which `kind` already asked; this arm exists so the match stays exhaustive without repeating the
             // table. A variant that reached here without a name would be a bug in `store_kind`, not a rule the port is missing.
@@ -4516,6 +4539,84 @@ fn read_offer_mission(object: &cdda_json::Object) -> Option<Effect> {
     Some(Effect::OfferMission { missions })
 }
 
+/// Reads a `u_map_run_item_eocs` entry, or nothing.
+///
+/// Reference: `f_map_run_item_eocs` (`npctalk.cpp:6806-6828`): the member is the selection mode, `loc` an optional location, the two radii default to zero, and the search
+/// filters use the same `item_search_data` shape an inventory search does.
+fn read_map_run_item_eocs(object: &cdda_json::Object) -> Option<Effect> {
+    let (member, mode) = ["u_map_run_item_eocs", "npc_map_run_item_eocs"]
+        .iter()
+        .find_map(|name| object.get(name).map(|value| (*name, value)))?;
+    let _ = member;
+    let Value::Str(mode) = mode else {
+        return None;
+    };
+    if !matches!(mode.as_str(), "all" | "random" | "manual" | "manual_mult") {
+        return None;
+    }
+    let loc = match object.get("loc") {
+        None => None,
+        Some(Value::Object(inside)) => Some(named_variable(inside)?),
+        Some(_) => return None,
+    };
+    let min_radius = match object.get("min_radius") {
+        None => CountRange::One(0),
+        Some(value) => read_count(Some(value))?,
+    };
+    let max_radius = match object.get("max_radius") {
+        None => CountRange::One(0),
+        Some(value) => read_count(Some(value))?,
+    };
+    let mut search_data = Vec::new();
+    match object.get("search_data") {
+        None => {}
+        Some(Value::Array(entries)) => {
+            for entry in entries {
+                search_data.push(read_search_filter(entry)?);
+            }
+        }
+        Some(_) => return None,
+    }
+    Some(Effect::MapRunItemEocs {
+        mode: mode.clone(),
+        loc,
+        min_radius,
+        max_radius,
+        search_data,
+        programs: read_program_refs(object.get("true_eocs"))?,
+        false_programs: read_program_refs(object.get("false_eocs"))?,
+    })
+}
+
+/// Reads one `search_data` entry, which the inventory search and the map search share.
+///
+/// Reference: `item_search_data` (`npctalk.cpp:235-441`), read the same way wherever it appears.
+fn read_search_filter(entry: &Value) -> Option<SearchFilter> {
+    let Value::Object(filter) = entry else {
+        return None;
+    };
+    if !filter.members().iter().all(|(key, _)| {
+        matches!(key.as_str(), "id" | "wielded_only" | "worn_only" | "condition" | "//")
+    }) {
+        return None;
+    }
+    let id = match filter.get("id") {
+        None => None,
+        Some(Value::Str(id)) => Some(id.clone()),
+        Some(_) => return None,
+    };
+    let condition = match filter.get("condition") {
+        None => None,
+        Some(condition) => Some(Box::new(read_condition(condition)?)),
+    };
+    Some(SearchFilter {
+        id,
+        wielded_only: matches!(filter.get("wielded_only"), Some(Value::Bool(true))),
+        worn_only: matches!(filter.get("worn_only"), Some(Value::Bool(true))),
+        condition,
+    })
+}
+
 /// Reads a `u_sell_item` entry, or nothing.
 ///
 /// Reference: `f_u_sell_item` (`npctalk.cpp:3884-3896`): `count` defaults to one, **but to zero when the entry states `charges`** - the reference reads the member only to
@@ -4583,31 +4684,8 @@ fn read_run_inv_eocs(object: &cdda_json::Object) -> Option<Effect> {
         None => {}
         Some(Value::Array(entries)) => {
             for entry in entries {
-                let Value::Object(filter) = entry else {
-                    return None;
-                };
-                // A member the port cannot answer - a category, a material, a flag, a charge count - refuses the entry rather than being ignored, because ignoring a filter
-                // would run a program on items the data meant to leave alone.
-                if !filter.members().iter().all(|(key, _)| {
-                    matches!(key.as_str(), "id" | "wielded_only" | "worn_only" | "condition" | "//")
-                }) {
-                    return None;
-                }
-                let id = match filter.get("id") {
-                    None => None,
-                    Some(Value::Str(id)) => Some(id.clone()),
-                    Some(_) => return None,
-                };
-                let condition = match filter.get("condition") {
-                    None => None,
-                    Some(condition) => Some(Box::new(read_condition(condition)?)),
-                };
-                search_data.push(SearchFilter {
-                    id,
-                    wielded_only: matches!(filter.get("wielded_only"), Some(Value::Bool(true))),
-                    worn_only: matches!(filter.get("worn_only"), Some(Value::Bool(true))),
-                    condition,
-                });
+                // **One reader for one shape**: the inventory search and the map search read the same `item_search_data`.
+                search_data.push(read_search_filter(entry)?);
             }
         }
         Some(_) => return None,

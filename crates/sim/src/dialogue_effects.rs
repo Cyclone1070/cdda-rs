@@ -2796,6 +2796,7 @@ fn run_store_effect(
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
         Effect::SellItem { .. } => sell_item(world, speaker, listener, effect),
+        Effect::MapRunItemEocs { .. } => map_run_item_eocs(world, speaker, listener, effect),
         Effect::RunInvEocs { .. } => run_inv_eocs(world, speaker, listener, effect),
         Effect::LocationVariableAdjust { .. } => adjust_location(world, speaker, listener, effect),
         Effect::RevertLocation { .. } => revert_location(world, speaker, listener, effect),
@@ -3125,6 +3126,89 @@ fn sell_item(world: &mut World, speaker: Entity, listener: Option<Entity>, effec
     crate::npc_opinion::add_debt(world, buyer, owed);
     for program in true_programs {
         let _ = crate::eoc_registry::run_ref(world, speaker, listener, program, 1);
+    }
+    Applied::Done
+}
+
+/// Runs programs on the items lying on the map within a radius.
+///
+/// Reference: `f_map_run_item_eocs` (`npctalk.cpp:6830-6875`): the centre is `loc` or the actor's own square, the walk covers every square within `max_radius` and skips the
+/// ones inside `min_radius` (the reference's `rl_dist` is a square's **Chebyshev** distance, which is what a walking creature's step count is), and each item found is handed
+/// to the programs as the dialogue's beta. A menu mode refuses, because choosing for the player is not something this port can do.
+fn map_run_item_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::MapRunItemEocs {
+        mode,
+        loc,
+        min_radius,
+        max_radius,
+        search_data,
+        programs,
+        false_programs,
+    } = effect
+    else {
+        return Applied::CannotAnswer;
+    };
+    if mode.starts_with("manual") {
+        return Applied::CannotAnswer;
+    }
+    let Some(centre) = item_place(world, speaker, listener, loc.as_ref()) else {
+        return Applied::CannotAnswer;
+    };
+    let (Some(closest), Some(furthest)) = (
+        draw_count(world, speaker, listener, min_radius),
+        draw_count(world, speaker, listener, max_radius),
+    ) else {
+        return Applied::CannotAnswer;
+    };
+    // The items on the map, with how far each is from the centre. `rl_dist` counts a diagonal step as one, which is the rule a radius asks about.
+    let mut found: Vec<(Entity, String)> = Vec::new();
+    let mut items: Vec<(Entity, crate::Position, crate::ItemTypeId)> = Vec::new();
+    {
+        let Some(mut query) = world.try_query::<(Entity, &crate::Position, &crate::GroundItem)>() else {
+            return Applied::CannotAnswer;
+        };
+        for (entity, position, item) in query.iter(world) {
+            items.push((entity, *position, item.kind));
+        }
+    }
+    for (entity, position, kind) in items {
+        let step = (position.x - centre.x)
+            .abs()
+            .max((position.y - centre.y).abs())
+            .max((position.z - centre.z).abs());
+        if step < closest || step > furthest {
+            continue;
+        }
+        let Some(name) = crate::item_registry::name_of(world, kind) else {
+            continue;
+        };
+        let matched = search_data.is_empty()
+            || search_data.iter().any(|filter| {
+                filter_matches(world, speaker, entity, &name, false, false, filter)
+            });
+        if matched {
+            found.push((entity, name));
+        }
+    }
+    if found.is_empty() {
+        for program in false_programs {
+            let _ = crate::eoc_registry::run_ref(world, speaker, listener, program, 1);
+        }
+        return Applied::Done;
+    }
+    if mode == "random" {
+        let Some(picked) = draw_one_of(world, found.len()) else {
+            return Applied::CannotAnswer;
+        };
+        found = found.get(picked).cloned().into_iter().collect();
+    }
+    for (item, name) in found {
+        let handed = std::collections::BTreeMap::from([("id".to_owned(), name)]);
+        let previous = crate::dialogue_context::put(world, speaker, handed);
+        for program in programs {
+            let _ = crate::eoc_registry::run_ref(world, speaker, Some(item), program, 1);
+        }
+        crate::dialogue_context::restore(world, speaker, previous);
     }
     Applied::Done
 }
