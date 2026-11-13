@@ -54,6 +54,11 @@ pub struct VehiclePart {
     pub broken: bool,
     /// Whether the part is open, for a part that can open - the reference's `vehicle_part::open` (`vehicle.h`), the state a door, curtain or dome carries.
     pub open: bool,
+    /// What the part holds, when it holds fuel: the liquid's item id for a tank, `battery` for a battery, empty for a part that holds nothing. The reference keeps this inside
+    /// the part's base item (`vehicle_part::ammo_current`, `vehicle_part.cpp:253-267`); two fields carry the same meaning without an item in the component.
+    pub fuel: String,
+    /// How much of it, in charges - the reference's `vehicle_part::ammo_remaining` (`vehicle_part.cpp:307-317`).
+    pub charges: i32,
 }
 
 /// A creature's place in a vehicle: which vehicle, and which of its parts the creature sits on.
@@ -108,6 +113,8 @@ pub fn spawn_facing(
             hp: spec.durability,
             broken: spec.durability <= 0,
             open: false,
+            fuel: String::new(),
+            charges: 0,
         });
     }
     let entity = world
@@ -323,6 +330,37 @@ pub fn open_or_close(world: &mut World, vehicle: Entity, index: usize, opening: 
     true
 }
 
+/// How much fuel of a type the vehicle carries - the reference's `vehicle::fuel_left` (`vehicle.cpp:3861-3925`).
+///
+/// Two branches, as the reference has two: a **battery** is summed over the parts that are batteries, and every other fuel over the parts that can hold fuel and carry that
+/// type. `fuel_left` asks for fuel stores, not working ones, so a broken tank still counts - which is the reference's `is_fuel_store( false )`.
+///
+/// **Named, not guessed:** the reference's battery branch adds every **connected** vehicle's batteries with a cable loss (`search_connected_vehicles`), skips a tank whose
+/// liquid is frozen, and adds ten charges for a muscle engine with a ready driver or a perpetual fuel. The port has none of those inputs yet, so it sums the vehicle's own
+/// stores: the same answer whenever nothing is connected, nothing is frozen and no muscle engine is fitted.
+#[must_use]
+pub fn fuel_left(world: &World, vehicle: Entity, fuel_type: &str) -> i64 {
+    let Some(built) = world.get::<Vehicle>(vehicle) else {
+        return 0;
+    };
+    let battery = fuel_type == "battery";
+    built
+        .parts
+        .iter()
+        .filter(|part| part.fuel == fuel_type)
+        .filter(|part| {
+            spec_of(world, &part.part).is_some_and(|spec| {
+                if battery {
+                    spec.battery
+                } else {
+                    spec.fuel_store
+                }
+            })
+        })
+        .map(|part| i64::from(part.charges))
+        .sum()
+}
+
 /// The store's spec for a part id, if the world holds the store and the store holds the part.
 fn spec_of<'a>(world: &'a World, part: &str) -> Option<&'a cdda_content::vehicles::PartSpec> {
     let holder = crate::singletons::holder::<TheVehicleStore>(world)?;
@@ -442,6 +480,8 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
             hp,
             broken: hp <= 0,
             open: false,
+            fuel: String::new(),
+            charges: 0,
         });
         built.parts.len() - 1
     };

@@ -45,6 +45,30 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle says how much fuel it carries (round 1516)
+
+The engines come next, and an engine needs fuel. The reference answers "how much fuel of this type" with two branches, and the dumps now carry everything they read.
+
+| Piece | Reference | Port |
+|---|---|---|
+an engine's fuel | `vpart_info::fuel_type` | `PartSpec::fuel_type` (data: the turbines name `gasoline`, the battery parts `battery`) |
+what can hold fuel | `vehicle_part::is_fuel_store` (`vehicle_part.cpp:639-645`): a watertight container, a magazine or a reactor | `PartSpec::fuel_store` |
+a battery | `vehicle_part::is_battery`, which the battery branch sums | `PartSpec::battery` |
+contents | the base item's liquid or magazine: `ammo_current` and `ammo_remaining` (`vehicle_part.cpp:253-317`) | `VehiclePart::fuel` and `charges` |
+the sum | `vehicle::fuel_left` (`vehicle.cpp:3861-3925`) | `fuel_left` |
+
+Both dumps grew: `--dump-vehicles` is version 4 with `fuel_type`, `fuel_store` and `battery` on every part, and `--dump-vehicle-placement` now fills every tank with 100 charges of gasoline
+and every battery with 100, recording what `ammo_set` actually stored (`vehicle_part.cpp:324-345`) - the helicopter's three tanks take all 100 and its battery all 100.
+
+**Named, not guessed:** the reference's battery branch adds every **connected** vehicle's batteries with a cable loss, skips a tank whose liquid is frozen, and adds ten charges for a
+muscle engine with a ready driver or a perpetual fuel. The port sums the vehicle's own stores, which is the same answer while nothing is connected, nothing is frozen and no muscle
+engine is fitted.
+
+The data gate compares all 71 placed parts' `fuel_type`, `fuel_store` and `battery` with the reference. The fuel gate copies the reference's filled contents onto the port's parts and
+pins `fuel_left` for gasoline (three tanks), battery (its own branch), diesel (zero), an engine made to carry a fuel type it cannot store (ignored) and a **broken tank** (still
+counted, because the reference asks for fuel stores rather than working ones). Four mutations were caught: the fuel-store filter, the fuel-type comparison, a broken tank dropped, and
+the `battery` spec flag.
+
 ## The harness can place a vehicle, and the port stands where it does (round 1515)
 
 Every vehicle behaviour still to come - fuel, driving, collision, turrets - needs the reference itself to put a vehicle on a map and answer questions about it. The harness could

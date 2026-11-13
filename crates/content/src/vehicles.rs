@@ -69,6 +69,12 @@ pub struct PartSpec {
     pub flags: std::collections::BTreeSet<String>,
     /// Flat damage it shaves off each kind, by damage type id.
     pub damage_reduction: std::collections::BTreeMap<String, f32>,
+    /// The fuel a part that burns fuel needs, as the dump writes it - `null` for everything that does not burn fuel. This is an **engine's** fuel, not a tank's contents.
+    pub fuel_type: String,
+    /// Whether the part can hold fuel or ammunition at all - the reference's `is_fuel_store`, which asks the base item whether it is a watertight container or a magazine.
+    pub fuel_store: bool,
+    /// Whether the part is a battery, which `fuel_left` sums through its own branch.
+    pub battery: bool,
 }
 
 /// The flags that take a gun out of the running for a turret part.
@@ -197,6 +203,9 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         size: number("size")?,
         flags,
         damage_reduction,
+        fuel_type: text("fuel_type")?,
+        fuel_store: number("fuel_store")? != 0,
+        battery: number("battery")? != 0,
     })
 }
 

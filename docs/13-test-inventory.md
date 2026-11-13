@@ -2071,3 +2071,10 @@ fake parts, multisquare propagation and the reference's transparency/air caches 
 lays floor with no furniture over a 25x25 box first; `--dump-vehicle-placement` records the vehicle's name and every part's mount, square, fuel type and ammo. The port's `spawn_facing`
 and `part_squares` reproduce all 71 mounts and squares of the placed helicopter, which is the first end-to-end placement confirmation; two mutations were caught (a placement shifted
 one square, and square axes swapped). The dump also carries the fuel data the engine rounds need: `gasoline` for the two turbines, `battery` for three parts, and empty tanks.
+
+**Round 1516 ported `fuel_left`.** The reference sums fuel over two sets: a battery branch over the parts that are batteries, and every other fuel over parts that can hold fuel
+(`is_fuel_store`: watertight container, magazine or reactor) and carry that type. The port carries `PartSpec::fuel_type`/`fuel_store`/`battery` from a version-4 `--dump-vehicles` and
+`VehiclePart::fuel`/`charges`, with the placement dump now filling each tank with 100 gasoline and the battery with 100 through `ammo_set`. The gate compares all 71 placed parts'
+data and pins `fuel_left` for gasoline (three tanks, 300), battery (100), diesel (0), an engine that cannot store fuel (ignored) and a broken tank (still counted). Four mutations
+were caught: the fuel-store filter, the fuel-type comparison, a broken tank dropped and the `battery` flag. **Named**: connected vehicles' batteries with a cable loss, frozen liquid and
+muscle/perpetual fuel, which the port has no inputs for yet.

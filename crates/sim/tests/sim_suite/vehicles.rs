@@ -900,3 +900,183 @@ fn at_of(entry: &cdda_json::Object) -> (i32, i32) {
     };
     (coordinate(values, 0), coordinate(values, 1))
 }
+
+/// A string field of one JSON object.
+fn text_of(entry: &cdda_json::Object, key: &str) -> String {
+    match entry.get(key) {
+        Some(cdda_json::Value::Str(value)) => value.clone(),
+        _ => panic!("{key} is a string"),
+    }
+}
+
+/// An integer field of one JSON object.
+fn int_of(entry: &cdda_json::Object, key: &str) -> i32 {
+    match entry.get(key) {
+        Some(cdda_json::Value::Int(value)) => i32::try_from(*value).expect("a small number"),
+        _ => panic!("{key} is an integer"),
+    }
+}
+
+/// The placed helicopter's parts, as the reference recorded them.
+fn placed_parts() -> Vec<cdda_json::Object> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_placement.json");
+    let bytes = std::fs::read(path).expect("the placement recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(parts)) = root.get("parts") else {
+        panic!("the recording has parts");
+    };
+    parts
+        .iter()
+        .map(|part| {
+            let cdda_json::Value::Object(entry) = part else {
+                panic!("a placed part is an object");
+            };
+            entry.clone()
+        })
+        .collect()
+}
+
+#[test]
+fn every_placed_part_says_what_it_can_hold_and_what_fuel_it_uses() {
+    let placed = placed_parts();
+    assert_eq!(placed.len(), 71, "the reference placed 71 parts");
+    let materials = store();
+    let mut stores = 0;
+    let mut batteries = 0;
+    // The store is keyed by id and the recording is in blueprint order, so compare through the blueprint's placements.
+    let blueprint = materials
+        .prototypes
+        .iter()
+        .find(|prototype| prototype.id == "2seater2")
+        .expect("the helicopter blueprint");
+    for (index, placement) in blueprint.parts.iter().enumerate() {
+        let Some(entry) = placed.get(index) else {
+            panic!("placement {index} exists");
+        };
+        let spec = materials
+            .parts
+            .iter()
+            .find(|part| part.id == placement.part)
+            .expect("the part's spec");
+        assert_eq!(
+            spec.fuel_type,
+            text_of(entry, "fuel_type"),
+            "**{} uses the reference's fuel type**",
+            placement.part
+        );
+        assert_eq!(
+            spec.fuel_store,
+            int_of(entry, "fuel_store") != 0,
+            "**{} is a fuel store exactly when the reference says so**",
+            placement.part
+        );
+        assert_eq!(
+            spec.battery,
+            int_of(entry, "battery") != 0,
+            "{} is a battery exactly when the reference says so",
+            placement.part
+        );
+        if spec.fuel_store {
+            stores += 1;
+        }
+        if spec.battery {
+            batteries += 1;
+        }
+    }
+    assert!(stores >= 3, "the helicopter's tanks are fuel stores: {stores}");
+    assert!(batteries >= 1, "and it carries a battery: {batteries}");
+}
+
+#[test]
+fn a_vehicle_says_how_much_fuel_of_a_type_it_carries() {
+    use cdda_sim::vehicles::{damage, fuel_left, spawn_facing, Vehicle};
+
+    let placed = placed_parts();
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_placement.json");
+    let bytes = std::fs::read(path).expect("the placement recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(origin)) = root.get("origin") else {
+        panic!("an origin");
+    };
+    let origin = (
+        coordinate(origin, 0),
+        coordinate(origin, 1),
+        coordinate(origin, 2),
+    );
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "2seater2", origin, 0.0).expect("the helicopter builds");
+    {
+        let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+        for (index, entry) in placed.iter().enumerate() {
+            let Some(part) = built.parts.get_mut(index) else {
+                panic!("part {index} exists");
+            };
+            part.fuel = text_of(entry, "ammo");
+            part.charges = int_of(entry, "charges");
+        }
+    }
+
+    let sum = |fuel: &str| -> i64 {
+        placed
+            .iter()
+            .filter(|entry| text_of(entry, "ammo") == fuel)
+            .map(|entry| i64::from(int_of(entry, "charges")))
+            .sum()
+    };
+    let gasoline = sum("gasoline");
+    let battery = sum("battery");
+    assert!(gasoline > 0, "the reference filled the tanks: {gasoline}");
+    assert!(battery > 0, "the reference charged the battery: {battery}");
+    assert_eq!(
+        fuel_left(&world, vehicle, "gasoline"),
+        gasoline,
+        "**the tanks' gasoline adds up**"
+    );
+    assert_eq!(
+        fuel_left(&world, vehicle, "battery"),
+        battery,
+        "**a battery is summed through its own branch**"
+    );
+    assert_eq!(
+        fuel_left(&world, vehicle, "diesel"),
+        0,
+        "a fuel nobody carries is zero"
+    );
+
+    // An engine is not a tank, however much fuel something writes onto it.
+    let engine = part_index(&world, vehicle, -2, -1, "engine_turbine_small").expect("the engine");
+    {
+        let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+        let part = built.parts.get_mut(engine).expect("the engine");
+        part.fuel = "gasoline".to_owned();
+        part.charges = 500;
+    }
+    assert_eq!(
+        fuel_left(&world, vehicle, "gasoline"),
+        gasoline,
+        "**an engine is not a fuel store**"
+    );
+
+    // A broken tank still holds its fuel: the reference asks for fuel stores, not working ones.
+    let tank = part_index(&world, vehicle, -3, 0, "tank_55gal_drum").expect("a tank");
+    assert!(
+        world.get::<Vehicle>(vehicle).expect("a vehicle").parts[tank].charges > 0,
+        "the tank is filled"
+    );
+    damage(&mut world, vehicle, tank, 10_000, "bash", true);
+    assert_eq!(
+        fuel_left(&world, vehicle, "gasoline"),
+        gasoline,
+        "**a broken tank still holds its fuel**"
+    );
+}
