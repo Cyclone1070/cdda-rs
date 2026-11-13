@@ -1979,3 +1979,9 @@ now ranks what a world with terrain, an overmap and a player still refuses: 486 
 sets (`mapgen_update` 26, `u_location_variable` 28), **selection surfaces** with no chooser (`run_eoc_selector` 9), and **rules genuinely not written** (`u_teleport` 7, six
 legacy talk functions 6). Only the third kind is a gap, and `docs/05-roadmap.md` says so beside the number: a census that runs one program at a time cannot see a conversation
 between two of them, and three rounds running the headline was a fact about the instrument rather than about the port.
+
+**Round 1502 gave P8's vehicle store a body.** The dump was a name list; version 2 carries each part's item, slot, durability, damage modifier, cargo size, string flags and flat
+damage reduction, produced by extending the harness, regenerating and verifying the patch, and rebuilding the reference before the loader was written. Three numbers in the
+new gates were wrong and the dump corrected them: a seat carries 25 litres of cargo (its `CARGO` flag's own promise, where the test guessed zero), the invented turret parts number
+241 (where arithmetic off the old dump said 239), and a prototype is not a part. The loader now resolves `part_count` 701 with all seven fields, and the digest gate still matches
+the reference's own id digest.

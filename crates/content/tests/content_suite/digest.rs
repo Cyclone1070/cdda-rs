@@ -211,7 +211,7 @@ fn furniture_specials_vehicles_and_the_starting_kit_match() {
         digest_of(digests.get("vehicle").expect("vehicle digest")),
         "vehicles"
     );
-    let ours = digest::digest_hex(digest::digest_ids(loaded.parts.iter()));
+    let ours = digest::digest_hex(digest::digest_ids(loaded.parts.iter().map(|part| &part.id)));
     assert_eq!(
         ours,
         digest_of(digests.get("vehicle_part").expect("vehicle part digest")),

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-12 23:38:30
-@@ -0,0 +1,7910 @@
++++ oracle/src/src/harness.cpp	2026-11-13 14:55:55
+@@ -0,0 +1,7969 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1075,26 +1075,85 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
 +        return;
 +    }
-+    std::vector<std::string> parts;
++    // Version 2 carries what a part **is**, not only its name: the item it is made of, the slot it occupies, its durability and damage
++    // modifier, the string flags it carries and its flat damage reduction. A port that read only the ids could not answer a single question
++    // about a vehicle, and the id list it had was a name list pretending to be a prototype.
++    // Copied out inside the loop rather than pointed at: `parts::get_all()` may hand back a copy, and a pointer into a temporary is a bug waiting for a
++    // bigger data set. Each entry holds exactly the fields the dump prints, sorted by id at the end.
++    struct dumped_part {
++        std::string id;
++        std::string name;
++        int durability = 0;
++        int damage_modifier = 0;
++        std::string item;
++        std::string location;
++        int size = 0;
++        std::vector<std::string> flags;
++        std::vector<std::pair<std::string, float>> damage_reduction;
++    };
++    std::vector<dumped_part> parts;
 +    for( const vpart_info &part : vehicles::parts::get_all() ) {
-+        parts.push_back( part.id.str() );
++        dumped_part entry;
++        entry.id = part.id.str();
++        entry.name = part.name();
++        entry.durability = part.durability;
++        entry.damage_modifier = part.dmg_mod;
++        entry.item = part.base_item.str();
++        entry.location = part.location;
++        entry.size = static_cast<int>( units::to_milliliter( part.size ) );
++        for( const std::string &flag : part.get_flags() ) {
++            entry.flags.push_back( flag );
++        }
++        for( const std::pair<const damage_type_id, float> &reduction : part.damage_reduction ) {
++            entry.damage_reduction.emplace_back( reduction.first.str(), reduction.second );
++        }
++        std::sort( entry.damage_reduction.begin(), entry.damage_reduction.end() );
++        parts.push_back( std::move( entry ) );
 +    }
++    std::sort( parts.begin(), parts.end(), []( const dumped_part &lhs, const dumped_part &rhs ) {
++        return lhs.id < rhs.id;
++    } );
 +    std::vector<std::string> prototypes;
 +    for( const vehicle_prototype &proto : vehicles::get_all_prototypes() ) {
 +        prototypes.push_back( proto.id.str() );
 +    }
-+    std::sort( parts.begin(), parts.end() );
 +    std::sort( prototypes.begin(), prototypes.end() );
-+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":1,\n\"parts\":[\n" );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":2,\n\"parts\":[\n" );
 +    bool first = true;
-+    for( const std::string &id : parts ) {
-+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
++    for( const dumped_part &part : parts ) {
++        std::fprintf( out, "%s{\"id\":", first ? "" : ",\n" );
++        std::fprintf( out, "\"%s\"", escaped( part.id ).c_str() );
++        std::fprintf( out, ",\"name\":" );
++        std::fprintf( out, "\"%s\"", escaped( part.name ).c_str() );
++        std::fprintf( out, ",\"durability\":%d,\"damage_modifier\":%d,\"item\":", part.durability,
++                      part.damage_modifier );
++        std::fprintf( out, "\"%s\"", escaped( part.item ).c_str() );
++        std::fprintf( out, ",\"location\":" );
++        std::fprintf( out, "\"%s\"", escaped( part.location ).c_str() );
++        std::fprintf( out, ",\"size\":%d", part.size );
++        std::fprintf( out, ",\"flags\":[" );
++        bool first_flag = true;
++        for( const std::string &flag : part.flags ) {
++            std::fprintf( out, "%s", first_flag ? "" : "," );
++            std::fprintf( out, "\"%s\"", escaped( flag ).c_str() );
++            first_flag = false;
++        }
++        std::fprintf( out, "],\"damage_reduction\":{" );
++        bool first_kind = true;
++        for( const std::pair<std::string, float> &reduction : part.damage_reduction ) {
++            std::fprintf( out, "%s", first_kind ? "" : "," );
++            std::fprintf( out, "\"%s\"", escaped( reduction.first ).c_str() );
++            std::fprintf( out, ":%.6g", static_cast<double>( reduction.second ) );
++            first_kind = false;
++        }
++        std::fprintf( out, "}}" );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"part_count\":%zu,\n\"prototypes\":[\n", parts.size() );
 +    first = true;
 +    for( const std::string &id : prototypes ) {
-+        std::fprintf( out, "%s\"%s\"", first ? "" : ",\n", id.c_str() );
++        std::fprintf( out, "%s", first ? "" : ",\n" );
++        std::fprintf( out, "\"%s\"", escaped( id ).c_str() );
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"prototype_count\":%zu}\n", prototypes.size() );

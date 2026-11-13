@@ -7,12 +7,39 @@
 use cdda_json::{Object, Value};
 
 /// Every vehicle part and vehicle prototype the reference defines.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Vehicles {
-    /// Part ids, sorted.
-    pub parts: Vec<String>,
+    /// The parts, sorted by id.
+    pub parts: Vec<PartSpec>,
     /// Prototype ids, sorted.
     pub prototypes: Vec<String>,
+}
+
+/// What one vehicle part **is**.
+///
+/// Reference: `vpart_info` (`src/veh_type.h:353-400`) as `--dump-vehicles` reports it: the item the part is made of (`base_item`), the slot it occupies (`location`), the
+/// damage it takes before it breaks (`durability`), the damage it deals in a collision (`dmg_mod`), the string flags it carries and its flat damage reduction. The
+/// invented turret parts carry the gun they mount as their `item`, which is the only trace in the store of where they came from.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PartSpec {
+    /// Its id.
+    pub id: String,
+    /// The name a player sees, untranslated.
+    pub name: String,
+    /// How much damage it takes before it breaks.
+    pub durability: i32,
+    /// What percentage of its own damage it deals in a collision (`dmg_mod`, an integer percentage).
+    pub damage_modifier: i32,
+    /// The item it is made of.
+    pub item: String,
+    /// The slot of the vehicle tile it occupies.
+    pub location: String,
+    /// How much cargo it holds, in millilitres.
+    pub size: i64,
+    /// Its string flags.
+    pub flags: std::collections::BTreeSet<String>,
+    /// Flat damage it shaves off each kind, by damage type id.
+    pub damage_reduction: std::collections::BTreeMap<String, f32>,
 }
 
 /// The flags that take a gun out of the running for a turret part.
@@ -59,6 +86,61 @@ fn ids_of(object: &Object, key: &str) -> Result<Vec<String>, String> {
     Ok(ids)
 }
 
+/// Reads one part object from the dump.
+fn part_of(entry: &Value) -> Result<PartSpec, String> {
+    let Value::Object(object) = entry else {
+        return Err("a part is not an object".to_owned());
+    };
+    let text = |key: &str| match object.get(key) {
+        Some(Value::Str(value)) => Ok(value.clone()),
+        _ => Err(format!("a part has no {key}")),
+    };
+    let number = |key: &str| match object.get(key) {
+        Some(Value::Int(value)) => Ok(*value),
+        _ => Err(format!("a part's {key} is not a number")),
+    };
+    let mut flags = std::collections::BTreeSet::new();
+    match object.get("flags") {
+        Some(Value::Array(items)) => {
+            for item in items {
+                match item {
+                    Value::Str(flag) => {
+                        flags.insert(flag.clone());
+                    }
+                    _ => return Err("a part flag is not a string".to_owned()),
+                }
+            }
+        }
+        _ => return Err("a part has no flags".to_owned()),
+    }
+    let mut damage_reduction = std::collections::BTreeMap::new();
+    match object.get("damage_reduction") {
+        Some(Value::Object(kinds)) => {
+            for (kind, amount) in kinds.members() {
+                let amount = match amount {
+                    Value::Float(value) => *value,
+                    Value::Int(value) => *value as f64,
+                    _ => return Err("a part's damage reduction is not a number".to_owned()),
+                };
+                #[allow(clippy::cast_possible_truncation)]
+                damage_reduction.insert(kind.clone(), amount as f32);
+            }
+        }
+        _ => return Err("a part has no damage_reduction".to_owned()),
+    }
+    Ok(PartSpec {
+        id: text("id")?,
+        name: text("name")?,
+        durability: i32::try_from(number("durability")?).unwrap_or(0),
+        damage_modifier: i32::try_from(number("damage_modifier")?).unwrap_or(100),
+        item: text("item")?,
+        location: text("location")?,
+        size: number("size")?,
+        flags,
+        damage_reduction,
+    })
+}
+
 fn count_of(object: &Object, key: &str, listed: usize) -> Result<(), String> {
     let Some(Value::Int(count)) = object.get(key) else {
         return Err(format!("the dump has no {key}"));
@@ -81,7 +163,11 @@ pub fn from_dump(value: &Value) -> Result<Vehicles, String> {
     let Value::Object(root) = value else {
         return Err("the dump's root is not an object".to_string());
     };
-    let parts = ids_of(root, "parts")?;
+    // The dump's parts are objects since version 2: an id list could not answer a question about a vehicle.
+    let parts = match root.get("parts") {
+        Some(Value::Array(entries)) => entries.iter().map(part_of).collect::<Result<Vec<_>, String>>()?,
+        _ => return Err("the dump has no parts array".to_string()),
+    };
     let prototypes = ids_of(root, "prototypes")?;
     count_of(root, "part_count", parts.len())?;
     count_of(root, "prototype_count", prototypes.len())?;

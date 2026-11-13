@@ -45,6 +45,27 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The vehicle store carries what a part is (round 1502)
+
+P8 had a **name list**: 701 part ids and 249 prototype ids, and nothing about any of them. A name list cannot answer a question, so the oracle dump became version 2.
+
+| Field | Reference | Why it matters |
+|---|---|---|
+`item` | `vpart_info::base_item` | the part is made of an item, and the invented turrets carry the **gun** they mount |
+`location` | `vpart_info::location` | the slot of the tile it occupies - two parts in one slot cannot both be installed |
+`durability` | `vpart_info::durability` | how much damage it takes before it breaks |
+`damage_modifier` | `vpart_info::dmg_mod` | the percentage of its damage a collision deals |
+`size` | `vpart_info::size` | the cargo room, which a `CARGO` part has and a seat turns out to have 25 litres of |
+`flags` | `vpart_info::get_flags` | the string flags: `SEAT`, `BOARDABLE`, `TURRET`, `CARGO` |
+`damage_reduction` | `vpart_info::damage_reduction` | the flat damage it shaves off each kind **before** hit points |
+
+**Three of the port's own numbers were wrong and the dump corrected them**: a seat is not empty (25 L of cargo, which its `CARGO` flag promises), the invented turret parts number
+**241** and not the 239 arithmetic predicted, and a prototype is not a part. Each was a test written from a plausible inference - the kind of test that passes forever because it
+asserts what the code does rather than what the reference says.
+
+The dump was extended by editing the harness, regenerating the patch (`--regen`) and proving it reproduces the working copy byte for byte (`--verify`) before rebuilding: **the oracle
+stays ahead of the loader**, which is the only order in which a loader can be wrong out loud.
+
 ## A census that runs one program at a time cannot see a chain (round 1501)
 
 The dialogue census now ranks refusals **in a world with terrain, an overmap and a player**, because the fresh world's ranking was mostly a statement about the empty world. The

@@ -385,7 +385,7 @@ fn the_vehicle_parts_are_the_ones_written_plus_the_turrets_the_guns_earn() {
     // the first gate in the corpus that depends on a rule rather than on a file.
     let mut ids: BTreeSet<String> = BTreeSet::new();
     let vehicles = crate::corpus::vehicles_dump_loaded();
-    ids.extend(vehicles.parts.iter().cloned());
+    ids.extend(vehicles.parts.iter().map(|part| part.id.clone()));
     let turrets = cdda_content::vehicles::turret_parts(&crate::corpus::items_loaded());
     let mut invented = 0;
     for part in turrets {
