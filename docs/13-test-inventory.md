@@ -2092,3 +2092,8 @@ nothing, an item bigger than what is left is refused, and a zero-volume item fit
 `GroundItem` data, so no part keeps a second list. The gate fills the reference bicycle's 20,000 ml basket exactly (a 300-rock stack then 100 single rocks, 101 items), shows a
 negative free volume behind the rule's back, and proves a broken basket refuses even a zero-volume item. Six mutations were caught. **Named**: gun-ammunition matching, stack
 merging, bucket spilling, the 4,096-item limit; the 10,000 L cap and the CARGO flag branch are unreachable in the current data.
+
+**Round 1519 closed the cargo round.** `remove_item` is `vehicle::remove_item`'s erase: it takes an item out of the part that holds it, refuses an entity that is not held in a
+part, and **does not refuse a broken part**, because the reference erases from the colony either way and a wreck is salvaged that way. The gate takes a single rock and a 300-rock
+stack back out, checks the room returns, that an item cannot be taken twice, that a ground item is refused, and that ten rocks can be salvaged from a broken basket. Three
+mutations were caught: the ownership check, a refusal on a broken part, and a removal that does not destroy. **Named**: `invalidate_mass`, which the port has no cache for.

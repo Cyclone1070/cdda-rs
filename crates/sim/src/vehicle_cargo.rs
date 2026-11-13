@@ -137,3 +137,15 @@ pub fn stow_item(
             .id(),
     )
 }
+
+/// Takes an item out of the part that holds it - the reference's `vehicle::remove_item` (`vehicle.cpp:6321-6340`) and the `vehicle_stack::erase` that calls it
+/// (`vehicle.cpp:200-203`).
+///
+/// The part is **not asked whether it is broken**: the reference erases from the part's colony either way, which is how a wreck is salvaged. The answer says whether the entity
+/// was held in a part at all, so a caller cannot destroy something it did not own - the reference's caller copies the item out before erasing it.
+pub fn remove_item(world: &mut World, item: Entity) -> bool {
+    if world.get::<InVehiclePart>(item).is_none() {
+        return false;
+    }
+    world.despawn(item)
+}

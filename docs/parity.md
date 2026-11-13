@@ -45,6 +45,18 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## An item comes back out of a part, even from a wreck (round 1519)
+
+Cargo could go in and could not come out. The reference's `vehicle::remove_item` (`vehicle.cpp:6321-6340`), reached through `vehicle_stack::erase` (`vehicle.cpp:200-203`), erases
+the item from the part's colony and **does not ask whether the part is broken** - which is how a wreck is salvaged. The port's `remove_item(world, item)` despawns the entity
+only when it carries `InVehiclePart` and answers whether it did, so a caller cannot destroy something the part did not own.
+
+The gate stows a 300-rock stack and a single rock (15,050 ml), takes the single one back (15,000, one item left), cannot take it twice, takes the stack (0 stored, 20,000 free
+again), and refuses an item lying on the ground. A second gate breaks the basket with ten rocks inside and takes them out of the wreck. Three mutations were caught: the
+ownership check, a refusal on a broken part, and a removal that answers yes without destroying anything.
+
+**Named:** the reference's removal also invalidates the vehicle's cached mass (`invalidate_mass`). The port does not cache mass yet, so there is nothing to invalidate.
+
 ## A vehicle part carries only what fits (round 1518)
 
 Cargo is the first thing a part **holds**. The reference binds an `item_stack` to a `vehicle_part` - that is `vehicle_stack` (`vehicle.h:178-190`) - and answers three volume

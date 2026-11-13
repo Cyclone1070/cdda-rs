@@ -1408,3 +1408,50 @@ fn a_full_part_says_so_and_a_broken_one_takes_nothing() {
         "**a broken part takes nothing even when the item has no volume - the reference refuses a broken part first**"
     );
 }
+
+#[test]
+fn an_item_can_come_back_out_of_a_part() {
+    use cdda_sim::vehicle_cargo::{
+        free_volume, items_in_part, remove_item, stow_item, stored_volume,
+    };
+
+    let (mut world, vehicle, basket, _frame, rock, _anvil) = bicycle_with_cargo();
+    let stack = stow_item(&mut world, vehicle, basket, rock, 300).expect("300 rocks fit");
+    let single = stow_item(&mut world, vehicle, basket, rock, 1).expect("a rock fits");
+    assert_eq!(stored_volume(&world, vehicle, basket), 15_050);
+
+    assert!(remove_item(&mut world, single), "**a held item comes back out**");
+    assert_eq!(
+        stored_volume(&world, vehicle, basket),
+        15_000,
+        "and the room it took comes back with it"
+    );
+    assert_eq!(items_in_part(&world, vehicle, basket).len(), 1);
+    assert!(!remove_item(&mut world, single), "the same item cannot come out twice");
+
+    assert!(remove_item(&mut world, stack));
+    assert_eq!(stored_volume(&world, vehicle, basket), 0);
+    assert_eq!(free_volume(&world, vehicle, basket), 20_000);
+
+    let ground = cdda_sim::drop_item(&mut world, (0, 0), rock, 1);
+    assert!(
+        !remove_item(&mut world, ground),
+        "**an item that is not in a part is not the part's to remove**"
+    );
+}
+
+#[test]
+fn a_wreck_can_be_salvaged() {
+    use cdda_sim::vehicle_cargo::{items_in_part, remove_item, stow_item};
+    use cdda_sim::vehicles::damage;
+
+    let (mut world, vehicle, basket, _frame, rock, _anvil) = bicycle_with_cargo();
+    let salvage = stow_item(&mut world, vehicle, basket, rock, 10).expect("rocks fit");
+    damage(&mut world, vehicle, basket, 10_000, "bash", true);
+    assert_eq!(items_in_part(&world, vehicle, basket).len(), 1, "the wreck still holds it");
+    assert!(
+        remove_item(&mut world, salvage),
+        "**a broken part gives back what it holds**"
+    );
+    assert_eq!(items_in_part(&world, vehicle, basket).len(), 0);
+}
