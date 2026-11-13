@@ -1281,3 +1281,130 @@ fn an_engine_takes_the_first_fuel_it_can_burn() {
         "and it remembers the type it took"
     );
 }
+
+/// A kind for the cargo gate: an id, a volume, and nothing else the rule reads.
+fn cargo_kind(id: &str, volume_ml: i64) -> cdda_sim::item_registry::Kind<'_> {
+    cdda_sim::item_registry::Kind {
+        id,
+        volume_ml,
+        weight_g: 0,
+        pockets: &[],
+        thrown_damage: 0.0,
+        melee_bash: 0.0,
+        melee_cut: 0.0,
+        melee_stab: 0.0,
+        to_hit: -1,
+    }
+}
+
+/// The reference's bicycle, with a rock and an anvil to try in its basket.
+fn bicycle_with_cargo() -> (World, Entity, usize, usize, cdda_sim::ItemTypeId, cdda_sim::ItemTypeId) {
+    use cdda_sim::item_registry::{id_of, set_item_types};
+    use cdda_sim::vehicles::spawn_facing;
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let kinds = [cargo_kind("null", 0), cargo_kind("rock", 50), cargo_kind("anvil", 25_000)];
+    set_item_types(&mut world, &kinds);
+    let rock = id_of(&mut world, "rock").expect("the rock");
+    let anvil = id_of(&mut world, "anvil").expect("the anvil");
+    let vehicle = spawn_facing(&mut world, "bicycle", (10, 10, 0), 0.0).expect("the bicycle builds");
+    let basket = part_index(&world, vehicle, -1, 0, "basketsm").expect("the basket");
+    let frame = part_index(&world, vehicle, 0, 0, "xlframe").expect("the frame");
+    (world, vehicle, basket, frame, rock, anvil)
+}
+
+#[test]
+fn a_cargo_part_holds_only_what_fits() {
+    use cdda_sim::vehicle_cargo::{
+        InVehiclePart, cargo_capacity, free_volume, items_in_part, stow_item, stored_volume,
+    };
+
+    let (mut world, vehicle, basket, frame, rock, anvil) = bicycle_with_cargo();
+
+    assert_eq!(cargo_capacity(&world, vehicle, basket), 20_000, "**a basket holds twenty litres**");
+    assert_eq!(cargo_capacity(&world, vehicle, frame), 0, "a frame is not cargo and holds nothing");
+    assert_eq!(free_volume(&world, vehicle, basket), 20_000);
+
+    assert!(
+        stow_item(&mut world, vehicle, basket, anvil, 1).is_none(),
+        "**a part refuses what it cannot hold**"
+    );
+    assert!(
+        stow_item(&mut world, vehicle, frame, rock, 1).is_none(),
+        "and a part that is not cargo holds nothing at all"
+    );
+    assert_eq!(items_in_part(&world, vehicle, basket).len(), 0, "a refusal stores nothing");
+
+    // A stack takes its charge count in room.
+    let stack = stow_item(&mut world, vehicle, basket, rock, 300).expect("300 rocks fit");
+    assert!(
+        world
+            .get::<InVehiclePart>(stack)
+            .is_some_and(|held| held.vehicle == vehicle && held.part == basket),
+        "the item names the part it rides in"
+    );
+    assert_eq!(
+        stored_volume(&world, vehicle, basket),
+        15_000,
+        "**a stack takes its charge count in room**"
+    );
+    assert_eq!(free_volume(&world, vehicle, basket), 5_000);
+
+    // Single rocks fill the rest exactly.
+    let mut loose = 0;
+    while stow_item(&mut world, vehicle, basket, rock, 1).is_some() {
+        loose += 1;
+    }
+    assert_eq!(
+        loose, 100,
+        "**exactly what is left of the basket fits, and not one rock more**"
+    );
+    assert_eq!(stored_volume(&world, vehicle, basket), 20_000);
+    assert_eq!(free_volume(&world, vehicle, basket), 0);
+    assert_eq!(items_in_part(&world, vehicle, basket).len(), 101);
+}
+
+#[test]
+fn a_full_part_says_so_and_a_broken_one_takes_nothing() {
+    use cdda_sim::item_registry::id_of;
+    use cdda_sim::vehicle_cargo::{InVehiclePart, cargo_capacity, free_volume, stow_item};
+    use cdda_sim::vehicles::damage;
+
+    let (mut world, vehicle, basket, _frame, rock, _anvil) = bicycle_with_cargo();
+
+    // A part overfilled by an older, larger capacity reports negative free volume, as the reference's does.
+    let _ = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: rock,
+                charges: 401,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            InVehiclePart {
+                vehicle,
+                part: basket,
+            },
+        ))
+        .id();
+    assert!(
+        free_volume(&world, vehicle, basket) < 0,
+        "**free volume is not clamped: an overfull part says so**"
+    );
+
+    damage(&mut world, vehicle, basket, 10_000, "bash", true);
+    assert_eq!(
+        cargo_capacity(&world, vehicle, basket),
+        0,
+        "**a broken part holds nothing**"
+    );
+    assert!(stow_item(&mut world, vehicle, basket, rock, 1).is_none());
+    let nothing = id_of(&mut world, "null").expect("the null kind");
+    assert!(
+        stow_item(&mut world, vehicle, basket, nothing, 1).is_none(),
+        "**a broken part takes nothing even when the item has no volume - the reference refuses a broken part first**"
+    );
+}

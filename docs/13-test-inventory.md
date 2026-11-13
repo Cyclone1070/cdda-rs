@@ -2085,3 +2085,10 @@ no. `auto_select_fuel` follows the reference's three steps and `fuel_current`/`e
 with `fuel_opts` in the reference's order (the turbine's seven), and the placement dump names them too, so all 71 placed parts are compared. The gates pin the switch through fuel,
 repeated starts, breaking, repairing and running dry, and the fuel choice through diesel-only then gasoline-only tanks. Five mutations were caught. **Named**: the reference's
 single-argument start checks the driver's limbs and size, immobilisers, starter and battery, fuel pumps and a damage-based failure roll, none of which the port has.
+
+**Round 1518 ported what a vehicle part carries.** `cargo_capacity` is `vehicle_stack::max_volume` (zero unless CARGO and unbroken, capped at 10,000 L), `stored_volume` sums the
+items' volumes (a stack takes its charge count in room), `free_volume` is the difference **unclamped**, and `stow_item` is `vehicle::add_item`'s refusal: a broken part takes
+nothing, an item bigger than what is left is refused, and a zero-volume item fits anything. Items in a part are entities carrying `InVehiclePart { vehicle, part }` beside their
+`GroundItem` data, so no part keeps a second list. The gate fills the reference bicycle's 20,000 ml basket exactly (a 300-rock stack then 100 single rocks, 101 items), shows a
+negative free volume behind the rule's back, and proves a broken basket refuses even a zero-volume item. Six mutations were caught. **Named**: gun-ammunition matching, stack
+merging, bucket spilling, the 4,096-item limit; the 10,000 L cap and the CARGO flag branch are unreachable in the current data.

@@ -45,6 +45,30 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle part carries only what fits (round 1518)
+
+Cargo is the first thing a part **holds**. The reference binds an `item_stack` to a `vehicle_part` - that is `vehicle_stack` (`vehicle.h:178-190`) - and answers three volume
+questions; `vehicle::add_item` asks them before anything may go in.
+
+| Piece | Reference | Port |
+|---|---|---|
+what a part can hold | `vehicle_stack::max_volume` (`vehicle.cpp:216-224`): zero unless the part is cargo and unbroken, capped at 10,000 litres | `cargo_capacity` |
+what it holds | `vehicle_stack::stored_volume` (`vehicle.cpp:226-236`): the sum of the items' volumes | `stored_volume` |
+what is left | `item_stack::free_volume` (`item_stack.cpp:163-166`): capacity minus stored, **not clamped** | `free_volume` |
+putting it in | `vehicle::add_item` (`vehicle.cpp:6278-6320`): refuses a broken part, and refuses an item that does not fit | `stow_item` |
+
+An item in a part is an **entity**: the store's `GroundItem` data plus an `InVehiclePart { vehicle, part }` component. The reference's `cata::colony<item>` inside the part
+becomes a component naming its owner, so no part keeps a second list of contents and `items_in_part` is a query like every other lookup.
+
+The gate spawns the reference's bicycle and uses its 20,000 ml basket: a 25 litre anvil is refused while a 300-rock stack fits and takes 15,000 ml; exactly 100 more single rocks
+fill the rest (101 items, 20,000 stored, 0 free); an item added behind the rule's back makes the free volume **negative**, as the reference's unclamped arithmetic does; and a
+broken basket holds nothing, not even a zero-volume item, because the reference refuses a broken part before it looks at volume. Six mutations were caught: the broken capacity
+check, the fit check, the charge count, a clamped free volume, the size term, and the broken early refusal.
+
+**Named:** the reference also refuses ammunition that does not match a gun part's calibre, merges a charge stack into one already there, spills a bucket's contents, and stops at
+`MAX_ITEM_IN_VEHICLE_STORAGE` (4,096) items per part - the port has none of those yet. The 10,000 litre cap and the CARGO-flag branch cannot be exercised by the current data:
+the largest cargo part is 991,000 ml, and no non-cargo part states a size, so the flag check and the cap are carried for the rule's sake rather than proven by a dump.
+
 ## An engine starts only when it has fuel (round 1517)
 
 Fuel could be counted, and nothing burned it. The switch half of starting is the part of the rule that needs only the vehicle:

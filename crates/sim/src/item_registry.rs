@@ -65,6 +65,12 @@ pub struct ItemTypes {
 }
 
 impl ItemTypes {
+    /// How much room a kind takes, in millilitres - `itype::volume`, which a stack of one answers.
+    #[must_use]
+    pub fn volume_of(&self, kind: ItemTypeId) -> i64 {
+        self.volumes_ml.get(kind.0 as usize).map_or(0, |volume| i64::from(*volume))
+    }
+
     /// What a kind does when swung, in points of bash damage.
     #[must_use]
     pub fn melee_bash_of(&self, kind: ItemTypeId) -> f64 {
@@ -411,6 +417,12 @@ pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
             .get(start..start + how_many as usize)
             .unwrap_or(&[])
     }
+}
+
+/// How much room a kind takes, in millilitres, read without a mutable handle.
+#[must_use]
+pub fn volume_in(world: &World, kind: ItemTypeId) -> i64 {
+    peek(world).map_or(0, |registry| registry.volume_of(kind))
 }
 
 /// A look at the registry without taking a copy of it.
