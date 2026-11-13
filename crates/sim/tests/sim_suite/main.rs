@@ -271,3 +271,4 @@ mod is_character;
 mod has_species;
 mod npc_allies;
 mod named_conditions;
+mod underwater;

@@ -430,6 +430,9 @@ fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: 
         // the avatar **and** for every NPC, false for a monster. They were one answer here until a data site (`{"and": ["npc_is_character", ...]}`) needed the difference.
         "u_is_avatar" => crate::missions::avatar(world) == Some(speaker),
         "npc_is_avatar" => listener.is_some_and(|them| crate::missions::avatar(world) == Some(them)),
+        // Reference: `f_is_underwater` (`condition.cpp:2651`) reads `Character::is_underwater`, which is the creature's own state and not the ground's.
+        "u_is_underwater" => crate::creature::is_underwater(world, speaker),
+        "npc_is_underwater" => listener.is_some_and(|them| crate::creature::is_underwater(world, them)),
         "u_is_character" => is_person(world, speaker),
         "npc_is_character" => listener.is_some_and(|them| is_person(world, them)),
         // Reference: `is_day( p )` (`calendar.cpp:368-371`) is `sun_altitude >= sunrise_angle`, and `is_night` is `sun_altitude <= civil_dawn` - six degrees below the

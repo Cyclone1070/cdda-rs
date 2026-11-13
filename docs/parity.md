@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Being underwater is the creature's own state (round 1496)
+
+`u_is_underwater` / `npc_is_underwater` (`condition.cpp:2651`) is the **last** member any program in the data was one gap from. The state lives on the creature, not on the square.
+
+| Piece | Reference | Port |
+|---|---|---|
+the state | `Character::underwater` | the `Underwater` **marker component**: a creature that is not under the surface does not carry it |
+setting it | `Character::set_underwater` (`character.cpp:12569-12574`), from diving (`game.cpp:12525`) and from standing in a `WATER_CUBE` tile (`:12545-12549`) | `creature::set_underwater(world, creature, bool)` |
+asking it | `f_is_underwater` | `creature::is_underwater`, asked of the speaker or the listener |
+
+**Two creatures on the same square can differ**, which is why this is a component and not a terrain question: a swimmer under the surface and one at the top of the same tile are
+in different states, and the reference keeps the flag per character for exactly that reason. Swimming is not ported yet, so nothing sets the state in a real turn - what is ported
+is the question the data asks, answered from where the answer will live.
+
+**The census has no one-gap programs left.** At round 1496 no program in the data is a single member from reading whole; the ranking that used to point at the next leaf is now
+empty, and the test says so instead of failing on it. The frontier is now the **80 programs whose first unreadable member is inside `effect`** - effects, not guards, which is what
+the rest of the roadmap is about.
+
 ## A named condition is stored as a condition, not as an answer (round 1495)
 
 `get_condition` (`condition.cpp:1941-1948`) closes the last member a program was one gap from. It reads a name and hands it to `evaluate_conditional`

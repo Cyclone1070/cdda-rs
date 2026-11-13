@@ -2229,6 +2229,32 @@ pub fn size_named(name: &str) -> Option<crate::CreatureSize> {
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreatureKind(pub crate::MonsterKindId);
 
+/// Whether a creature is under the surface of the water it is in.
+///
+/// Reference: `Character::underwater` (`character.h`), set by `set_underwater` (`character.cpp:12569-12574`) when a creature dives or stands inside a `WATER_CUBE` tile
+/// (`game.cpp:12525`, `:12545-12549`) and cleared when it surfaces. It is a state of the **creature**, not of the ground: two creatures on the same square can differ, and the
+/// distinction is what `f_is_underwater` (`condition.cpp:2651`) asks about.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Underwater;
+
+/// Puts a creature under the surface, or brings it back up.
+///
+/// Reference: `Character::set_underwater` (`character.cpp:12569-12574`). The reference keeps a `bool` that also triggers a sight recalculation; the port keeps the marker
+/// because "is under the water" is a state and a state is a component - a creature that is not under the water simply does not carry it.
+pub fn set_underwater(world: &mut World, creature: Entity, under: bool) {
+    if under {
+        world.entity_mut(creature).insert(Underwater);
+    } else {
+        world.entity_mut(creature).remove::<Underwater>();
+    }
+}
+
+/// Whether a creature is under the surface.
+#[must_use]
+pub fn is_underwater(world: &World, creature: Entity) -> bool {
+    world.get::<Underwater>(creature).is_some()
+}
+
 /// What a creature is made of, by species id.
 ///
 /// Reference: `mtype::species` (`monstergenerator.cpp`), read by `monster::has_species` and by every rule that asks what kind of thing it is fighting - a bonus against the

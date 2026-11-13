@@ -95,11 +95,12 @@ pub const NOW: Census = Census {
     // 11 after round 1493.
     // 8 after round 1494.
     // 7 after round 1495.
-    leaves: 7,
+    // 6 after round 1496: `npc_is_underwater` was the last member a program was one gap from.
+    leaves: 6,
     // 11 after round 1484: the program that stopped refusing at its `search_data` was one member short of reading, so the gap closed with it.
     // 2 after round 1494: `get_condition` and `npc_is_underwater`.
-    // 1 after round 1495: `npc_is_underwater`.
-    one_gap: 1,
+    // **0 after round 1496**: no program in the data is one member from reading whole.
+    one_gap: 0,
     // 1,585 after round 1487: `trigger_event` is one more entry the reader can carry out, and the entry it unblocked is another.
     // 1,586 after round 1489: the `has_ammo` condition is one more entry the reader can carry out.
     // 1,587 after round 1490: `u_sell_item` is one more entry the reader can carry out.
@@ -114,13 +115,15 @@ pub const NOW: Census = Census {
     // 81 after round 1490.
     // 80 after round 1491.
     // 79 after round 1492.
-    effect_blamed: 79,
+    // 80 at round 1496: programs whose first unreadable member is inside `effect`, which is the frontier the census now points at.
+    effect_blamed: 80,
     // 3,228 after round 1489: `has_ammo` is one more condition every one of the data's condition sites can now read.
     // 3,240 after round 1492: `u_has_camp` is one more condition every condition site can read.
     // 3,242 after round 1493: two more conditions every condition site can read.
     // 3,269 after round 1494: `u_has_species` and the two ally counts are read wherever the data asks them.
     // 3,270 after round 1495: `get_condition` is one more condition the data's sites can read.
-    conditions_readable: 3_270,
+    // 3,272 after round 1496: `u_is_underwater` and its `npc_` pair are two more condition sites.
+    conditions_readable: 3_272,
 };
 
 impl Census {

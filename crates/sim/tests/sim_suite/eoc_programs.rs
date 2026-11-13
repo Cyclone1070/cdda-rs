@@ -1044,9 +1044,12 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // 198 programs are one leaf away, but the eight members above would finish only 115 of them - the rest sit behind a long tail. Reading the
     // printed line as "the top eight members would finish" is the honest reading, not "there are 115 such programs".
     assert_eq!(single, crate::numbers::NOW.one_gap, "a hundred and eighty-eight programs are one leaf away");
-    assert!(
-        !ranked.is_empty(),
-        "the members that would finish the most programs, single gaps first: {ranked:?}"
+    // **An empty ranking is the win, not a broken report.** When no program is one member from reading whole there is nothing left to rank, and the
+    // check becomes the equality that matters: the list is empty exactly when the one-gap count is zero.
+    assert_eq!(
+        ranked.is_empty(),
+        crate::numbers::NOW.one_gap == 0,
+        "the ranking is empty exactly when nothing is one member away: {ranked:?}"
     );
     // The **ranking** is what the round reads to choose the next leaf, and it moves whenever any leaf lands - so it is printed and checked for
     // shape rather than pinned to a list. Pinning it made one feature cost a dozen edits; the invariant is that every ranked member is a member the

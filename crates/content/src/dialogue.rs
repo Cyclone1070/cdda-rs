@@ -641,6 +641,8 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
             | "u_is_character"
             | "npc_is_character"
             | "npc_is_avatar"
+            | "u_is_underwater"
+            | "npc_is_underwater"
             | "is_day"
             | "is_night"
             | "u_driving"

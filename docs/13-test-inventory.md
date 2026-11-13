@@ -1943,3 +1943,9 @@ name nobody stored - `evaluate_conditional`'s own answer. The first draft added 
 `get_condition` now reads the global values holder `set_condition` already writes. It also exposed a real bug: the **first** `set_condition` refused because the global holder did
 not exist yet, so the store now makes it. One gate, mutation-checked (any stored name answering yes fails it). The census reads **612** of 692 programs with a single one-gap member
 left, `npc_is_underwater`.
+
+**Round 1496 closed the last condition leaf.** `u_is_underwater`/`npc_is_underwater` reads a creature's own `Underwater` state - a marker component, because two creatures on the
+same square can differ, and the reference keeps the flag per character for that reason. Swimming is not ported, so nothing sets it in a real turn yet; what is ported is the
+question, answered from where the answer will live. `set_underwater` is the setter the swimming rule will call, and the gate exercises both directions. Mutation-checked: making
+nobody underwater fails it. **No program in the data is one member from reading whole any more** - the census's one-gap ranking is empty, and the test now asserts that an empty
+ranking means exactly that. The frontier is the 80 programs whose first unreadable member is inside `effect`.
