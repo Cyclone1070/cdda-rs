@@ -1973,3 +1973,9 @@ here and thrown in the reference. The table is transcribed name for name (`LEGAC
 becomes the effect with no topic, an unknown name refuses the program as the reference's throw does, and a known name the port has not written reads and refuses where it runs.
 Two of this suite's own fixtures wrote `"effect": [ "EOC_INNER" ]` - a shape the reference throws on - and now call with `{"run_eocs": …}`. Census: 692 read, **481 ran** (up from 468),
 211 refuse at run.
+
+**Round 1501 ranked the dialogue refusals in a built world.** The fresh-world ranking was mostly a statement about an empty world, so `a_built_world_runs_the_programs_the_fresh_one_could_not`
+now ranks what a world with terrain, an overmap and a player still refuses: 486 of 692 run, and the top causes separate cleanly - **chains** whose variable an earlier program
+sets (`mapgen_update` 26, `u_location_variable` 28), **selection surfaces** with no chooser (`run_eoc_selector` 9), and **rules genuinely not written** (`u_teleport` 7, six
+legacy talk functions 6). Only the third kind is a gap, and `docs/05-roadmap.md` says so beside the number: a census that runs one program at a time cannot see a conversation
+between two of them, and three rounds running the headline was a fact about the instrument rather than about the port.

@@ -45,6 +45,21 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A census that runs one program at a time cannot see a chain (round 1501)
+
+The dialogue census now ranks refusals **in a world with terrain, an overmap and a player**, because the fresh world's ranking was mostly a statement about the empty world. The
+built-world ranking says 486 of 692 run, and its top entries are worth reading carefully, because **only one of the three causes is a gap**:
+
+| Cause | Example | Verdict |
+|---|---|---|
+the data runs a chain and this census runs one link | `mapgen_update` 26, `u_location_variable` 28 | not a gap: the link reads a variable the previous program sets |
+a selection surface with no chooser | `run_eoc_selector` 9 | P10, named |
+a rule not written | `u_teleport` 7, six legacy talk functions 6 | a real gap, and small |
+
+**The number 486 is a floor on what the port can do, not a measure of what it lacks.** The census runs each program alone by construction - it must, or a program's effect on the
+next one would make the count depend on order - and the data writes chains where one link leaves `LIXA_unfold_A` for the next. Three rounds in a row the census's headline was a
+fact about the instrument: a `switch` it did not descend into, a depth limit it reported as a missing program, and now an isolation it reports as a refusal.
+
 ## A bare string in an effect list is a string effect, not a program call (round 1500)
 
 `talk_effect_t::parse_string_effect` (`npctalk.cpp:8157-8341`) is what a **string** in an effect list means. The port read every one as a call to a program of that name, so

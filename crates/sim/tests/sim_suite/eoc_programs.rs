@@ -883,6 +883,10 @@ fn describe(effect: &cdda_content::dialogue::Effect) -> String {
         cdda_content::dialogue::Effect::SpawnMonster { monster, group, .. } => {
             format!("monster={monster:?} group={group:?}")
         }
+        cdda_content::dialogue::Effect::SpawnItem { item, force_equip, use_item_group, .. } => {
+            format!("item={item:?} force_equip={force_equip} group={use_item_group}")
+        }
+        cdda_content::dialogue::Effect::Math(statements) => format!("{statements:?}"),
         _ => String::new(),
     }
 }
@@ -1408,6 +1412,7 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
     // One pass over the readable programs in a world that has something in it. The fresh-world census is the baseline, so the built world only has to
     // beat it - and saying how many more run is the whole point of the measurement.
     let mut ran = 0usize;
+    let mut refused: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     for program in &readable {
         let mut built = World::new();
         let survivor = cdda_sim::creature::spawn_creature(&mut built, "the survivor", (12, 12, 0));
@@ -1418,13 +1423,33 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
         build_a_world(&mut built, &mapgens, &codes);
         if eoc_registry::run_program(&mut built, survivor, None, &program.id, 0) == Applied::Done {
             ran += 1;
+        } else {
+            // The walk only needs the programs, because it looks a callee up by name; the other members are the world's data, which this world already has.
+            let named_only = Census {
+                programs: readable.clone(),
+                mapgens: Vec::new(),
+                codes: std::collections::BTreeMap::new(),
+                fields: Vec::new(),
+                snippets: Vec::new(),
+                monsters: Vec::new(),
+                groups: Vec::new(),
+                files: Vec::new(),
+            };
+            let blamed = first_refusing_effect(program, &named_only, 0)
+                .unwrap_or_else(|| "<no effect named>".to_owned());
+            *refused.entry(blamed).or_insert(0usize) += 1;
         }
     }
-
+    // **A refusal in a world that has terrain, an overmap and a player is a gap in the port**, where the fresh world's ranking is mostly a statement about the empty world.
+    // Ranking the built world is what turns the census into a work list - with one limit that must be said out loud: **each program runs alone**, and the data writes chains in
+    // which one program leaves a variable that the next one reads. A later link that refuses for want of that variable is the census's isolation, not a rule the port lacks.
+    let mut ranked: Vec<(&String, &usize)> = refused.iter().collect();
+    ranked.sort_by(|left, right| right.1.cmp(left.1).then(left.0.cmp(right.0)));
     println!(
-        "of {} readable programs, {ran} run in a built world (fresh world: {})",
+        "of {} readable programs, {ran} run in a built world (fresh world: {}); the built world's refusals: {:?}",
         readable.len(),
-        crate::numbers::NOW.ran
+        crate::numbers::NOW.ran,
+        ranked.iter().take(8).collect::<Vec<_>>()
     );
     assert_eq!(
         ran,

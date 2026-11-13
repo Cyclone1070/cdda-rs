@@ -379,58 +379,35 @@ none of).
 `{"npc_add_effect": "beggar_has_eaten", "duration": 3600}` or the `math` form `[ "n_npc_trust()", "+=", "1" ]`. **The next round starts by reading that one program's JSON**, which is
 what this document's own note from the last two attempts says to do.
 
-### What the next round should pick up (updated at round 1425)
+### What the next round should pick up (updated at round 1501)
 
-**The dialogue-effect frontier is down to nine programs, one cause each.** The previous version of this section was written at round 976 and listed
-`run_eocs` (53), `mapgen_update` (18), `place_override` (17), `u_spawn_monster` (14), `if` (12) and `math` (10) as the buckets to work through. **Every one of those is gone**, and the
-table that stood beside them (577 of 692 programs readable, 387 running, 190 refused, 3,226 of 3,708 conditions, 1,527 of 1,612 effect entries) is superseded: it was a count of a
-port that no longer exists, and carrying it forward would have been the third stale ledger this record has caught. What follows is measured, this round, on the corpus as it stands.
+**The dialogue census is finished, and the number that matters changed shape.** Every one of the 692 defined programs now reads whole - the refusal map is empty - and the same
+is true of the 221 inline programs, so the 913 programmes the data knows by name all load. What is left is **run time**, and running a program is where the census stops being a
+measure of the port:
 
-| Census | Now | Of | Measured by |
-|---|---|---|---|
-programs known by name | **913** | 913 | `content_suite::eocs::every_effect_on_condition_is_known_by_name` - 692 defined, 221 inline, **0 missing, 0 invented** |
-programs that refuse at their first unreadable entry | **7** | 913 | `content_suite::refusals`, whose assertion is pinned at seven |
+| Census | Now | What it means |
+|---|---|---|
+programs defined / inline | 692 / 221 | `content_suite::eocs` - every definition the data carries |
+programs that read whole | **692 of 692** | zero refusals; the reading side is done |
+programs that run **alone** in a fresh world | 481 | the empty-world floor |
+programs that run alone in a world with terrain, an overmap and a player | **486** | the built-world floor |
+programs that cannot run alone at all | 206 | three different things below |
 
-**The nine refusals are one member each, not a bucket:**
+**The 206 are three things, and only one of them is port work:**
 
-| Member | What it needs |
-|---|---|
-`<not an object>` | an **array** where the reader expects an entry object - `map_spawn_item` with a `count` range and a `context_val` location |
-`args` | the event-argument store (`trigger_event`) |
-~~`count`~~ | **closed at round 1490** - `u_sell_item` reads `count` and hands the items over |
-`else` | a branch key on an `if` whose condition is `has_ammo` |
-`false_eocs` | a whole-program spawn inside a false branch |
-`if` | `u_has_camp`, a condition the port has no store for |
-`loc` | a menu-driven location (the `u_run_inv_eocs` family) |
+| Cause | Programs | What it is |
+|---|---|---|
+a chain link whose variable an earlier program sets | `mapgen_update` 26, `u_location_variable` 28, `open_dialogue`-family 32 | **not a gap**: the data runs `EOC_A` then `EOC_B`, and `EOC_B` alone has no `LIXA_unfold_A` to read |
+a selection surface with no chooser | `run_eoc_selector` 9, `u_run_inv_eocs` | a menu the port has no interface for (P10) |
+a rule genuinely not written | `u_teleport` 7, six legacy talk functions 6 | real gaps, and small ones |
 
+**So the frontier is no longer a call graph, a member list or a refusal count.** It is a short list of rules (`u_teleport`'s seven refusals) plus two subsystems the roadmap
+already names: **P6's activity kinds** and **P8's vehicles**. The next round should take `u_teleport`, because it is seven programs, one rule, and a reference body short
+enough to read in one sitting - the same shape as `transform_line`, which closed the reading census.
 
-**So the frontier is no longer a call graph, it is a list of six one-off members**, and all six are a *store* or a *selection surface* rather than a reader: camps, event
-arguments, trade menus, inventory menus. The seventh, `radius`, closed when `reveal_map` learned to read its `dbl_or_var` and the overmap learned whose tiles are seen. **`u_activate_trait` was the one that was a plain rule, and it is ported** (rounds 1426-1430: the dump, the charge, the cost, the refusal, and the effect).
-
-That is the shape this section should keep: a measured count, the causes ranked, and the one cause that is a rule rather than a surface.
-
-The gate reads: *per-turn state hash equality on environment-only sessions covering weather transitions, fire and gas spread, light changes across z-levels, scent
-diffusion, and vision.* All five clauses are now met, each by a replayed reference recording rather than by a hand-written case:
-
-The weather is a **system** now: the generator's numbers, the condition loop, the sun it needs, and the manager that holds them between turns are all ported and gated, the last
-three against the reference's own recorded day. Two things finish it and one thing starts the next piece of M2.
-
-1. ~~Join the pieces into one call~~ - done in round 511: `weather::System::tick` computes the point, decides the sky and books the next change in one call, and reproduces the
-   recorded day from the recorded dice alone.
-2. ~~The transparency flush, for real~~ - done in round 512: `Map::on_weather_change` marks the level's light stale exactly when the sight penalty changes, and the next read rebuilds
-   once. The reference's loop over the overmap's depth is a single mark until the port has more than one level.
-3. **A ten-day weather recording** is now the gate (round 514): `--dump-weather-manager` covers the manager's own path, the port replays 240 hours with fourteen absorption
-   changes, and it found three real bugs (a data function that could not see the point, a missing requirement chain, and sight penalties that were all one). One temperature sits a
-   moment's temperature is now bit-exact: the hook `harness_weather_temperature_terms` records the pre-narrowing double and its terms, which showed the residual was a
-   fixture written to ten digits and a `float` product the port was computing in double. One humidity hour remains one ulp out, which is macOS `cos` against Linux `cos`.
-4. **Weather in the world** is wired (round 513): `Climate` is a resource, `tick_climate` runs a turn of it, and `run_environment_turn` takes the world's wind over its own.
-   The recorded session with a transition now exists (round 531: `--turn-minutes` and the sky on every turn) and both halves of it are gated - the point is recomputed from the
-   generator's own inputs (round 532) and the manager's decisions are replayed from the reference's dice, sector included (round 533).
-5. **Vision across z-levels** now has its oracle (round 536): `--dump-visibility` writes each level's `seen_cache` and `transparency_cache`, and the first fixture shows
-   the character seeing squares of the level below through an opening and nothing above it. `cast_zlight` is now transcribed whole in `cdda_core_types::zlight`, and it
-   **reproduces the reference's own seen cache on 867 of 867 squares** over three levels (round 544). Two port-wide bugs fell out on the way: `MAX_VIEW_DISTANCE` was 72
-   where the reference computes 60, and `rl_dist` was Chebyshev where `CIRCLEDIST` makes it the truncated Euclidean length.
-6. **The per-turn state hash exists** (rounds 547-549): fields, scent and the sky are three layers of one digest, and every environment session has a receipt number. The sight cast is now the reference's (round 545): `Level::seen_cast` runs `cast_zlight`, and ~~one red gate stays as the next thing to fix - smoke's transparency is not folded into the span before the square behind it is written~~ **closed in round 570**: the frame's transparency table now folds the furniture layer and the fields in, and the fields **multiply** the way `calc_transp` says rather than winning a `min` - which makes smoke at its second intensity ten times as absorbing as air and smoke at its third intensity a wall. Two gates pin it (`frame_smoke`): a square behind smoke is seen less, and behind dense smoke not at all.
+**What the census taught, three times over, is worth keeping in the record.** Each time the number looked like a fact about the port it was really a fact about the instrument: a
+`switch` the walk did not descend into, a depth limit reported as a missing program, and now an isolation that reports a chain's second link as a refusal. **A census that runs
+one program at a time cannot see a conversation between two of them**, and the ledger should say so rather than let the number imply more than it measures.
 
 ## 4. Phase detail
 
