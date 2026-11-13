@@ -45,6 +45,22 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle is one entity holding its parts (round 1505)
+
+P8's data had a shape and no inhabitant. A vehicle is now an **entity** with a `Vehicle` component and a `Position`, built from the reference's own blueprint.
+
+| Piece | Reference | Port |
+|---|---|---|
+the vehicle | `vehicle` (`vehicle.h`) holds `std::vector<vehicle_part>` | one entity, `Vehicle { parts: Vec<VehiclePart> }`, plus a `Position` |
+a part | `vehicle_part` - mount, hit points, broken | `VehiclePart { part, x, y, hp, broken }`, **inside** the vehicle: a part has no identity apart from it, so an id into a side list would be a pointer by another name |
+what stands in a square | `parts_at_relative( mount )` | `parts_at` - and the origin square of the helicopter holds four parts, which is normal |
+building | `vehicle::init_state` from the prototype's `parts` | `spawn` - and it **refuses** when the prototype or one of its parts is missing, rather than building a vehicle with holes |
+a part's hit points | `vpart_info::durability` for a fresh part | the same number, from the store |
+
+Two of this round's own assertions were wrong and the **dump** corrected each: the frame has 20 armour on every kind (so a 450-point bash lands for 430), and a fresh frame has 400
+hit points rather than the number a guess would pick. Both are the same lesson as the last three rounds, and the ledger is going to keep saying it: **when a test and the reference
+disagree, the test is the suspect.**
+
 ## A blow on a vehicle part is three rules, and two of them surprise (round 1504)
 
 `vehicle::damage_direct` (`vehicle.cpp:7925-7945`) is the first vehicle **rule** the port owns, and it is worth reading closely because a port that only subtracted hit points would

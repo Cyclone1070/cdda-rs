@@ -1996,3 +1996,9 @@ and a picture of one.
 all and is returned unconsumed, a blow at or over it has the part's flat armour shaved off, `pure` damage skips both because its type is `no_resist`, and a part taken to zero hit
 points is **broken rather than removed**. Three gates pin the arithmetic (19 ignored and 20 landing for 15 on a 300-hit-point seat; a threshold of 4 on a 40-hit-point part; 19
 pure damage landing in full), and a mutation that applies the threshold to pure damage fails them.
+
+**Round 1505 gave P8 its inhabitant.** A vehicle is one entity with a `Vehicle { parts: Vec<VehiclePart> }` component and a `Position`; each part carries its id, its square, its
+hit points and whether it is broken, inside the vehicle - a part has no identity apart from the vehicle, so an id into a side list would be a pointer by another name. The gate
+builds the reference's 2-seater helicopter from `corpus/vehicles.json`: 71 placements become 71 parts at the store's own durability, the origin square answers with four
+occupants, and a 450-point bash lands for 430 against the frame's 20 armour and leaves it **broken and still standing**. Two assertions were wrong first - the frame's armour and
+its hit points - and the dump corrected both.

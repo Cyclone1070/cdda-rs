@@ -81,6 +81,7 @@ pub mod sounds;
 pub mod teleport;
 pub mod timed_events;
 pub mod vehicle_damage;
+pub mod vehicles;
 pub mod vomit;
 pub mod traits;
 pub mod spell_area;
