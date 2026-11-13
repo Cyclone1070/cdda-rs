@@ -236,6 +236,9 @@ per square of a materialised reality bubble. The interface (`.at(x, y)`,
   must land behind the same interface.
 - Entity order inside one square is spawn order, so iterating a square is
   deterministic. Determinism is a requirement, not an accident.
+- A thing that spans squares (a vehicle) is listed **on every square it occupies**, once per
+  square. Its `Position` is its origin and its squares are derived from its parts, so moving it
+  moves every entry on the next rebuild.
 - The index is derived, so it is never saved, and it is never consulted to decide
   whether something exists; the store decides that.
 
@@ -351,7 +354,7 @@ system selects it.
 
 | Invariant | If broken |
 |---|---|
-| Every entity with `Position` appears exactly once in the index | Ghost entities, invisible walls, items that cannot be picked up |
+| Every entity with `Position` appears at its own square, and a vehicle at every square its parts stand on | Ghost entities, invisible walls, items that cannot be picked up |
 | No component holds world state that the store does not hold | Two sources of truth that drift |
 | Index order is deterministic | Saves and bug reports stop being reproducible |
 | Content types never change at runtime | Every instance of a kind changes at once |

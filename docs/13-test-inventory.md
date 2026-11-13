@@ -2010,3 +2010,10 @@ panics sat in `monster_registry`, and a private `emission_qty` had no caller. Ea
 the shape is the reference's (a data struct with four booleans, a transcribed Bresenham chain, the exact-number comparisons a corpus gate makes). The cause was the one the
 testing plan already names: `python3 tools/remote_test.py` does not run clippy, and the runs that did were piped, so the exit status was never read. Clippy is now named in
 every round's receipt and runs in 9 s from a warm cache.
+
+**Round 1507 put the vehicle in the square index.** A vehicle that no square query can find is one the map rules cannot meet - collision, boarding, cargo and `veh_at` all
+start from "what stands here". The index now derives a vehicle's squares from its parts: `vehicle::get_points` takes one square per distinct mount, a part's square is
+`pos_abs() + precalc[0]`, and a placed vehicle's pivot is the origin at facing 0, where that translation is the mount itself. The 2-seater helicopter is 71 parts on 24
+squares; the gate pins the count, three squares by name, that a square past the tail answers nothing, and both directions of the index (every occupied square holds it, and
+nowhere else does). `spawn` records the same entries as it builds, so a run-time vehicle is visible without a rebuild. **Rotation is named as the gap**: `precalc_mounts` is
+not transcribed and every port-built vehicle faces 0, the reference's own default when a mapgen entry names no rotation.

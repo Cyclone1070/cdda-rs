@@ -203,10 +203,15 @@ impl PositionIndex {
         let mut squares: BTreeMap<(i32, i32, i32), Vec<Entity>> = BTreeMap::new();
         let mut query = world.query::<(Entity, &Position)>();
         for (entity, position) in query.iter(world) {
-            squares
-                .entry((position.x, position.y, position.z))
-                .or_default()
-                .push(entity);
+            let origin = (position.x, position.y, position.z);
+            squares.entry(origin).or_default().push(entity);
+            // A vehicle is found on **every square its parts stand on**, not only at its origin: one entry per square, and the origin is already counted.
+            for occupied in crate::vehicles::occupied_squares(world, entity) {
+                if occupied == origin {
+                    continue;
+                }
+                squares.entry(occupied).or_default().push(entity);
+            }
         }
         *singletons::index_mut(world) = Self { squares };
     }

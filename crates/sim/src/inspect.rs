@@ -72,6 +72,7 @@ named_components! {
     "Furniture" => crate::square::Furniture,
     "Field" => crate::Field,
     "GroundItem" => crate::GroundItem,
+    "Vehicle" => crate::vehicles::Vehicle,
     "FireFacts" => crate::fire_facts::FireFacts,
     "Radiation" => crate::radiation::Radiation,
     "Scent" => crate::scent::Scent,

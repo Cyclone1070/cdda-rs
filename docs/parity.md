@@ -45,6 +45,25 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle stands on every square its parts do (round 1507)
+
+A vehicle was one entity that no square query could find. The index now derives the squares from the parts, and a square answers the vehicle without scanning.
+
+| Piece | Reference | Port |
+|---|---|---|
+what a vehicle occupies | `vehicle::get_points` (`vehicle.cpp:8186-8204`): one square per **distinct mount**, through `abs_part_pos` | `vehicles::occupied_squares` - the origin plus each part's mount, deduplicated and sorted |
+a part's square | `abs_part_pos = pos_abs() + precalc[0]` (`vehicle.cpp:3772-3775`) | `Position + (part.x, part.y)` |
+why that is the origin plus the mount | a placed vehicle starts with its pivot at the origin (`mapgen.cpp:7546-7550`), and a placement with no rotation faces 0 (`mapgen.cpp:3316-3320`), where `coord_translate` moves nothing | the port builds at facing 0; **rotation is named, not invented** below |
+"what vehicle is on this square" | `map::veh_at` (`map.cpp:1340-1356`), answered by the level's vehicle cache | `vehicles::at`, answered by the **one** `PositionIndex` |
+a vehicle in the index | the level's vehicle cache, rebuilt when vehicles change | `PositionIndex::rebuild` inserts the origin **and** every part square; `spawn` records the same entries at run time |
+
+The 2-seater helicopter is **71 parts on 24 squares**; the gate pins the count, three squares by name, and that a square one column past the tail answers nothing. Both index
+directions are pinned: every occupied square lists the vehicle, and a walk over the area finds it nowhere else. The square report names the vehicle too, so a debugging dump of
+its origin is readable.
+
+**Named gap: rotation.** `precalc_mounts` and `coord_translate` are not transcribed. Every vehicle the port builds faces 0, which is the reference's default for a mapgen entry
+that names no `rotation`, so nothing the port places is turned - but a vehicle that has to be turned will need those two rules first.
+
 ## A vehicle is one entity holding its parts (round 1505)
 
 P8's data had a shape and no inhabitant. A vehicle is now an **entity** with a `Vehicle` component and a `Position`, built from the reference's own blueprint.

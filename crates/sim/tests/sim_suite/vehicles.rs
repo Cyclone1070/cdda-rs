@@ -3,6 +3,9 @@
 //! Reference: `vehicle` (`vehicle.h`) holds `std::vector<vehicle_part>` and answers `parts_at_relative( mount, use_variant )` - "what is in this square" - over that list.
 //! This gate builds the reference's 2-seater helicopter from `corpus/vehicles.json`, checks that its 71 placements became 71 parts with the store's own durability as their hit
 //! points, breaks one of them with the damage rule, and asks what stands in the origin square.
+//!
+//! It also checks **where the vehicle stands**: every distinct mount its parts occupy becomes a square in the one derived index, so a square query answers the vehicle
+//! without ever scanning the vehicles.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
@@ -75,5 +78,98 @@ fn a_hit_that_reaches_the_hit_points_breaks_the_part_and_leaves_it_in_place() {
         cdda_sim::vehicles::parts_at(&world, vehicle, 0, 0).len(),
         built.parts.iter().filter(|part| (part.x, part.y) == (0, 0)).count(),
         "and it still occupies its square"
+    );
+}
+
+#[test]
+fn a_vehicle_stands_on_every_square_its_parts_occupy() {
+    let (mut world, vehicle) = world_with_the_helicopter();
+    cdda_sim::PositionIndex::rebuild(&mut world);
+
+    let occupied = cdda_sim::vehicles::occupied_squares(&world, vehicle);
+    assert_eq!(
+        occupied.len(),
+        24,
+        "**71 parts stand on 24 distinct squares**, which is what the dump's mounts say"
+    );
+    for square in [(10, 10, 0), (5, 10, 0), (11, 9, 0)] {
+        assert!(
+            occupied.contains(&square),
+            "the blueprint puts a part at {square:?}: {occupied:?}"
+        );
+    }
+    assert!(
+        !occupied.contains(&(12, 10, 0)),
+        "nothing stands one column past the tail"
+    );
+
+    let index = cdda_sim::singletons::index(&world).expect("the index was rebuilt");
+    let mut listed = Vec::new();
+    for z in -1..=1 {
+        for y in 0..=20 {
+            for x in 0..=20 {
+                if index.at_level(x, y, z).contains(&vehicle) {
+                    listed.push((x, y, z));
+                }
+            }
+        }
+    }
+    let mut expected = occupied.clone();
+    expected.sort_unstable();
+    listed.sort_unstable();
+    assert_eq!(
+        listed, expected,
+        "**the index lists the vehicle on exactly the squares it stands on, once each**"
+    );
+}
+
+#[test]
+fn a_square_answers_which_vehicle_stands_on_it() {
+    let (mut world, vehicle) = world_with_the_helicopter();
+    // `spawn` records the vehicle as it builds it, so a vehicle made at run time is visible to a square query without a rebuild.
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (10, 10, 0)),
+        Some(vehicle),
+        "the origin square holds the frame"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (5, 10, 0)),
+        Some(vehicle),
+        "the tail stands at mount (-5, 0)"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (12, 10, 0)),
+        None,
+        "a square past the tail answers nothing"
+    );
+
+    // Something else on a square is not a vehicle: the answer filters by what the thing is, not by being on the square.
+    let beside = world
+        .spawn((
+            cdda_sim::Position { x: 12, y: 10, z: 0 },
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(7),
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+        ))
+        .id();
+    cdda_sim::singletons::index_mut(&mut world).insert(beside, (12, 10, 0));
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (12, 10, 0)),
+        None,
+        "**an item is not a vehicle**, even where one stands beside a vehicle"
+    );
+
+    let report = cdda_sim::inspect::what_is_at(&world, (10, 10, 0));
+    let Some((_, names)) = report.iter().find(|(entity, _)| *entity == vehicle) else {
+        panic!("the vehicle is on its origin square");
+    };
+    assert!(
+        names.iter().any(|name| name.starts_with("Vehicle")),
+        "the square report names the vehicle instead of a question mark: {names:?}"
     );
 }
