@@ -59,6 +59,11 @@ pub struct VehiclePart {
     pub fuel: String,
     /// How much of it, in charges - the reference's `vehicle_part::ammo_remaining` (`vehicle_part.cpp:307-317`).
     pub charges: i32,
+    /// Whether the part is switched on - the reference's `vehicle_part::enabled`, the switch `start_engine` flips for an engine and every other part ignores.
+    pub enabled: bool,
+    /// The fuel this engine last chose, when it can burn more than one - the reference's `vehicle_part::ammo_pref` (`vehicle_part.cpp:232-238`). Empty means "the type the
+    /// spec names", which is exactly what the reference's `fuel_current` falls back to.
+    pub fuel_preference: String,
 }
 
 /// A creature's place in a vehicle: which vehicle, and which of its parts the creature sits on.
@@ -115,6 +120,8 @@ pub fn spawn_facing(
             open: false,
             fuel: String::new(),
             charges: 0,
+            enabled: false,
+            fuel_preference: String::new(),
         });
     }
     let entity = world
@@ -330,6 +337,106 @@ pub fn open_or_close(world: &mut World, vehicle: Entity, index: usize, opening: 
     true
 }
 
+/// The fuel an engine is currently set to burn - the reference's `vehicle_part::fuel_current` (`vehicle_part.cpp:232-238`): the fuel it last chose, or else the type its
+/// spec names. Returns the empty string for a part that is not an engine.
+#[must_use]
+pub fn fuel_current(world: &World, vehicle: Entity, index: usize) -> String {
+    let Some(part) = world.get::<Vehicle>(vehicle).and_then(|built| built.parts.get(index)) else {
+        return String::new();
+    };
+    if !part.fuel_preference.is_empty() {
+        return part.fuel_preference.clone();
+    }
+    spec_of(world, &part.part).map_or_else(String::new, |spec| spec.fuel_type.clone())
+}
+
+/// How much fuel an engine can draw on right now - the reference's `vehicle::engine_fuel_left` (`vehicle.cpp:3924-3927`), which asks `fuel_left` for the fuel the engine is
+/// currently set to burn.
+#[must_use]
+pub fn engine_fuel_left(world: &World, vehicle: Entity, index: usize) -> i64 {
+    fuel_left(world, vehicle, &fuel_current(world, vehicle, index))
+}
+
+/// Whether an engine is switched on - the reference's `vehicle::is_engine_on` (`vehicle.cpp:1061-1064`): available **and** enabled. A broken part is not available, so a broken
+/// engine that was left switched on reads as off.
+#[must_use]
+pub fn is_engine_on(world: &World, vehicle: Entity, index: usize) -> bool {
+    world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+        .is_some_and(|part| !part.broken && part.enabled)
+}
+
+/// Makes an engine burn a fuel it can use - the reference's `vehicle::auto_select_fuel` (`vehicle_use.cpp:627-643`).
+///
+/// Three steps, in the reference's order: a part that is not an available engine cannot select anything; an engine whose **spec fuel type is none** (`null`) or that already has
+/// fuel of its current type needs no choice; otherwise the engine takes the **first** of its `fuel_opts` the vehicle actually has, and remembers it. The answer is whether the
+/// engine can be started at all, which is why `start_engine` calls this rather than a separate check.
+pub fn auto_select_fuel(world: &mut World, vehicle: Entity, index: usize) -> bool {
+    let Some(part) = world.get::<Vehicle>(vehicle).and_then(|built| built.parts.get(index)) else {
+        return false;
+    };
+    let (broken, name) = (part.broken, part.part.clone());
+    let Some(spec) = spec_of(world, &name) else {
+        return false;
+    };
+    if broken || !spec.flags.contains("ENGINE") {
+        return false;
+    }
+    if spec.fuel_type == "null" || engine_fuel_left(world, vehicle, index) > 0 {
+        return true;
+    }
+    let Some(option) = spec
+        .fuel_opts
+        .iter()
+        .find(|fuel| fuel_left(world, vehicle, fuel) > 0)
+        .cloned()
+    else {
+        return false;
+    };
+    if let Some(mut built) = world.get_mut::<Vehicle>(vehicle)
+        && let Some(part) = built.parts.get_mut(index)
+    {
+        part.fuel_preference = option;
+        return true;
+    }
+    false
+}
+
+/// Turns an engine on or off - the reference's three-argument `vehicle::start_engine` (`vehicle.cpp:5412-5431`), the switch half of starting.
+///
+/// Turning **off** always succeeds. Turning **on** flips the switch, asks `auto_select_fuel` for fuel, and flips it back when there is none - so a failed start never leaves an
+/// engine that looks on. Asking for the state it already has answers `false` and changes nothing.
+///
+/// **Named, not guessed:** the reference's single-argument `start_engine` (`vehicle_use.cpp:645-...`) then checks the driver's limbs and size, immobilisers, starter motors and
+/// battery charge, fuel pumps, and rolls a chance of failure against engine damage, with sounds and backfires. The port has no driver, faults, battery discharge or start sounds yet,
+/// so those checks are not here; `auto_select_fuel` is the one start condition that needs only the vehicle.
+pub fn start_engine(world: &mut World, vehicle: Entity, index: usize, turn_on: bool) -> bool {
+    let Some(part) = world.get::<Vehicle>(vehicle).and_then(|built| built.parts.get(index)) else {
+        return false;
+    };
+    if part.enabled == turn_on {
+        return false;
+    }
+    if let Some(mut built) = world.get_mut::<Vehicle>(vehicle)
+        && let Some(part) = built.parts.get_mut(index)
+    {
+        part.enabled = turn_on;
+    }
+    if !turn_on {
+        return true;
+    }
+    if auto_select_fuel(world, vehicle, index) {
+        return true;
+    }
+    if let Some(mut built) = world.get_mut::<Vehicle>(vehicle)
+        && let Some(part) = built.parts.get_mut(index)
+    {
+        part.enabled = false;
+    }
+    false
+}
+
 /// How much fuel of a type the vehicle carries - the reference's `vehicle::fuel_left` (`vehicle.cpp:3861-3925`).
 ///
 /// Two branches, as the reference has two: a **battery** is summed over the parts that are batteries, and every other fuel over the parts that can hold fuel and carry that
@@ -482,6 +589,8 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
             open: false,
             fuel: String::new(),
             charges: 0,
+            enabled: false,
+            fuel_preference: String::new(),
         });
         built.parts.len() - 1
     };
@@ -623,8 +732,9 @@ pub fn damage(
     outcome
 }
 
-/// The spec of one part of one vehicle, copied out of the world's store.
-fn part_spec(world: &World, vehicle: Entity, index: usize) -> Option<cdda_content::vehicles::PartSpec> {
+/// The spec of one part of one vehicle, copied out of the world's store - the reference's `vehicle_part::info()`.
+#[must_use]
+pub fn part_spec(world: &World, vehicle: Entity, index: usize) -> Option<cdda_content::vehicles::PartSpec> {
     let store = crate::singletons::holder::<TheVehicleStore>(world)?;
     let name = world
         .get::<Vehicle>(vehicle)

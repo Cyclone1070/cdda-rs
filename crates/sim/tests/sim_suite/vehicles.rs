@@ -901,6 +901,41 @@ fn at_of(entry: &cdda_json::Object) -> (i32, i32) {
     (coordinate(values, 0), coordinate(values, 1))
 }
 
+/// The fuel options of one placed part, as strings.
+fn entry_fuel_opts(entry: &cdda_json::Object) -> Vec<String> {
+    let Some(cdda_json::Value::Array(options)) = entry.get("fuel_opts") else {
+        panic!("fuel_opts is an array");
+    };
+    options
+        .iter()
+        .map(|option| {
+            let cdda_json::Value::Str(text) = option else {
+                panic!("a fuel option is a string");
+            };
+            text.clone()
+        })
+        .collect()
+}
+
+/// Where the reference placed the helicopter.
+fn placed_origin() -> (i32, i32, i32) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_placement.json");
+    let bytes = std::fs::read(path).expect("the placement recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(origin)) = root.get("origin") else {
+        panic!("an origin");
+    };
+    (
+        coordinate(origin, 0),
+        coordinate(origin, 1),
+        coordinate(origin, 2),
+    )
+}
+
 /// A string field of one JSON object.
 fn text_of(entry: &cdda_json::Object, key: &str) -> String {
     match entry.get(key) {
@@ -947,6 +982,7 @@ fn every_placed_part_says_what_it_can_hold_and_what_fuel_it_uses() {
     let materials = store();
     let mut stores = 0;
     let mut batteries = 0;
+    let mut engines = 0;
     // The store is keyed by id and the recording is in blueprint order, so compare through the blueprint's placements.
     let blueprint = materials
         .prototypes
@@ -986,9 +1022,20 @@ fn every_placed_part_says_what_it_can_hold_and_what_fuel_it_uses() {
         if spec.battery {
             batteries += 1;
         }
+        assert_eq!(
+            spec.fuel_opts,
+            entry_fuel_opts(entry),
+            "**{} can burn exactly the reference's fuels, in its order**",
+            placement.part
+        );
+        if spec.flags.contains("ENGINE") {
+            engines += 1;
+            assert!(spec.fuel_opts.len() >= 2, "{} is multi-fuel", placement.part);
+        }
     }
     assert!(stores >= 3, "the helicopter's tanks are fuel stores: {stores}");
     assert!(batteries >= 1, "and it carries a battery: {batteries}");
+    assert_eq!(engines, 2, "the helicopter has two engines");
 }
 
 #[test]
@@ -996,21 +1043,7 @@ fn a_vehicle_says_how_much_fuel_of_a_type_it_carries() {
     use cdda_sim::vehicles::{damage, fuel_left, spawn_facing, Vehicle};
 
     let placed = placed_parts();
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus/vehicle_placement.json");
-    let bytes = std::fs::read(path).expect("the placement recording");
-    let value = cdda_json::parse(&bytes).expect("valid json");
-    let cdda_json::Value::Object(root) = value else {
-        panic!("the recording is an object");
-    };
-    let Some(cdda_json::Value::Array(origin)) = root.get("origin") else {
-        panic!("an origin");
-    };
-    let origin = (
-        coordinate(origin, 0),
-        coordinate(origin, 1),
-        coordinate(origin, 2),
-    );
+    let origin = placed_origin();
 
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
@@ -1078,5 +1111,173 @@ fn a_vehicle_says_how_much_fuel_of_a_type_it_carries() {
         fuel_left(&world, vehicle, "gasoline"),
         gasoline,
         "**a broken tank still holds its fuel**"
+    );
+}
+
+/// The helicopter with the reference's fuel contents copied onto it, as the placement dump records them.
+fn fueled_helicopter() -> (World, Entity) {
+    use cdda_sim::vehicles::{spawn_facing, Vehicle};
+
+    let placed = placed_parts();
+    let origin = placed_origin();
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "2seater2", origin, 0.0).expect("the helicopter builds");
+    {
+        let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+        for (index, entry) in placed.iter().enumerate() {
+            let part = built.parts.get_mut(index).expect("part {index} exists");
+            part.fuel = text_of(entry, "ammo");
+            part.charges = int_of(entry, "charges");
+        }
+    }
+    (world, vehicle)
+}
+
+/// Puts a fuel in the vehicle's tanks, replacing whatever they held - the harness's `ammo_set` for a single fuel.
+fn fill_tanks(world: &mut World, vehicle: Entity, fuel: &str, charges: i32) {
+    use cdda_sim::vehicles::{part_spec, Vehicle};
+
+    let tanks: Vec<usize> = {
+        let built = world.get::<Vehicle>(vehicle).expect("a vehicle");
+        built
+            .parts
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| {
+                part_spec(world, vehicle, *index).is_some_and(|spec| spec.fuel_store && !spec.battery)
+            })
+            .map(|(index, _)| index)
+            .collect()
+    };
+    let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+    for index in tanks {
+        let part = built.parts.get_mut(index).expect("a tank");
+        fuel.clone_into(&mut part.fuel);
+        part.charges = charges;
+    }
+}
+
+#[test]
+fn an_engine_starts_only_when_it_has_fuel() {
+    use cdda_sim::vehicles::{damage, engine_fuel_left, fuel_current, is_engine_on, start_engine, Vehicle};
+
+    let (mut world, vehicle) = fueled_helicopter();
+    let engine = part_index(&world, vehicle, -2, -1, "engine_turbine_small").expect("the engine");
+    assert!(!is_engine_on(&world, vehicle, engine), "an engine starts off");
+
+    assert!(
+        start_engine(&mut world, vehicle, engine, true),
+        "**the tanks hold 300 units of its fuel, so it starts**"
+    );
+    assert!(is_engine_on(&world, vehicle, engine), "and it reads as on");
+    assert_eq!(fuel_current(&world, vehicle, engine), "gasoline");
+    assert_eq!(engine_fuel_left(&world, vehicle, engine), 300, "its fuel is the three full tanks");
+
+    assert!(
+        !start_engine(&mut world, vehicle, engine, true),
+        "**asking for the state it already has changes nothing and answers no**"
+    );
+    assert!(start_engine(&mut world, vehicle, engine, false), "turning it off always works");
+    assert!(!is_engine_on(&world, vehicle, engine));
+
+    // A broken engine cannot start, even full of fuel.
+    damage(&mut world, vehicle, engine, 10_000, "bash", true);
+    {
+        let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+        built.parts.get_mut(engine).expect("the engine").enabled = true;
+    }
+    assert!(
+        !is_engine_on(&world, vehicle, engine),
+        "**a broken engine reads as off even with its switch left on**"
+    );
+    world
+        .get_mut::<Vehicle>(vehicle)
+        .expect("a vehicle")
+        .parts
+        .get_mut(engine)
+        .expect("the engine")
+        .enabled = false;
+    assert!(
+        !start_engine(&mut world, vehicle, engine, true),
+        "**a broken engine does not start**"
+    );
+    {
+        let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+        let part = built.parts.get_mut(engine).expect("the engine");
+        part.hp = 400;
+        part.broken = false;
+    }
+    assert!(
+        start_engine(&mut world, vehicle, engine, true),
+        "**a repaired engine starts again**"
+    );
+    assert!(start_engine(&mut world, vehicle, engine, false));
+
+    // Out of fuel: the switch is flipped back, so nothing looks on.
+    fill_tanks(&mut world, vehicle, "gasoline", 0);
+    assert!(
+        !start_engine(&mut world, vehicle, engine, true),
+        "**an engine with no fuel does not start**"
+    );
+    assert!(
+        !is_engine_on(&world, vehicle, engine),
+        "**a failed start leaves the switch off**"
+    );
+}
+
+#[test]
+fn an_engine_takes_the_first_fuel_it_can_burn() {
+    use cdda_sim::vehicles::{engine_fuel_left, fuel_current, part_spec, start_engine, Vehicle};
+
+    let (mut world, vehicle) = fueled_helicopter();
+    let engine = part_index(&world, vehicle, -2, -1, "engine_turbine_small").expect("the engine");
+    let options = part_spec(&world, vehicle, engine)
+        .expect("the engine's spec")
+        .fuel_opts
+        .clone();
+    assert_eq!(
+        options,
+        vec![
+            "gasoline".to_owned(),
+            "diesel".to_owned(),
+            "lamp_oil".to_owned(),
+            "jp8".to_owned(),
+            "motor_oil".to_owned(),
+            "avgas".to_owned(),
+            "biodiesel".to_owned()
+        ],
+        "the reference's turbine burns seven fuels, in this order"
+    );
+
+    // Diesel only: its own type is dry, so it takes the first option that is not.
+    fill_tanks(&mut world, vehicle, "diesel", 100);
+    assert!(start_engine(&mut world, vehicle, engine, true), "it starts on diesel");
+    assert_eq!(
+        fuel_current(&world, vehicle, engine),
+        "diesel",
+        "**the engine takes the first fuel it can burn**"
+    );
+    assert_eq!(engine_fuel_left(&world, vehicle, engine), 300);
+
+    // Gasoline again: the choice is made afresh on each start, not remembered forever.
+    assert!(start_engine(&mut world, vehicle, engine, false));
+    fill_tanks(&mut world, vehicle, "gasoline", 100);
+    assert!(start_engine(&mut world, vehicle, engine, true), "it starts on gasoline");
+    assert_eq!(
+        fuel_current(&world, vehicle, engine),
+        "gasoline",
+        "**a fuel that is gone is not the fuel it burns**"
+    );
+    assert!(
+        world
+            .get::<Vehicle>(vehicle)
+            .expect("a vehicle")
+            .parts
+            .get(engine)
+            .expect("the engine")
+            .fuel_preference
+            == "gasoline",
+        "and it remembers the type it took"
     );
 }

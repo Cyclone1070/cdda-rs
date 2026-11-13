@@ -75,6 +75,9 @@ pub struct PartSpec {
     pub fuel_store: bool,
     /// Whether the part is a battery, which `fuel_left` sums through its own branch.
     pub battery: bool,
+    /// The fuels an engine can burn, **in the order it tries them** - the reference's `engine_info->fuel_opts` (`veh_type.h:132`), which `finalize` fills from
+    /// `fuel_type` when the JSON names none (`veh_type.cpp:650-652`). Empty for everything that is not an engine.
+    pub fuel_opts: Vec<String>,
 }
 
 /// The flags that take a gun out of the running for a turret part.
@@ -164,6 +167,18 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         Some(Value::Int(value)) => Ok(*value),
         _ => Err(format!("a part's {key} is not a number")),
     };
+    let mut fuel_opts = Vec::new();
+    match object.get("fuel_opts") {
+        Some(Value::Array(items)) => {
+            for item in items {
+                match item {
+                    Value::Str(fuel) => fuel_opts.push(fuel.clone()),
+                    _ => return Err("a part's fuel option is not a string".to_owned()),
+                }
+            }
+        }
+        _ => return Err("a part has no fuel_opts".to_owned()),
+    }
     let mut flags = std::collections::BTreeSet::new();
     match object.get("flags") {
         Some(Value::Array(items)) => {
@@ -206,6 +221,7 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         fuel_type: text("fuel_type")?,
         fuel_store: number("fuel_store")? != 0,
         battery: number("battery")? != 0,
+        fuel_opts,
     })
 }
 

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 02:59:57
-@@ -0,0 +1,8128 @@
++++ oracle/src/src/harness.cpp	2026-11-14 04:41:17
+@@ -0,0 +1,8152 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1094,6 +1094,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::string fuel_type;
 +        bool fuel_store = false;
 +        bool battery = false;
++        std::vector<std::string> fuel_opts;
 +        std::vector<std::string> flags;
 +        std::vector<std::pair<std::string, float>> damage_reduction;
 +    };
@@ -1119,6 +1120,13 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        entry.fuel_store = base_probe.is_watertight_container() || base_probe.is_magazine() ||
 +                           part.has_flag( "REACTOR" );
 +        entry.battery = base_probe.is_battery();
++        // An engine's usable fuels, in the order `auto_select_fuel` tries them (`vehicle_use.cpp:627-643`). `finalize` fills a single entry from `fuel_type` when the
++        // JSON names none (`veh_type.cpp:650-652`), so a real engine can carry seven, as the helicopter's turbines do.
++        if( part.engine_info ) {
++            for( const itype_id &option : part.engine_info->fuel_opts ) {
++                entry.fuel_opts.push_back( option.str() );
++            }
++        }
 +        for( const std::string &flag : part.get_flags() ) {
 +            entry.flags.push_back( flag );
 +        }
@@ -1146,7 +1154,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    []( const dumped_prototype &lhs, const dumped_prototype &rhs ) {
 +        return lhs.id < rhs.id;
 +    } );
-+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":4,\n\"parts\":[\n" );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":5,\n\"parts\":[\n" );
 +    bool first = true;
 +    for( const dumped_part &part : parts ) {
 +        std::fprintf( out, "%s{\"id\":", first ? "" : ",\n" );
@@ -1162,6 +1170,13 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out, ",\"fuel_type\":\"%s\"", escaped( part.fuel_type ).c_str() );
 +        std::fprintf( out, ",\"fuel_store\":%d,\"battery\":%d", part.fuel_store ? 1 : 0,
 +                      part.battery ? 1 : 0 );
++        std::fprintf( out, ",\"fuel_opts\":[" );
++        bool first_fuel = true;
++        for( const std::string &option : part.fuel_opts ) {
++            std::fprintf( out, "%s\"%s\"", first_fuel ? "" : ",", escaped( option ).c_str() );
++            first_fuel = false;
++        }
++        std::fprintf( out, "]" );
 +        std::fprintf( out, ",\"flags\":[" );
 +        bool first_flag = true;
 +        for( const std::string &flag : part.flags ) {
@@ -1305,12 +1320,21 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const tripoint_bub_ms at = vpr.pos_bub( here );
 +        std::fprintf( out,
 +                      "%s{\"mount\":[%d,%d],\"at\":[%d,%d],\"fuel_type\":\"%s\",\"fuel_store\":%d,\"tank\":%d,"
-+                      "\"battery\":%d,\"ammo\":\"%s\",\"charges\":%d}",
++                      "\"battery\":%d,\"ammo\":\"%s\",\"charges\":%d",
 +                      first ? "" : ",", vpr.mount_pos().x(), vpr.mount_pos().y(), at.x(), at.y(),
 +                      vpr.part().info().fuel_type.str().c_str(), vpr.part().is_fuel_store( false ) ? 1 : 0,
 +                      vpr.part().is_tank() ? 1 : 0, vpr.part().is_battery() ? 1 : 0,
 +                      vpr.part().ammo_current().str().c_str(),
 +                      static_cast<int>( vpr.part().ammo_remaining() ) );
++        std::fprintf( out, ",\"fuel_opts\":[" );
++        bool first_fuel = true;
++        if( vpr.info().engine_info ) {
++            for( const itype_id &option : vpr.info().engine_info->fuel_opts ) {
++                std::fprintf( out, "%s\"%s\"", first_fuel ? "" : ",", escaped( option.str() ).c_str() );
++                first_fuel = false;
++            }
++        }
++        std::fprintf( out, "]}" );
 +        first = false;
 +    }
 +    std::fprintf( out, "]}\n" );

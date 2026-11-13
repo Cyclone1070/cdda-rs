@@ -45,6 +45,31 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## An engine starts only when it has fuel (round 1517)
+
+Fuel could be counted, and nothing burned it. The switch half of starting is the part of the rule that needs only the vehicle:
+
+| Piece | Reference | Port |
+|---|---|---|
+an engine's switch | `vehicle_part::enabled` and `vehicle::is_engine_on` (`vehicle.cpp:1061-1064`): available **and** enabled | `VehiclePart::enabled`, `is_engine_on` |
+the fuel an engine burns | `vehicle_part::fuel_current` (`vehicle_part.cpp:232-238`): the fuel it last chose, else the type its spec names | `fuel_current` |
+how much of that fuel | `vehicle::engine_fuel_left` (`vehicle.cpp:3924-3927`) | `engine_fuel_left` |
+choosing a fuel | `vehicle::auto_select_fuel` (`vehicle_use.cpp:627-643`): not an available engine, no; spec fuel `none` or current fuel present, yes; otherwise the **first** `fuel_opts` the vehicle has | `auto_select_fuel` |
+flipping the switch | `vehicle::start_engine( vp, turn_on )` (`vehicle.cpp:5412-5431`): off always works; on flips it, starts, and flips it back on failure; asking for the state it has answers no | `start_engine` |
+
+The parts dump is **version 5**: every part names its `fuel_opts`, in the order the reference tries them - `finalize` fills a single entry from `fuel_type` when the JSON names none
+(`veh_type.cpp:650-652`), which is why most engines carry one and the helicopter's turbines carry the reference's seven: gasoline, diesel, lamp_oil, jp8, motor_oil, avgas, biodiesel.
+The placement dump names them too, so all 71 placed parts are compared field for field.
+
+The gates pin the switch (an engine with 300 units of fuel starts; asking again answers no; turning off always works; a broken engine reads as off **even with its switch left on**
+and does not start; a repaired one starts again; a failed start leaves the switch off) and the fuel choice (diesel-only tanks make the turbine take the first option it can burn;
+gasoline-only tanks after that make it take gasoline again, because the choice is made afresh on each start rather than remembered forever). Five mutations were caught: the fuel
+check skipped, the option search broken, the stored preference ignored, the switch not flipped back, and empty `fuel_opts`.
+
+**Named, not guessed:** the reference's single-argument `start_engine` (`vehicle_use.cpp:645-...`) then checks the driver's limbs and size, immobilisers, starter motors and battery
+charge, fuel pumps, and rolls a chance of failure against engine damage, with sounds and backfires. The port has no driver, faults, battery discharge or start sounds yet, so those
+checks are not here; fuel is the one start condition that needs only the vehicle.
+
 ## A vehicle says how much fuel it carries (round 1516)
 
 The engines come next, and an engine needs fuel. The reference answers "how much fuel of this type" with two branches, and the dumps now carry everything they read.

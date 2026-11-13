@@ -2078,3 +2078,10 @@ one square, and square axes swapped). The dump also carries the fuel data the en
 data and pins `fuel_left` for gasoline (three tanks, 300), battery (100), diesel (0), an engine that cannot store fuel (ignored) and a broken tank (still counted). Four mutations
 were caught: the fuel-store filter, the fuel-type comparison, a broken tank dropped and the `battery` flag. **Named**: connected vehicles' batteries with a cable loss, frozen liquid and
 muscle/perpetual fuel, which the port has no inputs for yet.
+
+**Round 1517 ported the engine switch.** `is_engine_on` is the reference's `is_available() && enabled`, and `start_engine(turn_on)` is the switch half of the reference's
+three-argument signature: off always works, on flips the switch, asks `auto_select_fuel` for fuel and flips it back when there is none, and asking for the state it already has answers
+no. `auto_select_fuel` follows the reference's three steps and `fuel_current`/`engine_fuel_left` answer what the engine burns and how much is left. The parts dump went to version 5
+with `fuel_opts` in the reference's order (the turbine's seven), and the placement dump names them too, so all 71 placed parts are compared. The gates pin the switch through fuel,
+repeated starts, breaking, repairing and running dry, and the fuel choice through diesel-only then gasoline-only tanks. Five mutations were caught. **Named**: the reference's
+single-argument start checks the driver's limbs and size, immobilisers, starter and battery, fuel pumps and a damage-based failure roll, none of which the port has.
