@@ -1865,6 +1865,7 @@ fn read_unnamed_effect(object: &cdda_json::Object) -> Option<Effect> {
         .or_else(|| read_copy_var(object))
         .or_else(|| read_alter_timed_events(object))
         .or_else(|| read_set_condition(object))
+        .or_else(|| read_transform_line(object))
         .or_else(|| read_finish_mission(object))
         .or_else(|| read_remove_active_mission(object))
         .or_else(|| read_store_effects(object))
@@ -2211,6 +2212,27 @@ pub fn unreadable_member(entry: &Value) -> String {
     }
 
     descend(entry, 0)
+}
+
+/// Reads a `transform_line` entry, or nothing.
+///
+/// Reference: `f_transform_line` (`npctalk.cpp:4781-4796`): the transform is a `str_or_var`, and both ends are **required** variable objects - a line without them has nowhere
+/// to run.
+fn read_transform_line(object: &cdda_json::Object) -> Option<Effect> {
+    let transform = object.get("transform_line")?;
+    let first = match object.get("first")? {
+        Value::Object(inside) => named_variable(inside)?,
+        _ => return None,
+    };
+    let second = match object.get("second")? {
+        Value::Object(inside) => named_variable(inside)?,
+        _ => return None,
+    };
+    Some(Effect::TransformLine {
+        transform: read_string_source(transform)?,
+        first,
+        second,
+    })
 }
 
 /// Reads a `set_condition` entry.
@@ -2796,6 +2818,18 @@ pub enum Effect {
         max_radius: i32,
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
+    },
+    /// Transforms every square on the line between two points.
+    ///
+    /// Reference: `f_transform_line` (`npctalk.cpp:4781-4796`): the member names a `ter_furn_transform`, and `first`/`second` are **variables holding positions** - the line
+    /// runs between them, and `map::transform_line` (`map.cpp:4802-4811`) applies the transform to each square the walk passes through.
+    TransformLine {
+        /// The transform's id, which the data may give as a variable.
+        transform: StringSource,
+        /// The variable holding the first end.
+        first: (String, String),
+        /// The variable holding the second end.
+        second: (String, String),
     },
     /// Runs programs on the items lying on the map within a radius.
     ///
@@ -3641,6 +3675,7 @@ impl Effect {
             Self::CopyVar { .. } => "copy_var",
             Self::AlterTimedEvents { .. } => "alter_timed_events",
             Self::SetCondition { .. } => "set_condition",
+            Self::TransformLine { .. } => "transform_line",
             Self::FinishMission { .. } => "finish_mission",
             Self::RemoveActiveMission { .. } => "remove_active_mission",
             _ => return None,
@@ -3686,6 +3721,7 @@ impl Effect {
             | Self::SetField { .. }
             | Self::CustomLightLevel { .. }
             | Self::TransformRadius { .. }
+            | Self::TransformLine { .. }
             | Self::GiveAchievement { .. }
             | Self::FurnitureAround { .. }
             | Self::RunInvEocs { .. }

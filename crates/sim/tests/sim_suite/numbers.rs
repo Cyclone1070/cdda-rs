@@ -61,8 +61,8 @@ pub const NOW: Census = Census {
     // **606 after round 1492 read `u_has_camp`**, the last of the dialogue census's refusals: **zero programs now refuse at their first member**.
     // **608 after round 1493 answered `u_is_on_terrain` and `npc_is_character`**, two conditions the census had one member from.
     // **611 after round 1494 answered `u_has_species` and `npc_allies`/`npc_allies_global`**.
-    // **691 after round 1497 taught `read_program` the three spellings of `effect`** (`talk_effect_t::load_effect`): the last member a program was one gap from is `npc_is_underwater`.
-    readable: 691,
+    // **692 of 692 after round 1498 wrote `transform_line`**: every program in the data reads whole, and the refusal map is empty. (`talk_effect_t::load_effect`): the last member a program was one gap from is `npc_is_underwater`.
+    readable: 692,
     ran: 468,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
@@ -80,7 +80,7 @@ pub const NOW: Census = Census {
     // 208 after round 1491: the map-item program reads now and refuses at run, because its only data use is a menu.
     // 209 after round 1493.
     // 206 after round 1495: four programs the stored-condition path used to stop now run.
-    refused_at_run: 223,
+    refused_at_run: 224,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
@@ -96,7 +96,7 @@ pub const NOW: Census = Census {
     // 8 after round 1494.
     // 7 after round 1495.
     // 6 after round 1496: `npc_is_underwater` was the last member a program was one gap from.
-    leaves: 6,
+    leaves: 0,
     // 11 after round 1484: the program that stopped refusing at its `search_data` was one member short of reading, so the gap closed with it.
     // 2 after round 1494: `get_condition` and `npc_is_underwater`.
     // **0 after round 1496**: no program in the data is one member from reading whole.
@@ -116,7 +116,7 @@ pub const NOW: Census = Census {
     // 80 after round 1491.
     // 79 after round 1492.
     // 80 at round 1496: programs whose first unreadable member is inside `effect`, which is the frontier the census now points at.
-    effect_blamed: 1,
+    effect_blamed: 0,
     // 3,228 after round 1489: `has_ammo` is one more condition every one of the data's condition sites can now read.
     // 3,240 after round 1492: `u_has_camp` is one more condition every condition site can read.
     // 3,242 after round 1493: two more conditions every condition site can read.

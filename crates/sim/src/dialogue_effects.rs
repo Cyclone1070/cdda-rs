@@ -2800,6 +2800,7 @@ fn run_store_effect(
         Effect::SetField { .. } => set_field(world, speaker, listener, effect),
         Effect::CustomLightLevel { .. } => custom_light_level(world, speaker, listener, effect),
         Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),
+        Effect::TransformLine { .. } => transform_line(world, speaker, listener, effect),
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
         Effect::SellItem { .. } => sell_item(world, speaker, listener, effect),
@@ -3216,6 +3217,38 @@ fn map_run_item_eocs(world: &mut World, speaker: Entity, listener: Option<Entity
             let _ = crate::eoc_registry::run_ref(world, speaker, Some(item), program, 1);
         }
         crate::dialogue_context::restore(world, speaker, previous);
+    }
+    Applied::Done
+}
+
+/// Transforms every square on the line between two points.
+///
+/// Reference: `f_transform_line` (`npctalk.cpp:4781-4796`) and `map::transform_line` (`map.cpp:4802-4811`): both ends come from variables, the walk is `line_to`, and each
+/// square it passes through gets the transform's rule. The walk **excludes** its first square - `bresenham` reports the squares it moves *to* - which is why the far end changes
+/// and the near end does not.
+fn transform_line(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+    let Effect::TransformLine { transform, first, second } = effect else {
+        return Applied::CannotAnswer;
+    };
+    let Some(named) = crate::conditions::text_of(world, speaker, listener, transform) else {
+        return Applied::CannotAnswer;
+    };
+    // The two ends are variables, and a position is read the way every other position variable is.
+    let read_end = |world: &mut World, (scope, name): &(String, String)| {
+        let holder = crate::conditions::holder_for_scope(world, speaker, listener, scope)?;
+        match crate::dialogue_values::value_of(world, holder, name) {
+            Some(crate::dialogue_values::Value::Position { x, y, z }) => Some((x, y, z)),
+            _ => None,
+        }
+    };
+    let (Some(from), Some(to)) = (read_end(world, first), read_end(world, second)) else {
+        return Applied::CannotAnswer;
+    };
+    if crate::terrain_transform::holder(world).is_none() {
+        return Applied::CannotAnswer;
+    }
+    for square in cdda_core_types::line::line_to_3d([from.0, from.1, from.2], [to.0, to.1, to.2], 0, 0) {
+        let _ = crate::terrain_transform::apply_at(world, &named, (square[0], square[1], square[2]));
     }
     Applied::Done
 }

@@ -45,6 +45,23 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Every program in the data now reads (round 1498)
+
+`transform_line` (`npctalk.cpp:4781-4796`) was the last entry any program was refused for. It transforms the squares on a line between two points.
+
+| Piece | Reference | Port |
+|---|---|---|
+the ends | `read_var_value( first/second )`, two **variables** | the same, through the scope's holder |
+the walk | `line_to( first, second )` (`line.cpp:241-257`) | `core_types::line::line_to_3d`, the same Bresenham, already ported for spell lines |
+what changes | `ter_furn_transform::transform` on each square | `terrain_transform::apply_at`, the table `u_transform_radius` already uses |
+the near end | `bresenham` reports the squares it moves **to** | the same: the far end changes, the near end does not |
+
+**The dialogue census is complete: 692 of 692 programs read whole, zero refusals.** Two rounds ago the census blamed `run_eocs` eleven times and `duration` six; both were symptoms of
+a reader that accepted one spelling of `effect` out of three. What closed the gap was not porting effects but reading the shapes the data writes.
+
+**What is left is run time, not reading**: 224 programs refuse when they run, led by calls to programs that are not installed (52), `u_location_variable` (33), `u_spawn_monster`
+(21) and `mapgen_update` (18). Those are behaviour, and they are the roadmap's remaining work rather than a reader's.
+
 ## A program's effect has three spellings, and the port read one (round 1497)
 
 `talk_effect_t::load_effect` (`npctalk.cpp:8348-8386`) takes a program's `effect` as a **string** (a named string effect), an **object** (one sub-effect) or an **array** of either.

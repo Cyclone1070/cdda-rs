@@ -1954,3 +1954,9 @@ ranking means exactly that. The frontier is the 80 programs whose first unreadab
 (`npctalk.cpp:8348-8386`) also takes a **single object** and a **single string**, and eleven programs wrote the object form - so they were refused whole and the census blamed
 `run_eocs` for two rounds. Both shapes now read as a list of one, pinned by a gate that reads the same program written both ways. The effect now jumps from 612 to **691 of 692
 programs readable**, and the single refusal left is `transform_line`. The census also prints one example entry beside each blamed member now, because a name alone misled it twice.
+
+**Round 1498 closed the dialogue census's reading side.** `transform_line` walks `line_to(first, second)` - the Bresenham already ported for spell lines - and applies a
+`ter_furn_transform` to each square it passes through, with the far end changing and the near end not, exactly as `bresenham` reports the squares it moves *to*. The gate plants a
+line of dirt, transforms it, and checks the four squares on the line, the near end, a square past the far end and a square off the line; a mutation that touches only one square
+fails it. **692 of 692 programs now read whole with zero refusals.** What remains is run time: 224 programs refuse when they run, led by calls to programs that are not installed
+(52), `u_location_variable` (33), `u_spawn_monster` (21) and `mapgen_update` (18).

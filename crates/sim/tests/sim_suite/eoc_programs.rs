@@ -297,9 +297,15 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
         whole, crate::numbers::NOW.readable,
-        "six hundred and ninety-one run whole"
+        "six hundred and ninety-two run whole - every one the data defines"
     );
-    assert_eq!(refused.get("effect"), Some(&crate::numbers::NOW.effect_blamed), "and the effect side is still the bigger refusal");
+    // **Nothing refuses any more.** `effect_blamed` is zero, so the map has no entry to compare against - reading it as `Some(&0)` would be a claim the census cannot make,
+    // and the assertions below this one already say which keys must be absent.
+    assert!(
+        refused.is_empty(),
+        "**the refusal map is empty**: every program the data defines reads whole, so there is no member left to blame"
+    );
+    assert_eq!(refused.len(), crate::numbers::NOW.effect_blamed, "and the counted blame agrees");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
     assert_eq!(
         refused.get("math"),
@@ -947,7 +953,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     );
 
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 691 of them");
+    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 692 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
