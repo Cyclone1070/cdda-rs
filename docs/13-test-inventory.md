@@ -2033,3 +2033,10 @@ the gate refuses a headlight on both and accepts a cable on both. Two **cargo** 
 it, and a windshield still joins it, which proves the refusal is the cargo rule and not a full square. A **mirror** cannot be mounted over an opaque part and an opaque part cannot
 cover a mirror - pinned in both directions, because the refusal comes from whichever part is being installed. **Still named**: the turret-mount rule (one turret mount id exists, so the
 same-id rule already refuses the second and the rule cannot be exercised), engine conflicts, and `requires_flag`. Four mutations were caught, one per rule.
+
+**Round 1510 transcribed the facing rule against the reference's own integers.** `vehicle::coord_translate` advances a `tileray` by a mount's x and offsets it sideways by its y;
+the port now carries that arithmetic in `rotation::TileRay` - direction rounded to hundredths, the Bresenham leftover, the quadrant signs - and the vehicle's facing is a field.
+`--dump-vehicle-rotation` records the reference's own answers for 77 mounts at five facings (385 integers, 45 degrees included), and the port reproduces **all 385**. The vehicle
+gate then lands all 71 parts on the recorded squares at each facing and shows the index lists exactly the distinct squares, so a turned vehicle is found through the one index.
+Four mutations were caught: flipped quadrant signs, the sideways sign, the negative-advance negation, and a vehicle ignoring its own facing. **Still named**:
+`advance_precalc_mounts`, the second precalc slot used mid-move, because movement is not transcribed yet.

@@ -421,3 +421,161 @@ fn cargo_and_opaque_parts_refuse_their_company() {
         "77 = the blueprint's 71 and the six parts that were accepted"
     );
 }
+
+/// One recorded answer: the mount and the square it lands on.
+type FacingSquare = ((i32, i32), (i32, i32));
+
+/// The reference's own `coord_translate` answers at five facings, as `(degrees, [(mount, square)])`.
+///
+/// Written by `--dump-vehicle-rotation` (`oracle/src/src/harness.cpp`), which advances a `tileray` by each mount's x and offsets it by its y - the body of
+/// `vehicle::coord_translate` (`vehicle.cpp:3598-3615`) - over a grid that covers every mount the helicopter has.
+fn recorded_facings() -> Vec<(i32, Vec<FacingSquare>)> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_rotation.json");
+    let bytes = std::fs::read(path).expect("the facing recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(facings)) = root.get("facings") else {
+        panic!("the recording has facings");
+    };
+    facings
+        .iter()
+        .map(|facing| {
+            let cdda_json::Value::Object(entry) = facing else {
+                panic!("a facing is an object");
+            };
+            let degrees = match entry.get("degrees") {
+                Some(cdda_json::Value::Int(degrees)) => {
+                    i32::try_from(*degrees).expect("a small facing")
+                }
+                _ => panic!("a facing has degrees"),
+            };
+            let Some(cdda_json::Value::Array(squares)) = entry.get("squares") else {
+                panic!("a facing has squares");
+            };
+            let list = squares
+                .iter()
+                .map(|square| {
+                    let cdda_json::Value::Object(square) = square else {
+                        panic!("a square is an object");
+                    };
+                    (pair_of(square, "mount"), pair_of(square, "at"))
+                })
+                .collect();
+            (degrees, list)
+        })
+        .collect()
+}
+
+fn pair_of(object: &cdda_json::Object, key: &str) -> (i32, i32) {
+    let Some(cdda_json::Value::Array(values)) = object.get(key) else {
+        panic!("{key} is an array");
+    };
+    let cdda_json::Value::Int(x) = values[0] else {
+        panic!("{key}[0] is an integer");
+    };
+    let cdda_json::Value::Int(y) = values[1] else {
+        panic!("{key}[1] is an integer");
+    };
+    (
+        i32::try_from(x).expect("a small coordinate"),
+        i32::try_from(y).expect("a small coordinate"),
+    )
+}
+
+#[test]
+fn a_facing_turns_a_mount_the_way_the_reference_turns_it() {
+    use cdda_sim::rotation::coord_translate;
+
+    let facings = recorded_facings();
+    assert_eq!(facings.len(), 5, "the recording covers five facings");
+    let mut compared = 0;
+    for (degrees, squares) in &facings {
+        assert_eq!(squares.len(), 77, "11 x 7 mounts at {degrees} degrees");
+        for (mount, at) in squares {
+            assert_eq!(
+                coord_translate(f64::from(*degrees), (0, 0), *mount),
+                *at,
+                "**mount {mount:?} lands on {at:?} at {degrees} degrees**"
+            );
+            compared += 1;
+        }
+    }
+    assert_eq!(compared, 385, "5 facings x 77 mounts, every pair compared");
+}
+
+#[test]
+fn a_turned_vehicle_stands_on_the_turned_squares_and_the_index_lists_them() {
+    use cdda_sim::vehicles::{occupied_squares, part_squares, spawn_facing, Vehicle};
+
+    let facings = recorded_facings();
+    let mut compared = 0;
+    for (degrees, squares) in &facings {
+        let mut world = World::new();
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = spawn_facing(&mut world, "2seater2", (10, 10, 0), f64::from(*degrees))
+            .expect("the helicopter builds at every facing");
+        cdda_sim::PositionIndex::rebuild(&mut world);
+
+        let built = world.get::<Vehicle>(vehicle).expect("a vehicle").clone();
+        let recorded: std::collections::BTreeMap<(i32, i32), (i32, i32)> = squares
+            .iter()
+            .map(|(mount, at)| (*mount, *at))
+            .collect();
+        let port_squares = part_squares(&world, vehicle);
+        assert_eq!(port_squares.len(), built.parts.len(), "one square per part");
+        for (index, part) in built.parts.iter().enumerate() {
+            let Some(wanted) = recorded.get(&(part.x, part.y)) else {
+                panic!("the recording covers mount ({}, {})", part.x, part.y);
+            };
+            let Some(got) = port_squares.get(index) else {
+                panic!("part {index} has a square");
+            };
+            assert_eq!(
+                (got.0 - 10, got.1 - 10),
+                *wanted,
+                "**part {index} at mount ({}, {}) lands on its recorded square at {degrees} degrees**",
+                part.x,
+                part.y
+            );
+            compared += 1;
+        }
+
+        let mut listed = Vec::new();
+        let index = cdda_sim::singletons::index(&world).expect("the index was rebuilt");
+        for z in -1..=1 {
+            for y in 0..=24 {
+                for x in 0..=24 {
+                    if index.at_level(x, y, z).contains(&vehicle) {
+                        listed.push((x, y, z));
+                    }
+                }
+            }
+        }
+        let mut expected: Vec<(i32, i32, i32)> = built
+            .parts
+            .iter()
+            .map(|part| {
+                let (x, y) = recorded
+                    .get(&(part.x, part.y))
+                    .expect("the recording covers every mount");
+                (10 + x, 10 + y, 0)
+            })
+            .collect();
+        expected.sort_unstable();
+        expected.dedup();
+        listed.sort_unstable();
+        assert_eq!(
+            listed, expected,
+            "**the index lists exactly the squares the turned parts stand on**"
+        );
+        assert_eq!(
+            occupied_squares(&world, vehicle).len(),
+            expected.len(),
+            "and the occupancy query agrees with the index"
+        );
+    }
+    assert_eq!(compared, 355, "5 facings x 71 parts, every part compared");
+}

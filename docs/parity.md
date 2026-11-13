@@ -45,6 +45,28 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A facing turns every mount (round 1510)
+
+The port derived a vehicle's squares from its mounts untouched, and named rotation as the gap. The reference's rule is a `tileray` - a line iterator - driven by `coord_translate`, and
+it is now transcribed to the integer.
+
+| Piece | Reference | Port |
+|---|---|---|
+the transform | `vehicle::coord_translate` (`vehicle.cpp:3598-3615`): advance a ray by `mount.x`, offset sideways by `mount.y` | `rotation::coord_translate` |
+the ray | `tileray` (`tileray.cpp:17-160`): the direction rounded to hundredths, a Bresenham leftover, and the quadrant signs | the same arithmetic in `rotation::TileRay` |
+when it runs | `precalc_mounts(0, dir, (0,0))` at placement (`mapgen.cpp:7543-7550`) | `spawn_facing` stores the facing; `part_squares` translates each mount |
+a turned vehicle's squares | `get_points` (`vehicle.cpp:8186-8204`) over `abs_part_pos` | `occupied_squares` dedups `part_squares`, and the index holds the result |
+
+**Ground truth:** `--dump-vehicle-rotation` records the reference's own `coord_translate` over 77 mounts - the helicopter's grid plus a margin - at 0, 45, 90, 180 and 270 degrees,
+385 integers in all, including 45 degrees where no exact lattice answer exists and only the reference's rounding decides. The port reproduces all 385, and the vehicle gate at each
+facing lands all 71 parts on the recorded squares while the index lists exactly the distinct ones. Four mutations were caught: quadrant signs, the sideways sign, the negative-advance
+negation, and a vehicle that ignores its own facing.
+
+The facing is stored in **degrees**, the unit a mapgen placement writes; the transform normalizes the way `units::normalize` does, so 0 and 360 are one facing.
+
+**Still named:** `advance_precalc_mounts` (the second precalc slot a vehicle uses mid-move) is not transcribed, because movement is not. The pivot is always the origin, which is what
+`add_vehicle` sets (`mapgen.cpp:7547`).
+
 ## The mount rule asks every question the flags can answer (round 1509)
 
 Three rules finish the part of `can_mount` the port's data can answer, and the gate pins each one against the first refusal it produces.
@@ -101,8 +123,7 @@ The 2-seater helicopter is **71 parts on 24 squares**; the gate pins the count, 
 directions are pinned: every occupied square lists the vehicle, and a walk over the area finds it nowhere else. The square report names the vehicle too, so a debugging dump of
 its origin is readable.
 
-**Named gap: rotation.** `precalc_mounts` and `coord_translate` are not transcribed. Every vehicle the port builds faces 0, which is the reference's default for a mapgen entry
-that names no `rotation`, so nothing the port places is turned - but a vehicle that has to be turned will need those two rules first.
+**Named gap at the time, closed by round 1510:** rotation. Every vehicle the port built then faced 0, the reference's default for a mapgen entry that names no `rotation`.
 
 ## A vehicle is one entity holding its parts (round 1505)
 

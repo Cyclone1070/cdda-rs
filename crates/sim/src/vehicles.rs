@@ -54,18 +54,33 @@ pub struct VehiclePart {
     pub broken: bool,
 }
 
-/// A vehicle: the parts it is made of, in its blueprint's order.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Component)]
+/// A vehicle: the parts it is made of, in its blueprint's order, and the direction it faces.
+#[derive(Debug, Clone, Default, PartialEq, Component)]
 pub struct Vehicle {
     /// Its parts.
     pub parts: Vec<VehiclePart>,
+    /// The direction it faces, in degrees clockwise from east - the reference's `turn_dir`. A placed vehicle faces 0 unless its placement names another direction.
+    pub rotation: f64,
 }
 
-/// Builds a vehicle from the world's prototype, standing at a square.
+/// Builds a vehicle facing east, standing at a square.
 ///
-/// Reference: `vehicle::init_state` fills a vehicle from its prototype's `parts` list, and a part's hit points start at its `vpart_info` durability. The port refuses when the
-/// prototype or one of its parts is not in the store, rather than building a vehicle with holes in it.
+/// The reference's own default: a mapgen entry that names no rotation places the vehicle at 0 degrees (`mapgen.cpp:3316-3320`).
 pub fn spawn(world: &mut World, prototype: &str, at: (i32, i32, i32)) -> Option<Entity> {
+    spawn_facing(world, prototype, at, 0.0)
+}
+
+/// Builds a vehicle from the world's prototype, standing at a square and facing a direction.
+///
+/// Reference: `map::add_vehicle` (`mapgen.cpp:7523-7560`) creates the vehicle, sets its pivot to the origin (`:7543-7550`), gives it `turn_dir` and calls
+/// `precalc_mounts(0, dir, (0,0))`. `vehicle::init_state` fills it from the prototype's `parts`, and a part's hit points start at its `vpart_info` durability. The port refuses when
+/// the prototype or one of its parts is not in the store, rather than building a vehicle with holes in it.
+pub fn spawn_facing(
+    world: &mut World,
+    prototype: &str,
+    at: (i32, i32, i32),
+    rotation: f64,
+) -> Option<Entity> {
     let holder = crate::singletons::holder::<TheVehicleStore>(world)?;
     let store = world.get::<VehicleStore>(holder)?.clone();
     let blueprint = store.prototypes.get(prototype)?.clone();
@@ -82,7 +97,7 @@ pub fn spawn(world: &mut World, prototype: &str, at: (i32, i32, i32)) -> Option<
     }
     let entity = world
         .spawn((
-            Vehicle { parts },
+            Vehicle { parts, rotation },
             crate::Position {
                 x: at.0,
                 y: at.1,
@@ -119,33 +134,45 @@ pub fn parts_at(world: &World, vehicle: Entity, x: i32, y: i32) -> Vec<usize> {
         .unwrap_or_default()
 }
 
-/// The squares a vehicle stands on, sorted and without repeats.
+/// The square each part stands on, in the vehicle's own part order.
 ///
-/// Reference: `vehicle::get_points` (`vehicle.cpp:8186-8204`) walks the parts by **mount** and takes one `abs_part_pos` per distinct mount, which is
-/// `pos_abs() + precalc[0]` (`vehicle.cpp:3772-3775`). A placed vehicle starts with its pivot at the origin (`mapgen.cpp:7546-7550`) facing the rotation the placement gave it,
-/// and a mapgen entry that names no rotation faces 0 (`mapgen.cpp:3316-3320`); at 0 degrees `coord_translate` moves a mount by nothing, so the square is the origin plus the mount.
-///
-/// **Rotation is not transcribed yet**: every vehicle the port builds faces 0, and a caller that needs a turned vehicle has to bring `precalc_mounts` with it.
+/// Reference: a part's square is `pos_abs() + precalc[0]` (`vehicle.cpp:3772-3775`), and `precalc[0]` is `coord_translate` of its mount at the vehicle's facing
+/// (`vehicle.cpp:3643-3660`), with the pivot at the origin for a placed vehicle (`mapgen.cpp:7543-7550`).
 #[must_use]
-pub fn occupied_squares(world: &World, vehicle: Entity) -> Vec<(i32, i32, i32)> {
+pub fn part_squares(world: &World, vehicle: Entity) -> Vec<(i32, i32, i32)> {
     let Some(at) = world.get::<Position>(vehicle) else {
         return Vec::new();
     };
     let Some(built) = world.get::<Vehicle>(vehicle) else {
         return Vec::new();
     };
-    let mut squares = std::collections::BTreeSet::new();
-    for part in &built.parts {
-        squares.insert((at.x + part.x, at.y + part.y, at.z));
-    }
-    squares.into_iter().collect()
+    built
+        .parts
+        .iter()
+        .map(|part| {
+            let (dx, dy) = crate::rotation::coord_translate(built.rotation, (0, 0), (part.x, part.y));
+            (at.x + dx, at.y + dy, at.z)
+        })
+        .collect()
+}
+
+/// The squares a vehicle stands on, sorted and without repeats.
+///
+/// Reference: `vehicle::get_points` (`vehicle.cpp:8186-8204`) walks the parts by **mount** and takes one `abs_part_pos` per distinct mount.
+#[must_use]
+pub fn occupied_squares(world: &World, vehicle: Entity) -> Vec<(i32, i32, i32)> {
+    part_squares(world, vehicle)
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 /// The vehicle standing on one square, if one does.
 ///
 /// Reference: `map::veh_at` (`map.cpp:1340-1356`) never scans the level's vehicles; it asks the level's vehicle cache, and the port's cache is the one [`crate::PositionIndex`].
-/// The reference also answers **which part**, because its cache stores one; the port's index stores the vehicle, and a part's square is derived from the vehicle's own mount, so
-/// [`parts_at`] with the mount answers that at facing 0.
+/// The reference also answers **which part**, because its cache stores one; the port's index stores the vehicle, and a part's square is derived from the vehicle's own mount and
+/// facing through [`part_squares`].
 #[must_use]
 pub fn at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
     let index = crate::singletons::index(world)?;
@@ -278,7 +305,11 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
         built.parts.len() - 1
     };
     // The new part's square is part of the vehicle now; the origin is already listed by construction.
-    let square = (at.x + x, at.y + y, at.z);
+    let rotation = world
+        .get::<Vehicle>(vehicle)
+        .map_or(0.0, |built| built.rotation);
+    let (dx, dy) = crate::rotation::coord_translate(rotation, (0, 0), (x, y));
+    let square = (at.x + dx, at.y + dy, at.z);
     let mut positions = crate::singletons::index_mut(world);
     if !positions.at_level(square.0, square.1, square.2).contains(&vehicle) {
         positions.insert(vehicle, square);
@@ -302,13 +333,17 @@ pub fn remove_part(world: &mut World, vehicle: Entity, index: usize) -> Option<V
         built.parts.remove(index)
     };
     let origin = (at.x, at.y, at.z);
-    let square = (at.x + removed.x, at.y + removed.y, at.z);
+    let rotation = world
+        .get::<Vehicle>(vehicle)
+        .map_or(0.0, |built| built.rotation);
+    let (dx, dy) = crate::rotation::coord_translate(rotation, (0, 0), (removed.x, removed.y));
+    let square = (at.x + dx, at.y + dy, at.z);
     if square != origin {
         let still_held = world.get::<Vehicle>(vehicle).is_some_and(|built| {
-            built
-                .parts
-                .iter()
-                .any(|part| part.x == removed.x && part.y == removed.y)
+            built.parts.iter().any(|part| {
+                crate::rotation::coord_translate(built.rotation, (0, 0), (part.x, part.y))
+                    == (dx, dy)
+            })
         });
         if !still_held {
             crate::singletons::index_mut(world).remove(vehicle, square);

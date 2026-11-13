@@ -42,6 +42,7 @@ pub mod flag_registry;
 pub mod radiation;
 pub mod regeneration;
 pub mod revive;
+pub mod rotation;
 pub mod applied_effects;
 /// What a monster bleeds and splatters into lives beside the monster data it reads, so the sim re-exports it.
 pub use cdda_content::blood;

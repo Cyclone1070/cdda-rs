@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-13 15:36:43
-@@ -0,0 +1,7998 @@
++++ oracle/src/src/harness.cpp	2026-11-13 21:33:59
+@@ -0,0 +1,8036 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -412,6 +412,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "item_group.h"
 +#include "mapgen.h"
 +#include "veh_type.h"
++#include "tileray.h"
 +#include "scenario.h"
 +#include "profession.h"
 +#include "omdata.h"
@@ -1186,6 +1187,43 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        first = false;
 +    }
 +    std::fprintf( out, "\n],\"prototype_count\":%zu}\n", prototypes.size() );
++    std::fclose( out );
++}
++
++/// `coord_translate`'s answer for a grid of mounts at five facings - `--dump-vehicle-rotation`.
++///
++/// The port turns a mount into a square with the reference's `vehicle::coord_translate` (`vehicle.cpp:3598-3615`), which advances a `tileray` by `mount.x`, then offsets it
++/// sideways by `mount.y` with `ortho_dx`/`ortho_dy` (`tileray.cpp:86-113`). A rule that is only read is a rule that is only guessed, so this records the reference's own integers
++/// over the mounts a vehicle uses and a margin around them, at five facings - including 45 degrees, where no exact lattice answer exists and only the reference's rounding
++/// decides. `vehicle::precalc_mounts` calls this same function with `pivot = (0,0)` for a placed vehicle (`mapgen.cpp:7543-7550`), so the table is the whole rule.
++void dump_vehicle_rotation( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    std::fprintf( out, "{\"harness\":\"vehicle_rotation\",\"version\":1,\"facings\":[\n" );
++    const int facings[] = { 0, 45, 90, 180, 270 };
++    bool first_facing = true;
++    for( const int degrees : facings ) {
++        std::fprintf( out, "%s{\"degrees\":%d,\"squares\":[", first_facing ? "" : ",\n", degrees );
++        bool first = true;
++        for( int x = -6; x <= 4; x++ ) {
++            for( int y = -3; y <= 3; y++ ) {
++                tileray tdir( units::from_degrees( degrees ) );
++                tdir.advance( x );
++                const int qx = tdir.dx() + tdir.ortho_dx( y );
++                const int qy = tdir.dy() + tdir.ortho_dy( y );
++                std::fprintf( out, "%s{\"mount\":[%d,%d],\"at\":[%d,%d]}", first ? "" : ",", x, y, qx,
++                              qy );
++                first = false;
++            }
++        }
++        std::fprintf( out, "]}" );
++        first_facing = false;
++    }
++    std::fprintf( out, "\n]}\n" );
 +    std::fclose( out );
 +}
 +
@@ -8360,8 +8398,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-13 15:35:45
-@@ -0,0 +1,428 @@
++++ oracle/src/src/harness.h	2026-11-13 21:05:51
+@@ -0,0 +1,431 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8503,6 +8541,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every vehicle part id and every vehicle prototype id. */
 +void dump_vehicle_parts( const std::string &path );
++
++/** Writes every part's mount and its square at five facings, for the port's rotation rule. */
++void dump_vehicle_rotation( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -9077,7 +9118,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-13 15:35:45
++++ oracle/src/src/main.cpp	2026-11-13 21:33:59
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9088,7 +9129,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,169 @@
+@@ -272,6 +275,170 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9249,6 +9290,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_mapgens;
 +    std::string dump_starting_kit;
 +    std::string dump_vehicle_parts;
++    std::string dump_vehicle_rotation;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -9258,7 +9300,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +466,1460 @@
+@@ -300,6 +467,1470 @@
                  }
              },
              {
@@ -9418,6 +9460,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_parts = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-rotation", "<file>",
++                "Writes every vehicle part's mount and square at five facings to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_rotation = params[0];
 +                    return 1;
 +                }
 +            },
@@ -10719,7 +10771,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2406,802 @@
+@@ -786,6 +2417,807 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -10959,6 +11011,11 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            test_mode = true;
 +            g->check_mod_data( { mod_id( "dda" ) } );
 +            harness::dump_vehicle_parts( cli.dump_vehicle_parts );
++            exit_handler( 0 );
++        }
++        if( !cli.dump_vehicle_rotation.empty() ) {
++            test_mode = true;
++            harness::dump_vehicle_rotation( cli.dump_vehicle_rotation );
 +            exit_handler( 0 );
 +        }
 +        if( !cli.dump_starting_kit.empty() ) {
