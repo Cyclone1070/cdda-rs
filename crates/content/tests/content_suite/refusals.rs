@@ -36,30 +36,8 @@ fn json_files(root: &std::path::Path) -> Vec<PathBuf> {
 /// `trigger_event` is not ported at all, and `{"//": .., "<unknown>": ..}` blamed the comment. A member is unknown when a one-member object holding it does not read, so the walk
 /// asks each member on its own and names the first that fails - which is the name a round would have to port.
 fn member_of(entry: &cdda_json::Value) -> String {
-    let cdda_json::Value::Object(object) = entry else {
-        return "<not an object>".to_owned();
-    };
-    let named: Vec<&(String, cdda_json::Value)> = object
-        .members()
-        .iter()
-        .filter(|(name, _)| !name.starts_with("//"))
-        .collect();
-    let mut unknown: Vec<String> = Vec::new();
-    for (name, value) in &named {
-        let mut alone = cdda_json::Object::new();
-        alone.insert(name.clone(), (*value).clone());
-        if cdda_content::dialogue::read_effect(&cdda_json::Value::Object(alone)).is_none() {
-            unknown.push(name.clone());
-        }
-    }
-    // **Every** unknown member is named, joined by `+`. Naming only the first hid the real cause twice: `{"args": .., "trigger_event": ..}` reported `args`, and the effect the
-    // round would have to write is `trigger_event`; a trade entry reported `count` when the effect is `u_sell_item`.
-    if !unknown.is_empty() {
-        return unknown.join("+");
-    }
-    named
-        .first()
-        .map_or_else(|| "<empty>".to_owned(), |(name, _)| name.clone())
+    // **One diagnosis, in the loader**: `unreadable_member` is the same walk the census prints, so the two can never disagree about what a refusal says.
+    cdda_content::dialogue::unreadable_member(entry)
 }
 
 /// Renders a value as JSON text, briefly.

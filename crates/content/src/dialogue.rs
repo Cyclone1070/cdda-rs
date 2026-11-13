@@ -2132,6 +2132,87 @@ fn read_finish_mission(object: &cdda_json::Object) -> Option<Effect> {
     })
 }
 
+/// The name of the member a refused entry's **unknown rule** is written under.
+///
+/// A refusal says only that an entry does not read, so the census has to name the rule a round would have to port. Two cheaper answers were wrong: naming the **first** member
+/// of the object blamed `args` for an entry whose real gap was `trigger_event`, and blaming the container (`else`, `then`, a `cases` list) named the walker's own step rather
+/// than the entry that refused. So this descends through the containers an effect list can carry and, at the entry that refuses, asks each member **on its own** - a member is
+/// unknown exactly when a one-member object holding it does not read.
+///
+/// Test-facing: it is the diagnosis both censuses print, and it lives beside the readers so it can never drift from them.
+#[must_use]
+pub fn unreadable_member(entry: &Value) -> String {
+    fn alone(entry: &Value) -> String {
+        let Value::Object(object) = entry else {
+            return match entry {
+                Value::Str(_) => "<named>".to_owned(),
+                _ => "<not an entry>".to_owned(),
+            };
+        };
+        let named: Vec<&(String, Value)> = object
+            .members()
+            .iter()
+            .filter(|(name, _)| !name.starts_with("//"))
+            .collect();
+        let mut unknown: Vec<String> = Vec::new();
+        for (name, value) in &named {
+            let mut probe = cdda_json::Object::new();
+            probe.insert(name.clone(), (*value).clone());
+            if read_effect(&Value::Object(probe)).is_none() {
+                unknown.push(name.clone());
+            }
+        }
+        if !unknown.is_empty() {
+            return unknown.join("+");
+        }
+        named
+            .first()
+            .map_or_else(|| "<empty>".to_owned(), |(name, _)| name.clone())
+    }
+
+    fn descend(entry: &Value, depth: usize) -> String {
+        if read_effect(entry).is_some() || depth > 6 {
+            return alone(entry);
+        }
+        let Value::Object(object) = entry else {
+            return alone(entry);
+        };
+        for member in ["then", "else", "effect"] {
+            if let Some(Value::Array(children)) = object.get(member) {
+                for child in children {
+                    if read_effect(child).is_none() {
+                        return descend(child, depth + 1);
+                    }
+                }
+            }
+        }
+        if let Some(Value::Array(cases)) = object.get("cases") {
+            for case in cases {
+                let Value::Object(given) = case else {
+                    continue;
+                };
+                let Some(child) = given.get("effect") else {
+                    continue;
+                };
+                if let Value::Array(children) = child {
+                    for element in children {
+                        if read_effect(element).is_none() {
+                            return descend(element, depth + 1);
+                        }
+                    }
+                    continue;
+                }
+                if read_effect(child).is_none() {
+                    return descend(child, depth + 1);
+                }
+            }
+        }
+        alone(entry)
+    }
+
+    descend(entry, 0)
+}
+
 /// Reads a `set_condition` entry.
 ///
 /// Reference: `f_set_condition` (`npctalk.cpp:5868-5880`): the member is the name the condition is stored under, `condition` is the condition, and
@@ -3751,17 +3832,19 @@ pub fn read_program(value: &Value) -> Option<Program> {
         None => None,
         Some(condition) => Some(read_condition(condition)?),
     };
-    let entries = match object.get("effect") {
-        Some(Value::Array(entries)) => entries.as_slice(),
-        // An effect-on-condition with no `effect` still has a condition to ask; the reference runs nothing, which the port
-        // reads as an empty list rather than refusing the definition.
-        None => &[],
-        _ => return None,
+    // Reference: `talk_effect_t::load_effect` (`npctalk.cpp:8348-8386`) takes the member as a **string**, an **object** or an **array** of either - three spellings
+    // of one list. The port read only the array, which refused whole every program that wrote `"effect": { … }`: eleven of them, and the census's effect ranking
+    // spent two rounds blaming `run_eocs` for it.
+    let effects = match object.get("effect") {
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .map(read_effect)
+            .collect::<Option<Vec<_>>>()?,
+        // An effect-on-condition with no `effect` still has a condition to ask; the reference runs nothing, which the port reads as an empty list rather than
+        // refusing the definition.
+        None => Vec::new(),
+        Some(single) => vec![read_effect(single)?],
     };
-    let effects = entries
-        .iter()
-        .map(read_effect)
-        .collect::<Option<Vec<_>>>()?;
     // Reference: only an **event** program names an event, and the reference throws when `required_event` sits on any other type (`effect_on_condition.cpp:115-120`), so a
     // program that counts as one here is exactly a program whose type says `EVENT`.
     let event = match object.get("required_event") {

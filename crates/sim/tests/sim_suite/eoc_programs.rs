@@ -162,6 +162,7 @@ fn collect(
     whole: &mut usize,
     refused: &mut std::collections::BTreeMap<String, usize>,
     programs: &mut Vec<cdda_content::dialogue::Program>,
+    effect_frontier: &mut std::collections::BTreeMap<String, (usize, String)>,
 ) {
     match value {
         cdda_json::Value::Object(object) => {
@@ -182,6 +183,10 @@ fn collect(
                             }
                         };
                         let blocked = if condition_ok {
+                            // Reference: a program's effects are the `effect` array, and the census names the first entry the reader refuses.
+                            let (entry, example) = blame_effect(object.get("effect"));
+                            let slot = effect_frontier.entry(entry).or_insert((0, example));
+                            slot.0 += 1;
                             "effect".to_owned()
                         } else {
                             blame(object.get("condition"))
@@ -190,15 +195,41 @@ fn collect(
                 }
             }
             for (_, member) in object.members() {
-                collect(member, defined, whole, refused, programs);
+                collect(member, defined, whole, refused, programs, effect_frontier);
             }
         }
         cdda_json::Value::Array(items) => {
             for item in items {
-                collect(item, defined, whole, refused, programs);
+                collect(item, defined, whole, refused, programs, effect_frontier);
             }
         }
         _ => {}
+    }
+}
+
+/// The first entry of a program's effect list that the port cannot read, named the same way `blame` names a guard.
+///
+/// The census's guard ranking reached zero, so the frontier is now the effect side; naming the **entry** rather than the list is what turns "80 programs are blocked on effects"
+/// into "these are the six effects to port". A bare string entry is a named effect the reader does not know, which `blame` reports as `<named>` too.
+fn blame_effect(effects: Option<&cdda_json::Value>) -> (String, String) {
+    fn brief(value: &cdda_json::Value) -> String {
+        format!("{value:?}").chars().take(200).collect()
+    }
+    let refused = match effects {
+        Some(cdda_json::Value::Array(items)) => items
+            .iter()
+            .find(|item| cdda_content::dialogue::read_effect(item).is_none()),
+        Some(entry) => Some(entry),
+        None => None,
+    };
+    match refused {
+        // **The example travels with the name**, because a name alone was read wrongly twice: `duration` and `bonus` are modifiers of an entry
+        // rather than rules, and only the entry itself says which rule is missing.
+        Some(entry) => (
+            cdda_content::dialogue::unreadable_member(entry),
+            brief(entry),
+        ),
+        None => ("<all entries read>".to_owned(), String::new()),
     }
 }
 
@@ -217,6 +248,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     let mut refused: BTreeMap<String, usize> = BTreeMap::new();
 
     let mut programs = Vec::new();
+    let mut effect_frontier: BTreeMap<String, (usize, String)> = BTreeMap::new();
     let mut stack = vec![data.clone()];
     while let Some(directory) = stack.pop() {
         let Ok(entries_at) = std::fs::read_dir(&directory) else {
@@ -234,11 +266,26 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
             let Some(value) = cdda_content::read_json(&path) else {
                 continue;
             };
-            collect(&value, &mut defined, &mut whole, &mut refused, &mut programs);
+            collect(
+                &value,
+                &mut defined,
+                &mut whole,
+                &mut refused,
+                &mut programs,
+                &mut effect_frontier,
+            );
         }
     }
 
     println!("eoc programs: {defined} defined, {whole} runnable whole; refusals: {refused:?}");
+    let mut ranked_effects: Vec<(String, usize, String)> = effect_frontier
+        .into_iter()
+        .map(|(name, (count, example))| (name, count, example))
+        .collect();
+    ranked_effects.sort_by(|left, right| right.1.cmp(&left.1).then(left.0.cmp(&right.0)));
+    for (name, count, example) in ranked_effects.iter().take(8) {
+        println!("  {count:>3}  {name}   e.g. {example}");
+    }
 
     // The ranking is the round's deliverable: it says what to port next instead of what is most used. `math` guards are the
     // biggest single refusal (42 programs), then traits (36), then location (28) - none of which the earlier census could see,
@@ -250,7 +297,7 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
         whole, crate::numbers::NOW.readable,
-        "six hundred and twelve run whole"
+        "six hundred and ninety-one run whole"
     );
     assert_eq!(refused.get("effect"), Some(&crate::numbers::NOW.effect_blamed), "and the effect side is still the bigger refusal");
     assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
@@ -900,7 +947,7 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
     );
 
     assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 612 of them");
+    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 691 of them");
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
@@ -1287,7 +1334,14 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
             let mut defined_here = 0usize;
             let mut whole_here = 0usize;
             let mut refused_here = std::collections::BTreeMap::new();
-            collect(&value, &mut defined_here, &mut whole_here, &mut refused_here, &mut readable);
+            collect(
+                &value,
+                &mut defined_here,
+                &mut whole_here,
+                &mut refused_here,
+                &mut readable,
+                &mut std::collections::BTreeMap::new(),
+            );
         }
     }
 

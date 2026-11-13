@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A program's effect has three spellings, and the port read one (round 1497)
+
+`talk_effect_t::load_effect` (`npctalk.cpp:8348-8386`) takes a program's `effect` as a **string** (a named string effect), an **object** (one sub-effect) or an **array** of either.
+The port read only the array, so every program written `"effect": { "run_eocs": [ … ] }` was refused **whole** - eleven of them.
+
+| Shape | Reference | Port, before | Port, now |
+|---|---|---|---|
+`"effect": [ {…}, {…} ]` | a list | read | read |
+`"effect": {…}` | one sub-effect | **refused the program** | read as a list of one |
+`"effect": "<named>"` | a string effect | **refused the program** | read as a list of one |
+no `effect` at all | nothing to run | read as empty | read as empty |
+
+**One reader fix moved 79 programs at once**, and the census had been blaming the wrong thing for two rounds: its effect ranking named `run_eocs` eleven times, and `run_eocs` was
+never the problem - the *container* around it was. That is the second time a census label pointed at the member rather than the rule (`{"args": …, "trigger_event": …}` was the
+first), which is why `unreadable_member` now travels with an example of the entry it names.
+
+**692 programs: 691 read whole.** The single refusal left is `transform_line`, a tile-transformation effect.
+
 ## Being underwater is the creature's own state (round 1496)
 
 `u_is_underwater` / `npc_is_underwater` (`condition.cpp:2651`) is the **last** member any program in the data was one gap from. The state lives on the creature, not on the square.

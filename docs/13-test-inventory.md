@@ -1949,3 +1949,8 @@ same square can differ, and the reference keeps the flag per character for that 
 question, answered from where the answer will live. `set_underwater` is the setter the swimming rule will call, and the gate exercises both directions. Mutation-checked: making
 nobody underwater fails it. **No program in the data is one member from reading whole any more** - the census's one-gap ranking is empty, and the test now asserts that an empty
 ranking means exactly that. The frontier is the 80 programs whose first unreadable member is inside `effect`.
+
+**Round 1497 fixed the biggest reader gap the census had.** `read_program` accepted a program's `effect` only as an **array**; the reference's `talk_effect_t::load_effect`
+(`npctalk.cpp:8348-8386`) also takes a **single object** and a **single string**, and eleven programs wrote the object form - so they were refused whole and the census blamed
+`run_eocs` for two rounds. Both shapes now read as a list of one, pinned by a gate that reads the same program written both ways. The effect now jumps from 612 to **691 of 692
+programs readable**, and the single refusal left is `transform_line`. The census also prints one example entry beside each blamed member now, because a name alone misled it twice.

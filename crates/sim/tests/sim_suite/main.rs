@@ -272,3 +272,6 @@ mod has_species;
 mod npc_allies;
 mod named_conditions;
 mod underwater;
+mod switch_effect;
+mod run_eocs_bare;
+mod program_effect_shapes;

@@ -61,26 +61,26 @@ pub const NOW: Census = Census {
     // **606 after round 1492 read `u_has_camp`**, the last of the dialogue census's refusals: **zero programs now refuse at their first member**.
     // **608 after round 1493 answered `u_is_on_terrain` and `npc_is_character`**, two conditions the census had one member from.
     // **611 after round 1494 answered `u_has_species` and `npc_allies`/`npc_allies_global`**.
-    // **612 after round 1495 read `get_condition`**: the last member a program was one gap from is `npc_is_underwater`.
-    readable: 612,
-    ran: 406,
+    // **691 after round 1497 taught `read_program` the three spellings of `effect`** (`talk_effect_t::load_effect`): the last member a program was one gap from is `npc_is_underwater`.
+    readable: 691,
+    ran: 468,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
-    silent: 296,
+    silent: 347,
     // Silent because the data gives the program no effects at all - a stub, not a rule the port is missing.
     empty_programs: 23,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     // 404 after round 1493.
     // 407 after round 1494.
     // 411 after round 1495.
-    ran_in_a_built_world: 411,
+    ran_in_a_built_world: 473,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
     // 208 after round 1491: the map-item program reads now and refuses at run, because its only data use is a menu.
     // 209 after round 1493.
     // 206 after round 1495: four programs the stored-condition path used to stop now run.
-    refused_at_run: 206,
+    refused_at_run: 223,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.
@@ -116,7 +116,7 @@ pub const NOW: Census = Census {
     // 80 after round 1491.
     // 79 after round 1492.
     // 80 at round 1496: programs whose first unreadable member is inside `effect`, which is the frontier the census now points at.
-    effect_blamed: 80,
+    effect_blamed: 1,
     // 3,228 after round 1489: `has_ammo` is one more condition every one of the data's condition sites can now read.
     // 3,240 after round 1492: `u_has_camp` is one more condition every condition site can read.
     // 3,242 after round 1493: two more conditions every condition site can read.
