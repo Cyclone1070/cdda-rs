@@ -1960,3 +1960,9 @@ programs readable**, and the single refusal left is `transform_line`. The census
 line of dirt, transforms it, and checks the four squares on the line, the near end, a square past the far end and a square off the line; a mutation that touches only one square
 fails it. **692 of 692 programs now read whole with zero refusals.** What remains is run time: 224 programs refuse when they run, led by calls to programs that are not installed
 (52), `u_location_variable` (33), `u_spawn_monster` (21) and `mapgen_update` (18).
+
+**Round 1499 fixed the census's runtime labels.** With every program readable, the refusal report's job is to name the effect that refuses when a program runs - and it had been
+blaming the caller three ways: "a program that is not installed" for a callee that was installed (the walk stopped at a `switch`), "no program named X" for a program the data
+defines (the walk hit its depth limit), and "refuses without naming an effect" for a refusal that lives in the callee's **condition**. The walk now follows `run_eocs`, both
+`if` branches and every `switch` case, and separates "cannot find" from "refuses". The real work list is now `u_location_variable` 35, `mapgen_update` 30, `u_spawn_monster` 21,
+`open_dialogue` 13, `u_add_effect` 11.

@@ -806,48 +806,69 @@ fn collect_mapgens(data: &std::path::Path) -> Vec<(String, cdda_content::mapgen:
     found
 }
 
-/// The effect that refuses, following a `run_eocs` call into the program it names.
+/// The effect that refuses, following a call into the program it names **and into the containers an effect can hold**.
 ///
-/// A program that calls another inherits the callee's refusal, so reporting `run_eocs` would say only "somewhere below" - the same trap as
-/// reporting the joiner `and`. The search therefore descends into the callee and names the effect that actually refused.
+/// Three labels have been wrong here, and each time the fault was the walk rather than the port: naming the joiner (`and`) said "somewhere in a list", naming a `run_eocs`
+/// said "somewhere below", and stopping at a `switch` said "a program that is not installed" about a program the data does define. So the search follows `run_eocs` into its
+/// callee, `if` into both branches, and `switch` into every case, and only names an effect once nothing inside it refuses.
 fn first_refusing_effect(
     program: &cdda_content::dialogue::Program,
     census: &Census,
     depth: usize,
 ) -> Option<String> {
+    program
+        .effects
+        .iter()
+        .find_map(|effect| refusal_of(effect, census, depth))
+}
+
+/// What refuses inside one effect, or nothing when the effect runs.
+fn refusal_of(effect: &cdda_content::dialogue::Effect, census: &Census, depth: usize) -> Option<String> {
     if depth >= 8 {
-        return Some("run_eocs".to_owned());
+        return Some(effect.kind().to_owned());
     }
-    for effect in &program.effects {
-        let mut alone = World::new();
-        let survivor = cdda_sim::creature::spawn_creature(&mut alone, "the survivor", (0, 0, 0));
-        cdda_sim::singletons::put_rolls(&mut alone, cdda_core_types::rng::Rolls::new(1));
-        census.install(&mut alone);
-        if cdda_sim::dialogue_effects::run_effect(&mut alone, survivor, None, effect)
-            != Applied::CannotAnswer
-        {
-            continue;
-        }
-        return match effect {
-            cdda_content::dialogue::Effect::RunEoc(calls) => calls
-                .iter()
-                .find_map(|call| match call {
-                    cdda_content::dialogue::ProgramRef::Named { id, .. } => census
-                        .programs
-                        .iter()
-                        .find(|program| program.id == *id)
-                        .and_then(|program| first_refusing_effect(program, census, depth + 1)),
-                    cdda_content::dialogue::ProgramRef::Inline { program, .. } => {
-                        first_refusing_effect(program, census, depth + 1)
+    let mut alone = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut alone, "the survivor", (0, 0, 0));
+    cdda_sim::singletons::put_rolls(&mut alone, cdda_core_types::rng::Rolls::new(1));
+    census.install(&mut alone);
+    if cdda_sim::dialogue_effects::run_effect(&mut alone, survivor, None, effect) != Applied::CannotAnswer {
+        return None;
+    }
+    match effect {
+        // A call is not the refusal: the program it names is. A name the data does not define is a real gap and says so.
+        cdda_content::dialogue::Effect::RunEoc(calls) => calls
+            .iter()
+            .find_map(|call| match call {
+                // **A program that is found and does not explain itself is not a missing program.** Confusing the two reported `no program named EOC_LIXA_UNFOLD_SHIFT`
+                // about a program the data defines and the census installs - the walk had reached its depth limit, which says nothing about the data.
+                cdda_content::dialogue::ProgramRef::Named { id, .. } => {
+                    match census.programs.iter().find(|program| program.id == *id) {
+                        Some(program) => Some(
+                            first_refusing_effect(program, census, depth + 1)
+                                .unwrap_or_else(|| format!("run_eocs({id} refuses without naming an effect)")),
+                        ),
+                        None => Some(format!("run_eocs(no program named {id})")),
                     }
-                    // A program named at run time is one this census cannot follow: the name is a value, not a constant, so the call is not a gap in the reader.
-                    cdda_content::dialogue::ProgramRef::NamedByVariable { .. } => None,
-                })
-                .or_else(|| Some("run_eocs(calls a program that is not installed)".to_owned())),
-            _ => Some(effect.kind().to_owned()),
-        };
+                }
+                cdda_content::dialogue::ProgramRef::Inline { program, .. } => {
+                    first_refusing_effect(program, census, depth + 1)
+                }
+                // A program named at run time is one this census cannot follow: the name is a value, not a constant.
+                cdda_content::dialogue::ProgramRef::NamedByVariable { .. } => None,
+            })
+            .or_else(|| Some("run_eocs(calls a program that is not installed)".to_owned())),
+        cdda_content::dialogue::Effect::If { then, otherwise, .. } => then
+            .iter()
+            .chain(otherwise.iter())
+            .find_map(|branch| refusal_of(branch, census, depth + 1))
+            .or_else(|| Some(effect.kind().to_owned())),
+        cdda_content::dialogue::Effect::Switch { cases, .. } => cases
+            .iter()
+            .flat_map(|(_, effects)| effects.iter())
+            .find_map(|case| refusal_of(case, census, depth + 1))
+            .or_else(|| Some(effect.kind().to_owned())),
+        _ => Some(effect.kind().to_owned()),
     }
-    None
 }
 
 /// One member of a JSON object, or nothing when the value is not an object.

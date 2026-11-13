@@ -45,6 +45,30 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The runtime census names the effect, not the caller (round 1499)
+
+With nothing left to read, the census's job changed: it now says **which effect refuses when a program runs**, and it had been blaming three wrong things in a row.
+
+| Label it used to print | What was really happening |
+|---|---|
+`run_eocs(calls a program that is not installed)` | the callee **was** installed; the walk stopped at a `switch` case it did not descend into |
+`run_eocs(no program named EOC_LIXA_UNFOLD_SHIFT)` | the program is defined and installed; the walk hit its depth limit and the fallback called that "missing" |
+`run_eocs(EOC_LIXA_UNFOLD_SHIFT refuses without naming an effect)` | the callee's **condition** refuses, and the walk only looked at its effects |
+
+The walk now follows `run_eocs` into its callee, `if` into both branches and `switch` into every case, and distinguishes a program it cannot find from one that refuses without
+naming an effect. What it prints is now the real work list:
+
+| Refusal | Programs |
+|---|---|
+`u_location_variable` | 35 |
+`mapgen_update` | 30 |
+`u_spawn_monster` | 21 |
+`run_eocs(open_dialogue)` | 13 |
+`u_add_effect` | 11 |
+
+**A census is a measuring instrument, and this one had a calibration error** - three of them, each producing a confident wrong answer. The lesson is the one the guard
+census already taught: name the thing that refused, not the container that held it, and never let a depth limit look like a fact about the data.
+
 ## Every program in the data now reads (round 1498)
 
 `transform_line` (`npctalk.cpp:4781-4796`) was the last entry any program was refused for. It transforms the squares on a line between two points.
