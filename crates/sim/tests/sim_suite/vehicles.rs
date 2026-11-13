@@ -173,3 +173,157 @@ fn a_square_answers_which_vehicle_stands_on_it() {
         "the square report names the vehicle instead of a question mark: {names:?}"
     );
 }
+
+#[test]
+fn a_part_is_installed_only_where_the_structure_allows() {
+    use cdda_sim::vehicles::{install_part, Vehicle};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+
+    // A frame on an empty square beside an existing frame is a valid mount.
+    assert_eq!(
+        install_part(&mut world, vehicle, "frame", 2, 1),
+        Some(71),
+        "the new part is appended after the blueprint's 71"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (12, 11, 0)),
+        Some(vehicle),
+        "the square the new part stands on answers the vehicle"
+    );
+
+    // A seat shares the square with the frame: a different id in a different location.
+    assert_eq!(
+        install_part(&mut world, vehicle, "reclining_seat", 2, 1),
+        Some(72),
+        "a seat may sit on a frame"
+    );
+
+    // A part type does not stack with itself.
+    assert_eq!(
+        install_part(&mut world, vehicle, "frame", 2, 1),
+        None,
+        "**a part type does not stack with itself**"
+    );
+    // A different id in the same location as the frame is refused.
+    assert_eq!(
+        install_part(&mut world, vehicle, "xlframe", 2, 1),
+        None,
+        "**the structure location is already taken**"
+    );
+    // A box is a different location from the frame, but the seat already holds `center`.
+    assert_eq!(
+        install_part(&mut world, vehicle, "box", 2, 1),
+        None,
+        "the center location is already taken by the seat"
+    );
+    // A headlight has no location, and an empty square's first part must be structural.
+    assert_eq!(
+        install_part(&mut world, vehicle, "headlight", 2, 0),
+        None,
+        "**a non-structural part cannot start a square**"
+    );
+    // A structure with nothing structural on or beside it.
+    assert_eq!(
+        install_part(&mut world, vehicle, "frame", 5, 5),
+        None,
+        "**a part must be on or beside existing structure**"
+    );
+    // A part the store does not hold.
+    assert_eq!(
+        install_part(&mut world, vehicle, "not_a_part", 2, 1),
+        None,
+        "a part the store does not hold is not installed"
+    );
+    // Power-transfer parts are the one exception to the no-stacking rule.
+    assert_eq!(
+        install_part(&mut world, vehicle, "jumper_cable", 2, 1),
+        Some(73),
+        "a cable may join a square"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "jumper_cable", 2, 1),
+        Some(74),
+        "**a power-transfer part may stack with itself**"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(vehicle).map(|built| built.parts.len()),
+        Some(75),
+        "75 = the blueprint's 71, the frame, the seat, two cables"
+    );
+}
+
+#[test]
+fn a_part_comes_out_and_its_square_gives_the_vehicle_up() {
+    use cdda_sim::vehicles::{at, install_part, parts_at, remove_part, Vehicle};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    assert_eq!(install_part(&mut world, vehicle, "frame", 2, 1), Some(71));
+    assert_eq!(at(&world, (12, 11, 0)), Some(vehicle));
+
+    let removed = remove_part(&mut world, vehicle, 71);
+    assert_eq!(
+        removed.as_ref().map(|part| (part.part.as_str(), part.x, part.y)),
+        Some(("frame", 2, 1)),
+        "the removed part comes back, mount and all"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(vehicle).map(|built| built.parts.len()),
+        Some(71),
+        "and it is no longer in the vehicle"
+    );
+    assert_eq!(
+        at(&world, (12, 11, 0)),
+        None,
+        "**a square gives the vehicle up when its last part comes out**"
+    );
+
+    // A square with other parts keeps the vehicle in the index.
+    let headlight = parts_at(&world, vehicle, 1, 1)
+        .into_iter()
+        .find(|index| {
+            world
+                .get::<Vehicle>(vehicle)
+                .and_then(|built| built.parts.get(*index))
+                .is_some_and(|part| part.part == "headlight")
+        })
+        .expect("the (1, 1) square holds a headlight");
+    remove_part(&mut world, vehicle, headlight).expect("the headlight comes out");
+    assert_eq!(
+        at(&world, (11, 11, 0)),
+        Some(vehicle),
+        "**the square keeps the vehicle while the frame and the windshield stand there**"
+    );
+    for _ in 0..2 {
+        let remaining = parts_at(&world, vehicle, 1, 1);
+        let last = remaining.first().copied().expect("two parts stand at (1, 1)");
+        remove_part(&mut world, vehicle, last).expect("the part comes out");
+    }
+    assert_eq!(
+        at(&world, (11, 11, 0)),
+        None,
+        "**and gives it up when the last of them comes out**"
+    );
+
+    let seatbelt = parts_at(&world, vehicle, 0, 0)
+        .into_iter()
+        .find(|index| {
+            world
+                .get::<Vehicle>(vehicle)
+                .and_then(|built| built.parts.get(*index))
+                .is_some_and(|part| part.part == "seatbelt")
+        })
+        .expect("the origin square holds a seatbelt");
+    let removed = remove_part(&mut world, vehicle, seatbelt).expect("the seatbelt comes out");
+    assert_eq!(removed.part, "seatbelt");
+    assert_eq!(
+        at(&world, (10, 10, 0)),
+        Some(vehicle),
+        "**the origin still holds the frame, the seat and the controls**"
+    );
+    assert_eq!(
+        remove_part(&mut world, vehicle, 999),
+        None,
+        "an index no part has answers nothing"
+    );
+}

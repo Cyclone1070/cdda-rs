@@ -2017,3 +2017,13 @@ start from "what stands here". The index now derives a vehicle's squares from it
 squares; the gate pins the count, three squares by name, that a square past the tail answers nothing, and both directions of the index (every occupied square holds it, and
 nowhere else does). `spawn` records the same entries as it builds, so a run-time vehicle is visible without a rebuild. **Rotation is named as the gap**: `precalc_mounts` is
 not transcribed and every port-built vehicle faces 0, the reference's own default when a mapgen entry names no rotation.
+
+**Round 1508 gave the vehicle its first interaction: installing and removing a part.** `can_mount` is ported as the four rules the port's data can answer - the first part in an empty
+square must be structural; a part type does not stack with itself unless it transfers power; two parts cannot share a location; and a part must stand on or beside structure (five
+squares, `PROTRUSION` excluded). Each rule has its own refusal in the gate: a second frame, an `xlframe` on the frame's location, a `box` where the seat holds `center`, a headlight on
+an empty square, a frame with no structure near, and an unknown part; two `jumper_cable`s in one square pin the power-transfer exception. `install_part` appends at the spec's
+durability, answers the part's index, and joins the new square to the index at once. `remove_part` erases exactly the part it is given, answers it back, and takes a non-origin square
+out of the index only when its last part leaves - both directions are pinned, and the origin always stays because that is where the vehicle's `Position` is. **Named gaps**: the
+tow-cable/protrusion exception, cargo pair, mirror/opaque, turret-mount, engine conflicts and `requires_flag`; removal's dependent-part cascade, unboarding, tool drops and the
+`removed`-flag cleanup. Five mutations were caught: inverted location rule, always-adjacent structure, inverted first-part rule, dropped power-transfer exception, and a removal that
+always drops the square from the index.

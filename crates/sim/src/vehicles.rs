@@ -156,6 +156,136 @@ pub fn at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
         .find(|entity| world.get::<Vehicle>(*entity).is_some())
 }
 
+/// The store's spec for a part id, if the world holds the store and the store holds the part.
+fn spec_of<'a>(world: &'a World, part: &str) -> Option<&'a cdda_content::vehicles::PartSpec> {
+    let holder = crate::singletons::holder::<TheVehicleStore>(world)?;
+    world.get::<VehicleStore>(holder)?.parts.get(part)
+}
+
+/// Whether a mount can hold a part, rule for rule.
+///
+/// Reference: `vehicle::can_mount` (`vehicle.cpp:1267-1380`).
+///
+/// Ported: the first part in an empty square must be **structural**; a part type does not stack with itself unless it transfers power; two parts cannot share a **location**; and a part must
+/// stand on or beside existing structure. **Not ported, and named in `docs/parity.md`**: the animal-control/protrusion exception for tow cables, the cargo pair rule, the mirror/opaque pair, the
+/// turret-mount rule, engine conflicts (`has_engine_conflict`), and the flags that require another flag (`json_flag::get(...).requires_flag()`), which need the flag table the port does not load.
+fn can_mount(
+    world: &World,
+    vehicle: Entity,
+    spec: &cdda_content::vehicles::PartSpec,
+    x: i32,
+    y: i32,
+) -> bool {
+    let Some(built) = world.get::<Vehicle>(vehicle) else {
+        return false;
+    };
+    let occupants = parts_at(world, vehicle, x, y);
+    if occupants.is_empty() && spec.location != "structure" {
+        return false;
+    }
+    for index in &occupants {
+        let Some(part) = built.parts.get(*index) else {
+            return false;
+        };
+        let Some(other) = spec_of(world, &part.part) else {
+            return false;
+        };
+        if other.id == spec.id && !spec.flags.contains("POWER_TRANSFER") {
+            return false;
+        }
+        if !spec.location.is_empty() && spec.location == other.location {
+            return false;
+        }
+    }
+    built.parts.is_empty() || stands_on_structure(world, vehicle, x, y)
+}
+
+/// Whether a structural part stands on or beside one square - the reference's `has_structural_part` over the five squares, with the `PROTRUSION` exception.
+fn stands_on_structure(world: &World, vehicle: Entity, x: i32, y: i32) -> bool {
+    let Some(built) = world.get::<Vehicle>(vehicle) else {
+        return false;
+    };
+    for (dx, dy) in [(0, 0), (1, 0), (0, 1), (-1, 0), (0, -1)] {
+        for index in parts_at(world, vehicle, x + dx, y + dy) {
+            let Some(part) = built.parts.get(index) else {
+                continue;
+            };
+            if spec_of(world, &part.part)
+                .is_some_and(|other| {
+                    other.location == "structure" && !other.flags.contains("PROTRUSION")
+                })
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Installs a part on one of a vehicle's squares, answering its index among the parts.
+///
+/// Reference: `vehicle::install_part` (`vehicle.cpp:1696-1757`): it refuses a mount that `can_mount` rejects, appends the part with its spec's durability, and lets `refresh()` rebuild the
+/// derived lists the part changes. The port has no derived part lists to rebuild and no fake parts to remove, so it appends and answers the index; the square joins the one index at once.
+///
+/// Returns nothing when the part is not in the store, the vehicle does not exist, or the mount is refused.
+pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i32) -> Option<usize> {
+    let spec = spec_of(world, part)?.clone();
+    let at = *world.get::<Position>(vehicle)?;
+    if !can_mount(world, vehicle, &spec, x, y) {
+        return None;
+    }
+    let hp = spec.durability;
+    let index = {
+        let mut built = world.get_mut::<Vehicle>(vehicle)?;
+        built.parts.push(VehiclePart {
+            part: part.to_owned(),
+            x,
+            y,
+            hp,
+            broken: hp <= 0,
+        });
+        built.parts.len() - 1
+    };
+    // The new part's square is part of the vehicle now; the origin is already listed by construction.
+    let square = (at.x + x, at.y + y, at.z);
+    let mut positions = crate::singletons::index_mut(world);
+    if !positions.at_level(square.0, square.1, square.2).contains(&vehicle) {
+        positions.insert(vehicle, square);
+    }
+    Some(index)
+}
+
+/// Removes one part by its index, answering the part that came out.
+///
+/// Reference: `vehicle::remove_part` (`vehicle.cpp:2213-2357`) erases the part and every part that depends on it, and unboards what stood on it. The port removes exactly the part it is given:
+/// the dependent-part cascade (`SEAT`/`SEATBELT`, `WINDOW`/`CURTAIN`), unboarding, tool drops and the `removed`-flag cleanup pass are named in `docs/parity.md`, not guessed at.
+///
+/// A square leaves the index when no other part stands there. A vehicle's **origin** always stays, because that is where its [`Position`] is.
+pub fn remove_part(world: &mut World, vehicle: Entity, index: usize) -> Option<VehiclePart> {
+    let at = *world.get::<Position>(vehicle)?;
+    let removed = {
+        let mut built = world.get_mut::<Vehicle>(vehicle)?;
+        if index >= built.parts.len() {
+            return None;
+        }
+        built.parts.remove(index)
+    };
+    let origin = (at.x, at.y, at.z);
+    let square = (at.x + removed.x, at.y + removed.y, at.z);
+    if square != origin {
+        let still_held = world.get::<Vehicle>(vehicle).is_some_and(|built| {
+            built
+                .parts
+                .iter()
+                .any(|part| part.x == removed.x && part.y == removed.y)
+        });
+        if !still_held {
+            crate::singletons::index_mut(world).remove(vehicle, square);
+        }
+    }
+    Some(removed)
+}
+
 /// Applies one blow to one part of a vehicle, answering what became of it.
 ///
 /// Reference: `vehicle::damage_direct` (`vehicle.cpp:7925-7945`), whose rules are [`crate::vehicle_damage::hit`]. A part that reaches zero hit points is **broken and stays**.

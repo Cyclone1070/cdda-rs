@@ -45,6 +45,28 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A part is installed only where the structure allows (round 1508)
+
+A vehicle that cannot gain or lose a part is a statue. Installation asks the reference's mount questions, and removal keeps the index honest.
+
+| Rule | Reference | Port |
+|---|---|---|
+the first part in an empty square must be structural | `vehicle::can_mount` (`vehicle.cpp:1272-1276`) | `can_mount` - `location == "structure"` |
+a part type does not stack with itself | `can_mount` (`:1289-1291`) | refused when the id repeats, **unless it transfers power** |
+two parts cannot share a location | `can_mount` (`:1294-1299`) | refused when a non-empty `location` repeats |
+a part stands on or beside structure | `can_mount` (`:1328-1339`), `has_structural_part` (`:1239-1252`) | `stands_on_structure`, the five squares, `PROTRUSION` excluded |
+install | `vehicle::install_part` (`:1696-1757`) | `install_part` appends with the spec's durability, answers the part's index, and joins its square to the one index |
+remove | `vehicle::remove_part` (`:2213-2357`) | `remove_part` erases **exactly** the part it is given; a non-origin square leaves the index when its last part does |
+
+**Named gaps**, each because the port does not hold its data or its subsystem yet: the animal-control/protrusion tow-cable exception, the cargo pair rule, the mirror/opaque pair,
+the turret-mount rule, engine conflicts (`has_engine_conflict`), and the flags that require another flag (`json_flag::get(...).requires_flag()`, which needs the flag table). Removal's
+dependent-part cascade (`SEAT` gives up its `SEATBELT`, `WINDOW` its `CURTAIN`), unboarding, tool drops and the `removed`-flag cleanup pass are not transcribed either: the port's
+parts carry no `removed` flag and no passengers.
+
+The gate installs a frame and a seat on an empty square beside the hull and pins each refusal: a second frame (same id), an `xlframe` (same location), a `box` (the seat holds `center`),
+a headlight on an empty square, a frame with no structure on or beside it, and an unknown part. The power-transfer exception is pinned by two `jumper_cable`s in one square. Removal is
+pinned in both directions: a lone part's square stops answering the vehicle, and a square with other parts keeps answering until the last of them is out.
+
 ## A vehicle stands on every square its parts do (round 1507)
 
 A vehicle was one entity that no square query could find. The index now derives the squares from the parts, and a square answers the vehicle without scanning.
