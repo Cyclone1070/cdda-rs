@@ -1991,3 +1991,8 @@ the reference's own id digest.
 The origin square of the 2-seater helicopter holds its frame, seat, seatbelt and controls, so a square with several parts is the normal case - and the data's one empty blueprint
 is kept and named rather than skipped. A first draft counted the helicopter's parts from the map rows and said 17; the dump says 71, which is the difference between a blueprint
 and a picture of one.
+
+**Round 1504 ported the first vehicle rule.** `vehicle_damage::hit` is `vehicle::damage_direct` (`vehicle.cpp:7925-7945`): a blow under `min(20, durability/10)` does nothing at
+all and is returned unconsumed, a blow at or over it has the part's flat armour shaved off, `pure` damage skips both because its type is `no_resist`, and a part taken to zero hit
+points is **broken rather than removed**. Three gates pin the arithmetic (19 ignored and 20 landing for 15 on a 300-hit-point seat; a threshold of 4 on a 40-hit-point part; 19
+pure damage landing in full), and a mutation that applies the threshold to pure damage fails them.

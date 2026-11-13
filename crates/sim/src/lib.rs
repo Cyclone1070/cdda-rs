@@ -80,6 +80,7 @@ pub mod melee;
 pub mod sounds;
 pub mod teleport;
 pub mod timed_events;
+pub mod vehicle_damage;
 pub mod vomit;
 pub mod traits;
 pub mod spell_area;

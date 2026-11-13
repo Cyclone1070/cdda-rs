@@ -45,6 +45,22 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A blow on a vehicle part is three rules, and two of them surprise (round 1504)
+
+`vehicle::damage_direct` (`vehicle.cpp:7925-7945`) is the first vehicle **rule** the port owns, and it is worth reading closely because a port that only subtracted hit points would
+look right on a big hit and be wrong on every small one.
+
+| Rule | Reference | Number | What a wrong port does |
+|---|---|---|---|
+the threshold | `tsh = min( 20, durability / 10 )`; a blow under it is returned **unconsumed** | a seat's is 20 | tracks scratches the game does not track |
+the armour | `dmg -= min( dmg, damage_reduction.at( type ) )` | a seat shaves 5 off a bash | loses hit points a real vehicle keeps |
+the exception | `pure` skips **both** (`type != damage_pure`, `type->no_resist`) | 19 pure damage lands in full | turns the game's one "always goes through" damage into the weakest |
+broken, not gone | `mod_hp` true means `is_broken()`, and the part **stays** | hit points at zero | deletes parts the reference keeps broken |
+
+`vehicle_damage::hit` is a function of the part's data and its hit points, so the three gates need no world: a 19-point bash is ignored and a 20-point one lands for 15; a thin
+40-hit-point part has a threshold of 4, and 4 damage at 5 armour lands for **zero** - which is not the same as being ignored; and 19 points of `pure` damage goes straight
+through. The store that holds the hit points comes next, and this rule is what it will call.
+
 ## A vehicle is a blueprint, and the blueprint names parts that exist (round 1503)
 
 The prototype half of the vehicle store was still a list of 249 ids. Version 3 of the dump carries each prototype's **blueprint** - what part goes in which square - which is

@@ -277,3 +277,4 @@ mod run_eocs_bare;
 mod program_effect_shapes;
 mod transform_line;
 mod open_dialogue;
+mod vehicle_damage;
