@@ -2040,3 +2040,10 @@ the port now carries that arithmetic in `rotation::TileRay` - direction rounded 
 gate then lands all 71 parts on the recorded squares at each facing and shows the index lists exactly the distinct squares, so a turned vehicle is found through the one index.
 Four mutations were caught: flipped quadrant signs, the sideways sign, the negative-advance negation, and a vehicle ignoring its own facing. **Still named**:
 `advance_precalc_mounts`, the second precalc slot used mid-move, because movement is not transcribed yet.
+
+**Round 1511 ported the removal cascade.** `vehicle::remove_part` is not one erase: a `WINDOW` takes its `CURTAIN`, a `SEAT` its `SEATBELT`, a `BATTERY_MOUNT` its
+`NEEDS_BATTERY_MOUNT`, a `HANDHELD_BATTERY_MOUNT` its `NEEDS_HANDHELD_BATTERY_MOUNT`, and the child's removal runs the same rule - the reference's `remove_dependent_part`
+lambda called four times. The child is the first part at the same mount with the flag, broken or not. The gate removes the origin seat and pins that the seatbelt went with it while
+the frame, controls, dashboard and roof stayed; installs a curtain on a windshield's square and pins that the windshield takes it; and removes a headlight to show that a part with
+no dependents takes nothing. Three mutations were caught: each exercised pair dropped from the table, and a cascade that ignores the child's flag. **Still named**: unboarding,
+tool drops, animal release and the `removed`-flag cleanup - the port's parts carry no passengers, tools or `removed` flag.

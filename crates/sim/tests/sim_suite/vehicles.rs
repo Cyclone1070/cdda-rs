@@ -579,3 +579,70 @@ fn a_turned_vehicle_stands_on_the_turned_squares_and_the_index_lists_them() {
     }
     assert_eq!(compared, 355, "5 facings x 71 parts, every part compared");
 }
+
+/// The index of a named part at one mount of a vehicle.
+fn part_index(world: &World, vehicle: Entity, x: i32, y: i32, id: &str) -> Option<usize> {
+    cdda_sim::vehicles::parts_at(world, vehicle, x, y)
+        .into_iter()
+        .find(|index| {
+            world
+                .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+                .and_then(|built| built.parts.get(*index))
+                .is_some_and(|part| part.part == id)
+        })
+}
+
+#[test]
+fn removing_a_part_removes_the_parts_that_depend_on_it() {
+    use cdda_sim::vehicles::{install_part, parts_at, remove_part, Vehicle};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    assert_eq!(
+        parts_at(&world, vehicle, 0, 0).len(),
+        6,
+        "the origin square holds frame, seat, seatbelt, controls, dashboard and roof"
+    );
+    let seat = part_index(&world, vehicle, 0, 0, "reclining_seat").expect("the seat");
+    remove_part(&mut world, vehicle, seat).expect("the seat comes out");
+    assert!(
+        part_index(&world, vehicle, 0, 0, "seatbelt").is_none(),
+        "**the seat takes its seatbelt with it**"
+    );
+    assert_eq!(
+        parts_at(&world, vehicle, 0, 0).len(),
+        4,
+        "and leaves the frame, the controls, the dashboard and the roof"
+    );
+
+    // A window takes its curtain: the reference's `remove_dependent_part( "WINDOW", "CURTAIN" )`.
+    assert!(
+        install_part(&mut world, vehicle, "aisle_curtain", 1, 0).is_some(),
+        "a curtain joins the windshield's square"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(vehicle).map(|built| built.parts.len()),
+        Some(70),
+        "71 - seat and seatbelt + curtain"
+    );
+    let windshield = part_index(&world, vehicle, 1, 0, "windshield").expect("the windshield");
+    remove_part(&mut world, vehicle, windshield).expect("the windshield comes out");
+    assert!(
+        part_index(&world, vehicle, 1, 0, "aisle_curtain").is_none(),
+        "**the windshield takes its curtain with it**"
+    );
+    assert_eq!(
+        parts_at(&world, vehicle, 1, 0).len(),
+        1,
+        "the frame is all that is left there"
+    );
+
+    // A part with no dependents takes nothing else with it.
+    let headlight = part_index(&world, vehicle, 1, 1, "headlight").expect("the headlight");
+    let before = parts_at(&world, vehicle, 1, 1).len();
+    remove_part(&mut world, vehicle, headlight).expect("the headlight comes out");
+    assert_eq!(
+        parts_at(&world, vehicle, 1, 1).len(),
+        before - 1,
+        "a headlight has no dependent part"
+    );
+}

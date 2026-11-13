@@ -319,11 +319,58 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
 
 /// Removes one part by its index, answering the part that came out.
 ///
-/// Reference: `vehicle::remove_part` (`vehicle.cpp:2213-2357`) erases the part and every part that depends on it, and unboards what stood on it. The port removes exactly the part it is given:
-/// the dependent-part cascade (`SEAT`/`SEATBELT`, `WINDOW`/`CURTAIN`), unboarding, tool drops and the `removed`-flag cleanup pass are named in `docs/parity.md`, not guessed at.
+/// Reference: `vehicle::remove_part` (`vehicle.cpp:2213-2357`). The part comes out, and so does the part that depends on it at the same mount: a `WINDOW` takes its `CURTAIN`, a
+/// `SEAT` its `SEATBELT`, a `BATTERY_MOUNT` its `NEEDS_BATTERY_MOUNT`, a `HANDHELD_BATTERY_MOUNT` its `NEEDS_HANDHELD_BATTERY_MOUNT` (`:2258-2283`), and the removal recurses
+/// because a dependent may itself have one. Unboarding what stood on the part, dropping its tools, releasing a caught animal and the `removed`-flag cleanup pass are named in
+/// `docs/parity.md`, not guessed at.
 ///
 /// A square leaves the index when no other part stands there. A vehicle's **origin** always stays, because that is where its [`Position`] is.
 pub fn remove_part(world: &mut World, vehicle: Entity, index: usize) -> Option<VehiclePart> {
+    let removed = remove_one_part(world, vehicle, index)?;
+    let mount = (removed.x, removed.y);
+    let parent_flags = spec_of(world, &removed.part)
+        .map(|spec| spec.flags.clone())
+        .unwrap_or_default();
+    for (parent, child) in DEPENDENT_PAIRS {
+        if !parent_flags.contains(parent) {
+            continue;
+        }
+        // The reference removes one dependent per pair, and that removal recurses through the child's own dependents.
+        if let Some(child_index) = first_part_at_with_flag(world, vehicle, mount, child) {
+            let _ = remove_part(world, vehicle, child_index);
+        }
+    }
+    Some(removed)
+}
+
+/// The pairs of flags where the first part cannot stay without the second - the reference's `remove_dependent_part` calls (`vehicle.cpp:2258-2283`).
+const DEPENDENT_PAIRS: [(&str, &str); 4] = [
+    ("WINDOW", "CURTAIN"),
+    ("SEAT", "SEATBELT"),
+    ("BATTERY_MOUNT", "NEEDS_BATTERY_MOUNT"),
+    ("HANDHELD_BATTERY_MOUNT", "NEEDS_HANDHELD_BATTERY_MOUNT"),
+];
+
+/// The first part at one mount that carries a flag, broken or not - the reference's `part_with_feature( mount, flag, false )`.
+fn first_part_at_with_flag(
+    world: &World,
+    vehicle: Entity,
+    mount: (i32, i32),
+    flag: &str,
+) -> Option<usize> {
+    parts_at(world, vehicle, mount.0, mount.1)
+        .into_iter()
+        .find(|index| {
+            world
+                .get::<Vehicle>(vehicle)
+                .and_then(|built| built.parts.get(*index))
+                .and_then(|part| spec_of(world, &part.part))
+                .is_some_and(|spec| spec.flags.contains(flag))
+        })
+}
+
+/// Erases one part by its index and keeps the index honest; the cascade lives in [`remove_part`].
+fn remove_one_part(world: &mut World, vehicle: Entity, index: usize) -> Option<VehiclePart> {
     let at = *world.get::<Position>(vehicle)?;
     let removed = {
         let mut built = world.get_mut::<Vehicle>(vehicle)?;

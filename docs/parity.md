@@ -45,6 +45,28 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A removed part takes its dependents with it (round 1511)
+
+The reference's `remove_part` is not one erase: a window cannot stay without its curtain, a seat without its seatbelt, a battery mount without its battery. The port now does the
+same, once per pair, and the child's removal runs the same rule - which is how the reference recurses.
+
+| Pair | Reference | Port |
+|---|---|---|
+`WINDOW` -> `CURTAIN` | `remove_dependent_part` (`vehicle.cpp:2261-2274`), called at `:2276` | `DEPENDENT_PAIRS` |
+`SEAT` -> `SEATBELT` | same lambda, called at `:2284` | same table |
+`BATTERY_MOUNT` -> `NEEDS_BATTERY_MOUNT` | same, called at `:2285` | same table |
+`HANDHELD_BATTERY_MOUNT` -> `NEEDS_HANDHELD_BATTERY_MOUNT` | same, called at `:2286` | same table |
+
+The child is the **first part at the same mount** carrying the flag, broken or not - `part_with_feature( mount, flag, unbroken=false )` (`vehicle.cpp:1243`). The cascade happens
+after the named part is out, so a child's index shift cannot change which part the caller asked for.
+
+The gate removes a seat and pins that its seatbelt is gone while the frame, controls, dashboard and roof are not; installs a curtain on a windshield's square and pins that the
+windshield takes it; and removes a headlight to show that a part with no dependents takes nothing else. Three mutations were caught: each of the two exercised pairs dropped from
+the table, and a cascade that ignores the child's flag.
+
+**Still named:** unboarding a passenger, dropping the part's tools, releasing a caught animal, and the `removed`-flag cleanup pass - the port's parts carry no passengers, tools
+or `removed` flag.
+
 ## A facing turns every mount (round 1510)
 
 The port derived a vehicle's squares from its mounts untouched, and named rotation as the gap. The reference's rule is a `tileray` - a line iterator - driven by `coord_translate`, and
@@ -98,10 +120,10 @@ a part stands on or beside structure | `can_mount` (`:1328-1339`), `has_structur
 install | `vehicle::install_part` (`:1696-1757`) | `install_part` appends with the spec's durability, answers the part's index, and joins its square to the one index |
 remove | `vehicle::remove_part` (`:2213-2357`) | `remove_part` erases **exactly** the part it is given; a non-origin square leaves the index when its last part does |
 
-**Named gaps** at the time, three of them closed by round 1509 (below): the tow-cable/protrusion exception, the cargo pair and the mirror/opaque pair. The turret-mount rule, engine
-conflicts (`has_engine_conflict`) and the flags that require another flag (`json_flag::get(...).requires_flag()`, which needs the flag table) remain outside the port. Removal's
-dependent-part cascade (`SEAT` gives up its `SEATBELT`, `WINDOW` its `CURTAIN`), unboarding, tool drops and the `removed`-flag cleanup pass are not transcribed either: the port's
-parts carry no `removed` flag and no passengers.
+**Named gaps** at the time, three of them closed by round 1509 (below) and the removal cascade by round 1511: the tow-cable/protrusion exception, the cargo pair, the mirror/opaque
+pair and the dependent-part cascade. The turret-mount rule, engine conflicts (`has_engine_conflict`) and the flags that require another flag (`json_flag::get(...).requires_flag()`,
+which needs the flag table) remain outside the port, and so do unboarding, tool drops, animal release and the `removed`-flag cleanup: the port's parts carry no `removed` flag and no
+passengers.
 
 The gate installs a frame and a seat on an empty square beside the hull and pins each refusal: a second frame (same id), an `xlframe` (same location), a `box` (the seat holds `center`),
 a headlight on an empty square, a frame with no structure on or beside it, and an unknown part. The power-transfer exception is pinned by two `jumper_cable`s in one square. Removal is
