@@ -70,6 +70,7 @@ pub struct WeakpointSet {
 ///
 /// # Errors
 /// None: an entry that states nothing readable is skipped rather than failing the whole set, because an effect the data leaves half-written must not stop a game from loading.
+#[allow(clippy::cast_precision_loss)]
 fn read_effects(value: Option<&Value>) -> Vec<TriggeredEffect> {
     let Some(Value::Array(entries)) = value else {
         return Vec::new();
@@ -119,6 +120,7 @@ fn read_effects(value: Option<&Value>) -> Vec<TriggeredEffect> {
 }
 
 /// A JSON number, whole or fractional.
+#[allow(clippy::cast_precision_loss)]
 fn as_number(value: &Value) -> Option<f64> {
     match value {
         Value::Float(found) => Some(*found),
@@ -131,6 +133,7 @@ fn as_number(value: &Value) -> Option<f64> {
 ///
 /// # Errors
 /// Returns an error when the entry states no id.
+#[allow(clippy::cast_precision_loss)]
 pub fn read_weakpoint(value: &Value) -> Result<Weakpoint, LoadError> {
     let Value::Object(object) = value else {
         return Err(LoadError {
@@ -236,6 +239,7 @@ pub struct Family {
 /// Reads a body's weak-point families.
 ///
 /// An entry that names no proficiency is skipped: a family nothing can earn is not a rule, and the reference's own loader makes the proficiency mandatory.
+#[allow(clippy::cast_precision_loss)]
 #[must_use]
 pub fn read_families(entries: &[Value]) -> Vec<Family> {
     let mut out = Vec::new();

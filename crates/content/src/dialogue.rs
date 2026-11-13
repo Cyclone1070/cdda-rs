@@ -646,7 +646,6 @@ fn read_bare_condition(name: &str) -> Option<Condition> {
             | "is_day"
             | "is_night"
             | "u_driving"
-            | "u_is_underwater"
     )
     .then(|| Condition::Simple {
         name: name.to_owned(),
@@ -689,6 +688,7 @@ fn read_has_effect(object: &cdda_json::Object) -> Option<Condition> {
 ///
 /// A `None` is not "false": it is "the port cannot answer", and a caller that treats the two the same would silently give
 /// every unread condition the weakest possible meaning.
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn read_condition(value: &Value) -> Option<Condition> {
     // Reference: a bare name is an argument-less condition (`condition.cpp:2783-2810`).
@@ -3976,11 +3976,6 @@ fn is_comment_only(value: &Value) -> bool {
             .all(|(name, _)| name.starts_with("//"))
 }
 
-/// Reads one effect entry, or nothing when it states a rule the port does not have.
-///
-/// Reference: `talk_effect_t::load_effect` (`npctalk.cpp:8348`) reads an entry as a name, an object with one effect member, or a list; the port accepts the first
-/// two and refuses whatever it cannot carry out, so a refused entry is visible as a refusal rather than as a silent no-op.
-#[must_use]
 /// The string effects the reference spells out **after** its table, name for name.
 ///
 /// Reference: `talk_effect_t::parse_string_effect` (`npctalk.cpp:8250-8341`): past the `WRAP` table the function carries a run of `if( effect_id == … )` branches, each building an
@@ -4064,6 +4059,12 @@ fn read_string_effect(name: &str) -> Option<Effect> {
     }
 }
 
+/// Reads one effect entry, or nothing when it states a rule the port does not have.
+///
+/// Reference: `talk_effect_t::load_effect` (`npctalk.cpp:8348`) reads an entry as a name, an object with one effect member, or a list; the port accepts the first
+/// two and refuses whatever it cannot carry out, so a refused entry is visible as a refusal rather than as a silent no-op.
+#[allow(clippy::too_many_lines)]
+#[must_use]
 pub fn read_effect(value: &Value) -> Option<Effect> {
     if is_comment_only(value) {
         return Some(Effect::Nothing);

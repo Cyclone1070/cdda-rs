@@ -540,12 +540,12 @@ fn a_kind_is_a_container_only_when_it_states_a_container_pocket() {
 #[test]
 fn a_simple_fixture_loads_every_kind_it_states() {
     let loaded = fixture(
-        r##"[{ "type": "ITEM", "id": "bag", "name": { "str": "bag" }, "symbol": "(", "color": "light_gray", "weight": "300 g", "volume": "1 L", "price": "1 USD", "material": [ "cotton" ], "pocket_data": [ { "pocket_type": "CONTAINER" } ] },
+        r#"[{ "type": "ITEM", "id": "bag", "name": { "str": "bag" }, "symbol": "(", "color": "light_gray", "weight": "300 g", "volume": "1 L", "price": "1 USD", "material": [ "cotton" ], "pocket_data": [ { "pocket_type": "CONTAINER" } ] },
             { "type": "ITEM", "id": "mag", "name": { "str": "magazine" }, "symbol": "(", "color": "light_gray", "weight": "100 g", "volume": "250 ml", "price": "1 USD", "material": [ "steel" ], "subtypes": [ "MAGAZINE" ], "pocket_data": [ { "pocket_type": "MAGAZINE" } ] },
             { "type": "ITEM", "id": "lighter", "name": { "str": "lighter" }, "symbol": ";", "color": "light_gray", "weight": "10 g", "volume": "10 ml", "price": "1 USD", "material": [ "steel" ], "subtypes": [ "TOOL" ] },
             { "type": "ITEM", "id": "pistol", "name": { "str": "pistol" }, "symbol": "(", "color": "light_gray", "weight": "1 kg", "volume": "500 ml", "price": "1 USD", "material": [ "steel" ], "subtypes": [ "GUN" ] },
             { "type": "ITEM", "id": "ball", "name": { "str": "ball" }, "symbol": "=", "color": "light_gray", "weight": "1 g", "volume": "1 ml", "price": "1 USD", "material": [ "steel" ], "subtypes": [ "AMMO" ], "ammo_type": "9mm" },
-            { "type": "ITEM", "id": "rock", "name": { "str": "rock" }, "symbol": "*", "color": "light_gray", "weight": "500 g", "volume": "250 ml", "price": "1 USD", "material": [ "stone" ] }]"##,
+            { "type": "ITEM", "id": "rock", "name": { "str": "rock" }, "symbol": "*", "color": "light_gray", "weight": "500 g", "volume": "250 ml", "price": "1 USD", "material": [ "stone" ] }]"#,
         "six_kind_fixture",
     );
     for id in ["bag", "mag", "lighter", "pistol", "ball", "rock"] {

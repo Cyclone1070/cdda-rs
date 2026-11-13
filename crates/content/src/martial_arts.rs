@@ -6,6 +6,7 @@
 use cdda_json::{Object, Value};
 
 /// One static buff's requirement, as the data states it.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuffRequirement {
     /// Its id, which is what the data calls the buff.
@@ -25,6 +26,7 @@ pub struct BuffRequirement {
 }
 
 /// One martial art.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Style {
     /// Which style.
@@ -74,6 +76,7 @@ pub struct MoveEffect {
 ///
 /// Reference: `ma_technique` (`martialarts.h:162-247`): the same `ma_requirements` a buff carries, plus what the move does - how likely it is to be chosen, whether it is defensive, and whether it
 /// only fires on a critical. **What the move does to a body is the half not ported**: this is the requirement, which is what decides whether the move is offered at all.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Technique {
     /// Its id.
@@ -221,6 +224,7 @@ fn words(object: &Object, key: &str) -> Vec<String> {
 }
 
 /// Reads one style, or nothing when the row names no id.
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn read_style(object: &Object) -> Option<Style> {
     let id = text(object, "id")?;

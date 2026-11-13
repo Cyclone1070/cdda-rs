@@ -230,7 +230,7 @@ pub fn set_types(world: &mut World, kinds: &[String]) {
 /// Whether the data defines a morale type, which is what the reference asks before it adds one.
 #[must_use]
 pub fn is_known(world: &World, kind: &str) -> bool {
-    let mut query = world.try_query_filtered::<&MoraleTypes, With<TheMoraleTypes>>();
+    let query = world.try_query_filtered::<&MoraleTypes, With<TheMoraleTypes>>();
     let Some(mut query) = query else {
         return false;
     };

@@ -463,8 +463,7 @@ fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
     let bones = dropped
         .iter()
         .find(|(kind, _)| *kind == BONE)
-        .map(|(_, count)| *count)
-        .unwrap_or(0);
+        .map_or(0, |(_, count)| *count);
     assert!(
         (20..=30).contains(&bones),
         "the bones are whatever the dressing's own roll left: {bones} of {dropped:?}"
@@ -875,7 +874,7 @@ fn the_finish_judges_each_entry_at_its_own_drop_type_s_skill() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     // A survival master, which is what used to decide the figure.
     for _ in 0..40 {
-        cdda_sim::skills_of::practice(&mut world, survivor, "survival", 1_000, 10);
+        let _ = cdda_sim::skills_of::practice(&mut world, survivor, "survival", 1_000, 10);
     }
 
     let levels = cdda_sim::creature::butchery_skill_levels(
@@ -906,7 +905,7 @@ fn the_finish_judges_each_entry_at_its_own_drop_type_s_skill() {
     // data does not, because the point here is the wiring and not the data - the data has its own gate in the content suite.
     // Practice is capped per call, so a level is reached by asking more than once - the same way the game does it, turn by turn.
     for _ in 0..40 {
-        cdda_sim::skills_of::practice(&mut world, survivor, "firstaid", 1_000, 10);
+        let _ = cdda_sim::skills_of::practice(&mut world, survivor, "firstaid", 1_000, 10);
     }
     let mut table = std::collections::BTreeMap::new();
     table.insert("bone".to_owned(), vec!["firstaid".to_owned()]);

@@ -179,7 +179,7 @@ fn a_summoning_spell_brings_the_monster_it_names() {
         Some(MonsterKindId(2))
     );
     assert_eq!(
-        monster_registry::name_of(&mut world, MonsterKindId(1)).as_deref(),
+        monster_registry::name_of(&world, MonsterKindId(1)).as_deref(),
         Some("mon_zombie")
     );
     assert_eq!(monster_registry::hit_points(&mut world, MonsterKindId(1)), 80);
@@ -607,7 +607,7 @@ fn an_effect_on_condition_spell_runs_its_program_with_the_square_it_stands_on() 
     };
     let programs: Vec<cdda_content::dialogue::Program> = entries
         .iter()
-        .filter_map(|entry| cdda_content::dialogue::read_program(entry))
+        .filter_map(cdda_content::dialogue::read_program)
         .collect();
     assert_eq!(programs.len(), 1, "the program reads");
     cdda_sim::eoc_registry::set_programs(&mut world, &programs);

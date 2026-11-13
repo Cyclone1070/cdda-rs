@@ -682,10 +682,8 @@ impl ItemType {
     pub fn charges_to_use(&self) -> i32 {
         if self.subtypes.contains("TOOL") {
             self.tool_charges_per_use
-        } else if self.comestible.is_some() {
-            1
         } else {
-            0
+            i32::from(self.comestible.is_some())
         }
     }
 
@@ -1134,7 +1132,7 @@ fn collect(
             // **Every type the reference's item factory handles**, and not only the two the port used to keep: `itype::load_slots` dispatches on the same eighteen names
             // (`src/item_factory.cpp:2862-2927`), so a `TOOL`, a `GUN` or an `AMMO` is as much an item as a `GENERIC`. The old filter dropped them **without a word**, which is the
             // defect a fixture of six prototypes found: three of the six never loaded.
-            let Some(Value::Str(kind)) = object.get("type") else {
+            let Some(Value::Str(_)) = object.get("type") else {
                 return;
             };
             // **One type, and it is `ITEM`.** The reference registers exactly one loader for item data - `add( "ITEM", &items::load )` (`src/init.cpp:351`) - and the kinds within it are told apart by a
@@ -1759,7 +1757,7 @@ fn apply_flat_slots(
     // The tool slot's own rate: `islot_tool::charges_per_use`, read by `itype::charges_to_use` (`src/itype.cpp:151-155`). It only means anything on a kind that names `TOOL` in its
     // subtypes, which is why the rule asks the subtype rather than this number alone.
     if let Some(rate) = integer(object, "charges_per_use") {
-        item.tool_charges_per_use = i32::try_from(rate).unwrap_or(0);
+        item.tool_charges_per_use = rate;
     }
     if let Some(is_gun) = boolean(object, "is_gun") {
         item.is_gun = is_gun;

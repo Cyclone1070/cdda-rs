@@ -52,15 +52,12 @@ fn sweep(world: &mut World, spells: &[cdda_content::spells::Spell]) -> Sweep {
         // fixture world does not have.
         let named = spell.targeted_monster_ids.iter().next().cloned();
         if let Some(name) = named {
-            match cdda_sim::monster_registry::id_of(world, &name) {
-                Some(kind) => {
-                    cdda_sim::creature::set_kind(world, target, kind);
-                }
-                None => {
-                    found.filtered += 1;
-                    world.despawn(target);
-                    continue;
-                }
+            if let Some(kind) = cdda_sim::monster_registry::id_of(world, &name) {
+                cdda_sim::creature::set_kind(world, target, kind);
+            } else {
+                found.filtered += 1;
+                world.despawn(target);
+                continue;
             }
         }
         match spellcasting::cast_attack(world, (0, 0, 0), spell, 0, target, 0.0) {
@@ -186,6 +183,7 @@ fn damage_at_ceiling(row: &cdda_json::Object) -> Option<i64> {
 /// its own `max_level` deals exactly its `max_damage`. At level 0, 43 of the 77 attack spells deal nothing because they
 /// scale up from zero; this sweep is the one that exercises the arithmetic.
 #[test]
+#[allow(clippy::too_many_lines)]
 fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/spells.json");
     let text = std::fs::read_to_string(path).expect("the spell dump");

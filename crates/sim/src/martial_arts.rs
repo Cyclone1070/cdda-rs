@@ -24,6 +24,7 @@ pub enum Hands<'a> {
 ///
 /// Reference: `struct ma_requirements` (`martialarts.h:102-130`). **The two flags default to false**, so a buff that says nothing is in play for nobody; the categories are the reference's
 /// `weapon_categories_allowed`, and an empty list allows any weapon category.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {
     /// Whether it works with an empty hand.
@@ -530,7 +531,7 @@ pub fn apply_move(
     let mut landed = Vec::new();
     let mut rolls = crate::singletons::take_rolls(world);
     for effect in &movement.effects {
-        if !(damage_dealt != 0 || !effect.on_damage) {
+        if damage_dealt == 0 && effect.on_damage {
             continue;
         }
         // **The effect's own numbers are the registry's**, so an id the data never defined cannot land as a bare name with invented limits.

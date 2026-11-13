@@ -223,6 +223,13 @@ since the output went through `grep` for the word "error": the exit status was n
 `-D warnings` failure lists `error:` lines that a grep for something else does not show. The gate is
 `cargo clippy ... | grep -cE "^error"` returning **0**, not "I looked and saw nothing".
 
+It happened again. Between the dialogue rounds and round 1505 the receipts said "clippy clean" while
+`--clippy` had accumulated **more than a hundred findings**, including two duplicate `match` arms left by
+text edits, a doc comment that had drifted onto the wrong item, and three deny-level indexing panics. The
+cause was mechanical: `python3 tools/remote_test.py` does not run clippy, and the runs that did were read
+through a pipe. The gate is now named explicitly in every round's receipt, and the exit status is the
+receipt.
+
 Run long oracle commands in the
 foreground, never backgrounded - a cancelled background dump keeps parsing for
 ever, and two of them once held this machine above a load average of eleven. Killing the job

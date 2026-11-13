@@ -658,7 +658,7 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
     let Some(corpse) = subject else {
         return;
     };
-    let survival = i32::from(skill_level(world, creature, "survival"));
+    let survival = skill_level(world, creature, "survival");
     let dexterity = effective_dexterity(world, creature);
     // Reference: `you.max_quality( action == butcher_type::DISSECT ? qual_CUT_FINE : qual_BUTCHER, PICKUP_RANGE )` (`butchery.cpp:632`): a dissection wants a fine blade and
     // everything else wants a butchering tool, and either may be lying on the ground beside the corpse. The quality is read **before** the yield multiplier, because the
@@ -680,6 +680,7 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
 ///
 /// The split is the port's own seam, not the reference's: `butchery.cpp` computes the multiplier from the character each time it draws an entry, and a test that wants to see the division on its own has
 /// no way to say "with this multiplier" through a survivor's stats - three numbers that only multiply to the wanted value by accident.
+#[allow(clippy::too_many_lines)]
 pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entity, multiplier: f64) {
     let Some(corpse_of) = world.get::<crate::CorpseOf>(corpse).copied() else {
         return;
@@ -708,12 +709,12 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         #[allow(clippy::cast_precision_loss)]
         weight: crate::monster_registry::weight_of(world, corpse_of.kind) as f64,
         // What the body leaves behind that nobody asked for: the definition's own `leftovers`, weighed against one of them.
-        leftovers: leftovers,
+        leftovers,
     };
     let state = crate::ButcherFinish {
         action,
         size: crate::monster_registry::size_of(world, corpse_of.kind),
-        butchery: i32::from(skill_level(world, creature, "survival")),
+        butchery: skill_level(world, creature, "survival"),
         dex: effective_dexterity(world, creature),
         // With no tool in hand the quality is zero, which is what the reference's own `max_quality` answers for an empty inventory.
         tool_quality: 0,
@@ -803,7 +804,7 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         tool_quality: 0,
     };
     if let Some((skill, amount, cap)) = practice.against_skill() {
-        crate::skills_of::practice(world, creature, &skill, amount, cap);
+        let _ = crate::skills_of::practice(world, creature, &skill, amount, cap);
     }
     for (proficiency, seconds) in training.taught() {
         let Some(time_to_learn) = crate::proficiencies::time_to_learn(world, &proficiency) else {
@@ -3310,6 +3311,7 @@ pub fn blow_from_what_the_character_holds(world: &World, holder: Entity) -> crat
 /// Swings whatever a character is holding at a creature, and answers what it did to it.
 ///
 /// This is the avatar's half of the fight: the same `strike_with` a monster's blow goes through, fed by `blow_from_what_the_character_holds` instead of a `MeleeAttack` component.
+#[allow(clippy::too_many_lines)]
 pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim: Entity) -> Option<i32> {
     let attack = blow_from_what_the_character_holds(world, holder);
     // Reference: `Character::melee_attack` works out `move_cost = attack_speed( cur_weap )` and charges it whatever the outcome (`melee.cpp:628`), which is why a fast weapon is
@@ -3486,6 +3488,7 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
 }
 
 /// One blow, from an attack the caller has already worked out.
+#[allow(clippy::too_many_lines)]
 fn strike_with(
     world: &mut World,
     victim: Entity,
@@ -3674,9 +3677,9 @@ pub fn wielding_skill(world: &World, holder: Entity) -> String {
     names
         .and_then(|names| {
             crate::melee::weapon_skill(
-                f64::from(names.melee_bash_of(kind)),
-                f64::from(names.melee_cut_of(kind)),
-                f64::from(names.melee_stab_of(kind)),
+                names.melee_bash_of(kind),
+                names.melee_cut_of(kind),
+                names.melee_stab_of(kind),
             )
         })
         .unwrap_or("unarmed")
@@ -3694,9 +3697,9 @@ fn weapon_skill_level(world: &World, holder: Entity) -> i32 {
     let names = crate::item_registry::peek(world);
     names.map_or(0, |names| {
         let skill = crate::melee::weapon_skill(
-            f64::from(names.melee_bash_of(kind)),
-            f64::from(names.melee_cut_of(kind)),
-            f64::from(names.melee_stab_of(kind)),
+            names.melee_bash_of(kind),
+            names.melee_cut_of(kind),
+            names.melee_stab_of(kind),
         );
         skill.map_or(0, |skill| skill_level(world, holder, skill))
     })
@@ -3838,6 +3841,9 @@ pub fn limb_score(world: &World, entity: Entity, name: &str) -> f64 {
     f64::from(total)
 }
 
+/// How hard a body is to hit: the dodge it has left after what is holding it, and the armour it wears.
+///
+/// Reference: `monster::get_dodge` asks what is holding the monster before it answers, and the armour is the flat reduction a blow is shaved by.
 pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
     let size = world
         .get::<Creature>(entity)

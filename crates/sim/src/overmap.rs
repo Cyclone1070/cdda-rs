@@ -159,7 +159,7 @@ pub fn reveal(world: &mut World, center: (i32, i32), radius: i32) {
 /// Every tile that has been seen, which is what a test counts.
 #[must_use]
 pub fn seen_tiles(world: &World) -> Vec<(i32, i32, i32)> {
-    let mut query = world.try_query_filtered::<&OvermapSeen, With<TheOvermapSeen>>();
+    let query = world.try_query_filtered::<&OvermapSeen, With<TheOvermapSeen>>();
     let Some(mut query) = query else {
         return Vec::new();
     };

@@ -34,6 +34,10 @@ pub enum Refusal {
 ///
 /// Reference: `spell_effect::revive` walks its area, and for each square walks the items on it, **reviving the first corpse that passes and breaking out of the square**. The
 /// monster is created from the corpse and the corpse is removed; a square with several acceptable bodies gives up one of them per cast.
+///
+/// # Errors
+///
+/// Returns a [`Refusal`] naming why nothing rose: the square holds no corpse, the corpse is not one that revives, or it was butchered.
 pub fn revive(
     world: &mut World,
     square: (i32, i32, i32),

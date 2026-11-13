@@ -7882,7 +7882,7 @@ impl CorpseDamage {
 ///
 /// The caller passes the levels because the reference reads the average of practice and knowledge, which the port's skill system answers.
 #[must_use]
-#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 pub fn dissect_skill_level(skills: &[(String, i32)], tool_quality: i32) -> i32 {
     let total: i32 = skills.iter().map(|(_, level)| *level).sum();
     let count = i32::try_from(skills.len()).unwrap_or(1).max(1);
@@ -8118,7 +8118,7 @@ impl ButcheryPractice {
                 ButcherAction::Dissect => Some((
                     "firstaid".to_owned(),
                     0,
-                    steps_above_medium(self.size) + 2 + self.tool_quality.min(3).max(0) + 2,
+                    steps_above_medium(self.size) + 2 + self.tool_quality.clamp(0, 3) + 2,
                 )),
                 _ => Some(("survival".to_owned(), 0, steps_above_medium(self.size).max(0) + 4)),
             };
@@ -8151,6 +8151,7 @@ impl ButcheryPractice {
 /// * **quick**: `moves * 0.7` for the flesh-or-offal side and `moves * 0.15` for the skin side;
 /// * each side practises its **advanced** proficiency if the basic one is already known, and the basic one otherwise;
 /// * a body with neither flesh, offal nor skin teaches nothing, and no other action teaches anything at all.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 pub struct ButcheryTraining {
     /// What kind of job it was.
@@ -8235,7 +8236,7 @@ pub struct CorpseLeftovers {
 
 /// How many ruined parts a body leaves, as [`CorpseLeftovers`] describes it.
 #[must_use]
-#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 pub fn leftovers_after_butchery(leftovers: &CorpseLeftovers) -> i32 {
     let weight = leftovers.corpse_grams;
     // Reference order: each entry's own weight came off during the loop (`:832-840`), and the fifth of gore comes off after it (`:916-918`).
@@ -8494,6 +8495,7 @@ pub struct HarvestTable<'a> {
 }
 
 /// The facts a finished butchery needs that are not in the entries themselves.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct ButcherFinish {
     /// What kind of butchery is being done. The reference's finish loop branches on it for every entry, so it is part of the rule rather than of the caller's setup.
@@ -8557,7 +8559,7 @@ pub fn butcher_finish(
 /// The reference rolls that figure **once per entry** and keeps them: the finish loop's own practice is
 /// `( 4 + butchery ) / entry_count` per entry (`butchery.cpp:694`, `:952-957`), so a caller that wants to give the survivor the practice has to have the rolls rather than re-roll them - a second roll would be a
 /// different number and a different stream position.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 pub fn butcher_finish_recording(
     world: &mut World,
     corpse: Entity,
@@ -8626,7 +8628,7 @@ pub fn butcher_finish_recording(
         #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
         let count = match entry.mass_ratio {
             Some(_) => {
-                let grams = count as f64 * state.yield_multiplier;
+                let grams = f64::from(count) * state.yield_multiplier;
                 let each = drop_grams(id).max(1) as f64;
                 (grams / each).ceil().max(0.0) as i32
             }

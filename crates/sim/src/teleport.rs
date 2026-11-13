@@ -60,7 +60,7 @@ pub fn creature(world: &mut World, who: Entity, min_distance: i32, max_distance:
         let angle = rolls.rng(0, 360);
         let distance = rolls.rng(min_distance, max_distance);
         #[allow(clippy::cast_precision_loss)]
-        let radians = angle as f64;
+        let radians = f64::from(angle);
         landing = (
             origin.0 + (f64::from(distance) * radians.cos()) as i32,
             origin.1 + (f64::from(distance) * radians.sin()) as i32,

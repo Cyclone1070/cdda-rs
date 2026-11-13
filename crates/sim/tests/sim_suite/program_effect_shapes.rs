@@ -21,7 +21,11 @@ fn a_program_reads_whether_its_effect_is_one_object_or_a_list() {
         1,
         "and it is one effect, exactly as an array of one would be"
     );
-    assert_eq!(program.effects[0].kind(), "run_eocs", "the effect the data wrote");
+    assert_eq!(
+        program.effects.first().expect("one effect").kind(),
+        "run_eocs",
+        "the effect the data wrote"
+    );
 
     let list = r#"{
         "type": "effect_on_condition",

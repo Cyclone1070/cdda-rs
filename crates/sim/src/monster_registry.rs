@@ -176,7 +176,7 @@ pub fn set_leftovers(world: &mut World, entries: &[(crate::MonsterKindId, String
             types.leftovers.resize(at + 1, String::new());
         }
         if let Some(slot) = types.leftovers.get_mut(at) {
-            *slot = leftover.clone();
+            slot.clone_from(leftover);
         }
     }
 }
@@ -499,7 +499,9 @@ pub fn set_speeds(world: &mut World, entries: &[(MonsterKindId, i32)]) {
             if registry.speeds.len() <= index {
                 registry.speeds.resize(index + 1, 0);
             }
-            registry.speeds[index] = *speed;
+            if let Some(slot) = registry.speeds.get_mut(index) {
+                *slot = *speed;
+            }
         }
     }
 }
@@ -519,8 +521,12 @@ pub fn set_flags_and_species(
             registry.flags.resize(at + 1, BTreeSet::new());
             registry.species.resize(at + 1, BTreeSet::new());
         }
-        registry.flags[at].clone_from(flags);
-        registry.species[at].clone_from(species);
+        if let Some(slot) = registry.flags.get_mut(at) {
+            slot.clone_from(flags);
+        }
+        if let Some(slot) = registry.species.get_mut(at) {
+            slot.clone_from(species);
+        }
     }
 }
 

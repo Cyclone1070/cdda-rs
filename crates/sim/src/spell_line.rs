@@ -119,6 +119,7 @@ fn build_line(
 ///
 /// Reference: `spell_effect::spell_effect_line` (`magic_spell_effect.cpp:308-444`). `source` and `target` are on the same level; `width` is the spell's `aoe`.
 #[must_use]
+#[allow(clippy::similar_names)]
 pub fn line(
     source: (i32, i32),
     target: (i32, i32),

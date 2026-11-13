@@ -366,7 +366,7 @@ fn a_kill_practises_the_families_the_body_names() {
     );
     // The tenth kill of a body worth ten of those minutes is what learns it, and the rule says so on that kill and not before.
     for _ in 1..10 {
-        cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
+        let _ = cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
     }
     assert!(
         cdda_sim::proficiencies::knows(&world, killer, "prof_cutting"),

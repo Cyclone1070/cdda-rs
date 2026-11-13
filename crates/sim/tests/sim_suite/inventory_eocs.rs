@@ -234,9 +234,9 @@ fn the_npc_member_searches_the_listeners_items() {
     let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let listener = cdda_sim::creature::spawn_creature(&mut world, "the beggar", (1, 0, 0));
     let rock = cdda_sim::item_registry::id_of(&mut world, "rock");
-    let rock = match rock {
-        Some(kind) => kind,
-        None => {
+    let rock = if let Some(kind) = rock {
+        kind
+    } else {
             cdda_sim::item_registry::set_item_types(
                 &mut world,
                 &[cdda_sim::item_registry::Kind {
@@ -252,7 +252,6 @@ fn the_npc_member_searches_the_listeners_items() {
                 }],
             );
             cdda_sim::item_registry::id_of(&mut world, "rock").expect("just registered")
-        }
     };
     let carried = cdda_sim::drop_item(&mut world, (1, 0), rock, 1);
     world.entity_mut(carried).remove::<cdda_sim::Position>();
@@ -382,10 +381,11 @@ fn entries_are_alternatives_and_one_may_be_a_condition() {
     fn messages(search_data: &str, names: &[&str]) -> Vec<String> {
         let mut world = World::new();
         let items = a_survivor_with(&mut world, names);
-        let speaker = items
+        let existing = items
             .first()
             .and_then(|item| world.get::<cdda_sim::creature::Carried>(*item))
-            .map(|carried| carried.0)
+            .map(|carried| carried.0);
+        let speaker = existing
             .unwrap_or_else(|| cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0)));
         let text = format!(
             r#"{{ "u_run_inv_eocs": "all", "search_data": {search_data},

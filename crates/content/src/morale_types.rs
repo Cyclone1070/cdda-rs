@@ -23,10 +23,10 @@ pub fn load(paths: &[&str]) -> Result<std::collections::BTreeSet<String>, crate:
             continue;
         };
         for entry in entries {
-            if let Value::Object(object) = entry {
-                if let Some(id) = id_of(&object) {
-                    kinds.insert(id);
-                }
+            if let Value::Object(object) = entry
+                && let Some(id) = id_of(&object)
+            {
+                kinds.insert(id);
             }
         }
     }

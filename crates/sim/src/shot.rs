@@ -436,7 +436,6 @@ fn hurt_once(
                 bash: bash as i32,
                 cut: cut as i32,
                 stab: stab as i32,
-                ..armour
             };
             (blow, armour)
         }

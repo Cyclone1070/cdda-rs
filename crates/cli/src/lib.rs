@@ -540,6 +540,7 @@ pub fn run(text: &str) -> Result<Outcome, String> {
 ///
 /// Kept apart from [`run`]'s match for one reason worth writing down: those arms all ask the item registry, and a match
 /// that grows a dozen item arms stops being readable as the shape of a scenario.
+#[allow(clippy::too_many_lines)]
 fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool {
     match step {
         Step::Data => install_the_tables(world, outcome),
@@ -843,6 +844,7 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
 ///
 /// The reference finalises both at load (`anatomy::finalize`, `anatomy.cpp:78-90`) and every later rule - which part a blow lands on, what armour covers it - reads the
 /// result. One reader for both callers, because the avatar's body and a monster's body are the same join.
+#[must_use]
 pub fn body_corpus() -> Option<(
     Vec<cdda_content::anatomies::Anatomy>,
     Vec<cdda_content::body_parts::BodyPartType>,
@@ -864,6 +866,9 @@ pub fn body_corpus() -> Option<(
     Some((anatomies, parts))
 }
 
+/// Installs every monster kind with what it needs to be a body: its corpse, its anatomy, its armour and the groups a spawn point draws from.
+///
+/// Answers how many kinds were installed, or nothing when the monster dump cannot be read.
 pub fn install_monster_data(world: &mut World) -> Option<usize> {
     let monsters = monster_types()?;
     // What a corpse is, installed with the monsters that make them: the item the content calls `corpse`, and each monster's own volume, which is what its corpse is measured from
@@ -977,6 +982,7 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
 ///
 /// Reference: `mtype::harvest` names a `harvest_definition`, whose entries `butchery.cpp`'s finish loop walks; `mtype::weight` is what a bulk entry's `mass_ratio` is a share of. Both are read from the
 /// reference's data tree the same way the tests read it, because the harvest definitions are their own prototype list rather than a field of the monster.
+#[allow(clippy::too_many_lines)]
 fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::MonsterType], data: &std::path::Path) {
     let mut definitions = std::collections::BTreeMap::new();
     if let Ok(files) = cdda_content::json_files_in_load_order(data) {
@@ -1834,6 +1840,9 @@ fn energy_name(source: &str) -> &'static str {
     }
 }
 
+/// Casts a named spell from the avatar at the nearest other creature, answering what happened in words.
+///
+/// Answers nothing when the avatar has no square or there is nothing else alive to cast at. The energy is asked for first and spent after the effect, which is the reference's order.
 pub fn cast_at_nearest(
     world: &mut World,
     avatar: bevy_ecs::entity::Entity,

@@ -11,15 +11,14 @@ use bevy_ecs::prelude::*;
 fn a_world(kills: i32) -> (World, Entity, Entity) {
     let mut world = World::new();
     let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_blob");
-    let kind = match kind {
-        Some(kind) => kind,
-        None => {
+    let kind = if let Some(kind) = kind {
+        kind
+    } else {
             cdda_sim::monster_registry::set_monster_types(
                 &mut world,
                 &[cdda_sim::monster_registry::MonsterKind { id: "mon_blob", hp: 40 }],
             );
             cdda_sim::monster_registry::id_of(&mut world, "mon_blob").expect("mon_blob")
-        }
     };
     let person = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     let caster = cdda_sim::spawn_monster(&mut world, (1, 0), kind, 40);

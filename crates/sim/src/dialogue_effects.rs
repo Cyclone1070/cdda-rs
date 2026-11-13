@@ -1036,11 +1036,11 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
             continue;
         };
         // Reference: `run_item_eocs` (`npctalk.cpp:3341-3348`) - an empty list matches everything, otherwise **any one** entry matching is enough.
-        let matched = search_data.is_empty()
+        let accepted = search_data.is_empty()
             || search_data.iter().any(|filter| {
                 filter_matches(world, speaker, entity, &name, is_wielded, is_worn, filter)
             });
-        if matched {
+        if accepted {
             matches.push((entity, name, charges));
         }
     }
@@ -2829,6 +2829,7 @@ fn run_store_effect(
 }
 
 /// Runs one effect entry.
+#[allow(clippy::too_many_lines)]
 pub fn run_effect(
     world: &mut World,
     speaker: Entity,
@@ -2984,7 +2985,7 @@ pub fn run_effect(
             let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
                 return Applied::CannotAnswer;
             };
-            crate::mutation_activation::switch_on(world, creature, &named);
+            let _ = crate::mutation_activation::switch_on(world, creature, &named);
             Applied::Done
         }
         Effect::LoseTrait { trait_name, listener: about_listener } => {
@@ -3193,11 +3194,11 @@ fn map_run_item_eocs(world: &mut World, speaker: Entity, listener: Option<Entity
         let Some(name) = crate::item_registry::name_of(world, kind) else {
             continue;
         };
-        let matched = search_data.is_empty()
+        let accepted = search_data.is_empty()
             || search_data.iter().any(|filter| {
                 filter_matches(world, speaker, entity, &name, false, false, filter)
             });
-        if matched {
+        if accepted {
             found.push((entity, name));
         }
     }

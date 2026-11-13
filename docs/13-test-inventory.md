@@ -2002,3 +2002,11 @@ hit points and whether it is broken, inside the vehicle - a part has no identity
 builds the reference's 2-seater helicopter from `corpus/vehicles.json`: 71 placements become 71 parts at the store's own durability, the origin square answers with four
 occupants, and a 450-point bash lands for 430 against the frame's 20 armour and leaves it **broken and still standing**. Two assertions were wrong first - the frame's armour and
 its hit points - and the dump corrected both.
+
+**Round 1506 repaired the lint gate, which had been red for several rounds.** `--clippy` reported 141 findings across `crates/content` (24), `crates/sim` (108) and `crates/cli`
+(9) - not style noise: two `match` arms were duplicated (`"u_is_underwater"` twice in the bare-condition list, `Condition::GetCondition` twice in the condition dispatch),
+`read_effect`'s doc comment and `#[must_use]` had been left on the const that follows it, an item-type filter bound a `kind` that it never read, three deny-level indexing
+panics sat in `monster_registry`, and a private `emission_qty` had no caller. Each is fixed at its site where the fix is behaviour-neutral, and allowed with a reason where
+the shape is the reference's (a data struct with four booleans, a transcribed Bresenham chain, the exact-number comparisons a corpus gate makes). The cause was the one the
+testing plan already names: `python3 tools/remote_test.py` does not run clippy, and the runs that did were piped, so the exit status was never read. Clippy is now named in
+every round's receipt and runs in 9 s from a warm cache.

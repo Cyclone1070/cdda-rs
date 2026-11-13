@@ -8,12 +8,20 @@ fails. Every number marked **target** is a goal to be measured, not a measuremen
 
 ## Where the gates run
 
-The gates belong on the remote build machine, not on the developer's laptop:
+The gates belong on the remote build machine, not on the developer's laptop. Every invocation syncs the
+workspace first and then runs **one** gate:
 
-    python3 tools/remote_test.py --clippy
+    python3 tools/remote_test.py --tests     # tools/test_fast.py
+    python3 tools/remote_test.py --docs      # tools/check_docs.py, then tools/check_dead_rules.py
+    python3 tools/remote_test.py --clippy    # cargo clippy --workspace --all-targets -- -D warnings
+    python3 tools/remote_test.py --oracle    # oracle/apply_harness_patches.py --verify
+    python3 tools/remote_test.py             # tests, docs, dead rules and the oracle patch
 
-That one command syncs the workspace, runs `tools/test_fast.py`, runs `tools/check_docs.py`, and runs
-`cargo clippy --workspace --all-targets -- -D warnings` on `cyc@elitedesk`, then prints the receipt line.
+**The default run does not include clippy**, and a round that says "the full gate passed" without naming
+`--clippy` has not run the lint gate. That is how the lint gate went red for several rounds while every
+receipt said "clippy clean": the findings were there to read, but the gate was never named and the command
+was piped, so nobody read the exit status. A piped gate is a report about the pipe.
+
 Local cargo is for diagnosing a single failure, never for the gate: a full debug build of the workspace
 plus a test build is minutes of CPU on the machine someone is trying to use.
 

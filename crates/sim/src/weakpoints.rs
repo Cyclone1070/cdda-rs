@@ -77,7 +77,7 @@ pub fn hit_chance(
     };
     let z = shifted / (2.0 * std::f64::consts::SQRT_2);
     let difficulty_multiplier = if helps_attacker {
-        0.5 * (1.0 + erf(z))
+        f64::midpoint(1.0, erf(z))
     } else {
         (0.5 * erfc(z)).max(0.1)
     };
@@ -229,9 +229,9 @@ pub fn attacker_skill(
     limb_one: f64,
     limb_two: f64,
 ) -> f64 {
-    let skill = (skill_one + skill_two) / 2.0;
+    let skill = f64::midpoint(skill_one, skill_two);
     let stat = f64::from(dexterity - 8) / 8.0 + f64::from(perception - 8) / 8.0;
-    let multiplier = (limb_one + limb_two) / 2.0;
+    let multiplier = f64::midpoint(limb_one, limb_two);
     (skill + stat) * multiplier
 }
 

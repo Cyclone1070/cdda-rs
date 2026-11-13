@@ -44,11 +44,16 @@ pub struct EventQueue {
 pub struct TheEventQueue;
 
 /// The queue, made on first use - a world with nothing to report has no entity for it.
+///
+/// # Panics
+///
+/// Panics when the entity the marker names does not carry the queue, which cannot happen: it is spawned with it and found by having it.
 pub fn queue(world: &mut World) -> bevy_ecs::change_detection::Mut<'_, EventQueue> {
     let entity = singletons::singleton::<EventQueue, TheEventQueue>(world);
-    world
-        .get_mut::<EventQueue>(entity)
-        .expect("the marker names the queue")
+    match world.get_mut::<EventQueue>(entity) {
+        Some(queue) => queue,
+        None => unreachable!("the marker names the queue"),
+    }
 }
 
 /// Sends an event, which waits until the queue is drained.

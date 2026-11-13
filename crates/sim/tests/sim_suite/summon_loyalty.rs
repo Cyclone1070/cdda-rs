@@ -127,7 +127,7 @@ fn every_summon_lands_inside_the_spells_own_area() {
     let spell = a_summon(&[], 9.0, 1.0);
     // **The area is the one the spell had when it was cast**, which is the reference's own order: `calculate_spell_effect_area` filters first and everything after works on the
     // result. Asked afterwards, the squares the summons now stand on answer differently - they hold allies, and an ally is not what a hostile-and-ground spell was aimed at.
-    let area: Vec<(i32, i32)> = cdda_sim::spell_effects::squares_in_area(&mut world, caster, &spell, 0, (2, 0, 0))
+    let area: Vec<(i32, i32)> = cdda_sim::spell_effects::squares_in_area(&world, caster, &spell, 0, (2, 0, 0))
         .into_iter()
         .map(|(x, y, _)| (x, y))
         .collect();
@@ -146,8 +146,7 @@ fn every_summon_lands_inside_the_spells_own_area() {
         let at = world.get::<cdda_sim::Position>(*monster).map(|held| (held.x, held.y));
         assert!(
             at.is_some_and(|at| area.contains(&at)),
-            "**every summon stands inside the area**: {:?} in {area:?}",
-            at
+            "**every summon stands inside the area**: {at:?} in {area:?}"
         );
     }
 }

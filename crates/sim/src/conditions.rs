@@ -492,6 +492,7 @@ pub fn holds_drawing(
 pub const TEST_EOC_DEPTH_LIMIT: usize = 16;
 
 /// The body of [`holds_drawing`], with the depth `test_eoc` has reached.
+#[allow(clippy::too_many_lines)]
 fn holds_within(
     world: &World,
     speaker: Entity,
@@ -520,7 +521,6 @@ fn holds_within(
         Condition::HasSpecies { .. } => has_species(world, speaker, listener, condition),
         Condition::NpcAllies { .. } => npc_allies(world, speaker, listener, condition),
         Condition::GetCondition { .. } => get_condition(world, speaker, listener, condition),
-        Condition::GetCondition { .. } => get_condition(world, speaker, listener, condition),
         Condition::IsDeaf { .. } => is_deaf(world, speaker, listener, condition),
         Condition::AtOmLocation { place, listener: about_listener } => {
             at_om_location(world, speaker, listener, place, *about_listener)
@@ -533,14 +533,14 @@ fn holds_within(
         Condition::IsOutside { .. } => is_outside(world, speaker, listener, condition),
         Condition::HasWornWithFlag { .. } => worn_flag(world, speaker, listener, condition),
         Condition::HasFlag { .. } => creature_flag(world, speaker, listener, condition),
-        Condition::HasCamp => return crate::camps::owns_any(world, crate::camps::PLAYERS_FACTION),
+        Condition::HasCamp => crate::camps::owns_any(world, crate::camps::PLAYERS_FACTION),
         Condition::HasAmmo => {
             // Reference: `f_has_ammo` (`condition.cpp:1963-1974`) reads `d.const_actor( true )->get_const_item()` and debug-messages when the beta is not an item, answering
             // **false**. The port answers the same way, because a creature in that slot is a question the rule cannot answer rather than one it answers no to.
             let Some(item) = listener else {
                 return false;
             };
-            return crate::item_registry::has_enough_charges(world, item);
+            crate::item_registry::has_enough_charges(world, item)
         }
         Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)
             .is_some_and(|actor| crate::seeing::can_see(world, actor)),
@@ -2045,7 +2045,7 @@ fn has_species(world: &World, speaker: Entity, listener: Option<Entity>, conditi
 ///
 /// Reference: `f_npc_allies` (`condition.cpp:1159-1165`) compares `g->allies().size()` with the number; `f_npc_allies_global` (`:1167-1179`) counts the allies that are alive.
 /// The port's store is one bubble, so both questions read [`crate::npcs::allies`].
-fn npc_allies(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn npc_allies(world: &World, _speaker: Entity, _listener: Option<Entity>, condition: &Condition) -> bool {
     let Condition::NpcAllies { needed, global: _ } = condition else {
         return false;
     };

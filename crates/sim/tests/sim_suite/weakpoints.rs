@@ -3,7 +3,7 @@
 //! Source: `corpus/weakpoints/weakpoint-chance.json` is `--dump-weakpoint-chance`, which writes the reference's own `weakpoint::hit_chance` over a grid of skill, difficulty and coverage, for
 //! both halves of its branch. A test that wrote its own bell curve would prove the arithmetic and say nothing about whether the port's `erf` is the reference's.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
+#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing, clippy::float_cmp, clippy::cast_precision_loss)]
 
 /// The port's normal tail is the reference's, row for row.
 ///
@@ -160,13 +160,13 @@ fn a_weak_point_changes_the_armour_and_the_damage() {
     assert!((armour["cut"] - 4.0).abs() < 1e-9, "and a type the weak point says nothing about is untouched");
 
     // Damage: a cut of ten is twenty normally, and **thirty on a crit rather than sixty**.
-    let mut damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
-    let ordinary = apply_to_damage(&factors, &mut damage, false);
+    let damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
+    let ordinary = apply_to_damage(&factors, &damage, false);
     assert!((ordinary[0].1 - 20.0).abs() < 1e-9, "the cut is doubled: {}", ordinary[0].1);
     assert!((ordinary[1].1 - 10.0).abs() < 1e-9, "and the bash is untouched");
 
-    let mut damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
-    let critical = apply_to_damage(&factors, &mut damage, true);
+    let damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
+    let critical = apply_to_damage(&factors, &damage, true);
     assert!(
         (critical[0].1 - 30.0).abs() < 1e-9,
         "**a crit triples, and does not also double**: {}",
@@ -837,7 +837,7 @@ fn the_body_s_families_reach_the_walk_s_skill() {
             .unwrap_or_default();
         let skill = cdda_sim::weakpoints::skill_with_families(base, &families, &|_| known);
         let mut dice = cdda_core_types::rng::Rolls::new(5);
-        stored_weak_point(&mut world, zombie, AttackType::MeleeBash, skill, &mut dice)
+        stored_weak_point(&world, zombie, AttackType::MeleeBash, skill, &mut dice)
             .map_or_else(String::new, |weak| weak.id)
     };
 

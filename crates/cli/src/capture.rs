@@ -208,15 +208,14 @@ mod picture_tests {
         for y in 0..capture.image.height {
             for x in 0..capture.image.width {
                 let index = usize::try_from((y * capture.image.width + x) * 4).unwrap_or(0);
-                if let Some(colour) = capture.image.rgba.get(index..index + 4) {
-                    seen.insert([colour[0], colour[1], colour[2]]);
+                if let Some([red, green, blue, _]) = capture.image.rgba.get(index..index + 4) {
+                    seen.insert([*red, *green, *blue]);
                 }
             }
         }
         assert!(
             seen.len() > 1,
-            "**the frame shows more than one tint**, and it shows {:?}",
-            seen
+            "**the frame shows more than one tint**, and it shows {seen:?}"
         );
         assert!(
             seen.iter().any(|colour| colour[0] > 100),

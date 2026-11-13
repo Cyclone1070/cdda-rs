@@ -145,6 +145,7 @@ fn prototype_of(entry: &Value) -> Result<Prototype, String> {
 }
 
 /// Reads one part object from the dump.
+#[allow(clippy::cast_precision_loss)]
 fn part_of(entry: &Value) -> Result<PartSpec, String> {
     let Value::Object(object) = entry else {
         return Err("a part is not an object".to_owned());

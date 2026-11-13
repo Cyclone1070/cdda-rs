@@ -34,6 +34,7 @@ pub enum Outcome {
 /// `hp` is the part's hit points now, `amount` the damage being dealt, `kind` the damage type's id and `no_resist` whether that type ignores armour and thresholds - which is
 /// the damage type's own fact, so the caller passes it rather than this rule guessing from the name.
 #[must_use]
+#[allow(clippy::cast_possible_truncation)]
 pub fn hit(part: &PartSpec, hp: i32, amount: i32, kind: &str, no_resist: bool) -> Outcome {
     // Reference: `int tsh = std::min( 20, vpi.durability / 10 ); if( dmg < tsh && type != damage_pure ) return dmg;` - the blow does nothing and costs nothing.
     let threshold = (part.durability / 10).min(20);

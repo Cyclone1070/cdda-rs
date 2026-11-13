@@ -318,6 +318,7 @@ fn resolve(
     Ok(vec![monster])
 }
 
+#[allow(clippy::too_many_lines)]
 fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<(), LoadError> {
     let id = monster.id.clone();
     // The reference makes both mandatory, but an abstract is allowed to leave

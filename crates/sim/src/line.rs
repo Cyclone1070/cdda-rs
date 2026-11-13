@@ -16,6 +16,7 @@
 /// one whenever the accumulated error `t` is positive, subtracting the longer axis' doubled slope and adding the shorter's - `a` being the slopes doubled to keep the
 /// arithmetic whole.
 #[must_use]
+#[allow(clippy::comparison_chain)]
 pub fn between(from: (i32, i32), to: (i32, i32)) -> Vec<(i32, i32)> {
     if from == to {
         return vec![from];

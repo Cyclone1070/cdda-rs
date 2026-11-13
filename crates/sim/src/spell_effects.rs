@@ -155,14 +155,6 @@ fn emit(
     }
 }
 
-/// How much of an emission to pour out, or nothing when it places a single unit.
-///
-/// A quantity of one is the reference's default and is placed directly; anything larger is a spread, which is why the
-/// distinction is here rather than at the call site.
-fn emission_qty(emission: &cdda_content::emit::Emission) -> Option<i32> {
-    (emission.qty > 1).then_some(emission.qty)
-}
-
 /// A `noise` spell makes a sound as loud as the damage it would have dealt.
 ///
 /// Reference: `spell_effect::noise` (`magic_spell_effect.cpp:1435-1438`) - one line, `sp.make_sound( target, sp.damage(
@@ -342,7 +334,7 @@ fn revive(
 /// A `revive_dormant` spell is the same rule with the dormant clause the other way round.
 ///
 /// Reference: `spell_effect::revive_dormant` (`magic_spell_effect.cpp:1570-1596`), whose own comment says it is "identical to above, but checks for REVIVES && DORMANT flag.
-/// Ignores NO_NECRO" - the relaxed revive, which is why a body that was dug up can be woken but not raised.
+/// Ignores `NO_NECRO`" - the relaxed revive, which is why a body that was dug up can be woken but not raised.
 fn revive_dormant(
     world: &mut World,
     caster: Entity,
@@ -496,7 +488,7 @@ fn guilt(
             let ratio = f64::from(kill_count) / f64::from(max_kills);
             let remaining = 1.0 - ratio;
             #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-            let mut malus = -5.0 * level as f64 * remaining;
+            let mut malus = -5.0 * f64::from(level) * remaining;
             #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
             let cap = -250.0 * remaining;
             if crate::traits::has_trait(world, held, "PACIFIST") {
@@ -572,7 +564,7 @@ fn add_trap(
 fn flashbang(
     world: &mut World,
     caster: Entity,
-    spell: &Spell,
+    _spell: &Spell,
     _level: i32,
     centre: (i32, i32, i32),
 ) -> Effective {
@@ -1096,8 +1088,8 @@ fn summon(
         let Some(mut rolls) = crate::singletons::take_rolls(world) else {
             break;
         };
-        #[allow(clippy::cast_possible_truncation)]
-        let pick = rolls.rng(0, area.len() as i32 - 1).max(0) as usize;
+        let last = i32::try_from(area.len()).unwrap_or(1).saturating_sub(1);
+        let pick = usize::try_from(rolls.rng(0, last).max(0)).unwrap_or(0);
         crate::singletons::put_rolls(world, rolls);
         let Some(square) = area.get(pick).copied() else {
             break;

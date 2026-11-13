@@ -546,7 +546,7 @@ fn a_move_s_effects_land_by_their_own_chance() {
         &mut world,
         &["stunned", "downed", "bleed"]
             .iter()
-            .map(|id| cdda_sim::effect_registry::bare(*id))
+            .map(|id| cdda_sim::effect_registry::bare(id))
             .collect::<Vec<_>>(),
     );
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
@@ -826,7 +826,7 @@ fn the_store_answers_which_aims_a_striker_can_take() {
         count: 2,
     };
     assert!(
-        aims_available(&world, fighter, &[needs_two_arms.clone()]),
+        aims_available(&world, fighter, std::slice::from_ref(&needs_two_arms)),
         "**two whole arms satisfy a need for two**"
     );
     assert!(
@@ -978,7 +978,7 @@ fn the_store_answers_which_aim_a_move_takes() {
         [("arm_l".to_owned(), 60)].into_iter().collect(),
     ));
     assert_eq!(
-        aim_for(&world, fighter, &[grip.clone()], 0.5),
+        aim_for(&world, fighter, std::slice::from_ref(&grip), 0.5),
         None,
         "**an aim whose struck limb is wrecked is not offered, even when another limb of its kind is whole**"
     );

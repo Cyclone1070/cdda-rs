@@ -42,6 +42,7 @@ pub fn after_switching_on(before: Switched, cooldown: i32) -> Switched {
 pub const EXHAUSTED: i32 = 575;
 
 /// Which of the four currencies a mutation is paid in, and how much of it.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy)]
 pub struct Affordability {
     /// Whether its cost is paid in hunger.
@@ -84,16 +85,16 @@ pub fn can_power_mutation(
 ///
 /// Mana is not paid here: the port has no mana store yet, and a charge taken from somewhere else would be an invented number rather than the reference's.
 pub fn pay_for_switching_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity, cost: Affordability) {
-    if cost.hunger {
-        if let Some(mut body) = world.get_mut::<crate::body::Body>(creature) {
-            body.mod_stored_kcal(-i64::from(cost.cost));
-        }
+    if cost.hunger
+        && let Some(mut body) = world.get_mut::<crate::body::Body>(creature)
+    {
+        body.mod_stored_kcal(-i64::from(cost.cost));
     }
-    if cost.thirst {
-        if let Some(mut body) = world.get_mut::<crate::body::Body>(creature) {
-            let thirst = body.thirst.saturating_add(cost.cost);
-            body.set_thirst(thirst);
-        }
+    if cost.thirst
+        && let Some(mut body) = world.get_mut::<crate::body::Body>(creature)
+    {
+        let thirst = body.thirst.saturating_add(cost.cost);
+        body.set_thirst(thirst);
     }
     if cost.sleepiness {
         crate::needs::mod_sleepiness(world, creature, cost.cost);
@@ -152,7 +153,7 @@ pub fn switch_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entit
         // `You feel like using your %s would kill you!` (`mutation.cpp:830-835`), and **nothing changes**: no charge, no cost, no switch.
         crate::messages::push_kind(
             world,
-            &format!("You feel like using your {} would kill you!", id),
+            &format!("You feel like using your {id} would kill you!"),
             crate::messages::MessageKind::Warning,
         );
         return false;
@@ -165,15 +166,12 @@ pub fn switch_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entit
     let after = after_switching_on(before, mutation.cooldown_turns);
     let mut entity = world.entity_mut(creature);
     let mut held = entity.get_mut::<SwitchedMutations>();
-    match held.as_mut() {
-        Some(record) => {
-            record.0.insert(id.to_owned(), after);
-        }
-        None => {
-            let mut record = SwitchedMutations::default();
-            record.0.insert(id.to_owned(), after);
-            entity.insert(record);
-        }
+    if let Some(record) = held.as_mut() {
+        record.0.insert(id.to_owned(), after);
+    } else {
+        let mut record = SwitchedMutations::default();
+        record.0.insert(id.to_owned(), after);
+        entity.insert(record);
     }
     // Reference: `activate_cached_mutation` (`mutation.cpp:867-880`) runs each `activated_eocs` entry, and the block sits **outside** the branch that spends the charge,
     // so every switch-on runs them. The reference refuses a non-activation program with a debug message and turns the mutation off; the port has no program types, so it

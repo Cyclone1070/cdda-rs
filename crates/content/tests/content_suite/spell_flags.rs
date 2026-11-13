@@ -5,7 +5,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn dump() -> Vec<cdda_content::spells::Spell> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/spells.json");
