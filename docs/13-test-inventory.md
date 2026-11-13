@@ -2015,8 +2015,8 @@ every round's receipt and runs in 9 s from a warm cache.
 start from "what stands here". The index now derives a vehicle's squares from its parts: `vehicle::get_points` takes one square per distinct mount, a part's square is
 `pos_abs() + precalc[0]`, and a placed vehicle's pivot is the origin at facing 0, where that translation is the mount itself. The 2-seater helicopter is 71 parts on 24
 squares; the gate pins the count, three squares by name, that a square past the tail answers nothing, and both directions of the index (every occupied square holds it, and
-nowhere else does). `spawn` records the same entries as it builds, so a run-time vehicle is visible without a rebuild. **Rotation is named as the gap**: `precalc_mounts` is
-not transcribed and every port-built vehicle faces 0, the reference's own default when a mapgen entry names no rotation.
+nowhere else does). `spawn` records the same entries as it builds, so a run-time vehicle is visible without a rebuild. **Rotation was named as the gap then** - round 1510 transcribed
+`precalc_mounts`/`coord_translate` and the port reproduces the reference's own 385 integers at five facings.
 
 **Round 1508 gave the vehicle its first interaction: installing and removing a part.** `can_mount` is ported as the four rules the port's data can answer - the first part in an empty
 square must be structural; a part type does not stack with itself unless it transfers power; two parts cannot share a location; and a part must stand on or beside structure (five
