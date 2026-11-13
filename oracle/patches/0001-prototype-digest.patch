@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 04:41:17
-@@ -0,0 +1,8152 @@
++++ oracle/src/src/harness.cpp	2026-11-14 07:20:39
+@@ -0,0 +1,8238 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1091,6 +1091,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::string item;
 +        std::string location;
 +        int size = 0;
++        int cargo_weight_modifier = 100;
 +        std::string fuel_type;
 +        bool fuel_store = false;
 +        bool battery = false;
@@ -1113,6 +1114,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        entry.item = part.base_item.str();
 +        entry.location = part.location;
 +        entry.size = static_cast<int>( units::to_milliliter( part.size ) );
++        entry.cargo_weight_modifier = part.cargo_weight_modifier;
 +        entry.fuel_type = part.fuel_type.str();
 +        // What the part can hold: `vehicle_part::is_fuel_store` asks `is_tank() || is_magazine() || is_reactor()`, and `is_battery()` is the battery branch of `fuel_left`.
 +        // The base item is what both questions read, so one probe of it answers them without a placed part.
@@ -1154,7 +1156,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    []( const dumped_prototype &lhs, const dumped_prototype &rhs ) {
 +        return lhs.id < rhs.id;
 +    } );
-+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":5,\n\"parts\":[\n" );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":6,\n\"parts\":[\n" );
 +    bool first = true;
 +    for( const dumped_part &part : parts ) {
 +        std::fprintf( out, "%s{\"id\":", first ? "" : ",\n" );
@@ -1166,7 +1168,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out, "\"%s\"", escaped( part.item ).c_str() );
 +        std::fprintf( out, ",\"location\":" );
 +        std::fprintf( out, "\"%s\"", escaped( part.location ).c_str() );
-+        std::fprintf( out, ",\"size\":%d", part.size );
++        std::fprintf( out, ",\"size\":%d,\"cargo_weight_modifier\":%d", part.size,
++                      part.cargo_weight_modifier );
 +        std::fprintf( out, ",\"fuel_type\":\"%s\"", escaped( part.fuel_type ).c_str() );
 +        std::fprintf( out, ",\"fuel_store\":%d,\"battery\":%d", part.fuel_store ? 1 : 0,
 +                      part.battery ? 1 : 0 );
@@ -1263,6 +1266,89 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// (`mapgen.cpp:7523-7560`) refuses a vehicle whose structural squares hit deep water or another vehicle, and it needs the dynamic data loaded (`check_mod_data`) or the prototype id
 +/// does not exist. It lays floor around the avatar first so terrain cannot be the reason, places the 2-seater helicopter at the avatar's own square, and records what the reference
 +/// built: the name, every part's mount and square, its spec's fuel type, and the ammo a tank happens to hold.
++void dump_vehicle_mass( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const vproto_id type( "bicycle" );
++    if( !type.is_valid() ) {
++        std::fprintf( stderr, "harness: bicycle is not a valid prototype\n" );
++        std::fclose( out );
++        return;
++    }
++
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -12; dx <= 12; dx++ ) {
++        for( int dy = -12; dy <= 12; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    vehicle *veh = here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true );
++    if( veh == nullptr ) {
++        std::fprintf( stderr,
++                      "harness: mass placement failed at %d,%d,%d: valid=%d inbounds=%d ter=%s furn=%s impassable=%d veh=%d\n",
++                      origin.x(), origin.y(), origin.z(), type.is_valid(), here.inbounds( origin ),
++                      here.ter( origin ).id().str().c_str(), here.furn( origin ).id().str().c_str(),
++                      here.impassable( origin ), here.veh_at( origin ) ? 1 : 0 );
++        std::fclose( out );
++        return;
++    }
++
++    // Fifty rocks in the basket: a real cargo mass that still leaves room (50 x 250 ml of the basket's 20 L).
++    int basket = -1;
++    for( const vpart_reference &vpr : veh->get_all_parts() ) {
++        if( vpr.info().id.str() == "basketsm" ) {
++            basket = vpr.part_index();
++            break;
++        }
++    }
++    int rocks = 0;
++    if( basket >= 0 ) {
++        for( int i = 0; i < 50; i++ ) {
++            if( veh->add_item( here, veh->part( basket ), item( itype_id( "rock" ), calendar::turn ) ) ) {
++                rocks++;
++            }
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"vehicle_mass\",\"version\":1,\"vehicle\":\"%s\",\"name\":\"%s\",",
++                  type.str().c_str(), veh->name.c_str() );
++    std::fprintf( out, "\"origin\":[%d,%d,%d],\"basket\":%d,\"rocks\":%d,\"parts\":[", origin.x(), origin.y(),
++                  origin.z(), basket, rocks );
++    bool first = true;
++    for( const vpart_reference &vpr : veh->get_all_parts() ) {
++        units::mass items = 0_gram;
++        for( const item &j : veh->get_items( vpr.part() ) ) {
++            items += j.weight();
++        }
++        std::fprintf( out,
++                      "%s{\"part\":\"%s\",\"mount\":[%d,%d],\"base_mass_g\":%d,\"items_mass_g\":%d,"
++                      "\"cargo_weight_modifier\":%d}",
++                      first ? "" : ",", vpr.info().id.str().c_str(), vpr.mount_pos().x(), vpr.mount_pos().y(),
++                      units::to_gram<int>( vpr.part().get_base().weight() ), units::to_gram<int>( items ),
++                      vpr.info().cargo_weight_modifier );
++        first = false;
++    }
++    units::mass cargo = 0_gram;
++    for( const vpart_reference &vpr : veh->get_all_parts() ) {
++        for( const item &j : veh->get_items( vpr.part() ) ) {
++            cargo += j.weight();
++        }
++    }
++    std::fprintf( out, "],\"unloaded_mass_g\":%d,\"cargo_mass_g\":%d,\"total_mass_g\":%d}\n",
++                  units::to_gram<int>( veh->unloaded_mass() ), units::to_gram<int>( cargo ),
++                  units::to_gram<int>( veh->total_mass( here ) ) );
++    std::fclose( out );
++}
++
 +void dump_vehicle_placement( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -8514,8 +8600,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-14 01:40:06
-@@ -0,0 +1,434 @@
++++ oracle/src/src/harness.h	2026-11-14 07:10:32
+@@ -0,0 +1,435 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8663,6 +8749,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/// Places the reference's 2-seater helicopter on a floored square beside the avatar and records every part's mount, square, fuel type and contents - `--dump-vehicle-placement`.
 +void dump_vehicle_placement( const std::string &path );
++void dump_vehicle_mass( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -9237,7 +9324,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-14 01:40:40
++++ oracle/src/src/main.cpp	2026-11-14 07:10:32
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9248,7 +9335,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,171 @@
+@@ -272,6 +275,172 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9411,6 +9498,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_parts;
 +    std::string dump_vehicle_rotation;
 +    std::string dump_vehicle_placement;
++    std::string dump_vehicle_mass;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -9420,7 +9508,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +468,1480 @@
+@@ -300,6 +469,1490 @@
                  }
              },
              {
@@ -9590,6 +9678,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_placement = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-mass", "<file>",
++                "Writes a placed bicycle with fifty rocks in its basket: each part's mass and the vehicle's total",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_mass = params[0];
 +                    return 1;
 +                }
 +            },
@@ -10901,7 +10999,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2428,819 @@
+@@ -786,6 +2439,831 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11152,6 +11250,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_placement( cli.dump_vehicle_placement );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_mass.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_mass( cli.dump_vehicle_mass );
 +            exit_handler( 0 );
 +        }
 +

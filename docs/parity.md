@@ -45,6 +45,31 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle weighs what its parts and its cargo weigh (round 1520)
+
+Movement cannot start without mass. The reference sums one term per part in `vehicle::calc_mass_center` (`vehicle.cpp:8484-8547`) and answers the cached number through
+`vehicle::total_mass` (`vehicle.cpp:3787-3797`).
+
+| Piece | Reference | Port |
+|---|---|---|
+a part's own weight | `vp.part().base.weight()` (`vehicle.cpp:8497`) | `part_mass`: the base item's weight from the item registry |
+what it carries | every carried item's `weight()` (`vehicle.cpp:8498-8499`) | `items_in_part` times the kind's weight times its charges |
+cargo weighting | `cargo_weight_modifier / 100` (`vehicle.cpp:8504-8506`) | the same, scaled in integers |
+the total | `mass_cache`, set by the same function (`vehicle.cpp:8532`) | `mass` |
+
+The parts dump is **version 6** with `cargo_weight_modifier` - 100 on every part in the current data - and `--dump-vehicle-mass` places the reference's bicycle, puts **fifty
+rocks** in its basket through `vehicle::add_item`, and records each part's `base_mass_g` and `items_mass_g` beside `unloaded_mass_g` 10,817, `cargo_mass_g` 32,850 and
+`total_mass_g` 43,667.
+
+The gate installs a registry weighted from the recording itself (every part's base item at the reference's own weight, and the rock at its 657 g), stows the same fifty rocks,
+and pins all eleven part terms and the 43,667 g total; a three-rock stack then adds exactly three rocks' weight; and a synthetic 50% modifier - the data's only value is 100, so
+that branch needs a number the dump cannot show - halves the cargo it adds. Five mutations were caught: the cargo dropped, a part skipped, the modifier ignored, the charges
+ignored, and the base item not resolved.
+
+**Named:** the reference also adds the weight of the part's **tools**, a tied-down piece of furniture, and, on a `BOARDABLE` part, its passenger's and monster's weight; it skips
+`removed` and fake parts and lets enchantments modify the total. The port has none of those inputs, and its integer scaling truncates where the reference's floating-point
+multiply rounds.
+
 ## An item comes back out of a part, even from a wreck (round 1519)
 
 Cargo could go in and could not come out. The reference's `vehicle::remove_item` (`vehicle.cpp:6321-6340`), reached through `vehicle_stack::erase` (`vehicle.cpp:200-203`), erases

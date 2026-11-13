@@ -75,6 +75,10 @@ pub struct PartSpec {
     pub fuel_store: bool,
     /// Whether the part is a battery, which `fuel_left` sums through its own branch.
     pub battery: bool,
+    /// What its cargo weighs, as a percentage of the items' own weight - `vpart_info::cargo_weight_modifier` (`veh_type.h:452`), 100 when the data says nothing, which
+    /// every part in the current data does. `calc_mass_center` scales a part's contents by it (`vehicle.cpp:8504-8506`), so a part that is 50% "weightless" cargo halves what
+    /// it adds.
+    pub cargo_weight_modifier: i64,
     /// The fuels an engine can burn, **in the order it tries them** - the reference's `engine_info->fuel_opts` (`veh_type.h:132`), which `finalize` fills from
     /// `fuel_type` when the JSON names none (`veh_type.cpp:650-652`). Empty for everything that is not an engine.
     pub fuel_opts: Vec<String>,
@@ -218,6 +222,7 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         size: number("size")?,
         flags,
         damage_reduction,
+        cargo_weight_modifier: number("cargo_weight_modifier")?,
         fuel_type: text("fuel_type")?,
         fuel_store: number("fuel_store")? != 0,
         battery: number("battery")? != 0,

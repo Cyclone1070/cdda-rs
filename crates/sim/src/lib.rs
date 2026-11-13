@@ -83,6 +83,7 @@ pub mod teleport;
 pub mod timed_events;
 pub mod vehicle_damage;
 pub mod vehicle_cargo;
+pub mod vehicle_mass;
 pub mod vehicles;
 pub mod vomit;
 pub mod traits;

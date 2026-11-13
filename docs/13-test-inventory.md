@@ -2097,3 +2097,9 @@ merging, bucket spilling, the 4,096-item limit; the 10,000 L cap and the CARGO f
 part, and **does not refuse a broken part**, because the reference erases from the colony either way and a wreck is salvaged that way. The gate takes a single rock and a 300-rock
 stack back out, checks the room returns, that an item cannot be taken twice, that a ground item is refused, and that ten rocks can be salvaged from a broken basket. Three
 mutations were caught: the ownership check, a refusal on a broken part, and a removal that does not destroy. **Named**: `invalidate_mass`, which the port has no cache for.
+
+**Round 1520 ported vehicle mass.** `part_mass` is a part's base item weight plus every carried item's weight scaled by `cargo_weight_modifier` (`cargo_weight_modifier` is
+new on the spec, version 6 of the parts dump, 100 everywhere in the data), and `mass` sums the parts - the reference's `calc_mass_center` cache. `--dump-vehicle-mass` places
+the bicycle with fifty rocks in its basket and records 10,817 g unloaded, 32,850 g of cargo and 43,667 g total. The gate installs a registry weighted from the recording,
+stows the same rocks, and pins all eleven part terms and the total; a charge stack adds its charges; a synthetic 50% modifier halves its cargo. Five mutations were caught.
+**Named**: tools' weight, tied-down furniture, passenger/monster weight, `removed`/fake parts, enchantments.

@@ -68,6 +68,7 @@ one to write - a single call to that builder with the same id - before any dump 
 | `--dump-vehicles <file>` | Every vehicle part and prototype, with durability, location, size, flags and armour | P8's store and mount rule |
 | `--dump-vehicle-rotation <file>` | `coord_translate` over a grid of mounts at 0, 45, 90, 180 and 270 degrees | P8's facing gate |
 | `--dump-vehicle-placement <file>` | A placed 2-seater helicopter: name, mounts, squares, fuel type and ammo, part by part | P8's placement gate and the fuel rounds |
+| `--dump-vehicle-mass <file>` | A placed bicycle with fifty rocks in its basket: each part's base and cargo mass, and the vehicle's total | P8's mass gate |
 
 Plus one build-level addition: **coverage instrumentation** (clang source-based
 coverage, the project already builds with clang in CI) so the harness can report

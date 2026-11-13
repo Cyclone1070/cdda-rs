@@ -65,10 +65,22 @@ pub struct ItemTypes {
 }
 
 impl ItemTypes {
+    /// The kind a name refers to.
+    #[must_use]
+    pub fn id_of(&self, name: &str) -> Option<ItemTypeId> {
+        self.by_name.get(name).copied()
+    }
+
     /// How much room a kind takes, in millilitres - `itype::volume`, which a stack of one answers.
     #[must_use]
     pub fn volume_of(&self, kind: ItemTypeId) -> i64 {
         self.volumes_ml.get(kind.0 as usize).map_or(0, |volume| i64::from(*volume))
+    }
+
+    /// What a kind weighs, in grams.
+    #[must_use]
+    pub fn weight_of(&self, kind: ItemTypeId) -> i64 {
+        self.weights_g.get(kind.0 as usize).copied().unwrap_or(0)
     }
 
     /// What a kind does when swung, in points of bash damage.
@@ -417,6 +429,18 @@ pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
             .get(start..start + how_many as usize)
             .unwrap_or(&[])
     }
+}
+
+/// What a kind weighs, in grams, read without a mutable handle.
+#[must_use]
+pub fn weight_in(world: &World, kind: ItemTypeId) -> i64 {
+    peek(world).map_or(0, |registry| registry.weight_of(kind))
+}
+
+/// The kind a name refers to, read without a mutable handle.
+#[must_use]
+pub fn id_in(world: &World, name: &str) -> Option<ItemTypeId> {
+    peek(world).and_then(|registry| registry.id_of(name))
 }
 
 /// How much room a kind takes, in millilitres, read without a mutable handle.
