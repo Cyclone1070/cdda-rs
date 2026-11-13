@@ -45,6 +45,26 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle moves one square, and its squares move with it (round 1521)
+
+The plain move is the first movement slice. `map::move_vehicle` (`map.cpp:773-...)` refuses an **empty** displacement and one longer than a square before anything else
+happens (`map.cpp:775-782`), and the shift itself is `map::displace_vehicle` (`map.cpp:1460-...)`: the vehicle's position changes, and every passenger is put on the new
+square of the part it sits on (`map.cpp:1559-1590`).
+
+| Piece | Reference | Port |
+|---|---|---|
+what a move is | a displacement of one square or less, anything else refused untouched | `move_vehicle(world, vehicle, delta)` |
+the squares | the vehicle is found through the map's vehicle cache, which moves with it | the one index: old squares removed, new squares inserted |
+the riders | `psg->setpos( psgp )` for each rider | each `Riding` creature is put on its part's new square, index entry and all |
+
+The gate moves a three-square bicycle one square east: exactly **one** square is left behind - the other two overlap - and the index forgets that one while holding all three new
+ones; empty and two-square displacements change nothing at all; a boarded rider's square and index entry follow the saddle. Four mutations were caught: the old squares not
+removed, the new squares not inserted, the length check dropped, and the riders left behind.
+
+**Named, not guessed:** `displace_vehicle` also handles ramps, the map's edge, pets, remote control, falling and floating, and `map::move_vehicle` collides - with terrain,
+vehicles and creatures, dealing damage - **before** it displaces anything. The port has no ramps, no bounds, no pets and no collision yet; those are the movement rounds that
+follow this one.
+
 ## A vehicle weighs what its parts and its cargo weigh (round 1520)
 
 Movement cannot start without mass. The reference sums one term per part in `vehicle::calc_mass_center` (`vehicle.cpp:8484-8547`) and answers the cached number through

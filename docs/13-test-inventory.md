@@ -2103,3 +2103,9 @@ new on the spec, version 6 of the parts dump, 100 everywhere in the data), and `
 the bicycle with fifty rocks in its basket and records 10,817 g unloaded, 32,850 g of cargo and 43,667 g total. The gate installs a registry weighted from the recording,
 stows the same rocks, and pins all eleven part terms and the total; a charge stack adds its charges; a synthetic 50% modifier halves its cargo. Five mutations were caught.
 **Named**: tools' weight, tied-down furniture, passenger/monster weight, `removed`/fake parts, enchantments.
+
+**Round 1521 ported the plain move.** `move_vehicle(world, vehicle, delta)` is `map::move_vehicle`'s guard (`map.cpp:775-782`: an empty or longer-than-a-square displacement
+is refused and nothing moves) plus `map::displace_vehicle`'s shift: the vehicle's origin moves, the one index drops the squares it left and takes the squares it now stands on,
+and every `Riding` creature is put on the new square of its part, index entry included. A three-square bicycle moved east leaves exactly one square behind and the index
+forgets it; a boarded rider's square follows the saddle. Four mutations were caught: the old squares kept, the new squares missing, the length check dropped, the riders left
+behind. **Named**: ramps, map edge, pets, remote control, falling/floating, and the collisions `map::move_vehicle` runs before the displacement.

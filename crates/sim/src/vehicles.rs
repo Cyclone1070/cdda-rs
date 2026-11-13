@@ -143,6 +143,70 @@ pub fn spawn_facing(
     Some(entity)
 }
 
+/// Moves a vehicle one square, taking everything on it - the displacement half of `map::move_vehicle` (`map.cpp:773-...)`, which reaches
+/// `map::displace_vehicle` (`map.cpp:1460-...)`.
+///
+/// The reference refuses an **empty** displacement and one longer than a square before anything else happens (`map.cpp:775-782`), and the port answers `false` for both without
+/// touching the vehicle. A real move shifts the vehicle's origin, drops its old squares from the one index and takes the new ones, and puts every rider on the new square of the part
+/// it sits on (`psg->setpos( psgp )`, `map.cpp:1559-1590`) - a passenger left behind would be a second source of truth about where the vehicle is.
+///
+/// **Named, not guessed:** the reference's displacement also handles ramps, stops at the map's edge, moves pets, remote control, and falling or floating. The port's squares are
+/// unbounded and it has no ramps, no pets and no falling yet; collision, velocity and the damage a crash does belong to the movement rounds that follow, not to the plain shift.
+pub fn move_vehicle(world: &mut World, vehicle: Entity, delta: (i32, i32)) -> bool {
+    if delta == (0, 0) || delta.0.abs() > 1 || delta.1.abs() > 1 {
+        return false;
+    }
+    let before = occupied_squares(world, vehicle);
+    {
+        let Some(mut position) = world.get_mut::<Position>(vehicle) else {
+            return false;
+        };
+        position.x += delta.0;
+        position.y += delta.1;
+    }
+    let after = occupied_squares(world, vehicle);
+    {
+        let mut index = crate::singletons::index_mut(world);
+        for square in before {
+            index.remove(vehicle, square);
+        }
+        for square in &after {
+            index.insert(vehicle, *square);
+        }
+    }
+    let squares = part_squares(world, vehicle);
+    let riders: Vec<(Entity, usize)> = {
+        let Some(mut query) = world.try_query::<(Entity, &Riding)>() else {
+            return true;
+        };
+        query
+            .iter(world)
+            .filter(|(_, riding)| riding.vehicle == vehicle)
+            .map(|(creature, riding)| (creature, riding.part))
+            .collect()
+    };
+    for (rider, part) in riders {
+        let Some(square) = squares.get(part).copied() else {
+            continue;
+        };
+        let from = world.get::<Position>(rider).map(|position| (position.x, position.y, position.z));
+        {
+            let Some(mut position) = world.get_mut::<Position>(rider) else {
+                continue;
+            };
+            position.x = square.0;
+            position.y = square.1;
+            position.z = square.2;
+        }
+        if let Some(from) = from {
+            let mut index = crate::singletons::index_mut(world);
+            index.remove(rider, from);
+            index.insert(rider, square);
+        }
+    }
+    true
+}
+
 /// The indices of the parts standing in one square of a vehicle.
 ///
 /// Reference: `vehicle::parts_at_relative( const point_rel_ms &, bool use_variant )` - several parts may share a square, which is what a frame with a seat, a seatbelt and

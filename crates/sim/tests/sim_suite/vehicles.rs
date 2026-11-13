@@ -1455,3 +1455,89 @@ fn a_wreck_can_be_salvaged() {
     );
     assert_eq!(items_in_part(&world, vehicle, basket).len(), 0);
 }
+
+/// Everything the index answers for one square, which is how a move is checked from the outside.
+fn things_at(world: &World, x: i32, y: i32) -> Vec<Entity> {
+    cdda_sim::singletons::index(world)
+        .map(|index| index.at_level(x, y, 0).to_vec())
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_vehicle_moves_one_square_and_its_squares_follow() {
+    use cdda_sim::vehicles::{move_vehicle, occupied_squares, spawn_facing};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "bicycle", (20, 20, 0), 0.0).expect("the bicycle builds");
+    let before = occupied_squares(&world, vehicle);
+    assert_eq!(before.len(), 3, "the bicycle stands on three squares");
+    for square in &before {
+        assert!(things_at(&world, square.0, square.1).contains(&vehicle), "the index holds it before the move");
+    }
+
+    assert!(move_vehicle(&mut world, vehicle, (1, 0)), "**a vehicle moves one square**");
+    let after = occupied_squares(&world, vehicle);
+    assert_eq!(after.len(), before.len(), "it stands on as many squares as before");
+    for (old, new) in before.iter().zip(&after) {
+        assert_eq!(
+            *new,
+            (old.0 + 1, old.1, old.2),
+            "**every square of it moves with it**"
+        );
+    }
+    let left: Vec<_> = before.iter().filter(|square| !after.contains(square)).collect();
+    assert_eq!(left.len(), 1, "a three-square bicycle moved one square leaves one square behind");
+    for square in &left {
+        assert!(
+            !things_at(&world, square.0, square.1).contains(&vehicle),
+            "**the index forgets the square it left**"
+        );
+    }
+    for square in &after {
+        assert!(
+            things_at(&world, square.0, square.1).contains(&vehicle),
+            "**and finds it on the square it took**"
+        );
+    }
+
+    assert!(!move_vehicle(&mut world, vehicle, (0, 0)), "an empty displacement is refused");
+    assert!(!move_vehicle(&mut world, vehicle, (2, 0)), "a displacement longer than a square is refused");
+    assert_eq!(occupied_squares(&world, vehicle), after, "a refused move changes nothing");
+}
+
+#[test]
+fn a_rider_moves_with_the_seat_it_sits_on() {
+    use cdda_sim::vehicles::{Riding, board, move_vehicle, part_squares, spawn_facing};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
+    let saddle = part_index(&world, vehicle, 0, 0, "saddle").expect("the saddle");
+    let rider = creature_at(&mut world, 30, 30);
+    assert_eq!(board(&mut world, vehicle, rider), Some(saddle), "the rider takes the saddle");
+    let seat_before = part_squares(&world, vehicle)[saddle];
+
+    assert!(move_vehicle(&mut world, vehicle, (0, 1)), "the bicycle moves");
+    let seat_after = part_squares(&world, vehicle)[saddle];
+    assert_ne!(seat_before, seat_after, "the seat moved");
+    let position = world.get::<cdda_sim::Position>(rider).expect("the rider has a square");
+    assert_eq!(
+        (position.x, position.y, position.z),
+        seat_after,
+        "**a rider is put on the seat's new square**"
+    );
+    assert!(
+        world.get::<Riding>(rider).is_some_and(|riding| riding.vehicle == vehicle && riding.part == saddle),
+        "and still sits in the same seat"
+    );
+    assert!(
+        things_at(&world, seat_after.0, seat_after.1).contains(&rider),
+        "**the index finds the rider where the seat is now**"
+    );
+    assert!(
+        !things_at(&world, seat_before.0, seat_before.1).contains(&rider),
+        "and not where it was"
+    );
+}
+
