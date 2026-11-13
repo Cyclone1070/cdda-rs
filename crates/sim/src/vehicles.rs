@@ -166,9 +166,11 @@ fn spec_of<'a>(world: &'a World, part: &str) -> Option<&'a cdda_content::vehicle
 ///
 /// Reference: `vehicle::can_mount` (`vehicle.cpp:1267-1380`).
 ///
-/// Ported: the first part in an empty square must be **structural**; a part type does not stack with itself unless it transfers power; two parts cannot share a **location**; and a part must
-/// stand on or beside existing structure. **Not ported, and named in `docs/parity.md`**: the animal-control/protrusion exception for tow cables, the cargo pair rule, the mirror/opaque pair, the
-/// turret-mount rule, engine conflicts (`has_engine_conflict`), and the flags that require another flag (`json_flag::get(...).requires_flag()`), which need the flag table the port does not load.
+/// Ported: the first part in an empty square must be **structural**; a part type does not stack with itself unless it transfers power; two parts cannot share a **location**; only a tow cable
+/// may join a square whose first part is an **animal control** or a **protrusion**; two **cargo** parts cannot share a square; a **mirror** cannot be mounted on an opaque part and an opaque part
+/// cannot cover a mirror; and a part must stand on or beside existing structure. **Not ported, and named in `docs/parity.md`**: the turret-mount rule (the dump has one turret mount id, and the
+/// same-id rule already covers it), engine conflicts (`has_engine_conflict`), and the flags that require another flag (`json_flag::get(...).requires_flag()`), which need the flag table the port
+/// does not load.
 fn can_mount(
     world: &World,
     vehicle: Entity,
@@ -183,6 +185,20 @@ fn can_mount(
     if occupants.is_empty() && spec.location != "structure" {
         return false;
     }
+    // Only a tow cable can join a square whose first part is an animal control or a protrusion.
+    if let Some(first) = occupants.first() {
+        let Some(first_part) = built.parts.get(*first) else {
+            return false;
+        };
+        let Some(first_spec) = spec_of(world, &first_part.part) else {
+            return false;
+        };
+        if (first_spec.flags.contains("ANIMAL_CTRL") || first_spec.flags.contains("PROTRUSION"))
+            && !spec.flags.contains("TOW_CABLE")
+        {
+            return false;
+        }
+    }
     for index in &occupants {
         let Some(part) = built.parts.get(*index) else {
             return false;
@@ -194,6 +210,21 @@ fn can_mount(
             return false;
         }
         if !spec.location.is_empty() && spec.location == other.location {
+            return false;
+        }
+        if spec.flags.contains("CARGO") && other.flags.contains("CARGO") {
+            return false;
+        }
+        if spec.flags.contains("VISION")
+            && !spec.flags.contains("CAMERA")
+            && other.flags.contains("OPAQUE")
+        {
+            return false;
+        }
+        if spec.flags.contains("OPAQUE")
+            && other.flags.contains("VISION")
+            && !other.flags.contains("CAMERA")
+        {
             return false;
         }
     }

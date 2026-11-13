@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The mount rule asks every question the flags can answer (round 1509)
+
+Three rules finish the part of `can_mount` the port's data can answer, and the gate pins each one against the first refusal it produces.
+
+| Rule | Reference | Port |
+|---|---|---|
+only a tow cable joins a harness or a protrusion | `can_mount` (`vehicle.cpp:1280-1286`) | the square's first part has `ANIMAL_CTRL`/`PROTRUSION`, and the newcomer needs `TOW_CABLE` |
+two cargo parts cannot share a square | `:1301-1307` | both flags `CARGO` |
+a mirror cannot go on an opaque part | `:1308-1313` | `VISION` without `CAMERA` over `OPAQUE` |
+an opaque part cannot cover a mirror | `:1314-1320` | `OPAQUE` over `VISION` without `CAMERA` |
+
+The gate puts a harness and a blade on separate squares beside the hull and shows a headlight refused on both while a tow cable is accepted on both. It starts a square with a
+freezer (structural and cargo), refuses a door on it, and shows that a windshield still joins that square. The two mirror directions are pinned separately, because the refusal
+comes from whichever part is being installed.
+
+**Still named, not guessed:** the turret-mount rule (the dump has one turret mount id, so the same-id rule already refuses a second one and the rule cannot be exercised), engine
+conflicts (`has_engine_conflict`, which needs engine state), and the flags that require another flag (`json_flag::get(...).requires_flag()`, which needs the flag table).
+
 ## A part is installed only where the structure allows (round 1508)
 
 A vehicle that cannot gain or lose a part is a statue. Installation asks the reference's mount questions, and removal keeps the index honest.
@@ -58,8 +76,8 @@ a part stands on or beside structure | `can_mount` (`:1328-1339`), `has_structur
 install | `vehicle::install_part` (`:1696-1757`) | `install_part` appends with the spec's durability, answers the part's index, and joins its square to the one index |
 remove | `vehicle::remove_part` (`:2213-2357`) | `remove_part` erases **exactly** the part it is given; a non-origin square leaves the index when its last part does |
 
-**Named gaps**, each because the port does not hold its data or its subsystem yet: the animal-control/protrusion tow-cable exception, the cargo pair rule, the mirror/opaque pair,
-the turret-mount rule, engine conflicts (`has_engine_conflict`), and the flags that require another flag (`json_flag::get(...).requires_flag()`, which needs the flag table). Removal's
+**Named gaps** at the time, three of them closed by round 1509 (below): the tow-cable/protrusion exception, the cargo pair and the mirror/opaque pair. The turret-mount rule, engine
+conflicts (`has_engine_conflict`) and the flags that require another flag (`json_flag::get(...).requires_flag()`, which needs the flag table) remain outside the port. Removal's
 dependent-part cascade (`SEAT` gives up its `SEATBELT`, `WINDOW` its `CURTAIN`), unboarding, tool drops and the `removed`-flag cleanup pass are not transcribed either: the port's
 parts carry no `removed` flag and no passengers.
 

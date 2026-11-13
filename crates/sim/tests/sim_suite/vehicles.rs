@@ -327,3 +327,97 @@ fn a_part_comes_out_and_its_square_gives_the_vehicle_up() {
         "an index no part has answers nothing"
     );
 }
+
+#[test]
+fn a_tow_cable_is_the_only_part_that_joins_a_harness_or_a_protrusion() {
+    use cdda_sim::vehicles::{install_part, Vehicle};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    // A harness on an empty square beside the hull: structural, so it is a valid first part.
+    assert_eq!(
+        install_part(&mut world, vehicle, "cart_handle", 2, -1),
+        Some(71),
+        "a cart handle is structural"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "headlight", 2, -1),
+        None,
+        "**a harness is in the way of anything but a tow cable**"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "hd_tow_cable", 2, -1),
+        Some(72),
+        "a tow cable is allowed on a harness"
+    );
+
+    // A protrusion behaves the same way.
+    assert_eq!(
+        install_part(&mut world, vehicle, "blade", 2, 2),
+        Some(73),
+        "a blade is structural and protrudes"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "headlight", 2, 2),
+        None,
+        "**a protrusion is in the way of anything but a tow cable**"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "hd_tow_cable", 2, 2),
+        Some(74),
+        "and a tow cable is allowed on a protrusion too"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(vehicle).map(|built| built.parts.len()),
+        Some(75),
+        "75 = the blueprint's 71, the harness, its cable, the blade, its cable"
+    );
+}
+
+#[test]
+fn cargo_and_opaque_parts_refuse_their_company() {
+    use cdda_sim::vehicles::{install_part, Vehicle};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    // A freezer is structural and cargo, so it can start a square.
+    assert_eq!(
+        install_part(&mut world, vehicle, "ap_apartment_freezer", 2, 1),
+        Some(71),
+        "an appliance with a structure location starts the square"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "door_internal", 2, 1),
+        None,
+        "**there cannot be two cargo parts on one square**"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "windshield", 2, 1),
+        Some(72),
+        "a part that is not cargo still joins the square"
+    );
+
+    // A board is opaque; a mirror needs to see.
+    assert_eq!(install_part(&mut world, vehicle, "frame", 2, 2), Some(73));
+    assert_eq!(install_part(&mut world, vehicle, "board", 2, 2), Some(74));
+    assert_eq!(
+        install_part(&mut world, vehicle, "inboard_mirror", 2, 2),
+        None,
+        "**a mirror cannot be mounted on an opaque part**"
+    );
+    // And the other way round: opaque parts cannot cover a mirror.
+    assert_eq!(install_part(&mut world, vehicle, "frame", 2, 0), Some(75));
+    assert_eq!(
+        install_part(&mut world, vehicle, "inboard_mirror", 2, 0),
+        Some(76),
+        "a mirror joins a frame"
+    );
+    assert_eq!(
+        install_part(&mut world, vehicle, "board", 2, 0),
+        None,
+        "**an opaque part cannot be mounted over a mirror**"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(vehicle).map(|built| built.parts.len()),
+        Some(77),
+        "77 = the blueprint's 71 and the six parts that were accepted"
+    );
+}

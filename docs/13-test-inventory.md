@@ -2027,3 +2027,9 @@ out of the index only when its last part leaves - both directions are pinned, an
 tow-cable/protrusion exception, cargo pair, mirror/opaque, turret-mount, engine conflicts and `requires_flag`; removal's dependent-part cascade, unboarding, tool drops and the
 `removed`-flag cleanup. Five mutations were caught: inverted location rule, always-adjacent structure, inverted first-part rule, dropped power-transfer exception, and a removal that
 always drops the square from the index.
+
+**Round 1509 finished the mount rule where flags can answer it.** Only a **tow cable** joins a square whose first part is an animal control (`cart_handle`) or a protrusion (`blade`);
+the gate refuses a headlight on both and accepts a cable on both. Two **cargo** parts cannot share a square: a freezer starts the square (structural and cargo), a door is refused on
+it, and a windshield still joins it, which proves the refusal is the cargo rule and not a full square. A **mirror** cannot be mounted over an opaque part and an opaque part cannot
+cover a mirror - pinned in both directions, because the refusal comes from whichever part is being installed. **Still named**: the turret-mount rule (one turret mount id exists, so the
+same-id rule already refuses the second and the rule cannot be exercised), engine conflicts, and `requires_flag`. Four mutations were caught, one per rule.
