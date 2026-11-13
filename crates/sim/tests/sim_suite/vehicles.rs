@@ -777,3 +777,44 @@ fn a_seat_holds_one_creature_and_a_window_holds_none() {
         "**a removed seat unboards its rider**"
     );
 }
+
+#[test]
+fn an_open_door_stops_blocking_the_square_it_stands_on() {
+    use cdda_sim::vehicles::{move_cost_at, open_or_close, Vehicle};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    let door = part_index(&world, vehicle, -1, -1, "door").expect("the door");
+    assert_eq!(
+        move_cost_at(&world, (9, 9, 0)),
+        Some(0),
+        "a closed door is an obstacle"
+    );
+    assert!(open_or_close(&mut world, vehicle, door, true), "the door opens");
+    assert!(
+        world.get::<Vehicle>(vehicle).expect("a vehicle").parts[door].open,
+        "the part carries its own state"
+    );
+    assert_eq!(
+        move_cost_at(&world, (9, 9, 0)),
+        Some(8),
+        "**an open door stops blocking**"
+    );
+    assert!(open_or_close(&mut world, vehicle, door, false), "and closes");
+    assert_eq!(
+        move_cost_at(&world, (9, 9, 0)),
+        Some(0),
+        "**a closed door blocks again**"
+    );
+
+    // A part that cannot open refuses both ways and stays an obstacle.
+    let windshield = part_index(&world, vehicle, 1, 0, "windshield").expect("the windshield");
+    assert!(
+        !open_or_close(&mut world, vehicle, windshield, true),
+        "**a part that cannot open refuses**"
+    );
+    assert!(
+        !world.get::<Vehicle>(vehicle).expect("a vehicle").parts[windshield].open,
+        "and carries no open state of its own"
+    );
+    assert_eq!(move_cost_at(&world, (11, 10, 0)), Some(0), "so it still blocks");
+}

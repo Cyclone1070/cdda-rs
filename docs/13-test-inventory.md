@@ -2050,8 +2050,8 @@ tool drops, animal release and the `removed`-flag cleanup - the port's parts car
 
 **Round 1512 ported what a vehicle square costs to walk through.** `vpart_position::get_movecost` is 0 when an unbroken `OBSTACLE` part stands on the square, 2 when an unbroken
 `AISLE` part does, and 8 otherwise; a broken part stops blocking because the reference asks for an unbroken one. The gate walks the helicopter's origin (8), a windshield square (0),
-that square again after the windshield breaks (8), a fresh frame with an aisle (2), and a square with no vehicle (nothing). **Named**: the reference's open-door exception, because
-the port carries no open/closed state - every door is closed, the reference's default for a fresh part.
+that square again after the windshield breaks (8), a fresh frame with an aisle (2), and a square with no vehicle (nothing). **Named at the time**: the reference's open-door exception, because
+the port carried no open/closed state - every door was closed, the reference's default for a fresh part. Round 1514 closed it.
 
 **Round 1513 ported boarding.** The reference keeps "this creature is in a vehicle" twice - `Character::in_vehicle` and the part's passenger flag/id - and the port keeps it once, as
 `Riding { vehicle, part }` on the creature, so `rider_at` derives who sits where. `board` takes the first unbroken `BOARDABLE` part on the creature's square, unboards whoever was
@@ -2059,3 +2059,9 @@ there (the reference's order), and refuses a square with no boardable part, a br
 do, and removing a boardable part releases its rider (`remove_part`'s unboarding, `vehicle.cpp:2238-2241`). The gate covers each of those and four mutations were caught: the
 `BOARDABLE` flag ignored, a broken part boarded, the occupant not unboarded, and the removed seat keeping its rider. **Named**: the reference's driving cleanup on unboard
 (`controlling_vehicle`, `skidding`) and its square-level unboarding, which the part-level `Riding` makes precise.
+
+**Round 1514 gave a part its open state.** `vehicle_part::open` starts false; `open_or_close` is the reference's `vehicle::open`/`close` (`vehicle_use.cpp:1215-1240`) setting it through
+`open_or_close`, and refuses a part without `OPENABLE` the way the reference refuses it with a debug message. `move_cost_at` now asks only the **first** unbroken `OBSTACLE` part and
+lets it stop blocking when it is openable and open, which is `obstacle_at_part` (`vehicle.cpp:2857-2869`). The gate: a closed door costs 0, an open one 8, closing it 0 again, and a
+windshield refuses and stays an obstacle. Three mutations were caught: the open state ignored, a close that leaves the door open, and the `OPENABLE` gate removed. **Named**: locks,
+fake parts, multisquare propagation and the reference's transparency/air caches - the port has no such state, and derives its caches.

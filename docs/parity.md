@@ -45,6 +45,27 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A door that is open stops blocking (round 1514)
+
+Round 1512 named one gap in the move cost: the reference lets an open door step out of the way, and the port had no open state. A part now carries it, and the rule that reads it is
+transcribed whole.
+
+| Piece | Reference | Port |
+|---|---|---|
+the state | `vehicle_part::open` (`vehicle.h`), false for a fresh part | `VehiclePart::open` |
+opening | `vehicle::open`/`close` (`vehicle_use.cpp:1215-1240`), refusing a part that cannot open | `open_or_close` |
+the obstacle | `vpart_position::obstacle_at_part` (`vehicle.cpp:2857-2869`): the **first** unbroken `OBSTACLE` part, and no obstacle at all when that part is `OPENABLE` and open | `move_cost_at` |
+
+The **first** obstacle decides, because the reference's `part_with_feature` returns one part: an open door on a square that also held a blocking part would clear the square, since the
+reference never asks the second. The gate has only single-obstacle squares; the order is stated here rather than tested, because no part in the dump gives a square two obstacles with
+one openable.
+
+**Named:** `open_or_close` also unlocks a locked door, mirrors a fake part's state, propagates along a multisquare openable's lines, and dirties the transparency and air caches; the
+port has no locks, fake parts or multisquare openables, and its caches are derived rather than stored.
+
+The gate: a closed door costs 0, opening it costs 8, closing it costs 0 again, and a windshield refuses to open and stays an obstacle. Three mutations were caught: the open state
+ignored when pricing the square, a close that leaves the door open, and the `OPENABLE` gate removed.
+
 ## A creature boards the seat under it (round 1513)
 
 The first thing a player does with a vehicle is get into it. The reference keeps that fact twice - `Character::in_vehicle` and the part's `passenger_flag`/`passenger_id` - and asks the
@@ -79,8 +100,8 @@ the port now answers it.
 8 | anything else on the vehicle | `vehicle.cpp:2878-2879` |
 
 The obstacle is asked first and across the whole square, so a windshield blocks even beside a seat, and a **broken** part stops blocking because the reference asks for an unbroken
-one. The reference also lets an **open door** stop being an obstacle; the port carries no open/closed state yet, so every door is closed - which is the reference's own default for a
-fresh part (`vehicle_part::open` starts false). A square no vehicle stands on answers nothing, and the caller falls back to the terrain's cost, which is the reference's order in
+one. The reference also lets an **open door** stop being an obstacle; the port had no open/closed state when this landed, so every door was closed - the reference's own default for a fresh
+part - and round 1514 closed that gap. A square no vehicle stands on answers nothing, and the caller falls back to the terrain's cost, which is the reference's order in
 `map::move_cost`.
 
 The gate walks the helicopter: the origin square costs 8, a windshield square 0, the same square 8 after the windshield breaks, a fresh frame plus an aisle 2, and a square with no

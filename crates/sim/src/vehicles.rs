@@ -52,6 +52,8 @@ pub struct VehiclePart {
     pub hp: i32,
     /// Whether it has been taken to zero, which the reference calls broken - the part stays and stops working.
     pub broken: bool,
+    /// Whether the part is open, for a part that can open - the reference's `vehicle_part::open` (`vehicle.h`), the state a door, curtain or dome carries.
+    pub open: bool,
 }
 
 /// A creature's place in a vehicle: which vehicle, and which of its parts the creature sits on.
@@ -105,6 +107,7 @@ pub fn spawn_facing(
             y: placement.y,
             hp: spec.durability,
             broken: spec.durability <= 0,
+            open: false,
         });
     }
     let entity = world
@@ -207,6 +210,7 @@ pub fn move_cost_at(world: &World, square: (i32, i32, i32)) -> Option<i32> {
     let vehicle = at(world, square)?;
     let built = world.get::<Vehicle>(vehicle)?;
     let squares = part_squares(world, vehicle);
+    let mut obstacle = None;
     let mut aisle = false;
     for (index, part) in built.parts.iter().enumerate() {
         if squares.get(index).copied() != Some(square) || part.broken {
@@ -216,11 +220,18 @@ pub fn move_cost_at(world: &World, square: (i32, i32, i32)) -> Option<i32> {
             continue;
         };
         if spec.flags.contains("OBSTACLE") {
-            return Some(0);
+            // The reference asks only the **first** obstacle part, and lets it stop blocking when it is an openable part left open (`vehicle.cpp:2859-2866`).
+            if obstacle.is_none() {
+                obstacle = Some(!(spec.flags.contains("OPENABLE") && part.open));
+            }
+            continue;
         }
         if spec.flags.contains("AISLE") {
             aisle = true;
         }
+    }
+    if obstacle == Some(true) {
+        return Some(0);
     }
     Some(if aisle { 2 } else { 8 })
 }
@@ -281,6 +292,35 @@ pub fn rider_at(world: &World, vehicle: Entity, part: usize) -> Option<Entity> {
             .get::<Riding>(*entity)
             .is_some_and(|riding| riding.vehicle == vehicle && riding.part == part)
     })
+}
+
+/// Opens or closes one openable part, and answers whether it changed.
+///
+/// Reference: `vehicle::open` and `vehicle::close` (`vehicle_use.cpp:1215-1240`) set the part's `open` state through `vehicle::open_or_close` (`:1327-1370`), and a part that cannot
+/// open is refused with a debug message rather than changed - which is the `false` this answers. The reference's `open_or_close` also unlocks a locked door, mirrors the state onto a
+/// paired fake part, and propagates along a multisquare openable's lines; the port has no locks, fake parts or multisquare openables in its data, and names that in `docs/parity.md`.
+/// The transparency and air caches the reference dirties are derived in the port, not stored.
+pub fn open_or_close(world: &mut World, vehicle: Entity, index: usize, opening: bool) -> bool {
+    let openable = {
+        let Some(built) = world.get::<Vehicle>(vehicle) else {
+            return false;
+        };
+        let Some(part) = built.parts.get(index) else {
+            return false;
+        };
+        spec_of(world, &part.part).is_some_and(|spec| spec.flags.contains("OPENABLE"))
+    };
+    if !openable {
+        return false;
+    }
+    let Some(mut built) = world.get_mut::<Vehicle>(vehicle) else {
+        return false;
+    };
+    let Some(part) = built.parts.get_mut(index) else {
+        return false;
+    };
+    part.open = opening;
+    true
 }
 
 /// The store's spec for a part id, if the world holds the store and the store holds the part.
@@ -401,6 +441,7 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
             y,
             hp,
             broken: hp <= 0,
+            open: false,
         });
         built.parts.len() - 1
     };
