@@ -11,8 +11,37 @@ use cdda_json::{Object, Value};
 pub struct Vehicles {
     /// The parts, sorted by id.
     pub parts: Vec<PartSpec>,
-    /// Prototype ids, sorted.
-    pub prototypes: Vec<String>,
+    /// The prototypes, sorted by id.
+    pub prototypes: Vec<Prototype>,
+}
+
+/// A vehicle a prototype builds: its name and the parts it is made of, each in its own square.
+///
+/// Reference: `vehicle_prototype` (`src/veh_type.h:487-511`) - `id`, `name`, and `parts`, a list of `part_def` placements. A square may hold several parts: a frame carries
+/// a seat, a seatbelt and controls, which is what a vehicle is rather than a violation of one-part-per-square.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Prototype {
+    /// Its id.
+    pub id: String,
+    /// The name a player sees, untranslated.
+    pub name: String,
+    /// The parts it is built from, in the data's order.
+    pub parts: Vec<Placement>,
+}
+
+/// One part a prototype puts in one square.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Placement {
+    /// The part's id, which must be a part the store holds.
+    pub part: String,
+    /// Its offset from the vehicle's origin, in squares.
+    pub x: i32,
+    /// Its offset from the vehicle's origin, in squares.
+    pub y: i32,
+    /// The cosmetic variant the data names, or empty.
+    pub variant: String,
+    /// How much ammunition it starts with, when the data says.
+    pub with_ammo: i32,
 }
 
 /// What one vehicle part **is**.
@@ -72,18 +101,47 @@ pub fn turret_parts(items: &[crate::items::ItemType]) -> Vec<String> {
     parts
 }
 
-fn ids_of(object: &Object, key: &str) -> Result<Vec<String>, String> {
-    let Some(Value::Array(entries)) = object.get(key) else {
-        return Err(format!("the dump has no {key} array"));
+
+/// Reads one prototype object from the dump.
+fn prototype_of(entry: &Value) -> Result<Prototype, String> {
+    let Value::Object(object) = entry else {
+        return Err("a prototype is not an object".to_owned());
     };
-    let mut ids = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let Value::Str(id) = entry else {
-            return Err(format!("a {key} id is not a string"));
-        };
-        ids.push(id.clone());
+    let text = |key: &str| match object.get(key) {
+        Some(Value::Str(value)) => Ok(value.clone()),
+        _ => Err(format!("a prototype has no {key}")),
+    };
+    let mut parts = Vec::new();
+    match object.get("parts") {
+        Some(Value::Array(items)) => {
+            for item in items {
+                let Value::Object(placement) = item else {
+                    return Err("a placement is not an object".to_owned());
+                };
+                let field = |key: &str| match placement.get(key) {
+                    Some(Value::Str(value)) => Ok(value.clone()),
+                    _ => Err(format!("a placement has no {key}")),
+                };
+                let number = |key: &str| match placement.get(key) {
+                    Some(Value::Int(value)) => Ok(*value),
+                    _ => Err(format!("a placement's {key} is not a number")),
+                };
+                parts.push(Placement {
+                    part: field("part")?,
+                    x: i32::try_from(number("x")?).unwrap_or(0),
+                    y: i32::try_from(number("y")?).unwrap_or(0),
+                    variant: field("variant")?,
+                    with_ammo: i32::try_from(number("with_ammo")?).unwrap_or(0),
+                });
+            }
+        }
+        _ => return Err("a prototype has no parts".to_owned()),
     }
-    Ok(ids)
+    Ok(Prototype {
+        id: text("id")?,
+        name: text("name")?,
+        parts,
+    })
 }
 
 /// Reads one part object from the dump.
@@ -168,7 +226,13 @@ pub fn from_dump(value: &Value) -> Result<Vehicles, String> {
         Some(Value::Array(entries)) => entries.iter().map(part_of).collect::<Result<Vec<_>, String>>()?,
         _ => return Err("the dump has no parts array".to_string()),
     };
-    let prototypes = ids_of(root, "prototypes")?;
+    let prototypes = match root.get("prototypes") {
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .map(prototype_of)
+            .collect::<Result<Vec<_>, String>>()?,
+        _ => return Err("the dump has no prototypes array".to_string()),
+    };
     count_of(root, "part_count", parts.len())?;
     count_of(root, "prototype_count", prototypes.len())?;
     Ok(Vehicles { parts, prototypes })

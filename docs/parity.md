@@ -45,6 +45,24 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle is a blueprint, and the blueprint names parts that exist (round 1503)
+
+The prototype half of the vehicle store was still a list of 249 ids. Version 3 of the dump carries each prototype's **blueprint** - what part goes in which square - which is
+the first thing about a vehicle that can be acted on.
+
+| Piece | Reference | Port |
+|---|---|---|
+the name | `vehicle_prototype::name` | `Prototype::name` - "2-seater helicopter A", not its id |
+the placements | `vehicle_prototype::parts`, a `part_def` each | `Placement { part, x, y, variant, with_ammo }` |
+the square's occupants | several `part_def`s may share one `point_rel_ms` | kept as written: 71 placements, and the origin square holds the frame, the seat, the seatbelt and the controls |
+an empty blueprint | the data holds one | **kept and named**, because a builder that skipped it would quietly turn 249 prototypes into 248 |
+
+**The gate that makes the two halves one system:** every one of the **19,938** placements names a part the store holds. A blueprint that names a missing part is a vehicle that
+cannot be built, and until this round nothing checked it - the id list and the prototype list were two lists in one file that never met.
+
+**A guessed number, again.** The first draft of the blueprint gate said the helicopter had 17 parts; the dump says 71. The guess came from counting the squares in the data's rows,
+which is not what a blueprint is: a square holds as many parts as the data puts there.
+
 ## The vehicle store carries what a part is (round 1502)
 
 P8 had a **name list**: 701 part ids and 249 prototype ids, and nothing about any of them. A name list cannot answer a question, so the oracle dump became version 2.

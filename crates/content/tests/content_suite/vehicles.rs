@@ -1,8 +1,7 @@
 //! Vehicle parts and prototypes, against the reference's own list.
 //!
-//! `corpus/vehicles.json` version 2 is `--dump-vehicles`: every part the reference's store holds - the **486 definitions the data writes** resolved through
-//! `copy-from`, plus the **239 turret parts** `finalize` invents from mountable guns, which makes 701 - each carrying what a part *is*: the item it is made of, the slot it
-//! occupies, its durability, its damage modifier, its string flags and its flat damage reduction.
+//! `corpus/vehicles.json` version 3 is `--dump-vehicles`: every part the reference's store holds - the definitions the data writes resolved through `copy-from`, plus the
+//! turret parts `finalize` invents from mountable guns - each carrying what a part *is*, and every prototype carrying the **blueprint** it is built from.
 
 #![allow(clippy::expect_used, clippy::panic)]
 
@@ -65,4 +64,61 @@ fn the_invented_turret_parts_are_in_the_store() {
     assert_eq!(turrets.len(), 241, "**the turrets the data never writes**: `finalize` makes one per mountable gun");
     let named: Vec<&String> = turrets.iter().map(|part| &part.item).collect();
     assert!(named.iter().any(|item| *item == "m1918"), "a turret is made of the gun it mounts");
+}
+
+/// **A blueprint names parts the store holds.** A prototype is a list of placements - what part, where - and a placement that names a part the store does not have is a
+/// vehicle that cannot be built, which is why this is the gate that makes the two halves one system rather than two lists that happen to share a file.
+#[test]
+fn every_placement_in_every_blueprint_names_a_part_the_store_holds() {
+    let dump = dump();
+    let known: std::collections::BTreeSet<&String> = dump.parts.iter().map(|part| &part.id).collect();
+    let mut placements = 0usize;
+    let mut unknown: Vec<(&String, &String)> = Vec::new();
+    for prototype in &dump.prototypes {
+        for placement in &prototype.parts {
+            placements += 1;
+            if !known.contains(&placement.part) {
+                unknown.push((&prototype.id, &placement.part));
+            }
+        }
+    }
+    println!("{} placements across {} prototypes", placements, dump.prototypes.len());
+    assert_eq!(placements, 19_938, "every placement in the data");
+    assert!(unknown.is_empty(), "placements naming parts the store lacks: {unknown:?}");
+}
+
+/// A known prototype, part for part: the 2-seater helicopter's blueprint opens with a cross-variant frame in the same square as its seat, controls and dashboard.
+///
+/// **One part per square is not the rule** - a frame carries a seat, a seatbelt and controls on the same square, which is what a vehicle is.
+#[test]
+fn a_blueprint_says_what_part_goes_where() {
+    let dump = dump();
+    let helicopter = dump.prototypes.iter().find(|proto| proto.id == "2seater2").expect("the helicopter");
+    assert_eq!(helicopter.name, "2-seater helicopter A", "the name the data gives it");
+    assert_eq!(helicopter.parts.len(), 71, "parts in the blueprint");
+    let first = helicopter.parts.first().expect("a first part");
+    assert_eq!(first.part, "frame", "a frame comes first");
+    assert_eq!((first.x, first.y), (0, 0), "in the origin square");
+    assert_eq!(first.variant, "cross", "the variant the data names");
+    let same_square = helicopter
+        .parts
+        .iter()
+        .filter(|placement| (placement.x, placement.y) == (0, 0))
+        .count();
+    assert!(same_square > 1, "**several parts share a square**: {same_square} of them do");
+}
+
+/// One prototype in the data has an **empty** blueprint. It is recorded rather than skipped, because a builder that quietly dropped it would make 249 prototypes into 248
+/// and nothing would say so.
+#[test]
+fn the_one_empty_blueprint_is_kept_and_named() {
+    let dump = dump();
+    let empty: Vec<&String> = dump
+        .prototypes
+        .iter()
+        .filter(|proto| proto.parts.is_empty())
+        .map(|proto| &proto.id)
+        .collect();
+    assert_eq!(empty.len(), 1, "exactly one: {empty:?}");
+    assert!(dump.parts.len() == 701, "and the part store is untouched by it");
 }

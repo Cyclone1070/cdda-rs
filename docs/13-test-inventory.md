@@ -1985,3 +1985,9 @@ damage reduction, produced by extending the harness, regenerating and verifying 
 new gates were wrong and the dump corrected them: a seat carries 25 litres of cargo (its `CARGO` flag's own promise, where the test guessed zero), the invented turret parts number
 241 (where arithmetic off the old dump said 239), and a prototype is not a part. The loader now resolves `part_count` 701 with all seven fields, and the digest gate still matches
 the reference's own id digest.
+
+**Round 1503 gave the vehicle prototypes their blueprints.** Version 3 of the dump carries each prototype's name and part placements (`part`, `x`, `y`, `variant`,
+`with_ammo`), 19,938 placements across 249 prototypes, and the gate that makes the store one system rather than two lists: **every placement names a part the store holds**.
+The origin square of the 2-seater helicopter holds its frame, seat, seatbelt and controls, so a square with several parts is the normal case - and the data's one empty blueprint
+is kept and named rather than skipped. A first draft counted the helicopter's parts from the map rows and said 17; the dump says 71, which is the difference between a blueprint
+and a picture of one.
