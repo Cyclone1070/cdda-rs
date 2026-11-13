@@ -2801,6 +2801,9 @@ fn run_store_effect(
         Effect::CustomLightLevel { .. } => custom_light_level(world, speaker, listener, effect),
         Effect::TransformRadius { .. } => transform_radius(world, speaker, listener, effect),
         Effect::TransformLine { .. } => transform_line(world, speaker, listener, effect),
+        // Reference: the legacy string effects are whole interactions - trade, training, camps, bionics - and the port has written none of them, so the name is known and the
+        // action is not: a refusal where it runs, exactly as `mapgen_update` refuses.
+        Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
         Effect::SellItem { .. } => sell_item(world, speaker, listener, effect),

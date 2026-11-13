@@ -45,6 +45,25 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A bare string in an effect list is a string effect, not a program call (round 1500)
+
+`talk_effect_t::parse_string_effect` (`npctalk.cpp:8157-8341`) is what a **string** in an effect list means. The port read every one as a call to a program of that name, so
+thirteen programs called `run_eocs(no program named open_dialogue)` for an effect the data writes directly - and any bare `"EOC_X"` would have "worked" in this port and thrown in
+the reference.
+
+| Piece | Reference | Port |
+|---|---|---|
+the table | ~84 `talk_function` names (`:8160-8247`) | **transcribed name for name** into `LEGACY_STRING_EFFECTS` |
+the branches after it | `open_dialogue`, `take_control`, `u_die`, `next_weather`, 22 names in all (`:8250-8341`) | `NAMED_STRING_EFFECTS`, or a rule where the port has one |
+`"open_dialogue"` | `f_open_dialogue( jo, "", src )` - the rule with **no topic** | the same effect, which runs its false branch for any speaker who is not the player |
+an unknown name | `jo.throw_error_at( … "unknown effect string" )` | the program refuses, as the throw does |
+a known name the port has not written | the function runs | `Effect::LegacyStringEffect` - read, and **refuses where it runs**, like `mapgen_update` |
+
+**Two of the port's own tests were wrong and are fixed, not worked around.** `eoc_programs` had fixtures writing `"effect": [ … , "EOC_INNER" ]` - a shape the reference throws on -
+so they now call with `{"run_eocs": "EOC_INNER"}`. A test that pins behaviour the reference does not have is a test that will defend a bug.
+
+**Census: 692 read, 481 ran, 211 refuse at run.** The thirteen `open_dialogue` programs now run their false branch instead of being listed as a missing program.
+
 ## The runtime census names the effect, not the caller (round 1499)
 
 With nothing left to read, the census's job changed: it now says **which effect refuses when a program runs**, and it had been blaming three wrong things in a row.

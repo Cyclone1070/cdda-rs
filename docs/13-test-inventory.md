@@ -1966,3 +1966,10 @@ blaming the caller three ways: "a program that is not installed" for a callee th
 defines (the walk hit its depth limit), and "refuses without naming an effect" for a refusal that lives in the callee's **condition**. The walk now follows `run_eocs`, both
 `if` branches and every `switch` case, and separates "cannot find" from "refuses". The real work list is now `u_location_variable` 35, `mapgen_update` 30, `u_spawn_monster` 21,
 `open_dialogue` 13, `u_add_effect` 11.
+
+**Round 1500 read the reference's string-effect table.** A bare string in an effect list is a **string effect** (`talk_effect_t::parse_string_effect`, `npctalk.cpp:8157-8341`), not a
+program call: the port had read every one as a call, so thirteen programs called a program named `open_dialogue` that does not exist, and any bare `"EOC_X"` would have "worked"
+here and thrown in the reference. The table is transcribed name for name (`LEGACY_STRING_EFFECTS`, 84 names) plus the 22 the function spells out after it, `"open_dialogue"`
+becomes the effect with no topic, an unknown name refuses the program as the reference's throw does, and a known name the port has not written reads and refuses where it runs.
+Two of this suite's own fixtures wrote `"effect": [ "EOC_INNER" ]` - a shape the reference throws on - and now call with `{"run_eocs": …}`. Census: 692 read, **481 ran** (up from 468),
+211 refuse at run.

@@ -63,24 +63,24 @@ pub const NOW: Census = Census {
     // **611 after round 1494 answered `u_has_species` and `npc_allies`/`npc_allies_global`**.
     // **692 of 692 after round 1498 wrote `transform_line`**: every program in the data reads whole, and the refusal map is empty. (`talk_effect_t::load_effect`): the last member a program was one gap from is `npc_is_underwater`.
     readable: 692,
-    ran: 468,
+    ran: 481,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
-    silent: 347,
+    silent: 360,
     // Silent because the data gives the program no effects at all - a stub, not a rule the port is missing.
     empty_programs: 23,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
     // 404 after round 1493.
     // 407 after round 1494.
     // 411 after round 1495.
-    ran_in_a_built_world: 473,
+    ran_in_a_built_world: 486,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
     // 208 after round 1491: the map-item program reads now and refuses at run, because its only data use is a menu.
     // 209 after round 1493.
     // 206 after round 1495: four programs the stored-condition path used to stop now run.
-    refused_at_run: 224,
+    refused_at_run: 211,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.

@@ -2819,6 +2819,14 @@ pub enum Effect {
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
     },
+    /// A legacy talk function the reference names in its string-effect table and the port has not written.
+    ///
+    /// Reference: `talk_effect_t::parse_string_effect` (`npctalk.cpp:8157-8341`). The name is known - so the program **reads** - and the function behind it is a whole
+    /// interaction the port owes (trade, training, camps, bionics), so it refuses where it runs rather than pretending the action happened.
+    LegacyStringEffect {
+        /// The function's name, as the data spelt it and the reference's table holds it.
+        name: String,
+    },
     /// Transforms every square on the line between two points.
     ///
     /// Reference: `f_transform_line` (`npctalk.cpp:4781-4796`): the member names a `ter_furn_transform`, and `first`/`second` are **variables holding positions** - the line
@@ -3676,6 +3684,7 @@ impl Effect {
             Self::AlterTimedEvents { .. } => "alter_timed_events",
             Self::SetCondition { .. } => "set_condition",
             Self::TransformLine { .. } => "transform_line",
+            Self::LegacyStringEffect { .. } => "talk_function",
             Self::FinishMission { .. } => "finish_mission",
             Self::RemoveActiveMission { .. } => "remove_active_mission",
             _ => return None,
@@ -3722,6 +3731,7 @@ impl Effect {
             | Self::CustomLightLevel { .. }
             | Self::TransformRadius { .. }
             | Self::TransformLine { .. }
+            | Self::LegacyStringEffect { .. }
             | Self::GiveAchievement { .. }
             | Self::FurnitureAround { .. }
             | Self::RunInvEocs { .. }
@@ -3971,16 +3981,98 @@ fn is_comment_only(value: &Value) -> bool {
 /// Reference: `talk_effect_t::load_effect` (`npctalk.cpp:8348`) reads an entry as a name, an object with one effect member, or a list; the port accepts the first
 /// two and refuses whatever it cannot carry out, so a refused entry is visible as a refusal rather than as a silent no-op.
 #[must_use]
+/// The string effects the reference spells out **after** its table, name for name.
+///
+/// Reference: `talk_effect_t::parse_string_effect` (`npctalk.cpp:8250-8341`): past the `WRAP` table the function carries a run of `if( effect_id == … )` branches, each building an
+/// effect from the object itself - so these names are as real as the table's, and a program that writes one is readable.
+pub const NAMED_STRING_EFFECTS: &[&str] = &[
+    "lightning",
+    "npc_bulk_donate",
+    "npc_bulk_trade_accept",
+    "npc_cancel_activity",
+    "npc_die",
+    "npc_gets_item",
+    "npc_gets_item_to_use",
+    "npc_prevent_death",
+    "npc_ranged_attack",
+    "npc_rules_menu",
+    "npc_wants_to_talk",
+    "next_weather",
+    "open_dialogue",
+    "take_control",
+    "take_control_menu",
+    "u_bulk_donate",
+    "u_bulk_trade_accept",
+    "u_cancel_activity",
+    "u_die",
+    "u_prevent_death",
+    "u_ranged_attack",
+    "u_wants_to_talk",
+];
+
+/// The legacy talk functions the reference's string-effect table names.
+///
+/// Reference: `talk_effect_t::parse_string_effect` (`npctalk.cpp:8160-8247`), transcribed name for name. A bare string in an effect list is looked up **here**; the reference
+/// throws for a name that is not in the table, so the port refuses such a program - and a name that *is* here but whose function is not written reads and refuses when it runs,
+/// which is what every other unported rule does.
+pub const LEGACY_STRING_EFFECTS: &[&str] = &[
+    "abandon_camp", "assign_camp", "assign_guard", "assign_mission",
+    "barber_beard", "barber_hair", "basecamp_mission", "bionic_install",
+    "bionic_install_allies", "bionic_remove", "bionic_remove_allies", "buy_chicken",
+    "buy_cow", "buy_haircut", "buy_horse", "buy_shave",
+    "clear_mission", "clear_overrides", "copy_npc_rules", "deny_equipment",
+    "deny_follow", "deny_lead", "deny_personal_info", "deny_train",
+    "dismount", "distribute_food_auto", "do_butcher", "do_chop_plank",
+    "do_chop_trees", "do_construction", "do_craft", "do_disassembly",
+    "do_eread", "do_farming", "do_fishing", "do_mining",
+    "do_mopping", "do_read", "do_read_repeatedly", "do_vehicle_deconstruct",
+    "do_vehicle_repair", "drop_items_in_place", "drop_stolen_item", "drop_weapon",
+    "end_conversation", "find_mount", "flee", "follow",
+    "follow_only", "give_aid", "give_all_aid", "give_equipment",
+    "goto_location", "hostile", "insult_combat", "lead_to_safety",
+    "leave", "lesser_give_aid", "lesser_give_all_aid", "mission_failure",
+    "mission_reward", "mission_success", "morale_chat_activity", "nothing",
+    "npc_thankful", "pick_style", "player_leaving", "player_weapon_away",
+    "player_weapon_drop", "remove_stolen_status", "reveal_stats", "revert_activity",
+    "set_npc_pickup", "sort_loot", "start_camp", "start_mugging",
+    "start_trade", "start_training", "start_training_npc", "start_training_seminar",
+    "stop_following", "stop_guard", "stranger_neutral", "wake_up",
+];
+
+/// Reads the string spellings of the effects the data writes as a bare name.
+///
+/// Reference: `talk_effect_t::parse_string_effect` (`npctalk.cpp:8157-8341`): the table holds a long list of `talk_function` names plus a few effects built from the same object -
+/// `open_dialogue` among them (`:8321-8325`), which becomes the effect with **no topic**. The port honours the names whose rules it has and refuses the rest, because the
+/// reference throws for a name it does not know and a throw refuses the definition rather than the call.
+fn read_string_effect(name: &str) -> Option<Effect> {
+    match name {
+        // Reference: `f_open_dialogue( jo, "", src )` - the string spelling is the rule with no member, so no topic and no branches.
+        "open_dialogue" => Some(Effect::OpenDialogue {
+            topic: None,
+            then: Vec::new(),
+            otherwise: Vec::new(),
+        }),
+        // Reference: the table's own `nothing`, which runs no effect at all.
+        "nothing" => Some(Effect::Nothing),
+        // A legacy talk function the port has not written: it **reads**, because the reference knows the name, and refuses where it runs.
+        other if LEGACY_STRING_EFFECTS.contains(&other) || NAMED_STRING_EFFECTS.contains(&other) => {
+            Some(Effect::LegacyStringEffect {
+                name: other.to_owned(),
+            })
+        }
+        _ => None,
+    }
+}
+
 pub fn read_effect(value: &Value) -> Option<Effect> {
     if is_comment_only(value) {
         return Some(Effect::Nothing);
     }
-    // Reference: a bare name in an effect list runs that effect-on-condition.
+    // Reference: `talk_effect_t::parse_string_effect` (`npctalk.cpp:8157-8341`) - a **string** in an effect list is looked up in the table of legacy string effects, and the
+    // reference **throws** for a name that is not in it. The port read every bare string as a call to a program of that name, which made thirteen programs call
+    // `run_eocs(no program named open_dialogue)` for an effect the data writes directly.
     if let Value::Str(name) = value {
-        return Some(Effect::RunEoc(vec![ProgramRef::Named {
-            id: name.clone(),
-            variables: Vec::new(),
-        }]));
+        return read_string_effect(name);
     }
     let Value::Object(object) = value else {
         return None;

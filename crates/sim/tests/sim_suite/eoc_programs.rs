@@ -38,7 +38,7 @@ fn a_program_runs_the_programs_it_names() {
     let (mut world, survivor) = world_with(
         r#"[
             {"type": "effect_on_condition", "id": "EOC_OUTER",
-             "effect": [{"u_message": "outer"}, "EOC_INNER"]},
+             "effect": [{"u_message": "outer"}, {"run_eocs": "EOC_INNER"}]},
             {"type": "effect_on_condition", "id": "EOC_INNER",
              "effect": [{"u_message": "inner"}, {"math": ["depth = 1"]}]}
         ]"#,
@@ -65,7 +65,7 @@ fn a_program_that_is_not_defined_is_refused_rather_than_silently_skipped() {
     let (mut world, survivor) = world_with(
         r#"[
             {"type": "effect_on_condition", "id": "EOC_LONELY",
-             "effect": [{"u_message": "before"}, "EOC_MISSING", {"u_message": "after"}]}
+             "effect": [{"u_message": "before"}, {"run_eocs": "EOC_MISSING"}, {"u_message": "after"}]}
         ]"#,
     );
     assert_eq!(
@@ -100,7 +100,7 @@ fn a_program_whose_condition_is_false_runs_nothing() {
 fn a_program_that_names_itself_is_stopped_at_the_depth_limit() {
     let (mut world, survivor) = world_with(
         r#"[
-            {"type": "effect_on_condition", "id": "EOC_LOOP", "effect": ["EOC_LOOP"]}
+            {"type": "effect_on_condition", "id": "EOC_LOOP", "effect": [{"run_eocs": "EOC_LOOP"}]}
         ]"#,
     );
     assert_eq!(
@@ -867,7 +867,23 @@ fn refusal_of(effect: &cdda_content::dialogue::Effect, census: &Census, depth: u
             .flat_map(|(_, effects)| effects.iter())
             .find_map(|case| refusal_of(case, census, depth + 1))
             .or_else(|| Some(effect.kind().to_owned())),
-        _ => Some(effect.kind().to_owned()),
+        _ => Some(format!("{}: {:?}", effect.kind(), describe(effect))),
+    }
+}
+
+/// A one-line sketch of an effect's members, so a census label says what the data asked for rather than only which rule refused.
+fn describe(effect: &cdda_content::dialogue::Effect) -> String {
+    match effect {
+        cdda_content::dialogue::Effect::LocationVariableSearch { om_terrain, search_range, .. } => {
+            format!("om_terrain={om_terrain:?} search_range={search_range}")
+        }
+        cdda_content::dialogue::Effect::AddEffect { effect, duration, .. } => {
+            format!("effect={effect:?} duration={duration:?}")
+        }
+        cdda_content::dialogue::Effect::SpawnMonster { monster, group, .. } => {
+            format!("monster={monster:?} group={group:?}")
+        }
+        _ => String::new(),
     }
 }
 
