@@ -54,6 +54,18 @@ pub struct VehiclePart {
     pub broken: bool,
 }
 
+/// A creature's place in a vehicle: which vehicle, and which of its parts the creature sits on.
+///
+/// Reference: the reference keeps this fact twice - `Character::in_vehicle` and the part's `vp_flag::passenger_flag`/`passenger_id` (`map::board_vehicle`, `map.cpp:1385-1418`) - and asks the
+/// part's flag to find the occupant. The port keeps it once, on the creature, and derives "who sits here" with [`rider_at`], so there is no copy to drift.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
+pub struct Riding {
+    /// The vehicle the creature is in.
+    pub vehicle: Entity,
+    /// The index of the part it sits on.
+    pub part: usize,
+}
+
 /// A vehicle: the parts it is made of, in its blueprint's order, and the direction it faces.
 #[derive(Debug, Clone, Default, PartialEq, Component)]
 pub struct Vehicle {
@@ -181,6 +193,94 @@ pub fn at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
         .iter()
         .copied()
         .find(|entity| world.get::<Vehicle>(*entity).is_some())
+}
+
+/// What a vehicle's square costs a walker to move through - the reference's `vpart_position::get_movecost` (`vehicle.cpp:2871-2881`).
+///
+/// **0** when an unbroken part on the square is an `OBSTACLE`; **2** when an unbroken part is an `AISLE`; **8** for an open vehicle square. The obstacle is asked first and over every part
+/// on the square, which is the reference's `obstacle_at_part` (`:2857-2869`): a windshield blocks even beside a seat. The reference lets an **open door** stop being an obstacle; the
+/// port carries no open/closed state yet, so every door is closed, which is the reference's own default for a fresh part (`vehicle_part::open` starts false).
+///
+/// Answers `None` when no vehicle stands on the square - the caller then falls back to the terrain's own cost, which is the reference's `map::move_cost` order.
+#[must_use]
+pub fn move_cost_at(world: &World, square: (i32, i32, i32)) -> Option<i32> {
+    let vehicle = at(world, square)?;
+    let built = world.get::<Vehicle>(vehicle)?;
+    let squares = part_squares(world, vehicle);
+    let mut aisle = false;
+    for (index, part) in built.parts.iter().enumerate() {
+        if squares.get(index).copied() != Some(square) || part.broken {
+            continue;
+        }
+        let Some(spec) = spec_of(world, &part.part) else {
+            continue;
+        };
+        if spec.flags.contains("OBSTACLE") {
+            return Some(0);
+        }
+        if spec.flags.contains("AISLE") {
+            aisle = true;
+        }
+    }
+    Some(if aisle { 2 } else { 8 })
+}
+
+/// Puts a creature on the boardable part it stands on, unboarding whoever was already there.
+///
+/// Reference: `map::board_vehicle` (`map.cpp:1385-1418`). The part is the **first unbroken `BOARDABLE` part** on the creature's square - the reference's
+/// `part_with_feature( VPFLAG_BOARDABLE, true )` - and a square with none refuses the boarding, as does a broken seat. A part holds one creature: the reference unboards the occupant
+/// before marking the seat, and so does the port.
+///
+/// The reference finds the vehicle itself through the square cache; the port takes the vehicle the caller means and still refuses if the creature does not stand on one of its squares,
+/// so naming the wrong vehicle cannot seat anyone.
+#[must_use]
+pub fn board(world: &mut World, vehicle: Entity, creature: Entity) -> Option<usize> {
+    let position = *world.get::<Position>(creature)?;
+    let square = (position.x, position.y, position.z);
+    let seat = {
+        let built = world.get::<Vehicle>(vehicle)?;
+        let squares = part_squares(world, vehicle);
+        let mut found = None;
+        for (index, part) in built.parts.iter().enumerate() {
+            if part.broken || squares.get(index).copied() != Some(square) {
+                continue;
+            }
+            if spec_of(world, &part.part).is_some_and(|spec| spec.flags.contains("BOARDABLE")) {
+                found = Some(index);
+                break;
+            }
+        }
+        found?
+    };
+    if let Some(occupant) = rider_at(world, vehicle, seat)
+        && occupant != creature
+    {
+        unboard(world, occupant);
+    }
+    world.entity_mut(creature).insert(Riding {
+        vehicle,
+        part: seat,
+    });
+    Some(seat)
+}
+
+/// Takes a creature out of its seat; answers whether it was in one.
+///
+/// Reference: `map::unboard_vehicle` (`map.cpp:1420-1440`). The reference also clears `controlling_vehicle` and stops autodriving; the port has no driving yet, and names that in
+/// `docs/parity.md` rather than pretending the rest is the whole rule.
+pub fn unboard(world: &mut World, creature: Entity) -> bool {
+    world.entity_mut(creature).take::<Riding>().is_some()
+}
+
+/// The creature sitting on one part of a vehicle, if one is.
+#[must_use]
+pub fn rider_at(world: &World, vehicle: Entity, part: usize) -> Option<Entity> {
+    let mut query = world.try_query_filtered::<Entity, With<Riding>>()?;
+    query.iter(world).find(|entity| {
+        world
+            .get::<Riding>(*entity)
+            .is_some_and(|riding| riding.vehicle == vehicle && riding.part == part)
+    })
 }
 
 /// The store's spec for a part id, if the world holds the store and the store holds the part.
@@ -372,6 +472,17 @@ fn first_part_at_with_flag(
 /// Erases one part by its index and keeps the index honest; the cascade lives in [`remove_part`].
 fn remove_one_part(world: &mut World, vehicle: Entity, index: usize) -> Option<VehiclePart> {
     let at = *world.get::<Position>(vehicle)?;
+    // The reference unboards whoever stands on a removed BOARDABLE part before the part is gone (`vehicle.cpp:2238-2241`).
+    let boardable = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+        .and_then(|part| spec_of(world, &part.part))
+        .is_some_and(|spec| spec.flags.contains("BOARDABLE"));
+    if boardable
+        && let Some(rider) = rider_at(world, vehicle, index)
+    {
+        unboard(world, rider);
+    }
     let removed = {
         let mut built = world.get_mut::<Vehicle>(vehicle)?;
         if index >= built.parts.len() {

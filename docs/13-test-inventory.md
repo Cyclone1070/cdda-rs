@@ -2047,3 +2047,15 @@ lambda called four times. The child is the first part at the same mount with the
 the frame, controls, dashboard and roof stayed; installs a curtain on a windshield's square and pins that the windshield takes it; and removes a headlight to show that a part with
 no dependents takes nothing. Three mutations were caught: each exercised pair dropped from the table, and a cascade that ignores the child's flag. **Still named**: unboarding,
 tool drops, animal release and the `removed`-flag cleanup - the port's parts carry no passengers, tools or `removed` flag.
+
+**Round 1512 ported what a vehicle square costs to walk through.** `vpart_position::get_movecost` is 0 when an unbroken `OBSTACLE` part stands on the square, 2 when an unbroken
+`AISLE` part does, and 8 otherwise; a broken part stops blocking because the reference asks for an unbroken one. The gate walks the helicopter's origin (8), a windshield square (0),
+that square again after the windshield breaks (8), a fresh frame with an aisle (2), and a square with no vehicle (nothing). **Named**: the reference's open-door exception, because
+the port carries no open/closed state - every door is closed, the reference's default for a fresh part.
+
+**Round 1513 ported boarding.** The reference keeps "this creature is in a vehicle" twice - `Character::in_vehicle` and the part's passenger flag/id - and the port keeps it once, as
+`Riding { vehicle, part }` on the creature, so `rider_at` derives who sits where. `board` takes the first unbroken `BOARDABLE` part on the creature's square, unboards whoever was
+there (the reference's order), and refuses a square with no boardable part, a broken seat, or a creature standing off the named vehicle. `unboard` says whether there was anything to
+do, and removing a boardable part releases its rider (`remove_part`'s unboarding, `vehicle.cpp:2238-2241`). The gate covers each of those and four mutations were caught: the
+`BOARDABLE` flag ignored, a broken part boarded, the occupant not unboarded, and the removed seat keeping its rider. **Named**: the reference's driving cleanup on unboard
+(`controlling_vehicle`, `skidding`) and its square-level unboarding, which the part-level `Riding` makes precise.

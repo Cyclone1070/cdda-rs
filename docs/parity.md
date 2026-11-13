@@ -45,6 +45,47 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A creature boards the seat under it (round 1513)
+
+The first thing a player does with a vehicle is get into it. The reference keeps that fact twice - `Character::in_vehicle` and the part's `passenger_flag`/`passenger_id` - and asks the
+part to find the occupant. The port keeps it once, on the creature.
+
+| Piece | Reference | Port |
+|---|---|---|
+the fact | `Character::in_vehicle` plus the part's passenger flag and id | `Riding { vehicle, part }` on the creature |
+boarding | `map::board_vehicle` (`map.cpp:1385-1418`): the first unbroken `BOARDABLE` part on the square, unboard the occupant, mark the part | `board` |
+leaving | `map::unboard_vehicle` (`map.cpp:1420-1440`) | `unboard` |
+a removed seat | `remove_part` unboards the part's passenger before the part goes (`vehicle.cpp:2238-2241`) | `remove_one_part` |
+
+A square with no unbroken `BOARDABLE` part refuses, and so does a broken seat. A second creature takes the seat and the first is unboarded, which is the reference's order. A creature
+that does not stand on one of the named vehicle's squares is refused, so naming the wrong vehicle cannot seat anyone.
+
+**Named:** the reference's `unboard_vehicle` also clears `controlling_vehicle` and sets `skidding` when the driver leaves - the port has no driving yet. The reference unboards **by
+square**, which on a square with two boardable parts can catch the other one; the port names the part, and every square in the dump has at most one boardable part.
+
+The gate: a creature boards its seat and gets out twice, the second time answering that there was nothing to do; two creatures contest one seat; a windshield square, a broken seat and
+a square off the vehicle all refuse; removing the seat releases its rider. Four mutations were caught: boarding without the `BOARDABLE` flag, boarding a broken part, a second boarder
+leaving the first seated, and a removed seat leaving its rider.
+
+## A vehicle's square has a cost to walk through (round 1512)
+
+Movement has to know what a square holds before anything moves. The reference's `vpart_position::get_movecost` is three lines of policy over the parts standing on the square, and
+the port now answers it.
+
+| Cost | When | Reference |
+|---|---|---|
+0 | an unbroken `OBSTACLE` part stands there | `obstacle_at_part` (`vehicle.cpp:2857-2869`) |
+2 | otherwise an unbroken `AISLE` part | `vehicle.cpp:2876-2877` |
+8 | anything else on the vehicle | `vehicle.cpp:2878-2879` |
+
+The obstacle is asked first and across the whole square, so a windshield blocks even beside a seat, and a **broken** part stops blocking because the reference asks for an unbroken
+one. The reference also lets an **open door** stop being an obstacle; the port carries no open/closed state yet, so every door is closed - which is the reference's own default for a
+fresh part (`vehicle_part::open` starts false). A square no vehicle stands on answers nothing, and the caller falls back to the terrain's cost, which is the reference's order in
+`map::move_cost`.
+
+The gate walks the helicopter: the origin square costs 8, a windshield square 0, the same square 8 after the windshield breaks, a fresh frame plus an aisle 2, and a square with no
+vehicle answers nothing. Three mutations were caught: an obstacle answered as open, a broken part still counted, and an aisle priced like an open square.
+
 ## A removed part takes its dependents with it (round 1511)
 
 The reference's `remove_part` is not one erase: a window cannot stay without its curtain, a seat without its seatbelt, a battery mount without its battery. The port now does the

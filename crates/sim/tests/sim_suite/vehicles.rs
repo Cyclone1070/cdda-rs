@@ -646,3 +646,134 @@ fn removing_a_part_removes_the_parts_that_depend_on_it() {
         "a headlight has no dependent part"
     );
 }
+
+#[test]
+fn a_vehicle_square_costs_what_stands_on_it() {
+    use cdda_sim::vehicles::{damage, install_part, move_cost_at};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    // The origin square holds a frame, a seat, controls, a dashboard and a roof, and nothing that blocks.
+    assert_eq!(
+        move_cost_at(&world, (10, 10, 0)),
+        Some(8),
+        "an open vehicle square costs eight"
+    );
+    // A windshield blocks the square outright.
+    assert_eq!(
+        move_cost_at(&world, (11, 10, 0)),
+        Some(0),
+        "**a windshield is an obstacle**"
+    );
+
+    // Break it and the square opens: a broken part does not block.
+    let windshield = part_index(&world, vehicle, 1, 0, "windshield").expect("the windshield");
+    damage(&mut world, vehicle, windshield, 10_000, "bash", true);
+    assert_eq!(
+        move_cost_at(&world, (11, 10, 0)),
+        Some(8),
+        "**a broken obstacle stops blocking**"
+    );
+
+    // An aisle costs two, and it is cheaper than an open square.
+    assert_eq!(install_part(&mut world, vehicle, "frame", 2, 0), Some(71));
+    assert_eq!(install_part(&mut world, vehicle, "aisle", 2, 0), Some(72));
+    assert_eq!(
+        move_cost_at(&world, (12, 10, 0)),
+        Some(2),
+        "**an aisle costs two**"
+    );
+
+    // A square no vehicle stands on answers nothing.
+    assert_eq!(move_cost_at(&world, (30, 30, 0)), None);
+}
+
+/// A creature standing at one square.
+fn creature_at(world: &mut World, x: i32, y: i32) -> Entity {
+    world
+        .spawn((
+            cdda_sim::Position { x, y, z: 0 },
+            cdda_sim::creature::Creature {
+                name: "a survivor".to_owned(),
+                size: cdda_sim::CreatureSize::Medium,
+            },
+        ))
+        .id()
+}
+
+#[test]
+fn a_creature_boards_the_seat_under_it_and_can_get_out() {
+    use cdda_sim::vehicles::{board, unboard, Riding};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    let rider = creature_at(&mut world, 10, 10);
+    let seat = part_index(&world, vehicle, 0, 0, "reclining_seat").expect("the seat");
+    assert_eq!(
+        board(&mut world, vehicle, rider),
+        Some(seat),
+        "**a creature boards the boardable part it stands on**"
+    );
+    assert_eq!(
+        world.get::<Riding>(rider).copied(),
+        Some(Riding { vehicle, part: seat }),
+        "and the seat is named once, on the creature"
+    );
+    assert!(unboard(&mut world, rider), "it can get out");
+    assert!(world.get::<Riding>(rider).is_none(), "and the seat is free");
+    assert!(
+        !unboard(&mut world, rider),
+        "getting out twice reports that there was nothing to do"
+    );
+}
+
+#[test]
+fn a_seat_holds_one_creature_and_a_window_holds_none() {
+    use cdda_sim::vehicles::{board, damage, remove_part, Riding};
+
+    let (mut world, vehicle) = world_with_the_helicopter();
+    let first = creature_at(&mut world, 10, 10);
+    let second = creature_at(&mut world, 10, 10);
+    let seat = board(&mut world, vehicle, first).expect("the first creature boards");
+    assert_eq!(
+        board(&mut world, vehicle, second),
+        Some(seat),
+        "the second boards the same seat"
+    );
+    assert!(
+        world.get::<Riding>(first).is_none(),
+        "**a seat holds one creature, so the first is unboarded**"
+    );
+    assert_eq!(
+        world.get::<Riding>(second).copied(),
+        Some(Riding { vehicle, part: seat })
+    );
+
+    // A windshield is not a seat, and a square off the vehicle is not either.
+    let outsider = creature_at(&mut world, 11, 10);
+    assert_eq!(
+        board(&mut world, vehicle, outsider),
+        None,
+        "**a square with no boardable part refuses**"
+    );
+    let stranger = creature_at(&mut world, 30, 30);
+    assert!(
+        board(&mut world, vehicle, stranger).is_none(),
+        "a square the vehicle does not stand on refuses"
+    );
+
+    // A broken seat is nobody's seat.
+    let other_seat = part_index(&world, vehicle, 0, 1, "reclining_seat").expect("the other seat");
+    damage(&mut world, vehicle, other_seat, 10_000, "bash", true);
+    let waiter = creature_at(&mut world, 10, 11);
+    assert_eq!(
+        board(&mut world, vehicle, waiter),
+        None,
+        "**a broken seat refuses too**"
+    );
+
+    // Removing the seat releases whoever sits on it.
+    remove_part(&mut world, vehicle, seat).expect("the seat comes out");
+    assert!(
+        world.get::<Riding>(second).is_none(),
+        "**a removed seat unboards its rider**"
+    );
+}
