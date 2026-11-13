@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-13 21:33:59
-@@ -0,0 +1,8036 @@
++++ oracle/src/src/harness.cpp	2026-11-14 02:00:54
+@@ -0,0 +1,8102 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -374,6 +374,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "dependency_tree.h"
 +#include "item.h"
 +#include "map.h"
++#include "vehicle.h"
++#include "vpart_position.h"
 +#include "bionics.h"
 +#include "stomach.h"
 +#include "vitamin.h"
@@ -1225,6 +1227,70 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    }
 +    std::fprintf( out, "\n]}\n" );
 +    std::fclose( out );
++}
++
++/// A vehicle the reference itself places, with everything a later behaviour dump needs pinned beside it - `--dump-vehicle-placement`.
++///
++/// The rotation dump exercises `tileray` without a map; this one proves the **placement path** works in the harness, which every later vehicle behaviour needs: `map::add_vehicle`
++/// (`mapgen.cpp:7523-7560`) refuses a vehicle whose structural squares hit deep water or another vehicle, and it needs the dynamic data loaded (`check_mod_data`) or the prototype id
++/// does not exist. It lays floor around the avatar first so terrain cannot be the reason, places the 2-seater helicopter at the avatar's own square, and records what the reference
++/// built: the name, every part's mount and square, its spec's fuel type, and the ammo a tank happens to hold.
++void dump_vehicle_placement( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const vproto_id type( "2seater2" );
++    if( !type.is_valid() ) {
++        std::fprintf( stderr, "harness: 2seater2 is not a valid prototype\n" );
++        std::fclose( out );
++        return;
++    }
++
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    // Floor a generous box first: `add_vehicle_to_map` refuses a vehicle that lands in deep water, and a fresh world can be anything.
++    for( int dx = -12; dx <= 12; dx++ ) {
++        for( int dy = -12; dy <= 12; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    vehicle *veh = here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true );
++    if( veh == nullptr ) {
++        std::fprintf( stderr,
++                      "harness: placement failed at %d,%d,%d: valid=%d inbounds=%d ter=%s furn=%s impassable=%d veh=%d\n",
++                      origin.x(), origin.y(), origin.z(), type.is_valid(), here.inbounds( origin ),
++                      here.ter( origin ).id().str().c_str(), here.furn( origin ).id().str().c_str(),
++                      here.impassable( origin ), here.veh_at( origin ) ? 1 : 0 );
++        std::fclose( out );
++        return;
++    }
++
++    (void)veh->get_points( true );
++
++    std::fprintf( out, "{\"harness\":\"vehicle_placement\",\"version\":1,\"vehicle\":\"%s\",\"name\":\"%s\",",
++                  type.str().c_str(), veh->name.c_str() );
++    std::fprintf( out, "\"origin\":[%d,%d,%d],\"parts\":[", origin.x(), origin.y(), origin.z() );
++    bool first = true;
++    for( const vpart_reference &vpr : veh->get_all_parts() ) {
++        const tripoint_bub_ms at = vpr.pos_bub( here );
++        std::fprintf( out,
++                      "%s{\"mount\":[%d,%d],\"at\":[%d,%d],\"fuel_type\":\"%s\",\"ammo\":\"%s\",\"charges\":%d}",
++                      first ? "" : ",", vpr.mount_pos().x(), vpr.mount_pos().y(), at.x(), at.y(),
++                      vpr.part().info().fuel_type.str().c_str(), vpr.part().ammo_current().str().c_str(),
++                      static_cast<int>( vpr.part().ammo_remaining() ) );
++        first = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++
++    here.destroy_vehicle( veh );
 +}
 +
 +void dump_starting_kit( const std::string &path )
@@ -8398,8 +8464,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-13 21:05:51
-@@ -0,0 +1,431 @@
++++ oracle/src/src/harness.h	2026-11-14 01:40:06
+@@ -0,0 +1,434 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8544,6 +8610,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +
 +/** Writes every part's mount and its square at five facings, for the port's rotation rule. */
 +void dump_vehicle_rotation( const std::string &path );
++
++/// Places the reference's 2-seater helicopter on a floored square beside the avatar and records every part's mount, square, fuel type and contents - `--dump-vehicle-placement`.
++void dump_vehicle_placement( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -9118,7 +9187,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-13 21:33:59
++++ oracle/src/src/main.cpp	2026-11-14 01:40:40
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9129,7 +9198,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,170 @@
+@@ -272,6 +275,171 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9291,6 +9360,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_starting_kit;
 +    std::string dump_vehicle_parts;
 +    std::string dump_vehicle_rotation;
++    std::string dump_vehicle_placement;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -9300,7 +9370,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +467,1470 @@
+@@ -300,6 +468,1480 @@
                  }
              },
              {
@@ -9460,6 +9530,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_parts = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-placement", "<file>",
++                "Writes a placed 2-seater helicopter: every part's mount, square and fuel to <file>",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_placement = params[0];
 +                    return 1;
 +                }
 +            },
@@ -10771,7 +10851,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2417,807 @@
+@@ -786,6 +2428,819 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11013,6 +11093,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +            harness::dump_vehicle_parts( cli.dump_vehicle_parts );
 +            exit_handler( 0 );
 +        }
++        if( !cli.dump_vehicle_placement.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_placement( cli.dump_vehicle_placement );
++            exit_handler( 0 );
++        }
++
 +        if( !cli.dump_vehicle_rotation.empty() ) {
 +            test_mode = true;
 +            harness::dump_vehicle_rotation( cli.dump_vehicle_rotation );

@@ -65,6 +65,9 @@ one to write - a single call to that builder with the same id - before any dump 
 | `--dump-prototype-digest <file>` | Sorted digest of every loaded prototype | Content gate |
 | `--dump-system-trace <file>` | Per-system fingerprints inside one turn | Localising a divergence |
 | `--dump-butchery <file>` | How long each butchery action takes on each size of corpse, in four flag states | The butchery clock's parity gate |
+| `--dump-vehicles <file>` | Every vehicle part and prototype, with durability, location, size, flags and armour | P8's store and mount rule |
+| `--dump-vehicle-rotation <file>` | `coord_translate` over a grid of mounts at 0, 45, 90, 180 and 270 degrees | P8's facing gate |
+| `--dump-vehicle-placement <file>` | A placed 2-seater helicopter: name, mounts, squares, fuel type and ammo, part by part | P8's placement gate and the fuel rounds |
 
 Plus one build-level addition: **coverage instrumentation** (clang source-based
 coverage, the project already builds with clang in CI) so the harness can report

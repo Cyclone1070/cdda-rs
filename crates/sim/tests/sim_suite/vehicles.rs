@@ -818,3 +818,85 @@ fn an_open_door_stops_blocking_the_square_it_stands_on() {
     );
     assert_eq!(move_cost_at(&world, (11, 10, 0)), Some(0), "so it still blocks");
 }
+
+#[test]
+fn a_placed_vehicle_stands_where_the_reference_places_it() {
+    use cdda_sim::vehicles::{part_squares, spawn_facing, Vehicle};
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_placement.json");
+    let bytes = std::fs::read(path).expect("the placement recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(origin)) = root.get("origin") else {
+        panic!("the recording has an origin");
+    };
+    let origin = (
+        coordinate(origin, 0),
+        coordinate(origin, 1),
+        coordinate(origin, 2),
+    );
+    let Some(cdda_json::Value::Array(placed)) = root.get("parts") else {
+        panic!("the recording has parts");
+    };
+    assert_eq!(placed.len(), 71, "the reference placed the helicopter's 71 parts");
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "2seater2", origin, 0.0).expect("the port builds it");
+    let built = world.get::<Vehicle>(vehicle).expect("a vehicle");
+    assert_eq!(built.parts.len(), placed.len(), "one part per placed part");
+    let squares = part_squares(&world, vehicle);
+    let mut compared = 0;
+    for (index, entry) in placed.iter().enumerate() {
+        let cdda_json::Value::Object(entry) = entry else {
+            panic!("a placed part is an object");
+        };
+        let mount = mount_of(entry);
+        let at = at_of(entry);
+        let Some(part) = built.parts.get(index) else {
+            panic!("part {index} exists");
+        };
+        assert_eq!(
+            (part.x, part.y),
+            mount,
+            "part {index} keeps the reference's mount"
+        );
+        let Some(square) = squares.get(index) else {
+            panic!("part {index} has a square");
+        };
+        assert_eq!(
+            (square.0, square.1),
+            at,
+            "**part {index} at mount {mount:?} stands on the square the reference placed it on**"
+        );
+        compared += 1;
+    }
+    assert_eq!(compared, 71, "every placed part compared");
+}
+
+/// An integer from a JSON array at a position.
+fn coordinate(values: &[cdda_json::Value], index: usize) -> i32 {
+    let Some(cdda_json::Value::Int(value)) = values.get(index) else {
+        panic!("coordinate {index} is an integer");
+    };
+    i32::try_from(*value).expect("a small coordinate")
+}
+
+/// A placed part's mount.
+fn mount_of(entry: &cdda_json::Object) -> (i32, i32) {
+    let Some(cdda_json::Value::Array(values)) = entry.get("mount") else {
+        panic!("a part has a mount");
+    };
+    (coordinate(values, 0), coordinate(values, 1))
+}
+
+/// A placed part's square.
+fn at_of(entry: &cdda_json::Object) -> (i32, i32) {
+    let Some(cdda_json::Value::Array(values)) = entry.get("at") else {
+        panic!("a part has a square");
+    };
+    (coordinate(values, 0), coordinate(values, 1))
+}

@@ -45,6 +45,25 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The harness can place a vehicle, and the port stands where it does (round 1515)
+
+Every vehicle behaviour still to come - fuel, driving, collision, turrets - needs the reference itself to put a vehicle on a map and answer questions about it. The harness could
+not: a placement dump had been tried for round 1510 and `map::add_vehicle` returned null at every facing, so the rotation gate had to be built on `tileray` alone.
+
+Two causes, both found by dumping the refusal instead of guessing:
+
+1. **The dynamic data was not loaded.** The part dump calls `g->check_mod_data( { mod_id( "dda" ) } )` before it dumps; the placement branch did not, so `vproto_id( "2seater2" ).is_valid()`
+   was false and `map::add_vehicle` refused at its first check (`mapgen.cpp:7527-7530`).
+2. **The avatar's start square is furnished.** After loading the data, the refusal was `impassable( p )` (`mapgen.cpp:7713-7716`): the terrain was already floor but the starting
+   location's furniture makes `map::move_cost` zero. The dump now lays `t_floor` and clears furniture over a 25x25 box around the avatar before placing.
+
+`--dump-vehicle-placement` records what the reference built at the avatar's own square: its name, every part's mount and square, the part spec's fuel type, and the ammo a tank holds.
+The port's `spawn_facing` plus `part_squares` reproduce the reference's mounts and squares for **all 71 parts** - the first end-to-end confirmation that the port's placement is the
+reference's placement, not just the same `tileray`. Two mutations were caught: a placement one square off, and a square derived from the mount with its axes swapped.
+
+The dump also shows what the next rounds need: the two turbine engines name `gasoline`, the battery and two other parts name `battery`, and every tank is empty because the hull is
+placed with no fuel.
+
 ## A door that is open stops blocking (round 1514)
 
 Round 1512 named one gap in the move cost: the reference lets an open door step out of the way, and the port had no open state. A part now carries it, and the rule that reads it is

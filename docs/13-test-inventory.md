@@ -2065,3 +2065,9 @@ do, and removing a boardable part releases its rider (`remove_part`'s unboarding
 lets it stop blocking when it is openable and open, which is `obstacle_at_part` (`vehicle.cpp:2857-2869`). The gate: a closed door costs 0, an open one 8, closing it 0 again, and a
 windshield refuses and stays an obstacle. Three mutations were caught: the open state ignored, a close that leaves the door open, and the `OPENABLE` gate removed. **Named**: locks,
 fake parts, multisquare propagation and the reference's transparency/air caches - the port has no such state, and derives its caches.
+
+**Round 1515 made the oracle place a vehicle, and pinned the port against it.** The placement branch had been failing since round 1510 for two reasons: it never called
+`g->check_mod_data`, so the prototype was not loaded, and the avatar's start square is furnished, so `impassable(p)` refused it even on floor terrain. The dump now loads the data and
+lays floor with no furniture over a 25x25 box first; `--dump-vehicle-placement` records the vehicle's name and every part's mount, square, fuel type and ammo. The port's `spawn_facing`
+and `part_squares` reproduce all 71 mounts and squares of the placed helicopter, which is the first end-to-end placement confirmation; two mutations were caught (a placement shifted
+one square, and square axes swapped). The dump also carries the fuel data the engine rounds need: `gasoline` for the two turbines, `battery` for three parts, and empty tanks.
