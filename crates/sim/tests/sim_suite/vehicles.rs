@@ -1164,8 +1164,16 @@ fn an_engine_starts_only_when_it_has_fuel() {
 
     let (mut world, vehicle) = fueled_helicopter();
     let engine = part_index(&world, vehicle, -2, -1, "engine_turbine_small").expect("the engine");
-    assert!(!is_engine_on(&world, vehicle, engine), "an engine starts off");
-
+    assert!(
+        is_engine_on(&world, vehicle, engine),
+        "**an engine starts on**: `bool enabled = true` (`vehicle.h:519`), so a blueprint's engine is already switched on"
+    );
+    assert!(
+        !start_engine(&mut world, vehicle, engine, true),
+        "**asking to start an engine that is already on answers no** - the reference returns early when the switch is already where it was asked to be"
+    );
+    assert!(start_engine(&mut world, vehicle, engine, false), "turning it off works");
+    assert!(!is_engine_on(&world, vehicle, engine), "and now it is off");
     assert!(
         start_engine(&mut world, vehicle, engine, true),
         "**the tanks hold 300 units of its fuel, so it starts**"
@@ -1250,8 +1258,10 @@ fn an_engine_takes_the_first_fuel_it_can_burn() {
         "the reference's turbine burns seven fuels, in this order"
     );
 
-    // Diesel only: its own type is dry, so it takes the first option that is not.
+    // Diesel only: its own type is dry, so it takes the first option that is not. The engine is already on - a fresh part's switch is on - so it is switched off
+    // before it is asked to choose a fuel, which is what the reference's own "start" does on a vehicle nobody has started yet.
     fill_tanks(&mut world, vehicle, "diesel", 100);
+    assert!(start_engine(&mut world, vehicle, engine, false), "switched off first");
     assert!(start_engine(&mut world, vehicle, engine, true), "it starts on diesel");
     assert_eq!(
         fuel_current(&world, vehicle, engine),
@@ -2162,6 +2172,37 @@ fn the_cubic_turns_drag_and_power_into_a_top_speed() {
             panic!("recorded rolling drag");
         };
         let power = int_of(case, "power_w");
+
+        // The engines, measured rather than handed over: the port sums its own engine parts, so this case's power is a value it produces.
+        let mut world = World::new();
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let origin = square_of(&root, "origin");
+        let vehicle = cdda_sim::vehicles::spawn_facing(&mut world, &text_of(case, "vehicle"), origin, 0.0)
+            .expect("the recorded vehicle builds");
+        if text_of(case, "name").starts_with("a_humvee_with_no_wheel") {
+            let count = world
+                .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+                .expect("a vehicle")
+                .parts
+                .len();
+            for index in 0..count {
+                if cdda_sim::vehicles::part_spec(&world, vehicle, index)
+                    .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "ENGINE"))
+                {
+                    let mut built = world.get_mut::<cdda_sim::vehicles::Vehicle>(vehicle).expect("a vehicle");
+                    let part = built.parts.get_mut(index).expect("a part");
+                    part.hp = 0;
+                    part.broken = true;
+                }
+            }
+        }
+        assert_eq!(
+            cdda_sim::vehicle_drive::total_power(&world, vehicle),
+            power,
+            "{}: **the running engines make what the reference says they make**",
+            text_of(case, "name")
+        );
+
         assert_eq!(
             cdda_sim::vehicle_drive::top_speed_vmiph(*air, *rolling, power),
             int_of(case, "max_ground_velocity"),
@@ -2263,4 +2304,146 @@ fn the_body_prices_the_air_one_column_at_a_time() {
     }
     assert_eq!(seen, 9, "the recording holds nine vehicles");
     assert!(values.len() >= 7, "the drags are not all the same: {values:?}");
+}
+
+#[test]
+fn the_engines_are_summed_and_the_vehicle_drives_itself_to_its_top_speed() {
+    use cdda_sim::item_registry::{Kind, set_item_types};
+    use cdda_sim::vehicles::{Vehicle, spawn_facing};
+
+    // The whole chain in one gate, on the three vehicles whose mass the port reproduces exactly: the port measures the body's air drag, the wheels' rolling
+    // resistance and the engines' power, and the cubic turns them into the speed the reference recorded. No recorded coefficient is used for the answer.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json");
+    let bytes = std::fs::read(path).expect("the rolling recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let origin = square_of(&root, "origin");
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut speeds = std::collections::BTreeSet::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        let name = text_of(case, "name");
+        let mut world = World::new();
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = spawn_facing(&mut world, &text_of(case, "vehicle"), origin, 0.0)
+            .expect("the recorded vehicle builds");
+        let Some(cdda_json::Value::Array(parts)) = case.get("parts") else {
+            panic!("{name}: parts");
+        };
+        let mut kinds: Vec<(String, i64)> = Vec::new();
+        for part in parts {
+            let cdda_json::Value::Object(part) = part else {
+                panic!("a part is an object");
+            };
+            let item = text_of(part, "item");
+            let weight = i64::from(int_of(part, "base_mass_g"));
+            if let Some(slot) = kinds.iter_mut().find(|(id, _)| *id == item) {
+                slot.1 = weight;
+            } else {
+                kinds.push((item, weight));
+            }
+        }
+        let specs: Vec<Kind<'_>> = kinds
+            .iter()
+            .map(|(id, weight)| Kind {
+                id,
+                volume_ml: 0,
+                weight_g: *weight,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: -1,
+            })
+            .collect();
+        set_item_types(&mut world, &specs);
+        if int_of(case, "wheel_count") == 0 {
+            let broken: Vec<usize> = (0..world.get::<Vehicle>(vehicle).expect("a vehicle").parts.len())
+                .filter(|index| {
+                    cdda_sim::vehicles::part_spec(&world, vehicle, *index)
+                        .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "WHEEL"))
+                })
+                .collect();
+            let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+            for index in broken {
+                built.parts.get_mut(index).expect("a part").broken = true;
+            }
+        }
+
+        assert_eq!(
+            cdda_sim::vehicle_drive::total_power(&world, vehicle),
+            int_of(case, "power_w"),
+            "{name}: **the running engines make what the reference says they make**"
+        );
+        assert_eq!(
+            cdda_sim::vehicle_drive::max_ground_velocity(&world, vehicle),
+            Some(int_of(case, "max_ground_velocity")),
+            "{name}: **and the port's own air drag, rolling drag and power give the reference's speed**"
+        );
+        speeds.insert(int_of(case, "max_ground_velocity"));
+        seen += 1;
+    }
+    assert_eq!(seen, 3, "the recording holds three vehicles");
+    assert!(speeds.len() >= 2, "the speeds are not all the same: {speeds:?}");
+}
+
+#[test]
+fn a_switched_off_engine_makes_no_power() {
+    use cdda_sim::vehicles::{Vehicle, spawn_facing};
+
+    // `is_engine_on` is "available and enabled" (`vehicle.cpp:1061-1064`), so the quad bike stands still with its engine off and again with it broken. The recorded
+    // cases all have their switches on, so this is the only case that can tell the two apart.
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "quad_bike", (70, 70, 0), 0.0).expect("the quad bike builds");
+    let engine = (0..world.get::<Vehicle>(vehicle).expect("a vehicle").parts.len())
+        .find(|index| {
+            cdda_sim::vehicles::part_spec(&world, vehicle, *index)
+                .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "ENGINE"))
+        })
+        .expect("an engine");
+    assert_eq!(cdda_sim::vehicle_drive::total_power(&world, vehicle), 37_300);
+    assert!(cdda_sim::vehicles::start_engine(&mut world, vehicle, engine, false));
+    assert_eq!(
+        cdda_sim::vehicle_drive::total_power(&world, vehicle),
+        0,
+        "**an engine that is off makes no power**"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_drive::max_ground_velocity(&world, vehicle),
+        Some(0),
+        "and the vehicle stands still"
+    );
+    // Switching it back on needs fuel, which a fresh vehicle has none of - that is `start_engine`'s job and the fuel gate's business. Here the switch is what
+    // matters, so it is set directly.
+    world
+        .get_mut::<Vehicle>(vehicle)
+        .expect("a vehicle")
+        .parts
+        .get_mut(engine)
+        .expect("the engine")
+        .enabled = true;
+    assert_eq!(
+        cdda_sim::vehicle_drive::total_power(&world, vehicle),
+        37_300,
+        "and it comes back when the switch does"
+    );
+    let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+    let part = built.parts.get_mut(engine).expect("the engine");
+    part.hp = 0;
+    part.broken = true;
+    assert_eq!(
+        cdda_sim::vehicle_drive::total_power(&world, vehicle),
+        0,
+        "**a broken engine makes no power even with its switch on**"
+    );
 }

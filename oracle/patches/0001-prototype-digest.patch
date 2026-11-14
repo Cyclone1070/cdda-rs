@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 16:55:24
-@@ -0,0 +1,8636 @@
++++ oracle/src/src/harness.cpp	2026-11-14 18:23:08
+@@ -0,0 +1,8658 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1101,6 +1101,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        // Version 7: what a wheel resists rolling with. `wheel_info->rolling_resistance` (`veh_type.h:142`) is a float and only wheels have one.
 +        bool has_wheel_info = false;
 +        double rolling_resistance = 0;
++        // Version 8: what an engine makes. `vpart_info::power` (`veh_type.h`) is a `units::power`, written as whole watts.
++        int power = 0;
 +    };
 +    struct dumped_prototype {
 +        std::string id;
@@ -1118,6 +1120,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        entry.location = part.location;
 +        entry.size = static_cast<int>( units::to_milliliter( part.size ) );
 +        entry.cargo_weight_modifier = part.cargo_weight_modifier;
++        entry.power = units::to_watt( part.power );
 +        if( part.wheel_info ) {
 +            entry.has_wheel_info = true;
 +            entry.rolling_resistance = static_cast<double>( part.wheel_info->rolling_resistance );
@@ -1163,7 +1166,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    []( const dumped_prototype &lhs, const dumped_prototype &rhs ) {
 +        return lhs.id < rhs.id;
 +    } );
-+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":7,\n\"parts\":[\n" );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":8,\n\"parts\":[\n" );
 +    bool first = true;
 +    for( const dumped_part &part : parts ) {
 +        std::fprintf( out, "%s{\"id\":", first ? "" : ",\n" );
@@ -1175,8 +1178,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out, "\"%s\"", escaped( part.item ).c_str() );
 +        std::fprintf( out, ",\"location\":" );
 +        std::fprintf( out, "\"%s\"", escaped( part.location ).c_str() );
-+        std::fprintf( out, ",\"size\":%d,\"cargo_weight_modifier\":%d", part.size,
-+                      part.cargo_weight_modifier );
++        std::fprintf( out, ",\"size\":%d,\"cargo_weight_modifier\":%d,\"power\":%d", part.size,
++                      part.cargo_weight_modifier, part.power );
 +        if( part.has_wheel_info ) {
 +            // Nine significant digits round-trip a float exactly, and the reference's coefficient is a float widened to double, so `1.9` printed as a
 +            // decimal and read back as a double is not the same number the reference summed.
@@ -1298,7 +1301,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        }
 +    }
 +
-+    std::fprintf( out, "{\"harness\":\"vehicle_top_speed\",\"version\":1,\"origin\":[%d,%d,%d],"
++    std::fprintf( out, "{\"harness\":\"vehicle_top_speed\",\"version\":2,\"origin\":[%d,%d,%d],"
 +                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
 +    bool first_case = true;
 +
@@ -1337,9 +1340,24 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const double tricky = q * q + ( r - p * p ) * ( r - p * p ) * ( r - p * p );
 +        std::fprintf( out,
 +                      "%s{\"name\":\"%s\",\"vehicle\":\"%s\",\"c_air\":%.17g,\"c_rolling\":%.17g,"
-+                      "\"power_w\":%d,\"max_ground_velocity\":%d,\"complex\":%d}",
++                      "\"power_w\":%d,\"max_ground_velocity\":%d,\"complex\":%d,\"parts\":[",
 +                      first_case ? "" : ",", name, type.str().c_str(), c_air, c_rolling, power,
 +                      veh->max_ground_velocity( here, false ), tricky < 0 ? 1 : 0 );
++        // Version 2: each part's base item weight, so a port can install the reference's own registry and compute the mass its rolling drag needs.
++        bool first_part = true;
++        for( int p = 0; p < veh->part_count(); p++ ) {
++            const vehicle_part &vp = veh->part( p );
++            if( vp.removed ) {
++                continue;
++            }
++            std::fprintf( out,
++                          "%s{\"index\":%d,\"part\":\"%s\",\"item\":\"%s\",\"base_mass_g\":%lld}",
++                          first_part ? "" : ",", p, vp.info().id.str().c_str(),
++                          vp.info().base_item.str().c_str(),
++                          static_cast<long long>( units::to_gram( vp.get_base().weight() ) ) );
++            first_part = false;
++        }
++        std::fprintf( out, "]}" );
 +        first_case = false;
 +        here.destroy_vehicle( veh );
 +    };
@@ -1379,7 +1397,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    }
 +
 +    // Version 2 carries the parts' base item weights, so a reader can install the reference's own registry and check the coefficient rather than a guess at it.
-+    std::fprintf( out, "{\"harness\":\"vehicle_rolling\",\"version\":2,\"origin\":[%d,%d,%d],"
++    std::fprintf( out, "{\"harness\":\"vehicle_rolling\",\"version\":3,\"origin\":[%d,%d,%d],"
 +                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
 +    bool first_case = true;
 +
@@ -1423,9 +1441,13 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                          static_cast<long long>( units::to_gram( vp.get_base().weight() ) ) );
 +            first_part = false;
 +        }
-+        std::fprintf( out, "],\"total_mass_g\":%lld,\"coeff_rolling_drag\":%.12g}",
++        // Version 3: the two numbers this coefficient feeds, so a port can check the whole chain - wheels, engines and the cubic - on the vehicles whose mass it
++        // reproduces exactly.
++        std::fprintf( out, "],\"total_mass_g\":%lld,\"coeff_rolling_drag\":%.12g,"
++                      "\"power_w\":%d,\"max_ground_velocity\":%d}",
 +                      static_cast<long long>( units::to_gram( veh->total_mass( here ) ) ),
-+                      veh->coeff_rolling_drag( here ) );
++                      veh->coeff_rolling_drag( here ), units::to_watt( veh->total_power( here, false ) ),
++                      veh->max_ground_velocity( here, false ) );
 +        here.destroy_vehicle( veh );
 +    };
 +

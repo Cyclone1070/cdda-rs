@@ -61,6 +61,9 @@ pub struct VehiclePart {
     /// How much of it, in charges - the reference's `vehicle_part::ammo_remaining` (`vehicle_part.cpp:307-317`).
     pub charges: i32,
     /// Whether the part is switched on - the reference's `vehicle_part::enabled`, the switch `start_engine` flips for an engine and every other part ignores.
+    ///
+    /// **A fresh part is on**: `bool enabled = true` (`vehicle.h:519`), which is why the reference's `total_power( fueled = false )` counts the engines of a
+    /// vehicle straight out of its blueprint.
     pub enabled: bool,
     /// Whether the air scan counts this part as inside the cabin - the reference's `vehicle_part::inside` (`vehicle.h`), which `refresh_insides`
     /// (`vehicle.cpp:7525-7575`) maintains and `coeff_air_drag` reads.
@@ -129,7 +132,7 @@ pub fn spawn_facing(
             open: false,
             fuel: String::new(),
             charges: 0,
-            enabled: false,
+            enabled: true,
             fuel_preference: String::new(),
         });
     }
@@ -841,7 +844,7 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
             open: false,
             fuel: String::new(),
             charges: 0,
-            enabled: false,
+            enabled: true,
             fuel_preference: String::new(),
         });
         built.parts.len() - 1

@@ -59,6 +59,9 @@ pub struct PartSpec {
     pub durability: i32,
     /// What percentage of its own damage it deals in a collision (`dmg_mod`, an integer percentage).
     pub damage_modifier: i32,
+    /// What this part makes, in watts, or draws when negative - the reference's `vpart_info::power` (`src/veh_type.h`), which is a `units::power` and only means
+    /// something for an engine or an alternator.
+    pub power: i32,
     /// What this wheel resists rolling with, and `None` for a part that is not a wheel.
     ///
     /// Reference: `vpart_info::wheel_info::rolling_resistance` (`src/veh_type.h:142`), a float that defaults to 1 - a bicycle wheel is 0.45. Only a part with
@@ -235,6 +238,7 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         durability: i32::try_from(number("durability")?).unwrap_or(0),
         damage_modifier: i32::try_from(number("damage_modifier")?).unwrap_or(100),
         rolling_resistance,
+        power: i32::try_from(number("power")?).unwrap_or(0),
         item: text("item")?,
         location: text("location")?,
         size: number("size")?,

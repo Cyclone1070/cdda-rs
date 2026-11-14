@@ -153,3 +153,58 @@ pub fn top_speed_vmiph(air_drag: f64, rolling_drag: f64, power_w: i32) -> i32 {
     let speed = (max_in_mps * f64::from(MPS_TO_MIPH) * MI_TO_VMI) as i32;
     speed
 }
+
+/// What a vehicle's running engines together make, in watts.
+///
+/// Reference: `vehicle::total_power` (`vehicle.cpp:4052-4075`): every engine that is **on** - available and switched on (`is_engine_on`, `vehicle.cpp:1061-1064`) -
+/// adds its `part_vpower_w`, and a vehicle with more than one running engine is not quite the sum: `pwr * 4 / ( 4 + count - 1 )`, because engines cannot all drive
+/// the wheels at their best at once.
+///
+/// **Named, not ported:** the reference's fault multiplier (`REDUCE_ENG_POWER`), the `safe` mode's `m2c` cap, the alternator line (alternators have negative
+/// power), the damage scaling and the animal/muscle/wind special cases. None of them can apply to the recorded vehicles, which are undamaged, unfaulted and
+/// carry neither alternators nor muscles; each is a rule to port when something needs it.
+#[must_use]
+pub fn total_power(world: &World, vehicle: Entity) -> i32 {
+    let count = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    let mut power = 0_i64;
+    let mut engines = 0_i64;
+    for index in 0..count {
+        let Some(part) = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(index))
+        else {
+            continue;
+        };
+        if part.broken || !part.enabled {
+            continue;
+        }
+        let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
+            continue;
+        };
+        if !spec.flags.contains("ENGINE") {
+            continue;
+        }
+        power += i64::from(spec.power);
+        engines += 1;
+    }
+    let power = power.max(0);
+    let power = if engines > 1 {
+        power * 4 / (4 + engines - 1)
+    } else {
+        power
+    };
+    i32::try_from(power).unwrap_or(i32::MAX)
+}
+
+/// The fastest a vehicle can go, in hundredths of a mile per hour, from its own body, wheels and engines.
+///
+/// Reference: `vehicle::max_ground_velocity` (`vehicle.cpp:4234-4247`) over `coeff_air_drag`, `coeff_rolling_drag` and `total_power`. `None` when the vehicle is not
+/// in the store or its mass cannot be computed.
+#[must_use]
+pub fn max_ground_velocity(world: &World, vehicle: Entity) -> Option<i32> {
+    let air = crate::vehicle_air::coeff_air_drag(world, vehicle)?;
+    let rolling = rolling_drag(world, vehicle)?;
+    Some(top_speed_vmiph(air, rolling, total_power(world, vehicle)))
+}

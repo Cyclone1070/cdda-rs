@@ -45,6 +45,34 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The engines add up, and the vehicle drives itself (round 1528)
+
+`vehicle::total_power` (`vehicle.cpp:4052-4075`) is three lines of arithmetic around a filter: every engine that is **on** - available and switched on, which
+`is_engine_on` (`vehicle.cpp:1061-1064`) defines - adds its `part_vpower_w`, and a vehicle with more than one running engine is not quite the sum, because
+`pwr * 4 / ( 4 + count - 1 )` is how the reference shares a drive train between two engines.
+
+| Piece | Reference | Port |
+|---|---|---|
+which engines count | `engines` from `refresh`, filtered by `is_engine_on` | parts whose spec has `ENGINE`, not broken, `enabled` |
+what one makes | `part_vpower_w` (`vehicle.cpp:1125-1190`): `vpi.power`, scaled by damage | `spec.power`, and the damage scaling is **named** rather than guessed |
+many engines | `pwr * 4 / ( 4 + count - 1 )` when `count > 1` | the same |
+alternators | added with their negative power | **named**: none is switched on in any recorded vehicle |
+faults, `safe`, muscle, animal, wind | flags and weather that no recorded vehicle has | **named** |
+
+`vehicle_drive::max_ground_velocity` then closes the chain: the air drag of round 1527, the rolling drag of round 1525 and this power go into the cubic of round
+1526. On the three vehicles whose mass the port reproduces exactly - bicycle **1,871 vmiph**, quad bike **8,235**, and a bicycle with no usable wheel **1,237** -
+the port's own numbers give the reference's speed.
+
+**An alignment bug found while doing this.** `VehiclePart::enabled` was defaulting to false, so the engine gate asserted that "an engine starts off". The
+reference's part starts **on** (`bool enabled = true`, `vehicle.h:519`), which is why `total_power( fueled = false )` counts a blueprint's engines without anyone
+starting them. The default is corrected, the engine-start gate now asserts the reference's behaviour (asking to start an engine that is already on answers no),
+and the fuel-selection gate switches the engine off before asking it to start. A switched-off or broken engine makes zero, and a test says so on the quad bike.
+
+Four mutations caught: the multi-engine share, the switch check, the `ENGINE` filter, and feeding the cubic with a constant air drag instead of the body's.
+
+**Named:** the reference's `total_mass` for six of the nine recorded vehicles carries a few kilograms the port does not model - contents a part holds at build time -
+so the end-to-end speed is checked on the three vehicles whose mass matches exactly, and the nine-vehicle gate checks power (mass-independent) instead.
+
 ## The air is priced one column at a time (round 1527)
 
 `vehicle::coeff_air_drag` (`vehicle.cpp:4515-4660`) is a scan of the vehicle **by column across its width**. Each column is asked what its furthest-forward

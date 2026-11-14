@@ -2153,3 +2153,10 @@ parts' mounts, tallied against an ideal shape, prorated by width and turned into
 reference's per-part flag, **false on a fresh part** because `refresh_insides` (`vehicle.cpp:7525-7575`) is only reached through `enclosed_at` and is not ported
 yet. `corpus/vehicle_top_speed.json` grew to nine vehicles (a 4x4 car with rams, a pickup technical with rams and an aisle) and every recorded `c_air` matches.
 Four mutations caught; two branches (`pro`, and `inside` with the current data) are named as unable to change an answer.
+
+**Round 1528 ported engine power.** `vehicle_drive::total_power` answers `vehicle::total_power` (`vehicle.cpp:4052-4075`): every engine that is available and
+switched on adds its `power`, and more than one is scaled by `4 / (4 + count - 1)`. The parts dump is version 8 with `power` (watts). **`VehiclePart::enabled`
+now defaults to true**, which is the reference's `bool enabled = true` (`vehicle.h:519`) - the engine-start gate had asserted the opposite, and the fuel gate
+now switches an engine off before starting it. `max_ground_velocity` closes the chain from the port's own air drag, rolling drag and power, on the three vehicles
+whose mass matches exactly (bicycle 1,871; quad bike 8,235; wheel-less bicycle 1,237). Four mutations caught; faults, alternators, muscle/animal/wind and the
+reference's `total_mass` contents for six vehicles are named.
