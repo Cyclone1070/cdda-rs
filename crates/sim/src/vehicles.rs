@@ -99,6 +99,9 @@ pub struct Vehicle {
     /// How fast it is going, in hundredths of a mile per hour, negative for reverse - the reference's `velocity` (`vehicle.h`), which is a plain `int` member and
     /// the state every movement rule reads. A vehicle placed from a blueprint stands still.
     pub velocity: i32,
+    /// The speed the driver has asked for, in the same units - the reference's `cruise_velocity` (`vehicle.h`). A vehicle nobody has asked to move stands at zero,
+    /// which is what its constructor sets and what `thrust` reads as "hold still".
+    pub cruise_velocity: i32,
 }
 
 /// Builds a vehicle facing east, standing at a square.
@@ -143,6 +146,7 @@ pub fn spawn_facing(
         .spawn((
             Vehicle {
                 parts,
+                cruise_velocity: 0,
                 rotation,
                 velocity: 0,
             },

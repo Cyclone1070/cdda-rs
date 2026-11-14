@@ -68,6 +68,11 @@ pub fn current_acceleration(world: &World, vehicle: Entity) -> i32 {
     let Some(mass) = mass_of(world, vehicle) else {
         return 0;
     };
+    // **A vehicle that weighs nothing cannot be accelerated.** The reference never sees one, because its item factory always knows a part's base item; a port world
+    // without the item registry does, and dividing by that zero would make the acceleration saturate and then overflow the next multiply.
+    if mass <= 0 {
+        return 0;
+    }
     let Some(max_velocity) = crate::vehicle_drive::max_ground_velocity(world, vehicle) else {
         return 0;
     };
@@ -154,4 +159,44 @@ fn max_velocity_with_traction(inputs: &ThrustInputs) -> i32 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     let scaled = (inputs.traction * inputs.max_velocity as f32) as i32;
     scaled
+}
+
+/// One thrust step on a vehicle in the store, the way a driver asks for it.
+///
+/// Reference: `vehicle::thrust` (`vehicle_move.cpp:453-620`) as `gain_moves` calls it: the engine's acceleration, the top speed and the reverse floor come from the
+/// vehicle's own parts, traction is `1.0` because broken ground is not ported yet, and the answer is written back to `Vehicle::velocity`. Returns whether the speed
+/// changed, so a caller does not have to compare.
+///
+/// **The cruise comes from the vehicle**, not the caller: `cruise_velocity` is the speed the driver asked for, and it is what makes a thrust step stop at a chosen
+/// speed instead of at the top speed.
+pub fn thrust(world: &mut World, vehicle: Entity, direction: i32) -> bool {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return false;
+    };
+    let velocity = built.velocity;
+    let cruise_velocity = built.cruise_velocity;
+    let acceleration = current_acceleration(world, vehicle);
+    let Some(max_velocity) = crate::vehicle_drive::max_ground_velocity(world, vehicle) else {
+        return false;
+    };
+    let battery_engine = crate::vehicle_drive::battery_engine(world, vehicle);
+    let inputs = ThrustInputs {
+        velocity,
+        cruise_velocity,
+        direction,
+        acceleration,
+        // Broken ground is `k_traction`'s job and is not ported; open floor is the reference's own 1.0.
+        traction: 1.0,
+        max_velocity,
+        max_reverse: crate::vehicle_drive::max_reverse_velocity(max_velocity, battery_engine),
+        battery_engine,
+    };
+    let next = thrust_velocity(&inputs);
+    if next == velocity {
+        return false;
+    }
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        built.velocity = next;
+    }
+    true
 }

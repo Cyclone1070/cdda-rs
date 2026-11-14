@@ -231,3 +231,34 @@ pub fn max_ground_velocity(world: &World, vehicle: Entity) -> Option<i32> {
     let rolling = rolling_drag(world, vehicle)?;
     Some(top_speed_vmiph(air, rolling, total_power(world, vehicle)))
 }
+
+/// The slowest a vehicle may roll backwards, in hundredths of a mile per hour.
+///
+/// Reference: `vehicle::max_reverse_velocity` (`vehicle.cpp:4289-4299`): an electric motor reverses as fast as it drives forward, and everything else manages a
+/// quarter of its top speed. The division happens on the positive number and the sign is applied after - `-max_vel / 4` in C++ is `(-max_vel) / 4`, which truncates
+/// towards zero, so a 1,871 vmiph bicycle reverses at 467.
+#[must_use]
+pub fn max_reverse_velocity(max_velocity: i32, battery_engine: bool) -> i32 {
+    if battery_engine {
+        -max_velocity
+    } else {
+        -max_velocity / 4
+    }
+}
+
+/// Whether any engine on the vehicle is electric.
+///
+/// Reference: `vehicle::has_engine_type( fuel_type_battery, true )` (`vehicle.cpp:4289-4299`): the scan includes **broken** engines, because a wrecked electric motor
+/// still makes the drivetrain one that can reverse. The fuel is the part's `engine_info::fuel_type` (`veh_type.h:130`), which the dump carries per part.
+#[must_use]
+pub fn battery_engine(world: &World, vehicle: Entity) -> bool {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return false;
+    };
+    (0..built.parts.len()).any(|index| {
+        let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
+            return false;
+        };
+        spec.flags.contains("ENGINE") && spec.fuel_type == "battery"
+    })
+}

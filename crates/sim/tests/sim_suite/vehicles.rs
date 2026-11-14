@@ -3050,3 +3050,205 @@ fn a_thrust_step_leaves_the_speed_the_reference_leaves() {
     }
     assert_eq!(checked, cases.len(), "every case was checked");
 }
+
+/// **The reverse floor is a quarter of the top speed, or all of it with an electric motor.**
+///
+/// Reference: `vehicle::max_reverse_velocity` (`vehicle.cpp:4289-4299`). The dump carries the floor it computed for every thrust case, so the check is the
+/// reference's own number rather than the port's arithmetic read back to itself.
+#[test]
+fn the_reverse_floor_is_a_quarter_unless_the_motor_is_electric() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_thrust.json");
+    let bytes = std::fs::read(path).expect("the thrust dump is in the corpus");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the dump is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut electric = 0;
+    let mut mechanical = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let battery = matches!(
+            row.get("has_battery_engine"),
+            Some(cdda_json::Value::Bool(true))
+        );
+        let max_velocity = int_of(row, "max_velocity");
+        assert_eq!(
+            cdda_sim::vehicle_drive::max_reverse_velocity(max_velocity, battery),
+            int_of(row, "max_reverse"),
+            "{}: **the floor is the reference's**",
+            text_of(row, "name")
+        );
+        if battery {
+            electric += 1;
+        } else {
+            mechanical += 1;
+        }
+    }
+    assert!(
+        electric >= 2 && mechanical >= 5,
+        "both branches were checked: {electric} electric, {mechanical} mechanical"
+    );
+}
+
+/// **A vehicle in the store accelerates when it is asked to, and stops asking when nobody does.**
+///
+/// The numbers are the reference's: the bicycle in the thrust dump adds 1,650 vmiph from rest with a cruise set, and its top speed is 1,871. A vehicle whose engines
+/// are all switched off does not move at all, which is `current_acceleration` answering zero.
+#[test]
+fn a_vehicle_in_the_store_takes_the_speed_its_thrust_step_decides() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "bicycle");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let bicycle = cdda_sim::vehicles::spawn(&mut world, "bicycle", (10, 10, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.cruise_velocity = 3000;
+    }
+
+    assert!(
+        cdda_sim::vehicle_move::thrust(&mut world, bicycle, 1),
+        "**the bicycle moves**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("still there")
+            .velocity,
+        1650,
+        "**from rest it adds what the engine can add**"
+    );
+
+    // At its top speed with the same cruise, the engine is clamped to the top speed and the step leaves it there.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 3000;
+    }
+    assert!(
+        cdda_sim::vehicle_move::thrust(&mut world, bicycle, 1),
+        "it slows to its top speed"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("still there")
+            .velocity,
+        1871,
+        "**at cruise faster than the top speed, the top speed wins**"
+    );
+
+    // Every engine off: nothing to add, and the speed does not change.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 1000;
+        built.cruise_velocity = 3000;
+        for part in &mut built.parts {
+            part.enabled = false;
+        }
+    }
+    assert!(
+        !cdda_sim::vehicle_move::thrust(&mut world, bicycle, 1),
+        "**an engine that is off changes nothing**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("still there")
+            .velocity,
+        1000,
+        "the speed is where it was"
+    );
+}
+
+/// **An electric motor is recognised by the fuel its engine burns.**
+///
+/// Reference: `has_engine_type( fuel_type_battery, true )` (`vehicle.cpp:4289-4299`), which reads `engine_info::fuel_type` (`veh_type.h:130`). The electric car's
+/// motor burns battery; the bicycle's muscle engine and the car's combustion engine do not.
+/// Installs the item weights the reference recorded for one vehicle's parts.
+///
+/// A part's base item is what mass is summed from (`vehicle::calc_mass_center`), and the weights are in `corpus/vehicle_top_speed.json` because that dump records them
+/// per part. Without them the registry answers zero grams and a vehicle would weigh nothing.
+fn install_part_weights(world: &mut World, name: &str) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_top_speed.json");
+    let bytes = std::fs::read(path).expect("the top speed recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+    let case = cases
+        .iter()
+        .find_map(|case| match case {
+            cdda_json::Value::Object(row) if text_of(row, "name") == name => Some(row),
+            _ => None,
+        })
+        .expect("the recording has that vehicle");
+    let Some(cdda_json::Value::Array(parts)) = case.get("parts") else {
+        panic!("the case records its parts");
+    };
+    let mut kinds: Vec<(String, i64)> = Vec::new();
+    for part in parts {
+        let cdda_json::Value::Object(row) = part else {
+            panic!("a part is an object");
+        };
+        let item = text_of(row, "item");
+        let mass = int_of(row, "base_mass_g");
+        if !kinds.iter().any(|(id, _)| *id == item) {
+            kinds.push((item, i64::from(mass)));
+        }
+    }
+    let refs: Vec<cdda_sim::item_registry::Kind<'_>> = kinds
+        .iter()
+        .map(|(id, mass)| cdda_sim::item_registry::Kind {
+            id,
+            volume_ml: 0,
+            weight_g: *mass,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        })
+        .collect();
+    cdda_sim::item_registry::set_item_types(world, &refs);
+}
+
+#[test]
+fn only_the_electric_car_has_a_battery_engine() {
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let electric = cdda_sim::vehicles::spawn(&mut world, "electric_car", (10, 10, 0))
+        .expect("the electric car builds");
+    let bicycle =
+        cdda_sim::vehicles::spawn(&mut world, "bicycle", (20, 20, 0)).expect("the bicycle builds");
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (30, 30, 0)).expect("the car builds");
+
+    assert!(
+        cdda_sim::vehicle_drive::battery_engine(&world, electric),
+        "**the electric car's motor burns battery**"
+    );
+    assert!(
+        !cdda_sim::vehicle_drive::battery_engine(&world, bicycle),
+        "a bicycle has no motor"
+    );
+    assert!(
+        !cdda_sim::vehicle_drive::battery_engine(&world, car),
+        "a combustion engine is not electric"
+    );
+}

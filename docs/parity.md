@@ -36642,3 +36642,22 @@ the two mutations that matter were checked: removing the reverse penalty fails `
 
 **Named:** traction is the reference's `1.0` on open floor, which is what every recorded case is; `k_traction`'s wheel-area and mass penalty on broken ground, skidding,
 towing, water, rotor and rail are not ported. Fuel burn per step (`consume_fuel`) and engine damage under strain are separate rules and are not wired to this one yet.
+
+## The store drives the vehicle (round 44)
+
+The thrust step is wired: `vehicle_move::thrust(world, vehicle, direction)` reads the engine's acceleration, the top speed, the reverse floor and the battery
+question from the vehicle's own parts, applies `thrust_velocity`, and writes `Vehicle::velocity`. Three new gates:
+
+| Gate | What it pins |
+|---|---|
+| the reverse floor | `max_reverse_velocity` (`vehicle.cpp:4289-4299`): a quarter of the top speed, or all of it when an engine burns battery - checked against the thirteen rows that carry the floor the reference computed |
+| only the electric car | `has_engine_type( fuel_type_battery, true )` reads `engine_info::fuel_type`; the electric car's motor burns battery, the bicycle's muscle engine and the car's combustion engine do not |
+| a vehicle in the store takes the speed | a bicycle at rest with a cruise of 3,000 reaches 1,650; at 3,000 it is brought back to its 1,871 top speed; with every engine off nothing changes |
+
+**Two things the store path needed that the pure rule did not.** `Vehicle` now carries `cruise_velocity`, the speed the driver asked for - a thrust step that has no
+cruise clamps to zero and never moves, which is what the first version did. And a vehicle's mass comes from its parts' **base items**, so a world without the item
+registry weighs zero; `current_acceleration` now answers zero for that world instead of dividing by it and overflowing. The test installs the weights the reference
+recorded per part (`corpus/vehicle_top_speed.json`), which is where they are.
+
+**Named:** traction is still `1.0` - `k_traction`'s wheel area and mass penalty on broken ground is not ported. Fuel burn per step, engine damage under strain and
+towing remain their own rules.
