@@ -36744,3 +36744,9 @@ The wall rule stops a vehicle; it does not damage it. The reference's chain is `
 `--dump-vehicle-crash` has been written and records, per case, the vehicle, the speed, its mass, the speed after the crash, the part that took the hit, its hit points
 before and after, and **both densities the split divides by** - so the port can reproduce the number rather than read it back. The recording lands in
 `corpus/vehicle_crash.json` when the oracle rebuild finishes; the gate that replays it is the next round's work.
+
+**What the crash recording still needs before the loop can be ported.** `corpus/vehicle_crash.json` carries the part density and the damage, but not the four
+numbers `part_collision` derives from the obstacle: `mass2`, the restitution `e`, the obstacle's density `part_dens`, and the split `k` it computes from them. A
+wall is *bashable* terrain, so those come from `terrain_collision_data` (`map.cpp`) and are not visible in the recording. The dump needs one more field - the four
+numbers above, written by the same harness function before the hit - and then `--dump-vehicle-crash` is a complete statement of the rule and the port can be
+checked against it line by line. Until then the loop would be transcribed arithmetic with no oracle behind it, which is what `docs/14-test-porting.md` forbids.

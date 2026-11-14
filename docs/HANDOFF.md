@@ -1,6 +1,6 @@
 # Handoff
 
-Last round: 47. State at hand-off: **CI green**, gate green, tree clean.
+Last round: 48. State at hand-off: **CI green**, gate green, tree clean.
 
 ## Where the work stands
 
@@ -36,8 +36,9 @@ now runs where the lint runs, proved with a deliberate probe.
 
 ## The next cycle
 
-1. Collisions that do something: smashing a bashable obstacle (`map::bash`), the damage a crash does to the parts (`part_collision`'s impulse loop,
-   `vehicle_move.cpp:1030-1165`), and the bounce between two vehicles. Dump first - the damage numbers and the speed after are all recorded by the reference.
+1. Collisions that do something: the crash dump exists (`corpus/vehicle_crash.json`, eight rows) but still lacks the four numbers the split needs - `mass2`, `e`,
+   `part_dens` and `k`, all derived from bashable terrain. Extend `dump_vehicle_crash` to write them, rebuild, then port `part_collision`'s impulse loop
+   (`vehicle_move.cpp:1030-1165`) against the completed rows.
 2. `vehicle::strain` / `safe_velocity` and the engine damage they feed.
 3. Fuel burn per step (`consume_fuel`).
 
