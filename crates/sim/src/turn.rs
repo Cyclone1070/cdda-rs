@@ -122,22 +122,22 @@ const STAGES: &[Stage] = &[
     ("light", light_stage, TurnStage::Light),
 ];
 
-/// How many schedules this process has assembled.
-///
-/// A schedule is a thing a turn **runs**, not a thing a turn **is**: rebuilding it each turn cost 160 ms of wall clock for 90 us of work, and the playtest gate paid it
-/// for 1,080 turns. The counter is what a test can see, because the cost itself is only wall clock.
-static SCHEDULES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+// A schedule is a thing a turn **runs**, not a thing a turn **is**: rebuilding it each turn cost 160 ms of wall clock for 90 us of work, and the playtest gate paid it
+// for 1,080 turns. The counter is what a test can see, because the cost itself is only wall clock.
+std::thread_local! {
+    static SCHEDULES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
-/// How many turn schedules this process has assembled.
+/// How many turn schedules **this thread** has assembled.
 #[must_use]
 pub fn schedules_built() -> usize {
-    SCHEDULES.load(std::sync::atomic::Ordering::Relaxed)
+    SCHEDULES.with(std::cell::Cell::get)
 }
 
 /// The schedule a turn runs, with its stages declared in the reference's order.
 #[must_use]
 pub fn environment_schedule() -> Schedule {
-    SCHEDULES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    SCHEDULES.with(|count| count.set(count.get() + 1));
     let mut schedule = Schedule::default();
     schedule.configure_sets(
         (

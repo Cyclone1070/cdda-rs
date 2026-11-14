@@ -84,6 +84,11 @@ the remote and credentials before the first CI-polled cycle.
 | tests | `cargo test --workspace` |
 | documents | `python3 tools/check_docs.py`, plus the generated inventory diff |
 
+The runner has no `references/` and no `oracle/src/data/json` — both are gitignored, and one is the
+reference's own data. Tests that need them check `game_data_present()` and skip with a line saying so;
+they run in full on `cyc@elitedesk`, which has the data. A skip is a weaker gate than a pass, so the
+local run is the one that counts for anything data-shaped.
+
 `.github/workflows/port-validation.yml` holds the oracle replays, fuzzing and visual diffs; every job
 is skipped until the repository variable `PORT_CI=on` is set.
 

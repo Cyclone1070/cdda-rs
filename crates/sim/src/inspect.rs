@@ -189,22 +189,25 @@ pub fn square_fingerprint(world: &World, square: (i32, i32, i32)) -> u64 {
     hash
 }
 
-/// How many times the whole world has been walked for a fingerprint.
-///
-/// A fingerprint describes every component of every thing, so walking the world twice a turn cost 160 ms where the turn itself costs 90 us. The count is what a test can
-/// see: a turn nobody asked to watch must not pay it.
-static FINGERPRINTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+// A fingerprint describes every component of every thing, so walking the world twice a turn cost 160 ms where the turn itself costs 90 us. The count is what a test can
+// see: a turn nobody asked to watch must not pay it.
+std::thread_local! {
+    static FINGERPRINTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
-/// How many whole-world fingerprint walks this process has done.
+/// How many whole-world fingerprint walks **this thread** has done.
+///
+/// Per thread and not per process, because the counter exists for a test, and a test that shared its count with the tests running beside it could only ever be an
+/// approximation of what it did.
 #[must_use]
 pub fn fingerprint_count() -> usize {
-    FINGERPRINTS.load(std::sync::atomic::Ordering::Relaxed)
+    FINGERPRINTS.with(std::cell::Cell::get)
 }
 
 /// Every square that holds something, in a stable order, with its fingerprint.
 #[must_use]
 pub fn world_fingerprints(world: &World) -> BTreeMap<(i32, i32, i32), u64> {
-    FINGERPRINTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    FINGERPRINTS.with(|count| count.set(count.get() + 1));
     let mut squares = BTreeMap::new();
     let mut query = world.try_query::<&Position>();
     let Some(query) = query.as_mut() else {

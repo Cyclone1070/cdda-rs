@@ -2064,6 +2064,17 @@ pub fn cast_at_nearest(
     })
 }
 
+/// Whether the game's own data tree is in this checkout.
+///
+/// It is the reference's, fetched on the build machine and gitignored, so a test on a runner without it skips and says so - an `expect` describing another machine is a red
+/// gate for the wrong reason.
+#[cfg(test)]
+fn game_data_present() -> bool {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../oracle/src/data/json")
+        .is_dir()
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
@@ -2118,6 +2129,10 @@ mod tests {
     /// cache, nineteen scenarios paid nineteen times: the playtest gate cost 1,070 s and this one step was almost all of it.
     #[test]
     fn installing_the_item_data_twice_deserializes_it_once() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut first = World::new();
         let kinds = install_item_data(&mut first)
             .expect("the game's data is where the scenario expects it");
@@ -2201,6 +2216,10 @@ mod tests {
     /// line in a scenario, it spends the survivor's moves shot by shot, and its report lists what each shot did.
     #[test]
     fn a_burst_step_fires_every_shot_and_charges_for_each() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let outcome = run(
             "world 12 bare\nsurvivor 0 0\nitems\nmonsters\ndata\nseed 31\nmonster mon_zombie 6 0\nwield ruger_mini\nburst ruger_mini at 6 0 3 3\n",
         )
@@ -2259,6 +2278,10 @@ mod tests {
     /// is `"shot"`, and the rounds are `shot_bird` and `shot_00`. **This is the gate for the second lookup**, and it is a differential: `223` resolves by id, `shot` by type.
     #[test]
     fn a_gun_that_names_an_ammunition_type_finds_a_round_of_that_type() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let read = |name: &str| {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join(format!("../../corpus/{name}"));
@@ -2320,6 +2343,10 @@ mod tests {
     /// would leave empty. Three fields, one per loader, chosen because each is the field the wrong shape loses.
     #[test]
     fn every_table_a_scenario_installs_is_filled_from_the_source_its_loader_speaks() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         let items = install_item_data(&mut world).expect("the item data is in the repository");
         assert!(items > 9_000, "every item type: {items}");
@@ -2350,6 +2377,10 @@ mod tests {
 
     #[test]
     fn the_avatar_can_be_dressed_from_the_game_s_data() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
         let worn =
@@ -2391,6 +2422,10 @@ mod tests {
 
     #[test]
     fn the_avatar_can_cast_the_taser_from_the_game_s_data_at_what_is_next_to_it() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
         // The taser is a bionic spell and costs five kilojoules, so the caster has to have the power: what fills a character's
@@ -2468,6 +2503,10 @@ mod tests {
 
     #[test]
     fn every_scenario_in_the_repository_passes() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         // The directory is the gate: a scenario committed here is one that runs, so a behaviour change
         // that breaks a playtest shows up as a failing test and not as a file nobody executed.
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scenarios");
@@ -2520,6 +2559,10 @@ mod item_data_tests {
     /// registry answers "weightless, takes no room, holds nothing" for everything, which looks like working code.
     #[test]
     fn the_binary_s_world_knows_the_game_s_items() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         let kinds =
             super::install_item_data(&mut world).expect("the game data is in the repository");
@@ -2548,6 +2591,10 @@ mod item_data_tests {
     /// `weapon_category`, the category's proficiency list, and each proficiency's bonus. A world with the first and not the other two pays full stamina for every swing and looks fine.
     #[test]
     fn the_binary_s_world_knows_what_a_weapon_is_mastered_with() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         super::install_item_data(&mut world).expect("the game data is in the repository");
         let sword = cdda_sim::item_registry::id_of(&mut world, "sword_wood")
@@ -2597,6 +2644,10 @@ mod craft_tests {
     /// that refuses for a missing tool is the right answer rather than a bug (see `crafting::begin_craft`).
     #[test]
     fn a_real_recipe_runs_to_its_result() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(1));
         super::install_item_data(&mut world).expect("the game data is in the repository");
@@ -2670,6 +2721,10 @@ mod field_data_tests {
     #[allow(clippy::panic)]
     #[test]
     fn the_installed_emissions_come_from_the_data() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         let Some(count) = install_emit_data(&mut world) else {
             panic!("the emit data is in the repository");
@@ -2708,6 +2763,10 @@ mod field_data_tests {
     /// believes - the constants have to agree with the data.
     #[test]
     fn the_installed_field_names_carry_the_reference_numbers() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         let Some(count) = install_field_data(&mut world) else {
             panic!("the field dump is present");
@@ -2851,6 +2910,10 @@ mod field_data_tests {
     /// install whatever table it likes.
     #[test]
     fn the_binary_s_world_knows_what_a_vitamin_and_an_effect_are() {
+        if !crate::game_data_present() {
+            eprintln!("skipped: the game's data is not in this checkout");
+            return;
+        }
         let mut world = World::new();
         let vitamins = super::install_vitamin_data(&mut world).unwrap_or(0);
         assert!(
