@@ -36708,3 +36708,22 @@ the old tail empties and the square ahead of the nose is taken.
 step - which is visible in the recording as a first call that spends the turn without moving. The port has no mounts-and-pivot precalculation, so its first call
 moves and its second does not; every `of_turn` and speed still matches. Collisions, ramps, skidding, wheel traction, falling and the damage a crash does are the
 next movement rules, not this one.
+
+## A vehicle refuses to drive through what is in the way (round 47)
+
+The movement step now asks the world before it takes a square. The detection is the port's own `vehicles::first_collision` - the rule that answers what a part
+would hit, already gated against `corpus/vehicle_collision.json` - and `move_step` does what `map::move_vehicle` does with that answer: `veh.stop()`
+(`map.cpp:948-950`), so the square is never entered and the speed is gone.
+
+| Case | What happens |
+|---|---|
+| the next square holds terrain a structure part would enter | collision, the vehicle stops on its last square |
+| the next square holds another vehicle, or a creature | the detection answers it, and **this** step does not move either; the bounce, the push and the damage are the collision rounds that follow |
+| nothing in the way | the square is taken and the turn is spent, as round 46 gated |
+
+The gate is a three-square bicycle driven east into a wall four squares away: one step onto open floor, then a refused step that leaves the position and takes the
+speed to zero, then twelve more attempts that never move it. Mutation-checked: with the collision check bypassed the bicycle drives through the wall and the gate
+fails.
+
+**Named:** smashing a bashable obstacle (`map::bash`), the damage a crash does to the parts and the impulse that bounces one vehicle off another are not ported.
+The rule here is only "do not enter", which is the part of `map::move_vehicle` that comes before any of them.

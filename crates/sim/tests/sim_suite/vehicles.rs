@@ -3576,3 +3576,92 @@ fn an_affordable_square_is_taken_and_the_index_follows() {
         built.of_turn_carry
     );
 }
+
+/// **A vehicle does not drive through a wall: it stops at the last square it can stand on.**
+///
+/// Reference: `vehicle::part_collision` reports terrain for a square a structure part would enter (`vehicle_move.cpp:950-970`) and `map::move_vehicle` calls
+/// `veh.stop()` when a collision leaves the vehicle unable to move (`map.cpp:948-950`). The detection is the port's own `first_collision`, so this gate is about
+/// what movement does with the answer: the square is never entered and the speed is gone.
+#[test]
+fn a_vehicle_stops_at_a_wall_rather_than_driving_through_it() {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_floor".to_owned(), FLOOR), ("t_wall".to_owned(), WALL)],
+    );
+    cdda_sim::bash::set_data(
+        &mut world,
+        [recorded_tile("t_floor"), recorded_tile("t_wall")],
+    );
+    for y in 95..=105 {
+        for x in 95..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    for y in 95..=105 {
+        cdda_sim::square::set_terrain(&mut world, (103, y, 0), WALL);
+    }
+    install_part_weights(&mut world, "bicycle");
+    cdda_sim::vehicles::set_store(&mut world, store());
+
+    let bicycle =
+        cdda_sim::vehicles::spawn(&mut world, "bicycle", (100, 100, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 1000;
+        built.of_turn = 1.0;
+    }
+
+    assert!(
+        cdda_sim::vehicle_move::move_step(&mut world, bicycle),
+        "the first step is on open floor"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(bicycle)
+            .expect("a position")
+            .x,
+        101,
+        "one square east"
+    );
+
+    // The bicycle is three squares long, so at x = 101 its nose stands on 102: the next step would put that nose in the wall at 103.
+    assert!(
+        !cdda_sim::vehicle_move::move_step(&mut world, bicycle),
+        "**the wall is not entered**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(bicycle)
+            .expect("a position")
+            .x,
+        101,
+        "it stayed where it stood"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle")
+            .velocity,
+        0,
+        "**the crash takes the speed**"
+    );
+
+    // A stopped vehicle stays stopped: twelve more attempts never move it.
+    for _ in 0..12 {
+        assert!(!cdda_sim::vehicle_move::move_step(&mut world, bicycle));
+    }
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(bicycle)
+            .expect("a position")
+            .x,
+        101,
+        "and it never enters the wall"
+    );
+}
