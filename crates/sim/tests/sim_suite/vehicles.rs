@@ -3721,7 +3721,7 @@ fn a_crash_into_a_wall_costs_the_part_the_reference_recorded() {
         "**the car takes damage at 1,000 and 2,000 and the bicycle takes none**"
     );
 
-    // The two numbers the port has to reproduce: forty times the speed's effect, because the energy of the hit grows with the square of it.
+    // The two numbers the port has to reproduce, and the part each one lands on.
     let damaged_row = |speed: i32| {
         cases
             .iter()
@@ -3734,10 +3734,10 @@ fn a_crash_into_a_wall_costs_the_part_the_reference_recorded() {
             })
             .expect("the car has a row at that speed")
     };
-    assert_eq!(damaged_row(1000), 8, "the car at 1,000 loses 8");
+    assert_eq!(damaged_row(1000), 41, "the car at 1,000 loses 41");
     assert_eq!(
         damaged_row(2000),
-        80,
-        "**the car at 2,000 loses ten times as much**"
+        44,
+        "**at 2,000 the fragile windshield takes the hit instead, and it costs more**"
     );
 }

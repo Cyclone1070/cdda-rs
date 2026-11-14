@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-15 09:14:37
-@@ -0,0 +1,9113 @@
++++ oracle/src/src/harness.cpp	2026-11-15 10:15:59
+@@ -0,0 +1,9115 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1572,9 +1572,11 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                std::fprintf( stderr, "harness: %s did not place\n", type );
 +                continue;
 +            }
-+            // A wall to the east, far enough that the vehicle is at full speed when it arrives.
++            // **A vitrified wall, not a wooden one**: `t_vitrified_wall` is impassable and has no bash block, so the reference's own constants decide the
++            // collision - mass 1000 kg, restitution 0.10, density 80 (`vehicle_move.cpp:961-967`) - instead of `terrain_collision_data`'s bash figures,
++            // which are not in the dump.
 +            for( int dy = -3; dy <= 3; dy++ ) {
-+                here.ter_set( start + tripoint_rel_ms( 4, dy, 0 ), ter_id( "t_wall" ) );
++                here.ter_set( start + tripoint_rel_ms( 4, dy, 0 ), ter_id( "t_vitrified_wall" ) );
 +            }
 +            veh->velocity = speed;
 +            veh->cruise_velocity = speed;
