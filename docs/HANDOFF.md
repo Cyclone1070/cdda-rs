@@ -1,6 +1,6 @@
 # Handoff
 
-Last round: 45. State at hand-off: **CI green**, gate green, tree clean.
+Last round: 46. State at hand-off: **CI green**, gate green, tree clean.
 
 ## Where the work stands
 
@@ -23,19 +23,23 @@ turn loop's own costs were found and fixed on the way:
 | `snapshot` borrowed view | not started — borrow-checker risk across 21 call sites |
 | `clippy.toml` thresholds + ledgers | not started |
 
-## Rounds 43 to 45: the thrust step, the store driving it, and drag
+## Rounds 43 to 46: the vehicle moves
 
 - **43**: `vehicle_move::thrust_velocity` - the speed a thrust step leaves, from `vehicle::thrust` (`vehicle_move.cpp:453-620`), gated on thirteen recorded cases.
 - **44**: `vehicle_move::thrust(world, vehicle, direction)` wired it to the store, with `Vehicle::cruise_velocity`; `max_reverse_velocity` and the battery-engine
-  question ported. A bicycle in the store reaches 1,650 from rest and is held at its 1,871 top speed.
+  question ported.
 - **45**: `vehicle_move::slowdown_of` and `coast` - `vehicle::slowdown` (`vehicle_move.cpp:112-153`) and the block in `gain_moves`. 56 recorded rows, both engine
-  states, two mutations caught.
+  states.
+- **46**: `vehicle_move::move_step` and `turn_cost` - `vehicle::act_on_map` (`vehicle_move.cpp:1829-2010`): a square costs `400 / |velocity|` of a turn, a square
+  costing exactly the turn left is not affordable, below 20 vmiph the vehicle stops, and the leftover fraction is carried. 120 recorded steps replayed exactly.
+  `Vehicle` carries `of_turn` and `of_turn_carry`; the displacement goes through `vehicles::move_vehicle`, so the index and the riders follow.
 
 ## The next cycle
 
-1. `map::move_vehicle` - the part that makes the vehicle go somewhere: velocity into squares per turn through the facing, with the reference's `of_turn`, the
-   collision cases and the damage they do. The big rule; dump first (`--dump-vehicle-move`), then the gate, then the port.
-2. `vehicle::strain` and `safe_velocity`, which `thrust` reads for the engine-damage branch.
+1. Collisions: `vehicle::collision` (`vehicle_move.cpp`), the cases it can report and the damage each does. This is what stops a vehicle driving through a wall, and
+   it is the biggest remaining piece of movement. Dump first: a vehicle driven into terrain, another vehicle and a creature, recording where it stops, the speed
+   after, and the damage to the parts.
+2. `vehicle::strain` and `safe_velocity`, which the engine-damage branch of `thrust` reads.
 3. Fuel burn per step (`consume_fuel`) and plows (the rest of `static_drag`).
 
 ## What must stay true
