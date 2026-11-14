@@ -45,6 +45,34 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## What the wheels resist (round 1525)
+
+The driving model starts with the force that opposes it. `vehicle::coeff_rolling_drag` (`vehicle.cpp:4655-4686`) is a short rule with three inputs, and
+each of them is now in the load:
+
+| Input | Reference | Port |
+|---|---|---|
+which wheels count | `wheelcache`, filled from every part carrying `WHEEL` that is not `is_unavailable()` (`vehicle.cpp:6738-6740`) | every part whose spec has `WHEEL` and whose `broken` is false |
+their resistance | `wheel_info->rolling_resistance`, a **float** with default 1 (`veh_type.h:142`) | the part's `rolling_resistance`, an `Option<f32>` because a frame has no wheel info at all |
+the wheel-count correction | `wheel_ratio / ( base_wheels * wheel_ratio - base_wheels + n )`, `1.25 / ( 5 - 4 + n )` | the same expression |
+no usable wheel | `wheel_factor = 50` (`vehicle.cpp:4673`) | `NO_WHEEL_FACTOR` |
+
+`corpus/vehicle_rolling.json` is `--dump-vehicle-rolling`: a bicycle (two wheels, 0.45 each), a quad bike (four wheels, 1.9 each) and a bicycle whose wheels
+are all ruined, with each case's part weights so the gate installs the reference's own registry and compares the coefficient itself. The answers are
+**0.00895343386454**, **1.09392527294** and **1.19379121356**; five mutations were caught - the fifty, the sum, the count correction, the broken-wheel skip,
+and gravity.
+
+Two numbers that look like constants and are not:
+
+- **`accel_g` is a float.** `constexpr float accel_g = 9.81f` (`vehicle.h:232`) widened to double is 9.8100004196167. The port stores it as `f32` and widens
+  it in the product; a decimal 9.81 is wrong in the eighth digit, which is exactly where the first version of this gate disagreed with the reference.
+- **`rolling_resistance` is a float too**, summed as a float widened to double: four wheels of 1.9 sum to 7.5999999046, not 7.6. The dump therefore prints nine
+  significant digits, enough to round-trip a float, and the port sums `f64::from(f32)` values.
+
+**Named:** `coeff_air_drag`, engine power and `max_ground_velocity` are the next slice and not ported yet; a vehicle's speed is still zero, so nothing that needs
+velocity - including all crash damage past detection - stays out until they are. `SAE_ROLLING` is the reference's `sae_ratio` without its speed term, because
+the speed-dependent part of the SAE law needs a velocity.
+
 ## Armour takes the hit (round 1524)
 
 A collision names a part, and that part is not always the one that reached the target. The reference spends its first line of damage accounting on the

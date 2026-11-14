@@ -2134,3 +2134,10 @@ the part itself when it is armour, else the first **unbroken** plate on the same
 reference returns before the swap. `corpus/vehicle_armour.json` (`--dump-vehicle-armour`) pins a quad bike blaming `plating_steel` and then its `frame` once
 the plate is ruined with `set_hp( part, 0 )`, and a bicycle blaming `xlframe` both times. Since no `structure` part in the data carries `ARMOR`, the
 self-check is pinned by a fixture. Four mutations caught. **Named**: the reference's `ARMOR` bitflag is read as the part's flag string.
+
+**Round 1525 ported rolling resistance.** `vehicle_drive::rolling_drag` answers `vehicle::coeff_rolling_drag` (`vehicle.cpp:4655-4686`): the sum of the
+unbroken `WHEEL` parts' `rolling_resistance` (float, `veh_type.h:142`), scaled by `1.25 / (5 - 4 + n)`, times `0.000225 * accel_g * mass_kg`, and 50 when
+there is no usable wheel. `corpus/vehicle_rolling.json` (`--dump-vehicle-rolling`, version 2) carries three vehicles - bicycle 0.00895343386454, quad bike
+1.09392527294, wheel-less bicycle 1.19379121356 - plus each case's part weights so the gate installs the reference's own registry. The parts dump is version 7
+with `rolling_resistance` (null for non-wheels, nine significant digits). **Both constants are floats**: `9.81f` is 9.8100004196167 as a double, and four
+wheels of 1.9 sum to 7.5999999046. Five mutations caught.

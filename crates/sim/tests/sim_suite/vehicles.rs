@@ -2031,3 +2031,104 @@ fn a_part_that_is_itself_armour_takes_the_hit() {
         "**a part that is itself armour takes the hit, even with a plate earlier on its mount**"
     );
 }
+
+#[test]
+fn a_vehicles_wheels_say_what_they_resist_rolling_with() {
+    use cdda_sim::item_registry::{Kind, set_item_types};
+    use cdda_sim::vehicles::{Vehicle, spawn_facing};
+
+    // `corpus/vehicle_rolling.json` is `--dump-vehicle-rolling`: a bicycle, a quad bike, and a bicycle whose wheels are all ruined. Each case carries its parts'
+    // base item weights, so the gate can install the reference's own registry and compare the coefficient rather than an approximation of it. The reference's
+    // `coeff_rolling_drag` is the first number of the driving model, and it answers 50 as the wheel factor for a vehicle with no usable wheel.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json");
+    let bytes = std::fs::read(path).expect("the rolling recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let origin = square_of(&root, "origin");
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut factors = std::collections::BTreeSet::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        let name = text_of(case, "name");
+        let mut world = World::new();
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = spawn_facing(&mut world, &text_of(case, "vehicle"), origin, 0.0)
+            .expect("the recorded vehicle builds");
+
+        // The registry, weighted from the recording's own parts: one entry per base item, at the reference's weight.
+        let Some(cdda_json::Value::Array(parts)) = case.get("parts") else {
+            panic!("{name}: parts");
+        };
+        let mut kinds: Vec<(String, i64)> = Vec::new();
+        for part in parts {
+            let cdda_json::Value::Object(part) = part else {
+                panic!("a part is an object");
+            };
+            let item = text_of(part, "item");
+            let weight = i64::from(int_of(part, "base_mass_g"));
+            if let Some(slot) = kinds.iter_mut().find(|(id, _)| *id == item) {
+                slot.1 = weight;
+            } else {
+                kinds.push((item, weight));
+            }
+        }
+        let specs: Vec<Kind<'_>> = kinds
+            .iter()
+            .map(|(id, weight)| Kind {
+                id,
+                volume_ml: 0,
+                weight_g: *weight,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: -1,
+            })
+            .collect();
+        set_item_types(&mut world, &specs);
+
+        let wheels = int_of(case, "wheel_count");
+        if wheels == 0 {
+            let count = world
+                .get::<Vehicle>(vehicle)
+                .expect("a vehicle")
+                .parts
+                .len();
+            let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+            for index in 0..count {
+                let part = built.parts.get_mut(index).expect("a part");
+                part.broken = true;
+            }
+        }
+
+        assert_eq!(
+            cdda_sim::vehicle_mass::mass(&world, vehicle),
+            i64::from(int_of(case, "total_mass_g")),
+            "{name}: **the mass the coefficient is scaled by is the recorded one**"
+        );
+        let Some(coefficient) = cdda_sim::vehicle_drive::rolling_drag(&world, vehicle) else {
+            panic!("{name}: the port answers for every recorded vehicle");
+        };
+        let Some(cdda_json::Value::Float(recorded)) = case.get("coeff_rolling_drag") else {
+            panic!("a recorded coefficient");
+        };
+        let difference = (coefficient - recorded).abs();
+        assert!(
+            difference <= 1e-9 * recorded.abs().max(1.0),
+            "{name}: **the port's rolling resistance is the reference's** ({coefficient} vs {recorded})"
+        );
+        factors.insert(if wheels == 0 { "none" } else { "some" });
+        seen += 1;
+    }
+    assert_eq!(seen, 3, "the recording holds three vehicles");
+    assert_eq!(factors.len(), 2, "**one of them has no usable wheel**: {factors:?}");
+}

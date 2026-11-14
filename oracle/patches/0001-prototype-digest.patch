@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 12:23:54
-@@ -0,0 +1,8465 @@
++++ oracle/src/src/harness.cpp	2026-11-14 14:33:10
+@@ -0,0 +1,8556 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1098,6 +1098,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::vector<std::string> fuel_opts;
 +        std::vector<std::string> flags;
 +        std::vector<std::pair<std::string, float>> damage_reduction;
++        // Version 7: what a wheel resists rolling with. `wheel_info->rolling_resistance` (`veh_type.h:142`) is a float and only wheels have one.
++        bool has_wheel_info = false;
++        double rolling_resistance = 0;
 +    };
 +    struct dumped_prototype {
 +        std::string id;
@@ -1115,6 +1118,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        entry.location = part.location;
 +        entry.size = static_cast<int>( units::to_milliliter( part.size ) );
 +        entry.cargo_weight_modifier = part.cargo_weight_modifier;
++        if( part.wheel_info ) {
++            entry.has_wheel_info = true;
++            entry.rolling_resistance = static_cast<double>( part.wheel_info->rolling_resistance );
++        }
 +        entry.fuel_type = part.fuel_type.str();
 +        // What the part can hold: `vehicle_part::is_fuel_store` asks `is_tank() || is_magazine() || is_reactor()`, and `is_battery()` is the battery branch of `fuel_left`.
 +        // The base item is what both questions read, so one probe of it answers them without a placed part.
@@ -1156,7 +1163,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    []( const dumped_prototype &lhs, const dumped_prototype &rhs ) {
 +        return lhs.id < rhs.id;
 +    } );
-+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":6,\n\"parts\":[\n" );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":7,\n\"parts\":[\n" );
 +    bool first = true;
 +    for( const dumped_part &part : parts ) {
 +        std::fprintf( out, "%s{\"id\":", first ? "" : ",\n" );
@@ -1170,6 +1177,13 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out, "\"%s\"", escaped( part.location ).c_str() );
 +        std::fprintf( out, ",\"size\":%d,\"cargo_weight_modifier\":%d", part.size,
 +                      part.cargo_weight_modifier );
++        if( part.has_wheel_info ) {
++            // Nine significant digits round-trip a float exactly, and the reference's coefficient is a float widened to double, so `1.9` printed as a
++            // decimal and read back as a double is not the same number the reference summed.
++            std::fprintf( out, ",\"rolling_resistance\":%.9g", part.rolling_resistance );
++        } else {
++            std::fprintf( out, ",\"rolling_resistance\":null" );
++        }
 +        std::fprintf( out, ",\"fuel_type\":\"%s\"", escaped( part.fuel_type ).c_str() );
 +        std::fprintf( out, ",\"fuel_store\":%d,\"battery\":%d", part.fuel_store ? 1 : 0,
 +                      part.battery ? 1 : 0 );
@@ -1266,6 +1280,83 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// (`mapgen.cpp:7523-7560`) refuses a vehicle whose structural squares hit deep water or another vehicle, and it needs the dynamic data loaded (`check_mod_data`) or the prototype id
 +/// does not exist. It lays floor around the avatar first so terrain cannot be the reason, places the 2-seater helicopter at the avatar's own square, and records what the reference
 +/// built: the name, every part's mount and square, its spec's fuel type, and the ammo a tank happens to hold.
++void dump_vehicle_rolling( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -16; dx <= 16; dx++ ) {
++        for( int dy = -16; dy <= 16; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    // Version 2 carries the parts' base item weights, so a reader can install the reference's own registry and check the coefficient rather than a guess at it.
++    std::fprintf( out, "{\"harness\":\"vehicle_rolling\",\"version\":2,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    // One vehicle's rolling resistance, and the wheels that make it: `vehicle::coeff_rolling_drag` (`vehicle.cpp:4655-4686`) walks `wheelcache`, which is
++    // filled from the unbroken parts carrying `WHEEL` (`vehicle.cpp:6738-6740`), and answers 50 when there are none.
++    const auto dump_case = [&]( const char *name, const vproto_id &type, bool ruin_the_wheels ) {
++        vehicle *veh = here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true );
++        if( veh == nullptr ) {
++            std::fprintf( stderr, "harness: %s did not place\n", type.str().c_str() );
++            return;
++        }
++        if( ruin_the_wheels ) {
++            for( const int wheel : veh->wheelcache ) {
++                veh->set_hp( veh->part( wheel ), 0, false );
++            }
++            // A ruined wheel is still a `WHEEL` part; only `refresh` decides it is no longer in the cache, so the cache has to be rebuilt.
++            veh->refresh();
++        }
++        std::fprintf( out, "%s{\"name\":\"%s\",\"vehicle\":\"%s\",\"wheel_count\":%zu",
++                      first_case ? "" : ",", name, type.str().c_str(), veh->wheelcache.size() );
++        first_case = false;
++        std::fprintf( out, ",\"wheels\":[" );
++        bool first_wheel = true;
++        for( const int wheel : veh->wheelcache ) {
++            std::fprintf( out, "%s{\"part\":\"%s\",\"rolling_resistance\":%.9g}",
++                          first_wheel ? "" : ",", veh->part( wheel ).info().id.str().c_str(),
++                          static_cast<double>( veh->part( wheel ).info().wheel_info->rolling_resistance ) );
++            first_wheel = false;
++        }
++        std::fprintf( out, "],\"parts\":[" );
++        bool first_part = true;
++        for( int p = 0; p < veh->part_count(); p++ ) {
++            const vehicle_part &vp = veh->part( p );
++            if( vp.removed ) {
++                continue;
++            }
++            std::fprintf( out,
++                          "%s{\"index\":%d,\"part\":\"%s\",\"item\":\"%s\",\"base_mass_g\":%lld}",
++                          first_part ? "" : ",", p, vp.info().id.str().c_str(),
++                          vp.info().base_item.str().c_str(),
++                          static_cast<long long>( units::to_gram( vp.get_base().weight() ) ) );
++            first_part = false;
++        }
++        std::fprintf( out, "],\"total_mass_g\":%lld,\"coeff_rolling_drag\":%.12g}",
++                      static_cast<long long>( units::to_gram( veh->total_mass( here ) ) ),
++                      veh->coeff_rolling_drag( here ) );
++        here.destroy_vehicle( veh );
++    };
++
++    dump_case( "bicycle", vproto_id( "bicycle" ), false );
++    dump_case( "quad_bike", vproto_id( "quad_bike" ), false );
++    dump_case( "a_bicycle_with_no_usable_wheel", vproto_id( "bicycle" ), true );
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_vehicle_armour( const std::string &path )
 +{
 +    static const std::string structure_location( "structure" );
@@ -8827,8 +8918,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-14 12:18:30
-@@ -0,0 +1,437 @@
++++ oracle/src/src/harness.h	2026-11-14 13:26:28
+@@ -0,0 +1,438 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8979,6 +9070,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_mass( const std::string &path );
 +void dump_vehicle_collision( const std::string &path );
 +void dump_vehicle_armour( const std::string &path );
++void dump_vehicle_rolling( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -9553,7 +9645,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-14 12:18:30
++++ oracle/src/src/main.cpp	2026-11-14 13:26:28
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9564,7 +9656,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,174 @@
+@@ -272,6 +275,175 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9730,6 +9822,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_mass;
 +    std::string dump_vehicle_collision;
 +    std::string dump_vehicle_armour;
++    std::string dump_vehicle_rolling;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -9739,7 +9832,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +471,1510 @@
+@@ -300,6 +472,1520 @@
                  }
              },
              {
@@ -9909,6 +10002,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_placement = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-rolling", "<file>",
++                "Writes what a vehicle's wheels resist rolling with: the unbroken wheels, the mass and the coefficient",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_rolling = params[0];
 +                    return 1;
 +                }
 +            },
@@ -11250,7 +11353,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2461,855 @@
+@@ -786,6 +2472,867 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11501,6 +11604,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_placement( cli.dump_vehicle_placement );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_rolling.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_rolling( cli.dump_vehicle_rolling );
 +            exit_handler( 0 );
 +        }
 +

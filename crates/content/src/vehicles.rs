@@ -59,6 +59,11 @@ pub struct PartSpec {
     pub durability: i32,
     /// What percentage of its own damage it deals in a collision (`dmg_mod`, an integer percentage).
     pub damage_modifier: i32,
+    /// What this wheel resists rolling with, and `None` for a part that is not a wheel.
+    ///
+    /// Reference: `vpart_info::wheel_info::rolling_resistance` (`src/veh_type.h:142`), a float that defaults to 1 - a bicycle wheel is 0.45. Only a part with
+    /// wheel info has one, which is why this is `Option` and not a defaulted number: a frame `0.0` would look like a frictionless wheel.
+    pub rolling_resistance: Option<f32>,
     /// The item it is made of.
     pub item: String,
     /// The slot of the vehicle tile it occupies.
@@ -171,6 +176,18 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         Some(Value::Int(value)) => Ok(*value),
         _ => Err(format!("a part's {key} is not a number")),
     };
+    let rolling_resistance = match object.get("rolling_resistance") {
+        Some(Value::Float(value)) => {
+            #[allow(clippy::cast_possible_truncation)]
+            Some(*value as f32)
+        }
+        Some(Value::Int(value)) => {
+            #[allow(clippy::cast_precision_loss)]
+            Some(*value as f32)
+        }
+        Some(Value::Null) | None => None,
+        _ => return Err("a part's rolling_resistance is not a number".to_owned()),
+    };
     let mut fuel_opts = Vec::new();
     match object.get("fuel_opts") {
         Some(Value::Array(items)) => {
@@ -217,6 +234,7 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         name: text("name")?,
         durability: i32::try_from(number("durability")?).unwrap_or(0),
         damage_modifier: i32::try_from(number("damage_modifier")?).unwrap_or(100),
+        rolling_resistance,
         item: text("item")?,
         location: text("location")?,
         size: number("size")?,
