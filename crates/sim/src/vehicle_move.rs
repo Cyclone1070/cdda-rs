@@ -384,14 +384,14 @@ pub fn move_step(world: &mut World, vehicle: Entity) -> bool {
     // what a part would hit - and `map::move_vehicle` calls `veh.stop()` when a collision leaves the vehicle unable to move (`map.cpp:948-950`): the square is
     // never entered and the speed is gone. Smashing the obstacle, the damage the crash does and the bounce off another vehicle are the collision rounds that
     // follow; this one only refuses to drive through.
-    if let Some(collision) = crate::vehicles::first_collision(world, vehicle, step) {
-        if matches!(collision, crate::vehicles::Collision::Terrain { .. }) {
-            if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
-                built.velocity = 0;
-                built.of_turn_carry = 0.0;
-            }
-            return false;
+    if let Some(crate::vehicles::Collision::Terrain { .. }) =
+        crate::vehicles::first_collision(world, vehicle, step)
+    {
+        if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+            built.velocity = 0;
+            built.of_turn_carry = 0.0;
         }
+        return false;
     }
 
     crate::vehicles::move_vehicle(world, vehicle, step)

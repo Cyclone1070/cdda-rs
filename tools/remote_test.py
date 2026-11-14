@@ -150,18 +150,15 @@ def main() -> int:
         # **Touch every crate root first, or cargo's cache eats the gate.** `cargo clippy -D warnings` only fails on diagnostics it *emits*, and a crate whose fingerprint has not changed is
         # not re-checked - so a green run could mean "nothing was looked at". That is exactly what happened: the gate reported clean for many rounds while `crates/sim` held twenty-three
         # deny-level lints, and a fresh checkout of the same tree failed instantly. The touch is cheap (a mtime) and forces the diagnostics to be re-emitted.
-        touched = subprocess.run(
-            # Every source file, not only the crate roots: a **test** file's diagnostics are cached by
-            # its own fingerprint, and a round that only changed `tests/` got a clean bill from a stale
-            # build. That is how `collapsible_if` in a new test reached CI after passing here.
-            ["find", "crates", "-name", "*.rs"],
-            capture_output=True, text=True,
-        ).stdout.split()
-        for path in touched:
-            try:
-                os.utime(path, None)
-            except OSError:
-                pass
+        # **The touch has to happen on the build machine.** It was run here, against this checkout, while
+        # clippy ran over there - so the files cargo looked at kept their old mtimes and a cached clean
+        # result was reported for code that had just changed. Three rounds in a row reached CI with a
+        # lint the gate said was clean: `float_cmp` twice and `collapsible_if`.
+        run(
+            "find crates -name '*.rs' -exec touch {} +",
+            "touch every source file on the build machine",
+            jobs,
+        )
         if run("cargo clippy --workspace --all-targets -- -D warnings", "clippy", jobs) != 0:
             failed.append("clippy")
     # The gate that rotted for several rounds because it was the one command nobody typed (round 1200). It is cheap - it runs
