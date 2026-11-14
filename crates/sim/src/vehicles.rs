@@ -102,6 +102,12 @@ pub struct Vehicle {
     /// The speed the driver has asked for, in the same units - the reference's `cruise_velocity` (`vehicle.h`). A vehicle nobody has asked to move stands at zero,
     /// which is what its constructor sets and what `thrust` reads as "hold still".
     pub cruise_velocity: i32,
+    /// How much of a turn's movement the vehicle has left - the reference's `of_turn` (`vehicle.h`), a float that a move spends one square at a time. A vehicle
+    /// placed from a blueprint has none left, which is why `gain_moves` refills it at the start of every turn.
+    pub of_turn: f32,
+    /// What was left over when a turn ended mid-square - the reference's `of_turn_carry` (`vehicle.h`). `gain_moves` starts the next turn with `1 + carry`, so a
+    /// slow vehicle does not lose the fraction it could not spend.
+    pub of_turn_carry: f32,
 }
 
 /// Builds a vehicle facing east, standing at a square.
@@ -147,6 +153,8 @@ pub fn spawn_facing(
             Vehicle {
                 parts,
                 cruise_velocity: 0,
+                of_turn: 0.0,
+                of_turn_carry: 0.0,
                 rotation,
                 velocity: 0,
             },

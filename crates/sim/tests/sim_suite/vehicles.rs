@@ -3386,3 +3386,185 @@ fn coasting_loses_speed_and_a_stalled_coaster_stops_or_creeps() {
         &mut world, bicycle, false, true
     ));
 }
+
+/// **A square costs a fraction of a turn, and a vehicle that cannot afford one keeps the remainder.**
+///
+/// `corpus/vehicle_move.json` is `--dump-vehicle-move`: a bicycle and a car at five speeds, twelve calls of `act_on_map` each, recording the `of_turn` left and the
+/// speed after every call. The port replays the same twelve calls against a real world and must land on the same hundredth, in both directions: a vehicle below 20
+/// vmiph **stops** and spends 0.321 of a turn, and a square costing exactly one whole turn is not affordable this turn at all (`>=`, not `>`).
+#[test]
+fn a_square_costs_a_fraction_of_a_turn_and_the_rest_carries() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_move.json");
+    let bytes = std::fs::read(path).expect("the move recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut steps_seen = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let vehicle_name = text_of(row, "vehicle");
+        let speed = int_of(row, "speed");
+        let Some(cdda_json::Value::Array(steps)) = row.get("steps") else {
+            panic!("a case records its steps");
+        };
+
+        let mut world = World::new();
+        install_part_weights(&mut world, &vehicle_name);
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = cdda_sim::vehicles::spawn(&mut world, &vehicle_name, (100, 100, 0))
+            .expect("the recorded vehicle builds");
+        {
+            let mut built = world
+                .get_mut::<cdda_sim::vehicles::Vehicle>(vehicle)
+                .expect("a vehicle");
+            built.velocity = speed;
+            built.cruise_velocity = speed;
+            built.of_turn = 1.0;
+        }
+
+        for (index, step) in steps.iter().enumerate() {
+            let cdda_json::Value::Object(step) = step else {
+                panic!("a step is an object");
+            };
+            // `of_turn` is written by `%.9g`, so an exact zero comes back as an int.
+            let want_turn = match step.get("of_turn") {
+                Some(cdda_json::Value::Float(value)) => *value,
+                Some(cdda_json::Value::Int(value)) => {
+                    f64::from(i32::try_from(*value).expect("a small int"))
+                }
+                _ => panic!("a step records its turn as a number"),
+            };
+            let want_velocity = int_of(step, "velocity");
+            cdda_sim::vehicle_move::move_step(&mut world, vehicle);
+            let built = world
+                .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+                .expect("still there");
+            assert!(
+                (f64::from(built.of_turn) - want_turn).abs() < 0.0001,
+                "{vehicle_name} at {speed}, step {index}: **of_turn** is {} but the reference left {want_turn}",
+                built.of_turn
+            );
+            assert_eq!(
+                built.velocity, want_velocity,
+                "{vehicle_name} at {speed}, step {index}: **the speed is the reference's**"
+            );
+            steps_seen += 1;
+        }
+    }
+    assert_eq!(steps_seen, 120, "ten cases of twelve steps");
+
+    // The edge the recording shows as a vehicle that never moves: a square that costs exactly the turn left is **not** affordable, because the comparison is `>=`.
+    {
+        let mut world = World::new();
+        install_part_weights(&mut world, "bicycle");
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let bicycle =
+            cdda_sim::vehicles::spawn(&mut world, "bicycle", (100, 100, 0)).expect("it builds");
+        {
+            let mut built = world
+                .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+                .expect("a vehicle");
+            built.velocity = 400;
+            built.of_turn = 1.0;
+        }
+        assert!(
+            !cdda_sim::vehicle_move::move_step(&mut world, bicycle),
+            "**a square costing a whole turn is not affordable**"
+        );
+        assert_eq!(
+            world
+                .get::<cdda_sim::Position>(bicycle)
+                .expect("a position")
+                .x,
+            100,
+            "it stayed put"
+        );
+    }
+
+    // The arithmetic itself, at the speeds the dump used: a bicycle at 400 spends a whole turn on a square, at 1,000 spends 0.4 of one, and at 20 spends twenty.
+    assert!((cdda_sim::vehicle_move::turn_cost(400) - 1.0).abs() < f32::EPSILON);
+    assert!((cdda_sim::vehicle_move::turn_cost(1000) - 0.4).abs() < 0.000_001);
+    assert!((cdda_sim::vehicle_move::turn_cost(20) - 20.0).abs() < f32::EPSILON);
+}
+
+/// **A vehicle that can afford a square takes it, and the index follows.**
+///
+/// Reference: the affordable branch of `vehicle::act_on_map` (`vehicle_move.cpp:1900-2010`) - the turn is spent, then exactly one square is taken along the facing.
+/// The recorded bicycle at 1,000 vmiph moves one square east and is left with 0.6 of the turn; a bicycle at 400 cannot afford its square this turn and stays put.
+#[test]
+fn an_affordable_square_is_taken_and_the_index_follows() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "bicycle");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let bicycle = cdda_sim::vehicles::spawn(&mut world, "bicycle", (10, 10, 0)).expect("it builds");
+
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 1000;
+        built.of_turn = 1.0;
+    }
+    assert!(
+        cdda_sim::vehicle_move::move_step(&mut world, bicycle),
+        "**a square at 1,000 vmiph is affordable**"
+    );
+    let built = world
+        .get::<cdda_sim::vehicles::Vehicle>(bicycle)
+        .expect("a vehicle");
+    assert!(
+        (built.of_turn - 0.6).abs() < 0.000_001,
+        "the turn is spent: {}",
+        built.of_turn
+    );
+    let position = world
+        .get::<cdda_sim::Position>(bicycle)
+        .expect("a position");
+    assert_eq!((position.x, position.y), (11, 10), "**one square east**");
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (11, 10, 0)),
+        Some(bicycle),
+        "**the index follows the vehicle**"
+    );
+    // The bicycle is three squares long: a part sits one mount behind the origin and one in front, so the walk east vacates the square at nine and takes the one at twelve.
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (9, 10, 0)),
+        None,
+        "the square behind the old tail is empty"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::at(&world, (12, 10, 0)),
+        Some(bicycle),
+        "the square ahead of the old nose is taken"
+    );
+
+    // At 400 a square costs a whole turn, which is not affordable this turn: the vehicle stays and keeps the fraction.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 400;
+        built.of_turn = 1.0;
+    }
+    assert!(
+        !cdda_sim::vehicle_move::move_step(&mut world, bicycle),
+        "**a square that costs a whole turn is not affordable**"
+    );
+    let position = world
+        .get::<cdda_sim::Position>(bicycle)
+        .expect("a position");
+    assert_eq!((position.x, position.y), (11, 10), "it stayed put");
+    let built = world
+        .get::<cdda_sim::vehicles::Vehicle>(bicycle)
+        .expect("a vehicle");
+    assert_eq!(built.of_turn, 0.0, "nothing left this turn");
+    assert_eq!(built.of_turn_carry, 1.0, "**the fraction is carried**");
+}

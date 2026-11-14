@@ -320,3 +320,64 @@ pub fn coast(world: &mut World, vehicle: Entity, driven: bool, engine_running: b
     }
     true
 }
+
+/// The speed at which a vehicle covers one square in a turn: `vehicles::vmiph_per_tile` (`vehicle.h:86`).
+pub const VMIPH_PER_TILE: f32 = 400.0;
+
+/// What one square of movement costs in turn fraction, at a speed.
+///
+/// Reference: `vehicle::act_on_map` (`vehicle_move.cpp:1904`): `vmiph_per_tile / max( 0.0001f, |velocity| )`. A bicycle at 400 vmiph spends a whole turn on a
+/// square; at 1,000 it spends 0.4 of one, which is why a fast vehicle takes several squares a turn.
+#[must_use]
+pub fn turn_cost(velocity: i32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let speed = velocity.abs() as f32;
+    VMIPH_PER_TILE / speed.max(0.0001)
+}
+
+/// One square of movement if the vehicle can afford it, and the bookkeeping either way.
+///
+/// Reference: `vehicle::act_on_map` (`vehicle_move.cpp:1829-2010`), with the parts the port has:
+///
+/// - **below 20 vmiph a vehicle stops where it stands** and the attempt costs 0.321 of a turn (`vehicle_move.cpp:1887-1892`) - a bicycle "goes in reverse" more
+///   slowly than that, which is the reference's own words for the threshold;
+/// - a square costs [`turn_cost`], and a vehicle that cannot afford one keeps the fraction for next turn (`of_turn_carry`) instead of losing it;
+/// - otherwise the cost is spent and the vehicle takes exactly one square along its facing, in the direction the speed's sign says.
+///
+/// The displacement goes through [`crate::vehicles::move_vehicle`], so the index and every rider move with it. Returns whether the vehicle changed square.
+pub fn move_step(world: &mut World, vehicle: Entity) -> bool {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return false;
+    };
+    let velocity = built.velocity;
+    let rotation = built.rotation;
+    let of_turn = built.of_turn;
+
+    // **Too slow to move**: the reference stops the vehicle outright, spends 0.321 of the turn, and leaves it where it is.
+    if velocity.abs() < 20 {
+        if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+            built.velocity = 0;
+            built.of_turn_carry = 0.0;
+            built.of_turn = of_turn - 0.321;
+        }
+        return false;
+    }
+
+    let cost = turn_cost(velocity);
+    if cost >= of_turn {
+        // Cannot afford a square this call: the rest of the turn is carried rather than dropped.
+        if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+            built.of_turn_carry = of_turn;
+            built.of_turn = 0.0;
+        }
+        return false;
+    }
+
+    // The turn is spent **before** the square is taken, which is the reference's order: a move that cannot happen still costs the turn it tried to use.
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        built.of_turn -= cost;
+    }
+    let (dx, dy) = crate::rotation::coord_translate(rotation, (0, 0), (1, 0));
+    let step = if velocity < 0 { (-dx, -dy) } else { (dx, dy) };
+    crate::vehicles::move_vehicle(world, vehicle, step)
+}

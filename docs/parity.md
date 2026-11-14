@@ -36684,3 +36684,27 @@ coasts to 742.
 
 **Named:** `static_drag`'s other terms (plows, towing, an actively towed vehicle) are zero on every recorded vehicle. Skidding (`skid_factor`, up to 25× rolling
 drag) and water drag are not ported — no recorded case turns or floats.
+
+## A vehicle moves one square per fraction of a turn (round 46)
+
+`vehicle::act_on_map` (`vehicle_move.cpp:1829-2010`) decides how far a vehicle goes, and the decision is one number: **a square costs `400 / |velocity|` of a
+turn** (`vehicles::vmiph_per_tile = 400.0f`, `vehicle.h:86`). A bicycle at 400 vmiph spends a whole turn per square, at 1,000 spends 0.4 of one, and at 20 spends
+twenty turns - which is the same thing as saying it barely moves.
+
+| Rule | Why it is not obvious |
+|---|---|
+| a square costing **exactly** the turn left is not affordable | the comparison is `>=`, so 400 vmiph with a full turn in hand does not move this turn but carries the turn into the next |
+| below 20 vmiph the vehicle **stops** where it stands | `stop()` zeroes the speed and the carry, and the attempt still costs 0.321 of a turn |
+| whatever is left over is **carried** | `of_turn_carry` is added to the next turn's movement, so a slow vehicle does not lose the fraction it could not spend |
+| the turn is spent **before** the square is taken | a move that cannot happen still costs the turn it tried to use |
+
+`corpus/vehicle_move.json` records a bicycle and a car at five speeds, twelve calls each, with the `of_turn` and speed after every call. The port replays all 120
+steps against a real world and matches every one; the affordability edge has its own case because a `>` in place of `>=` passes the replay and fails that case.
+
+The displacement goes through `vehicles::move_vehicle`, so the one index follows and every rider is moved with the vehicle: the gate checks that the square behind
+the old tail empties and the square ahead of the nose is taken.
+
+**Named:** the reference's first movement after a vehicle is placed can be absorbed by `pivot_displacement` (`map.cpp:800-805`) - its stale `precalc` cancels the
+step - which is visible in the recording as a first call that spends the turn without moving. The port has no mounts-and-pivot precalculation, so its first call
+moves and its second does not; every `of_turn` and speed still matches. Collisions, ramps, skidding, wheel traction, falling and the damage a crash does are the
+next movement rules, not this one.
