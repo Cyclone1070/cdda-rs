@@ -108,9 +108,9 @@ impl MinStdRand0 {
                     return drawn;
                 }
             }
-        } else {
-            self.next_u32() - URNGMIN
         }
+        // Both branches above diverge - the first returns, the second retries until it does - so the tail needs no `else`.
+        self.next_u32() - URNGMIN
     }
 }
 

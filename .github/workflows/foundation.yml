@@ -24,10 +24,16 @@ concurrency:
 jobs:
   rust:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # One test - every_scenario_in_the_repository_passes - costs 1,070 s on the build machine, and a
+    # cold build on a two-core runner is slower than that machine. The suite is due to get faster; until
+    # it does, the limit has to be honest rather than tight.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      # Pinned to the workspace's `rust-version`. An unpinned `@stable` moved the lint set under our
+      # feet once already (`redundant_else` fired on CI and not on the build machine), and a gate that
+      # disagrees with itself is noise.
+      - uses: dtolnay/rust-toolchain@1.98
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
@@ -45,5 +51,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: documents agree with each other and with the sources
         run: python3 tools/check_docs.py
+      # The inventory is generated from the pinned reference checkout, which is fetched and never
+      # committed, so this step cannot run on a runner without it. It says so rather than passing
+      # silently, and the local gate still regenerates and compares.
       - name: the generated inventory is up to date
-        run: python3 tools/gen_inventory.py --out docs/06-inventory.md && git diff --exit-code docs/06-inventory.md
+        run: |
+          if [ -d references/Cataclysm-DDA ]; then
+            python3 tools/gen_inventory.py --out docs/06-inventory.md
+            git diff --exit-code docs/06-inventory.md
+          else
+            echo "references/Cataclysm-DDA is not in this checkout: inventory regeneration skipped"
+          fi
