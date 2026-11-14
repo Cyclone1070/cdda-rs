@@ -3565,6 +3565,14 @@ fn an_affordable_square_is_taken_and_the_index_follows() {
     let built = world
         .get::<cdda_sim::vehicles::Vehicle>(bicycle)
         .expect("a vehicle");
-    assert_eq!(built.of_turn, 0.0, "nothing left this turn");
-    assert_eq!(built.of_turn_carry, 1.0, "**the fraction is carried**");
+    assert!(
+        built.of_turn.abs() < f32::EPSILON,
+        "nothing left this turn: {}",
+        built.of_turn
+    );
+    assert!(
+        (built.of_turn_carry - 1.0).abs() < f32::EPSILON,
+        "**the fraction is carried**: {}",
+        built.of_turn_carry
+    );
 }
