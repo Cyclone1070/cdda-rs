@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 10:07:53
-@@ -0,0 +1,8362 @@
++++ oracle/src/src/harness.cpp	2026-11-14 11:14:27
+@@ -0,0 +1,8376 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1313,7 +1313,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    // One case: the world as it stands, the displacement, and what detect-only collision answers. `obstacle_at` names a second vehicle's origin when one is present, and
 +    // `creature_at` names the creature that was hit, so the port can rebuild the same situation instead of guessing it.
 +    const auto dump_case = [&]( const char *name, int dx, int dy, const tripoint_bub_ms &obstacle,
-+                                bool has_obstacle ) {
++                                bool has_obstacle, const char *terrain = nullptr ) {
 +        std::vector<veh_collision> colls;
 +        // `map::move_vehicle` cancels the displacement the pivot's move would add before it asks about collisions (`map.cpp:803-810`), and the
 +        // projection reads the turned precalc. Passing the raw displacement here measures a projection nobody in the game ever asks for.
@@ -1325,6 +1325,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        first_case = false;
 +        if( has_obstacle ) {
 +            std::fprintf( out, ",\"obstacle_at\":[%d,%d,%d]", obstacle.x(), obstacle.y(), obstacle.z() );
++        }
++        if( terrain != nullptr ) {
++            std::fprintf( out, ",\"terrain\":\"%s\",\"terrain_at\":[%d,%d,%d]", terrain, obstacle.x(),
++                          obstacle.y(), obstacle.z() );
 +        }
 +        if( hit && !colls.empty() ) {
 +            const veh_collision &coll = colls.front();
@@ -1356,6 +1360,16 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    dump_case( "east_into_vehicle", 1, 0, obstacle_actual, true );
 +
 +    here.destroy_vehicle( second );
++
++    // Terrain in front: the leading frame's destination is two squares east, so whatever is under that square is what it would hit
++    // (`vehicle_move.cpp:950-970`). A plain floor has a bash block too - for a fall through it - and the rule excludes it by its move cost.
++    const tripoint_bub_ms ahead = origin + tripoint_rel_ms( 2, 0, 0 );
++    for( const char *terrain : { "t_wall", "t_floor", "t_open_air", "t_underbrush" } ) {
++        here.ter_set( ahead, ter_id( terrain ) );
++        dump_case( terrain, 1, 0, ahead, false, terrain );
++    }
++    here.ter_set( ahead, ter_id( "t_floor" ) );
++
 +    // A zombie two squares east, where the leading frame would go.
 +    g->place_critter_at( mtype_id( "mon_zombie" ), origin + tripoint_rel_ms( 2, 0, 0 ) );
 +    dump_case( "east_into_creature", 1, 0, tripoint_bub_ms(), false );
