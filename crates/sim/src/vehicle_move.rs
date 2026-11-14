@@ -200,3 +200,123 @@ pub fn thrust(world: &mut World, vehicle: Entity, direction: i32) -> bool {
     }
     true
 }
+
+/// The reference's `rolling_constant_to_variable`: the constant part of rolling drag.
+///
+/// Reference: `vehicles::rolling_constant_to_variable = 33.33` (`vehicle.h:85`) - the comment above the formula says 33.3, the constant is the number with two
+/// decimals, and the port takes the constant.
+pub const ROLLING_CONSTANT_TO_VARIABLE: f64 = 33.33;
+
+/// Hundredths of a mile per hour to metres per second.
+///
+/// Reference: `vmiph_to_mps` (`vehicle_move.cpp:96-99`): `vmiph / mps_to_miph / mi_to_vmi`, where the divisions are **float** - the int is converted to float
+/// first - and only the return widens to `double`. The port divides in `f32` for that reason and widens afterwards.
+#[must_use]
+pub fn vmiph_to_mps(vmiph: i32) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let speed = vmiph as f32;
+    f64::from(speed / MPS_TO_MIPH / 100.0)
+}
+
+/// Metres per second back to hundredths of a mile per hour, truncated.
+///
+/// Reference: `mps_to_vmiph` (`vehicle_move.cpp:91-94`): `mps * mps_to_miph * mi_to_vmi`, a `double` multiply that lands on a whole number by truncation.
+#[must_use]
+pub fn mps_to_vmiph(mps: f64) -> i32 {
+    let scaled = mps * f64::from(MPS_TO_MIPH) * 100.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let answer = scaled as i32;
+    answer
+}
+
+/// How much speed a vehicle loses this turn to air and rolling resistance.
+///
+/// Reference: `vehicle::slowdown` (`vehicle_move.cpp:112-153`), for a vehicle that is neither floating, flying nor skidding:
+///
+/// - air drag is `c_air * v^2`, with `v` in metres per second and `c_air` the coefficient `max_ground_velocity` already uses;
+/// - rolling drag is `c_rolling * ( 33.33 + v )` - the constant is the low-speed floor that keeps a coaster slowing down;
+/// - the force is divided by the mass **in kilograms**, and a vehicle of zero mass loses nothing rather than dividing by it;
+/// - the answer goes back through [`mps_to_vmiph`], and never falls below one: a moving vehicle always sheds at least that much, which is what stops a coaster
+///   from creeping forever.
+///
+/// **Named:** the reference's last subtraction is `static_drag()` - plows and towing - and a vehicle with neither has zero there, which is every vehicle in the
+/// recording.
+#[must_use]
+pub fn slowdown_of(
+    air_drag: f64,
+    rolling_drag: f64,
+    mass_g: i64,
+    at_velocity: i32,
+    engine_running: bool,
+) -> i32 {
+    let mps = vmiph_to_mps(at_velocity.abs());
+    let mut drag = air_drag * mps * mps;
+    if mass_g > 0 {
+        drag += rolling_drag * (ROLLING_CONSTANT_TO_VARIABLE + mps);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let kilograms = mass_g as f64 / 1000.0;
+    let acceleration = if kilograms > 0.0 {
+        drag / kilograms
+    } else {
+        0.0
+    };
+    let mut slowdown = mps_to_vmiph(acceleration);
+    // `static_drag` (`vehicle.cpp:4961`): an engine that is **off** adds 1500 W of drag, which is subtracted from the slowdown - so a vehicle left out of gear
+    // coasts down faster. Plows and towing are its other terms and are zero on every recorded vehicle.
+    if !engine_running {
+        slowdown += 1500;
+    }
+    slowdown.max(1)
+}
+
+/// How much speed a vehicle in the store loses this turn, from its own body and wheels.
+///
+/// Reference: `vehicle::slowdown` (`vehicle_move.cpp:112-153`) with the coefficients the vehicle's parts give. `None` when the vehicle is not in the store.
+#[must_use]
+pub fn slowdown(
+    world: &World,
+    vehicle: Entity,
+    at_velocity: i32,
+    engine_running: bool,
+) -> Option<i32> {
+    let air = crate::vehicle_air::coeff_air_drag(world, vehicle)?;
+    let rolling = crate::vehicle_drive::rolling_drag(world, vehicle)?;
+    let mass = crate::vehicle_mass::mass(world, vehicle);
+    Some(slowdown_of(air, rolling, mass, at_velocity, engine_running))
+}
+
+/// One turn of coasting: the speed drag leaves, before anything is asked of the engine.
+///
+/// Reference: `vehicle::gain_moves`'s slowdown block (`vehicle.cpp:6488-6499`). A vehicle loses [`slowdown`] each turn; if that would take it past zero, a vehicle
+/// under a driver's control is left creeping at one vmiph and everybody else **stops**, which is the reference's own `stop()`.
+pub fn coast(world: &mut World, vehicle: Entity, driven: bool, engine_running: bool) -> bool {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return false;
+    };
+    let velocity = built.velocity;
+    if velocity == 0 {
+        return false;
+    }
+    let Some(slowdown) = slowdown(world, vehicle, velocity, engine_running) else {
+        return false;
+    };
+    let next = if slowdown > velocity.abs() {
+        if built.cruise_velocity != 0 && driven {
+            velocity.signum()
+        } else {
+            0
+        }
+    } else if velocity < 0 {
+        velocity + slowdown
+    } else {
+        velocity - slowdown
+    };
+    if next == velocity {
+        return false;
+    }
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        built.velocity = next;
+    }
+    true
+}

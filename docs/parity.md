@@ -36661,3 +36661,26 @@ recorded per part (`corpus/vehicle_top_speed.json`), which is where they are.
 
 **Named:** traction is still `1.0` - `k_traction`'s wheel area and mass penalty on broken ground is not ported. Fuel burn per step, engine damage under strain and
 towing remain their own rules.
+
+## Drag decides how fast a vehicle coasts down (round 45)
+
+`vehicle::slowdown` (`vehicle_move.cpp:112-153`) is the speed a vehicle loses each turn to air and rolling resistance, and `gain_moves` applies it **before**
+anything is asked of the engine. It is one formula with three things in it that are easy to get wrong:
+
+| Term | Rule |
+|---|---|
+| air | `c_air * v^2`, `v` in metres per second |
+| rolling | `c_rolling * ( 33.33 + v )` — the constant is `rolling_constant_to_variable` (`vehicle.h:85`), 33.33 and not the 33.3 in the comment above it |
+| idle | an engine that is **off** adds 1,500 W of drag, which the reference subtracts from the slowdown — so a vehicle left out of gear coasts down much faster |
+
+The force is divided by the mass in kilograms and turned back into hundredths of a mile per hour by truncation. `corpus/vehicle_slowdown.json` records four
+vehicles at seven speeds in **both** engine states — 56 rows — each carrying the mass and the two coefficients the rule divides by, so the gate checks arithmetic
+against the reference's coefficients rather than the port's own. Two mutations were caught: the constant at 33.3 fails every row, and dropping the idle term fails
+the twenty-eight engine-off rows.
+
+`vehicle_move::coast` applies the block: a coasting vehicle loses that much, a driver holding a cruise is left creeping at one vmiph rather than stalling, and
+everybody else stops. A bicycle at 1,000 with its engine off loses 1,758 — more than it has — so it stops; with the engine running the same speed sheds 258 and
+coasts to 742.
+
+**Named:** `static_drag`'s other terms (plows, towing, an actively towed vehicle) are zero on every recorded vehicle. Skidding (`skid_factor`, up to 25× rolling
+drag) and water drag are not ported — no recorded case turns or floats.

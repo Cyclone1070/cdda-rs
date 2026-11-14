@@ -3252,3 +3252,137 @@ fn only_the_electric_car_has_a_battery_engine() {
         "a combustion engine is not electric"
     );
 }
+
+/// **The drag a vehicle loses each turn is the reference's own number, at rest and at speed, engine on and off.**
+///
+/// `corpus/vehicle_slowdown.json` is `--dump-vehicle-slowdown`: four vehicles at seven speeds in both engine states, each row carrying the mass and the two
+/// coefficients the rule divides by - so the check is arithmetic against the reference's coefficients rather than the port's, and the sum of two very different
+/// terms (air drag growing with the square of speed, rolling drag with a 33.33 floor, and the 1500 W an idle engine adds) is pinned at both ends.
+#[test]
+fn the_drag_is_the_reference_s_at_every_speed_and_engine_state() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_slowdown.json");
+    let bytes = std::fs::read(path).expect("the slowdown recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut idle = 0;
+    let mut running = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let coefficient = |key: &str| -> f64 {
+            match row.get(key) {
+                Some(cdda_json::Value::Float(value)) => *value,
+                Some(cdda_json::Value::Int(value)) => {
+                    f64::from(i32::try_from(*value).expect("a small int"))
+                }
+                _ => panic!("`{key}` is a number"),
+            }
+        };
+        let engine_on = matches!(row.get("engine_on"), Some(cdda_json::Value::Bool(true)));
+        assert_eq!(
+            cdda_sim::vehicle_move::slowdown_of(
+                coefficient("c_air"),
+                coefficient("c_rolling"),
+                i64::from(int_of(row, "mass_g")),
+                int_of(row, "at"),
+                engine_on,
+            ),
+            int_of(row, "slowdown"),
+            "{:?} at {} with the engine {}: **the drag is the reference's**",
+            text_of(row, "vehicle"),
+            int_of(row, "at"),
+            if engine_on { "running" } else { "off" }
+        );
+        if engine_on {
+            running += 1;
+        } else {
+            idle += 1;
+        }
+    }
+    assert_eq!(
+        (idle, running),
+        (28, 28),
+        "both engine states were checked, at every speed"
+    );
+}
+
+/// **A coasting vehicle loses speed and a stopped one stays stopped.**
+///
+/// Reference: `vehicle::gain_moves`'s slowdown block (`vehicle.cpp:6488-6499`). A bicycle at 1,000 vmiph with its engine **off** loses 1,758 to drag - the 1,500 W
+/// idle term plus the rolling drag - which is more than it has: with nobody driving it stops, and with a driver asking for 3,000 it is left creeping at one vmiph
+/// instead of stalling. With the engine running the same speed only sheds 258, which is the other branch of the same rule.
+#[test]
+fn coasting_loses_speed_and_a_stalled_coaster_stops_or_creeps() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "bicycle");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let bicycle = cdda_sim::vehicles::spawn(&mut world, "bicycle", (10, 10, 0)).expect("it builds");
+    let speed_of = |world: &World| {
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("still there")
+            .velocity
+    };
+
+    // Engine off at 1,000: the drag is 1,758, more than the speed, so nobody driving means a stop.
+    world
+        .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+        .expect("a vehicle")
+        .velocity = 1000;
+    assert!(cdda_sim::vehicle_move::coast(
+        &mut world, bicycle, false, false
+    ));
+    assert_eq!(speed_of(&world), 0, "**it stops rather than stalling**");
+
+    // The stall with a driver holding a cruise: one vmiph, not zero.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 1000;
+        built.cruise_velocity = 3000;
+    }
+    assert!(cdda_sim::vehicle_move::coast(
+        &mut world, bicycle, true, false
+    ));
+    assert_eq!(
+        speed_of(&world),
+        1,
+        "**a driven coaster creeps rather than stalling**"
+    );
+
+    // Engine running, driven, at 1,000: the drag leaves 742 and the cruise is far away.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 1000;
+    }
+    assert!(cdda_sim::vehicle_move::coast(
+        &mut world, bicycle, false, true
+    ));
+    assert_eq!(
+        speed_of(&world),
+        742,
+        "**a running engine leaves 258 of drag, not 1,758**"
+    );
+
+    // A stopped vehicle has nothing to lose, and says so rather than moving.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(bicycle)
+            .expect("a vehicle");
+        built.velocity = 0;
+    }
+    assert!(!cdda_sim::vehicle_move::coast(
+        &mut world, bicycle, false, true
+    ));
+}
