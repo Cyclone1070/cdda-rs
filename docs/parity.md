@@ -45,6 +45,36 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The air is priced one column at a time (round 1527)
+
+`vehicle::coeff_air_drag` (`vehicle.cpp:4515-4660`) is a scan of the vehicle **by column across its width**. Each column is asked what its furthest-forward
+instance of a dozen things is - a protrusion, a half board, a full board, a windshield, a seat, a roof, an aisle, a turret, a solar panel, a windmill, a rotor, a
+sail - and then priced against a reference shape: "the least drag vehicle has halfboard, windshield, seat with roof, windshield, halfboard and is twice as long as
+it is wide". Each miss adds a tenth, two of the good shapes take one back, and the sum is prorated by width, dressed with a height per column and turned into a
+force by `0.5 * air_density`.
+
+| Piece | Reference | Port |
+|---|---|---|
+the walk | every part at location `structure`, each bringing its whole mount's stack (`parts_at_relative`) | the same |
+"furthest forward" | `d_check_max` stores `x - mount_min.x`, or `minrow` when the test fails | `reach(test)` in `scan_columns` |
+"least forward" | `d_check_min` stores `x - mount_min.x`, or `maxrow` when the test fails | the `last`/`lastpart` lines |
+inside | `vehicle_part::inside`, which `refresh_insides` maintains and only `enclosed_at` calls (`vehicle.cpp:7516-7575`) | `VehiclePart::inside`, **false on a fresh part**, which is the state the recording was taken in |
+width to metres | `tile_to_width`: `0.5 + 0.4*tiles` below six, then `2.5 + 0.15*(tiles - 5)` | the same, including the 0.1 floor |
+the floor | `std::max( 0.1, ... )` | `FLOOR` |
+
+`corpus/vehicle_top_speed.json` now holds **nine** vehicles, adding a `4x4_car` (rams alone on their mounts) and a `pickup_technical` (rams and an aisle), and each
+case's recorded `c_air` is what the gate compares against: bicycle 0.6095, quad bike 0.6908, car 0.5892, pickup 0.6874, humvee 1.2619, 2seater2 1.8658, the
+wheel-less humvee 1.2619, 4x4 car 0.4419, pickup technical 0.9498. Four mutations were caught: the tail bonus, the exposed penalty, the aisle height, and the
+`tile_to_width` call.
+
+**Named, and found by mutation, not by reading:** two branches of this rule cannot change any answer, in the reference or here.
+
+- `pro` (the ram term) is filled by `d_check_min` from a starting value of `minrow`, so it can only ever be lowered and stays `-122`; the comparison
+  `pro > hboard` is then false for every column, and removing the line changes nothing. The port keeps the line and the protrusion test it reads.
+- `refresh_insides` is **not ported**: every part's `inside` is false, which matches the reference's own state right after a blueprint is built (`refresh` only
+  marks the flag dirty, `vehicle.cpp:6899`) and therefore matches every recorded `c_air`. When a slice needs a cabin's inside, it has to port that rule first.
+
+
 ## Three coefficients become a top speed (round 1526)
 
 `vehicle::max_ground_velocity` (`vehicle.cpp:4234-4247`) is where the driving model starts to have an answer: solve

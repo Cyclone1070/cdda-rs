@@ -2174,7 +2174,7 @@ fn the_cubic_turns_drag_and_power_into_a_top_speed() {
         speeds.insert(int_of(case, "max_ground_velocity"));
         seen += 1;
     }
-    assert_eq!(seen, 7, "the recording holds seven vehicles");
+    assert_eq!(seen, 9, "the recording holds nine vehicles");
     assert_eq!(complex, 1, "**one of them reaches the complex branch**: {complex}");
     assert!(speeds.len() >= 5, "the speeds are not all the same: {speeds:?}");
 }
@@ -2215,4 +2215,52 @@ fn the_complex_branch_of_the_cubic_agrees_with_a_bisection() {
         "**the complex cube roots give the same root a bisection finds**"
     );
     assert!(expected > 0, "and the answer is not zero: {expected}");
+}
+
+#[test]
+fn the_body_prices_the_air_one_column_at_a_time() {
+    use cdda_sim::vehicles::spawn_facing;
+
+    // `corpus/vehicle_top_speed.json` records each vehicle's `coeff_air_drag` beside its speed. The rule is a column scan over the structure parts, so a bicycle
+    // with no body at all and a helicopter with rotors give opposite ends of it.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_top_speed.json");
+    let bytes = std::fs::read(path).expect("the top-speed recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let origin = square_of(&root, "origin");
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut values = std::collections::BTreeSet::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        let mut world = World::new();
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = spawn_facing(&mut world, &text_of(case, "vehicle"), origin, 0.0)
+            .expect("the recorded vehicle builds");
+        let Some(cdda_json::Value::Float(recorded)) = case.get("c_air") else {
+            panic!("recorded air drag");
+        };
+        let Some(answered) = cdda_sim::vehicle_air::coeff_air_drag(&world, vehicle) else {
+            panic!("{}: the port answers for a placed vehicle", text_of(case, "name"));
+        };
+        let difference = (answered - recorded).abs();
+        assert!(
+            difference <= 1e-12 * recorded.abs().max(1.0),
+            "{}: **the port's air drag is the reference's** ({answered} vs {recorded})",
+            text_of(case, "name")
+        );
+        #[allow(clippy::cast_possible_truncation)]
+        let key = (answered * 10_000.0) as i64;
+        values.insert(key);
+        seen += 1;
+    }
+    assert_eq!(seen, 9, "the recording holds nine vehicles");
+    assert!(values.len() >= 7, "the drags are not all the same: {values:?}");
 }

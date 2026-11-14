@@ -68,7 +68,7 @@ one to write - a single call to that builder with the same id - before any dump 
 | `--dump-vehicles <file>` | Every vehicle part and prototype, with durability, location, size, flags and armour | P8's store and mount rule |
 | `--dump-vehicle-rotation <file>` | `coord_translate` over a grid of mounts at 0, 45, 90, 180 and 270 degrees | P8's facing gate |
 | `--dump-vehicle-placement <file>` | A placed 2-seater helicopter: name, mounts, squares, fuel type and ammo, part by part | P8's placement gate and the fuel rounds |
-| `--dump-vehicle-top-speed <file>` | Each vehicle's air drag, rolling drag, engine power and the top speed the reference's cubic makes of them | P8's top-speed gate |
+| `--dump-vehicle-top-speed <file>` | Each vehicle's air drag, rolling drag, engine power and the top speed the reference's cubic makes of them; nine vehicles, including a rammed 4x4 and a pickup with an aisle | P8's top-speed and air-drag gates |
 | `--dump-vehicle-rolling <file>` | What a vehicle's wheels resist rolling with: the unbroken wheels, each case's part weights, and `coeff_rolling_drag` | P8's rolling-resistance gate |
 | `--dump-vehicle-armour <file>` | Which part a wall would hit on an armoured quad bike and an unarmoured bicycle, before and after the plate is ruined | P8's armour gate |
 | `--dump-vehicle-collision <file>` | A placed bicycle's one-square moves, detect-only: the hitting part, what it hits, the target part, and the projection used | P8's collision gate |

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 15:45:59
-@@ -0,0 +1,8632 @@
++++ oracle/src/src/harness.cpp	2026-11-14 16:55:24
+@@ -0,0 +1,8636 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1351,6 +1351,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    dump_case( "humvee", vproto_id( "humvee" ) );
 +    dump_case( "2seater2", vproto_id( "2seater2" ) );
 +    dump_case( "a_humvee_with_no_wheel_and_a_broken_engine", vproto_id( "humvee" ), true );
++    // Two cases that reach the parts of the scan the smaller vehicles do not: a ram standing alone on its mount (the only thing a protrusion test asks) and an
++    // aisle, which is the tallest thing a column can carry.
++    dump_case( "4x4_car", vproto_id( "4x4_car" ) );
++    dump_case( "pickup_technical", vproto_id( "pickup_technical" ) );
 +
 +    std::fprintf( out, "]}\n" );
 +    std::fclose( out );

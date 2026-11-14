@@ -152,6 +152,7 @@ pub mod scent;
 pub mod scent_table;
 pub mod temperature;
 pub mod mapsquare;
+pub mod vehicle_air;
 pub mod vehicle_drive;
 pub mod weather;
 pub mod wetness;

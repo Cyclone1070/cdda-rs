@@ -2147,3 +2147,9 @@ wheels of 1.9 sum to 7.5999999046. Five mutations caught.
 (`vehicle_move.cpp:91-94`). `corpus/vehicle_top_speed.json` (`--dump-vehicle-top-speed`) records six real vehicles and a humvee with no wheel and a broken
 engine - the only case that reaches the reference's `std::complex` branch. Because that case's answer is zero, the branch is pinned again by a fixture with a
 non-zero answer checked against a bisection root. Five mutations caught. **Named**: the `imag < 2` guard and the two suppliers still to come.
+
+**Round 1527 ported air drag.** `vehicle_air::coeff_air_drag` answers `vehicle::coeff_air_drag` (`vehicle.cpp:4515-4660`): a per-column scan over the structure
+parts' mounts, tallied against an ideal shape, prorated by width and turned into `c_air = drag * cross_area * 0.5 * 1.29`. `VehiclePart::inside` is added as the
+reference's per-part flag, **false on a fresh part** because `refresh_insides` (`vehicle.cpp:7525-7575`) is only reached through `enclosed_at` and is not ported
+yet. `corpus/vehicle_top_speed.json` grew to nine vehicles (a 4x4 car with rams, a pickup technical with rams and an aisle) and every recorded `c_air` matches.
+Four mutations caught; two branches (`pro`, and `inside` with the current data) are named as unable to change an answer.

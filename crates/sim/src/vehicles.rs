@@ -41,6 +41,7 @@ pub fn set_store(world: &mut World, materials: cdda_content::vehicles::Vehicles)
 
 /// One part of one vehicle, in the square it occupies and with the damage it has taken.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct VehiclePart {
     /// The part's id, which names an entry in the world's [`VehicleStore`].
     pub part: String,
@@ -61,6 +62,13 @@ pub struct VehiclePart {
     pub charges: i32,
     /// Whether the part is switched on - the reference's `vehicle_part::enabled`, the switch `start_engine` flips for an engine and every other part ignores.
     pub enabled: bool,
+    /// Whether the air scan counts this part as inside the cabin - the reference's `vehicle_part::inside` (`vehicle.h`), which `refresh_insides`
+    /// (`vehicle.cpp:7525-7575`) maintains and `coeff_air_drag` reads.
+    ///
+    /// **A fresh part is false**, and it stays false until something calls `refresh_insides`: the reference's own `refresh` only marks the flag dirty
+    /// (`vehicle.cpp:6899`) and recomputes it on demand from `enclosed_at` (`vehicle.cpp:7516`). So a vehicle straight out of the blueprint has every part
+    /// outside, which is exactly the state the air-drag recording was taken in. The rule that fills it in is not ported yet.
+    pub inside: bool,
     /// The fuel this engine last chose, when it can burn more than one - the reference's `vehicle_part::ammo_pref` (`vehicle_part.cpp:232-238`). Empty means "the type the
     /// spec names", which is exactly what the reference's `fuel_current` falls back to.
     pub fuel_preference: String,
@@ -117,6 +125,7 @@ pub fn spawn_facing(
             y: placement.y,
             hp: spec.durability,
             broken: spec.durability <= 0,
+            inside: false,
             open: false,
             fuel: String::new(),
             charges: 0,
@@ -828,6 +837,7 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
             y,
             hp,
             broken: hp <= 0,
+            inside: false,
             open: false,
             fuel: String::new(),
             charges: 0,
