@@ -719,12 +719,11 @@ fn process_state() -> std::collections::BTreeMap<(String, String), usize> {
             let trimmed = line.trim_start();
             let name = if trimmed.starts_with("static mut ") {
                 trimmed.split_whitespace().nth(2).map(str::to_owned)
-            } else if let Some(rest) = trimmed.strip_prefix("static ") {
-                if trimmed.contains("Atomic") || trimmed.contains("OnceLock") {
-                    rest.split(':').next().map(|name| name.trim().to_owned())
-                } else {
-                    None
-                }
+            } else if trimmed.contains("Atomic") || trimmed.contains("OnceLock") {
+                trimmed
+                    .strip_prefix("static ")
+                    .and_then(|rest| rest.split(':').next())
+                    .map(|name| name.trim().to_owned())
             } else {
                 None
             };
@@ -738,14 +737,12 @@ fn process_state() -> std::collections::BTreeMap<(String, String), usize> {
                     if inner == "}" {
                         break;
                     }
-                    if let Some(rest) = inner.strip_prefix("static ") {
-                        if let Some(name) = rest
-                            .split([':', ' '])
-                            .next()
-                            .filter(|name| !name.is_empty())
-                        {
-                            found.insert((file.clone(), name.to_owned()), index + offset + 2);
-                        }
+                    if let Some(name) = inner
+                        .strip_prefix("static ")
+                        .and_then(|rest| rest.split([':', ' ']).next())
+                        .filter(|name| !name.is_empty())
+                    {
+                        found.insert((file.clone(), name.to_owned()), index + offset + 2);
                     }
                 }
             }

@@ -151,7 +151,10 @@ def main() -> int:
         # not re-checked - so a green run could mean "nothing was looked at". That is exactly what happened: the gate reported clean for many rounds while `crates/sim` held twenty-three
         # deny-level lints, and a fresh checkout of the same tree failed instantly. The touch is cheap (a mtime) and forces the diagnostics to be re-emitted.
         touched = subprocess.run(
-            ["find", "crates", "-name", "lib.rs", "-o", "-name", "main.rs"],
+            # Every source file, not only the crate roots: a **test** file's diagnostics are cached by
+            # its own fingerprint, and a round that only changed `tests/` got a clean bill from a stale
+            # build. That is how `collapsible_if` in a new test reached CI after passing here.
+            ["find", "crates", "-name", "*.rs"],
             capture_output=True, text=True,
         ).stdout.split()
         for path in touched:
