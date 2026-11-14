@@ -1,10 +1,10 @@
 name: foundation
 
-# What runs today, on every push and pull request. The jobs here need nothing
-# that the repository does not already contain: no oracle build, no reference
-# checkout, no network beyond the toolchain. They exist so that a regression in
-# the foundation cannot be merged unnoticed, and so that the larger validation in
-# port-validation.yml has something green to build on.
+# What runs today, on every push and pull request. The jobs need no oracle build
+# and no C++ compiler: they need the Rust toolchain, and the reference's **data**
+# tree, which is gitignored and is fetched at the pinned commit and cached. They
+# exist so that a regression in the foundation cannot be merged unnoticed, and so
+# that the larger validation in port-validation.yml has something green to build on.
 #
 # Everything here is a command that was run by hand first.
 
@@ -37,6 +37,29 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      # **The reference's own data, at the pinned commit.** 149 tests read it - the item tree, the
+      # ammunition effects, the armour - and it is gitignored, so without this step those tests skip
+      # and the runner proves nothing about the data-shaped rules. Shallow, one commit, and cached keyed
+      # by the pin: a fetch costs a minute once and nothing after that.
+      - uses: actions/cache@v4
+        with:
+          path: references/Cataclysm-DDA
+          key: cdda-reference-${{ hashFiles('docs/11-oracle-harness.md') }}
+      - name: the reference's data
+        run: |
+          set -euo pipefail
+          PIN=7b2efa5cea38e4d4d97dd0e63b28b9148623da59
+          if [ ! -d references/Cataclysm-DDA/data/json ]; then
+            git init -q references/Cataclysm-DDA
+            git -C references/Cataclysm-DDA remote add origin https://github.com/CleverRaven/Cataclysm-DDA
+            git -C references/Cataclysm-DDA fetch -q --depth 1 origin "$PIN"
+            git -C references/Cataclysm-DDA checkout -q FETCH_HEAD
+          fi
+          # The binary looks for the game's data beside the oracle's sources, which is where the build
+          # machine keeps its copy. A link, not a second copy: two trees are two answers.
+          mkdir -p oracle/src
+          ln -sfn ../../references/Cataclysm-DDA/data oracle/src/data
+          test -d oracle/src/data/json
       - name: formatting
         run: cargo fmt --all -- --check
       - name: lints
@@ -49,6 +72,22 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: references/Cataclysm-DDA
+          key: cdda-reference-${{ hashFiles('docs/11-oracle-harness.md') }}
+      - name: the reference's data
+        run: |
+          set -euo pipefail
+          PIN=7b2efa5cea38e4d4d97dd0e63b28b9148623da59
+          if [ ! -d references/Cataclysm-DDA/data/json ]; then
+            git init -q references/Cataclysm-DDA
+            git -C references/Cataclysm-DDA remote add origin https://github.com/CleverRaven/Cataclysm-DDA
+            git -C references/Cataclysm-DDA fetch -q --depth 1 origin "$PIN"
+            git -C references/Cataclysm-DDA checkout -q FETCH_HEAD
+          fi
+          mkdir -p oracle/src
+          ln -sfn ../../references/Cataclysm-DDA/data oracle/src/data
       - name: documents agree with each other and with the sources
         run: python3 tools/check_docs.py
       # The inventory is generated from the pinned reference checkout, which is fetched and never
