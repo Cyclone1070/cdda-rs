@@ -74,3 +74,82 @@ pub fn rolling_drag(world: &World, vehicle: Entity) -> Option<f64> {
     };
     Some(SAE_ROLLING * f64::from(ACCEL_G) * factor * kilograms)
 }
+
+/// The rolling term that grows with speed instead of staying constant.
+///
+/// Reference: `constexpr double rolling_constant_to_variable = 33.33` (`src/vehicle.h:85`) - the `33.33` of the SAE law's `( v + 33.33 )`. Unlike
+/// [`ACCEL_G`] this one is a **double** in the reference, so it stays one here.
+pub const ROLLING_CONSTANT_TO_VARIABLE: f64 = 33.33;
+
+/// Metres per second to miles per hour, as a float.
+///
+/// Reference: `static const float mps_to_miph = 2.23694f` (`vehicle_move.cpp:88`), widened inside the product exactly like [`ACCEL_G`].
+pub const MPS_TO_MIPH: f32 = 2.236_94;
+
+/// Vehicle miles per hour per mile per hour: the reference counts speed in hundredths (`mi_to_vmi`, `vehicle_move.cpp:86`).
+const MI_TO_VMI: f64 = 100.0;
+
+/// Solves `a*v^3 + b*v^2 + c*v + d = 0` for its positive root.
+///
+/// Reference: `simple_cubic_solution` (`vehicle.cpp:4163-4201`), a static helper the top-speed rule calls with the drag coefficients. It is not a general
+/// cubic solver - it is the reference's own rearrangement, and the branch it takes is part of the answer:
+///
+/// - `tricky_bit = q*q + t*t*t` is negative when the cubic has three real roots. The reference then goes through `std::complex` and keeps `p + real(term1+term2)`
+///   when the imaginary part is under 2, which is its own sanity check; otherwise it prints a debug message and answers 0. That branch is transcribed rather than
+///   simplified away, because a port that "knew better" would answer a different speed on exactly the vehicles that reach it.
+/// - otherwise it is the sum of the two real cube roots.
+///
+/// # Panics
+///
+/// Never: an `a` of zero sends the divisions to infinity or NaN, which is what the reference's own arithmetic does, and the answer is then converted the same way.
+#[allow(clippy::many_single_char_names)]
+fn simple_cubic_solution(cube: f64, square: f64, linear: f64, constant: f64) -> f64 {
+    let p = -square / (3.0 * cube);
+    let q = p * p * p + (square * linear - 3.0 * cube * constant) / (6.0 * cube * cube);
+    let r = linear / (3.0 * cube);
+    let t = r - p * p;
+    let tricky_bit = q * q + t * t * t;
+    if tricky_bit < 0.0 {
+        // The reference finds the cube root of `q ± i*sqrt(tricky_bit)` in the complex plane, by `std::pow(z, 1/3)`.
+        let root = (-tricky_bit).sqrt();
+        let (re1, im1) = cube_root_complex(q, root);
+        let (re2, im2) = cube_root_complex(q, -root);
+        let (re, im) = (re1 + re2, im1 + im2);
+        if im < 2.0 {
+            p + re
+        } else {
+            0.0
+        }
+    } else {
+        let root = tricky_bit.sqrt();
+        (q + root).cbrt() + (q - root).cbrt() + p
+    }
+}
+
+/// The principal cube root of a complex number, by polar form - what `std::pow(z, 1.0/3.0)` computes.
+fn cube_root_complex(re: f64, im: f64) -> (f64, f64) {
+    let radius = re.hypot(im).cbrt();
+    let angle = im.atan2(re) / 3.0;
+    (radius * angle.cos(), radius * angle.sin())
+}
+
+/// The fastest a vehicle can go, in hundredths of a mile per hour.
+///
+/// Reference: `vehicle::max_ground_velocity` (`vehicle.cpp:4234-4247`): solve
+/// `c_air * v^3 + c_rolling * v^2 + 33.33 * c_rolling * v - power = 0` for `v` in metres per second, then `mps_to_vmiph`.
+///
+/// The three inputs are separate arguments rather than read from a vehicle, because the rule is about the numbers: the air drag is a scan of the vehicle's
+/// columns ([`super::vehicle_air`] when it is ported), the rolling drag is [`rolling_drag`], and the power is the engine sum. A vehicle with no engine asks for
+/// 0 W and stands still.
+#[must_use]
+pub fn top_speed_vmiph(air_drag: f64, rolling_drag: f64, power_w: i32) -> i32 {
+    let max_in_mps = simple_cubic_solution(
+        air_drag,
+        rolling_drag,
+        rolling_drag * ROLLING_CONSTANT_TO_VARIABLE,
+        -f64::from(power_w),
+    );
+    #[allow(clippy::cast_possible_truncation)]
+    let speed = (max_in_mps * f64::from(MPS_TO_MIPH) * MI_TO_VMI) as i32;
+    speed
+}

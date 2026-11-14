@@ -2141,3 +2141,9 @@ there is no usable wheel. `corpus/vehicle_rolling.json` (`--dump-vehicle-rolling
 1.09392527294, wheel-less bicycle 1.19379121356 - plus each case's part weights so the gate installs the reference's own registry. The parts dump is version 7
 with `rolling_resistance` (null for non-wheels, nine significant digits). **Both constants are floats**: `9.81f` is 9.8100004196167 as a double, and four
 wheels of 1.9 sum to 7.5999999046. Five mutations caught.
+
+**Round 1526 ported the top-speed cubic.** `vehicle_drive::top_speed_vmiph` answers `vehicle::max_ground_velocity` (`vehicle.cpp:4234-4247`): solve
+`c_air*v^3 + c_rolling*v^2 + 33.33*c_rolling*v - power = 0` with `simple_cubic_solution` (`vehicle.cpp:4163-4201`), then `mps_to_vmiph`
+(`vehicle_move.cpp:91-94`). `corpus/vehicle_top_speed.json` (`--dump-vehicle-top-speed`) records six real vehicles and a humvee with no wheel and a broken
+engine - the only case that reaches the reference's `std::complex` branch. Because that case's answer is zero, the branch is pinned again by a fixture with a
+non-zero answer checked against a bisection root. Five mutations caught. **Named**: the `imag < 2` guard and the two suppliers still to come.

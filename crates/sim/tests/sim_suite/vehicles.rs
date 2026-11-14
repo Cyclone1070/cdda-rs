@@ -2132,3 +2132,87 @@ fn a_vehicles_wheels_say_what_they_resist_rolling_with() {
     assert_eq!(seen, 3, "the recording holds three vehicles");
     assert_eq!(factors.len(), 2, "**one of them has no usable wheel**: {factors:?}");
 }
+
+#[test]
+fn the_cubic_turns_drag_and_power_into_a_top_speed() {
+    // `corpus/vehicle_top_speed.json` is `--dump-vehicle-top-speed`: six real vehicles and a humvee with no wheel and a broken engine, each recording the three
+    // coefficients the reference solved and the speed it answered. The port's `top_speed_vmiph` is checked on those numbers, including the one corner where the
+    // reference's cubic goes through `std::complex`.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_top_speed.json");
+    let bytes = std::fs::read(path).expect("the top-speed recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut complex = 0;
+    let mut speeds = std::collections::BTreeSet::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        let Some(cdda_json::Value::Float(air)) = case.get("c_air") else {
+            panic!("recorded air drag");
+        };
+        let Some(cdda_json::Value::Float(rolling)) = case.get("c_rolling") else {
+            panic!("recorded rolling drag");
+        };
+        let power = int_of(case, "power_w");
+        assert_eq!(
+            cdda_sim::vehicle_drive::top_speed_vmiph(*air, *rolling, power),
+            int_of(case, "max_ground_velocity"),
+            "{}: **the reference's cubic answer is the port's** (air {air}, rolling {rolling}, power {power})",
+            text_of(case, "name")
+        );
+        if int_of(case, "complex") == 1 {
+            complex += 1;
+        }
+        speeds.insert(int_of(case, "max_ground_velocity"));
+        seen += 1;
+    }
+    assert_eq!(seen, 7, "the recording holds seven vehicles");
+    assert_eq!(complex, 1, "**one of them reaches the complex branch**: {complex}");
+    assert!(speeds.len() >= 5, "the speeds are not all the same: {speeds:?}");
+}
+
+#[test]
+fn the_complex_branch_of_the_cubic_agrees_with_a_bisection() {
+    // The reference's only recorded trip through `std::complex` is a humvee with no power, where the answer is zero and every solver agrees. This case is chosen so
+    // that the branch is reached **and** the answer is not zero, and the port's answer is checked against a bisection root of the same cubic - a second method on
+    // the same equation, rather than the same arithmetic twice.
+    let air = 0.25;
+    let rolling = 600.0;
+    let power = 500.0;
+
+    // The branch selector, exactly as the reference computes it: negative `tricky_bit` means three real roots and the complex path.
+    let p = -rolling / (3.0 * air);
+    let q = p * p * p + (rolling * 33.33 * rolling - 3.0 * air * -power) / (6.0 * air * air);
+    let r = rolling * 33.33 / (3.0 * air);
+    let tricky = q * q + (r - p * p) * (r - p * p) * (r - p * p);
+    assert!(tricky < 0.0, "the case must reach the complex branch: {tricky}");
+
+    let at = |v: f64| air * v * v * v + rolling * v * v + 33.33 * rolling * v - power;
+    let (mut low, mut high) = (0.0, 10_000.0);
+    assert!(at(low) < 0.0 && at(high) > 0.0, "the root is bracketed");
+    for _ in 0..200 {
+        let middle = f64::midpoint(low, high);
+        if at(middle) < 0.0 {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    let expected = (low * f64::from(cdda_sim::vehicle_drive::MPS_TO_MIPH) * 100.0) as i32;
+    assert_eq!(
+        cdda_sim::vehicle_drive::top_speed_vmiph(air, rolling, 500),
+        expected,
+        "**the complex cube roots give the same root a bisection finds**"
+    );
+    assert!(expected > 0, "and the answer is not zero: {expected}");
+}

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 14:33:10
-@@ -0,0 +1,8556 @@
++++ oracle/src/src/harness.cpp	2026-11-14 15:45:59
+@@ -0,0 +1,8632 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1280,6 +1280,82 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// (`mapgen.cpp:7523-7560`) refuses a vehicle whose structural squares hit deep water or another vehicle, and it needs the dynamic data loaded (`check_mod_data`) or the prototype id
 +/// does not exist. It lays floor around the avatar first so terrain cannot be the reason, places the 2-seater helicopter at the avatar's own square, and records what the reference
 +/// built: the name, every part's mount and square, its spec's fuel type, and the ammo a tank happens to hold.
++void dump_vehicle_top_speed( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -20; dx <= 20; dx++ ) {
++        for( int dy = -20; dy <= 20; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"vehicle_top_speed\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    // `vehicle::max_ground_velocity` (`vehicle.cpp:4234-4247`) turns three coefficients into a speed: the cubic
++    // `c_air * v^3 + c_rolling * v^2 + 33.33 * c_rolling * v - power = 0` solved by `simple_cubic_solution`
++    // (`vehicle.cpp:4163-4201`), then `mps_to_vmiph` (`vehicle_move.cpp:91-94`). The case records the three inputs beside the answer, so a port can be checked
++    // on the solver before it can measure a vehicle's own air drag or engine power.
++    const auto dump_case = [&]( const char *name, const vproto_id &type, bool ruin_wheels_and_engine = false ) {
++        vehicle *veh = here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true );
++        if( veh == nullptr ) {
++            std::fprintf( stderr, "harness: %s did not place\n", type.str().c_str() );
++            return;
++        }
++        if( ruin_wheels_and_engine ) {
++            // A vehicle dragged on its frame with nothing turning: 50 as the wheel factor and 0 W, which is the corner of the cubic where `tricky_bit` goes
++            // negative and the reference takes its `std::complex` branch (`vehicle.cpp:4174-4186`).
++            for( int p = 0; p < veh->part_count(); p++ ) {
++                const std::string location = veh->part( p ).info().location;
++                const bool wheel = veh->part( p ).info().has_flag( VPFLAG_WHEEL );
++                const bool engine = veh->part( p ).info().has_flag( VPFLAG_ENGINE );
++                if( wheel || engine ) {
++                    veh->set_hp( veh->part( p ), 0, false );
++                }
++                (void)location;
++            }
++            veh->refresh();
++        }
++        const double c_air = veh->coeff_air_drag();
++        const double c_rolling = veh->coeff_rolling_drag( here );
++        const int power = units::to_watt( veh->total_power( here, false ) );
++        // A diagnostic only: which branch of `simple_cubic_solution` the three coefficients take. `tricky_bit` is negative exactly when the cubic has three real
++        // roots and the reference goes through `std::complex` (`vehicle.cpp:4174-4186`).
++        const double p = -c_rolling / ( 3 * c_air );
++        const double q = p * p * p + ( c_rolling * c_rolling * vehicles::rolling_constant_to_variable - 3 * c_air * -power ) / ( 6 * c_air * c_air );
++        const double r = c_rolling * vehicles::rolling_constant_to_variable / ( 3 * c_air );
++        const double tricky = q * q + ( r - p * p ) * ( r - p * p ) * ( r - p * p );
++        std::fprintf( out,
++                      "%s{\"name\":\"%s\",\"vehicle\":\"%s\",\"c_air\":%.17g,\"c_rolling\":%.17g,"
++                      "\"power_w\":%d,\"max_ground_velocity\":%d,\"complex\":%d}",
++                      first_case ? "" : ",", name, type.str().c_str(), c_air, c_rolling, power,
++                      veh->max_ground_velocity( here, false ), tricky < 0 ? 1 : 0 );
++        first_case = false;
++        here.destroy_vehicle( veh );
++    };
++
++    dump_case( "bicycle", vproto_id( "bicycle" ) );
++    dump_case( "quad_bike", vproto_id( "quad_bike" ) );
++    dump_case( "car", vproto_id( "car" ) );
++    dump_case( "pickup", vproto_id( "pickup" ) );
++    dump_case( "humvee", vproto_id( "humvee" ) );
++    dump_case( "2seater2", vproto_id( "2seater2" ) );
++    dump_case( "a_humvee_with_no_wheel_and_a_broken_engine", vproto_id( "humvee" ), true );
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_vehicle_rolling( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -8918,8 +8994,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-14 13:26:28
-@@ -0,0 +1,438 @@
++++ oracle/src/src/harness.h	2026-11-14 15:31:56
+@@ -0,0 +1,439 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9071,6 +9147,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_collision( const std::string &path );
 +void dump_vehicle_armour( const std::string &path );
 +void dump_vehicle_rolling( const std::string &path );
++void dump_vehicle_top_speed( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -9645,7 +9722,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-14 13:26:28
++++ oracle/src/src/main.cpp	2026-11-14 15:31:56
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9656,7 +9733,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,175 @@
+@@ -272,6 +275,176 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9823,6 +9900,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_collision;
 +    std::string dump_vehicle_armour;
 +    std::string dump_vehicle_rolling;
++    std::string dump_vehicle_top_speed;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -9832,7 +9910,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +472,1520 @@
+@@ -300,6 +473,1530 @@
                  }
              },
              {
@@ -10002,6 +10080,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_placement = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-top-speed", "<file>",
++                "Writes each vehicle's air drag, rolling drag, engine power and the top speed the cubic makes of them",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_top_speed = params[0];
 +                    return 1;
 +                }
 +            },
@@ -11353,7 +11441,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2472,867 @@
+@@ -786,6 +2483,879 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11604,6 +11692,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_placement( cli.dump_vehicle_placement );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_top_speed.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_top_speed( cli.dump_vehicle_top_speed );
 +            exit_handler( 0 );
 +        }
 +

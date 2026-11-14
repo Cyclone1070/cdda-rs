@@ -45,6 +45,31 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Three coefficients become a top speed (round 1526)
+
+`vehicle::max_ground_velocity` (`vehicle.cpp:4234-4247`) is where the driving model starts to have an answer: solve
+`c_air * v^3 + c_rolling * v^2 + 33.33 * c_rolling * v - power = 0` for `v`, then turn metres per second into hundredths of a mile per hour. The three inputs are
+already in the load in one case ([`rolling_drag`](../crates/sim/src/vehicle_drive.rs)) and still to come in two; `top_speed_vmiph` takes them as arguments so the
+**rule** can be pinned before its suppliers exist.
+
+| Piece | Reference | Port |
+|---|---|---|
+the solver | `simple_cubic_solution` (`vehicle.cpp:4163-4201`), the reference's own rearrangement (`p`, `q`, `r`, `t`) | the same, with the same names |
+three real roots | `tricky_bit < 0` → `std::complex`, principal `pow(z, 1/3)`, and `p + real(term1+term2)` **only if** the imaginary part is under 2 | the same, `cube_root_complex` by polar form |
+the linear term | `rolling_constant_to_variable = 33.33`, a double (`vehicle.h:85`) | `ROLLING_CONSTANT_TO_VARIABLE` |
+the conversion | `mps_to_miph = 2.23694f` (float, `vehicle_move.cpp:88`) times `mi_to_vmi = 100`, truncated to `int` | `MPS_TO_MIPH` as `f32`, widened, then `as i32` |
+
+`corpus/vehicle_top_speed.json` is `--dump-vehicle-top-speed`: six vehicles with real engines - bicycle 1,871 vmiph, quad bike 8,235, car 11,648, pickup 12,957,
+humvee 12,248, 2seater2 10,132 - and a **humvee with every wheel and its engine ruined**, which is the one case whose cubic goes through `std::complex`. That
+case's answer is zero (a broken engine makes 0 W, so the root is zero), so the complex arithmetic is pinned a second way: a triple chosen to reach the branch
+with a **non-zero** answer is checked against a bisection root of the same cubic - a second method on the same equation.
+
+Five mutations were caught: dropping a cube root, moving the complex answer, dropping the `33.33` term, changing the float constant, and ignoring the imaginary
+part.
+
+**Named:** the reference's imaginary-part guard (`imag < 2` else answer 0 and print a debug message) is transcribed, but no recorded vehicle reaches the
+`else`; and `c_air_drag` and engine power are still recorded numbers here, not measured by the port - those are the next two slices.
+
 ## What the wheels resist (round 1525)
 
 The driving model starts with the force that opposes it. `vehicle::coeff_rolling_drag` (`vehicle.cpp:4655-4686`) is a short rule with three inputs, and
