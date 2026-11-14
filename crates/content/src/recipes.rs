@@ -311,6 +311,25 @@ fn qualities_of(object: &Object) -> Option<Vec<Vec<Quality>>> {
     Some(out)
 }
 
+/// The recipe's `batch_time_factors`, as `(scale, size)`.
+///
+/// Reference: `[percent, size]` (`recipe.cpp:242-246`) - the first is divided by a hundred and the second is the count that earns it. A recipe without the member
+/// gains nothing from batching, which is `(0.0, 0)`.
+fn batch_of(object: &cdda_json::Object) -> (f64, i32) {
+    let Some(Value::Array(factors)) = member(object, "batch_time_factors") else {
+        return (0.0, 0);
+    };
+    let scale = match factors.first() {
+        Some(Value::Int(percent)) => f64::from(i32::try_from(*percent).unwrap_or(0)) / 100.0,
+        _ => 0.0,
+    };
+    let size = match factors.get(1) {
+        Some(Value::Int(count)) => i32::try_from(*count).unwrap_or(0),
+        _ => 0,
+    };
+    (scale, size)
+}
+
 /// Reads the recipe dump.
 ///
 /// Returns the recipes in the dump's order and the count the reference reported. The two are
@@ -406,24 +425,8 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
                     product.max(1)
                 }
             },
-            // Reference: `batch_time_factors` is `[percent, size]` (`recipe.cpp:242-246`): the first is divided by a hundred, and a recipe without the member
-            // gains nothing from batching.
-            batch_rscale: match member(object, "batch_time_factors") {
-                Some(Value::Array(factors)) => match factors.first() {
-                    Some(Value::Int(percent)) => {
-                        f64::from(i32::try_from(*percent).unwrap_or(0)) / 100.0
-                    }
-                    _ => 0.0,
-                },
-                _ => 0.0,
-            },
-            batch_rsize: match member(object, "batch_time_factors") {
-                Some(Value::Array(factors)) => match factors.get(1) {
-                    Some(Value::Int(size)) => i32::try_from(*size).unwrap_or(0),
-                    _ => 0,
-                },
-                _ => 0,
-            },
+            batch_rscale: batch_of(object).0,
+            batch_rsize: batch_of(object).1,
         });
     }
     Some((recipes, count))

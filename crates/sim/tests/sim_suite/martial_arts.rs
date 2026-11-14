@@ -339,6 +339,8 @@ fn the_corpus_weights_its_moves_evenly_enough_to_need_the_rule() {
 /// - a **disarm** against a body with no weapon does nothing (`:1528-1532`);
 /// - a **negative weighting** is a *chance*, not a prohibition: it rolls `one_in( |weighting| )` and only then qualifies (`:1544-1549`).
 #[test]
+// A table-driven gate: every recorded row is one arm, which is long by nature and not by tangled logic.
+#[allow(clippy::too_many_lines)]
 fn a_move_is_offered_only_when_the_moment_is_its_moment() {
     use cdda_sim::martial_arts::{Moment, TechniqueFlags, offers};
 

@@ -125,6 +125,9 @@ fn build_line(
 /// Reference: `spell_effect::spell_effect_line` (`magic_spell_effect.cpp:308-444`). `source` and `target` are on the same level; `width` is the spell's `aoe`.
 #[must_use]
 #[allow(clippy::similar_names)]
+// `spell_effect::spell_effect_line` (`magic_spell_effect.cpp:308-444`) is one 137-line function in the reference, and the port keeps its three parts - the ray, its
+// widening, and the far end - in one place because they share that much state. Splitting it is tracked in `plan-audit.md`, not hidden here.
+#[allow(clippy::too_many_lines)]
 pub fn line(
     source: (i32, i32),
     target: (i32, i32),

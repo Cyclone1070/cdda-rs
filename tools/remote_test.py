@@ -14,6 +14,7 @@ Usage:
     python3 tools/remote_test.py --tests      # the suite only
     python3 tools/remote_test.py --docs       # the document check only
     python3 tools/remote_test.py --clippy     # clippy only
+    python3 tools/remote_test.py --fmt        # formatting only
     python3 tools/remote_test.py --sync       # sync without running anything
     python3 tools/remote_test.py --oracle     # the oracle harness patch check only
     python3 tools/remote_test.py --jobs 8     # how many test binaries at once over there
@@ -34,6 +35,9 @@ SYNC = [
     "scenarios",
     "Cargo.toml",
     "Cargo.lock",
+    # Clippy reads its thresholds from here; a gate that syncs the code but not its configuration lints
+    # the old rules.
+    "clippy.toml",
     "crates",
     "corpus",
     "docs",
@@ -104,6 +108,7 @@ def main() -> int:
     parser.add_argument("--tests", action="store_true", help="run the fast suite")
     parser.add_argument("--docs", action="store_true", help="run the document check")
     parser.add_argument("--clippy", action="store_true", help="run clippy")
+    parser.add_argument("--fmt", action="store_true", help="check formatting")
     parser.add_argument("--oracle", action="store_true", help="check the oracle harness patch reproduces the working copy")
     parser.add_argument("--sync", action="store_true", help="sync only")
     parser.add_argument("--jobs", type=int, default=0, help="test binaries at once, default the remote cores less one")
@@ -111,9 +116,12 @@ def main() -> int:
     options = parser.parse_args()
     REMOTE = options.remote
 
-    everything = not (options.tests or options.docs or options.clippy or options.oracle or options.sync)
+    everything = not (options.tests or options.docs or options.clippy or options.oracle
+                      or options.fmt or options.sync)
     sync()
-    if options.sync:
+    # `--sync` alone means "only sync". Combining it with a check used to return here and run nothing,
+    # which is how a run that looked green was a run that never happened.
+    if options.sync and everything:
         return 0
 
     jobs = options.jobs
@@ -122,6 +130,11 @@ def main() -> int:
         jobs = max(1, min(6, int(cores.stdout.strip()) - 1))
 
     failed = []
+    # Formatting runs here rather than on the build machine: `rustfmt` needs no target directory, and
+    # the CI runner checks the same thing - the first CI run failed on it because nothing local did.
+    if everything or options.fmt:
+        if subprocess.run(["cargo", "fmt", "--all", "--", "--check"]).returncode != 0:
+            failed.append("formatting")
     if everything or options.tests:
         if run("python3 tools/test_fast.py --jobs {jobs}", "the fast suite", jobs) != 0:
             failed.append("tests")

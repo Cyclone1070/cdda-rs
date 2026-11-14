@@ -334,7 +334,7 @@ fn read_addictions(object: &Object, potential: i32) -> BTreeMap<String, i32> {
                     match value {
                         Value::Str(name) => id = Some(name.clone()),
                         Value::Int(weight_value) => {
-                            weight = i32::try_from(*weight_value).unwrap_or(potential)
+                            weight = i32::try_from(*weight_value).unwrap_or(potential);
                         }
                         Value::Float(weight_value) => weight = *weight_value as i32,
                         _ => id = Some(key.clone()),

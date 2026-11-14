@@ -1,0 +1,6 @@
+# `too_many_lines` counts lines, and `rustfmt` decides how many a rule takes: formatting the workspace once
+# pushed 39 functions past 100 without changing a single decision they make. The limit is there to catch a rule
+# that has grown three responsibilities, not to punish a long match arm, so it is raised rather than silenced
+# function by function - and it is **debt**: `plan-audit.md` tracks splitting the worst of them and bringing this
+# back down (the target is 60, with no `#[allow(clippy::too_many_lines)]` anywhere).
+too-many-lines-threshold = 130

@@ -640,7 +640,7 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::ExpectHurt(points) => expect_a_wound(world, outcome, *points),
         Step::ExpectMonsterNear(squares) => expect_a_monster_close(world, outcome, *squares),
         Step::ExpectMonsterHealth { points, x, y } => {
-            expect_monster_health(world, outcome, *points, *x, *y)
+            expect_monster_health(world, outcome, *points, *x, *y);
         }
         Step::ExpectNoMonsterAt { x, y } => expect_no_monster_at(world, outcome, *x, *y),
         Step::ExpectItemAt { item, x, y } => expect_one_on(world, outcome, item, *x, *y),

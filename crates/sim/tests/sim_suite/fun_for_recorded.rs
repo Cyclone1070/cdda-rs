@@ -342,6 +342,8 @@ fn recorded() -> (Vec<String>, Vec<Recorded>) {
 }
 
 #[test]
+// A table-driven gate: every recorded row is one arm, which is long by nature and not by tangled logic.
+#[allow(clippy::too_many_lines)]
 fn every_comestible_is_worth_what_the_reference_says_to_every_eater() {
     let (names, rows) = recorded();
     assert_eq!(names.len(), 22, "twenty-two eater states");
