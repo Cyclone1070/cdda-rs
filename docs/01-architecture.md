@@ -133,6 +133,14 @@ All thirteen have moved: `SupportLost` (the falling queue), `Radiation`, `Memory
 and `Map`. The ledger the architecture gate checks is now empty, and it stays that way: a new
 `#[derive(Resource)]` anywhere in the workspace fails the build.
 
+**An empty ledger proves nothing on its own.** With no `Resource` left, the scan found nothing and
+compared it to a list of nothing - true, and vacuous. The gate therefore also scans the shapes
+process-wide state actually takes here — a `thread_local!`, a `static mut`, a `static` holding an
+atomic or a lock — across every crate, and compares that set exactly against a ledger that names,
+for each entry, why it cannot be a component yet: counters a test reads, the intern table a
+`StringId` needs, the parse memo that makes a gate affordable. The list may only shrink; a new entry
+is a design decision, not an oversight the build can wave through.
+
 `Map` was the last and the hardest, because it held the level itself. The level is now read once
 when a world is loaded - `load_level` materialises a square entity per square, a ground entity per
 piece of ground and a furniture entity per piece of furniture - and then dropped. Everything the
