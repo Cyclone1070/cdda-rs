@@ -990,6 +990,17 @@ impl ItemType {
     }
 }
 
+/// How many times this process has deserialized the item tree.
+///
+/// The playtest gate paid this once per scenario until the loader grew a cache; the number is what a test can see, because the cost itself is only wall clock.
+static LOADS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many times [`load_paths`] has read the item tree in this process.
+#[must_use]
+pub fn load_count() -> usize {
+    LOADS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Loads every item type in the given directories, in the reference's order.
 ///
 /// # Errors
@@ -997,6 +1008,7 @@ impl ItemType {
 /// Fails when a file cannot be read, a required field is missing, or a quantity
 /// string does not parse.
 pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError> {
+    LOADS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut objects: BTreeMap<String, Object> = BTreeMap::new();
     let mut order: Vec<String> = Vec::new();
     let mut categories: BTreeSet<String> = BTreeSet::new();

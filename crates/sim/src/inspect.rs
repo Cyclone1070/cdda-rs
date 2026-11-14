@@ -189,9 +189,22 @@ pub fn square_fingerprint(world: &World, square: (i32, i32, i32)) -> u64 {
     hash
 }
 
+/// How many times the whole world has been walked for a fingerprint.
+///
+/// A fingerprint describes every component of every thing, so walking the world twice a turn cost 160 ms where the turn itself costs 90 us. The count is what a test can
+/// see: a turn nobody asked to watch must not pay it.
+static FINGERPRINTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many whole-world fingerprint walks this process has done.
+#[must_use]
+pub fn fingerprint_count() -> usize {
+    FINGERPRINTS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Every square that holds something, in a stable order, with its fingerprint.
 #[must_use]
 pub fn world_fingerprints(world: &World) -> BTreeMap<(i32, i32, i32), u64> {
+    FINGERPRINTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut squares = BTreeMap::new();
     let mut query = world.try_query::<&Position>();
     let Some(query) = query.as_mut() else {

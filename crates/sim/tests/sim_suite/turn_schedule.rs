@@ -41,3 +41,21 @@ fn the_declared_order_is_the_one_the_reference_names() {
         "the due events, then scent, then what was heard, then what fell, then the fields, then the creatures, then the light"
     );
 }
+
+#[test]
+fn a_turn_does_not_rebuild_its_schedule() {
+    // A schedule is a thing a turn *runs*, not a thing a turn *is*. Rebuilding it every turn cost 160 ms of wall clock for 90 us of work - the playtest gate paid it for
+    // 1,080 turns in one scenario and 1,070 seconds in total.
+    let mut world = World::new();
+    cdda_sim::turn::run_turn(&mut world);
+    let after_first = cdda_sim::turn::schedules_built();
+
+    for _ in 0..5 {
+        cdda_sim::turn::run_turn(&mut world);
+    }
+    assert_eq!(
+        cdda_sim::turn::schedules_built(),
+        after_first,
+        "**five more turns built no more schedules**"
+    );
+}

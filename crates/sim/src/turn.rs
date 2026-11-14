@@ -103,9 +103,41 @@ pub fn trace_of(world: &mut World) -> Vec<TurnStage> {
     singletons::turn_trace(world).stages.clone()
 }
 
+/// Every stage of an environment turn: its name, the system, and the set it runs in.
+///
+/// **One list, two consumers.** [`environment_schedule`] turns it into a bevy schedule, and [`run_turn`]'s profile path calls the same entries in the same order, so a
+/// stage added or moved here is added or moved for both. The alternative - a second list in the profiler - is how a measurement starts lying about the thing it measures.
+/// One stage: its name, the system, and the set it runs in.
+type Stage = (&'static str, fn(&mut World), TurnStage);
+
+const STAGES: &[Stage] = &[
+    ("scheduled", scheduled_stage, TurnStage::Scheduled),
+    ("scent", scent_stage, TurnStage::Scent),
+    ("sounds", sounds_stage, TurnStage::Sounds),
+    ("needs", needs_stage, TurnStage::Creatures),
+    ("digest", digest_stage, TurnStage::Creatures),
+    ("falling", falling_stage, TurnStage::Falling),
+    ("fields", fields_stage, TurnStage::Fields),
+    ("creatures", creatures_stage, TurnStage::Creatures),
+    ("light", light_stage, TurnStage::Light),
+];
+
+/// How many schedules this process has assembled.
+///
+/// A schedule is a thing a turn **runs**, not a thing a turn **is**: rebuilding it each turn cost 160 ms of wall clock for 90 us of work, and the playtest gate paid it
+/// for 1,080 turns. The counter is what a test can see, because the cost itself is only wall clock.
+static SCHEDULES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many turn schedules this process has assembled.
+#[must_use]
+pub fn schedules_built() -> usize {
+    SCHEDULES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// The schedule a turn runs, with its stages declared in the reference's order.
 #[must_use]
 pub fn environment_schedule() -> Schedule {
+    SCHEDULES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let mut schedule = Schedule::default();
     schedule.configure_sets(
         (
@@ -118,24 +150,68 @@ pub fn environment_schedule() -> Schedule {
         )
             .chain(),
     );
-    schedule.add_systems((
-        scheduled_stage.in_set(TurnStage::Scheduled),
-        scent_stage.in_set(TurnStage::Scent),
-        sounds_stage.in_set(TurnStage::Sounds),
-        needs_stage.in_set(TurnStage::Creatures),
-        digest_stage.in_set(TurnStage::Creatures),
-        falling_stage.in_set(TurnStage::Falling),
-        fields_stage.in_set(TurnStage::Fields),
-        creatures_stage.in_set(TurnStage::Creatures),
-        light_stage.in_set(TurnStage::Light),
-    ));
+    for (_, system, set) in STAGES {
+        schedule.add_systems(system.in_set(*set));
+    }
     schedule
 }
 
+/// The turn's schedule, kept in the store so a turn does not rebuild it.
+#[derive(Component)]
+pub struct TurnSchedule(pub Schedule);
+
+impl Default for TurnSchedule {
+    /// An empty schedule, which the first turn replaces with [`environment_schedule`]'s.
+    fn default() -> Self {
+        Self(Schedule::default())
+    }
+}
+
+/// Marks the one entity carrying the turn's schedule.
+#[derive(Debug, Default, Component)]
+pub struct TheTurnSchedule;
+
 /// Runs one environment turn: the stages, in the order the schedule declares.
+///
+/// `CDDA_TURN_PROFILE=1` runs the same stages one at a time and prints what each cost, because a turn that
+/// costs a second is a question about a stage and the schedule cannot answer it. The order comes from
+/// [`STAGES`], the single list both paths read.
 pub fn run_turn(world: &mut World) {
-    let mut schedule = environment_schedule();
+    if std::env::var_os("CDDA_TURN_PROFILE").is_some() {
+        let mut spent: Vec<(&str, u128)> = Vec::with_capacity(STAGES.len());
+        for (name, stage, _) in STAGES {
+            let began = std::time::Instant::now();
+            stage(world);
+            spent.push((name, began.elapsed().as_micros()));
+        }
+        let total: u128 = spent.iter().map(|(_, micros)| micros).sum();
+        eprintln!(
+            "turn {}: {total} us - {}",
+            crate::calendar::of(world).map_or(0, |calendar| calendar.turn),
+            spent
+                .iter()
+                .map(|(name, micros)| format!("{name} {micros}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        return;
+    }
+    // The schedule lives in the store like everything else, on one entity a marker names: built the first time a turn runs, then taken out, run, and put back. Taking it
+    // out is what lets the schedule have the `&mut World` that running it needs, and a `Schedule` is two moves, not a copy.
+    let holder = singletons::singleton::<TurnSchedule, TheTurnSchedule>(world);
+    let mut schedule = match world.get_mut::<TurnSchedule>(holder) {
+        Some(mut held) => std::mem::take(&mut held.0),
+        None => Schedule::default(),
+    };
+    if schedule.systems_len() == 0 {
+        schedule = environment_schedule();
+    }
     schedule.run(world);
+    if let Some(mut held) = world.get_mut::<TurnSchedule>(holder) {
+        held.0 = schedule;
+    } else {
+        world.entity_mut(holder).insert(TurnSchedule(schedule));
+    }
 }
 
 /// The reference's `Character::reset_stats`, whose first act is the minute's focus change: `once_every( 1_minutes )` calls `update_mental_focus`, and focus drifts a

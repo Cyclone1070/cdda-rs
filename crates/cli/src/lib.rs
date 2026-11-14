@@ -442,6 +442,10 @@ fn number_of<T: std::str::FromStr>(word: &str, line: usize, what: &str) -> Resul
 /// Whatever [`parse`] refuses: a scenario that does not parse is not played at all.
 pub fn run(text: &str) -> Result<Outcome, String> {
     let steps = parse(text)?;
+    // Whether any step asks what a turn changed. The fingerprint is a whole-world walk, so it is paid only for a scenario that reads it.
+    let watching = steps
+        .iter()
+        .any(|step| matches!(step, Step::ExpectChanged(_)));
     let mut world = World::new();
     let mut outcome = Outcome::default();
     let mut last_changed = 0;
@@ -516,7 +520,7 @@ pub fn run(text: &str) -> Result<Outcome, String> {
             }
             Step::Turn(count) => {
                 for _ in 0..count {
-                    last_changed = take_turn(&mut world);
+                    last_changed = take_turn(&mut world, watching);
                 }
                 outcome.lines.push(format!(
                     "turn {count}: {last_changed} square(s) changed in the last of them"
@@ -755,14 +759,20 @@ pub fn light_a_fire(world: &mut World, x: i32, y: i32, intensity: i32, age: i64)
 }
 
 /// Takes one turn, and answers how many squares it changed.
-pub fn take_turn(world: &mut World) -> usize {
+pub fn take_turn(world: &mut World, watched: bool) -> usize {
     // A turn is a second of the world's time, and the schedule reads the clock rather than counting its own calls: `focus_stage` asks for every sixtieth turn and
     // `digest_stage` for every three hundredth. **A clock that never moves makes those gates fire once and then never again**, which is a scenario that plays one second
     // three thousand times and reports nothing changed.
     if let Some(calendar) = cdda_sim::calendar::of(world) {
         cdda_sim::calendar::set_turn(world, calendar.turn.saturating_add(1));
     }
-    let before = cdda_sim::inspect::world_fingerprints(world);
+    // **Only a turn somebody watches pays for the fingerprint.** Describing every component of every thing twice cost 160 ms against 90 us of turn, so a scenario that
+    // never asks which squares changed must not walk the world at all.
+    let before = if watched {
+        cdda_sim::inspect::world_fingerprints(world)
+    } else {
+        std::collections::BTreeMap::new()
+    };
     cdda_sim::turn::run_turn(world);
     // Reference: the map asks every corpse whether it is ready to get up once a turn (`game::revive_corpse`, `game.cpp:5718-5760`), and the answer places the monster again.
     // The spawn is a closure because a monster type is content: this module loads it, the simulation owns the rule.
@@ -777,6 +787,9 @@ pub fn take_turn(world: &mut World) -> usize {
         cdda_sim::creature::spawn_monster_of_type(world, kind, monster_type, square, 100);
         true
     });
+    if !watched {
+        return 0;
+    }
     let after = cdda_sim::inspect::world_fingerprints(world);
     cdda_sim::inspect::squares_that_differ(&before, &after).len()
 }
@@ -796,12 +809,31 @@ pub fn take_turn(world: &mut World) -> usize {
 /// had an empty one: a survivor could carry a hundred anvils and put a rifle in a vest with two litres of pocket.
 ///
 /// Answers how many kinds were installed, or [`None`] when the data is not where the binary expects it.
+/// The game's item types, deserialized once per process.
+///
+/// The table cannot change within a run - the reference loads it once at startup, and a scenario that needs different data starts a new process - so a second
+/// scenario installing it should not read 6,220 files again. `None` when the data is not where a scenario expects it, which is the caller's answer too.
+fn item_types() -> Option<&'static [cdda_content::items::ItemType]> {
+    static ITEMS: std::sync::OnceLock<Option<Vec<cdda_content::items::ItemType>>> =
+        std::sync::OnceLock::new();
+    ITEMS
+        .get_or_init(|| {
+            let data =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
+            if !data.is_dir() {
+                return None;
+            }
+            cdda_content::items::load_paths(&[&data]).ok()
+        })
+        .as_deref()
+}
+
+/// Installs the game's item data into a world: the type table, and the joins that read it.
+///
+/// Returns how many kinds were installed, or `None` when the data is not where a scenario expects it - the scenario reports that as a failure rather than
+/// running on an empty table. The tree is deserialized once per process (see [`item_types`]), so a second scenario pays only the install.
 pub fn install_item_data(world: &mut World) -> Option<usize> {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
-    if !data.is_dir() {
-        return None;
-    }
-    let items = cdda_content::items::load_paths(&[&data]).ok()?;
+    let items = item_types()?;
     // The chip figures come from the prototypes dump, not from the type records: the figure is `item::chip_resistance()`, which weighs a type's materials by their portions, and the
     // dump computed it once with the reference's own code (round 1191). Joined here by id, against the same records the numbering came from.
     let chip =
@@ -812,7 +844,7 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         .map_or_else(std::collections::BTreeMap::new, |value| {
             cdda_content::items::chip_resistance(&value)
         });
-    cdda_sim::item_data::install(world, &items, &chip_resistance);
+    cdda_sim::item_data::install(world, items, &chip_resistance);
     // **What kind of weapon each item is**, joined by the name the registry just numbered: `wielded_weapon_categories` (`melee.cpp:570-578`) reads it before every swing charges
     // stamina. A type that names no category is in the list with an empty one, which is the reference's own answer for a thing that is not a weapon.
     let categories: Vec<(cdda_sim::ItemTypeId, Vec<String>)> = items
@@ -847,6 +879,7 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         .collect();
     cdda_sim::item_registry::set_item_qualities(world, &rows);
     // The category table and the proficiency bonuses, from the same data directory and the corpus: the swing's third input is what the swinger knows, and the second is these two tables.
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json");
     if let Ok(text) = std::fs::read_to_string(data.join("weapon_categories.json"))
         && let Ok(value) = cdda_json::parse(text.as_bytes())
     {
@@ -989,7 +1022,7 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
         .into_iter()
         .map(|species| (species.id, species.bleeds))
         .collect();
-    for monster in &monsters {
+    for monster in monsters {
         let Some(kind) = cdda_sim::monster_registry::id_of(world, &monster.id) else {
             continue;
         };
@@ -1025,7 +1058,7 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
     // What each body butchers into, from the reference's own harvest definitions, and what it weighed while it was alive.
     install_harvests(
         world,
-        &monsters,
+        monsters,
         &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json"),
     );
     Some(monsters.len())
@@ -1172,7 +1205,28 @@ fn install_harvests(
 }
 
 /// Every monster type the game's data defines.
-fn monster_types() -> Option<Vec<cdda_content::monsters::MonsterType>> {
+/// How many times this process has parsed the monster dump.
+///
+/// The turn loop asks for the monster types once per turn, to see whether a corpse gets up; parsing a dump that is tens of megabytes per turn cost 160 ms against the
+/// 90 us a turn's stages take. The count is what a test can see.
+static MONSTER_PARSES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many times the monster dump has been parsed in this process.
+#[cfg(test)]
+#[must_use]
+fn monster_parse_count() -> usize {
+    MONSTER_PARSES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The monster types from the reference's dump, parsed once per process.
+fn monster_types() -> Option<&'static [cdda_content::monsters::MonsterType]> {
+    static TYPES: std::sync::OnceLock<Option<Vec<cdda_content::monsters::MonsterType>>> =
+        std::sync::OnceLock::new();
+    TYPES.get_or_init(parse_monster_types).as_deref()
+}
+
+fn parse_monster_types() -> Option<Vec<cdda_content::monsters::MonsterType>> {
+    MONSTER_PARSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     // The monster loader reads the **reference's dump**, not the game's own JSON: the dump states one number per damage type (`armor_bash`, `armor_cut`, `armor_stab`) where the
     // game nests an `armor` object, and it names `melee_sides` where the game's JSON calls it `melee_dice_sides` (`monstergenerator.cpp:813`). Feeding the loader the game's own
     // files therefore gave every monster zero stab armour, zero sides and - once - a `2d0` blow. The dump is the shape this loader speaks, so the dump is what it is fed.
@@ -1801,7 +1855,9 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
         return None;
     }
     let materials = cdda_content::materials::load_paths(&[&data]).ok()?;
-    let items = cdda_content::items::load_paths(&[&data]).ok()?;
+    // The same table the scenarios install, not a second read of it: `dress_the_avatar` runs beside a playtest, and two copies of the item tree are two answers to what an
+    // id means.
+    let items = item_types()?;
 
     // The garment that covers the most of a body, chosen by id to break ties: a playtest that dressed itself
     // differently each time would be no playtest at all, and "the first item with any torso armour" is a canteen.
@@ -2012,6 +2068,74 @@ pub fn cast_at_nearest(
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
+
+    /// **A turn nobody watches pays no fingerprint.** The fingerprint describes every component of every thing, and doing it twice per turn was the largest single cost in
+    /// the playtest gate - so the walk happens only for a scenario that reads `expect changed`.
+    #[test]
+    fn an_unwatched_turn_does_not_fingerprint_the_world() {
+        let mut world = World::new();
+        let start = cdda_sim::inspect::fingerprint_count();
+        take_turn(&mut world, false);
+        assert_eq!(
+            cdda_sim::inspect::fingerprint_count(),
+            start,
+            "**an unwatched turn walks the world zero times**"
+        );
+
+        take_turn(&mut world, true);
+        assert_eq!(
+            cdda_sim::inspect::fingerprint_count(),
+            start + 2,
+            "**a watched turn walks it before and after, and no more**"
+        );
+    }
+
+    /// **The monster dump is parsed once per process.** The turn loop asks for the monster types every turn - a corpse may get up - and parsing the dump per turn
+    /// cost 160 ms against the 90 us a turn's stages take.
+    #[test]
+    fn the_monster_dump_is_parsed_once_per_process() {
+        let first = monster_types()
+            .expect("the dump is where the corpus keeps it")
+            .len();
+        assert!(
+            first > 100,
+            "the dump holds more than a hundred types: {first}"
+        );
+        let after_first = monster_parse_count();
+
+        let again = monster_types().expect("and the second ask answers").len();
+        assert_eq!(again, first, "**the same dump, the same types**");
+        assert_eq!(
+            monster_parse_count(),
+            after_first,
+            "**the second ask parsed nothing**"
+        );
+    }
+
+    /// **The item tree is deserialized once for the whole process**, not once per scenario.
+    ///
+    /// Every scenario that names `items` installs the game's data, and the data cannot change within a run - the reference loads it once at startup. Before the
+    /// cache, nineteen scenarios paid nineteen times: the playtest gate cost 1,070 s and this one step was almost all of it.
+    #[test]
+    fn installing_the_item_data_twice_deserializes_it_once() {
+        let mut first = World::new();
+        let kinds = install_item_data(&mut first)
+            .expect("the game's data is where the scenario expects it");
+        assert!(
+            kinds > 1_000,
+            "the item tree has more than a thousand kinds: {kinds}"
+        );
+        let after_first = cdda_content::items::load_count();
+
+        let mut second = World::new();
+        let again = install_item_data(&mut second).expect("and it installs into a fresh world too");
+        assert_eq!(again, kinds, "**the same table, the same kinds**");
+        assert_eq!(
+            cdda_content::items::load_count(),
+            after_first,
+            "**the second install did not read the tree again**"
+        );
+    }
 
     /// **A cast the caster cannot pay for does not happen, and says what it costs.**
     ///
@@ -2710,7 +2834,7 @@ mod field_data_tests {
             "a fresh world starts at turn zero"
         );
         for _ in 0..5 {
-            super::take_turn(&mut world);
+            super::take_turn(&mut world, false);
         }
         assert_eq!(
             cdda_sim::calendar::of(&world).map(|calendar| calendar.turn),
@@ -3355,9 +3479,9 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool, dissect
         .and_then(|types| {
             let name = cdda_sim::monster_registry::name_of(world, corpse_of.kind)?;
             types
-                .into_iter()
+                .iter()
                 .find(|monster| monster.id == name)
-                .map(|monster| monster.size)
+                .map(|monster| monster.size.clone())
         })
         .map_or(cdda_sim::CreatureSize::Medium, |size| match size.as_str() {
             "TINY" => cdda_sim::CreatureSize::Tiny,
