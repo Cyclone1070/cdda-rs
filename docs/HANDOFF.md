@@ -1,6 +1,6 @@
 # Handoff
 
-Last round: 44. State at hand-off: **CI green**, gate green, tree clean.
+Last round: 45. State at hand-off: **CI green**, gate green, tree clean.
 
 ## Where the work stands
 
@@ -23,20 +23,20 @@ turn loop's own costs were found and fixed on the way:
 | `snapshot` borrowed view | not started — borrow-checker risk across 21 call sites |
 | `clippy.toml` thresholds + ledgers | not started |
 
-## Rounds 43 and 44: the thrust step, and the store driving it
+## Rounds 43 to 45: the thrust step, the store driving it, and drag
 
-`vehicle_move::thrust_velocity` is the speed a thrust step leaves, ported from `vehicle::thrust` (`vehicle_move.cpp:453-620`) and gated on thirteen recorded cases
-(`corpus/vehicle_thrust.json`). Round 44 wired it: `vehicle_move::thrust(world, vehicle, direction)` reads acceleration, top speed, the reverse floor and the
-battery question from the vehicle's own parts and writes `Vehicle::velocity`. `Vehicle` now carries `cruise_velocity`. Three more gates: the reverse floor against
-the same thirteen rows, the battery-engine question on three vehicles, and a bicycle in the store reaching 1,650 from rest and being held at its 1,871 top speed.
+- **43**: `vehicle_move::thrust_velocity` - the speed a thrust step leaves, from `vehicle::thrust` (`vehicle_move.cpp:453-620`), gated on thirteen recorded cases.
+- **44**: `vehicle_move::thrust(world, vehicle, direction)` wired it to the store, with `Vehicle::cruise_velocity`; `max_reverse_velocity` and the battery-engine
+  question ported. A bicycle in the store reaches 1,650 from rest and is held at its 1,871 top speed.
+- **45**: `vehicle_move::slowdown_of` and `coast` - `vehicle::slowdown` (`vehicle_move.cpp:112-153`) and the block in `gain_moves`. 56 recorded rows, both engine
+  states, two mutations caught.
 
 ## The next cycle
 
-1. `map::move_vehicle` - the part that makes the vehicle go somewhere: velocity into squares per turn through the facing, with the reference's `of_turn` and the
-   collision cases. This is the big one; dump first (`--dump-vehicle-move`), then the gate, then the port.
-2. `vehicle::slowdown` (`vehicle.cpp`, the `vslowdown` in `gain_moves`) - the speed a vehicle loses per turn to rolling and air drag before thrust, which the
-   movement rule runs before it moves anything.
-3. Fuel burn per step (`consume_fuel`) and engine damage under strain - named gaps in `docs/parity.md`.
+1. `map::move_vehicle` - the part that makes the vehicle go somewhere: velocity into squares per turn through the facing, with the reference's `of_turn`, the
+   collision cases and the damage they do. The big rule; dump first (`--dump-vehicle-move`), then the gate, then the port.
+2. `vehicle::strain` and `safe_velocity`, which `thrust` reads for the engine-damage branch.
+3. Fuel burn per step (`consume_fuel`) and plows (the rest of `static_drag`).
 
 ## What must stay true
 
