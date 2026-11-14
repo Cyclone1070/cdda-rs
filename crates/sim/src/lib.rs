@@ -151,6 +151,7 @@ pub mod scheduled;
 pub mod scent;
 pub mod scent_table;
 pub mod temperature;
+pub mod mapsquare;
 pub mod weather;
 pub mod wetness;
 pub mod worn_flags;

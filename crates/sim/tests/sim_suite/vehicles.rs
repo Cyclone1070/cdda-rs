@@ -1456,6 +1456,18 @@ fn a_wreck_can_be_salvaged() {
     assert_eq!(items_in_part(&world, vehicle, basket).len(), 0);
 }
 
+/// A recorded `[x, y, z]` field as a square.
+fn square_of(case: &cdda_json::Object, field: &str) -> (i32, i32, i32) {
+    let Some(cdda_json::Value::Array(square)) = case.get(field) else {
+        panic!("{field} is a square");
+    };
+    (
+        coordinate(square, 0),
+        coordinate(square, 1),
+        coordinate(square, 2),
+    )
+}
+
 /// Everything the index answers for one square, which is how a move is checked from the outside.
 fn things_at(world: &World, x: i32, y: i32) -> Vec<Entity> {
     cdda_sim::singletons::index(world)
@@ -1542,10 +1554,49 @@ fn a_rider_moves_with_the_seat_it_sits_on() {
 }
 
 
+/// The four tiles the collision recording names, with the numbers the reference's own data gives them.
+///
+/// `t_wall` is a wood wall - no room, a bash block; `t_floor` is a floor - room costs 2, and it has a bash block too, for a fall through it, which the
+/// collision rule excludes by cost; `t_open_air` has room and no floor; `t_underbrush` is `SHORT` and bashable.
+fn recorded_tile(id: &str) -> cdda_content::mapdata::MapData {
+    use cdda_content::mapdata::{BashInfo, MapDataKind};
+    let bash = |yes: bool| yes.then(BashInfo::default);
+    let (move_cost, flags, has_bash): (i32, &[&str], bool) = match id {
+        "t_wall" => (0, &[], true),
+        "t_floor" => (2, &["FLAT", "ROAD"], true),
+        "t_open_air" => (2, &["NO_FLOOR"], false),
+        "t_underbrush" => (6, &["SHORT", "SHRUB"], true),
+        other => panic!("the recording names a tile the gate does not know: {other}"),
+    };
+    cdda_content::mapdata::MapData {
+        heat_radiation: 0,
+        examine: None,
+        kind: MapDataKind::Terrain,
+        id: id.to_owned(),
+        name: id.to_owned(),
+        symbol: [35; 4],
+        color: [cdda_core_types::colors::NcColor::default(); 4],
+        move_cost,
+        light: 0,
+        coverage: 0,
+        flags: flags.iter().map(|flag| (*flag).to_owned()).collect(),
+        transparent: false,
+        bash: bash(has_bash),
+        roof: None,
+    }
+}
+
 /// Rebuilds the world one collision case was asked in: a bicycle at the recorded origin, the obstacle the case names, and nothing else.
 fn collision_world(case: &cdda_json::Object, at: (i32, i32, i32)) -> (World, Entity, Option<Entity>) {
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
+    if case.get("terrain").is_some() {
+        let id = text_of(case, "terrain");
+        let code = 7;
+        cdda_sim::terrain_types::set_types(&mut world, [(id.clone(), code)]);
+        cdda_sim::bash::set_data(&mut world, [recorded_tile(&id)]);
+        cdda_sim::square::set_terrain(&mut world, square_of(case, "terrain_at"), code);
+    }
     let first = cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", at, 0.0).expect("the bicycle builds");
     let mut blocker = None;
     for field in ["obstacle_at", "creature_at"] {
@@ -1582,7 +1633,7 @@ fn collision_world(case: &cdda_json::Object, at: (i32, i32, i32)) -> (World, Ent
 
 #[test]
 fn a_vehicle_sees_what_it_would_hit() {
-    use cdda_sim::vehicles::{Collision, Vehicle, first_collision, move_vehicle, spawn_facing};
+    use cdda_sim::vehicles::{Collision, Vehicle, first_collision};
 
     // `corpus/vehicle_collision.json` is `--dump-vehicle-collision`: a bicycle at the avatar's square, then four displacements answered in detect-only mode. Each case names
     // the world it was asked in - a second bicycle for the vehicle collision, a zombie for the body collision - and the port rebuilds exactly that world.
@@ -1639,6 +1690,18 @@ fn a_vehicle_sees_what_it_would_hit() {
                 );
                 Some(part)
             }
+            Some(Collision::Terrain {
+                part,
+                square: _,
+                bashable,
+            }) => {
+                assert!(
+                    hit && kind == if bashable { "bashable" } else { "other" },
+                    "**the reference answers {} for {name}**",
+                    if bashable { "bashable" } else { "other" }
+                );
+                Some(part)
+            }
             Some(Collision::Creature { part, target }) => {
                 assert!(hit && kind == "body", "**the reference answers a body for {name}**");
                 assert_eq!(Some(target), blocker, "{name}: the creature it hits is the one standing there");
@@ -1666,10 +1729,20 @@ fn a_vehicle_sees_what_it_would_hit() {
         kinds.insert(if hit { kind } else { "nothing".to_owned() });
         seen += 1;
     }
-    assert_eq!(seen, 4, "the recording holds four displacements");
-    assert_eq!(kinds.len(), 3, "**it covers a vehicle, a body and a clear square**: {kinds:?}");
+    assert_eq!(seen, 8, "the recording holds eight displacements");
+    assert_eq!(
+        kinds.len(),
+        4,
+        "**it covers a vehicle, a body, bashable terrain and a clear square**: {kinds:?}"
+    );
 
-    // The prediction changes nothing: the move is still the caller's to make, and the answer is the same afterwards because the obstacle is still there.
+}
+
+#[test]
+fn the_prediction_does_not_stop_the_move() {
+    use cdda_sim::vehicles::{Collision, first_collision, move_vehicle, spawn_facing};
+
+    // A prediction is not a veto: `move_vehicle` shifts the vehicle and the obstacle is still ahead afterwards (`map::move_vehicle` collides **before** it displaces).
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
     let first = spawn_facing(&mut world, "bicycle", (40, 40, 0), 0.0).expect("the bicycle builds");
@@ -1707,5 +1780,123 @@ fn a_rider_is_not_something_the_vehicle_hits() {
         first_collision(&world, vehicle, (1, 0)),
         Some(Collision::Creature { part: 6, target: rider }),
         "**and once off, standing there, the trailing frame would hit them**"
+    );
+}
+
+/// A tile with the numbers a variant clause needs, so the flag rules can be checked without a recording that happens to contain them.
+fn synthetic_tile(id: &str, move_cost: i32, flags: &[&str]) -> cdda_content::mapdata::MapData {
+    use cdda_content::mapdata::{BashInfo, MapDataKind};
+    cdda_content::mapdata::MapData {
+        heat_radiation: 0,
+        examine: None,
+        kind: MapDataKind::Terrain,
+        id: id.to_owned(),
+        name: id.to_owned(),
+        symbol: [35; 4],
+        color: [cdda_core_types::colors::NcColor::default(); 4],
+        move_cost,
+        light: 0,
+        coverage: 0,
+        flags: flags.iter().map(|flag| (*flag).to_owned()).collect(),
+        transparent: false,
+        bash: Some(BashInfo::default()),
+        roof: None,
+    }
+}
+
+/// A bicycle standing at `at` in a world whose ground at `ahead` is the one tile described.
+fn bicycle_facing(world: &mut World, at: (i32, i32, i32), ahead: (i32, i32, i32), tile: cdda_content::mapdata::MapData) -> Entity {
+    let code = 9;
+    cdda_sim::terrain_types::set_types(world, [(tile.id.clone(), code)]);
+    cdda_sim::bash::set_data(world, [tile]);
+    cdda_sim::square::set_terrain(world, ahead, code);
+    cdda_sim::vehicles::spawn_facing(world, "bicycle", at, 0.0).expect("the bicycle builds")
+}
+
+#[test]
+fn trivial_things_do_not_stop_a_vehicle() {
+    use cdda_sim::vehicles::{Collision, first_collision};
+
+    // `vehicle_move.cpp:950-967` is a list of exceptions, and each one is a thing a vehicle should drive over rather than hit.
+
+    // A `TINY` flower is only hit when the part's mount carries a wheel; the bicycle's leading frame has no wheel of its own on this mount after this blueprint is built.
+    let mut materials = store();
+    for prototype in &mut materials.prototypes {
+        if prototype.id == "bicycle" {
+            prototype.parts.retain(|placement| !placement.part.starts_with("wheel_bicycle"));
+        }
+    }
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, materials);
+    let tile = synthetic_tile("t_flower", 0, &["TINY"]);
+    let vehicle = {
+        let code = 9;
+        cdda_sim::terrain_types::set_types(&mut world, [(tile.id.clone(), code)]);
+        cdda_sim::bash::set_data(&mut world, [tile.clone()]);
+        cdda_sim::square::set_terrain(&mut world, (32, 30, 0), code);
+        cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds")
+    };
+    // A flower has no walkable square either, so a frame with no wheel in its space still stops - as the reference's `veh_coll_other` rather than `bashable`.
+    assert_eq!(
+        first_collision(&world, vehicle, (1, 0)),
+        Some(Collision::Terrain {
+            part: 4,
+            square: (32, 30, 0),
+            bashable: false,
+        }),
+        "**a wheel-less frame does not bash a flower, but still stops on one**"
+    );
+
+    // The same frame with a wheel on its mount does hit it.
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let tile = synthetic_tile("t_flower", 0, &["TINY"]);
+    let vehicle = {
+        let code = 9;
+        cdda_sim::terrain_types::set_types(&mut world, [(tile.id.clone(), code)]);
+        cdda_sim::bash::set_data(&mut world, [tile.clone()]);
+        cdda_sim::square::set_terrain(&mut world, (32, 30, 0), code);
+        cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds")
+    };
+    assert!(
+        matches!(first_collision(&world, vehicle, (1, 0)), Some(Collision::Terrain { bashable: true, .. })),
+        "**with a wheel on its mount the same flower is hit**"
+    );
+
+    // `NOCOLLIDE` never interacts with a vehicle, even when it is bashable.
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = bicycle_facing(&mut world, (30, 30, 0), (32, 30, 0), synthetic_tile("t_smoke_thing", 6, &["NOCOLLIDE"]));
+    assert_eq!(first_collision(&world, vehicle, (1, 0)), None, "**a NOCOLLIDE thing never stops a vehicle**");
+
+    // A `SHORT` thing is not hit by a `PROTRUSION` on the part's mount, though the same part hits anything taller. The spike goes into the blueprint because a
+    // structure part cannot be installed beside the frame it shares a square with.
+    let low = synthetic_tile("t_low_table", 6, &["SHORT"]);
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let plain = bicycle_facing(&mut world, (30, 30, 0), (32, 30, 0), low.clone());
+    assert!(
+        matches!(first_collision(&world, plain, (1, 0)), Some(Collision::Terrain { bashable: true, .. })),
+        "a short thing is hit by a plain frame"
+    );
+    let mut materials = store();
+    for prototype in &mut materials.prototypes {
+        if prototype.id == "bicycle" {
+            prototype.parts.push(cdda_content::vehicles::Placement {
+                part: "spike".to_owned(),
+                x: 1,
+                y: 0,
+                variant: String::new(),
+                with_ammo: 0,
+            });
+        }
+    }
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, materials);
+    let armed = bicycle_facing(&mut world, (30, 30, 0), (32, 30, 0), low);
+    assert_eq!(
+        first_collision(&world, armed, (1, 0)),
+        None,
+        "**a ram's mount passes over a short thing it would otherwise hit**"
     );
 }

@@ -45,6 +45,33 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Terrain stops a vehicle, and the trivial things do not (round 1523)
+
+A vehicle's projection now looks under the squares it would take as well as into them. The reference splits terrain into two answers - **bashable**
+(`veh_coll_bashable`) and **not destructible** (`veh_coll_other`) - and the first is a list of exceptions, each one a thing a vehicle should drive over
+rather than hit (`vehicle_move.cpp:950-967`):
+
+| Clause | Why it is there | Port |
+|---|---|---|
+`move_cost_ter_furn( pos ) != 2` | a plain floor has a bash block too, for a fall through it, and is not something a vehicle hits | the cost, not the bash block |
+`part_with_feature( ret.part, WHEEL ) \|\| !TINY` | a flower is only worth stopping for when a wheel is in that space | a wheel on the part's own mount |
+`!( PROTRUSION on the mount && SHORT )` | a ram passes over a low table | the mount's protrusion and the tile's `SHORT` |
+`!NOCOLLIDE` | declared not to interact with vehicles | the flag |
+`!( RAIL && can_use_rails )` | rails are not a wall to a vehicle that rides them | **named gap**: `can_use_rails` needs the rail parts and a rail-riding vehicle, which the port does not have |
+
+The second answer is the reference's `impassable_ter_furn`, which is not a flag at all: `passable_ter_furn` is `move_cost_ter_furn( p ) != 0`
+(`map.cpp:2456-2464`), so a wall is impassable because its cost is zero.
+
+`corpus/vehicle_collision.json` grew four cases: a **wall** in front (bashable), **underbrush** (bashable and `SHORT` - the frame has no protrusion),
+and a **floor** and **open air** (no terrain collision at all, so the answer is the body standing behind them). A port-only gate pins the clauses the real
+tiles do not reach: a `TINY` flower is **not bashable without a wheel and still stops the frame as `other`** - it has no walkable square either - while a
+wheel makes it bashable; `NOCOLLIDE` and a spiked mount over `SHORT` pass over. Five mutations were caught: the floor exemption, the `TINY`, `SHORT`
+and `NOCOLLIDE` clauses, and `impassable` made a flag test.
+
+The map data itself moved to one place: [`crates/sim/src/mapsquare.rs`](../crates/sim/src/mapsquare.rs) reads a square's terrain and furniture out of
+the table the loader fills, and bashing and the vehicle rules now ask the same `SquareData` for the cost - one implementation of "what does this square
+cost", so the two can never disagree about what a floor is.
+
 ## A vehicle sees what it would hit (round 1522)
 
 `map::move_vehicle` asks about collisions **before** it displaces anything (`map.cpp:830-848`), and the reference's detect-only mode

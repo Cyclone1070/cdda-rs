@@ -16,22 +16,13 @@ use bevy_ecs::prelude::*;
 use cdda_content::mapdata::MapData;
 use std::collections::BTreeMap;
 
-/// The map data bashing reads, by id.
+/// Installs the map data every square rule reads - bashing's, and now the vehicle rules' too.
 ///
-/// Reference: `map::bash_ter_furn` reads each square's `ter_t` and `furn_t` prototypes - their `bash` blocks - out of the loaded game data. The port keeps the same table in
-/// one component so [`bash_square`] can read a square's rules by the name on it.
-#[derive(Component, Debug, Clone, Default)]
-pub struct BashData(pub BTreeMap<String, MapData>);
-
-/// Marks the entity carrying [`BashData`].
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct TheBashData;
-
-/// Installs the map data bashing reads.
+/// The table itself is [`crate::mapsquare::MapDataTable`], because it is not bash's: it is the loader's record of
+/// what each tile id says about itself, and one store keeps it once. Reference: `map::bash_ter_furn` reads each
+/// square's `ter_t` and `furn_t` prototypes out of the loaded game data.
 pub fn set_data(world: &mut World, entries: impl IntoIterator<Item = MapData>) {
-    let table = BashData(entries.into_iter().map(|data| (data.id.clone(), data)).collect());
-    let entity = crate::singletons::singleton::<BashData, TheBashData>(world);
-    world.entity_mut(entity).insert(table);
+    crate::mapsquare::set_data(world, entries);
 }
 
 /// Hits one square of the world, reading it and writing back what the hit did.
@@ -47,10 +38,7 @@ pub fn bash_square(
     strength: i32,
     silent: bool,
 ) -> Option<BashOutcome> {
-    let data = {
-        let holder = crate::singletons::holder::<TheBashData>(world)?;
-        world.get::<BashData>(holder)?.0.clone()
-    };
+    let data = crate::mapsquare::table(world)?.0;
     let ground = crate::square::terrain_at(world, at).and_then(|code| crate::terrain_types::name_of(world, code))?;
     let furniture = crate::square::furniture_at(world, at)
         .and_then(|code| crate::furniture_types::name_of(world, code))
@@ -189,14 +177,14 @@ pub fn bash(
     let Some(block) = bash else {
         // Nothing bashable here. The reference still reports a hit if the square cannot be walked through (`src/map.cpp:3992-4006`), which is what makes bashing a chain
         // fence a hit on something solid rather than a swing at nothing.
-        if move_cost(terrain, furniture) == 0 {
+        if square_cost(terrain, furniture) == 0 {
             outcome.did_bash = true;
             outcome.bashed_solid = true;
         }
         return outcome;
     };
     if block.destroy_only && !params.destroy {
-        if move_cost(terrain, furniture) == 0 {
+        if square_cost(terrain, furniture) == 0 {
             outcome.did_bash = true;
             outcome.bashed_solid = true;
         }
@@ -339,20 +327,14 @@ fn choose_block(
 
 /// What a square costs to walk through, which is how the reference decides whether a hit struck something solid.
 ///
-/// Reference: `map::move_cost_internal` (`src/map.cpp:2331-2353`): a terrain that cannot be walked through makes the square impassable whatever stands on it, furniture with a
-/// negative cost does the same, and otherwise the costs add.
-fn move_cost(terrain: &MapData, furniture: Option<&MapData>) -> i32 {
-    if terrain.move_cost == 0 {
-        return 0;
+/// The rule itself is [`crate::mapsquare::SquareData::move_cost`] - one implementation, asked here with the two records
+/// `bash` already holds, so the vehicle rules and bashing can never disagree about what a floor is.
+fn square_cost(terrain: &MapData, furniture: Option<&MapData>) -> i32 {
+    crate::mapsquare::SquareData {
+        terrain: terrain.clone(),
+        furniture: furniture.cloned(),
     }
-    if furniture.is_some_and(|furniture| furniture.id != "f_null" && furniture.move_cost < 0) {
-        return 0;
-    }
-    let mut cost = terrain.move_cost.max(0);
-    if let Some(furniture) = furniture.filter(|furniture| furniture.id != "f_null") {
-        cost += furniture.move_cost.max(0);
-    }
-    cost
+    .move_cost()
 }
 
 /// The answer for a square whose terrain the world does not have: nothing was hit.

@@ -161,6 +161,17 @@ pub enum Collision {
         /// (`map::add_vehicle_to_cache`, `map.cpp:471-491`), so a square holding a frame, a wheel and a basket answers with the basket.
         target_part: usize,
     },
+    /// Terrain stands where the part would go.
+    ///
+    /// Two reference kinds share this: `veh_coll_bashable` (`bashable: true`) and `veh_coll_other` (`bashable: false`).
+    Terrain {
+        /// The moving vehicle's part that would hit it.
+        part: usize,
+        /// The square it would hit.
+        square: (i32, i32, i32),
+        /// Whether the reference calls it bashable. Non-bashable terrain that still collides is the reference's `veh_coll_other`.
+        bashable: bool,
+    },
     /// A creature stands where the part would go - `veh_coll_body`.
     ///
     /// The reference does **not** count a creature riding the vehicle that is moving: on your own vehicle, a critter on a `BOARDABLE` part is a passenger, not an obstacle
@@ -211,6 +222,23 @@ pub fn first_collision(world: &World, vehicle: Entity, delta: (i32, i32)) -> Opt
                 target_part,
             });
         }
+        // Terrain comes after creatures, and its two kinds are tried in the reference's order: bashable first, impassable second (`vehicle_move.cpp:950-970`).
+        if let Some(square_data) = crate::mapsquare::at(world, destination) {
+            if terrain_collision(world, &square_data, built, part) {
+                return Some(Collision::Terrain {
+                    part: index,
+                    square: destination,
+                    bashable: true,
+                });
+            }
+            if square_data.impassable() {
+                return Some(Collision::Terrain {
+                    part: index,
+                    square: destination,
+                    bashable: false,
+                });
+            }
+        }
         if let Some(target) = creature_at(world, destination) {
             let riding_this = world
                 .get::<Riding>(target)
@@ -225,6 +253,36 @@ pub fn first_collision(world: &World, vehicle: Entity, delta: (i32, i32)) -> Opt
         }
     }
     None
+}
+
+/// Whether a part would hit the terrain on a square as **bashable** - the reference's long condition at `vehicle_move.cpp:950-967`.
+///
+/// Every clause is the reference's own, and each one exists because a vehicle should not stop for something trivial:
+///
+/// - the square must be bashable at all, and **not a plain floor** (`move_cost != 2`);
+/// - a `TINY` thing (a flower) is only hit when the part's own mount carries a wheel;
+/// - a `SHORT` thing (a low table) is not hit by a `PROTRUSION` (a ram or a spike);
+/// - `NOCOLLIDE` things never interact with vehicles;
+/// - `RAIL` tiles are skipped by a vehicle that can use rails - **the port cannot answer that yet** (`can_use_rails` needs the rail-riding parts), so the port collides
+///   with them and names the gap rather than guessing.
+fn terrain_collision(
+    world: &World,
+    data: &crate::mapsquare::SquareData,
+    vehicle: &Vehicle,
+    part: &VehiclePart,
+) -> bool {
+    let on_mount = |flag: &str| {
+        vehicle.parts.iter().any(|other| {
+            other.x == part.x
+                && other.y == part.y
+                && spec_of(world, &other.part).is_some_and(|spec| spec.flags.contains(flag))
+        })
+    };
+    data.bashable()
+        && data.move_cost() != 2
+        && (on_mount("WHEEL") || !data.has_flag("TINY"))
+        && !(on_mount("PROTRUSION") && data.has_flag("SHORT"))
+        && !data.has_flag("NOCOLLIDE")
 }
 
 /// The creature standing on one square, if one does - the reference's `creature_tracker::creature_at` (`map.cpp:1340-1356` asks the map's cache; the port asks its one index and

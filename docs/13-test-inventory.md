@@ -2119,3 +2119,11 @@ displacement and measured squares the game never asks about, which the bicycle's
 `corpus/vehicle_collision.json` pins east-into-a-vehicle (part 4 hitting the other bicycle's basket, part 10), east-into-a-creature (part 4) and
 two clear moves; a port-only gate pins the passenger exclusion. Four mutations caught. **Named**: terrain (bashable and impassable), impassable
 fields, the `ARMOR` part swap.
+
+**Round 1523 ported terrain in the way.** `first_collision` now answers terrain too: `bashable` for a tile the reference would bash, `other` for one that
+is impassable, with the reference's own exceptions (`vehicle_move.cpp:950-967`) - a plain floor is not hit, a `TINY` thing needs a wheel in the part's
+space, a ram's mount passes over a `SHORT` thing, `NOCOLLIDE` never interacts. `impassable` is `move_cost_ter_furn( p ) == 0`, not a flag
+(`map.cpp:2456-2464`). `corpus/vehicle_collision.json` pins a wall and underbrush (bashable), and floor and open air (no terrain collision, so the body
+behind answers); a port-only gate pins the clauses the data does not reach, including that a `TINY` flower without a wheel still stops a frame as
+`other`. The square data moved to `crates/sim/src/mapsquare.rs`, shared with bashing. Five mutations caught. **Named**: the `RAIL`/`can_use_rails`
+clause, impassable fields, and the `ARMOR` part swap.
