@@ -36750,3 +36750,8 @@ numbers `part_collision` derives from the obstacle: `mass2`, the restitution `e`
 wall is *bashable* terrain, so those come from `terrain_collision_data` (`map.cpp`) and are not visible in the recording. The dump needs one more field - the four
 numbers above, written by the same harness function before the hit - and then `--dump-vehicle-crash` is a complete statement of the rule and the port can be
 checked against it line by line. Until then the loop would be transcribed arithmetic with no oracle behind it, which is what `docs/14-test-porting.md` forbids.
+
+**The impulse loop reproduces one crash row and not the other.** Written against `corpus/vehicle_crash.json`, the loop's arithmetic gives the car at 1,000 exactly the
+reference's blow - 61 before the frame's 20 points of bash reduction, 41 after - but at 2,000 it accumulates 247 where the reference records 44 on a windshield with
+50 hit points. The reference must stop the loop when the hit part is **destroyed**, not when the direction changes: the windshield cannot absorb 247, and its 44 is
+what a single blow can mean before the part is gone. The next round reads `part_collision`'s exit conditions again before the loop is written a third time.
