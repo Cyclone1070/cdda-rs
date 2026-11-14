@@ -143,6 +143,101 @@ pub fn spawn_facing(
     Some(entity)
 }
 
+/// What a one-square move would hit, as far as the port can see it - the reference's `veh_collision` (`vehicle.h:143-156`) filled by `vehicle::collision` in **detect-only**
+/// mode (`vehicle_move.cpp:702-826`).
+///
+/// The reference projects every part forward by the displacement (`vehicle::part_project_points`, `vehicle.cpp:8205-8224`), walks the parts **in their own order**, and skips
+/// any part that is not real, not `structure` and not a rotor. The first part whose projected square holds something answers the collision. A collision with a vehicle is
+/// returned before any speed is considered at all (`vehicle_move.cpp:838-846`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Collision {
+    /// Another vehicle stands where the part would go - `veh_coll_veh`.
+    Vehicle {
+        /// The moving vehicle's part that would hit it.
+        part: usize,
+        /// The vehicle standing there.
+        target: Entity,
+        /// The target's part on that square, which is what the reference's `vpart_position` answers: the map's square cache is **filled part by part and the last one wins**
+        /// (`map::add_vehicle_to_cache`, `map.cpp:471-491`), so a square holding a frame, a wheel and a basket answers with the basket.
+        target_part: usize,
+    },
+    /// A creature stands where the part would go - `veh_coll_body`.
+    ///
+    /// The reference does **not** count a creature riding the vehicle that is moving: on your own vehicle, a critter on a `BOARDABLE` part is a passenger, not an obstacle
+    /// (`vehicle_move.cpp:867-872`), and a character in a vehicle is not a critter at all (`vehicle_move.cpp:832-836`).
+    Creature {
+        /// The moving vehicle's part that would hit it.
+        part: usize,
+        /// The creature standing there.
+        target: Entity,
+    },
+}
+
+/// The first thing a one-square move would hit, or `None` for a clear square - the reference's `vehicle::collision` answering in detect-only mode.
+///
+/// **Named, not guessed:** the reference also detects impassable fields, bashable terrain and impassable terrain, with a long list of terrain flags deciding the last two
+/// (`vehicle_move.cpp:922-967`), and it swaps the hitting part for an `ARMOR` part first (`vehicle_move.cpp:922-929`). The port detects vehicles and creatures until the
+/// terrain branches have a recording to be measured against.
+#[must_use]
+pub fn first_collision(world: &World, vehicle: Entity, delta: (i32, i32)) -> Option<Collision> {
+    if delta == (0, 0) {
+        return None;
+    }
+    let squares = part_squares(world, vehicle);
+    let built = world.get::<Vehicle>(vehicle)?;
+    for (index, part) in built.parts.iter().enumerate() {
+        let Some(spec) = spec_of(world, &part.part) else {
+            continue;
+        };
+        if spec.location != "structure" && !spec.flags.contains("ROTOR") {
+            continue;
+        }
+        let Some(square) = squares.get(index).copied() else {
+            continue;
+        };
+        let destination = (square.0 + delta.0, square.1 + delta.1, square.2);
+        // A vehicle is answered first: the reference returns a vehicle collision before it looks for a creature at all (`vehicle_move.cpp:838-846`). A square holding the moving
+        // vehicle itself is not a vehicle collision (`&ovp->vehicle() != this`), and the reference still asks about a creature standing there.
+        if let Some(target) = at(world, destination)
+            && target != vehicle
+        {
+            // The **last** part on the square, because the reference fills its one square cache part by part and the last part written answers `veh_at` (`map.cpp:479-485`).
+            let target_part = part_squares(world, target)
+                .iter()
+                .rposition(|standing| *standing == destination)?;
+            return Some(Collision::Vehicle {
+                part: index,
+                target,
+                target_part,
+            });
+        }
+        if let Some(target) = creature_at(world, destination) {
+            let riding_this = world
+                .get::<Riding>(target)
+                .is_some_and(|riding| riding.vehicle == vehicle);
+            if riding_this {
+                continue;
+            }
+            return Some(Collision::Creature {
+                part: index,
+                target,
+            });
+        }
+    }
+    None
+}
+
+/// The creature standing on one square, if one does - the reference's `creature_tracker::creature_at` (`map.cpp:1340-1356` asks the map's cache; the port asks its one index and
+/// keeps the entries that are creatures).
+fn creature_at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
+    let index = crate::singletons::index(world)?;
+    index
+        .at_level(square.0, square.1, square.2)
+        .iter()
+        .copied()
+        .find(|entity| world.get::<crate::creature::Creature>(*entity).is_some())
+}
+
 /// Moves a vehicle one square, taking everything on it - the displacement half of `map::move_vehicle` (`map.cpp:773-...)`, which reaches
 /// `map::displace_vehicle` (`map.cpp:1460-...)`.
 ///

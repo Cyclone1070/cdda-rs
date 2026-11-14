@@ -1541,3 +1541,171 @@ fn a_rider_moves_with_the_seat_it_sits_on() {
     );
 }
 
+
+/// Rebuilds the world one collision case was asked in: a bicycle at the recorded origin, the obstacle the case names, and nothing else.
+fn collision_world(case: &cdda_json::Object, at: (i32, i32, i32)) -> (World, Entity, Option<Entity>) {
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let first = cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", at, 0.0).expect("the bicycle builds");
+    let mut blocker = None;
+    for field in ["obstacle_at", "creature_at"] {
+        let Some(cdda_json::Value::Array(square)) = case.get(field) else {
+            continue;
+        };
+        let there = (
+            coordinate(square, 0),
+            coordinate(square, 1),
+            coordinate(square, 2),
+        );
+        let spawned = if field == "obstacle_at" {
+            cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", there, 0.0).expect("the obstacle builds")
+        } else {
+            world
+                .spawn((
+                    cdda_sim::Position {
+                        x: there.0,
+                        y: there.1,
+                        z: there.2,
+                    },
+                    cdda_sim::creature::Creature {
+                        name: "a zombie".to_owned(),
+                        size: cdda_sim::CreatureSize::Medium,
+                    },
+                ))
+                .id()
+        };
+        cdda_sim::singletons::index_mut(&mut world).insert(spawned, there);
+        blocker = Some(spawned);
+    }
+    (world, first, blocker)
+}
+
+#[test]
+fn a_vehicle_sees_what_it_would_hit() {
+    use cdda_sim::vehicles::{Collision, Vehicle, first_collision, move_vehicle, spawn_facing};
+
+    // `corpus/vehicle_collision.json` is `--dump-vehicle-collision`: a bicycle at the avatar's square, then four displacements answered in detect-only mode. Each case names
+    // the world it was asked in - a second bicycle for the vehicle collision, a zombie for the body collision - and the port rebuilds exactly that world.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_collision.json");
+    let bytes = std::fs::read(path).expect("the collision recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(origin)) = root.get("origin") else {
+        panic!("an origin");
+    };
+    let at = (
+        coordinate(origin, 0),
+        coordinate(origin, 1),
+        coordinate(origin, 2),
+    );
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut kinds = std::collections::BTreeSet::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        let name = text_of(case, "name");
+        let Some(cdda_json::Value::Array(dp)) = case.get("dp") else {
+            panic!("a displacement");
+        };
+        let delta = (coordinate(dp, 0), coordinate(dp, 1));
+        let hit = int_of(case, "hit") != 0;
+        let kind = if hit { text_of(case, "type") } else { "nothing".to_owned() };
+
+        let (world, first, blocker) = collision_world(case, at);
+        let answer = first_collision(&world, first, delta);
+        let part = match answer {
+            None => {
+                assert!(!hit, "**a {name} move hits nothing, as the reference says**");
+                None
+            }
+            Some(Collision::Vehicle {
+                part,
+                target,
+                target_part,
+            }) => {
+                assert!(hit && kind == "veh", "**the reference answers a vehicle for {name}**");
+                assert_eq!(Some(target), blocker, "{name}: the vehicle it hits is the one standing there");
+                assert_eq!(
+                    target_part,
+                    usize::try_from(int_of(case, "target_part")).expect("a part index"),
+                    "{name}: **the target part is the reference's**"
+                );
+                Some(part)
+            }
+            Some(Collision::Creature { part, target }) => {
+                assert!(hit && kind == "body", "**the reference answers a body for {name}**");
+                assert_eq!(Some(target), blocker, "{name}: the creature it hits is the one standing there");
+                Some(part)
+            }
+        };
+        if let Some(part) = part {
+            assert_eq!(
+                part,
+                usize::try_from(int_of(case, "part_index")).expect("a part index"),
+                "{name}: **the hitting part is the reference's**"
+            );
+            assert_eq!(
+                world
+                    .get::<Vehicle>(first)
+                    .expect("the bicycle")
+                    .parts
+                    .get(part)
+                    .expect("the part")
+                    .part,
+                text_of(case, "part"),
+                "{name}: and it is the same part by name"
+            );
+        }
+        kinds.insert(if hit { kind } else { "nothing".to_owned() });
+        seen += 1;
+    }
+    assert_eq!(seen, 4, "the recording holds four displacements");
+    assert_eq!(kinds.len(), 3, "**it covers a vehicle, a body and a clear square**: {kinds:?}");
+
+    // The prediction changes nothing: the move is still the caller's to make, and the answer is the same afterwards because the obstacle is still there.
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let first = spawn_facing(&mut world, "bicycle", (40, 40, 0), 0.0).expect("the bicycle builds");
+    let second = spawn_facing(&mut world, "bicycle", (42, 40, 0), 0.0).expect("the obstacle builds");
+    assert!(first_collision(&world, first, (1, 0)).is_some(), "the square ahead holds the other bicycle");
+    assert!(move_vehicle(&mut world, first, (1, 0)), "the move itself is not refused yet");
+    assert!(
+        first_collision(&world, first, (1, 0)).is_some_and(
+            |collision| matches!(collision, Collision::Vehicle { target, .. } if target == second)
+        ),
+        "**after the move the two stand closer and the next square still holds the other one**"
+    );
+}
+
+#[test]
+fn a_rider_is_not_something_the_vehicle_hits() {
+    use cdda_sim::vehicles::{Collision, board, first_collision, spawn_facing, unboard};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
+    let rider = creature_at(&mut world, 30, 30);
+    cdda_sim::singletons::index_mut(&mut world).insert(rider, (30, 30, 0));
+    let saddle = part_index(&world, vehicle, 0, 0, "saddle").expect("the saddle");
+    assert_eq!(board(&mut world, vehicle, rider), Some(saddle), "the rider takes the saddle");
+
+    // The trailing frame moves onto the square the rider stands on; a passenger is not debris (`vehicle_move.cpp:867-872`).
+    assert_eq!(
+        first_collision(&world, vehicle, (1, 0)),
+        None,
+        "**a passenger is not something the vehicle carrying it hits**"
+    );
+    assert!(unboard(&mut world, rider), "the rider gets off");
+    assert_eq!(
+        first_collision(&world, vehicle, (1, 0)),
+        Some(Collision::Creature { part: 6, target: rider }),
+        "**and once off, standing there, the trailing frame would hit them**"
+    );
+}

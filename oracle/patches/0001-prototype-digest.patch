@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 07:20:39
-@@ -0,0 +1,8238 @@
++++ oracle/src/src/harness.cpp	2026-11-14 10:07:53
+@@ -0,0 +1,8362 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1266,6 +1266,130 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// (`mapgen.cpp:7523-7560`) refuses a vehicle whose structural squares hit deep water or another vehicle, and it needs the dynamic data loaded (`check_mod_data`) or the prototype id
 +/// does not exist. It lays floor around the avatar first so terrain cannot be the reason, places the 2-seater helicopter at the avatar's own square, and records what the reference
 +/// built: the name, every part's mount and square, its spec's fuel type, and the ammo a tank happens to hold.
++void dump_vehicle_collision( const std::string &path )
++{
++    static const std::string structure_location( "structure" );
++    static const std::array<const char *, 5> type_names = {
++        "nothing", "body", "veh", "bashable", "other"
++    };
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const vproto_id type( "bicycle" );
++    if( !type.is_valid() ) {
++        std::fprintf( stderr, "harness: bicycle is not a valid prototype\n" );
++        std::fclose( out );
++        return;
++    }
++
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -12; dx <= 12; dx++ ) {
++        for( int dy = -12; dy <= 12; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    vehicle *first = here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true );
++    if( first == nullptr ) {
++        std::fprintf( stderr, "harness: collision placement failed at %d,%d\n", origin.x(), origin.y() );
++        std::fclose( out );
++        return;
++    }
++    // `map::move_vehicle` fills the turned precalc before it asks about collisions (`map.cpp:803-805`), and the projection reads it (`vehicle.cpp:8222`). Without this
++    // call every part projects to the vehicle's own square and the answer is about the wrong squares.
++    first->precalc_mounts( 1, 0_degrees, first->pivot_point( here ) );
++
++    std::fprintf( out, "{\"harness\":\"vehicle_collision\",\"version\":2,\"vehicle\":\"%s\",",
++                  type.str().c_str() );
++    std::fprintf( out, "\"origin\":[%d,%d,%d],\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    // One case: the world as it stands, the displacement, and what detect-only collision answers. `obstacle_at` names a second vehicle's origin when one is present, and
++    // `creature_at` names the creature that was hit, so the port can rebuild the same situation instead of guessing it.
++    const auto dump_case = [&]( const char *name, int dx, int dy, const tripoint_bub_ms &obstacle,
++                                bool has_obstacle ) {
++        std::vector<veh_collision> colls;
++        // `map::move_vehicle` cancels the displacement the pivot's move would add before it asks about collisions (`map.cpp:803-810`), and the
++        // projection reads the turned precalc. Passing the raw displacement here measures a projection nobody in the game ever asks for.
++        first->precalc_mounts( 1, 0_degrees, first->pivot_point( here ) );
++        const tripoint_rel_ms dp1 = tripoint_rel_ms( dx, dy, 0 ) - first->pivot_displacement();
++        const bool hit = first->collision( here, colls, dp1, true, false );
++        std::fprintf( out, "%s{\"name\":\"%s\",\"dp\":[%d,%d],\"hit\":%d", first_case ? "" : ",",
++                      name, dx, dy, hit ? 1 : 0 );
++        first_case = false;
++        if( has_obstacle ) {
++            std::fprintf( out, ",\"obstacle_at\":[%d,%d,%d]", obstacle.x(), obstacle.y(), obstacle.z() );
++        }
++        if( hit && !colls.empty() ) {
++            const veh_collision &coll = colls.front();
++            std::fprintf( out,
++                          ",\"type\":\"%s\",\"part\":\"%s\",\"part_index\":%d,\"target\":\"%s\","
++                          "\"target_part\":%d",
++                          type_names.at( static_cast<size_t>( coll.type ) ),
++                          first->part( coll.part ).info().id.str().c_str(), coll.part,
++                          escaped( coll.target_name ).c_str(), coll.target_part );
++            if( coll.type == veh_coll_body ) {
++                Creature *critter = static_cast<Creature *>( coll.target );
++                const tripoint_bub_ms at = critter->pos_bub( here );
++                std::fprintf( out, ",\"creature_at\":[%d,%d,%d]", at.x(), at.y(), at.z() );
++            }
++        }
++        std::fprintf( out, "}" );
++    };
++
++    // A second bicycle three squares east: its trailing parts stand two squares ahead of the first one's leading frame, and `add_vehicle` refuses an overlap.
++    const tripoint_bub_ms obstacle = origin + tripoint_rel_ms( 3, 0, 0 );
++    vehicle *second = here.add_vehicle( type, obstacle, 0_degrees, 0, 0, false, true );
++    const tripoint_bub_ms obstacle_actual = second == nullptr ? obstacle : second->pos_bub( here );
++    if( second == nullptr ) {
++        std::fprintf( stderr, "harness: the second bicycle did not place at %d,%d\n", obstacle.x(),
++                      obstacle.y() );
++        std::fclose( out );
++        return;
++    }
++    dump_case( "east_into_vehicle", 1, 0, obstacle_actual, true );
++
++    here.destroy_vehicle( second );
++    // A zombie two squares east, where the leading frame would go.
++    g->place_critter_at( mtype_id( "mon_zombie" ), origin + tripoint_rel_ms( 2, 0, 0 ) );
++    dump_case( "east_into_creature", 1, 0, tripoint_bub_ms(), false );
++    // North and south, with the zombie out of the way.
++    dump_case( "north", 0, 1, tripoint_bub_ms(), false );
++    dump_case( "south", 0, -1, tripoint_bub_ms(), false );
++
++    // What the projection saw, so the port can be checked against the same squares rather than against a guess about the pivot.
++    const point_rel_ms pivot = first->pivot_point( here );
++    std::fprintf( out, "],\"pivot\":[%d,%d],\"parts\":[", pivot.x(), pivot.y() );
++    first->precalc_mounts( 1, 0_degrees, first->pivot_point( here ) );
++    first->part_project_points( tripoint_rel_ms( 1, 0, 0 ) - first->pivot_displacement() );
++    bool first_part = true;
++    for( int p = 0; p < first->part_count(); p++ ) {
++        const vehicle_part &vp = first->part( p );
++        if( vp.removed || !vp.is_real_or_active_fake() ) {
++            continue;
++        }
++        const vpart_info &info = vp.info();
++        if( !vp.is_fake && info.location != structure_location && !info.has_flag( VPFLAG_ROTOR ) ) {
++            continue;
++        }
++        const tripoint_bub_ms standing = first->bub_part_pos( here, p );
++        const tripoint_bub_ms projected = here.get_bub( vp.next_pos );
++        std::fprintf( out,
++                      "%s{\"index\":%d,\"part\":\"%s\",\"at\":[%d,%d,%d],\"next\":[%d,%d,%d]}",
++                      first_part ? "" : ",", p, info.id.str().c_str(), standing.x(), standing.y(),
++                      standing.z(), projected.x(), projected.y(), projected.z() );
++        first_part = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_vehicle_mass( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -8600,8 +8724,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-14 07:10:32
-@@ -0,0 +1,435 @@
++++ oracle/src/src/harness.h	2026-11-14 09:19:42
+@@ -0,0 +1,436 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8750,6 +8874,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +/// Places the reference's 2-seater helicopter on a floored square beside the avatar and records every part's mount, square, fuel type and contents - `--dump-vehicle-placement`.
 +void dump_vehicle_placement( const std::string &path );
 +void dump_vehicle_mass( const std::string &path );
++void dump_vehicle_collision( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -9324,7 +9449,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-14 07:10:32
++++ oracle/src/src/main.cpp	2026-11-14 09:19:42
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9335,7 +9460,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,172 @@
+@@ -272,6 +275,173 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9499,6 +9624,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_rotation;
 +    std::string dump_vehicle_placement;
 +    std::string dump_vehicle_mass;
++    std::string dump_vehicle_collision;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -9508,7 +9634,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +469,1490 @@
+@@ -300,6 +470,1500 @@
                  }
              },
              {
@@ -9678,6 +9804,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_placement = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-collision", "<file>",
++                "Writes what a placed bicycle's one-square moves would hit, detected only",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_collision = params[0];
 +                    return 1;
 +                }
 +            },
@@ -10999,7 +11135,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2439,831 @@
+@@ -786,6 +2450,843 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11250,6 +11386,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_placement( cli.dump_vehicle_placement );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_collision.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_collision( cli.dump_vehicle_collision );
 +            exit_handler( 0 );
 +        }
 +

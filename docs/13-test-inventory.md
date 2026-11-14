@@ -2109,3 +2109,13 @@ is refused and nothing moves) plus `map::displace_vehicle`'s shift: the vehicle'
 and every `Riding` creature is put on the new square of its part, index entry included. A three-square bicycle moved east leaves exactly one square behind and the index
 forgets it; a boarded rider's square follows the saddle. Four mutations were caught: the old squares kept, the new squares missing, the length check dropped, the riders left
 behind. **Named**: ramps, map edge, pets, remote control, falling/floating, and the collisions `map::move_vehicle` runs before the displacement.
+
+**Round 1522 ported collision detection.** `first_collision(world, vehicle, delta)` is `vehicle::collision` in detect-only mode
+(`vehicle_move.cpp:702-826`): every real `structure` part is projected forward by the displacement, in part order, and the first square holding
+something answers. A vehicle is answered before a creature, a creature riding the moving vehicle is not an obstacle, and the target part is the
+**last** one standing on the square because the reference's square cache is written part by part. `--dump-vehicle-collision` calls
+`precalc_mounts(1, ...)` and passes `dp - pivot_displacement()` exactly as `map::move_vehicle` does - the first two recordings passed the raw
+displacement and measured squares the game never asks about, which the bicycle's centre-of-mass pivot at `(-1,0)` made visible.
+`corpus/vehicle_collision.json` pins east-into-a-vehicle (part 4 hitting the other bicycle's basket, part 10), east-into-a-creature (part 4) and
+two clear moves; a port-only gate pins the passenger exclusion. Four mutations caught. **Named**: terrain (bashable and impassable), impassable
+fields, the `ARMOR` part swap.

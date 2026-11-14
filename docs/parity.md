@@ -45,6 +45,33 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A vehicle sees what it would hit (round 1522)
+
+`map::move_vehicle` asks about collisions **before** it displaces anything (`map.cpp:830-848`), and the reference's detect-only mode
+(`veh.collision( here, colls, dp1, true, false )`) answers, without damage or speed, which part would hit what. The projection is
+`pos_abs() + dp1 + precalc[1]` (`vehicle::part_project_points`, `vehicle.cpp:8205-8224`), and `dp1` is the displacement with the pivot's own
+shift cancelled (`map.cpp:803-810`) - the bicycle's pivot is its centre of mass at `(-1,0)`, one square **behind** its origin, so passing the
+raw displacement measures squares the game never asks about. That mistake is what the first two dumps recorded, and `--dump-vehicle-collision`
+now calls `precalc_mounts( 1, ... )` and then `dp - pivot_displacement()` exactly as `map::move_vehicle` does.
+
+| Piece | Reference | Port |
+|---|---|---|
+which parts are asked | real parts, `structure` or `ROTOR` | same filter |
+the square asked about | projected part square, in part order | destination square, in part order |
+a vehicle there | `veh_coll_veh`, returned before any speed is considered (`vehicle_move.cpp:838-846`) | `Collision::Vehicle` |
+a creature there | `veh_coll_body`, but not one riding this vehicle (`vehicle_move.cpp:867-872`) | `Collision::Creature` |
+which part of the target | the map's one square cache, written part by part - **the last part written wins** (`map.cpp:471-491`) | `rposition` over the target's part squares |
+
+`corpus/vehicle_collision.json` is the recording: the bicycle at the avatar's square, a second bicycle four squares east, a zombie in front, and
+four displacements - **east into a vehicle** (part 4, the leading frame, hitting the other bicycle's basket at part 10), **east into a creature**
+(part 4), and **north and south** clear. The gate rebuilds each case's world from what the recording names and compares the kind, the hitting part
+and the target part. Four mutations were caught: the last-part rule made first-part, the creature branch removed, the "it is this vehicle" guard
+dropped, and the passenger exclusion dropped.
+
+**Named, not guessed:** the reference also answers impassable fields, bashable terrain and impassable terrain, with a long list of terrain flags
+deciding the last two (`vehicle_move.cpp:922-967`), and it swaps the hitting part for an `ARMOR` part first (`vehicle_move.cpp:922-929`). None of
+that has a recording yet, so the port does not claim it.
+
 ## A vehicle moves one square, and its squares move with it (round 1521)
 
 The plain move is the first movement slice. `map::move_vehicle` (`map.cpp:773-...)` refuses an **empty** displacement and one longer than a square before anything else
