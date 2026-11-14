@@ -117,7 +117,7 @@ def main():
                      "state survives a save, and therefore the list of components the port must be "
                      "able to write and read.",
                      ["| File | Methods |", "|---|---|"] +
-                     [f"| `src/{f}` | {c} |" for f, c in ser_files.most_common()]))
+                     [f"| `src/{f}` | {c} |" for f, c in sorted(ser_files.items(), key=lambda x: (-x[1], x[0]))]))
 
     # ------------------------------------------------- 4. behaviour hooks
     def distinct_funcs(pattern, limit=None):
