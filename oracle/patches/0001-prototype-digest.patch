@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 20:39:15
-@@ -0,0 +1,8802 @@
++++ oracle/src/src/harness.cpp	2026-11-15 03:55:40
+@@ -0,0 +1,8888 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1533,6 +1533,92 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +    dump_vehicle( "bicycle", vproto_id( "bicycle" ) );
 +    dump_vehicle( "quad_bike", vproto_id( "quad_bike" ) );
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_vehicle_thrust( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -16; dx <= 16; dx++ ) {
++        for( int dy = -16; dy <= 16; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    // `vehicle::thrust` (`vehicle_move.cpp:453-620`) is the whole velocity step: engine acceleration times traction, a brake floor, a reverse penalty, the cruise
++    // clamp and the two velocity clamps. The dump states every input the step reads and the velocity it leaves, so a port can be checked number by number rather
++    // than by a distance somewhere later.
++    std::fprintf( out, "{\"harness\":\"vehicle_thrust\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    struct ThrustCase {
++        const char *name;
++        const char *type;
++        int velocity;
++        int cruise;
++        int thd;
++    };
++    const ThrustCase cases[] = {
++        { "bicycle_at_rest", "bicycle", 0, 0, 1 },
++        { "bicycle_at_rest_with_cruise", "bicycle", 0, 3000, 1 },
++        { "bicycle_rolling", "bicycle", 1000, 3000, 1 },
++        { "bicycle_at_cruise", "bicycle", 3000, 3000, 1 },
++        { "bicycle_braking", "bicycle", 3000, 0, -1 },
++        { "bicycle_reversing", "bicycle", 0, -2000, -1 },
++        { "car_at_rest", "car", 0, 0, 1 },
++        { "car_rolling", "car", 1000, 5000, 1 },
++        { "car_braking", "car", 3000, 0, -1 },
++        { "car_reversing", "car", 0, -2000, -1 },
++        { "electric_car_at_rest", "electric_car", 0, 0, 1 },
++        { "electric_car_reversing", "electric_car", 0, -2000, -1 },
++        { "bicycle_engine_off", "bicycle", 1000, 3000, 1 },
++    };
++
++    for( const ThrustCase &each : cases ) {
++        vehicle *veh = here.add_vehicle( vproto_id( each.type ), origin, 0_degrees, 100, 0, false, true );
++        if( veh == nullptr ) {
++            std::fprintf( stderr, "harness: %s did not place\n", each.type );
++            continue;
++        }
++        const bool engine_off = std::string( each.name ) == "bicycle_engine_off";
++        veh->engine_on = !engine_off;
++        veh->velocity = each.velocity;
++        veh->cruise_velocity = each.cruise;
++        veh->skidding = false;
++
++        const int accel = veh->current_acceleration( here );
++        const float traction = veh->k_traction( here, here.vehicle_wheel_traction( *veh ) );
++        const int max_velocity = veh->max_velocity( here );
++        const int max_reverse = veh->max_reverse_velocity( here );
++        const itype_id battery( "battery" );
++        const bool has_battery = veh->has_engine_type( battery, true );
++        const int before = veh->velocity;
++        veh->thrust( here, each.thd );
++        const int after = veh->velocity;
++
++        std::fprintf( out,
++                      "%s{\"name\":\"%s\",\"vehicle\":\"%s\",\"velocity_before\":%d,\"cruise\":%d,"
++                      "\"thd\":%d,\"engine_on\":%s,\"acceleration\":%d,\"traction\":%.9g,"
++                      "\"max_velocity\":%d,\"max_reverse\":%d,\"has_battery_engine\":%s,"
++                      "\"velocity_after\":%d}",
++                      first_case ? "" : ",", each.name, each.type, before, each.cruise, each.thd,
++                      engine_off ? "false" : "true", accel, static_cast<double>( traction ),
++                      max_velocity, max_reverse, has_battery ? "true" : "false", after );
++        first_case = false;
++        here.destroy_vehicle( veh );
++    }
 +
 +    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
@@ -9164,8 +9250,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-14 20:39:15
-@@ -0,0 +1,441 @@
++++ oracle/src/src/harness.h	2026-11-15 03:39:29
+@@ -0,0 +1,442 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9318,6 +9404,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_armour( const std::string &path );
 +void dump_vehicle_rolling( const std::string &path );
 +void dump_engine_power( const std::string &path );
++void dump_vehicle_thrust( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
 +void dump_vehicle_top_speed( const std::string &path );
 +
@@ -9894,7 +9981,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-14 20:39:15
++++ oracle/src/src/main.cpp	2026-11-15 03:39:29
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9905,7 +9992,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,178 @@
+@@ -272,6 +275,179 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10074,6 +10161,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_rolling;
 +    std::string dump_engine_power;
 +    std::string dump_vehicle_acceleration;
++    std::string dump_vehicle_thrust;
 +    std::string dump_vehicle_top_speed;
 +    std::string dump_fields;
 +    std::string dump_items;
@@ -10084,7 +10172,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +475,1550 @@
+@@ -300,6 +476,1560 @@
                  }
              },
              {
@@ -10274,6 +10362,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_acceleration = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-thrust", "<file>",
++                "Writes one vehicle's velocity after a thrust step, with every input the step reads",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_thrust = params[0];
 +                    return 1;
 +                }
 +            },
@@ -11635,7 +11733,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2505,903 @@
+@@ -786,6 +2516,915 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11910,6 +12008,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_acceleration( cli.dump_vehicle_acceleration );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_thrust.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_thrust( cli.dump_vehicle_thrust );
 +            exit_handler( 0 );
 +        }
 +

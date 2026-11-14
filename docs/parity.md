@@ -36620,3 +36620,25 @@ figure, one when the attacker has no enchantment.
 again. `effect_on_conditions` is ported (`eoc_registry`, `sim_suite::eoc_programs`), `physical`/`non_physical` are filled in by the content's `finalize_damage_map`, `armour_mult` **is** applied
 (`weakpoints::factors_after`), the families' bonus and penalty **are** applied (`skill_with_families` at the swing), and `practice_hit` and `practice_kill` are both wired. What remains open after round 1405 is
 `bonus_container`'s numbers (unreachable from a dump) and the effect's own message at the effect layer.
+
+## A thrust step decides the speed (round 43)
+
+`vehicle::thrust` (`vehicle_move.cpp:453-620`) is the only place a vehicle's speed changes. Most of it is noise, fuel and engine damage - rules of their own - and
+the arithmetic that decides the next turn's speed is six lines in a fixed order:
+
+| Step | Rule | Why the order matters |
+|---|---|---|
+| 1 | thrusting only **with** the direction of travel | a vehicle rolling forward told to brake is not thrusting, and gets the brake floor |
+| 2 | `accel = engine_acceleration * traction`, truncated | a float multiply, then an `int` |
+| 3 | `increment = (accel + brake_floor) * thd` | braking is a flat `20 mph/s` (`20 * 100`), added only when not thrusting |
+| 4 | reverse costs 60% unless a battery engine is fitted | a `double` multiply truncated towards zero |
+| 5 | the cruise clamp | runs **after** 4, so asking for `-2000` gets `-2000` from an engine that only manages `-990` |
+| 6 | crossing zero stops | the reference calls `stop()` rather than rolling through |
+| 7 | clamp between `max_reverse` and `traction * max_velocity` | both limits are integers, so a fractional limit truncates |
+
+`corpus/vehicle_thrust.json` records thirteen cases from `--dump-vehicle-thrust`: a bicycle, a car and an electric car, at rest, rolling, at cruise, braking and
+reversing, plus a bicycle with its engine off. Every input the step reads is in the row, so the gate compares the speed it leaves against the reference's own, and
+the two mutations that matter were checked: removing the reverse penalty fails `bicycle_reversing`, removing the brake floor fails `bicycle_braking`.
+
+**Named:** traction is the reference's `1.0` on open floor, which is what every recorded case is; `k_traction`'s wheel-area and mass penalty on broken ground, skidding,
+towing, water, rotor and rail are not ported. Fuel burn per step (`consume_fuel`) and engine damage under strain are separate rules and are not wired to this one yet.

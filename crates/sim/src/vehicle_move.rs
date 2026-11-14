@@ -79,3 +79,79 @@ fn mass_of(world: &World, vehicle: Entity) -> Option<i64> {
     world.get::<crate::vehicles::Vehicle>(vehicle)?;
     Some(crate::vehicle_mass::mass(world, vehicle))
 }
+
+/// Everything one thrust step reads, in the reference's own units.
+#[derive(Debug, Clone, Copy)]
+pub struct ThrustInputs {
+    /// The speed the vehicle is doing now, hundredths of a mile per hour, signed.
+    pub velocity: i32,
+    /// The speed the driver asked for; `vehicle::cruise_velocity`.
+    pub cruise_velocity: i32,
+    /// `1` to accelerate, `-1` to brake or reverse - `vehicle::thrust`'s `thd`.
+    pub direction: i32,
+    /// What the engines can add this turn: [`current_acceleration`].
+    pub acceleration: i32,
+    /// How much of the wheels' grip the ground gives back: `vehicle::k_traction`. `1.0` on open floor.
+    pub traction: f32,
+    /// `vehicle::max_velocity`, before traction scales it.
+    pub max_velocity: i32,
+    /// `vehicle::max_reverse_velocity`.
+    pub max_reverse: i32,
+    /// Whether any engine burns battery: reverse costs 60% with anything else (`vehicle_move.cpp:516-519`).
+    pub battery_engine: bool,
+}
+
+/// The speed a vehicle is left at after one thrust step.
+///
+/// Reference: `vehicle::thrust` (`vehicle_move.cpp:453-620`), the part that changes `velocity`. The rest of the function is noise, fuel and engine damage, which are
+/// their own rules; this is the arithmetic that decides how fast the vehicle is going next turn, in the reference's order:
+///
+/// - accelerating only happens **with** the direction of travel: a vehicle rolling forward that is told to brake is not thrusting, and gets the brake floor;
+/// - the engine's acceleration is scaled by traction, a float multiply truncated to an `int`;
+/// - maximum braking is a flat `20 mph/s` (`max_brake = 20 * 100`), added to the brake's share and not to the engine's;
+/// - reverse is 60% unless a battery engine is fitted, and that multiply is a `double` truncated towards zero;
+/// - the cruise clamp runs **after** the reverse penalty, so asking to reverse at `-2000` gives `-2000` even though the engine could only manage `-1200`;
+/// - crossing zero stops the vehicle rather than rolling it backwards;
+/// - otherwise velocity moves by the increment and is clamped between the reverse floor and `traction * max_velocity`.
+#[must_use]
+pub fn thrust_velocity(inputs: &ThrustInputs) -> i32 {
+    let velocity = inputs.velocity;
+    let thrusting = velocity == 0 || velocity.signum() == inputs.direction;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let accel = (inputs.acceleration as f32 * inputs.traction) as i32;
+    if thrusting && accel == 0 {
+        return velocity;
+    }
+    let max_brake = 20 * 100;
+    let mut increment = (accel + if thrusting { 0 } else { max_brake }) * inputs.direction;
+    if inputs.direction == -1 && thrusting && !inputs.battery_engine {
+        #[allow(clippy::cast_possible_truncation)]
+        let reversed = (0.6 * f64::from(increment)) as i32;
+        increment = reversed;
+    }
+    let max_velocity = max_velocity_with_traction(inputs);
+    if accel != 0 {
+        let effective_cruise = inputs.cruise_velocity.min(max_velocity);
+        if inputs.direction > 0 {
+            increment = increment.min(effective_cruise - velocity);
+        } else {
+            increment = increment.max(effective_cruise - velocity);
+        }
+    }
+    let next = velocity + increment;
+    if (velocity > 0 && next < 0) || (velocity < 0 && next > 0) {
+        return 0;
+    }
+    if increment > 0 {
+        velocity.max(next.min(max_velocity))
+    } else {
+        velocity.min(next.max(inputs.max_reverse))
+    }
+}
+
+/// `traction * max_velocity`: the reference's `const int max_vel = traction * max_velocity( here );`.
+fn max_velocity_with_traction(inputs: &ThrustInputs) -> i32 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let scaled = (inputs.traction * inputs.max_velocity as f32) as i32;
+    scaled
+}

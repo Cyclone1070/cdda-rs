@@ -2975,3 +2975,78 @@ fn a_vehicle_accelerates_from_where_it_stands() {
         "**a broken engine pushes nothing**"
     );
 }
+
+/// **One thrust step leaves the vehicle at the speed the reference leaves it at.**
+///
+/// The dump states every input the step reads - the current speed, the cruise the driver asked for, the direction, what the engine can add, the grip, and the two
+/// limits - and the speed afterwards. The arithmetic is `vehicle::thrust` (`vehicle_move.cpp:453-620`), and every case here is on open floor, so traction is the
+/// reference's own `1.0` and the numbers are exact rather than rounded.
+#[test]
+fn a_thrust_step_leaves_the_speed_the_reference_leaves() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_thrust.json");
+    let text = std::fs::read_to_string(&path).expect("the thrust dump is in the corpus");
+    let value = cdda_json::parse(text.as_bytes()).expect("the dump parses");
+    let cdda_json::Value::Object(root) = &value else {
+        panic!("the dump is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("the dump has cases");
+    };
+    assert!(
+        cases.len() >= 10,
+        "the dump is the case list: {} rows",
+        cases.len()
+    );
+
+    let mut checked = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let Some(cdda_json::Value::Str(name)) = row.get("name") else {
+            panic!("a case names itself");
+        };
+        let number = |key: &str| -> i32 {
+            match row.get(key) {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).expect("a small int"),
+                _ => panic!("`{key}` is an int in `{name}`"),
+            }
+        };
+        let boolean =
+            |key: &str| -> bool { matches!(row.get(key), Some(cdda_json::Value::Bool(true))) };
+        let traction = match row.get("traction") {
+            Some(cdda_json::Value::Float(value)) => *value,
+            // `printf("%.9g", 1.0)` writes `1`, which is an int to a JSON reader.
+            Some(cdda_json::Value::Int(value)) => {
+                f64::from(i32::try_from(*value).expect("a small int"))
+            }
+            _ => panic!("`traction` is a number in `{name}`"),
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        let inputs = cdda_sim::vehicle_move::ThrustInputs {
+            velocity: number("velocity_before"),
+            cruise_velocity: number("cruise"),
+            direction: number("thd"),
+            acceleration: number("acceleration"),
+            traction: traction as f32,
+            max_velocity: number("max_velocity"),
+            max_reverse: number("max_reverse"),
+            battery_engine: boolean("has_battery_engine"),
+        };
+        assert_eq!(
+            cdda_sim::vehicle_move::thrust_velocity(&inputs),
+            number("velocity_after"),
+            "**{name}**: from {} at direction {}, cruise {}, accel {}, max {}, reverse {}, battery {}",
+            inputs.velocity,
+            inputs.direction,
+            inputs.cruise_velocity,
+            inputs.acceleration,
+            inputs.max_velocity,
+            inputs.max_reverse,
+            inputs.battery_engine
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, cases.len(), "every case was checked");
+}
