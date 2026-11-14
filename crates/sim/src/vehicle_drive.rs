@@ -186,7 +186,7 @@ pub fn total_power(world: &World, vehicle: Entity) -> i32 {
         if !spec.flags.contains("ENGINE") {
             continue;
         }
-        power += i64::from(spec.power);
+        power += i64::from(part_power(&spec, part.hp));
         engines += 1;
     }
     let power = power.max(0);
@@ -196,6 +196,33 @@ pub fn total_power(world: &World, vehicle: Entity) -> i32 {
         power
     };
     i32::try_from(power).unwrap_or(i32::MAX)
+}
+
+/// What one engine makes at the health it stands at.
+///
+/// Reference: `vehicle::part_vpower_w`'s last lines (`vehicle.cpp:1180-1187`): a healthy engine gives its `power`, and a damaged one
+/// `power * ( damaged_power_factor + ( 1 - damaged_power_factor ) * health )`. `health` is `health_percent()`, which is `1 - damage_percent`
+/// (`vehicle_part.cpp:193-206`) and therefore the fraction of the part's own durability that is left.
+///
+/// The arithmetic is the reference's to the last digit, and the digit matters: its power unit is an **integer of milliwatts** (`units_fwd.h:57`), so the scaling
+/// lands on a whole milliwatt by truncation and only then divides by a thousand for whole watts. `1.0f - dpf` is a **float** subtraction widened by the double
+/// `health_percent`; the recorded series (37,300 W at 0.925, 0.8125, 0.625, 0.4375, 0.325 and 0.25375) is what pins it.
+fn part_power(spec: &cdda_content::vehicles::PartSpec, hp: i32) -> i32 {
+    if spec.durability <= 0 {
+        return spec.power;
+    }
+    let Some(factor) = spec.damaged_power_factor else {
+        return spec.power;
+    };
+    let health = f64::from(hp) / f64::from(spec.durability);
+    let one_minus = f64::from(1.0_f32 - factor);
+    let scale = f64::from(factor) + one_minus * health;
+    let milliwatts = i64::from(spec.power) * 1000;
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let scaled = (milliwatts as f64 * scale) as i64;
+    #[allow(clippy::cast_possible_truncation)]
+    let watts = (scaled / 1000) as i32;
+    watts
 }
 
 /// The fastest a vehicle can go, in hundredths of a mile per hour, from its own body, wheels and engines.

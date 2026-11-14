@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 18:23:08
-@@ -0,0 +1,8658 @@
++++ oracle/src/src/harness.cpp	2026-11-14 19:28:15
+@@ -0,0 +1,8736 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1103,6 +1103,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        double rolling_resistance = 0;
 +        // Version 8: what an engine makes. `vpart_info::power` (`veh_type.h`) is a `units::power`, written as whole watts.
 +        int power = 0;
++        // Version 9: how much of its power a damaged engine keeps. `engine_info::damaged_power_factor` (`veh_type.h:128`) is a float, 0 for everything that is
++        // not an engine.
++        bool has_engine_info = false;
++        double damaged_power_factor = 0;
 +    };
 +    struct dumped_prototype {
 +        std::string id;
@@ -1121,6 +1125,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        entry.size = static_cast<int>( units::to_milliliter( part.size ) );
 +        entry.cargo_weight_modifier = part.cargo_weight_modifier;
 +        entry.power = units::to_watt( part.power );
++        if( part.engine_info ) {
++            entry.has_engine_info = true;
++            entry.damaged_power_factor = static_cast<double>( part.engine_info->damaged_power_factor );
++        }
 +        if( part.wheel_info ) {
 +            entry.has_wheel_info = true;
 +            entry.rolling_resistance = static_cast<double>( part.wheel_info->rolling_resistance );
@@ -1166,7 +1174,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    []( const dumped_prototype &lhs, const dumped_prototype &rhs ) {
 +        return lhs.id < rhs.id;
 +    } );
-+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":8,\n\"parts\":[\n" );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":9,\n\"parts\":[\n" );
 +    bool first = true;
 +    for( const dumped_part &part : parts ) {
 +        std::fprintf( out, "%s{\"id\":", first ? "" : ",\n" );
@@ -1180,6 +1188,11 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out, "\"%s\"", escaped( part.location ).c_str() );
 +        std::fprintf( out, ",\"size\":%d,\"cargo_weight_modifier\":%d,\"power\":%d", part.size,
 +                      part.cargo_weight_modifier, part.power );
++        if( part.has_engine_info ) {
++            std::fprintf( out, ",\"damaged_power_factor\":%.9g", part.damaged_power_factor );
++        } else {
++            std::fprintf( out, ",\"damaged_power_factor\":null" );
++        }
 +        if( part.has_wheel_info ) {
 +            // Nine significant digits round-trip a float exactly, and the reference's coefficient is a float widened to double, so `1.9` printed as a
 +            // decimal and read back as a double is not the same number the reference summed.
@@ -1454,6 +1467,71 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    dump_case( "bicycle", vproto_id( "bicycle" ), false );
 +    dump_case( "quad_bike", vproto_id( "quad_bike" ), false );
 +    dump_case( "a_bicycle_with_no_usable_wheel", vproto_id( "bicycle" ), true );
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_engine_power( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -12; dx <= 12; dx++ ) {
++        for( int dy = -12; dy <= 12; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"engine_power\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    // An engine's power is `part_vpower_w` (`vehicle.cpp:1125-1190`): its `power`, scaled by `damaged_power_factor + ( 1 - damaged_power_factor ) * health_percent`
++    // once it is hurt. That function is private, so the dump reads the public total on a vehicle with exactly **one** engine - which is the same number - and walks
++    // it from whole to broken. Wherever the integer power unit truncates is therefore the reference's own arithmetic.
++    vehicle *veh = here.add_vehicle( vproto_id( "quad_bike" ), origin, 0_degrees, 0, 0, false, true );
++    if( veh == nullptr ) {
++        std::fprintf( stderr, "harness: the quad bike did not place\n" );
++        std::fclose( out );
++        return;
++    }
++    int engine = -1;
++    for( int p = 0; p < veh->part_count(); p++ ) {
++        if( veh->part( p ).info().has_flag( VPFLAG_ENGINE ) ) {
++            engine = p;
++            break;
++        }
++    }
++    if( engine < 0 ) {
++        std::fprintf( stderr, "harness: the quad bike has no engine\n" );
++        std::fclose( out );
++        return;
++    }
++    const int durability = veh->part( engine ).info().durability;
++    const std::vector<int> up_to = { durability, durability * 9 / 10, durability * 3 / 4, durability / 2,
++                                     durability / 4, durability / 10, 1, 0
++                                   };
++    for( const int hp : up_to ) {
++        veh->set_hp( veh->part( engine ), hp, false );
++        const vehicle_part &vp = veh->part( engine );
++        std::fprintf( out,
++                      "%s{\"name\":\"hp_%d\",\"vehicle\":\"quad_bike\",\"engine_part\":%d,\"part_id\":\"%s\","
++                      "\"durability\":%d,\"hp\":%d,\"health\":%.17g,\"damaged_power_factor\":%.9g,"
++                      "\"total_power_w\":%d,\"broken\":%d}",
++                      first_case ? "" : ",", hp, engine, vp.info().id.str().c_str(), durability, hp,
++                      vp.health_percent(), static_cast<double>( vp.info().engine_info->damaged_power_factor ),
++                      units::to_watt( veh->total_power( here, false ) ), vp.is_broken() ? 1 : 0 );
++        first_case = false;
++    }
++    here.destroy_vehicle( veh );
 +
 +    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
@@ -9020,8 +9098,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-14 15:31:56
-@@ -0,0 +1,439 @@
++++ oracle/src/src/harness.h	2026-11-14 19:22:55
+@@ -0,0 +1,440 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9173,6 +9251,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_collision( const std::string &path );
 +void dump_vehicle_armour( const std::string &path );
 +void dump_vehicle_rolling( const std::string &path );
++void dump_engine_power( const std::string &path );
 +void dump_vehicle_top_speed( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
@@ -9748,7 +9827,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-14 15:31:56
++++ oracle/src/src/main.cpp	2026-11-14 19:22:55
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9759,7 +9838,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,176 @@
+@@ -272,6 +275,177 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9926,6 +10005,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_collision;
 +    std::string dump_vehicle_armour;
 +    std::string dump_vehicle_rolling;
++    std::string dump_engine_power;
 +    std::string dump_vehicle_top_speed;
 +    std::string dump_fields;
 +    std::string dump_items;
@@ -9936,7 +10016,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +473,1530 @@
+@@ -300,6 +474,1540 @@
                  }
              },
              {
@@ -10116,6 +10196,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_top_speed = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-engine-power", "<file>",
++                "Writes one engine's power as it is damaged from whole to broken, and the vehicle's total at each step",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_engine_power = params[0];
 +                    return 1;
 +                }
 +            },
@@ -11467,7 +11557,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2483,879 @@
+@@ -786,6 +2494,891 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11730,6 +11820,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_top_speed( cli.dump_vehicle_top_speed );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_engine_power.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_engine_power( cli.dump_engine_power );
 +            exit_handler( 0 );
 +        }
 +

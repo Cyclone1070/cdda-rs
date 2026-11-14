@@ -62,6 +62,11 @@ pub struct PartSpec {
     /// What this part makes, in watts, or draws when negative - the reference's `vpart_info::power` (`src/veh_type.h`), which is a `units::power` and only means
     /// something for an engine or an alternator.
     pub power: i32,
+    /// How much of its power a damaged engine keeps, and `None` for a part that is not an engine.
+    ///
+    /// Reference: `vpart_info::engine_info::damaged_power_factor` (`src/veh_type.h:128`), a float - 0.25 for a combustion engine, which keeps a quarter of its
+    /// power even when it is nearly wrecked. The reference scales an engine by `dpf + ( 1 - dpf ) * health_percent` (`vehicle.cpp:1181-1186`).
+    pub damaged_power_factor: Option<f32>,
     /// What this wheel resists rolling with, and `None` for a part that is not a wheel.
     ///
     /// Reference: `vpart_info::wheel_info::rolling_resistance` (`src/veh_type.h:142`), a float that defaults to 1 - a bicycle wheel is 0.45. Only a part with
@@ -239,6 +244,18 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         damage_modifier: i32::try_from(number("damage_modifier")?).unwrap_or(100),
         rolling_resistance,
         power: i32::try_from(number("power")?).unwrap_or(0),
+        damaged_power_factor: match object.get("damaged_power_factor") {
+            Some(Value::Float(value)) => {
+                #[allow(clippy::cast_possible_truncation)]
+                Some(*value as f32)
+            }
+            Some(Value::Int(value)) => {
+                #[allow(clippy::cast_precision_loss)]
+                Some(*value as f32)
+            }
+            Some(Value::Null) | None => None,
+            _ => return Err("a part's damaged_power_factor is not a number".to_owned()),
+        },
         item: text("item")?,
         location: text("location")?,
         size: number("size")?,

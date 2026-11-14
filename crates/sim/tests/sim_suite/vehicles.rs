@@ -2447,3 +2447,75 @@ fn a_switched_off_engine_makes_no_power() {
         "**a broken engine makes no power even with its switch on**"
     );
 }
+
+#[test]
+fn a_damaged_engine_makes_less_power() {
+    use cdda_sim::vehicles::damage;
+
+    // `corpus/engine_power.json` is `--dump-engine-power`: the quad bike's one engine walked from whole to broken, with the reference's `health_percent` and the
+    // engine's own `damaged_power_factor`. The arithmetic is the reference's to the last digit, because its power unit is an integer of milliwatts.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/engine_power.json");
+    let bytes = std::fs::read(path).expect("the engine-power recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let origin = square_of(&root, "origin");
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut powers = std::collections::BTreeSet::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        let mut world = World::new();
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = cdda_sim::vehicles::spawn_facing(&mut world, "quad_bike", origin, 0.0)
+            .expect("the quad bike builds");
+        let engine = usize::try_from(int_of(case, "engine_part")).expect("a part index");
+        let durability = int_of(case, "durability");
+        let hp = int_of(case, "hp");
+        let spec = cdda_sim::vehicles::part_spec(&world, vehicle, engine).expect("the engine's spec");
+        assert_eq!(spec.durability, durability, "the recorded durability is the store's");
+        let Some(cdda_json::Value::Float(recorded_factor)) = case.get("damaged_power_factor") else {
+            panic!("a recorded factor");
+        };
+        assert_eq!(
+            spec.damaged_power_factor.map(f64::from),
+            Some(*recorded_factor),
+            "and the recorded factor is the store's"
+        );
+        // `set_hp( part, hp )` is how the harness damaged it; here the damage rule does the same work, at the difference the recording records.
+        let damage_taken = durability - hp;
+        if damage_taken > 0 {
+            damage(&mut world, vehicle, engine, damage_taken, "bash", true);
+        }
+        let recorded_hp = world
+            .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+            .expect("a vehicle")
+            .parts
+            .get(engine)
+            .expect("the engine")
+            .hp;
+        assert_eq!(recorded_hp, hp, "{}: the engine stands where the recording left it", text_of(case, "name"));
+
+        let power = cdda_sim::vehicle_drive::total_power(&world, vehicle);
+        assert_eq!(
+            power,
+            int_of(case, "total_power_w"),
+            "{}: **the engine makes what the reference says it makes at this health**",
+            text_of(case, "name")
+        );
+        powers.insert(power);
+        seen += 1;
+    }
+    assert_eq!(seen, 8, "the recording walks eight steps from whole to broken");
+    assert!(
+        powers.len() >= 6,
+        "**the numbers fall as the engine is hurt**: {powers:?}"
+    );
+    assert!(powers.contains(&0), "and the broken engine makes nothing");
+}

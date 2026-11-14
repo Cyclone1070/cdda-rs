@@ -2160,3 +2160,9 @@ now defaults to true**, which is the reference's `bool enabled = true` (`vehicle
 now switches an engine off before starting it. `max_ground_velocity` closes the chain from the port's own air drag, rolling drag and power, on the three vehicles
 whose mass matches exactly (bicycle 1,871; quad bike 8,235; wheel-less bicycle 1,237). Four mutations caught; faults, alternators, muscle/animal/wind and the
 reference's `total_mass` contents for six vehicles are named.
+
+**Round 1529 ported an engine's damage scaling.** `vehicle_drive::total_power` now asks `part_power` for each engine: `power * ( dpf + (1 - dpf) * health )`
+(`vehicle.cpp:1180-1187`), computed in the reference's own unit - an integer of **milliwatts** - so the scaling truncates there and divides by a thousand for
+watts, and `1.0f - dpf` is the float subtraction the reference writes. `corpus/engine_power.json` (`--dump-engine-power`) walks the quad bike's 200-durability,
+37,300 W engine through healths 1, 0.9, 0.75, 0.5, 0.25, 0.1, 0.005 and 0; all eight match. The parts dump is version 9 with `damaged_power_factor`. Four
+mutations caught.

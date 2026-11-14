@@ -45,6 +45,34 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## A damaged engine makes less power (round 1529)
+
+`vehicle::part_vpower_w` (`vehicle.cpp:1125-1190`) ends with the line that makes damage bite: an engine's power is scaled by
+`damaged_power_factor + ( 1 - damaged_power_factor ) * health_percent()`, where `health_percent` is what is left of its durability
+(`vehicle_part.cpp:193-206`). A combustion engine's factor is 0.25, so a wrecked one still makes a quarter of its power until it breaks.
+
+**The unit is an integer of milliwatts** (`units_fwd.h:57`). That is not a detail: the scaled power lands on a whole milliwatt by truncation and then divides by a
+thousand, which is why 37,300 W at 92.5% is 34,502 W and not 34,503. And `1.0f - dpf` is a **float** subtraction widened by the double health, so the scale is
+a double built from a float's rounding. The port reproduces that: milliwatts, truncation, then the division.
+
+`corpus/engine_power.json` is `--dump-engine-power`: the quad bike's one engine (200 durability, 37,300 W, factor 0.25) walked from whole to broken, through
+health 1, 0.9, 0.75, 0.5, 0.25, 0.1, 0.005 and 0.
+
+| health | scale | reference W | port |
+|---|---|---|---|
+1.0 | 1.0 | 37,300 | 37,300 |
+0.9 | 0.925 | 34,502 | 34,502 |
+0.75 | 0.8125 | 30,306 | 30,306 |
+0.5 | 0.625 | 23,312 | 23,312 |
+0.25 | 0.4375 | 16,318 | 16,318 |
+0.1 | 0.325 | 12,122 | 12,122 |
+0.005 | 0.25375 | 9,464 | 9,464 |
+0.0 | broken | 0 | 0 |
+
+The parts dump is version 9 with `damaged_power_factor`, null for anything that is not an engine. Four mutations caught: ignoring the health, dropping the
+milliwatt division, dropping the health term from the scale, and summing the engine's nominal power instead of its scaled one. The reference's `set_hp` and the
+port's own damage rule are applied to the same part and are asserted to leave it at the recorded hit points, so the two paths meet.
+
 ## The engines add up, and the vehicle drives itself (round 1528)
 
 `vehicle::total_power` (`vehicle.cpp:4052-4075`) is three lines of arithmetic around a filter: every engine that is **on** - available and switched on, which
