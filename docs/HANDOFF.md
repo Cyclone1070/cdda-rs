@@ -1,6 +1,6 @@
 # Handoff
 
-Last round: 46. State at hand-off: **CI green**, gate green, tree clean.
+Last round: 47. State at hand-off: **CI green**, gate green, tree clean.
 
 ## Where the work stands
 
@@ -23,24 +23,23 @@ turn loop's own costs were found and fixed on the way:
 | `snapshot` borrowed view | not started — borrow-checker risk across 21 call sites |
 | `clippy.toml` thresholds + ledgers | not started |
 
-## Rounds 43 to 46: the vehicle moves
+## Rounds 43 to 47: the vehicle moves
 
-- **43**: `vehicle_move::thrust_velocity` - the speed a thrust step leaves, from `vehicle::thrust` (`vehicle_move.cpp:453-620`), gated on thirteen recorded cases.
-- **44**: `vehicle_move::thrust(world, vehicle, direction)` wired it to the store, with `Vehicle::cruise_velocity`; `max_reverse_velocity` and the battery-engine
-  question ported.
-- **45**: `vehicle_move::slowdown_of` and `coast` - `vehicle::slowdown` (`vehicle_move.cpp:112-153`) and the block in `gain_moves`. 56 recorded rows, both engine
-  states.
-- **46**: `vehicle_move::move_step` and `turn_cost` - `vehicle::act_on_map` (`vehicle_move.cpp:1829-2010`): a square costs `400 / |velocity|` of a turn, a square
-  costing exactly the turn left is not affordable, below 20 vmiph the vehicle stops, and the leftover fraction is carried. 120 recorded steps replayed exactly.
-  `Vehicle` carries `of_turn` and `of_turn_carry`; the displacement goes through `vehicles::move_vehicle`, so the index and the riders follow.
+- **43-46**: thrust (the speed a step leaves), the store-level thrust, drag and coasting, and the movement step itself - a square costs `400 / |velocity|` of a turn,
+  a square costing exactly the turn left is not affordable, below 20 vmiph the vehicle stops, the remainder is carried.
+- **47**: `move_step` asks `vehicles::first_collision` before it takes a square and stops on terrain (`map.cpp:948-950`), so a vehicle no longer drives through a
+  wall. Gated by driving a bicycle into a wall in a real world.
+
+**The gate bug worth remembering:** `remote_test.py`'s "touch every source file" step ran on this machine while clippy ran on the build machine, so cargo
+re-reported a cached clean result - three rounds in a row reached CI with a lint the gate had called clean (`float_cmp` twice, `collapsible_if` once). The touch
+now runs where the lint runs, proved with a deliberate probe.
 
 ## The next cycle
 
-1. Collisions: `vehicle::collision` (`vehicle_move.cpp`), the cases it can report and the damage each does. This is what stops a vehicle driving through a wall, and
-   it is the biggest remaining piece of movement. Dump first: a vehicle driven into terrain, another vehicle and a creature, recording where it stops, the speed
-   after, and the damage to the parts.
-2. `vehicle::strain` and `safe_velocity`, which the engine-damage branch of `thrust` reads.
-3. Fuel burn per step (`consume_fuel`) and plows (the rest of `static_drag`).
+1. Collisions that do something: smashing a bashable obstacle (`map::bash`), the damage a crash does to the parts (`part_collision`'s impulse loop,
+   `vehicle_move.cpp:1030-1165`), and the bounce between two vehicles. Dump first - the damage numbers and the speed after are all recorded by the reference.
+2. `vehicle::strain` / `safe_velocity` and the engine damage they feed.
+3. Fuel burn per step (`consume_fuel`).
 
 ## What must stay true
 
