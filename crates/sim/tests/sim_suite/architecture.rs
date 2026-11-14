@@ -638,3 +638,163 @@ fn a_drawn_chunk_lands_as_terrain_on_its_own_squares() {
         "one ground per square"
     );
 }
+
+/// State that outlives every world: a debt register, not an allowance.
+///
+/// The architecture keeps the truth in the store, so anything here is a fact living somewhere a world cannot see it - a counter a test reads, or the intern table a
+/// `StringId` needs to make equal strings the same address. Each line says what it holds and what would have to exist for it to be a component instead. Adding a line
+/// is a decision; removing one is progress, and the ledger must shrink in the same commit.
+const PROCESS_STATE: &[(&str, &str, &str)] = &[
+    (
+        "crates/core-types/src/ids.rs",
+        "NEXT",
+        "a version stamp for a registry's cached index; two registries of one type must not agree on it",
+    ),
+    (
+        "crates/core-types/src/ids.rs",
+        "TABLE",
+        "the intern table: every equal `StringId` shares one address, which a per-world table could not promise across worlds",
+    ),
+    (
+        "crates/cli/src/lib.rs",
+        "ITEMS",
+        "the item table, parsed once for the process: two scenarios in one run install the same data into two worlds",
+    ),
+    (
+        "crates/cli/src/lib.rs",
+        "MONSTER_PARSES",
+        "a parse counter a test reads, to prove the monster dump is read once",
+    ),
+    (
+        "crates/cli/src/lib.rs",
+        "TYPES",
+        "the monster table, parsed once for the process, for the same reason as `ITEMS`",
+    ),
+    (
+        "crates/content/src/items.rs",
+        "LOADS",
+        "a load counter a test reads, to prove the item tree is deserialized once",
+    ),
+    (
+        "crates/content/src/lib.rs",
+        "DISABLED",
+        "the parse memo's kill switch, read once for the process: `CDDA_NO_PARSE_MEMO=1` measures the parser itself",
+    ),
+    (
+        "crates/content/src/lib.rs",
+        "MEMO",
+        "the parse memo: the whole JSON tree parsed once for the process, which is what makes a gate that loads items and then monsters affordable",
+    ),
+    (
+        "crates/content/src/lib.rs",
+        "PARSES",
+        "a parse counter a test reads, to prove the memo hits",
+    ),
+    (
+        "crates/sim/src/inspect.rs",
+        "FINGERPRINTS",
+        "a walk counter a test reads, to prove an unwatched turn pays nothing",
+    ),
+    (
+        "crates/sim/src/turn.rs",
+        "SCHEDULES",
+        "a build counter a test reads, to prove a turn reuses its schedule",
+    ),
+];
+
+/// Every process-wide piece of mutable state in the workspace, by file and name.
+///
+/// Three shapes: a `thread_local!`, a `static mut`, and a `static` holding an atomic or a lock - the last one is how a function-local `static` in the reference is
+/// written safely here, and it is just as much of a second store.
+fn process_state() -> std::collections::BTreeMap<(String, String), usize> {
+    let root = workspace();
+    let mut found = std::collections::BTreeMap::new();
+    for (path, text) in sources() {
+        let file = path
+            .strip_prefix(&format!("{}/", root.display()))
+            .unwrap_or(&path)
+            .to_owned();
+        let lines: Vec<&str> = text.lines().collect();
+        for (index, line) in lines.iter().enumerate() {
+            let trimmed = line.trim_start();
+            let name = if trimmed.starts_with("static mut ") {
+                trimmed.split_whitespace().nth(2).map(str::to_owned)
+            } else if let Some(rest) = trimmed.strip_prefix("static ") {
+                if trimmed.contains("Atomic") || trimmed.contains("OnceLock") {
+                    rest.split(':').next().map(|name| name.trim().to_owned())
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(name) = name {
+                found.insert((file.clone(), name), index + 1);
+            }
+            // A `thread_local!` names its entries one per line inside the block.
+            if trimmed.starts_with("std::thread_local!") || trimmed == "thread_local! {" {
+                for (offset, inner) in lines.iter().skip(index + 1).take(8).enumerate() {
+                    let inner = inner.trim();
+                    if inner == "}" {
+                        break;
+                    }
+                    if let Some(rest) = inner.strip_prefix("static ") {
+                        if let Some(name) = rest
+                            .split([':', ' '])
+                            .next()
+                            .filter(|name| !name.is_empty())
+                        {
+                            found.insert((file.clone(), name.to_owned()), index + offset + 2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    found
+}
+
+/// **A new global is a second store.** This gate names every one that exists, so a new one cannot arrive unnoticed, and a line that stops being true is deleted rather
+/// than left to rot.
+#[test]
+fn process_state_is_ledgered_and_the_ledger_may_only_shrink() {
+    let found = process_state();
+    let expected: std::collections::BTreeSet<(String, String)> = PROCESS_STATE
+        .iter()
+        .map(|(path, name, _)| ((*path).to_owned(), (*name).to_owned()))
+        .collect();
+    let actual: std::collections::BTreeSet<(String, String)> = found.keys().cloned().collect();
+
+    let mut message = String::new();
+    for (path, name) in actual.difference(&expected) {
+        let _ = writeln!(
+            message,
+            "\n  added `{name}` at {path}:{} - if it must exist, add a line to PROCESS_STATE saying why it cannot be a component",
+            found[&(path.clone(), name.clone())]
+        );
+    }
+    for (path, name) in expected.difference(&actual) {
+        let _ = writeln!(
+            message,
+            "\n  `{name}` ({path}) is listed but no longer exists - if it moved into the store, delete the line"
+        );
+    }
+    assert!(
+        message.is_empty(),
+        "the process-wide state changed:\n{message}"
+    );
+    assert_eq!(
+        found.len(),
+        PROCESS_STATE.len(),
+        "the scan found {} entries and the ledger lists {}: the gate is not seeing what it claims to check",
+        found.len(),
+        PROCESS_STATE.len()
+    );
+    // A ledger of five with a scan that finds nothing would pass the two assertions above if both sides were empty, which is exactly how the globals gate sat
+    // green for rounds while checking `0 == 0`.
+    assert!(
+        found.len() >= 5,
+        "the scan found only {} entries, which is too few to be the workspace",
+        found.len()
+    );
+}

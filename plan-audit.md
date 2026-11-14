@@ -42,6 +42,18 @@ configuration, and it turns items #7, #10, #12 and #14 from "found by hand" into
 | 12 | `&Vec`/`&String` | already enforced by `ptr_arg`; drop as a separate item |
 | 14 | bool-blind params | `max-fn-params-bools = 1` in `clippy.toml` + a starting ledger of the 30 two-bool functions |
 
+## Done round 42 (in addition to the two below)
+
+- **The globals gate was vacuous** (`0 == 0` on a needle nothing used). It now has a companion gate
+  with a real scan: `thread_local!`, `static mut`, and `static` atomics/locks across every crate, one
+  line per entry with the reason it cannot be a component yet, exact-set and shrink-only, plus a
+  non-vacuity floor. Mutation-checked by renaming one static: the gate reports both the addition and
+  the stale line.
+- **The turn loop's per-turn costs** were the gate's real price, not the memo: the whole-world
+  fingerprint twice a turn, the monster dump parsed every turn, the item tree read by two paths, and
+  the schedule rebuilt every turn. Fixed with a test each; `CDDA_TURN_PROFILE=1` reports per-stage
+  costs from the same stage list the schedule is built from.
+
 ## Order
 
 1. ~~clippy into the default gate (cheap, unblocks #6/#7/#10/#14).~~ **Done** (round 42): the gate runs
