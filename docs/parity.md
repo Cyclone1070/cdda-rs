@@ -36727,3 +36727,20 @@ fails.
 
 **Named:** smashing a bashable obstacle (`map::bash`), the damage a crash does to the parts and the impulse that bounces one vehicle off another are not ported.
 The rule here is only "do not enter", which is the part of `map::move_vehicle` that comes before any of them.
+
+## Next: collisions that do something (round 48+)
+
+The wall rule stops a vehicle; it does not damage it. The reference's chain is `part_collision` (`vehicle_move.cpp:836-1170`) → `veh_collision.imp` → `veh.damage()` in
+`map::move_vehicle`. The port has the last link (`vehicles::damage` over `vehicle_damage::hit`) and the detection; what is missing is the number in the middle:
+
+| Piece | Reference | What it needs |
+|---|---|---|
+| the obstacle's mass and restitution | `part_collision`'s branches: impassable terrain `(1000, 0.10)`, bashable terrain from `terrain_collision_data`, a body from its weight, another vehicle from its own mass | the terrain's bash data is ported; the rest is not |
+| the part's density | the base item's materials, averaged by portion | not in the port's part spec |
+| the split `k` | `50 + material_factor + weight_factor`, clamped to 10..90, from the two densities and the two masses | the densities above |
+| the deformation energy | an impulse loop: `d_E = E_before - E_after`, `dmg += d_E / 400`, until the vehicle stops or the sign flips | nothing more |
+| the part damage | `part_dmg = dmg * k / 100`, then `vehicle::damage` | ported |
+
+`--dump-vehicle-crash` has been written and records, per case, the vehicle, the speed, its mass, the speed after the crash, the part that took the hit, its hit points
+before and after, and **both densities the split divides by** - so the port can reproduce the number rather than read it back. The recording lands in
+`corpus/vehicle_crash.json` when the oracle rebuild finishes; the gate that replays it is the next round's work.

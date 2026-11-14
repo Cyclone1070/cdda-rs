@@ -3665,3 +3665,79 @@ fn a_vehicle_stops_at_a_wall_rather_than_driving_through_it() {
         "and it never enters the wall"
     );
 }
+
+/// **What a crash costs each vehicle, as the reference recorded it.**
+///
+/// `corpus/vehicle_crash.json` is `--dump-vehicle-crash`: a bicycle and a car driven into a wall at four speeds. Each row carries the mass, the speed after the
+/// crash, the part that took the hit, its hit points before and after, and the two densities the damage split divides by. The port's impulse loop lands next
+/// round and will reproduce the hit points; this test pins the recording itself so the numbers cannot drift while it is being written, and so the file is a gate
+/// rather than a promise.
+#[test]
+fn a_crash_into_a_wall_costs_the_part_the_reference_recorded() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_crash.json");
+    let bytes = std::fs::read(path).expect("the crash recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = std::collections::BTreeSet::new();
+    let mut damaged = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let name = text_of(row, "vehicle");
+        let speed = int_of(row, "speed");
+        seen.insert((name.clone(), speed));
+
+        // Every crash takes the speed: the car and the bicycle both come to rest.
+        assert_eq!(
+            int_of(row, "velocity_after"),
+            0,
+            "**{name} at {speed} stops at the wall**"
+        );
+        let lost = int_of(row, "part_lost");
+        assert_eq!(
+            lost,
+            int_of(row, "hp_before") - int_of(row, "hp_after"),
+            "{name} at {speed}: the hit points lost are the difference"
+        );
+        if lost > 0 {
+            damaged += 1;
+            assert!(
+                !text_of(row, "part_name").is_empty(),
+                "{name} at {speed}: a damaged part is named"
+            );
+        }
+    }
+    assert_eq!(seen.len(), 8, "two vehicles at four speeds");
+    assert_eq!(
+        damaged, 2,
+        "**the car takes damage at 1,000 and 2,000 and the bicycle takes none**"
+    );
+
+    // The two numbers the port has to reproduce: forty times the speed's effect, because the energy of the hit grows with the square of it.
+    let damaged_row = |speed: i32| {
+        cases
+            .iter()
+            .find_map(|case| {
+                let cdda_json::Value::Object(row) = case else {
+                    return None;
+                };
+                (text_of(row, "vehicle") == "car" && int_of(row, "speed") == speed)
+                    .then(|| int_of(row, "part_lost"))
+            })
+            .expect("the car has a row at that speed")
+    };
+    assert_eq!(damaged_row(1000), 8, "the car at 1,000 loses 8");
+    assert_eq!(
+        damaged_row(2000),
+        80,
+        "**the car at 2,000 loses ten times as much**"
+    );
+}

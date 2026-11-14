@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-15 06:40:01
-@@ -0,0 +1,9005 @@
++++ oracle/src/src/harness.cpp	2026-11-15 09:14:37
+@@ -0,0 +1,9113 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1533,6 +1533,114 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +    dump_vehicle( "bicycle", vproto_id( "bicycle" ) );
 +    dump_vehicle( "quad_bike", vproto_id( "quad_bike" ) );
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++void dump_vehicle_crash( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -24; dx <= 24; dx++ ) {
++        for( int dy = -24; dy <= 24; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    // `vehicle::part_collision` (`vehicle_move.cpp:836-1170`) turns a hit into damage through an impulse loop: the deformation energy of the collision, split between
++    // the vehicle and the obstacle by `k`, which the material and weight factors set. The dump records both densities the rule divides by and the damage the parts
++    // actually took, so the port can reproduce the number rather than read it back.
++    std::fprintf( out, "{\"harness\":\"vehicle_crash\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    const char *types[] = { "bicycle", "car" };
++    for( const char *type : types ) {
++        for( const int speed : { 100, 400, 1000, 2000 } ) {
++            const tripoint_bub_ms start = origin + tripoint_rel_ms( 0, 10, 0 );
++            vehicle *veh = here.add_vehicle( vproto_id( type ), start, 0_degrees, 100, 0, false, true );
++            if( veh == nullptr ) {
++                std::fprintf( stderr, "harness: %s did not place\n", type );
++                continue;
++            }
++            // A wall to the east, far enough that the vehicle is at full speed when it arrives.
++            for( int dy = -3; dy <= 3; dy++ ) {
++                here.ter_set( start + tripoint_rel_ms( 4, dy, 0 ), ter_id( "t_wall" ) );
++            }
++            veh->velocity = speed;
++            veh->cruise_velocity = speed;
++            // Enough movement to reach the wall: at 400 vmiph a square costs a whole turn, and the wall is four squares away.
++            veh->of_turn = 20.0f;
++            std::vector<int> hp_before;
++            for( int index = 0; index < veh->part_count(); index++ ) {
++                hp_before.push_back( veh->part( index ).hp() );
++            }
++
++            // One movement call is one square: the vehicle hits the wall on the square it tries to enter, and may then be stopped or bounce.
++            for( int step = 0; step < 8; step++ ) {
++                if( veh == nullptr ) {
++                    break;
++                }
++                veh = veh->act_on_map( here );
++            }
++            if( veh == nullptr ) {
++                std::fprintf( out, "%s{\"vehicle\":\"%s\",\"speed\":%d,\"destroyed\":true}",
++                              first_case ? "" : ",", type, speed );
++                first_case = false;
++                continue;
++            }
++
++            // The part the dump names is the one that lost the most hit points: that is the part the wall hit.
++            int worst = -1;
++            int lost = 0;
++            for( size_t index = 0; index < hp_before.size() &&
++                    index < static_cast<size_t>( veh->part_count() ); index++ ) {
++                const int damage = hp_before[index] - veh->part( static_cast<int>( index ) ).hp();
++                if( damage > lost ) {
++                    lost = damage;
++                    worst = static_cast<int>( index );
++                }
++            }
++            std::fprintf( out, "%s{\"vehicle\":\"%s\",\"speed\":%d,\"mass_g\":%lld,"
++                          "\"velocity_after\":%d,\"part\":%d,\"part_lost\":%d,",
++                          first_case ? "" : ",", type, speed,
++                          static_cast<long long>( units::to_gram( veh->total_mass( here ) ) ),
++                          veh->velocity, worst, lost );
++            if( worst >= 0 ) {
++                const vehicle_part &vp = veh->part( worst );
++                const itype *base = item::find_type( vp.info().base_item );
++                const auto &mats = base->materials;
++                const float mat_total = base->mat_portion_total == 0 ? 1 : base->mat_portion_total;
++                float vpart_dens = 0.0f;
++                if( !mats.empty() ) {
++                    for( const std::pair<const material_id, int> &mat_id : mats ) {
++                        vpart_dens += mat_id.first->density() *
++                                      ( static_cast<float>( mat_id.second ) / mat_total );
++                    }
++                    vpart_dens /= mats.size();
++                }
++                // A named local: `id.str()` does not decay to a C string, and passing a `std::string` to `%s` read the pointer's bytes as text.
++                const std::string part_name = vp.info().id.str();
++                std::fprintf( out, "\"part_name\":\"%s\",\"vpart_dens\":%.9g,"
++                              "\"hp_before\":%d,\"hp_after\":%d}",
++                              part_name.c_str(), static_cast<double>( vpart_dens ),
++                              hp_before[static_cast<size_t>( worst )], vp.hp() );
++            } else {
++                std::fprintf( out, "\"part_name\":\"\",\"vpart_dens\":0,\"hp_before\":0,\"hp_after\":0}" );
++            }
++            first_case = false;
++            here.destroy_vehicle( veh );
++        }
++    }
 +
 +    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
@@ -9367,8 +9475,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-15 06:26:18
-@@ -0,0 +1,444 @@
++++ oracle/src/src/harness.h	2026-11-15 08:32:46
+@@ -0,0 +1,445 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9524,6 +9632,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_thrust( const std::string &path );
 +void dump_vehicle_slowdown( const std::string &path );
 +void dump_vehicle_move( const std::string &path );
++void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
 +void dump_vehicle_top_speed( const std::string &path );
 +
@@ -10100,7 +10209,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-15 06:26:18
++++ oracle/src/src/main.cpp	2026-11-15 08:32:46
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10111,7 +10220,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,181 @@
+@@ -272,6 +275,182 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10283,6 +10392,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_thrust;
 +    std::string dump_vehicle_slowdown;
 +    std::string dump_vehicle_move;
++    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
 +    std::string dump_fields;
 +    std::string dump_items;
@@ -10293,7 +10403,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +478,1580 @@
+@@ -300,6 +479,1590 @@
                  }
              },
              {
@@ -10493,6 +10603,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_thrust = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-crash", "<file>",
++                "Writes the damage a vehicle takes driving into a wall, and the densities the split uses",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_crash = params[0];
 +                    return 1;
 +                }
 +            },
@@ -11874,7 +11994,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2538,939 @@
+@@ -786,6 +2549,951 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -12149,6 +12269,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_acceleration( cli.dump_vehicle_acceleration );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_crash.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_crash( cli.dump_vehicle_crash );
 +            exit_handler( 0 );
 +        }
 +
