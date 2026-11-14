@@ -76,7 +76,11 @@ pub fn blocked_within(
     };
     for (at, passage) in query.iter(world) {
         let square = (at.x, at.y, at.z);
-        if passage.impassable && !passage.permeable && (square.0 - centre.0).abs() <= radius && (square.1 - centre.1).abs() <= radius {
+        if passage.impassable
+            && !passage.permeable
+            && (square.0 - centre.0).abs() <= radius
+            && (square.1 - centre.1).abs() <= radius
+        {
             blocked.insert(square);
         }
     }

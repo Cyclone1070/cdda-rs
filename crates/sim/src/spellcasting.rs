@@ -40,7 +40,11 @@ pub struct Somatic {
 /// altogether. `None` when the data wrote an expression where a number belongs, because a guessed price is a silent
 /// divergence in every cast.
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
+)]
 pub fn energy_cost(spell: &Spell, level: i32, somatic: Somatic) -> Option<i32> {
     let base = spell.energy.start?;
     let increment = spell.energy.increment?;
@@ -86,7 +90,13 @@ pub enum Afford {
 
 /// Whether a caster can pay for a spell at this level.
 #[must_use]
-pub fn can_afford(world: &World, caster: Entity, spell: &Spell, level: i32, somatic: Somatic) -> Afford {
+pub fn can_afford(
+    world: &World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    somatic: Somatic,
+) -> Afford {
     let Some(cost) = energy_cost(spell, level, somatic) else {
         return Afford::Unknown;
     };
@@ -138,7 +148,15 @@ pub fn can_afford(world: &World, caster: Entity, spell: &Spell, level: i32, soma
 /// Reference: `spell::consume_spell_cost` (`magic.cpp:1889-1912`). The failure discount is the caller's business here (`cast_success` is a parameter, as in the reference), and
 /// blood magic arrives as [`Afford::Unknown`] from [`can_afford`] and is not spent at all.
 #[must_use]
-pub fn spend(world: &mut World, caster: Entity, spell: &Spell, level: i32, somatic: Somatic, cast_success: bool, failure_percent: f64) -> bool {
+pub fn spend(
+    world: &mut World,
+    caster: Entity,
+    spell: &Spell,
+    level: i32,
+    somatic: Somatic,
+    cast_success: bool,
+    failure_percent: f64,
+) -> bool {
     let Some(cost) = energy_cost(spell, level, somatic) else {
         return false;
     };
@@ -303,7 +321,10 @@ pub fn damage_one(
     }
     // Reference: `damage_targets` (`magic_spell_effect.cpp:523-560`) calls `sp.make_sound( target, caster )` for **each square of the area** before the field and the damage, so a
     // spell that hits three creatures is heard from each of them, and the loudness is `spell::sound_volume` rather than the damage itself.
-    if let Some(at) = world.get::<crate::Position>(target).map(|held| (held.x, held.y, held.z)) {
+    if let Some(at) = world
+        .get::<crate::Position>(target)
+        .map(|held| (held.x, held.y, held.z))
+    {
         let loudness = sound_volume(spell, level);
         if loudness > 0 {
             crate::sounds::make_sound(world, at, loudness);
@@ -326,7 +347,14 @@ pub fn damage_one(
     let arrived = damage.round() as i32;
     // The garment that stopped the blow may not survive stopping it, and it is asked with what arrived rather than
     // what got through (`character_armor.cpp`).
-    crate::creature::settle_armour(world, target, &part, damage, fraction, Some(&spell.damage_type));
+    crate::creature::settle_armour(
+        world,
+        target,
+        &part,
+        damage,
+        fraction,
+        Some(&spell.damage_type),
+    );
     let dealt = through_armour(arrived, armour);
     #[allow(clippy::cast_precision_loss)]
     let as_float = dealt as f32;
@@ -376,5 +404,3 @@ pub fn lands_on(parts: &[crate::hit_location::BodyPart], fraction: f64) -> Optio
     let index = crate::hit_location::pick_by_weight(&weights, fraction)?;
     parts.get(index).map(|part| part.name.clone())
 }
-
-

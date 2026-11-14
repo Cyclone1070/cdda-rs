@@ -7,7 +7,9 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::body::Body;
-use cdda_sim::mutation_activation::{Affordability, Switched, after_switching_on, can_power_mutation};
+use cdda_sim::mutation_activation::{
+    Affordability, Switched, after_switching_on, can_power_mutation,
+};
 
 /// **Switching on costs a cooldown's charge, and switching on again spends a turn of it instead.**
 ///
@@ -26,7 +28,13 @@ use cdda_sim::mutation_activation::{Affordability, Switched, after_switching_on,
 /// paid twice while the charge lasts.
 #[test]
 fn switching_a_mutation_on_starts_its_charge_and_switching_it_on_again_spends_a_turn() {
-    let first = after_switching_on(Switched { powered: false, charge: 0 }, 10);
+    let first = after_switching_on(
+        Switched {
+            powered: false,
+            charge: 0,
+        },
+        10,
+    );
     assert_eq!(
         first,
         Switched {
@@ -44,7 +52,13 @@ fn switching_a_mutation_on_starts_its_charge_and_switching_it_on_again_spends_a_
         },
         "and switching it on again spends a turn of what is left rather than paying again"
     );
-    let free = after_switching_on(Switched { powered: false, charge: 0 }, 0);
+    let free = after_switching_on(
+        Switched {
+            powered: false,
+            charge: 0,
+        },
+        0,
+    );
     assert_eq!(
         free,
         Switched {
@@ -104,7 +118,10 @@ fn a_mutation_the_creature_cannot_afford_does_not_switch_on() {
         can_power_mutation(sleepy, 1.0, 0, 574, 0),
         "**exhaustion is 575** (`character.h:154`), so 574 is still allowed"
     );
-    assert!(!can_power_mutation(sleepy, 1.0, 0, 575, 0), "and 575 blocks it");
+    assert!(
+        !can_power_mutation(sleepy, 1.0, 0, 575, 0),
+        "and 575 blocks it"
+    );
 
     let mana_only = Affordability {
         hunger: false,
@@ -117,7 +134,10 @@ fn a_mutation_the_creature_cannot_afford_does_not_switch_on() {
         !can_power_mutation(mana_only, 0.0, 1_000, 0, 400),
         "**exactly enough mana is not enough**: the reference blocks at `available <= cost`"
     );
-    assert!(can_power_mutation(mana_only, 0.0, 1_000, 0, 401), "one over it is");
+    assert!(
+        can_power_mutation(mana_only, 0.0, 1_000, 0, 401),
+        "one over it is"
+    );
 
     let nothing = Affordability {
         hunger: false,
@@ -148,7 +168,9 @@ fn switching_a_mutation_on_pays_its_cost_out_of_the_body() {
     hungry.stored_calories = 40_000_000;
     hungry.set_thirst(100);
     let (mut world, creature) = world_with(hungry);
-    let before = cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal();
+    let before = cdda_sim::body::body_of(&world, creature)
+        .expect("the body")
+        .stored_kcal();
     cdda_sim::mutation_activation::pay_for_switching_on(
         &mut world,
         creature,
@@ -166,7 +188,10 @@ fn switching_a_mutation_on_pays_its_cost_out_of_the_body() {
         before - 400,
         "**four hundred kilocalories, which is `mod_stored_kcal( -cost )`**"
     );
-    assert_eq!(after.thirst, 100, "and the thirst it is not paid in does not move");
+    assert_eq!(
+        after.thirst, 100,
+        "and the thirst it is not paid in does not move"
+    );
 
     let mut thirsty = Body::new(2_500);
     thirsty.stored_calories = 40_000_000;
@@ -206,9 +231,16 @@ fn switching_on_pays_once_remembers_the_charge_and_refuses_a_creature_that_canno
             ..cdda_content::mutations::Mutation::default()
         };
         costing.valid = true;
-        let mutations = cdda_content::mutations::Mutations::from_entries([("FLAMING_EYES".to_owned(), costing)]);
+        let mutations = cdda_content::mutations::Mutations::from_entries([(
+            "FLAMING_EYES".to_owned(),
+            costing,
+        )]);
         let mut world = World::new();
-        cdda_sim::mutation_data::install(&mut world, mutations, cdda_content::mutations::Categories::default());
+        cdda_sim::mutation_data::install(
+            &mut world,
+            mutations,
+            cdda_content::mutations::Categories::default(),
+        );
         let mut body = Body::new(2_500);
         body.stored_calories = stored_calories;
         let creature = world.spawn(body).id();
@@ -221,7 +253,9 @@ fn switching_on_pays_once_remembers_the_charge_and_refuses_a_creature_that_canno
         "a creature with calories to spare switches it on"
     );
     assert_eq!(
-        cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal(),
+        cdda_sim::body::body_of(&world, creature)
+            .expect("the body")
+            .stored_kcal(),
         40_000 - 400,
         "**and pays for it once**"
     );
@@ -238,7 +272,9 @@ fn switching_on_pays_once_remembers_the_charge_and_refuses_a_creature_that_canno
         "switching it on again while it is already on still succeeds"
     );
     assert_eq!(
-        cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal(),
+        cdda_sim::body::body_of(&world, creature)
+            .expect("the body")
+            .stored_kcal(),
         40_000 - 400,
         "**but pays nothing more**: the charge is what an already-on mutation spends"
     );
@@ -258,7 +294,9 @@ fn switching_on_pays_once_remembers_the_charge_and_refuses_a_creature_that_canno
         "**a creature under half its healthy calories cannot switch it on**"
     );
     assert_eq!(
-        cdda_sim::body::body_of(&starved, creature).expect("the body").stored_kcal(),
+        cdda_sim::body::body_of(&starved, creature)
+            .expect("the body")
+            .stored_kcal(),
         9_000,
         "and nothing is taken from it"
     );
@@ -287,9 +325,14 @@ fn the_activate_trait_effect_switches_the_mutation_on() {
         ..cdda_content::mutations::Mutation::default()
     };
     costing.valid = true;
-    let mutations = cdda_content::mutations::Mutations::from_entries([("WINGS_INSECT".to_owned(), costing)]);
+    let mutations =
+        cdda_content::mutations::Mutations::from_entries([("WINGS_INSECT".to_owned(), costing)]);
     let mut world = World::new();
-    cdda_sim::mutation_data::install(&mut world, mutations, cdda_content::mutations::Categories::default());
+    cdda_sim::mutation_data::install(
+        &mut world,
+        mutations,
+        cdda_content::mutations::Categories::default(),
+    );
     let mut body = Body::new(2_500);
     body.stored_calories = 40_000_000;
     let creature = world.spawn(body).id();
@@ -299,7 +342,11 @@ fn the_activate_trait_effect_switches_the_mutation_on() {
         listener: false,
     };
     let applied = cdda_sim::dialogue_effects::run_effect(&mut world, creature, None, &effect);
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect is answered");
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect is answered"
+    );
     assert_eq!(
         cdda_sim::mutation_activation::state_of(&world, creature, "WINGS_INSECT"),
         Switched {
@@ -309,7 +356,9 @@ fn the_activate_trait_effect_switches_the_mutation_on() {
         "**and the mutation is switched on, through the effect**"
     );
     assert_eq!(
-        cdda_sim::body::body_of(&world, creature).expect("the body").stored_kcal(),
+        cdda_sim::body::body_of(&world, creature)
+            .expect("the body")
+            .stored_kcal(),
         40_000 - 400,
         "paying for it out of the body the acting creature wears"
     );
@@ -321,8 +370,8 @@ fn the_activate_trait_effect_switches_the_mutation_on() {
 /// already-on branch, so every switch-on runs them, not only the one that paid.
 #[test]
 fn a_mutation_runs_its_own_programs_when_it_is_switched_on() {
-    use cdda_sim::eoc_registry::Program;
     use cdda_content::dialogue::{Effect, StringSource};
+    use cdda_sim::eoc_registry::Program;
 
     let mut costing = cdda_content::mutations::Mutation {
         cost: 400,
@@ -332,9 +381,14 @@ fn a_mutation_runs_its_own_programs_when_it_is_switched_on() {
         ..cdda_content::mutations::Mutation::default()
     };
     costing.valid = true;
-    let mutations = cdda_content::mutations::Mutations::from_entries([("FLAMING_EYES".to_owned(), costing)]);
+    let mutations =
+        cdda_content::mutations::Mutations::from_entries([("FLAMING_EYES".to_owned(), costing)]);
     let mut world = World::new();
-    cdda_sim::mutation_data::install(&mut world, mutations, cdda_content::mutations::Categories::default());
+    cdda_sim::mutation_data::install(
+        &mut world,
+        mutations,
+        cdda_content::mutations::Categories::default(),
+    );
     let program = Program {
         id: "EOC_TEST_ACTIVATED".to_owned(),
         event: None,
@@ -359,7 +413,11 @@ fn a_mutation_runs_its_own_programs_when_it_is_switched_on() {
         vec!["Your eyes catch fire.".to_owned()],
         "**and the program it names has run, once**"
     );
-    assert!(cdda_sim::mutation_activation::switch_on(&mut world, creature, "FLAMING_EYES"));
+    assert!(cdda_sim::mutation_activation::switch_on(
+        &mut world,
+        creature,
+        "FLAMING_EYES"
+    ));
     assert_eq!(
         cdda_sim::messages::lines(&world),
         vec![
@@ -395,13 +453,7 @@ fn the_emit_effect_puts_a_field_where_the_variable_says() {
         )],
     );
     // `context_val` is held by the speaker itself (`holder_for_scope`), which is how a program carries a square from one entry to the next.
-    let actor = world
-        .spawn(cdda_sim::Position {
-            x: 0,
-            y: 0,
-            z: 0,
-        })
-        .id();
+    let actor = world.spawn(cdda_sim::Position { x: 0, y: 0, z: 0 }).id();
     cdda_sim::dialogue_values::set(
         &mut world,
         actor,

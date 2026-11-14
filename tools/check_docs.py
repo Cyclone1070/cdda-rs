@@ -27,6 +27,15 @@ PHASE_ROW_APPENDIX = re.compile(r"^\| (P\d+) \| (\d+) \| ([\d,]+) \|")
 PHASE_ROW_ROADMAP = re.compile(r"^\| (P\d+ [^|]+?) \| (\d+) \| ([\d,]+) \|")
 
 
+def _is_under(path: pathlib.Path, root: pathlib.Path) -> bool:
+    """Whether `path` is inside `root`, comparing the way the filesystem will."""
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--docs", default="docs")
@@ -50,6 +59,14 @@ def main():
             checked["links"] += 1
             path = (d.parent / target).resolve()
             if not path.exists():
+                # The pinned reference checkout is fetched, never committed (`.gitignore`), so a machine
+                # without it - which is every CI runner - cannot check a link into it. That is a link it
+                # could not check, not a broken one: count it and say so, so the gate reports how much of
+                # itself ran instead of failing on a file it was never given.
+                if not ref.exists() and _is_under(path, ref):
+                    checked["unchecked_reference_links"] = checked.get(
+                        "unchecked_reference_links", 0) + 1
+                    continue
                 problems.append(f"{d.name}: broken link {target}")
                 continue
             if lo:
@@ -130,6 +147,9 @@ def main():
     print(f"  links resolved:   {checked['links']}")
     print(f"  anchors in range: {checked['anchors']}")
     print(f"  citations in range: {checked['citations']}")
+    if checked.get("unchecked_reference_links"):
+        print(f"  links into the unfetched reference, not checked: "
+              f"{checked['unchecked_reference_links']}")
     if problems:
         print(f"\nPROBLEMS ({len(problems)}):")
         for p in problems:

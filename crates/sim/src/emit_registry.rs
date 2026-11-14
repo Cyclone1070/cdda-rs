@@ -46,5 +46,7 @@ pub fn emissions_of(world: &World, id: &str) -> Option<Vec<Emission>> {
 #[must_use]
 pub fn count(world: &mut World) -> usize {
     let holder = singletons::singleton::<Emits, TheEmits>(world);
-    world.get::<Emits>(holder).map_or(0, |emits| emits.by_id.len())
+    world
+        .get::<Emits>(holder)
+        .map_or(0, |emits| emits.by_id.len())
 }

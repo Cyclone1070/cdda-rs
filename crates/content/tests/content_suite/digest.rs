@@ -205,7 +205,9 @@ fn furniture_specials_vehicles_and_the_starting_kit_match() {
     let artifact = std::fs::read_to_string(root().join("corpus/vehicles.json")).expect("artifact");
     let value = parse(artifact.as_bytes()).expect("parses");
     let loaded = vehicles::from_dump(&value).expect("vehicles load");
-    let ours = digest::digest_hex(digest::digest_ids(loaded.prototypes.iter().map(|proto| &proto.id)));
+    let ours = digest::digest_hex(digest::digest_ids(
+        loaded.prototypes.iter().map(|proto| &proto.id),
+    ));
     assert_eq!(
         ours,
         digest_of(digests.get("vehicle").expect("vehicle digest")),

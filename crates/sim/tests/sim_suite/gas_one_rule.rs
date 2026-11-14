@@ -8,8 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;
-use cdda_core_types::rng::{Recording, Rolls};
 use cdda_core_types::field::FieldId;
+use cdda_core_types::rng::{Recording, Rolls};
 use cdda_sim::{Field, GasContext, Position, spread_gas};
 
 /// A gas, as the test file's own id: the rule does not care which field it is.
@@ -67,7 +67,13 @@ fn the_older_door_falls_before_it_looks_sideways() {
     let gas = spawn(&mut world, 0, 3, 5);
     let mut rolls = Rolls::replaying(Recording::parse("int 1 100 5\n").expect("one die"));
     let context = still();
-    spread_gas(&mut world, gas, &context, |_from, to| (to.0, to.1) != (6, 5), &mut rolls);
+    spread_gas(
+        &mut world,
+        gas,
+        &context,
+        |_from, to| (to.0, to.1) != (6, 5),
+        &mut rolls,
+    );
     assert_eq!(
         rolls.recording_remaining(),
         Some(0),
@@ -85,14 +91,23 @@ fn gas_still_only_goes_sideways_when_the_floor_holds_it() {
     // No square below to take it, so the lateral scan runs: the start neighbour, whether it goes, and which one.
     let mut world = World::new();
     let gas = spawn(&mut world, 0, 3, 5);
-    let recording = Recording::parse("int 1 100 5\nint 0 7 0\nint 0 7 0\nint 0 7 0\n").expect("four dice");
+    let recording =
+        Recording::parse("int 1 100 5\nint 0 7 0\nint 0 7 0\nint 0 7 0\n").expect("four dice");
     let mut rolls = Rolls::replaying(recording);
     let context = still();
     // A floor under the gas, so the fall is not on the table and the lateral scan is what runs.
-    spread_gas(&mut world, gas, &context, |from, to| to.2 == from.2, &mut rolls);
+    spread_gas(
+        &mut world,
+        gas,
+        &context,
+        |from, to| to.2 == from.2,
+        &mut rolls,
+    );
     let squares = fields(&mut world);
     assert!(
-        squares.iter().any(|&(_, _, z, intensity, _)| z == 0 && intensity == 1),
+        squares
+            .iter()
+            .any(|&(_, _, z, intensity, _)| z == 0 && intensity == 1),
         "the share went to a neighbour: {squares:?}"
     );
 }

@@ -8,7 +8,8 @@
 use cdda_content::mutations;
 
 fn dump() -> mutations::Mutations {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/mutations.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/prototypes/mutations.json");
     let value = cdda_content::read_json(&path).expect("the mutation dump");
     mutations::from_dump(&value).expect("a dump").0
 }
@@ -26,7 +27,10 @@ fn a_mutation_that_runs_a_program_when_switched_on_says_so() {
     );
 
     let wings = data.get("WINGS_INSECT").expect("WINGS_INSECT");
-    assert_eq!(wings.cost, 0, "while a mutation that switches for free says nothing");
+    assert_eq!(
+        wings.cost, 0,
+        "while a mutation that switches for free says nothing"
+    );
     assert!(wings.activated_eocs.is_empty(), "and runs nothing");
 
     let with_programs = data.ids().filter(|id| {

@@ -41,7 +41,12 @@ pub fn has_identified(world: &World, character: Entity, item_type: &str) -> bool
 ///
 /// Reference: `avatar::identify` (`src/avatar.cpp:722-760`): it returns early when the type is already known, refuses anything that is not a book, and otherwise inserts the **type** id - so every copy
 /// of that type is identified from then on.
-pub fn identify_book(world: &mut World, character: Entity, item_type: &str, is_book: bool) -> Identification {
+pub fn identify_book(
+    world: &mut World,
+    character: Entity,
+    item_type: &str,
+    is_book: bool,
+) -> Identification {
     if !is_book {
         return Identification::NotABook;
     }
@@ -49,7 +54,9 @@ pub fn identify_book(world: &mut World, character: Entity, item_type: &str, is_b
         return Identification::AlreadyKnown;
     }
     if world.get::<IdentifiedItems>(character).is_none() {
-        world.entity_mut(character).insert(IdentifiedItems::default());
+        world
+            .entity_mut(character)
+            .insert(IdentifiedItems::default());
     }
     if let Some(mut known) = world.get_mut::<IdentifiedItems>(character) {
         known.ids.insert(item_type.to_owned());
@@ -95,18 +102,33 @@ pub struct SkimFacts<'a> {
 /// The skill's own name comes from the caller, because the reference translates it (`skill.obj().name()`); the port has no translation machinery yet and prints the id's name as given.
 #[must_use]
 pub fn skim_messages(facts: &SkimFacts<'_>) -> Vec<String> {
-    let mut lines = vec![format!("You skim {} to find out what's in it.", facts.book_name)];
+    let mut lines = vec![format!(
+        "You skim {} to find out what's in it.",
+        facts.book_name
+    )];
     if let Some(skill) = facts.skill_name {
-        lines.push(format!("Can bring your {skill} knowledge to {}.", facts.level));
+        lines.push(format!(
+            "Can bring your {skill} knowledge to {}.",
+            facts.level
+        ));
         if facts.req != 0 {
-            lines.push(format!("Requires {skill} knowledge level {} to understand.", facts.req));
+            lines.push(format!(
+                "Requires {skill} knowledge level {} to understand.",
+                facts.req
+            ));
         }
     }
     if facts.intel != 0 {
-        lines.push(format!("Requires intelligence of {} to easily read.", facts.intel));
+        lines.push(format!(
+            "Requires intelligence of {} to easily read.",
+            facts.intel
+        ));
     }
     if facts.fun != 0 {
-        lines.push(format!("Reading this book affects your morale by {}.", facts.fun));
+        lines.push(format!(
+            "Reading this book affects your morale by {}.",
+            facts.fun
+        ));
     }
     lines.push(format!(
         "A chapter of this book takes {} to read.",

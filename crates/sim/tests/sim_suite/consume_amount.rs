@@ -8,8 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{
-    Container, GroundItem, ItemFacts, ItemTypeId, Position, consume_items,
-    consume_items_by_amount, contents, drop_item, insert_into,
+    Container, GroundItem, ItemFacts, ItemTypeId, Position, consume_items, consume_items_by_amount,
+    contents, drop_item, insert_into,
 };
 
 const WATER: ItemTypeId = ItemTypeId(1);
@@ -35,7 +35,10 @@ fn an_amount_takes_the_whole_item_and_a_charge_takes_one_charge() {
     drop_item(&mut world, (3, 3), WATER, 5);
     let taken = consume_items_by_amount(&mut world, (3, 3), WATER, 1, |_| true);
     assert_eq!(taken.taken, 1, "one item, not one charge");
-    assert!(piles(&mut world).is_empty(), "and all five charges went with it");
+    assert!(
+        piles(&mut world).is_empty(),
+        "and all five charges went with it"
+    );
 
     let mut world = World::new();
     drop_item(&mut world, (3, 3), WATER, 5);
@@ -64,7 +67,10 @@ fn an_amount_reaches_inside_a_container_before_it_reaches_the_container() {
     insert_into(&mut world, canteen, water_item, volume_of).expect("the water fits");
     let taken = consume_items_by_amount(&mut world, (3, 3), WATER, 1, |_| true);
     assert_eq!(taken.taken, 1);
-    assert!(contents(&mut world, canteen).is_empty(), "the water is gone");
+    assert!(
+        contents(&mut world, canteen).is_empty(),
+        "the water is gone"
+    );
     assert_eq!(
         piles(&mut world),
         vec![(CANTEEN, 1)],

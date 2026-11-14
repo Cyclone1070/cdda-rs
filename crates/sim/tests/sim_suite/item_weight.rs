@@ -70,7 +70,8 @@ fn the_counting_goes_all_the_way_down() {
     let inner = box_holding(&mut world, &[ItemTypeId(1)]);
     let outer = drop_item(&mut world, (5, 5), ItemTypeId(9), 1);
     world.entity_mut(outer).insert(Container::new(10_000));
-    insert_into(&mut world, outer, inner, |_| cdda_sim::ItemFacts::solid(1)).expect("the inner box fits");
+    insert_into(&mut world, outer, inner, |_| cdda_sim::ItemFacts::solid(1))
+        .expect("the inner box fits");
     assert_eq!(
         item_weight(&mut world, outer, grams),
         1100,
@@ -143,7 +144,11 @@ fn a_maximally_damaged_item_weighs_its_integral_weight() {
     // Everything else is unchanged: the charges still multiply, the contents are still added, and a `NO_DROP` item is still nothing at all.
     let mut world = World::new();
     let gun = drop_item(&mut world, (5, 5), ItemTypeId(11), 1);
-    assert_eq!(item_weight(&mut world, gun, integral_grams), 1000, "as made");
+    assert_eq!(
+        item_weight(&mut world, gun, integral_grams),
+        1000,
+        "as made"
+    );
     assert_eq!(
         item_weight_integral(&mut world, gun, integral_grams),
         650,
@@ -180,7 +185,11 @@ fn a_pile_of_charges_takes_up_its_volume_in_stacks_rounded_up() {
     let one = drop_item(&mut world, (5, 5), ItemTypeId(20), 1);
     let hundred = drop_item(&mut world, (5, 5), ItemTypeId(20), 100);
     let hundred_one = drop_item(&mut world, (5, 5), ItemTypeId(20), 101);
-    assert_eq!(item_volume(&mut world, one, stack_volume), 1, "one charge of a hundred-charge stack");
+    assert_eq!(
+        item_volume(&mut world, one, stack_volume),
+        1,
+        "one charge of a hundred-charge stack"
+    );
     assert_eq!(
         item_volume(&mut world, hundred, stack_volume),
         100,
@@ -193,7 +202,11 @@ fn a_pile_of_charges_takes_up_its_volume_in_stacks_rounded_up() {
     );
     let three = drop_item(&mut world, (6, 6), ItemTypeId(21), 3);
     let four = drop_item(&mut world, (6, 6), ItemTypeId(21), 4);
-    assert_eq!(item_volume(&mut world, three, stack_volume), 1, "a whole stack of three");
+    assert_eq!(
+        item_volume(&mut world, three, stack_volume),
+        1,
+        "a whole stack of three"
+    );
     assert_eq!(
         item_volume(&mut world, four, stack_volume),
         2,
@@ -221,14 +234,22 @@ fn a_collapsed_item_takes_up_its_integral_volume() {
     // The charge rule still applies, because the reference picks the number first and divides by the stack size afterwards.
     let mut world = World::new();
     let folded = drop_item(&mut world, (5, 5), ItemTypeId(30), 1);
-    assert_eq!(item_volume(&mut world, folded, integral_volume), 4000, "as it stands");
+    assert_eq!(
+        item_volume(&mut world, folded, integral_volume),
+        4000,
+        "as it stands"
+    );
     assert_eq!(
         item_volume_integral(&mut world, folded, integral_volume),
         500,
         "and packed down, which is the whole point of the second number"
     );
     let charges = drop_item(&mut world, (5, 5), ItemTypeId(31), 6);
-    assert_eq!(item_volume(&mut world, charges, integral_volume), 2, "six charges of a 3 ml stack of nine");
+    assert_eq!(
+        item_volume(&mut world, charges, integral_volume),
+        2,
+        "six charges of a 3 ml stack of nine"
+    );
     assert_eq!(
         item_volume_integral(&mut world, charges, integral_volume),
         1,

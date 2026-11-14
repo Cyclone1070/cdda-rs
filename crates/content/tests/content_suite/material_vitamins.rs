@@ -13,9 +13,10 @@ use std::collections::BTreeMap;
 
 #[test]
 fn every_material_carries_the_vitamins_the_reference_says() {
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/material-vitamins.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/material-vitamins.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -24,8 +25,8 @@ fn every_material_carries_the_vitamins_the_reference_says() {
         panic!("the dump holds materials")
     };
     assert_eq!(materials.len(), 193, "every material prototype");
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded: BTreeMap<String, _> = load_paths(&paths)
@@ -68,11 +69,16 @@ fn every_material_carries_the_vitamins_the_reference_says() {
             })
             .collect();
         if ours != theirs {
-            differing.push(format!("{id}: the port says {ours:?}, the reference says {theirs:?}"));
+            differing.push(format!(
+                "{id}: the port says {ours:?}, the reference says {theirs:?}"
+            ));
         }
     }
     // Only a handful of materials carry vitamins at all, so a loader that dropped them everywhere would otherwise pass on an empty comparison.
-    assert!(carrying >= 4, "some materials do carry vitamins: {carrying}");
+    assert!(
+        carrying >= 4,
+        "some materials do carry vitamins: {carrying}"
+    );
     assert!(
         differing.is_empty(),
         "{} of {} materials disagree: {:#?}",

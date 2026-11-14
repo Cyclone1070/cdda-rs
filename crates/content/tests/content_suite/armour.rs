@@ -44,10 +44,22 @@ fn layers_add_and_thickness_multiplies() {
         thickness: 2.0,
         cover: 100,
     };
-    assert_eq!(resist_of(std::slice::from_ref(&thin), 0), 1.5, "a quarter of a millimetre of steel");
-    assert_eq!(resist_of(std::slice::from_ref(&thick), 0), 2.0, "two millimetres of flesh");
+    assert_eq!(
+        resist_of(std::slice::from_ref(&thin), 0),
+        1.5,
+        "a quarter of a millimetre of steel"
+    );
+    assert_eq!(
+        resist_of(std::slice::from_ref(&thick), 0),
+        2.0,
+        "two millimetres of flesh"
+    );
     assert_eq!(resist_of(&[thin, thick], 0), 3.5, "and both together");
-    assert_eq!(resist_of(&[], 0), 0.0, "nothing in the way protects nothing");
+    assert_eq!(
+        resist_of(&[], 0),
+        0.0,
+        "nothing in the way protects nothing"
+    );
 }
 
 #[test]
@@ -125,7 +137,10 @@ fn a_blow_damages_a_garment_by_a_logistic_that_never_reaches_eighty_per_cent() {
     // More of the garment in the way means less chance of ruining it.
     let coat = chance(10.0, 20.0, 4, false, false);
     let glove = chance(10.0, 20.0, 1, false, false);
-    assert!(coat * 4.0 - glove < 1e-9, "a garment covering four parts is a quarter as likely");
+    assert!(
+        coat * 4.0 - glove < 1e-9,
+        "a garment covering four parts is a quarter as likely"
+    );
 }
 
 #[test]
@@ -160,7 +175,10 @@ fn a_garment_takes_four_steps_of_damage_and_breaks_on_the_fifth() {
     for step in 1..=4 {
         damage += DAMAGE_SCALE;
         let ruined = damage > DAMAGE_MAX;
-        assert!(!ruined, "step {step} is damage {damage}, which does not pass {DAMAGE_MAX}");
+        assert!(
+            !ruined,
+            "step {step} is damage {damage}, which does not pass {DAMAGE_MAX}"
+        );
     }
     assert_eq!(damage, DAMAGE_MAX, "four steps is exactly the maximum");
     assert_eq!(
@@ -175,8 +193,16 @@ fn a_garment_takes_four_steps_of_damage_and_breaks_on_the_fifth() {
         "the fifth step passes the maximum, which is what ruins the garment"
     );
 
-    assert_eq!(damage_level(0, DAMAGE_MAX), 0, "an untouched garment is level zero");
-    assert_eq!(damage_level(1, 0), 0, "and a thing with no maximum cannot be damaged");
+    assert_eq!(
+        damage_level(0, DAMAGE_MAX),
+        0,
+        "an untouched garment is level zero"
+    );
+    assert_eq!(
+        damage_level(1, 0),
+        0,
+        "and a thing with no maximum cannot be damaged"
+    );
 }
 
 /// The three flags that decide how hard a garment is to ruin exist in the data, and in sensible numbers.
@@ -221,13 +247,22 @@ fn the_data_carries_the_flags_that_decide_how_a_garment_wears_out() {
 fn a_damaged_garment_protects_by_an_eighth_less_a_level() {
     use cdda_content::armour::damage_adjusted_armor_resist;
 
-    assert!((damage_adjusted_armor_resist(4.0, 0) - 4.0).abs() < 1e-9, "an untouched garment");
+    assert!(
+        (damage_adjusted_armor_resist(4.0, 0) - 4.0).abs() < 1e-9,
+        "an untouched garment"
+    );
     assert!(
         (damage_adjusted_armor_resist(4.0, 1) - 4.0).abs() < 1e-9,
         "**and level one is still whole**: the reference subtracts one before counting"
     );
-    assert!((damage_adjusted_armor_resist(4.0, 2) - 3.5).abs() < 1e-9, "level two takes an eighth");
-    assert!((damage_adjusted_armor_resist(4.0, 5) - 2.0).abs() < 1e-9, "level five keeps half");
+    assert!(
+        (damage_adjusted_armor_resist(4.0, 2) - 3.5).abs() < 1e-9,
+        "level two takes an eighth"
+    );
+    assert!(
+        (damage_adjusted_armor_resist(4.0, 5) - 2.0).abs() < 1e-9,
+        "level five keeps half"
+    );
     assert!(
         (damage_adjusted_armor_resist(4.0, 9) - 0.0).abs() < 1e-9,
         "**and past level nine there is nothing left to protect with**, which is the reference's own floor"
@@ -257,10 +292,18 @@ fn the_materials_are_summed_before_the_wear_scales_them() {
         },
     ];
     assert_eq!(resist_of(&layers, 0), 4.0, "two and two");
-    assert_eq!(resist_as_worn(&layers, 0, 1), 4.0, "a whole garment is worth its sum");
+    assert_eq!(
+        resist_as_worn(&layers, 0, 1),
+        4.0,
+        "a whole garment is worth its sum"
+    );
     #[allow(clippy::float_cmp)]
     {
-        assert_eq!(resist_as_worn(&layers, 0, 5), 2.0, "**and a level-five one is worth half of it**");
+        assert_eq!(
+            resist_as_worn(&layers, 0, 5),
+            2.0,
+            "**and a level-five one is worth half of it**"
+        );
     }
     assert_eq!(
         resist_as_worn(&layers, 100, 5),

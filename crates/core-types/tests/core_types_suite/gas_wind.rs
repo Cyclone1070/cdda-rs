@@ -23,11 +23,19 @@ fn windy(sheltered: bool, windpower: i32, wind_direction: i32) -> Around {
 #[test]
 fn a_windless_turn_does_not_look_at_the_blockers_at_all() {
     // `sheltered || windpower < 5` takes the plain branch: one draw to pick among the eight, and no real draws.
-    let recording = Recording::parse("int 1 96 5\nint 0 7 0\nint 0 7 0\nint 0 7 4\n").expect("four dice");
+    let recording =
+        Recording::parse("int 1 96 5\nint 0 7 0\nint 0 7 0\nint 0 7 4\n").expect("four dice");
     let mut rolls = Rolls::replaying(recording);
     let answer = spread_gas(3, 5, 30, &windy(false, 4, 0), &mut rolls);
-    assert!(matches!(answer.direction, GasDirection::Side(_)), "{answer:?}");
-    assert_eq!(rolls.recording_remaining(), Some(0), "nothing else was drawn");
+    assert!(
+        matches!(answer.direction, GasDirection::Side(_)),
+        "{answer:?}"
+    );
+    assert_eq!(
+        rolls.recording_remaining(),
+        Some(0),
+        "nothing else was drawn"
+    );
 }
 
 #[test]
@@ -59,7 +67,11 @@ fn a_blocked_neighbour_that_wins_its_draw_stays_a_candidate() {
     let mut rolls = Rolls::replaying(recording);
     // One chance in ten to beat the wind, so a draw of 0.05 wins where 0.9 loses.
     let answer = spread_gas(3, 5, 100, &windy(false, 10, 0), &mut rolls);
-    assert_eq!(answer.direction, GasDirection::Side(1), "survivors: 1, 2, 3, 5, 6, 0");
+    assert_eq!(
+        answer.direction,
+        GasDirection::Side(1),
+        "survivors: 1, 2, 3, 5, 6, 0"
+    );
 }
 
 #[test]

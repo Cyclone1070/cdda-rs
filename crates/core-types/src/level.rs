@@ -244,8 +244,10 @@ impl SeenGrid {
         if dx.abs() > self.radius || dy.abs() > self.radius {
             return 0.0;
         }
-        let (Ok(row), Ok(column)) = (usize::try_from(dy + self.radius), usize::try_from(dx + self.radius))
-        else {
+        let (Ok(row), Ok(column)) = (
+            usize::try_from(dy + self.radius),
+            usize::try_from(dx + self.radius),
+        ) else {
             return 0.0;
         };
         self.rows
@@ -391,58 +393,59 @@ pub fn seen_grid(
     transparency: &BTreeMap<(i32, i32), f32>,
 ) -> SeenGrid {
     assert!(radius >= 0, "a negative view distance is a caller bug");
-        let Ok(side) = usize::try_from(radius * 2 + 1) else {
-            return SeenGrid {
-                origin,
-                radius: 0,
-                rows: Vec::new(),
+    let Ok(side) = usize::try_from(radius * 2 + 1) else {
+        return SeenGrid {
+            origin,
+            radius: 0,
+            rows: Vec::new(),
+        };
+    };
+    let mut cells = vec![0.0_f32; side * side];
+    for grid_y in 0..side {
+        for grid_x in 0..side {
+            let Ok(offset_x) = i32::try_from(grid_x) else {
+                continue;
             };
-        };
-        let mut cells = vec![0.0_f32; side * side];
-        for grid_y in 0..side {
-            for grid_x in 0..side {
-                let Ok(offset_x) = i32::try_from(grid_x) else {
-                    continue;
-                };
-                let Ok(offset_y) = i32::try_from(grid_y) else {
-                    continue;
-                };
-                let square = (origin.0 + offset_x - radius, origin.1 + offset_y - radius);
-                cells[grid_x * side + grid_y] = transparency.get(&square).copied().unwrap_or(0.0);
-            }
+            let Ok(offset_y) = i32::try_from(grid_y) else {
+                continue;
+            };
+            let square = (origin.0 + offset_x - radius, origin.1 + offset_y - radius);
+            cells[grid_x * side + grid_y] = transparency.get(&square).copied().unwrap_or(0.0);
         }
-        // **The sight cast, not the light cast.** The reference fills a `seen_cache` with `cast_zlight` (`lightmap.cpp:1079`); `castLight` is the lightmap's own sweep
-        // and answers a different question about a square just past a corner - 93 of 441 squares differ on a patterned grid. One level is cast here, so the levels beside
-        // it read as solid and nothing crosses: a caller that wants sight across levels passes the neighbouring transparencies and floors through
-        // [`cdda_core_types::zlight`] directly.
-        let plane = crate::zlight::Plane {
-            transparency: &|x, y, z| {
-                if z == 0 {
-                    transparency.get(&(x, y)).copied().unwrap_or(0.0)
-                } else {
-                    0.0
-                }
-            },
-            floor: &|_, _, _| true,
-        };
-        let values = crate::zlight::build_seen_cache(
-            &plane,
-            (origin.0, origin.1, 0),
-            radius,
-            (i32::MAX, i32::MAX),
-            1.0,
-            crate::zlight::VerticalDirection::Both,
-        );
-        let mut rows = vec![vec![0.0_f32; side]; side];
-        for (grid_y, row) in rows.iter_mut().enumerate() {
-            for (grid_x, cell) in row.iter_mut().enumerate() {
-                let (Ok(offset_x), Ok(offset_y)) = (i32::try_from(grid_x), i32::try_from(grid_y)) else {
-                    continue;
-                };
-                let square = (origin.0 + offset_x - radius, origin.1 + offset_y - radius);
-                *cell = values.get(&(square.0, square.1, 0)).copied().unwrap_or(0.0);
+    }
+    // **The sight cast, not the light cast.** The reference fills a `seen_cache` with `cast_zlight` (`lightmap.cpp:1079`); `castLight` is the lightmap's own sweep
+    // and answers a different question about a square just past a corner - 93 of 441 squares differ on a patterned grid. One level is cast here, so the levels beside
+    // it read as solid and nothing crosses: a caller that wants sight across levels passes the neighbouring transparencies and floors through
+    // [`cdda_core_types::zlight`] directly.
+    let plane = crate::zlight::Plane {
+        transparency: &|x, y, z| {
+            if z == 0 {
+                transparency.get(&(x, y)).copied().unwrap_or(0.0)
+            } else {
+                0.0
             }
+        },
+        floor: &|_, _, _| true,
+    };
+    let values = crate::zlight::build_seen_cache(
+        &plane,
+        (origin.0, origin.1, 0),
+        radius,
+        (i32::MAX, i32::MAX),
+        1.0,
+        crate::zlight::VerticalDirection::Both,
+    );
+    let mut rows = vec![vec![0.0_f32; side]; side];
+    for (grid_y, row) in rows.iter_mut().enumerate() {
+        for (grid_x, cell) in row.iter_mut().enumerate() {
+            let (Ok(offset_x), Ok(offset_y)) = (i32::try_from(grid_x), i32::try_from(grid_y))
+            else {
+                continue;
+            };
+            let square = (origin.0 + offset_x - radius, origin.1 + offset_y - radius);
+            *cell = values.get(&(square.0, square.1, 0)).copied().unwrap_or(0.0);
         }
+    }
     SeenGrid {
         origin,
         radius,
@@ -714,7 +717,6 @@ impl Level {
             allow,
         );
     }
-
 }
 
 /// Casts one light source into a light map.
@@ -756,7 +758,8 @@ pub fn cast_light_source(
         allow,
     );
     for (index, quarters) in cast.iter().enumerate() {
-        let (Some(grid_x), Some(grid_y)) = (index.checked_div(side), index.checked_rem(side)) else {
+        let (Some(grid_x), Some(grid_y)) = (index.checked_div(side), index.checked_rem(side))
+        else {
             continue;
         };
         if quarters.max() <= 0.0 {
@@ -793,24 +796,24 @@ pub fn apply_buffered_sources(
     light: &mut BTreeMap<(i32, i32), crate::shadowcasting::FourQuadrants>,
 ) {
     for ((x, y), luminance) in buffered {
-            let (x, y, luminance) = (*x, *y, *luminance);
-            let mut allow = [true; crate::shadowcasting::OCTANTS];
-            for (index, direction) in crate::shadowcasting::OCTANT_DIRECTIONS.iter().enumerate() {
-                let neighbour = match direction {
-                    crate::shadowcasting::Direction::North => (x, y - 1),
-                    crate::shadowcasting::Direction::East => (x + 1, y),
-                    crate::shadowcasting::Direction::South => (x, y + 1),
-                    crate::shadowcasting::Direction::West => (x - 1, y),
-                };
-                // `< luminance`, not `<=`: a neighbour that is **not** brighter fails the test and the direction is skipped.
-                if buffered
-                    .get(&neighbour)
-                    .is_some_and(|theirs| *theirs >= luminance)
-                    && let Some(slot) = allow.get_mut(index)
-                {
-                    *slot = false;
-                }
+        let (x, y, luminance) = (*x, *y, *luminance);
+        let mut allow = [true; crate::shadowcasting::OCTANTS];
+        for (index, direction) in crate::shadowcasting::OCTANT_DIRECTIONS.iter().enumerate() {
+            let neighbour = match direction {
+                crate::shadowcasting::Direction::North => (x, y - 1),
+                crate::shadowcasting::Direction::East => (x + 1, y),
+                crate::shadowcasting::Direction::South => (x, y + 1),
+                crate::shadowcasting::Direction::West => (x - 1, y),
+            };
+            // `< luminance`, not `<=`: a neighbour that is **not** brighter fails the test and the direction is skipped.
+            if buffered
+                .get(&neighbour)
+                .is_some_and(|theirs| *theirs >= luminance)
+                && let Some(slot) = allow.get_mut(index)
+            {
+                *slot = false;
             }
+        }
         cast_light_source(
             &Source {
                 at: (x, y),
@@ -822,5 +825,5 @@ pub fn apply_buffered_sources(
             light,
             allow,
         );
-        }
     }
+}

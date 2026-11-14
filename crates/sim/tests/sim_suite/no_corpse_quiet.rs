@@ -18,7 +18,11 @@ fn a_world() -> World {
             hp: 40,
         }],
     );
-    cdda_sim::monster_registry::set_death_drops(&mut world, cdda_sim::MonsterKindId(1), "loot_group");
+    cdda_sim::monster_registry::set_death_drops(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        "loot_group",
+    );
     cdda_sim::item_registry::set_item_types(
         &mut world,
         &[
@@ -70,7 +74,11 @@ fn leftovers(world: &mut World, at: (i32, i32)) -> Vec<cdda_sim::ItemTypeId> {
     cdda_sim::creature::reap_dead_creatures_as_corpses(world, CORPSE, |_| 62_500);
     cdda_sim::items_at(world, at)
         .iter()
-        .filter_map(|item| world.get::<cdda_sim::GroundItem>(*item).map(|held| held.kind))
+        .filter_map(|item| {
+            world
+                .get::<cdda_sim::GroundItem>(*item)
+                .map(|held| held.kind)
+        })
         .collect()
 }
 
@@ -79,7 +87,9 @@ fn leftovers(world: &mut World, at: (i32, i32)) -> Vec<cdda_sim::ItemTypeId> {
 fn a_quiet_body_leaves_no_corpse_and_still_leaves_its_loot() {
     let mut world = a_world();
     let body = cdda_sim::spawn_monster(&mut world, (3, 3), cdda_sim::MonsterKindId(1), 40);
-    world.entity_mut(body).insert(cdda_sim::creature::NoCorpseQuiet);
+    world
+        .entity_mut(body)
+        .insert(cdda_sim::creature::NoCorpseQuiet);
     cdda_sim::creature::set_health_left(&mut world, body, 0);
     cdda_sim::messages::clear(&mut world);
     let left = leftovers(&mut world, (3, 3));
@@ -109,7 +119,10 @@ fn a_body_without_the_flag_leaves_a_corpse() {
     let body = cdda_sim::spawn_monster(&mut world, (3, 3), cdda_sim::MonsterKindId(1), 40);
     cdda_sim::creature::set_health_left(&mut world, body, 0);
     let left = leftovers(&mut world, (3, 3));
-    assert!(left.contains(&CORPSE), "the same kind leaves a corpse: {left:?}");
+    assert!(
+        left.contains(&CORPSE),
+        "the same kind leaves a corpse: {left:?}"
+    );
     assert!(
         cdda_sim::messages::lines(&world)
             .iter()

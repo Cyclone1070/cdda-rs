@@ -12,7 +12,8 @@ fn has_camp_answers_for_a_camp_the_player_owns() {
     let mut world = World::new();
     let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let value = cdda_json::parse(br#""u_has_camp""#).expect("json");
-    let condition = cdda_content::dialogue::read_condition(&value).expect("**the port reads `u_has_camp`**");
+    let condition =
+        cdda_content::dialogue::read_condition(&value).expect("**the port reads `u_has_camp`**");
 
     assert!(
         !cdda_sim::conditions::holds_with(&world, speaker, None, &condition),

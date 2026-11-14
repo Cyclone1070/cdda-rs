@@ -91,7 +91,11 @@ pub struct Eater<'a> {
 ///   read -15 in the content and taste like -15 rather than -10;
 /// * a `MUSHY` item - defrosted ice cream - is `min( -5, fun )`: *practically tasteless or tastes off*, however good it was, and the floor applies to the total.
 #[must_use]
-pub fn comestible_fun(stated: i32, flags: &BTreeSet<String>, taste_mod: impl Fn(&str) -> i32) -> i32 {
+pub fn comestible_fun(
+    stated: i32,
+    flags: &BTreeSet<String>,
+    taste_mod: impl Fn(&str) -> i32,
+) -> i32 {
     let mut fun = stated;
     for flag in flags {
         fun += taste_mod(flag);
@@ -122,7 +126,10 @@ pub fn fun_for(food: &Food<'_>, eater: &Eater<'_>) -> (i32, i32) {
     // **Rotten food should be pretty disgusting** (`:496-509`). Three things move at once as the rot climbs: a penalty from -2 to -20, a bonus that drops from
     // 90% to nothing for food that tasted good, and a penalty that grows from 110% to 200% for food that tasted bad. The `clamp` is what makes even the *first*
     // point of rot past 1.0 cost something.
-    if food.relative_rot > 1.0 && !eater.traits.contains("SAPROPHAGE") && !eater.traits.contains("SAPROVORE") {
+    if food.relative_rot > 1.0
+        && !eater.traits.contains("SAPROPHAGE")
+        && !eater.traits.contains("SAPROVORE")
+    {
         let rottedness = (2.0 * food.relative_rot - 2.0).clamp(0.1, 1.0);
         fun -= rottedness * 10.0;
         if fun > 0.0 {
@@ -178,10 +185,9 @@ pub fn fun_for(food: &Food<'_>, eater: &Eater<'_>) -> (i32, i32) {
     // **Food aimed at a species** (`:543-558`). Seven flags pair with seven thresholds - dog food and a lupine, cat food and a feline, and the same for cattle,
     // rabbits, mice, rats and birds. Unpleasant becomes pleasant, halved; a food worth nothing becomes worth 2. Note this happens **after** the ceiling, so the
     // ceiling keeps the unhappy number the bite used to have.
-    if THRESHOLD_FOODS
-        .iter()
-        .any(|(food_flag, threshold)| food.flags.contains(*food_flag) && eater.traits.contains(*threshold))
-    {
+    if THRESHOLD_FOODS.iter().any(|(food_flag, threshold)| {
+        food.flags.contains(*food_flag) && eater.traits.contains(*threshold)
+    }) {
         if fun < 0.0 {
             fun = -fun;
             fun /= 2.0;

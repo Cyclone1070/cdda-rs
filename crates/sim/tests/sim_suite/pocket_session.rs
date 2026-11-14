@@ -26,7 +26,8 @@ struct Step {
 
 /// The backpack's five recorded steps, in the order the reference ran them.
 fn steps() -> Vec<Step> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/pocket-session.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/pocket-session.json");
     let bytes = std::fs::read(&path).expect("the pocket session");
     let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
         panic!("the session is an object")
@@ -106,7 +107,8 @@ struct Table(BTreeMap<String, (TypeWeight, TypeVolume)>);
 
 impl Table {
     fn load() -> Self {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/prototypes/items.json");
         let bytes = std::fs::read(&path).expect("the prototypes");
         let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
             panic!("the dump is an object")
@@ -171,7 +173,12 @@ impl Table {
         let kinds: BTreeMap<String, ItemTypeId> = order
             .iter()
             .enumerate()
-            .map(|(index, id)| (id.clone(), ItemTypeId(u32::try_from(index).expect("an index"))))
+            .map(|(index, id)| {
+                (
+                    id.clone(),
+                    ItemTypeId(u32::try_from(index).expect("an index")),
+                )
+            })
             .collect();
         let by_kind: BTreeMap<u32, (TypeWeight, TypeVolume)> = order
             .iter()
@@ -190,13 +197,13 @@ impl Table {
     }
 }
 
-
 /// What the data says a container's pockets hold, and what they will accept.
 struct Pockets(BTreeMap<String, Vec<cdda_sim::Pocket>>);
 
 impl Pockets {
     fn load() -> Self {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/pockets.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/items/pockets.json");
         let bytes = std::fs::read(&path).expect("the pockets");
         let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
             panic!("the dump is an object")
@@ -228,31 +235,42 @@ impl Pockets {
                 }
                 // **A container with several pockets holds what they all hold**, and accepts a liquid if any one of them does - which is how the reference's
                 // `item_contents::insert_item` behaves when it offers the payload to each pocket in turn.
-                kept.push(cdda_sim::Pocket::from_spec(&cdda_content::pockets::PocketSpec {
-                    kind: kind.clone(),
-                    watertight: matches!(
-                        pocket.get("watertight"),
-                        Some(cdda_json::Value::Bool(true))
-                    ),
-                    airtight: matches!(pocket.get("airtight"), Some(cdda_json::Value::Bool(true))),
-                    rigid: matches!(pocket.get("rigid"), Some(cdda_json::Value::Bool(true))),
-                    max_volume_ml: whole(pocket, "max_volume"),
-                    max_weight_grams: whole(pocket, "max_weight"),
-                    max_length_mm: whole(pocket, "max_length"),
-                    min_length_mm: whole(pocket, "min_length"),
-                    min_volume_ml: whole(pocket, "min_volume"),
-                    max_item_volume_ml: match whole(pocket, "max_item_volume") {
-                        volume if volume < 0 => None,
-                        volume => Some(volume),
+                kept.push(cdda_sim::Pocket::from_spec(
+                    &cdda_content::pockets::PocketSpec {
+                        kind: kind.clone(),
+                        watertight: matches!(
+                            pocket.get("watertight"),
+                            Some(cdda_json::Value::Bool(true))
+                        ),
+                        airtight: matches!(
+                            pocket.get("airtight"),
+                            Some(cdda_json::Value::Bool(true))
+                        ),
+                        rigid: matches!(pocket.get("rigid"), Some(cdda_json::Value::Bool(true))),
+                        max_volume_ml: whole(pocket, "max_volume"),
+                        max_weight_grams: whole(pocket, "max_weight"),
+                        max_length_mm: whole(pocket, "max_length"),
+                        min_length_mm: whole(pocket, "min_length"),
+                        min_volume_ml: whole(pocket, "min_volume"),
+                        max_item_volume_ml: match whole(pocket, "max_item_volume") {
+                            volume if volume < 0 => None,
+                            volume => Some(volume),
+                        },
+                        holster: matches!(
+                            pocket.get("holster"),
+                            Some(cdda_json::Value::Bool(true))
+                        ),
+                        ablative: matches!(
+                            pocket.get("ablative"),
+                            Some(cdda_json::Value::Bool(true))
+                        ),
+                        sealed: matches!(pocket.get("sealed"), Some(cdda_json::Value::Bool(true))),
+                        items: list(pocket, "items"),
+                        flags: list(pocket, "flags"),
+                        materials: list(pocket, "materials"),
+                        ammo: Vec::new(),
                     },
-                    holster: matches!(pocket.get("holster"), Some(cdda_json::Value::Bool(true))),
-                    ablative: matches!(pocket.get("ablative"), Some(cdda_json::Value::Bool(true))),
-                    sealed: matches!(pocket.get("sealed"), Some(cdda_json::Value::Bool(true))),
-                    items: list(pocket, "items"),
-                    flags: list(pocket, "flags"),
-                    materials: list(pocket, "materials"),
-                    ammo: Vec::new(),
-                }));
+                ));
             }
             table.insert(id.clone(), kept);
         }
@@ -298,7 +316,11 @@ fn replay() -> Vec<Played> {
         "huge_atomic_battery_cell".to_owned(),
     ];
     let (kinds, weight_of, volume_of) = table.numbered(&order);
-    let kind_of = |name: &str| *kinds.get(name).unwrap_or_else(|| panic!("{name} is not in the session"));
+    let kind_of = |name: &str| {
+        *kinds
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} is not in the session"))
+    };
 
     let mut world = World::new();
     let mut container = Entity::PLACEHOLDER;
@@ -375,7 +397,11 @@ fn replay() -> Vec<Played> {
 fn the_backpack_loads_the_way_the_reference_recorded_it() {
     let played = replay();
     let accepted: Vec<&Played> = played.iter().filter(|step| step.recorded_ok).collect();
-    assert_eq!(accepted.len(), 5, "five steps were accepted, all of them by the port too");
+    assert_eq!(
+        accepted.len(),
+        5,
+        "five steps were accepted, all of them by the port too"
+    );
     for step in &accepted {
         assert!(
             step.placed.is_ok(),
@@ -386,11 +412,23 @@ fn the_backpack_loads_the_way_the_reference_recorded_it() {
     }
     // The recording's own numbers, step by step: three rocks at 657 g and 250 ml, then a plank at 2440 g and 4130 ml.
     let weights: Vec<i64> = accepted.iter().map(|step| step.weight).collect();
-    assert_eq!(weights, vec![1290, 1947, 2604, 5044, 1033], "the container's own weight at each step");
+    assert_eq!(
+        weights,
+        vec![1290, 1947, 2604, 5044, 1033],
+        "the container's own weight at each step"
+    );
     let volumes: Vec<i64> = accepted.iter().map(|step| step.volume).collect();
-    assert_eq!(volumes, vec![2250, 2500, 2750, 6880, 2500], "and its own volume");
+    assert_eq!(
+        volumes,
+        vec![2250, 2500, 2750, 6880, 2500],
+        "and its own volume"
+    );
     let rooms: Vec<i64> = accepted.iter().map(|step| step.room).collect();
-    assert_eq!(rooms, vec![35260, 35010, 34760, 30630, 35010], "and the room it had left");
+    assert_eq!(
+        rooms,
+        vec![35260, 35010, 34760, 30630, 35010],
+        "and the room it had left"
+    );
 }
 
 #[test]
@@ -412,18 +450,31 @@ fn a_pocket_is_its_own_limit_and_a_liquid_needs_a_watertight_one() {
     // `copies_remaining` counter is shared across the pockets it asks and the first pocket consumes the log's single copy; the port asks each pocket on its own. That
     // difference is **declared** in `docs/parity.md` rather than papered over, and this assertion pins the half the port is right about.
     assert_eq!(
-        log.placed.as_ref().err().map(cdda_sim::InsertError::message),
-        Some("pockets unacceptable because holster already contains an item or item is too long".to_owned()),
+        log.placed
+            .as_ref()
+            .err()
+            .map(cdda_sim::InsertError::message),
+        Some(
+            "pockets unacceptable because holster already contains an item or item is too long"
+                .to_owned()
+        ),
         "the reference's own sentence: the 2x4 is in the holster and the log is too long for the rest"
     );
     // **And a branch bigger than any one pocket is refused too**, though it would fit the backpack's pockets added together: 30,000 ml against 25,000, 510, 5,000 and
     // 5,000. A pooled capacity takes it; a pocket is its own limit.
     let branch = of("bundle_branch");
-    assert!(!branch.recorded_ok, "the reference refuses the 30,000 ml branch");
+    assert!(
+        !branch.recorded_ok,
+        "the reference refuses the 30,000 ml branch"
+    );
     // **And the reference says so in its own words**: `pockets unacceptable because item is too heavy or item is too long`, which is the sorted union of what its
     // pockets answered - not one pocket's answer, and not a sum of rooms. The port builds the same union and the same sentence.
     assert_eq!(
-        branch.placed.as_ref().err().map(cdda_sim::InsertError::message),
+        branch
+            .placed
+            .as_ref()
+            .err()
+            .map(cdda_sim::InsertError::message),
         Some("pockets unacceptable because item is too heavy or item is too long".to_owned()),
         "the branch is refused by more than one rule, and the reference names them all"
     );
@@ -456,7 +507,11 @@ fn a_pocket_is_its_own_limit_and_a_liquid_needs_a_watertight_one() {
     // And one that fits a single pocket **exactly** (a 500 ml crystal in the 510 ml pocket) is accepted.
     let crystal = of("art_crystal");
     assert!(crystal.recorded_ok, "the reference takes the crystal");
-    assert!(crystal.placed.is_ok(), "and so does the port: {:?}", crystal.placed);
+    assert!(
+        crystal.placed.is_ok(),
+        "and so does the port: {:?}",
+        crystal.placed
+    );
 }
 
 #[test]
@@ -470,7 +525,9 @@ fn a_liquid_needs_a_watertight_pocket() {
     let backpack = drop_item(&mut world, (5, 5), ItemTypeId(40), 1);
     world.entity_mut(backpack).insert(Container::new(35_510));
     let bottle = drop_item(&mut world, (5, 5), ItemTypeId(41), 1);
-    world.entity_mut(bottle).insert(Container::new(500).watertight());
+    world
+        .entity_mut(bottle)
+        .insert(Container::new(500).watertight());
     let water = drop_item(&mut world, (5, 5), ItemTypeId(42), 1);
     let facts = |entity: Entity| {
         if entity == water {
@@ -484,5 +541,6 @@ fn a_liquid_needs_a_watertight_pocket() {
         matches!(refused, Err(cdda_sim::InsertError::WrongPhase { .. })),
         "a backpack may not hold water: {refused:?}"
     );
-    insert_into(&mut world, bottle, water, facts).expect("but a bottle may, because it is watertight");
+    insert_into(&mut world, bottle, water, facts)
+        .expect("but a bottle may, because it is watertight");
 }

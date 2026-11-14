@@ -52,9 +52,11 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<BTreeMap<String, JsonFlag
                 let flag = JsonFlag {
                     id: id.to_owned(),
                     taste_mod: match object.get("taste_mod") {
-                        Some(Value::Int(number)) => i32::try_from(*number).map_err(|_| LoadError {
-                            message: format!("{id}: taste_mod out of range: {number}"),
-                        })?,
+                        Some(Value::Int(number)) => {
+                            i32::try_from(*number).map_err(|_| LoadError {
+                                message: format!("{id}: taste_mod out of range: {number}"),
+                            })?
+                        }
                         Some(other) => {
                             return Err(LoadError {
                                 message: format!("{id}: taste_mod is a number, not {other:?}"),

@@ -29,7 +29,11 @@ fn a_fire_scatters_five_wisps_of_hot_air_around_itself() {
         create_hot_air(&mut world, (5, 5), 0, 2, &mut rolls);
         let wisps = hot_air_squares(&mut world);
         assert!(!wisps.is_empty(), "a fire scatters at least one wisp");
-        assert!(wisps.len() <= 5, "and never more than the intensity asks for: {}", wisps.len());
+        assert!(
+            wisps.len() <= 5,
+            "and never more than the intensity asks for: {}",
+            wisps.len()
+        );
         most = most.max(wisps.len());
     }
     assert_eq!(most, 5, "five distinct squares are reachable");

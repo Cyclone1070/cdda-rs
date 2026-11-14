@@ -19,7 +19,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 fn read() -> (BTreeMap<String, Value>, usize) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effects.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -29,7 +30,9 @@ fn read() -> (BTreeMap<String, Value>, usize) {
     };
     let mut out = BTreeMap::new();
     for entry in types {
-        let Value::Object(object) = entry else { panic!("a type") };
+        let Value::Object(object) = entry else {
+            panic!("a type")
+        };
         let Some(Value::Str(id)) = object.get("id") else {
             panic!("an id")
         };
@@ -75,7 +78,9 @@ fn check<T: PartialEq + std::fmt::Debug>(
     theirs: T,
 ) {
     if ours != theirs {
-        differing.push(format!("{id}.{field}: the port says {ours:?}, the reference says {theirs:?}"));
+        differing.push(format!(
+            "{id}.{field}: the port says {ours:?}, the reference says {theirs:?}"
+        ));
     }
 }
 
@@ -84,7 +89,8 @@ fn every_effect_type_matches_the_reference_field_by_field() {
     let (recorded, total) = read();
     assert_eq!(total, 564, "every effect type the reference holds");
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let effects: BTreeMap<String, EffectType> =
@@ -131,7 +137,13 @@ fn every_effect_type_matches_the_reference_field_by_field() {
             i64::from(ours.max_intensity),
             integer(reference, "max_intensity"),
         );
-        check(&mut differing, id, "max_duration", ours.max_duration, integer(reference, "max_duration"));
+        check(
+            &mut differing,
+            id,
+            "max_duration",
+            ours.max_duration,
+            integer(reference, "max_duration"),
+        );
         check(
             &mut differing,
             id,
@@ -160,7 +172,13 @@ fn every_effect_type_matches_the_reference_field_by_field() {
             i64::from(ours.int_decay_tick),
             integer(reference, "int_decay_tick"),
         );
-        check(&mut differing, id, "int_dur_factor", ours.int_dur_factor, integer(reference, "int_dur_factor"));
+        check(
+            &mut differing,
+            id,
+            "int_dur_factor",
+            ours.int_dur_factor,
+            integer(reference, "int_dur_factor"),
+        );
         check(
             &mut differing,
             id,
@@ -175,7 +193,13 @@ fn every_effect_type_matches_the_reference_field_by_field() {
             ours.main_parts_only,
             boolean(reference, "main_parts_only"),
         );
-        check(&mut differing, id, "show_in_info", ours.show_in_info, boolean(reference, "show_in_info"));
+        check(
+            &mut differing,
+            id,
+            "show_in_info",
+            ours.show_in_info,
+            boolean(reference, "show_in_info"),
+        );
         check(
             &mut differing,
             id,
@@ -183,8 +207,20 @@ fn every_effect_type_matches_the_reference_field_by_field() {
             ours.show_intensity,
             boolean(reference, "show_intensity"),
         );
-        check(&mut differing, id, "pain_sizing", ours.pain_sizing, boolean(reference, "pain_sizing"));
-        check(&mut differing, id, "hurt_sizing", ours.hurt_sizing, boolean(reference, "hurt_sizing"));
+        check(
+            &mut differing,
+            id,
+            "pain_sizing",
+            ours.pain_sizing,
+            boolean(reference, "pain_sizing"),
+        );
+        check(
+            &mut differing,
+            id,
+            "hurt_sizing",
+            ours.hurt_sizing,
+            boolean(reference, "hurt_sizing"),
+        );
         check(
             &mut differing,
             id,
@@ -225,7 +261,13 @@ fn every_effect_type_matches_the_reference_field_by_field() {
                 theirs
             },
         );
-        check(&mut differing, id, "resist_traits", ours.resist_traits.clone(), list(reference, "resist_traits"));
+        check(
+            &mut differing,
+            id,
+            "resist_traits",
+            ours.resist_traits.clone(),
+            list(reference, "resist_traits"),
+        );
         check(
             &mut differing,
             id,
@@ -263,9 +305,13 @@ fn every_effect_type_matches_the_reference_field_by_field() {
     assert!(with_flags > 60, "types with flags: {with_flags}");
     assert!(with_resists > 50, "types something resists: {with_resists}");
     assert!(rated.len() >= 4, "distinct ratings: {rated:?}");
-    assert!(decaying > 30, "types whose intensity has a duration: {decaying}");
     assert!(
-        Rating::Good.value() != Rating::Neutral.value() && Rating::Bad.value() != Rating::Neutral.value(),
+        decaying > 30,
+        "types whose intensity has a duration: {decaying}"
+    );
+    assert!(
+        Rating::Good.value() != Rating::Neutral.value()
+            && Rating::Bad.value() != Rating::Neutral.value(),
         "the ratings are distinct values"
     );
     assert!(

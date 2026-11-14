@@ -25,11 +25,11 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldId;
 use cdda_core_types::level::Level;
-use cdda_core_types::light::{light_at, LitLevel};
+use cdda_core_types::light::{LitLevel, light_at};
 use cdda_sim::field_table::FieldTable;
+use cdda_sim::light;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{Prototypes, add_field_strength, cast_lights_with, set_field_table};
-use cdda_sim::{light};
 
 /// Where the recorded window starts, so the level can be built from zero.
 const ORIGIN: (i32, i32) = (60, 69);
@@ -52,9 +52,11 @@ struct Turn {
 }
 
 fn session() -> Vec<Turn> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/light-session.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fields/light-session.json");
     let text = std::fs::read_to_string(&path).expect("the recorded light session");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(turns)) = root.get("turns") else {
@@ -88,7 +90,9 @@ fn session() -> Vec<Turn> {
                         y: i32::try_from(whole("y")).expect("y"),
                         sky,
                         reference_lit: i32::try_from(whole("lit")).expect("lit"),
-                        reference_source: f32::from(i16::try_from(whole("source")).expect("source")),
+                        reference_source: f32::from(
+                            i16::try_from(whole("source")).expect("source"),
+                        ),
                     });
                 }
             }
@@ -127,9 +131,11 @@ fn session() -> Vec<Turn> {
 
 /// The terrain of the window, from the record's own grid.
 fn terrain_of_window() -> Vec<(i32, i32, String, String)> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/light-session.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/fields/light-session.json");
     let text = std::fs::read_to_string(&path).expect("the recorded light session");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(grid)) = root.get("grid") else {
@@ -162,10 +168,16 @@ fn terrain_of_window() -> Vec<(i32, i32, String, String)> {
 }
 
 /// The terrain and furniture tables the cast reads, built from the prototype dump.
-fn prototypes() -> (Prototypes, std::collections::BTreeMap<String, u32>, std::collections::BTreeMap<String, u32>) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/terrain.json");
+fn prototypes() -> (
+    Prototypes,
+    std::collections::BTreeMap<String, u32>,
+    std::collections::BTreeMap<String, u32>,
+) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/prototypes/terrain.json");
     let text = std::fs::read_to_string(&path).expect("the terrain dump");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(list)) = root.get("prototypes") else {
@@ -204,14 +216,20 @@ fn prototypes() -> (Prototypes, std::collections::BTreeMap<String, u32>, std::co
             terrain_codes.insert(id, code);
         }
     }
-    (Prototypes { terrain, furniture }, terrain_codes, furniture_codes)
+    (
+        Prototypes { terrain, furniture },
+        terrain_codes,
+        furniture_codes,
+    )
 }
 
 /// The light each field type emits, by intensity, from the field prototype dump.
 fn field_table() -> (FieldTable, std::collections::BTreeMap<String, u32>) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/fields.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/prototypes/fields.json");
     let text = std::fs::read_to_string(&path).expect("the field dump");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(list)) = root.get("prototypes") else {
@@ -284,10 +302,13 @@ fn the_port_s_cast_puts_the_fire_s_light_where_the_reference_put_it() {
             level.set_furniture(x - ORIGIN.0, y - ORIGIN.1, furniture, furniture);
         }
         cdda_sim::load_level(&mut world, &level);
-        cdda_sim::set_prototypes(&mut world, Prototypes {
-            terrain: prototypes_table.terrain.clone(),
-            furniture: prototypes_table.furniture.clone(),
-        });
+        cdda_sim::set_prototypes(
+            &mut world,
+            Prototypes {
+                terrain: prototypes_table.terrain.clone(),
+                furniture: prototypes_table.furniture.clone(),
+            },
+        );
         set_field_table(&mut world, table.clone());
         for (x, y, kind, intensity) in &turn.fields {
             let code = field_codes.get(kind).copied().unwrap_or(0);
@@ -342,6 +363,13 @@ fn the_port_s_cast_puts_the_fire_s_light_where_the_reference_put_it() {
             compared += 1;
         }
     }
-    assert_eq!(compared, 7 * 25, "seven turns of a twenty-five-square level");
-    assert!(disagreements.is_empty(), "the port's light disagrees: {disagreements:#?}");
+    assert_eq!(
+        compared,
+        7 * 25,
+        "seven turns of a twenty-five-square level"
+    );
+    assert!(
+        disagreements.is_empty(),
+        "the port's light disagrees: {disagreements:#?}"
+    );
 }

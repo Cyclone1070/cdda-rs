@@ -42,16 +42,23 @@ fn the_reference_map_is_one_chunk_of_the_overmap_it_names() {
     // A chunk is two submaps a side: twenty-four by twenty-four, with the overmap terrain it belongs to and the overmap square it sits on. A dump that lost a row would otherwise
     // read as a different chunk rather than a broken dump.
     let value = dump();
-    let Value::Object(root) = &value else { panic!("root") };
+    let Value::Object(root) = &value else {
+        panic!("root")
+    };
     let Some(Value::Array(rows)) = root.get("rows") else {
         panic!("no rows");
     };
     assert_eq!(rows.len(), 24, "twenty-four rows");
     for (index, row) in rows.iter().enumerate() {
-        let Value::Array(squares) = row else { panic!("row {index} is not an array") };
+        let Value::Array(squares) = row else {
+            panic!("row {index} is not an array")
+        };
         assert_eq!(squares.len(), 24, "twenty-four squares in row {index}");
     }
-    assert!(matches!(root.get("oter"), Some(Value::Str(_))), "the chunk names its overmap terrain");
+    assert!(
+        matches!(root.get("oter"), Some(Value::Str(_))),
+        "the chunk names its overmap terrain"
+    );
 }
 
 #[test]
@@ -60,7 +67,9 @@ fn every_terrain_in_the_generated_chunk_is_a_terrain_the_loader_knows() {
     // it is the first thing a port's own generation would get wrong.
     let known = ids();
     let value = dump();
-    let Value::Object(root) = &value else { panic!("root") };
+    let Value::Object(root) = &value else {
+        panic!("root")
+    };
     let Some(Value::Array(rows)) = root.get("rows") else {
         panic!("no rows");
     };
@@ -70,12 +79,19 @@ fn every_terrain_in_the_generated_chunk_is_a_terrain_the_loader_knows() {
         for square in squares {
             match square {
                 Value::Str(id) => {
-                    assert!(known.contains(id), "{id} is not a terrain the reference defines");
+                    assert!(
+                        known.contains(id),
+                        "{id} is not a terrain the reference defines"
+                    );
                     seen.insert(id);
                 }
                 _ => panic!("a square is not an id"),
             }
         }
     }
-    assert!(seen.len() > 1, "a generated chunk is not one flat terrain: {} kinds", seen.len());
+    assert!(
+        seen.len() > 1,
+        "a generated chunk is not one flat terrain: {} kinds",
+        seen.len()
+    );
 }

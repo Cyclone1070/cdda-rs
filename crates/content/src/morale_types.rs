@@ -10,15 +10,18 @@ use cdda_json::{Object, Value};
 ///
 /// # Errors
 /// When a file cannot be read or is not JSON.
-pub fn load(paths: &[&str]) -> Result<std::collections::BTreeSet<String>, crate::materials::LoadError> {
+pub fn load(
+    paths: &[&str],
+) -> Result<std::collections::BTreeSet<String>, crate::materials::LoadError> {
     let mut kinds = std::collections::BTreeSet::new();
     for path in paths {
         let text = std::fs::read_to_string(path).map_err(|error| crate::materials::LoadError {
             message: format!("{path}: {error}"),
         })?;
-        let value = cdda_json::parse(text.as_bytes()).map_err(|error| crate::materials::LoadError {
-            message: format!("{path}: {error:?}"),
-        })?;
+        let value =
+            cdda_json::parse(text.as_bytes()).map_err(|error| crate::materials::LoadError {
+                message: format!("{path}: {error:?}"),
+            })?;
         let Value::Array(entries) = value else {
             continue;
         };

@@ -18,18 +18,29 @@ fn corpus() -> std::path::PathBuf {
 
 /// The reference's chunk: terrain ids, row by row.
 fn reference() -> (String, Vec<Vec<String>>) {
-    let text = std::fs::read_to_string(corpus().join("mapgens/shelter_chunk.json")).expect("the mapgen dump");
-    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(Value::Str(mapgen)) = root.get("mapgen") else { panic!("no mapgen key") };
-    let Some(Value::Array(rows)) = root.get("rows") else { panic!("no rows") };
+    let text = std::fs::read_to_string(corpus().join("mapgens/shelter_chunk.json"))
+        .expect("the mapgen dump");
+    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else {
+        panic!("root")
+    };
+    let Some(Value::Str(mapgen)) = root.get("mapgen") else {
+        panic!("no mapgen key")
+    };
+    let Some(Value::Array(rows)) = root.get("rows") else {
+        panic!("no rows")
+    };
     let rows = rows
         .iter()
         .map(|row| {
-            let Value::Array(squares) = row else { panic!("a row is not an array") };
+            let Value::Array(squares) = row else {
+                panic!("a row is not an array")
+            };
             squares
                 .iter()
                 .map(|square| {
-                    let Value::Array(pair) = square else { panic!("a square is not a pair") };
+                    let Value::Array(pair) = square else {
+                        panic!("a square is not a pair")
+                    };
                     match pair.first() {
                         Some(Value::Str(terrain)) => terrain.clone(),
                         _ => panic!("a square has no terrain"),
@@ -50,16 +61,27 @@ fn mapgen_entry(key: &str) -> (Option<Object>, Vec<String>, BTreeMap<String, Obj
         names: &mut Vec<String>,
         palettes: &mut BTreeMap<String, Object>,
     ) {
-        let Ok(entries) = std::fs::read_dir(path) else { return };
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return;
+        };
         for candidate in entries.flatten() {
             let path = candidate.path();
             if path.is_dir() {
                 walk(&path, key, entry, names, palettes);
-            } else if path.extension().is_some_and(|extension| extension == "json") {
-                let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                    continue;
+                };
                 for object in &entries {
-                    let Value::Object(object) = object else { continue };
+                    let Value::Object(object) = object else {
+                        continue;
+                    };
                     if matches!(object.get("type"), Some(Value::Str(kind)) if kind == "palette")
                         && let Some(Value::Str(id)) = object.get("id")
                     {
@@ -69,7 +91,9 @@ fn mapgen_entry(key: &str) -> (Option<Object>, Vec<String>, BTreeMap<String, Obj
                     if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
                         continue;
                     }
-                    let Some(om) = object.get("om_terrain") else { continue };
+                    let Some(om) = object.get("om_terrain") else {
+                        continue;
+                    };
                     let claims = match om {
                         Value::Str(name) => name == key,
                         Value::Array(items) => items.iter().any(|item| match item {
@@ -81,7 +105,9 @@ fn mapgen_entry(key: &str) -> (Option<Object>, Vec<String>, BTreeMap<String, Obj
                     if !claims {
                         continue;
                     }
-                    let Some(Value::Object(inner)) = object.get("object") else { continue };
+                    let Some(Value::Object(inner)) = object.get("object") else {
+                        continue;
+                    };
                     *entry = Some(inner.clone());
                     if let Some(Value::Array(list)) = inner.get("palettes") {
                         for name in list {
@@ -97,7 +123,8 @@ fn mapgen_entry(key: &str) -> (Option<Object>, Vec<String>, BTreeMap<String, Obj
     let mut entry = None;
     let mut names = Vec::new();
     let mut palettes = BTreeMap::new();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     walk(&root, key, &mut entry, &mut names, &mut palettes);
     (entry, names, palettes)
 }
@@ -172,8 +199,14 @@ fn the_port_draws_the_shelter_the_way_the_reference_draws_it() {
         }
     }
     let (agree, drawn_squares, different) = best.expect("one of four rotations");
-    assert!(drawn_squares > 300, "the port draws most of the chunk: {drawn_squares}");
-    let wall_squares = different.iter().filter(|(symbol, _, _)| *symbol == '#').count();
+    assert!(
+        drawn_squares > 300,
+        "the port draws most of the chunk: {drawn_squares}"
+    );
+    let wall_squares = different
+        .iter()
+        .filter(|(symbol, _, _)| *symbol == '#')
+        .count();
     assert_eq!(
         wall_squares,
         different.len(),
@@ -189,17 +222,27 @@ fn the_port_draws_the_shelter_the_way_the_reference_draws_it() {
 /// A reference chunk, by the file it was dumped into.
 fn chunk(file: &str) -> (String, Vec<Vec<String>>) {
     let text = std::fs::read_to_string(corpus().join("mapgens").join(file)).expect("a mapgen dump");
-    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(Value::Str(mapgen)) = root.get("mapgen") else { panic!("no mapgen key") };
-    let Some(Value::Array(rows)) = root.get("rows") else { panic!("no rows") };
+    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else {
+        panic!("root")
+    };
+    let Some(Value::Str(mapgen)) = root.get("mapgen") else {
+        panic!("no mapgen key")
+    };
+    let Some(Value::Array(rows)) = root.get("rows") else {
+        panic!("no rows")
+    };
     let rows = rows
         .iter()
         .map(|row| {
-            let Value::Array(squares) = row else { panic!("a row is not an array") };
+            let Value::Array(squares) = row else {
+                panic!("a row is not an array")
+            };
             squares
                 .iter()
                 .map(|square| {
-                    let Value::Array(pair) = square else { panic!("a square is not a pair") };
+                    let Value::Array(pair) = square else {
+                        panic!("a square is not a pair")
+                    };
                     match pair.first() {
                         Some(Value::Str(terrain)) => terrain.clone(),
                         _ => panic!("a square has no terrain"),
@@ -220,7 +263,9 @@ fn the_port_draws_a_fully_inline_chunk_square_for_square() {
         let (key, expected) = chunk(file);
         let (entry, names, palettes) = mapgen_entry(&key);
         let entry = entry.unwrap_or_else(|| panic!("the data has a mapgen for {key}"));
-        let Some(Value::Array(rows)) = entry.get("rows") else { panic!("{key} draws a grid") };
+        let Some(Value::Array(rows)) = entry.get("rows") else {
+            panic!("{key} draws a grid")
+        };
         let rows: Vec<String> = rows
             .iter()
             .filter_map(|row| match row {
@@ -289,14 +334,24 @@ fn a_terrain_map_is_written_symbol_first() {
     // that resolved to single letters, and stairs that came out as plain floor. This is the smallest case that tells the two apart: read
     // symbol-first it draws floor and wall; read id-first it draws nothing at all, because no key is one character long.
     let text = br##"[{"terrain": {".": "t_floor", "#": ["t_concrete_wall", 100]}}]"##;
-    let Value::Array(entries) = parse(text).expect("valid JSON") else { panic!("root") };
-    let Value::Object(entry) = entries.first().expect("one entry") else { panic!("object") };
-    let Some(Value::Object(terrain)) = entry.get("terrain") else { panic!("terrain") };
+    let Value::Array(entries) = parse(text).expect("valid JSON") else {
+        panic!("root")
+    };
+    let Value::Object(entry) = entries.first().expect("one entry") else {
+        panic!("object")
+    };
+    let Some(Value::Object(terrain)) = entry.get("terrain") else {
+        panic!("terrain")
+    };
     let rows = vec!["..#".to_string()];
     let drawn = cdda_content::mapgen::resolve_rows(&rows, terrain).expect("resolves");
     assert_eq!(
         drawn,
-        vec![vec![Some("t_floor".to_string()), Some("t_floor".to_string()), Some("t_concrete_wall".to_string())]],
+        vec![vec![
+            Some("t_floor".to_string()),
+            Some("t_floor".to_string()),
+            Some("t_concrete_wall".to_string())
+        ]],
         "a symbol draws the id it names, and a list's first id is the one a draw takes"
     );
 }
@@ -307,10 +362,17 @@ fn a_parameter_with_a_fallback_draws_the_fallback() {
     // `"#": {"param": "exterior_wall_type", "fallback": "t_brick_wall"}`. The format names the fallback so a chunk can be drawn with no
     // parameters at all, and that is what a reader without a parameter source draws. The shelter's concrete walls come from the overmap
     // special that places it, not from this mapgen.
-    let text = br##"[{"terrain": {"#": {"param": "exterior_wall_type", "fallback": "t_brick_wall"}}}]"##;
-    let Value::Array(entries) = parse(text).expect("valid JSON") else { panic!("root") };
-    let Value::Object(entry) = entries.first().expect("one entry") else { panic!("object") };
-    let Some(Value::Object(terrain)) = entry.get("terrain") else { panic!("terrain") };
+    let text =
+        br##"[{"terrain": {"#": {"param": "exterior_wall_type", "fallback": "t_brick_wall"}}}]"##;
+    let Value::Array(entries) = parse(text).expect("valid JSON") else {
+        panic!("root")
+    };
+    let Value::Object(entry) = entries.first().expect("one entry") else {
+        panic!("object")
+    };
+    let Some(Value::Object(terrain)) = entry.get("terrain") else {
+        panic!("terrain")
+    };
     let drawn = cdda_content::mapgen::resolve_rows(&["#".to_string()], terrain).expect("resolves");
     assert_eq!(drawn, vec![vec![Some("t_brick_wall".to_string())]]);
 }
@@ -321,10 +383,19 @@ fn a_distribution_reference_takes_its_first_candidate() {
     // `{"distribution": [["cabin_palette", 1], ["cabin_palette_abandoned", 1]]}`. The game rolls between them; a reader with no dice takes
     // the first and keeps the weights in the structure for the caller that eventually has them.
     let text = br#"[{"palettes": [{"distribution": [["cabin_palette", 3], ["cabin_palette_abandoned", 1]]}]}]"#;
-    let Value::Array(entries) = parse(text).expect("valid JSON") else { panic!("root") };
-    let Value::Object(entry) = entries.first().expect("one entry") else { panic!("object") };
-    let Some(Value::Array(list)) = entry.get("palettes") else { panic!("palettes") };
-    let reference = list.first().and_then(cdda_content::mapgen::read_palette_ref).expect("a reference");
+    let Value::Array(entries) = parse(text).expect("valid JSON") else {
+        panic!("root")
+    };
+    let Value::Object(entry) = entries.first().expect("one entry") else {
+        panic!("object")
+    };
+    let Some(Value::Array(list)) = entry.get("palettes") else {
+        panic!("palettes")
+    };
+    let reference = list
+        .first()
+        .and_then(cdda_content::mapgen::read_palette_ref)
+        .expect("a reference");
     assert_eq!(
         reference,
         cdda_content::mapgen::PaletteRef::Distribution(vec![
@@ -332,10 +403,16 @@ fn a_distribution_reference_takes_its_first_candidate() {
             ("cabin_palette_abandoned".to_string(), 1),
         ])
     );
-    assert_eq!(reference.resolved(), Some("cabin_palette"), "the first candidate is what a reader without dice draws");
+    assert_eq!(
+        reference.resolved(),
+        Some("cabin_palette"),
+        "the first candidate is what a reader without dice draws"
+    );
 
     let palette = parse(br#"{"terrain": {".": "t_floor"}}"#).expect("valid JSON");
-    let Value::Object(palette) = palette else { panic!("object") };
+    let Value::Object(palette) = palette else {
+        panic!("object")
+    };
     let symbols = cdda_content::mapgen::palette_symbols(&[reference], &|name| {
         (name == "cabin_palette").then(|| palette.clone())
     });

@@ -19,7 +19,10 @@ pub struct TheSpellTypes;
 /// Installs the spell table, replacing whatever was there.
 pub fn set_types(world: &mut World, spells: Vec<cdda_content::spells::Spell>) {
     let element = crate::singletons::singleton::<SpellTypes, TheSpellTypes>(world);
-    let table = spells.into_iter().map(|spell| (spell.id.clone(), spell)).collect();
+    let table = spells
+        .into_iter()
+        .map(|spell| (spell.id.clone(), spell))
+        .collect();
     world.entity_mut(element).insert(SpellTypes(table));
 }
 

@@ -185,7 +185,11 @@ fn resolve(
 fn inherit(parent: Fault, object: &cdda_json::Object, child: Fault) -> Fault {
     let stated = |key: &str| object.get(key).is_some();
     let mut out = child;
-    out.name = if stated("name") { out.name } else { parent.name };
+    out.name = if stated("name") {
+        out.name
+    } else {
+        parent.name
+    };
     out.description = if stated("description") {
         out.description
     } else {

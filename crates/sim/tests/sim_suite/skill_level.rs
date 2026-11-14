@@ -58,8 +58,16 @@ fn a_level_is_spent_by_default_and_crossed_with_multi_level_training_on() {
 
     let mut carried = SkillLevel::new();
     carried.train(40_000, 1.0, 1.0, 1.0, true);
-    assert_eq!(carried.level(), 1, "and with the crossing allowed the level is the same");
-    assert_eq!(carried.exercise(true), 30_000, "but the thirty thousand beyond the threshold are kept");
+    assert_eq!(
+        carried.level(),
+        1,
+        "and with the crossing allowed the level is the same"
+    );
+    assert_eq!(
+        carried.exercise(true),
+        30_000,
+        "but the thirty thousand beyond the threshold are kept"
+    );
     assert_eq!(
         spent.knowledge_level(),
         1,
@@ -68,8 +76,16 @@ fn a_level_is_spent_by_default_and_crossed_with_multi_level_training_on() {
 
     let mut kept = SkillLevel::new();
     kept.set_exercise(40_000, true);
-    assert_eq!(kept.level(), 1, "forty thousand crosses only the first threshold, ten thousand");
-    assert_eq!(kept.exercise(true), 30_000, "and thirty thousand are left over");
+    assert_eq!(
+        kept.level(),
+        1,
+        "forty thousand crosses only the first threshold, ten thousand"
+    );
+    assert_eq!(
+        kept.exercise(true),
+        30_000,
+        "and thirty thousand are left over"
+    );
 
     let mut crossing = SkillLevel::new();
     crossing.set_exercise(140_000, true);
@@ -83,15 +99,21 @@ fn a_level_is_spent_by_default_and_crossed_with_multi_level_training_on() {
     let mut nearly = SkillLevel::new();
     nearly.set_exercise(159_999, true);
     assert_eq!(nearly.level(), 3, "one point short of the fourth threshold");
-    assert_eq!(nearly.exercise(true), 19_999, "and that point is the difference");
+    assert_eq!(
+        nearly.exercise(true),
+        19_999,
+        "and that point is the difference"
+    );
 }
 
 #[test]
 fn every_recorded_experience_change_matches_the_reference() {
     // `corpus/skill-level.json` is `--dump-skill-level`: one fresh skill level per raw value, from zero to a hundred million, with the reporting divisor crossing at every
     // level. The recorded `knowledge_raw` is the same as the exercise until a level is crossed, which is the reference's own bookkeeping (`_knowledgeExperience = _exercise`).
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/skill-level.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/skill-level.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -127,7 +149,9 @@ fn every_recorded_experience_change_matches_the_reference() {
             other => panic!("knowledge_level: {other:?}"),
         };
         let expected_exercised = match case.get("exercised_level") {
-            Some(cdda_json::Value::Int(value)) => i32::try_from(*value).expect("an exercised level"),
+            Some(cdda_json::Value::Int(value)) => {
+                i32::try_from(*value).expect("an exercised level")
+            }
             other => panic!("exercised_level: {other:?}"),
         };
         let mut level = SkillLevel::new();
@@ -138,9 +162,21 @@ fn every_recorded_experience_change_matches_the_reference() {
             "raw {raw}: the experience left after the level it bought was spent"
         );
         assert_eq!(level.level(), expected_level, "raw {raw}: the level");
-        assert_eq!(level.exercise(false), expected_reported, "raw {raw}: the reported exercise");
-        assert_eq!(level.knowledge_level(), expected_knowledge, "raw {raw}: the knowledge level");
-        assert_eq!(level.exercised_level(), expected_exercised, "raw {raw}: the exercised level");
+        assert_eq!(
+            level.exercise(false),
+            expected_reported,
+            "raw {raw}: the reported exercise"
+        );
+        assert_eq!(
+            level.knowledge_level(),
+            expected_knowledge,
+            "raw {raw}: the knowledge level"
+        );
+        assert_eq!(
+            level.exercised_level(),
+            expected_exercised,
+            "raw {raw}: the exercised level"
+        );
         if expected_level > 0 {
             levelled += 1;
         } else {
@@ -161,7 +197,11 @@ fn negative_experience_takes_a_level_and_the_report_stops_at_zero() {
     let mut level = SkillLevel::new();
     level.level_to(2);
     level.set_exercise(-1, true);
-    assert_eq!(level.level(), 1, "a point of negative experience drops the level by one");
+    assert_eq!(
+        level.level(),
+        1,
+        "a point of negative experience drops the level by one"
+    );
     assert_eq!(
         level.exercise(true),
         39_999,
@@ -170,7 +210,11 @@ fn negative_experience_takes_a_level_and_the_report_stops_at_zero() {
 
     let mut bottom = SkillLevel::new();
     bottom.set_exercise(-1, true);
-    assert_eq!(bottom.level(), -1, "at level zero the level goes below zero, as the reference's does");
+    assert_eq!(
+        bottom.level(),
+        -1,
+        "at level zero the level goes below zero, as the reference's does"
+    );
     assert_eq!(
         bottom.exercise(false),
         0,
@@ -182,8 +226,10 @@ fn negative_experience_takes_a_level_and_the_report_stops_at_zero() {
 fn every_recorded_training_matches_the_reference() {
     // The training path is where the excess is **spent**, where knowledge is capped at ninety percent of the catch-up, and where the real additions truncate into whole
     // points. Each case starts from a fresh skill level, repeats the same call as many times as the recording says, and compares six numbers.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/skill-level.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/skill-level.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -254,5 +300,10 @@ fn every_recorded_training_matches_the_reference() {
     }
     assert!(spent > 0, "at least one case spends its excess: {spent}");
     assert!(kept > 0, "and at least one keeps a remainder: {kept}");
-    assert!(differing.is_empty(), "{} differences:\n{}", differing.len(), differing.join("\n"));
+    assert!(
+        differing.is_empty(),
+        "{} differences:\n{}",
+        differing.len(),
+        differing.join("\n")
+    );
 }

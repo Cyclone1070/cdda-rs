@@ -99,13 +99,19 @@ fn a_pile_counted_in_charges_loses_charges_and_not_health() {
     assert!(!emptied, "and leaves a hundred and eighty");
 
     let (none, emptied) = mod_damage_charges(10, 1_000, nails.stack_size);
-    assert_eq!(none, 0, "a pile of ten cannot lose twenty; it loses what it has");
+    assert_eq!(
+        none, 0,
+        "a pile of ten cannot lose twenty; it loses what it has"
+    );
     assert!(emptied, "and that empties it");
 
     // The health state of a charge-counted type never moves, whatever happens to the pile.
     let (state, destroyed) = ItemDamage::default().mod_damage(1_000, &nails);
     assert_eq!(state, ItemDamage::default());
-    assert!(!destroyed, "the pile's fate is its charges', not its health's");
+    assert!(
+        !destroyed,
+        "the pile's fate is its charges', not its health's"
+    );
 
     // And an unbreakable item refuses damage outright rather than taking none of it.
     let tough = DamageLimits {

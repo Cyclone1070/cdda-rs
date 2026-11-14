@@ -44,22 +44,35 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
         return Toss::AtYourself;
     }
     let held = world.get::<crate::creature::Carried>(item).map(|who| who.0) == Some(thrower)
-        || world.get::<crate::creature::WieldedBy>(item).map(|who| who.0) == Some(thrower);
+        || world
+            .get::<crate::creature::WieldedBy>(item)
+            .map(|who| who.0)
+            == Some(thrower);
     if !held {
         return Toss::NotCarried;
     }
     let Some(kind) = world.get::<crate::GroundItem>(item).map(|held| held.kind) else {
         return Toss::NotCarried;
     };
-    let charges = world.get::<crate::GroundItem>(item).map_or(1, |held| held.charges);
+    let charges = world
+        .get::<crate::GroundItem>(item)
+        .map_or(1, |held| held.charges);
     let names = crate::item_registry::snapshot(world);
     // Reference: `Character::throw_item` (`ranged.cpp:1474-1475`) charges the arm **before** it rolls anything, so a throw that misses costs the same as one that hits.
-    crate::creature::spend_moves(world, thrower, f64::from(throw_cost(
-        crate::melee::attack_time(i64::from(names.volume_of(kind)), names.weight_of(kind), i64::from(charges)),
-        crate::skills_of::level_of(world, thrower, "throw"),
-        crate::creature::effective_dexterity(world, thrower),
-        stamina_ratio(world, thrower),
-    )));
+    crate::creature::spend_moves(
+        world,
+        thrower,
+        f64::from(throw_cost(
+            crate::melee::attack_time(
+                i64::from(names.volume_of(kind)),
+                names.weight_of(kind),
+                i64::from(charges),
+            ),
+            crate::skills_of::level_of(world, thrower, "throw"),
+            crate::creature::effective_dexterity(world, thrower),
+            stamina_ratio(world, thrower),
+        )),
+    );
     // Reference: `throw_dispersion_per_dodge` reads the **arm** strength, which is the strength a creature can put behind a throw.
     let arm_strength = crate::creature::effective_strength(world, thrower);
     // Reference: `get_skill_level( skill_throw )`, from the creature's own skill map.
@@ -133,7 +146,11 @@ pub fn throw_at(world: &mut World, thrower: Entity, item: Entity, target: (i32, 
     // Reference: `proj.impact = thrown.base_damage_thrown()` (`ranged.cpp:1435`) and then `impact.add_damage( damage_bash, min( weight / 100 g, arm ) )`
     // (`ranged.cpp:1505-1506`) - the thing's own damage **plus** what the arm adds, not the larger of the two.
     let blow = names.thrown_of(kind)
-        + damage_of_throw(arm_strength, crate::skills_of::level_of(world, thrower, "throw"), names.weight_of(kind));
+        + damage_of_throw(
+            arm_strength,
+            crate::skills_of::level_of(world, thrower, "throw"),
+            names.weight_of(kind),
+        );
     #[allow(clippy::cast_possible_truncation)]
     let blow_whole = blow as i32;
     let hit = strike_whatever_stands_there(world, thrower, at, blow_whole);
@@ -186,7 +203,11 @@ pub(crate) fn target_size(world: &World, thrower: Entity, target: (i32, i32, i32
     crate::creature::creature_at(world, target)
         .into_iter()
         .find(|entity| *entity != thrower)
-        .and_then(|entity| world.get::<crate::creature::Creature>(entity).map(|creature| creature.size))
+        .and_then(|entity| {
+            world
+                .get::<crate::creature::Creature>(entity)
+                .map(|creature| creature.size)
+        })
         .map_or(1.0, crate::ballistics::occupied_tile_fraction)
 }
 
@@ -201,7 +222,12 @@ pub(crate) fn target_size(world: &World, thrower: Entity, target: (i32, i32, i32
 ///
 /// Reference: `item::attack_time( c )` is the port's [`crate::melee::attack_time`], and it already takes the held thing's volume and weight.
 #[must_use]
-pub fn throw_cost(base_move_cost: i32, throw_skill: i32, dexterity: i32, stamina_ratio: f64) -> i32 {
+pub fn throw_cost(
+    base_move_cost: i32,
+    throw_skill: i32,
+    dexterity: i32,
+    stamina_ratio: f64,
+) -> i32 {
     let base = f64::from(base_move_cost) / 2.0;
     let skill = base * f64::from(20 - throw_skill.min(10)) / 20.0;
     #[allow(clippy::cast_possible_truncation)]
@@ -217,7 +243,9 @@ pub fn throw_cost(base_move_cost: i32, throw_skill: i32, dexterity: i32, stamina
 /// A creature that carries no [`crate::creature::Stamina`] is treated as **full**, which is the convention the port's default stamina follows - a thrower the port invented has not been
 /// running.
 fn stamina_ratio(world: &bevy_ecs::prelude::World, thrower: bevy_ecs::prelude::Entity) -> f64 {
-    world.get::<crate::creature::Stamina>(thrower).map_or(1.0, |stamina| stamina.cur / stamina.max.max(1.0))
+    world
+        .get::<crate::creature::Stamina>(thrower)
+        .map_or(1.0, |stamina| stamina.cur / stamina.max.max(1.0))
 }
 
 /// Who the thrown thing struck and how much it took, or nothing when the square was empty.
@@ -233,7 +261,9 @@ fn strike_whatever_stands_there(
 ) -> Option<(Entity, i32)> {
     crate::creature::creature_at(world, at)
         .into_iter()
-        .find(|standing| *standing != thrower && crate::creature::health_of(world, *standing).is_some())
+        .find(|standing| {
+            *standing != thrower && crate::creature::health_of(world, *standing).is_some()
+        })
         .and_then(|struck| {
             let before = crate::creature::health_of(world, struck)?;
             // Reference: `Character::throw_weakpoint_skill` (`weakpoint.cpp:104-107`) - `throw` twice and **vision twice** - and the attack type is `PROJECTILE`, because a thrown rock is
@@ -279,7 +309,9 @@ fn strike_whatever_stands_there(
                         (f64::from(blow), 0.0, 0.0),
                         false,
                     );
-                    let armour = world.get::<crate::creature::Armour>(struck).map_or(0, |armour| armour.bash);
+                    let armour = world
+                        .get::<crate::creature::Armour>(struck)
+                        .map_or(0, |armour| armour.bash);
                     let (resist, _, _) = crate::weakpoints::apply_to_armour_triple(
                         &weak.factors,
                         (f64::from(armour), 0.0, 0.0),
@@ -288,7 +320,9 @@ fn strike_whatever_stands_there(
                 }
                 None => (
                     blow,
-                    world.get::<crate::creature::Armour>(struck).map_or(0.0, |armour| armour.bash as f32),
+                    world
+                        .get::<crate::creature::Armour>(struck)
+                        .map_or(0.0, |armour| armour.bash as f32),
                 ),
             };
             #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]

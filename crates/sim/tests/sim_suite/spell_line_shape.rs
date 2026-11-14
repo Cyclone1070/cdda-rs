@@ -36,7 +36,10 @@ fn a_line_with_no_width_is_the_straight_path_from_the_caster_to_the_aim_point() 
         set(&[(0, -1), (0, -2)]),
         "and the same rule runs south"
     );
-    assert!(line_to((0, 0), 4).is_empty(), "a line aimed at its own square covers nothing");
+    assert!(
+        line_to((0, 0), 4).is_empty(),
+        "a line aimed at its own square covers nothing"
+    );
 }
 
 /// **A width widens the band without lengthening it**, and an odd width leans clockwise.

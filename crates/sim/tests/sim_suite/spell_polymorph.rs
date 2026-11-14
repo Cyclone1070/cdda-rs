@@ -14,9 +14,18 @@ fn a_world() -> (World, cdda_sim::MonsterKindId) {
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
         &[
-            cdda_sim::monster_registry::MonsterKind { id: "mon_prey", hp: 60 },
-            cdda_sim::monster_registry::MonsterKind { id: "mon_big", hp: 100 },
-            cdda_sim::monster_registry::MonsterKind { id: "mon_small", hp: 10 },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_prey",
+                hp: 60,
+            },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_big",
+                hp: 100,
+            },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_small",
+                hp: 10,
+            },
         ],
     );
     let big = cdda_sim::monster_registry::id_of(&mut world, "mon_big").expect("mon_big");
@@ -70,11 +79,15 @@ fn a_polymorph_keeps_the_hit_percentage_and_takes_the_new_body_s_speed() {
         "the spell changed the monster"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::CreatureKind>(victim).map(|kind| kind.0),
+        world
+            .get::<cdda_sim::creature::CreatureKind>(victim)
+            .map(|kind| kind.0),
         Some(big),
         "into the kind the spell names"
     );
-    let health = world.get::<cdda_sim::creature::Health>(victim).expect("still alive");
+    let health = world
+        .get::<cdda_sim::creature::Health>(victim)
+        .expect("still alive");
     assert_eq!(
         (health.hp, health.max_hp),
         (50, 100),
@@ -86,7 +99,9 @@ fn a_polymorph_keeps_the_hit_percentage_and_takes_the_new_body_s_speed() {
         "and it moves at the new body's pace"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Moves>(victim).map(|moves| moves.left),
+        world
+            .get::<cdda_sim::creature::Moves>(victim)
+            .map(|moves| moves.left),
         Some(0),
         "with its moves spent, which is the reference's `moves = 0`"
     );
@@ -107,7 +122,9 @@ fn a_monster_whose_hit_points_are_not_below_the_spell_s_damage_resists() {
         "**equal hit points are not below, so the monster resists**"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::CreatureKind>(victim).map(|kind| kind.0),
+        world
+            .get::<cdda_sim::creature::CreatureKind>(victim)
+            .map(|kind| kind.0),
         Some(prey),
         "and it is still what it was"
     );
@@ -118,7 +135,9 @@ fn a_monster_whose_hit_points_are_not_below_the_spell_s_damage_resists() {
         "one point more of damage and it changes"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Health>(victim).map(|health| health.max_hp),
+        world
+            .get::<cdda_sim::creature::Health>(victim)
+            .map(|health| health.max_hp),
         Some(10),
         "into the ten-hit-point body"
     );

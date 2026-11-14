@@ -96,7 +96,8 @@ fn compartment(map: &cdda_json::Object) -> [i64; 3] {
 
 /// The effect types, from the reference's own registry: the hunger effect the body installs needs its ceiling and its duration percentage, and both are recorded.
 fn effects() -> std::collections::BTreeMap<String, cdda_content::effects::EffectType> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [path.join("core"), path.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     cdda_content::effects::load_paths(&paths).expect("the effects load")
@@ -105,7 +106,8 @@ fn effects() -> std::collections::BTreeMap<String, cdda_content::effects::Effect
 fn recorded() -> (i64, i64, Vec<Recorded>) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/items/update-stomach.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -118,7 +120,9 @@ fn recorded() -> (i64, i64, Vec<Recorded>) {
     let foods = foods
         .iter()
         .map(|food| {
-            let Value::Object(food) = food else { panic!("a food") };
+            let Value::Object(food) = food else {
+                panic!("a food")
+            };
             let id = match food.get("id") {
                 Some(Value::Str(id)) => id.clone(),
                 other => panic!("{other:?}"),
@@ -186,8 +190,8 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
         "six profiles per food"
     );
 
-    let data =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let vitamins: BTreeMap<String, Vitamin> =
@@ -227,7 +231,11 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
 
             let label = format!(
                 "{}.cap{}:h{}:t{}:ate{}",
-                row.id, profile.capacity_ml, profile.hunger, profile.thirst, profile.minutes_since_ate
+                row.id,
+                profile.capacity_ml,
+                profile.hunger,
+                profile.thirst,
+                profile.minutes_since_ate
             );
             if body.hunger != profile.after_hunger {
                 differing.push(format!(
@@ -253,14 +261,22 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
                     body.vitamins, profile.after_vitamins
                 ));
             }
-            let stomach = [body.stomach.contains_ml(), body.stomach.water_ml, body.stomach.kcal()];
+            let stomach = [
+                body.stomach.contains_ml(),
+                body.stomach.water_ml,
+                body.stomach.kcal(),
+            ];
             if stomach != profile.after_stomach {
                 differing.push(format!(
                     "{label}.stomach: the port says {stomach:?}, the reference says {:?}",
                     profile.after_stomach
                 ));
             }
-            let guts = [body.guts.contains_ml(), body.guts.water_ml, body.guts.kcal()];
+            let guts = [
+                body.guts.contains_ml(),
+                body.guts.water_ml,
+                body.guts.kcal(),
+            ];
             if guts != profile.after_guts {
                 differing.push(format!(
                     "{label}.guts: the port says {guts:?}, the reference says {:?}",
@@ -287,13 +303,28 @@ fn every_comestible_moves_the_body_the_way_the_reference_says() {
         }
     }
     // **Non-vacuity**: each of the rule's six steps has to move a real share of the 10,116 traces.
-    assert!(hunger_moved > 3_000, "traces where hunger moved: {hunger_moved}");
-    assert!(thirst_moved > 3_000, "traces where thirst moved: {thirst_moved}");
-    assert!(calories_moved == rows.len() * 6, "every trace burns calories: {calories_moved}");
+    assert!(
+        hunger_moved > 3_000,
+        "traces where hunger moved: {hunger_moved}"
+    );
+    assert!(
+        thirst_moved > 3_000,
+        "traces where thirst moved: {thirst_moved}"
+    );
+    assert!(
+        calories_moved == rows.len() * 6,
+        "every trace burns calories: {calories_moved}"
+    );
     // Only **one** vitamin in the content can be stored at all: `iron` has a ceiling of 3,600 units, while `calcium` and `vitC` state a ceiling of zero and the other
     // fifty are markers that are read rather than held. So this is small on purpose, and a threshold of a thousand would have been a false claim.
-    assert!(vitamins_stored > 50, "traces that stored a vitamin: {vitamins_stored}");
-    assert!(stomach_ceiling > 2_000, "traces the full stomach held down: {stomach_ceiling}");
+    assert!(
+        vitamins_stored > 50,
+        "traces that stored a vitamin: {vitamins_stored}"
+    );
+    assert!(
+        stomach_ceiling > 2_000,
+        "traces the full stomach held down: {stomach_ceiling}"
+    );
     assert!(
         differing.is_empty(),
         "{} disagreements over {} traces; the first twelve are {:#?}",
@@ -322,18 +353,20 @@ fn a_creature_on_the_schedule_digests_what_it_ate() {
             vitamins: std::collections::BTreeMap::new(),
         });
         world.entity_mut(survivor).insert(body);
-        world.entity_mut(survivor).insert(cdda_sim::body::BodyClock {
-            // The figures the reference computes from weight, height and the activity level: 2,400 kcal a day is 2,400 / ( 12 * 24 ) a turn.
-            kcal_per_time: 2_400.0 / 288.0,
-            healthy_kcal: 20_000,
-            height_cm: 175,
-            organic_size: 1.0,
-            time_since_ate: 0,
-            no_thirst: false,
-            foodless: false,
-            mycus: false,
-            half_hours_done: 0,
-        });
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::body::BodyClock {
+                // The figures the reference computes from weight, height and the activity level: 2,400 kcal a day is 2,400 / ( 12 * 24 ) a turn.
+                kcal_per_time: 2_400.0 / 288.0,
+                healthy_kcal: 20_000,
+                height_cm: 175,
+                organic_size: 1.0,
+                time_since_ate: 0,
+                no_thirst: false,
+                foodless: false,
+                mycus: false,
+                half_hours_done: 0,
+            });
         world
             .entity_mut(survivor)
             .insert(cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
@@ -379,7 +412,10 @@ fn a_creature_on_the_schedule_digests_what_it_ate() {
             cdda_sim::calendar::set_turn(&mut world, minute * 60);
             cdda_sim::turn::run_turn(&mut world);
         }
-        world.get::<cdda_sim::body::Body>(survivor).cloned().unwrap_or_default()
+        world
+            .get::<cdda_sim::body::Body>(survivor)
+            .cloned()
+            .unwrap_or_default()
     };
 
     let plain = after_an_hour(None);
@@ -426,10 +462,12 @@ fn a_vitamin_reaches_the_body_only_when_its_type_is_installed() {
             vitamins,
         });
         world.entity_mut(survivor).insert(body);
-        world.entity_mut(survivor).insert(cdda_sim::body::BodyClock {
-            kcal_per_time: 2_400.0 / 288.0,
-            ..cdda_sim::body::BodyClock::default()
-        });
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::body::BodyClock {
+                kcal_per_time: 2_400.0 / 288.0,
+                ..cdda_sim::body::BodyClock::default()
+            });
         world
             .entity_mut(survivor)
             .insert(cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
@@ -457,7 +495,10 @@ fn a_vitamin_reaches_the_body_only_when_its_type_is_installed() {
             cdda_sim::calendar::set_turn(&mut world, minute * 60);
             cdda_sim::turn::run_turn(&mut world);
         }
-        world.get::<cdda_sim::body::Body>(survivor).cloned().unwrap_or_default()
+        world
+            .get::<cdda_sim::body::Body>(survivor)
+            .cloned()
+            .unwrap_or_default()
     };
 
     let known = after_an_hour(true);

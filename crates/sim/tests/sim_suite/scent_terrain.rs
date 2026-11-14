@@ -8,10 +8,10 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
+use cdda_sim::Prototypes;
 use cdda_sim::scent::{advance_scent, decay_scent, marks_at, reset_scent, scent_at, set_scent_at};
 use cdda_sim::scent_table::ScentTable;
 use cdda_sim::set_scent_table;
-use cdda_sim::{Prototypes};
 
 const AIR: u32 = 1;
 const WALL: u32 = 2; // NO_SCENT

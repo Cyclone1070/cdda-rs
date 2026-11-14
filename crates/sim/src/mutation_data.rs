@@ -29,8 +29,11 @@ pub struct TheMutationCategories;
 pub fn install(world: &mut World, mutations: Mutations, categories: Categories) {
     let entity = crate::singletons::singleton::<MutationTable, TheMutations>(world);
     world.entity_mut(entity).insert(MutationTable(mutations));
-    let entity = crate::singletons::singleton::<MutationCategoryTable, TheMutationCategories>(world);
-    world.entity_mut(entity).insert(MutationCategoryTable(categories));
+    let entity =
+        crate::singletons::singleton::<MutationCategoryTable, TheMutationCategories>(world);
+    world
+        .entity_mut(entity)
+        .insert(MutationCategoryTable(categories));
 }
 
 /// The mutation branches, when the world has them.
@@ -40,7 +43,9 @@ pub fn install(world: &mut World, mutations: Mutations, categories: Categories) 
 #[must_use]
 pub fn holder(world: &World) -> Option<Mutations> {
     let entity = crate::singletons::holder::<TheMutations>(world)?;
-    world.get::<MutationTable>(entity).map(|table| table.0.clone())
+    world
+        .get::<MutationTable>(entity)
+        .map(|table| table.0.clone())
 }
 
 /// The mutation categories, when the world has them.

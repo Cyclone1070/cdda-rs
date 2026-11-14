@@ -83,9 +83,9 @@ pub fn has_trait(world: &World, creature: Entity, name: &str) -> bool {
 /// Every trait a creature carries, in id order.
 #[must_use]
 pub fn traits_held(world: &World, creature: Entity) -> Vec<String> {
-    world.get::<Traits>(creature).map_or_else(Vec::new, |traits| {
-        traits.names.iter().cloned().collect()
-    })
+    world
+        .get::<Traits>(creature)
+        .map_or_else(Vec::new, |traits| traits.names.iter().cloned().collect())
 }
 
 /// A trait set built from ids.

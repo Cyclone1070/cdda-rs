@@ -23,8 +23,14 @@ fn the_sight_penalty_is_the_multiplier_the_light_code_applies() {
     // The number is **at or above one** because `calc_transp` multiplies every square's transparency by it (`lightmap.cpp:150-154`): higher is more absorbing. Fog is the worst in
     // the data at 1.7 and clear weather is the identity at 1.0, so a loader that took these for a percentage would show as a value below one.
     let types = dump();
-    assert_eq!(weather::find(&types, "clear").expect("clear").sight_penalty, 1.0);
-    assert_eq!(weather::find(&types, "fog").expect("fog").sight_penalty, 1.7);
+    assert_eq!(
+        weather::find(&types, "clear").expect("clear").sight_penalty,
+        1.0
+    );
+    assert_eq!(
+        weather::find(&types, "fog").expect("fog").sight_penalty,
+        1.7
+    );
     // **One type carries zero**, which means "no penalty written" rather than "better than open air": the reference's multiplier is `1.0` for unaffected weather, so a reader that
     // treats zero literally would divide sight by it. Pinned here so the weather resource maps it to the identity instead.
     let unset: Vec<&str> = types

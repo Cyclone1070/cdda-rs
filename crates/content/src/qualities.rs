@@ -79,7 +79,17 @@ fn collect(
             };
             let name = name_of(object).unwrap_or_else(|| id.clone());
             let usages = read_usages(object);
-            if out.insert(id.clone(), Quality { id: id.clone(), name, usages }).is_some() {
+            if out
+                .insert(
+                    id.clone(),
+                    Quality {
+                        id: id.clone(),
+                        name,
+                        usages,
+                    },
+                )
+                .is_some()
+            {
                 return Err(LoadError {
                     message: format!("quality {id} is defined twice: {}", path.display()),
                 });

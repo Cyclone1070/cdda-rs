@@ -34,7 +34,11 @@ fn a_world() -> (World, Entity) {
             hp: 40,
         }],
     );
-    cdda_sim::monster_registry::set_death_drops(&mut world, cdda_sim::MonsterKindId(1), "loot_group");
+    cdda_sim::monster_registry::set_death_drops(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        "loot_group",
+    );
     cdda_sim::item_registry::set_item_types(
         &mut world,
         &[cdda_sim::item_registry::Kind {
@@ -118,7 +122,11 @@ fn loot_after_death(world: &mut World, at: (i32, i32)) -> Vec<cdda_sim::ItemType
     cdda_sim::creature::reap_dead_creatures_as_corpses(world, cdda_sim::ItemTypeId(99), |_| 62_500);
     cdda_sim::items_at(world, at)
         .iter()
-        .filter_map(|item| world.get::<cdda_sim::GroundItem>(*item).map(|held| held.kind))
+        .filter_map(|item| {
+            world
+                .get::<cdda_sim::GroundItem>(*item)
+                .map(|held| held.kind)
+        })
         .filter(|kind| *kind == rag)
         .collect()
 }
@@ -135,7 +143,9 @@ fn a_summoned_body_leaves_no_extra_loot_unless_the_spell_says_so() {
     let on_square: Vec<Entity> = cdda_sim::creature::creature_at(&world, (3, 0, 0));
     assert_eq!(on_square.len(), 1, "one body was summoned");
     assert!(
-        world.get::<cdda_sim::creature::NoExtraDeathDrops>(on_square[0]).is_some(),
+        world
+            .get::<cdda_sim::creature::NoExtraDeathDrops>(on_square[0])
+            .is_some(),
         "**the summoned body carries the marker**"
     );
     let rags = loot_after_death(&mut world, (3, 0));

@@ -97,22 +97,22 @@ fn read_pocket(entry: &Value) -> Option<PocketSpec> {
         return None;
     };
     let restricted = entry.get("ammo_restriction").is_some();
-    let (max_volume_ml, max_weight_grams, max_length_mm, min_length_mm, min_volume_ml) = if restricted
-    {
-        (MAX_VOLUME_FOR_CONTAINER, MAX_WEIGHT_FOR_CONTAINER, 0, 0, 0)
-    } else {
-        let max_volume_ml =
-            volume(entry, "max_contains_volume").unwrap_or(MAX_VOLUME_FOR_CONTAINER);
-        (
-            max_volume_ml,
-            weight(entry, "max_contains_weight").unwrap_or(MAX_WEIGHT_FOR_CONTAINER),
-            // Reference: `item_pocket.cpp:174-176`. The diagonal of a cube of the capacity, because the longest thing that fits in a box is its diagonal.
-            length(entry, "max_item_length")
-                .unwrap_or_else(|| diagonal_mm(default_length_from_volume(max_volume_ml))),
-            length(entry, "min_item_length").unwrap_or(0),
-            volume(entry, "min_item_volume").unwrap_or(0),
-        )
-    };
+    let (max_volume_ml, max_weight_grams, max_length_mm, min_length_mm, min_volume_ml) =
+        if restricted {
+            (MAX_VOLUME_FOR_CONTAINER, MAX_WEIGHT_FOR_CONTAINER, 0, 0, 0)
+        } else {
+            let max_volume_ml =
+                volume(entry, "max_contains_volume").unwrap_or(MAX_VOLUME_FOR_CONTAINER);
+            (
+                max_volume_ml,
+                weight(entry, "max_contains_weight").unwrap_or(MAX_WEIGHT_FOR_CONTAINER),
+                // Reference: `item_pocket.cpp:174-176`. The diagonal of a cube of the capacity, because the longest thing that fits in a box is its diagonal.
+                length(entry, "max_item_length")
+                    .unwrap_or_else(|| diagonal_mm(default_length_from_volume(max_volume_ml))),
+                length(entry, "min_item_length").unwrap_or(0),
+                volume(entry, "min_item_volume").unwrap_or(0),
+            )
+        };
     let ablative = flag(entry, "ablative");
     Some(PocketSpec {
         kind: text(entry, "pocket_type").unwrap_or_else(|| "CONTAINER".to_owned()),
@@ -195,7 +195,9 @@ fn volume(object: &Object, member: &str) -> Option<i64> {
 
 fn weight(object: &Object, member: &str) -> Option<i64> {
     match object.get(member) {
-        Some(Value::Str(value)) => cdda_core_types::units::read_mass(value).ok().map(|mg| mg / 1_000),
+        Some(Value::Str(value)) => cdda_core_types::units::read_mass(value)
+            .ok()
+            .map(|mg| mg / 1_000),
         Some(Value::Int(value)) => Some(*value),
         _ => None,
     }

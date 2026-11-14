@@ -157,11 +157,7 @@ pub fn blast(
             // A square that cannot be walked through is bashed but not passed through: this is what keeps a blast inside a room.
             continue;
         }
-        outcome.reached.push(BashHit {
-            x,
-            y,
-            force,
-        });
+        outcome.reached.push(BashHit { x, y, force });
         let empty_neighbors = OFFSETS
             .iter()
             .take(8)
@@ -195,19 +191,16 @@ pub fn blast(
                 // square below cannot be reached (`src/explosion.cpp:297-305`) — which bashes one square twice, and which is why a real blast's log is longer than the set of
                 // squares it hit. Neither is modelled, because both are about the level above and below, which this port has no view of yet.
             }
-            let mut next_distance = distance
-                + if dx == &0 || dy == &0 {
-                    1.0
-                } else {
-                    DIAGONAL
-                };
+            let mut next_distance = distance + if dx == &0 || dy == &0 { 1.0 } else { DIAGONAL };
             if *dz != 0 {
                 if !grid.valid_move((x, y, z), dest) {
                     continue;
                 }
                 next_distance += LEVEL;
             }
-            let better = distance_of.get(&dest).is_none_or(|known| *known > next_distance);
+            let better = distance_of
+                .get(&dest)
+                .is_none_or(|known| *known > next_distance);
             if better {
                 queue.push(next_distance, dest);
                 distance_of.insert(dest, next_distance);
@@ -217,7 +210,6 @@ pub fn blast(
     }
     outcome
 }
-
 
 /// The reference's wavefront queue, transcribed from the standard library the reference is **built against**.
 ///
@@ -238,9 +230,7 @@ pub(crate) struct DistanceQueue {
 #[allow(clippy::indexing_slicing)]
 impl DistanceQueue {
     pub(crate) fn new() -> Self {
-        Self {
-            items: Vec::new(),
-        }
+        Self { items: Vec::new() }
     }
 
     /// `push_heap`, which is `__sift_up` over a range of one more than before.
@@ -339,14 +329,15 @@ mod tests {
     /// The distances the dump pushes, in its order.
     const DISTANCES: [f32; 40] = [
         0.0, 1.0, 1.0, 1.414, 2.0, 2.0, 2.0, 1.0, 2.828, 3.0, 3.0, 2.414, 1.414, 1.414, 4.0, 3.414,
-        3.414, 2.0, 5.0, 4.414, 0.5, 0.5, 0.5, 6.0, 6.0, 2.0, 2.0, 7.0, 1.414, 8.0, 0.25, 0.25, 9.0,
-        9.0, 9.0, 3.0, 3.0, 10.0, 1.0, 0.75,
+        3.414, 2.0, 5.0, 4.414, 0.5, 0.5, 0.5, 6.0, 6.0, 2.0, 2.0, 7.0, 1.414, 8.0, 0.25, 0.25,
+        9.0, 9.0, 9.0, 3.0, 3.0, 10.0, 1.0, 0.75,
     ];
 
     #[test]
     fn the_queue_drains_in_the_reference_order() {
         let text = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/explosions/heap.json"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../corpus/explosions/heap.json"),
         )
         .expect("the heap probe");
         let mut ours = Vec::new();
@@ -374,7 +365,8 @@ mod tests {
         let theirs: Vec<(f32, i32)> = popped
             .iter()
             .map(|entry| match entry {
-                cdda_json::Value::Array(parts) => {
+                cdda_json::Value::Array(parts) =>
+                {
                     #[allow(clippy::cast_possible_truncation)]
                     match (&parts[0], &parts[1]) {
                         (cdda_json::Value::Float(distance), cdda_json::Value::Int(index)) => {
@@ -387,6 +379,9 @@ mod tests {
             })
             .collect();
         assert_eq!(theirs.len(), 40, "the dump holds forty pops");
-        assert_eq!(ours, theirs, "the port's queue answers the reference's order");
+        assert_eq!(
+            ours, theirs,
+            "the port's queue answers the reference's order"
+        );
     }
 }

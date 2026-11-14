@@ -9,9 +9,7 @@ use cdda_sim::field_table::FieldTable;
 use cdda_sim::set_field_table;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
-    light,
-    Field, LightSource, Position, Prototypes, SOLID_TERRAIN, cast_lights_with,
-    clear_light,
+    Field, LightSource, Position, Prototypes, SOLID_TERRAIN, cast_lights_with, clear_light, light,
 };
 
 /// The prototypes a world with only floors and walls would have loaded: floor code 1 is air, code 0 is solid.

@@ -57,7 +57,11 @@ pub enum MathError {
 impl fmt::Display for MathError {
     fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MathError::Syntax { expression, position, message } => {
+            MathError::Syntax {
+                expression,
+                position,
+                message,
+            } => {
                 write!(out, "in {expression:?} at {position}: {message}")
             }
             MathError::UnknownName { name } => write!(out, "unknown name {name:?}"),
@@ -86,7 +90,9 @@ pub trait Context {
     ///
     /// Returns [`MathError::UnknownName`] by default, which is what a context with no functions should say.
     fn call(&self, name: &str, _arguments: &[Value]) -> Result<Value, MathError> {
-        Err(MathError::UnknownName { name: name.to_string() })
+        Err(MathError::UnknownName {
+            name: name.to_string(),
+        })
     }
 }
 
@@ -97,10 +103,18 @@ pub trait Context {
 /// Returns [`MathError`] when the expression is malformed, names something the context does not know, or applies an operator to a string.
 pub fn evaluate(expression: &str, context: &dyn Context) -> Result<Value, MathError> {
     let tokens = tokenize(expression)?;
-    let mut parser = Parser { expression, tokens, at: 0, context };
+    let mut parser = Parser {
+        expression,
+        tokens,
+        at: 0,
+        context,
+    };
     let value = parser.comparison()?;
     if let Some(token) = parser.peek() {
-        return Err(parser.syntax(token.position, "an operator or the end of the expression".to_string()));
+        return Err(parser.syntax(
+            token.position,
+            "an operator or the end of the expression".to_string(),
+        ));
     }
     Ok(value)
 }
@@ -120,7 +134,9 @@ enum Kind {
     Symbol(&'static str),
 }
 
-const SYMBOLS: [&str; 14] = ["<=", ">=", "==", "!=", "<", ">", "+", "-", "*", "/", "%", "(", ")", ","];
+const SYMBOLS: [&str; 14] = [
+    "<=", ">=", "==", "!=", "<", ">", "+", "-", "*", "/", "%", "(", ")", ",",
+];
 
 /// Splits an expression into tokens.
 ///
@@ -137,7 +153,9 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, MathError> {
             at += 1;
             continue;
         }
-        if byte.is_ascii_digit() || (byte == b'.' && bytes.get(at + 1).is_some_and(u8::is_ascii_digit)) {
+        if byte.is_ascii_digit()
+            || (byte == b'.' && bytes.get(at + 1).is_some_and(u8::is_ascii_digit))
+        {
             let start = at;
             while at < bytes.len() && (bytes[at].is_ascii_digit() || bytes[at] == b'.') {
                 at += 1;
@@ -150,7 +168,10 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, MathError> {
                     message: format!("{text:?} is not a number"),
                 });
             };
-            tokens.push(Token { kind: Kind::Number(value), position: start });
+            tokens.push(Token {
+                kind: Kind::Number(value),
+                position: start,
+            });
             continue;
         }
         if byte == b'\'' {
@@ -169,7 +190,10 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, MathError> {
                 });
             }
             at += 1;
-            tokens.push(Token { kind: Kind::Text(text), position: start });
+            tokens.push(Token {
+                kind: Kind::Text(text),
+                position: start,
+            });
             continue;
         }
         if byte.is_ascii_alphabetic() || byte == b'_' {
@@ -177,7 +201,10 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, MathError> {
             while at < bytes.len() && (bytes[at].is_ascii_alphanumeric() || bytes[at] == b'_') {
                 at += 1;
             }
-            tokens.push(Token { kind: Kind::Name(expression[start..at].to_string()), position: start });
+            tokens.push(Token {
+                kind: Kind::Name(expression[start..at].to_string()),
+                position: start,
+            });
             continue;
         }
         let rest = &expression[at..];
@@ -189,7 +216,10 @@ fn tokenize(expression: &str) -> Result<Vec<Token>, MathError> {
                 message: format!("{ch:?} is not part of an expression"),
             });
         };
-        tokens.push(Token { kind: Kind::Symbol(symbol), position: at });
+        tokens.push(Token {
+            kind: Kind::Symbol(symbol),
+            position: at,
+        });
         at += symbol.len();
     }
     Ok(tokens)
@@ -209,13 +239,20 @@ impl Parser<'_> {
 
     fn symbol(&self) -> Option<&'static str> {
         match self.peek() {
-            Some(Token { kind: Kind::Symbol(symbol), .. }) => Some(symbol),
+            Some(Token {
+                kind: Kind::Symbol(symbol),
+                ..
+            }) => Some(symbol),
             _ => None,
         }
     }
 
     fn syntax(&self, position: usize, message: String) -> MathError {
-        MathError::Syntax { expression: self.expression.to_string(), position, message }
+        MathError::Syntax {
+            expression: self.expression.to_string(),
+            position,
+            message,
+        }
     }
 
     /// The comparisons, lowest precedence, all left-associative like the reference's.
@@ -225,7 +262,9 @@ impl Parser<'_> {
             self.at += 1;
             let right = self.additive()?;
             let (Value::Number(left_number), Value::Number(right_number)) = (&left, &right) else {
-                return Err(MathError::Type { message: format!("{symbol} compares numbers") });
+                return Err(MathError::Type {
+                    message: format!("{symbol} compares numbers"),
+                });
             };
             // Floating-point equality is deliberate here: the reference's `==` compares the numbers as written, and a margin would make `weather('windpower') == 0`
             // true for a wind of a billionth, which is a different weather.
@@ -249,9 +288,15 @@ impl Parser<'_> {
             self.at += 1;
             let right = self.multiplicative()?;
             let (Value::Number(left_number), Value::Number(right_number)) = (&left, &right) else {
-                return Err(MathError::Type { message: format!("{symbol} adds numbers") });
+                return Err(MathError::Type {
+                    message: format!("{symbol} adds numbers"),
+                });
             };
-            left = Value::Number(if symbol == "+" { left_number + right_number } else { left_number - right_number });
+            left = Value::Number(if symbol == "+" {
+                left_number + right_number
+            } else {
+                left_number - right_number
+            });
         }
         Ok(left)
     }
@@ -262,7 +307,9 @@ impl Parser<'_> {
             self.at += 1;
             let right = self.unary()?;
             let (Value::Number(left_number), Value::Number(right_number)) = (&left, &right) else {
-                return Err(MathError::Type { message: format!("{symbol} multiplies numbers") });
+                return Err(MathError::Type {
+                    message: format!("{symbol} multiplies numbers"),
+                });
             };
             left = Value::Number(match symbol {
                 "*" => left_number * right_number,
@@ -278,7 +325,9 @@ impl Parser<'_> {
             self.at += 1;
             let value = self.unary()?;
             let Value::Number(number) = value else {
-                return Err(MathError::Type { message: "negation takes a number".to_string() });
+                return Err(MathError::Type {
+                    message: "negation takes a number".to_string(),
+                });
             };
             return Ok(Value::Number(-number));
         }
@@ -318,15 +367,25 @@ impl Parser<'_> {
                                     self.at += 1;
                                     break;
                                 }
-                                _ => return Err(self.syntax(token.position, "a comma or a closing parenthesis".to_string())),
+                                _ => {
+                                    return Err(self.syntax(
+                                        token.position,
+                                        "a comma or a closing parenthesis".to_string(),
+                                    ));
+                                }
                             }
                         }
                     }
                     return self.context.call(&name, &arguments);
                 }
-                self.context.number(&name).map(Value::Number).ok_or(MathError::UnknownName { name })
+                self.context
+                    .number(&name)
+                    .map(Value::Number)
+                    .ok_or(MathError::UnknownName { name })
             }
-            Kind::Symbol(other) => Err(self.syntax(token.position, format!("a value, not {other:?}"))),
+            Kind::Symbol(other) => {
+                Err(self.syntax(token.position, format!("a value, not {other:?}")))
+            }
         }
     }
 }
@@ -342,7 +401,9 @@ impl Context for Builtins {
     }
 
     fn call(&self, name: &str, arguments: &[Value]) -> Result<Value, MathError> {
-        let missing = || MathError::UnknownName { name: name.to_string() };
+        let missing = || MathError::UnknownName {
+            name: name.to_string(),
+        };
         match (name, arguments) {
             ("abs", [Value::Number(value)]) => Ok(Value::Number(value.abs())),
             ("log", [Value::Number(value)]) => Ok(Value::Number(value.ln())),

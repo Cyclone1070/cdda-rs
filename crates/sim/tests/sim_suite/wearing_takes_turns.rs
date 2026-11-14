@@ -8,7 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{
-    Basis, Began, Doing, Garment, Layering, Wore, begin_wear, set_speed, spawn_creature, wear, wear_cost,
+    Basis, Began, Doing, Garment, Layering, Wore, begin_wear, set_speed, spawn_creature, wear,
+    wear_cost,
 };
 
 #[test]
@@ -16,7 +17,12 @@ fn a_garment_that_can_be_paid_for_goes_on_at_once() {
     let mut world = World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::creature::give_moves(&mut world, survivor, 1_000);
-    let shirt = world.spawn(Garment { layers: Vec::new(), vitals: Vec::new() }).id();
+    let shirt = world
+        .spawn(Garment {
+            layers: Vec::new(),
+            vitals: Vec::new(),
+        })
+        .id();
 
     assert_eq!(
         begin_wear(&mut world, survivor, shirt, 1_000, Layering::Normal),
@@ -24,10 +30,15 @@ fn a_garment_that_can_be_paid_for_goes_on_at_once() {
         "a hundred and fifty moves is inside the thousand it has"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::WornBy>(shirt).map(|worn| worn.0),
+        world
+            .get::<cdda_sim::creature::WornBy>(shirt)
+            .map(|worn| worn.0),
         Some(survivor)
     );
-    assert!(world.get::<Doing>(survivor).is_none(), "and nothing was queued");
+    assert!(
+        world.get::<Doing>(survivor).is_none(),
+        "and nothing was queued"
+    );
 }
 
 #[test]
@@ -35,7 +46,12 @@ fn a_garment_that_needs_more_time_becomes_an_activity() {
     let mut world = World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::creature::give_moves(&mut world, survivor, 10);
-    let coat = world.spawn(Garment { layers: Vec::new(), vitals: Vec::new() }).id();
+    let coat = world
+        .spawn(Garment {
+            layers: Vec::new(),
+            vitals: Vec::new(),
+        })
+        .id();
 
     assert_eq!(
         begin_wear(&mut world, survivor, coat, 1_000, Layering::Normal),
@@ -78,7 +94,12 @@ fn the_turn_loop_puts_the_garment_on_when_the_time_is_up() {
 
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     set_speed(&mut world, survivor, 100, 0);
-    let shirt = world.spawn(Garment { layers: Vec::new(), vitals: Vec::new() }).id();
+    let shirt = world
+        .spawn(Garment {
+            layers: Vec::new(),
+            vitals: Vec::new(),
+        })
+        .id();
     // Two hundred moves is two turns at a hundred a turn.
     world.entity_mut(survivor).insert(Doing {
         moves_total: 0,
@@ -95,7 +116,9 @@ fn the_turn_loop_puts_the_garment_on_when_the_time_is_up() {
     );
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
-        world.get::<cdda_sim::creature::WornBy>(shirt).map(|worn| worn.0),
+        world
+            .get::<cdda_sim::creature::WornBy>(shirt)
+            .map(|worn| worn.0),
         Some(survivor),
         "and the second finishes what the first began"
     );
@@ -107,7 +130,12 @@ fn wearing_a_garment_you_already_have_on_is_still_refused() {
     let mut world = World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::creature::give_moves(&mut world, survivor, 1_000);
-    let shirt = world.spawn(Garment { layers: Vec::new(), vitals: Vec::new() }).id();
+    let shirt = world
+        .spawn(Garment {
+            layers: Vec::new(),
+            vitals: Vec::new(),
+        })
+        .id();
     assert_eq!(wear(&mut world, survivor, shirt), Wore::Worn);
     assert_eq!(
         begin_wear(&mut world, survivor, shirt, 1_000, Layering::Normal),

@@ -46,9 +46,19 @@ fn the_line_between_two_points_is_what_changes() {
                     "first": { "global_val": "line_start" },
                     "second": { "global_val": "line_end" } }"#;
     let value = cdda_json::parse(text.as_bytes()).expect("json");
-    let effect = cdda_content::dialogue::read_effect(&value).expect("**the port reads `transform_line`**");
-    let applied = cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the line runs");
+    let effect =
+        cdda_content::dialogue::read_effect(&value).expect("**the port reads `transform_line`**");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the line runs"
+    );
 
     // The reference's `line_to` **excludes** the first square and includes the last, so the walk is 1..=4 along x.
     for x in 1..=4 {

@@ -3,7 +3,7 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
-use cdda_sim::identification::{has_identified, identify_book, Identification, IdentifiedItems};
+use cdda_sim::identification::{Identification, IdentifiedItems, has_identified, identify_book};
 
 /// Identifying one copy identifies every copy of the type - and identifying again says nothing new.
 ///
@@ -14,10 +14,19 @@ fn a_book_is_identified_by_type_not_by_copy() {
     let mut world = World::new();
     let reader = world.spawn_empty().id();
 
-    assert!(!has_identified(&world, reader, "adv_chemistry"), "**nothing is known before anything is read**, and a missing component means nothing is known rather than an error");
+    assert!(
+        !has_identified(&world, reader, "adv_chemistry"),
+        "**nothing is known before anything is read**, and a missing component means nothing is known rather than an error"
+    );
 
-    assert_eq!(identify_book(&mut world, reader, "adv_chemistry", true), Identification::NewlyIdentified);
-    assert!(has_identified(&world, reader, "adv_chemistry"), "the first copy teaches the type");
+    assert_eq!(
+        identify_book(&mut world, reader, "adv_chemistry", true),
+        Identification::NewlyIdentified
+    );
+    assert!(
+        has_identified(&world, reader, "adv_chemistry"),
+        "the first copy teaches the type"
+    );
     assert!(
         has_identified(&world, reader, "adv_chemistry"),
         "so a second copy of the same type is known without being opened - **the set is of types, not of copies**"
@@ -38,8 +47,14 @@ fn a_thing_that_is_not_a_book_cannot_be_identified() {
     let mut world = World::new();
     let reader = world.spawn_empty().id();
 
-    assert_eq!(identify_book(&mut world, reader, "rock", false), Identification::NotABook);
-    assert!(!has_identified(&world, reader, "rock"), "**a refusal leaves no trace**, so the rock is not half-identified");
+    assert_eq!(
+        identify_book(&mut world, reader, "rock", false),
+        Identification::NotABook
+    );
+    assert!(
+        !has_identified(&world, reader, "rock"),
+        "**a refusal leaves no trace**, so the rock is not half-identified"
+    );
     assert!(
         world.get::<IdentifiedItems>(reader).is_none(),
         "and the character has not even gained the component"
@@ -104,9 +119,16 @@ fn skimming_a_book_says_what_it_can_do_for_you() {
         fun: 0,
         time_seconds: 60,
     });
-    assert_eq!(zero_requirement.len(), 3, "the skim line, the skill line and the chapter line - and nothing about a requirement of zero");
+    assert_eq!(
+        zero_requirement.len(),
+        3,
+        "the skim line, the skill line and the chapter line - and nothing about a requirement of zero"
+    );
     let chapter_line = zero_requirement.get(2).cloned().unwrap_or_default();
-    assert!(chapter_line.contains("1 minute"), "**a single minute is singular**: {chapter_line}");
+    assert!(
+        chapter_line.contains("1 minute"),
+        "**a single minute is singular**: {chapter_line}"
+    );
 }
 
 /// Skimming a book says what it can do for you **in the game's log**, once, at the moment it is learned.
@@ -130,17 +152,31 @@ fn skimming_puts_its_lines_in_the_log_once() {
         time_seconds: 60,
     };
 
-    assert_eq!(identify_book_and_say(&mut world, reader, "a_book", true, &facts), Identification::NewlyIdentified);
+    assert_eq!(
+        identify_book_and_say(&mut world, reader, "a_book", true, &facts),
+        Identification::NewlyIdentified
+    );
     let lines = messages::lines(&world);
-    assert_eq!(lines.len(), 3, "**the skim line, the skill line and the chapter line** - and none about a requirement of zero: {lines:?}");
-    assert_eq!(lines.first().map(String::as_str), Some("You skim A Book to find out what's in it."));
+    assert_eq!(
+        lines.len(),
+        3,
+        "**the skim line, the skill line and the chapter line** - and none about a requirement of zero: {lines:?}"
+    );
+    assert_eq!(
+        lines.first().map(String::as_str),
+        Some("You skim A Book to find out what's in it.")
+    );
 
     assert_eq!(
         identify_book_and_say(&mut world, reader, "a_book", true, &facts),
         Identification::AlreadyKnown,
         "a second copy is already known"
     );
-    assert_eq!(messages::lines(&world).len(), 3, "**and it says nothing the second time** - the early return is the silence");
+    assert_eq!(
+        messages::lines(&world).len(),
+        3,
+        "**and it says nothing the second time** - the early return is the silence"
+    );
 }
 
 /// A message carries a severity, an empty message is not stored, and debug chatter is dropped.
@@ -156,7 +192,10 @@ fn a_message_has_a_severity_and_empty_or_debug_lines_are_not_stored() {
 
     let mut world = World::new();
     messages::push(&mut world, "");
-    assert!(messages::entries(&world).is_empty(), "**an empty message is not stored at all**");
+    assert!(
+        messages::entries(&world).is_empty(),
+        "**an empty message is not stored at all**"
+    );
 
     messages::push(&mut world, "plain");
     assert_eq!(
@@ -166,12 +205,23 @@ fn a_message_has_a_severity_and_empty_or_debug_lines_are_not_stored() {
     );
 
     messages::push_kind(&mut world, "debug chatter", MessageKind::Debug);
-    assert_eq!(messages::lines(&world), vec!["plain".to_string()], "**debug chatter is dropped while debug mode is off**");
+    assert_eq!(
+        messages::lines(&world),
+        vec!["plain".to_string()],
+        "**debug chatter is dropped while debug mode is off**"
+    );
 
     messages::push_kind(&mut world, "you are hurt", MessageKind::Bad);
     let entries = messages::entries(&world);
-    assert_eq!(entries.len(), 2, "the text and the severity live together, in order");
-    assert_eq!(entries.get(1).map(|entry| entry.text.as_str()), Some("you are hurt"));
+    assert_eq!(
+        entries.len(),
+        2,
+        "the text and the severity live together, in order"
+    );
+    assert_eq!(
+        entries.get(1).map(|entry| entry.text.as_str()),
+        Some("you are hurt")
+    );
     assert_eq!(
         entries.get(1).map(|entry| entry.kind),
         Some(MessageKind::Bad),
@@ -193,12 +243,30 @@ fn a_message_has_a_severity_and_empty_or_debug_lines_are_not_stored() {
 fn a_high_character_gets_smileys_on_a_slowly_rising_curve() {
     use cdda_sim::messages::weed_smiley_cap;
 
-    assert!((weed_smiley_cap(0.0) - 0.0).abs() < 1e-6, "**zero minutes, no smileys**");
-    assert!((weed_smiley_cap(22.5) - 1.0).abs() < 0.02, "the reference's own first datapoint: about one at 22.5 minutes");
-    assert!((weed_smiley_cap(45.0) - 2.0).abs() < 0.02, "and about two at 45");
-    assert!(weed_smiley_cap(450.0) < 3.0, "**the asymptote is three and is never reached**");
-    assert!(weed_smiley_cap(450.0) > 2.9, "though at 450 minutes it is already 2.97");
-    assert!(weed_smiley_cap(45.0) > weed_smiley_cap(22.5), "and the curve only rises");
+    assert!(
+        (weed_smiley_cap(0.0) - 0.0).abs() < 1e-6,
+        "**zero minutes, no smileys**"
+    );
+    assert!(
+        (weed_smiley_cap(22.5) - 1.0).abs() < 0.02,
+        "the reference's own first datapoint: about one at 22.5 minutes"
+    );
+    assert!(
+        (weed_smiley_cap(45.0) - 2.0).abs() < 0.02,
+        "and about two at 45"
+    );
+    assert!(
+        weed_smiley_cap(450.0) < 3.0,
+        "**the asymptote is three and is never reached**"
+    );
+    assert!(
+        weed_smiley_cap(450.0) > 2.9,
+        "though at 450 minutes it is already 2.97"
+    );
+    assert!(
+        weed_smiley_cap(45.0) > weed_smiley_cap(22.5),
+        "and the curve only rises"
+    );
 }
 
 /// A smiley only goes where a word is long enough and not on the reference's forbidden list.
@@ -226,7 +294,11 @@ fn a_smiley_only_goes_where_a_word_is_long_enough() {
         "`that` is forbidden and `cat`/`sat` are too short, so only the end is left"
     );
 
-    assert_eq!(smiley_slots("Hi"), vec![2], "a message with no spaces still has its end");
+    assert_eq!(
+        smiley_slots("Hi"),
+        vec![2],
+        "a message with no spaces still has its end"
+    );
 }
 
 /// Inserting a smiley at a position shifts every later candidate by its own three characters.
@@ -246,6 +318,14 @@ fn inserting_a_smiley_shifts_every_later_candidate() {
         one, "You feel :) fine today. :)",
         "**two smileys, in the order drawn**, each three bytes: the later candidate shifted by the one inserted before it"
     );
-    assert_eq!(apply_smileys(message, &[]), message, "and no smileys leaves the message alone");
-    assert_eq!(apply_smileys(message, &[8]), "You feel :) fine today.", "a single early smiley");
+    assert_eq!(
+        apply_smileys(message, &[]),
+        message,
+        "and no smileys leaves the message alone"
+    );
+    assert_eq!(
+        apply_smileys(message, &[8]),
+        "You feel :) fine today.",
+        "a single early smiley"
+    );
 }

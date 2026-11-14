@@ -212,13 +212,13 @@ fn scan_columns(
             column.rotor = column.rotor.max(reach(flags.contains("ROTOR")));
             column.sail = column.sail.max(reach(flags.contains("WIND_POWERED")));
             column.exposed = column.exposed.max(reach(exposed));
-            column.last = column.last.min(if flags.contains("LOW_FINAL_AIR_DRAG")
-                || flags.contains("HALF_BOARD")
-            {
-                here
-            } else {
-                MAXROW
-            });
+            column.last = column.last.min(
+                if flags.contains("LOW_FINAL_AIR_DRAG") || flags.contains("HALF_BOARD") {
+                    here
+                } else {
+                    MAXROW
+                },
+            );
             column.lastpart = column.lastpart.min(here);
         }
     }
@@ -230,29 +230,93 @@ fn scan_columns(
 /// Reference: the tally loop (`vehicle.cpp:4596-4644`), where each "worse than the ideal shape" adds a tenth and the two good shapes take one away.
 fn tally(column: &DragColumn, length: i32, width: i32) -> (f64, f64) {
     let mut c_air = C_AIR_BASE;
-    c_air += if column.pro > column.hboard { C_AIR_MOD } else { 0.0 };
+    c_air += if column.pro > column.hboard {
+        C_AIR_MOD
+    } else {
+        0.0
+    };
     c_air += if column.hboard.max(column.fboard).max(column.shield) > column.hboard {
         2.0 * C_AIR_MOD
     } else {
         0.0
     };
-    c_air += if column.shield < column.seat { 3.0 * C_AIR_MOD } else { 0.0 };
-    c_air += if column.exposed > MINROW { 3.0 * C_AIR_MOD } else { 0.0 };
+    c_air += if column.shield < column.seat {
+        3.0 * C_AIR_MOD
+    } else {
+        0.0
+    };
+    c_air += if column.exposed > MINROW {
+        3.0 * C_AIR_MOD
+    } else {
+        0.0
+    };
     c_air -= if length >= 2 * width { C_AIR_MOD } else { 0.0 };
-    c_air -= if column.last == column.lastpart { C_AIR_MOD } else { 0.0 };
-    c_air += if column.turret > MINROW { 3.0 * C_AIR_MOD } else { 0.0 };
-    c_air += if column.windmill > MINROW { 5.0 * C_AIR_MOD } else { 0.0 };
-    c_air += if column.rotor > MINROW { 6.0 * C_AIR_MOD } else { 0.0 };
-    c_air += if column.sail > MINROW { 7.0 * C_AIR_MOD } else { 0.0 };
+    c_air -= if column.last == column.lastpart {
+        C_AIR_MOD
+    } else {
+        0.0
+    };
+    c_air += if column.turret > MINROW {
+        3.0 * C_AIR_MOD
+    } else {
+        0.0
+    };
+    c_air += if column.windmill > MINROW {
+        5.0 * C_AIR_MOD
+    } else {
+        0.0
+    };
+    c_air += if column.rotor > MINROW {
+        6.0 * C_AIR_MOD
+    } else {
+        0.0
+    };
+    c_air += if column.sail > MINROW {
+        7.0 * C_AIR_MOD
+    } else {
+        0.0
+    };
 
     let mut height = BASE_HEIGHT;
-    height += if column.roof > MINROW { ROOF_HEIGHT } else { 0.0 };
-    height += if column.aisle > MINROW { AISLE_HEIGHT } else { 0.0 };
-    height += if column.fboard > MINROW { FULLBOARD_HEIGHT } else { 0.0 };
-    height += if column.turret > MINROW { 2.0 * ROOF_HEIGHT } else { 0.0 };
-    height += if column.panel > MINROW { ROOF_HEIGHT } else { 0.0 };
-    height += if column.windmill > MINROW { WINDMILL_HEIGHT } else { 0.0 };
-    height += if column.rotor > MINROW { ROTOR_HEIGHT } else { 0.0 };
-    height += if column.sail > MINROW { SAIL_HEIGHT } else { 0.0 };
+    height += if column.roof > MINROW {
+        ROOF_HEIGHT
+    } else {
+        0.0
+    };
+    height += if column.aisle > MINROW {
+        AISLE_HEIGHT
+    } else {
+        0.0
+    };
+    height += if column.fboard > MINROW {
+        FULLBOARD_HEIGHT
+    } else {
+        0.0
+    };
+    height += if column.turret > MINROW {
+        2.0 * ROOF_HEIGHT
+    } else {
+        0.0
+    };
+    height += if column.panel > MINROW {
+        ROOF_HEIGHT
+    } else {
+        0.0
+    };
+    height += if column.windmill > MINROW {
+        WINDMILL_HEIGHT
+    } else {
+        0.0
+    };
+    height += if column.rotor > MINROW {
+        ROTOR_HEIGHT
+    } else {
+        0.0
+    };
+    height += if column.sail > MINROW {
+        SAIL_HEIGHT
+    } else {
+        0.0
+    };
     (c_air, height)
 }

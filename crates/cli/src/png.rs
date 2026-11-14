@@ -164,7 +164,10 @@ mod tests {
             ]))
             .expect("a length");
             let kind = file.get(at + 4..at + 8).expect("a chunk name");
-            let body = file.get(at + 8..at + 8 + length).expect("a chunk body").to_vec();
+            let body = file
+                .get(at + 8..at + 8 + length)
+                .expect("a chunk body")
+                .to_vec();
             if kind == wanted.as_slice() {
                 return body;
             }
@@ -178,12 +181,10 @@ mod tests {
         let mut at = 2;
         loop {
             let last = bytes.get(at).copied().expect("a block header") & 1 == 1;
-            let length = usize::from(
-                u16::from_le_bytes([
-                    bytes.get(at + 1).copied().expect("length"),
-                    bytes.get(at + 2).copied().expect("length"),
-                ]),
-            );
+            let length = usize::from(u16::from_le_bytes([
+                bytes.get(at + 1).copied().expect("length"),
+                bytes.get(at + 2).copied().expect("length"),
+            ]));
             out.extend_from_slice(bytes.get(at + 5..at + 5 + length).expect("block body"));
             at += 5 + length;
             if last {
@@ -201,11 +202,19 @@ mod tests {
 
         let file = image.png();
 
-        assert_eq!(file.get(..8), Some(&SIGNATURE[..]), "the signature is a PNG's");
+        assert_eq!(
+            file.get(..8),
+            Some(&SIGNATURE[..]),
+            "the signature is a PNG's"
+        );
         let scanlines = unstored(&chunk_of(&file, *b"IDAT"));
         // Rows are one filter byte plus the pixels, and the filter byte of every row is zero.
         assert_eq!(scanlines.len(), 2 * (1 + 3 * 4));
-        assert_eq!(scanlines.get(1 + 4..1 + 8), Some(&[10, 20, 30, 255][..]), "the pixel set on the first row is where it was put");
+        assert_eq!(
+            scanlines.get(1 + 4..1 + 8),
+            Some(&[10, 20, 30, 255][..]),
+            "the pixel set on the first row is where it was put"
+        );
         assert_eq!(
             scanlines.get(13 + 1..13 + 9),
             Some(&[40, 50, 60, 255, 40, 50, 60, 255][..]),
@@ -216,6 +225,10 @@ mod tests {
     #[test]
     fn the_same_picture_is_the_same_file_twice() {
         let image = Image::blank(4, 4, [1, 2, 3, 255]);
-        assert_eq!(image.png(), image.png(), "a capture can be compared byte for byte");
+        assert_eq!(
+            image.png(),
+            image.png(),
+            "a capture can be compared byte for byte"
+        );
     }
 }

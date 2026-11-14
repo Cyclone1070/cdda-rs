@@ -197,12 +197,28 @@ fn a_group_entry_drops_nothing_even_when_its_drop_is_a_real_item() {
         ..real
     };
     assert_eq!(
-        cdda_sim::harvest_yield(real, 0, 81_500.0, cdda_sim::CorpseDamage::Light, false, false, 0.5),
+        cdda_sim::harvest_yield(
+            real,
+            0,
+            81_500.0,
+            cdda_sim::CorpseDamage::Light,
+            false,
+            false,
+            0.5
+        ),
         5,
         "an ordinary entry gives its five"
     );
     assert_eq!(
-        cdda_sim::harvest_yield(grouped, 0, 81_500.0, cdda_sim::CorpseDamage::Light, false, false, 0.5),
+        cdda_sim::harvest_yield(
+            grouped,
+            0,
+            81_500.0,
+            cdda_sim::CorpseDamage::Light,
+            false,
+            false,
+            0.5
+        ),
         0,
         "**and the same entry marked a group gives none at all**"
     );

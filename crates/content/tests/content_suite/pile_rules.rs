@@ -25,7 +25,10 @@ fn a_component_that_is_also_a_tool_has_to_be_there_twice() {
         tools: vec![vec![("welder".to_owned(), -1, false)]],
         ..RequirementData::default()
     };
-    assert!(!need.can_make(&kit_of("welder", 1, false)), "one welder is not enough");
+    assert!(
+        !need.can_make(&kit_of("welder", 1, false)),
+        "one welder is not enough"
+    );
     assert!(
         need.can_make(&kit_of("welder", 2, false)),
         "two welders are: one to spend and one to hold"

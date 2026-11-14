@@ -9,15 +9,30 @@
 use cdda_core_types::movement::{StepFacts, can_step_vertically};
 
 fn floor() -> StepFacts {
-    StepFacts { move_cost: 2, open_air: false, no_floor_water: false, goes_down: false }
+    StepFacts {
+        move_cost: 2,
+        open_air: false,
+        no_floor_water: false,
+        goes_down: false,
+    }
 }
 
 fn open_air() -> StepFacts {
-    StepFacts { move_cost: 2, open_air: true, no_floor_water: false, goes_down: false }
+    StepFacts {
+        move_cost: 2,
+        open_air: true,
+        no_floor_water: false,
+        goes_down: false,
+    }
 }
 
 fn wall() -> StepFacts {
-    StepFacts { move_cost: 0, open_air: false, no_floor_water: false, goes_down: false }
+    StepFacts {
+        move_cost: 0,
+        open_air: false,
+        no_floor_water: false,
+        goes_down: false,
+    }
 }
 
 #[test]
@@ -64,6 +79,11 @@ fn open_air_above_accepts_the_rise() {
 fn a_water_surface_is_no_floor_and_so_the_fall_goes_through() {
     // `has_floor` refuses `NO_FLOOR` *and* `NO_FLOOR_WATER`, while `is_open_air` reads `NO_FLOOR` alone. Water is therefore no floor even though it is not a
     // ledge: the two flags part company here, and only the floor test is what stops a fall.
-    let water = StepFacts { move_cost: 2, open_air: false, no_floor_water: true, goes_down: false };
+    let water = StepFacts {
+        move_cost: 2,
+        open_air: false,
+        no_floor_water: true,
+        goes_down: false,
+    };
     assert!(can_step_vertically(water, floor()));
 }

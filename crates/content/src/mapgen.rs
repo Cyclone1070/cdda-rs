@@ -184,7 +184,6 @@ impl MapgenObject {
     }
 }
 
-
 /// The fields a mapgen places, as the data writes them.
 fn read_placements(inner: &Object) -> Vec<Placement> {
     let Some(cdda_json::Value::Array(entries)) = inner.get("place_fields") else {
@@ -463,7 +462,9 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
 fn read_terrain_map(terrain: &Object, into: &mut std::collections::BTreeMap<char, String>) {
     for (symbol, value) in terrain.members() {
-        let Some(symbol) = symbol.chars().next() else { continue };
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
         match value {
             Value::Str(id) => {
                 into.insert(symbol, id.clone());
@@ -513,7 +514,9 @@ impl PaletteRef {
     pub fn resolved(&self) -> Option<&str> {
         match self {
             PaletteRef::Named(name) => Some(name),
-            PaletteRef::Distribution(candidates) => candidates.first().map(|(name, _)| name.as_str()),
+            PaletteRef::Distribution(candidates) => {
+                candidates.first().map(|(name, _)| name.as_str())
+            }
             PaletteRef::Param(_) => None,
         }
     }
@@ -522,7 +525,10 @@ impl PaletteRef {
 /// Reads a chunk's `palettes` list into references that remember which shape they came in.
 #[must_use]
 pub fn palette_refs(names: &[String]) -> Vec<PaletteRef> {
-    names.iter().map(|name| PaletteRef::Named(name.clone())).collect()
+    names
+        .iter()
+        .map(|name| PaletteRef::Named(name.clone()))
+        .collect()
 }
 
 /// The symbols a chunk can draw with, gathered through its palettes and their palettes.
@@ -542,11 +548,15 @@ pub fn palette_symbols(
         into: &mut std::collections::BTreeMap<char, String>,
     ) {
         for reference in refs.iter().rev() {
-            let Some(name) = reference.resolved() else { continue };
+            let Some(name) = reference.resolved() else {
+                continue;
+            };
             if !visited.insert(name.to_string()) {
                 continue;
             }
-            let Some(palette) = lookup(name) else { continue };
+            let Some(palette) = lookup(name) else {
+                continue;
+            };
             if let Some(Value::Object(terrain)) = palette.get("terrain") {
                 // A palette's map is written symbol first, exactly like a mapgen's own.
                 read_terrain_map(terrain, into);
@@ -573,12 +583,18 @@ pub fn read_palette_ref(value: &Value) -> Option<PaletteRef> {
             if let Some(Value::Str(param)) = spec.get("param") {
                 return Some(PaletteRef::Param(param.clone()));
             }
-            let Some(Value::Array(list)) = spec.get("distribution") else { return None };
+            let Some(Value::Array(list)) = spec.get("distribution") else {
+                return None;
+            };
             let candidates: Vec<(String, i32)> = list
                 .iter()
                 .filter_map(|candidate| {
-                    let Value::Array(pair) = candidate else { return None };
-                    let (Some(Value::Str(name)), weight) = (pair.first(), pair.get(1)) else { return None };
+                    let Value::Array(pair) = candidate else {
+                        return None;
+                    };
+                    let (Some(Value::Str(name)), weight) = (pair.first(), pair.get(1)) else {
+                        return None;
+                    };
                     let weight = match weight {
                         Some(Value::Int(weight)) => i32::try_from(*weight).ok()?,
                         _ => 1,
@@ -638,10 +654,15 @@ pub fn draw_chunk(
 /// Reference: `mapgen.cpp`'s furniture map, where a symbol maps either to a list of ids - each weighted one - or to a list of `[id, weight]` pairs. A symbol with several candidates is
 /// decided by a roll, which the caller supplies, in keeping with this port's rule that dice belong to the caller.
 #[must_use]
-pub fn furniture_choices(furniture: &Object) -> std::collections::BTreeMap<char, Vec<(String, i32)>> {
-    let mut choices: std::collections::BTreeMap<char, Vec<(String, i32)>> = std::collections::BTreeMap::new();
+pub fn furniture_choices(
+    furniture: &Object,
+) -> std::collections::BTreeMap<char, Vec<(String, i32)>> {
+    let mut choices: std::collections::BTreeMap<char, Vec<(String, i32)>> =
+        std::collections::BTreeMap::new();
     for (symbol, value) in furniture.members() {
-        let Some(symbol) = symbol.chars().next() else { continue };
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
         let list = match value {
             Value::Array(items) => items,
             Value::Str(id) => {
@@ -654,12 +675,16 @@ pub fn furniture_choices(furniture: &Object) -> std::collections::BTreeMap<char,
             match item {
                 Value::Str(id) => choices.entry(symbol).or_default().push((id.clone(), 1)),
                 Value::Array(pair) => {
-                    let (Some(Value::Str(id)), Some(Value::Int(weight))) = (pair.first(), pair.get(1))
+                    let (Some(Value::Str(id)), Some(Value::Int(weight))) =
+                        (pair.first(), pair.get(1))
                     else {
                         continue;
                     };
                     #[allow(clippy::cast_possible_truncation)]
-                    choices.entry(symbol).or_default().push((id.clone(), *weight as i32));
+                    choices
+                        .entry(symbol)
+                        .or_default()
+                        .push((id.clone(), *weight as i32));
                 }
                 _ => {}
             }
@@ -673,10 +698,7 @@ pub fn furniture_choices(furniture: &Object) -> std::collections::BTreeMap<char,
 /// Reference: `random_entry` over weighted candidates - the roll runs from zero to the total weight minus one, and the walk takes the first candidate whose running weight exceeds it. So
 /// weights `[25, 20, 5, 5]` give the first candidate rolls 0 to 24, the second 25 to 44, and so on.
 #[must_use]
-pub fn pick_furniture(
-    choices: &[(String, i32)],
-    roll: i32,
-) -> Option<&str> {
+pub fn pick_furniture(choices: &[(String, i32)], roll: i32) -> Option<&str> {
     let mut remaining = roll;
     for (id, weight) in choices {
         if remaining < *weight {

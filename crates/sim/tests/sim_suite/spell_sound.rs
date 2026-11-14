@@ -3,7 +3,12 @@
 //! Reference: `spell::sound_volume` (`magic.cpp:1630-1640`) and `spell::damage` (`:816-840`) through `min_leveled_damage`, which casts the scaled number to `int` - truncation
 //! toward zero. The two rules meet in `spell_effect::noise`, which passes the damage straight through as a loudness.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing
+)]
 
 use std::collections::BTreeSet;
 
@@ -33,7 +38,10 @@ fn a_spell(damage: f64, flags: &[&str]) -> cdda_content::spells::Spell {
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),
-        flags: flags.iter().map(|flag| (*flag).to_owned()).collect::<BTreeSet<_>>(),
+        flags: flags
+            .iter()
+            .map(|flag| (*flag).to_owned())
+            .collect::<BTreeSet<_>>(),
     }
 }
 
@@ -41,10 +49,26 @@ fn a_spell(damage: f64, flags: &[&str]) -> cdda_content::spells::Spell {
 #[test]
 fn a_spells_loudness_is_its_damage_in_thirds() {
     use cdda_sim::spellcasting::sound_volume;
-    assert_eq!(sound_volume(&a_spell(9.0, &[]), 0), 3, "nine damage is three of sound");
-    assert_eq!(sound_volume(&a_spell(11.0, &[]), 0), 3, "and **integer division drops the remainder**");
-    assert_eq!(sound_volume(&a_spell(2.0, &[]), 0), 0, "two damage is silence");
-    assert_eq!(sound_volume(&a_spell(-9.0, &[]), 0), 3, "**a negative spell is as loud as a positive one**, because the rule takes the absolute value");
+    assert_eq!(
+        sound_volume(&a_spell(9.0, &[]), 0),
+        3,
+        "nine damage is three of sound"
+    );
+    assert_eq!(
+        sound_volume(&a_spell(11.0, &[]), 0),
+        3,
+        "and **integer division drops the remainder**"
+    );
+    assert_eq!(
+        sound_volume(&a_spell(2.0, &[]), 0),
+        0,
+        "two damage is silence"
+    );
+    assert_eq!(
+        sound_volume(&a_spell(-9.0, &[]), 0),
+        3,
+        "**a negative spell is as loud as a positive one**, because the rule takes the absolute value"
+    );
     assert_eq!(
         sound_volume(&a_spell(9.0, &["LOUD"]), 0),
         7,
@@ -61,7 +85,19 @@ fn a_spells_loudness_is_its_damage_in_thirds() {
 #[test]
 fn damage_truncates_toward_zero_like_the_reference_int() {
     use cdda_sim::spellcasting::damage_of;
-    assert_eq!(damage_of(&a_spell(2.5, &[]), 0), Some(2), "**a half is dropped, never raised**");
-    assert_eq!(damage_of(&a_spell(-2.5, &[]), 0), Some(-2), "and toward zero, so minus two");
-    assert_eq!(damage_of(&a_spell(7.0, &[]), 0), Some(7), "while a whole number is itself");
+    assert_eq!(
+        damage_of(&a_spell(2.5, &[]), 0),
+        Some(2),
+        "**a half is dropped, never raised**"
+    );
+    assert_eq!(
+        damage_of(&a_spell(-2.5, &[]), 0),
+        Some(-2),
+        "and toward zero, so minus two"
+    );
+    assert_eq!(
+        damage_of(&a_spell(7.0, &[]), 0),
+        Some(7),
+        "while a whole number is itself"
+    );
 }

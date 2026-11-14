@@ -53,7 +53,15 @@ pub fn run_assignment(
     // A destination that names a **store** rather than a variable: `u_vitamin('x') = 5`, `u_hp('torso') -= 3`. The reference registers a setter beside every
     // getter it has, and the port's stores answer the same way - one function per store, so a store that cannot take the write refuses instead of guessing.
     if let cdda_content::dialogue::AssignmentTarget::Call { name, arguments } = &assignment.target {
-        return write_to_store(world, speaker, listener, name, arguments, assignment.op, value);
+        return write_to_store(
+            world,
+            speaker,
+            listener,
+            name,
+            arguments,
+            assignment.op,
+            value,
+        );
     }
     // A destination naming a scope resolves the way the condition side resolves one: `global_val` is the shared map, and
     // everything else is the speaker's own values.
@@ -128,13 +136,32 @@ fn write_to_store(
     let Some(target) = actor(speaker, listener, about_listener) else {
         return Applied::CannotAnswer;
     };
-    let store = normalized.trim_start_matches("npc_").trim_start_matches("u_");
+    let store = normalized
+        .trim_start_matches("npc_")
+        .trim_start_matches("u_");
     let (current, writes) = match store {
-        "hp" => (crate::creature::health_of(world, target).map(f64::from), true),
-        "vitamin" => (crate::body::vitamin_of(world, target, key).map(f64::from), true),
-        "skill" => (Some(f64::from(crate::skills_of::level_of(world, target, key))), true),
-        "spell_level" => (Some(f64::from(crate::known_spells::level_of(world, target, key))), true),
-        "spell_exp" => (Some(f64::from(crate::known_spells::experience_of(world, target, key))), true),
+        "hp" => (
+            crate::creature::health_of(world, target).map(f64::from),
+            true,
+        ),
+        "vitamin" => (
+            crate::body::vitamin_of(world, target, key).map(f64::from),
+            true,
+        ),
+        "skill" => (
+            Some(f64::from(crate::skills_of::level_of(world, target, key))),
+            true,
+        ),
+        "spell_level" => (
+            Some(f64::from(crate::known_spells::level_of(world, target, key))),
+            true,
+        ),
+        "spell_exp" => (
+            Some(f64::from(crate::known_spells::experience_of(
+                world, target, key,
+            ))),
+            true,
+        ),
         _ => (None, false),
     };
     let (Some(current), true) = (current, writes) else {
@@ -189,7 +216,6 @@ fn actor(speaker: Entity, listener: Option<Entity>, about_listener: bool) -> Opt
     Some(speaker)
 }
 
-
 /// Runs one of several programs, chosen by weight.
 ///
 /// Reference: `f_weighted_list_eocs` (`npctalk.cpp:6950-6975`) builds a weighted list and picks from it, so the draw is uniform over the **total**
@@ -198,13 +224,17 @@ fn run_weighted_list(
     world: &mut World,
     speaker: Entity,
     listener: Option<Entity>,
-    weighted: &[(cdda_content::dialogue::ProgramRef, cdda_content::dialogue::Expression)],
+    weighted: &[(
+        cdda_content::dialogue::ProgramRef,
+        cdda_content::dialogue::Expression,
+    )],
     depth: usize,
 ) -> Applied {
     let mut dice = crate::singletons::take_rolls(world);
     let mut weights = Vec::with_capacity(weighted.len());
     for (_, weight) in weighted {
-        let drawn = crate::conditions::value_drawing(world, speaker, listener, weight, true, dice.as_mut());
+        let drawn =
+            crate::conditions::value_drawing(world, speaker, listener, weight, true, dice.as_mut());
         let Some(weight) = drawn else {
             if let Some(dice) = dice.take() {
                 crate::singletons::put_rolls(world, dice);
@@ -240,13 +270,12 @@ fn run_weighted_list(
         return Applied::CannotAnswer;
     };
     match weighted.get(index) {
-        Some((program, _)) => crate::eoc_registry::run_ref(world, speaker, listener, program, depth + 1),
+        Some((program, _)) => {
+            crate::eoc_registry::run_ref(world, speaker, listener, program, depth + 1)
+        }
         None => Applied::CannotAnswer,
     }
 }
-
-
-
 
 /// Says a line picked from a snippet category.
 ///
@@ -296,7 +325,6 @@ fn say_snippet(
     Applied::Done
 }
 
-
 /// Stores the nearest overmap tile of a terrain in a dialogue variable.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` naming an overmap terrain. The port searches the overmap the way
@@ -343,7 +371,14 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
         };
         // The walk is the search's own radius around the found tile, and a square closer to the **actor** than `target_min_radius` is skipped - the reference
         // measures that distance from `talker_pos`, not from the tile it found.
-        let Some(square) = find_furniture(world, found, code, *target_max_radius, (at.x, at.y), *target_min_radius) else {
+        let Some(square) = find_furniture(
+            world,
+            found,
+            code,
+            *target_max_radius,
+            (at.x, at.y),
+            *target_min_radius,
+        ) else {
             return Applied::CannotAnswer;
         };
         let holder = crate::dialogue_values::holder_for(world, speaker, scope == "global_val");
@@ -351,7 +386,11 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
             world,
             holder,
             name,
-            crate::dialogue_values::Value::Position { x: square.0, y: square.1, z: square.2 },
+            crate::dialogue_values::Value::Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
         );
         return Applied::Done;
     }
@@ -450,7 +489,12 @@ fn nearby_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
 /// Reference: `f_assign_mission` (`npctalk.cpp:5913-5925`): the mission is reserved and assigned to `get_avatar()`, not to whoever is speaking - an NPC's
 /// dialogue can hand the player a mission. The port asks the store who the avatar is and falls back to the speaker, which is the divergence recorded for
 /// `u_has_mission`.
-fn give_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn give_mission(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::AssignMission { id, deadline } = effect else {
         return Applied::CannotAnswer;
     };
@@ -471,7 +515,12 @@ fn give_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
     Applied::Done
 }
 
-fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn move_creature(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::Teleport {
         scope,
         name,
@@ -484,7 +533,11 @@ fn move_creature(world: &mut World, speaker: Entity, listener: Option<Entity>, e
         return Applied::CannotAnswer;
     };
     // The listener form moves the other creature, and without one there is nothing to move.
-    let actor = if *about_listener { listener } else { Some(speaker) };
+    let actor = if *about_listener {
+        listener
+    } else {
+        Some(speaker)
+    };
     let Some(actor) = actor else {
         return Applied::CannotAnswer;
     };
@@ -537,9 +590,14 @@ fn copy_a_nearby_monster(
     let here = world.get::<crate::Position>(speaker).copied()?;
     let anchor = (here.x, here.y, here.z);
     let mut candidates: Vec<String> = Vec::new();
-    if let Some(mut query) = world.try_query::<(&crate::creature::CreatureKind, &crate::Position)>() {
+    if let Some(mut query) = world.try_query::<(&crate::creature::CreatureKind, &crate::Position)>()
+    {
         for (kind, position) in query.iter(world) {
-            if (position.x - anchor.0).abs().max((position.y - anchor.1).abs()) > range {
+            if (position.x - anchor.0)
+                .abs()
+                .max((position.y - anchor.1).abs())
+                > range
+            {
                 continue;
             }
             if (position.x, position.y) == (anchor.0, anchor.1) {
@@ -556,7 +614,10 @@ fn copy_a_nearby_monster(
     candidates.sort();
     let last = i32::try_from(candidates.len() - 1).ok()?;
     let at = dice.rng(0, last);
-    usize::try_from(at).ok().and_then(|at| candidates.get(at)).cloned()
+    usize::try_from(at)
+        .ok()
+        .and_then(|at| candidates.get(at))
+        .cloned()
 }
 
 /// Picks the monster type a spawn names: the member itself, or one drawn from the group it names.
@@ -574,9 +635,9 @@ fn pick_type(
     // creatures within `target_range`, so a hallucination looks like something that is already there.
     if named.is_empty() && !group {
         let mut held = crate::singletons::take_rolls(world);
-        let drawn = held
-            .as_mut()
-            .and_then(|dice| copy_a_nearby_monster(world, speaker, target_range.unwrap_or(0), dice));
+        let drawn = held.as_mut().and_then(|dice| {
+            copy_a_nearby_monster(world, speaker, target_range.unwrap_or(0), dice)
+        });
         if let Some(dice) = held.take() {
             crate::singletons::put_rolls(world, dice);
         }
@@ -605,7 +666,12 @@ fn pick_type(
 ///
 /// Reference: a `timed_event` with a payload. The port keeps the effect itself in the `scheduled` store, and the turn loop's `Scheduled` stage runs it through the same
 /// runner an immediate one would use.
-fn run_later(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn run_later(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::Later { effect, after } = effect else {
         return Applied::CannotAnswer;
     };
@@ -620,7 +686,12 @@ fn run_later(world: &mut World, speaker: Entity, listener: Option<Entity>, effec
 ///
 /// Reference: `f_run_eocs` with `time_in_future` (`npctalk.cpp:6332-6338`): the duration is turned into a turn by the calendar, the programs are kept, and the turn
 /// loop runs them when that turn arrives. A duration the port cannot read is refused rather than run now.
-fn run_eoc_later(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn run_eoc_later(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::RunEocLater { programs, after } = effect else {
         return Applied::CannotAnswer;
     };
@@ -668,7 +739,12 @@ fn wait_turns(
 /// Reference: `f_mutate` (`npctalk.cpp:3568-3570`): `d.actor( is_npc )->mutate( highest_cat )`, which draws mutations from the pools the depth reaches. The port has no
 /// mutation pool, so a depth of **zero** - which asks for nothing - is answered, and any real depth refuses. **The refusal is the honest half of a store gap: the rule is
 /// read, and the day a mutation pool exists this branch loses its second sentence rather than being rewritten.**
-fn mutate(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn mutate(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::Mutation {
         highest_category,
         npc,
@@ -705,7 +781,8 @@ fn mutate(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: 
     let Some(categories) = crate::mutation_data::categories(world) else {
         return Applied::CannotAnswer;
     };
-    let mut rolls = crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    let mut rolls =
+        crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     // Reference: `true_random` skips the good/bad roll (`npctalk.cpp:3581-3584`), which is how the data asks for a mutation of any kind.
     let gained = crate::mutations::mutate_category_with(
         world,
@@ -729,7 +806,15 @@ fn mutate(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: 
 /// and a square at or inside `target_min_radius` is skipped. The port looks for the **nearest** match rather than the first in walk order, which is what the radius
 /// walk answers when the squares are visited by distance - and it answers a square, not the creature, because the data stores a location.
 fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> Applied {
-    let Effect::MonsterAround { monster, scope, name, min_radius, max_radius, .. } = effect else {
+    let Effect::MonsterAround {
+        monster,
+        scope,
+        name,
+        min_radius,
+        max_radius,
+        ..
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(crate::Position { x, y, z }) = world.get::<crate::Position>(speaker).copied() else {
@@ -764,7 +849,11 @@ fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> 
         world,
         holder,
         name,
-        crate::dialogue_values::Value::Position { x: at.0, y: at.1, z: at.2 },
+        crate::dialogue_values::Value::Position {
+            x: at.0,
+            y: at.1,
+            z: at.2,
+        },
     );
     Applied::Done
 }
@@ -773,7 +862,12 @@ fn store_monster_around(world: &mut World, speaker: Entity, effect: &Effect) -> 
 ///
 /// Reference: `f_message` with a `translation_or_var`: the text is worked out **when the message is shown**, so an effect earlier in the same list can have set the
 /// variable. An unset variable with no `default` says nothing at all - and the port refuses rather than announcing a variable's name as if it were the message.
-fn say_message(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn say_message(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::Message { text, fallback } = effect else {
         return Applied::CannotAnswer;
     };
@@ -824,7 +918,12 @@ fn transform_item(world: &mut World, listener: Option<Entity>, effect: &Effect) 
 ///
 /// Reference: `f_foreach` (`npctalk.cpp:7038-7078`): the list is built once, then each element is written into the variable and the effect list is applied.
 /// **The variable is written, not the answer**: a `<context_val:id>` inside the list reads whatever the last iteration said, which is how a message names each flag.
-fn run_foreach(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn run_foreach(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::ForEach {
         source,
         target,
@@ -873,8 +972,18 @@ fn foreach_elements(
     match source {
         "ids" => match target? {
             "flag" => Some(crate::flag_registry::flags_of(world)),
-            "trait" => Some(crate::mutation_data::holder(world)?.ids().cloned().collect()),
-            "vitamin" => Some(crate::vitamin_registry::vitamins_of(world).keys().cloned().collect()),
+            "trait" => Some(
+                crate::mutation_data::holder(world)?
+                    .ids()
+                    .cloned()
+                    .collect(),
+            ),
+            "vitamin" => Some(
+                crate::vitamin_registry::vitamins_of(world)
+                    .keys()
+                    .cloned()
+                    .collect(),
+            ),
             _ => None,
         },
         "array" => ids
@@ -889,8 +998,19 @@ fn foreach_elements(
 ///
 /// Reference: `f_revert_location` (`npctalk.cpp:4898-4917`): the place variable holds the square, the copy is taken **now** (`submap::get_revert_submap`), and one
 /// `REVERT_SUBMAP` event is queued per submap - four of them, which the port's single store does in one snapshot because a square is a square.
-fn revert_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RevertLocation { scope, name, after, key } = effect else {
+fn revert_location(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::RevertLocation {
+        scope,
+        name,
+        after,
+        key,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
@@ -922,7 +1042,12 @@ fn revert_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
 ///
 /// Reference: `f_location_variable_adjust` (`npctalk.cpp:4419-4446`): with `overmap_tile` the x and y moves count **overmap tiles** rather than squares, `z_override`
 /// replaces the level instead of moving it, and the answer goes to `output_var` when the data names one and back to the input variable when it does not.
-fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn adjust_location(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::LocationVariableAdjust {
         scope,
         name,
@@ -939,7 +1064,9 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
         return Applied::CannotAnswer;
     };
-    let Some(crate::dialogue_values::Value::Position { x, y, z }) = crate::dialogue_values::value_of(world, holder, name) else {
+    let Some(crate::dialogue_values::Value::Position { x, y, z }) =
+        crate::dialogue_values::value_of(world, holder, name)
+    else {
         return Applied::CannotAnswer;
     };
     let (Some(dx), Some(dy), Some(dz)) = (
@@ -957,7 +1084,11 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
     let moved = (
         x + as_whole(dx) * tile,
         y + as_whole(dy) * tile,
-        if *z_override { as_whole(dz) } else { z + as_whole(dz) },
+        if *z_override {
+            as_whole(dz)
+        } else {
+            z + as_whole(dz)
+        },
     );
     let (scope, name) = match output {
         Some((scope, name)) => (scope.clone(), name.clone()),
@@ -970,7 +1101,11 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
         world,
         target,
         &name,
-        crate::dialogue_values::Value::Position { x: moved.0, y: moved.1, z: moved.2 },
+        crate::dialogue_values::Value::Position {
+            x: moved.0,
+            y: moved.1,
+            z: moved.2,
+        },
     );
     Applied::Done
 }
@@ -979,7 +1114,12 @@ fn adjust_location(world: &mut World, speaker: Entity, listener: Option<Entity>,
 ///
 /// Reference: `f_run_inv_eocs` (`npctalk.cpp:6760-6805`) with the `"all"` mode runs `true_eocs` on every matching item, handing each one to the program through the
 /// invocation's context. The port sets the context the data reads - `id` for the item's id and `count` for how many the stack holds - and runs the programs.
-fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn run_inv_eocs(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::RunInvEocs {
         search_data,
         random,
@@ -1005,19 +1145,22 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
     // Every item the creature carries, with how it is held - which is what a filter entry may ask about.
     let mut carried: Vec<(Entity, crate::ItemTypeId, i32, bool, bool)> = Vec::new();
     {
-        let mut wielded_query = world.query::<(Entity, &crate::creature::WieldedBy, &crate::GroundItem)>();
+        let mut wielded_query =
+            world.query::<(Entity, &crate::creature::WieldedBy, &crate::GroundItem)>();
         let wielded: std::collections::BTreeSet<Entity> = wielded_query
             .iter(world)
             .filter(|(_, who, _)| who.0 == holder)
             .map(|(entity, _, _)| entity)
             .collect();
-        let mut worn_query = world.query::<(Entity, &crate::creature::WornBy, &crate::GroundItem)>();
+        let mut worn_query =
+            world.query::<(Entity, &crate::creature::WornBy, &crate::GroundItem)>();
         let worn: std::collections::BTreeSet<Entity> = worn_query
             .iter(world)
             .filter(|(_, who, _)| who.0 == holder)
             .map(|(entity, _, _)| entity)
             .collect();
-        let mut carried_query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
+        let mut carried_query =
+            world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
         for (entity, who, item) in carried_query.iter(world) {
             if who.0 == holder {
                 carried.push((
@@ -1080,7 +1223,12 @@ fn run_inv_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
 ///
 /// Reference: `f_give_achievment` (`npctalk.cpp:5566-5585`) reports the achievement only while it is pending, which
 /// [`crate::achievements::complete`] answers with "was it new".
-fn give_achievement(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn give_achievement(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::GiveAchievement { achievement } = effect else {
         return Applied::CannotAnswer;
     };
@@ -1097,8 +1245,19 @@ fn give_achievement(world: &mut World, speaker: Entity, listener: Option<Entity>
 /// Reference: `f_transform_radius` (`npctalk.cpp:4483-4493`): with no `time_in_future` the reference calls `map::transform_radius` at once, over the reality bubble
 /// around `target_pos`. The port does the same over its loaded level, and the reading and writing of squares lives in
 /// [`crate::terrain_transform`], which is where a transform's meaning belongs.
-fn transform_radius(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::TransformRadius { transform, radius, target, listener: theirs } = effect else {
+fn transform_radius(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::TransformRadius {
+        transform,
+        radius,
+        target,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     // Reference: `f_transform_radius` (`npctalk.cpp:4450-4468`): with a `target_var` the transform is centred on the square the variable holds rather than on the
@@ -1121,7 +1280,9 @@ fn transform_radius(world: &mut World, speaker: Entity, listener: Option<Entity>
     let Some(reach) = draw(world, speaker, listener, radius) else {
         return Applied::CannotAnswer;
     };
-    if crate::terrain_types::holder(world).is_none() || crate::terrain_transform::holder(world).is_none() {
+    if crate::terrain_types::holder(world).is_none()
+        || crate::terrain_transform::holder(world).is_none()
+    {
         return Applied::CannotAnswer;
     }
     let reach = as_whole(reach).clamp(0, cdda_core_types::light::MAX_VIEW_DISTANCE);
@@ -1135,7 +1296,12 @@ fn transform_radius(world: &mut World, speaker: Entity, listener: Option<Entity>
 /// `calendar::turn + length + 1_seconds`, carrying the level and the key. The port schedules the same event, under a key that **carries the level**, because its
 /// timed-event store holds a name and a due turn - and the level is read here, where the reference reads it, so an entry whose level cannot be worked out refuses
 /// instead of scheduling nothing.
-fn custom_light_level(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn custom_light_level(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::CustomLightLevel { level, length, key } = effect else {
         return Applied::CannotAnswer;
     };
@@ -1164,8 +1330,19 @@ fn custom_light_level(world: &mut World, speaker: Entity, listener: Option<Entit
 /// Reference: `f_field` (`npctalk.cpp:7707-7725`): `points_in_radius( target_pos, radius )` gets the field at `intensity`. The port refuses an entry with no
 /// radius - the reference's default is ten million squares, which the port's loaded level cannot honour - and clamps a stated one to the view, which is as far as a
 /// level it holds can reach.
-fn set_field(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SetField { field, intensity, radius, listener: theirs } = effect else {
+fn set_field(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::SetField {
+        field,
+        intensity,
+        radius,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(actor) = actor(speaker, listener, *theirs) else {
@@ -1227,8 +1404,20 @@ fn find_furniture(
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`), the `search_type = "furniture"` path: the same walk as the terrain search, comparing
 /// `map::furn` at each square. Nothing found leaves the actor's own square, because the reference starts the answer there.
-fn store_furniture_around(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::FurnitureAround { furniture, scope, name, target_min_radius, target_max_radius, listener: theirs } = effect
+fn store_furniture_around(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::FurnitureAround {
+        furniture,
+        scope,
+        name,
+        target_min_radius,
+        target_max_radius,
+        listener: theirs,
+    } = effect
     else {
         return Applied::CannotAnswer;
     };
@@ -1259,7 +1448,12 @@ fn store_furniture_around(world: &mut World, speaker: Entity, listener: Option<E
     }
     let (x, y) = found.unwrap_or((here.x, here.y));
     let holder = crate::dialogue_values::holder_for(world, actor, scope == "global_val");
-    crate::dialogue_values::set(world, holder, name, crate::dialogue_values::Value::Position { x, y, z: here.z });
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Position { x, y, z: here.z },
+    );
     Applied::Done
 }
 
@@ -1268,8 +1462,20 @@ fn store_furniture_around(world: &mut World, speaker: Entity, listener: Option<E
 /// Reference: `f_location_variable` (`npctalk.cpp:4250-4300`): the walk is `points_in_radius( talker_pos, target_max_radius, 0 )` - z, then y, then x ascending -
 /// and the first square whose terrain matches and which is further than `target_min_radius` wins. Nothing found leaves the actor's own square in the variable,
 /// because the reference starts the answer there.
-fn store_terrain_around(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::TerrainAround { terrain, scope, name, target_min_radius, target_max_radius, listener: theirs } = effect
+fn store_terrain_around(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::TerrainAround {
+        terrain,
+        scope,
+        name,
+        target_min_radius,
+        target_max_radius,
+        listener: theirs,
+    } = effect
     else {
         return Applied::CannotAnswer;
     };
@@ -1301,7 +1507,12 @@ fn store_terrain_around(world: &mut World, speaker: Entity, listener: Option<Ent
     }
     let (x, y) = found.unwrap_or((here.x, here.y));
     let holder = crate::dialogue_values::holder_for(world, actor, scope == "global_val");
-    crate::dialogue_values::set(world, holder, name, crate::dialogue_values::Value::Position { x, y, z: here.z });
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Position { x, y, z: here.z },
+    );
     Applied::Done
 }
 
@@ -1310,8 +1521,19 @@ fn store_terrain_around(world: &mut World, speaker: Entity, listener: Option<Ent
 /// Reference: `f_cast_spell` (`npctalk.cpp`): the member is the spell's id, `hit_self` decides whether it lands on the speaker or the listener, and the level is the
 /// caster's own level in that spell unless the data forces one. The port looks the prototype up in [`crate::spell_types`] and hands it to `spell_effects::apply`, which
 /// is the same table the CLI casts from - so a dialogue cast and a played cast run the same rule.
-fn cast_spell(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::CastSpell { spell, hit_self, targeted, listener: theirs } = effect else {
+fn cast_spell(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::CastSpell {
+        spell,
+        hit_self,
+        targeted,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     // A targeted cast asks the player to pick a square (`spell::select_target`, `npctalk.cpp:5650-5657`), and this port has no chooser in a headless world.
@@ -1331,15 +1553,27 @@ fn cast_spell(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
     };
     let level = crate::known_spells::level_of(world, caster, &named);
     // `hit_self` puts the spell's centre on the caster; otherwise it is aimed at the other party, which is where the dialogue's own target stands.
-    let target = if *hit_self { Some(caster) } else { listener.or(Some(speaker)) };
-    let Some(centre) = target.and_then(|entity| world.get::<crate::Position>(entity).copied()) else {
+    let target = if *hit_self {
+        Some(caster)
+    } else {
+        listener.or(Some(speaker))
+    };
+    let Some(centre) = target.and_then(|entity| world.get::<crate::Position>(entity).copied())
+    else {
         return Applied::CannotAnswer;
     };
     // A cast that reaches nobody still happened: the reference spends the moves and casts, and the effect simply finds nothing. Only an effect the port has no rule
     // for is a refusal, because that one did not happen.
-    match crate::spell_effects::apply(world, caster, &prototype, level, (centre.x, centre.y, centre.z)) {
+    match crate::spell_effects::apply(
+        world,
+        caster,
+        &prototype,
+        level,
+        (centre.x, centre.y, centre.z),
+    ) {
         crate::spell_effects::Effective::NotPorted => Applied::CannotAnswer,
-        crate::spell_effects::Effective::Done | crate::spell_effects::Effective::NothingAffected => Applied::Done,
+        crate::spell_effects::Effective::Done
+        | crate::spell_effects::Effective::NothingAffected => Applied::Done,
     }
 }
 
@@ -1347,8 +1581,18 @@ fn cast_spell(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
 ///
 /// Reference: `f_assign_activity` (`npctalk.cpp:5456-5460`): `target->assign_activity( activity_id( ... ), to_moves<int>( duration ) )`. The port's activity is the
 /// `Doing` component, and its length is in moves like the reference's, so the duration is multiplied by a hundred - the same conversion `turn_cost` uses.
-fn assign_activity(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::AssignActivity { activity, duration, listener: theirs } = effect else {
+fn assign_activity(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::AssignActivity {
+        activity,
+        duration,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(creature) = actor(speaker, listener, *theirs) else {
@@ -1363,7 +1607,9 @@ fn assign_activity(world: &mut World, speaker: Entity, listener: Option<Entity>,
     // The duration is a turn count and the activity's length is in moves, so the multiplication is exact; the clamp keeps a silly number from wrapping, and the
     // cast is the one place the two widths meet.
     #[allow(clippy::cast_possible_truncation)]
-    let moves_left = turns.saturating_mul(100).clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+    let moves_left = turns
+        .saturating_mul(100)
+        .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
     world.entity_mut(creature).insert(crate::creature::Doing {
         moves_total: 0,
         activity: named,
@@ -1378,8 +1624,17 @@ fn assign_activity(world: &mut World, speaker: Entity, listener: Option<Entity>,
 ///
 /// Reference: `f_set_talker` (`npctalk.cpp:6943-6947`): the id is **stringified** on the way in, because a later `run_eocs` reads the variable back as a string. The
 /// port's id is the entity's index, which is an integer that is never a pointer - the same guarantee the reference's `getID()` gives it.
-fn set_talker(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SetTalker { target, listener: theirs } = effect else {
+fn set_talker(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::SetTalker {
+        target,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(creature) = actor(speaker, listener, *theirs) else {
@@ -1390,7 +1645,12 @@ fn set_talker(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
         _ => crate::dialogue_values::holder_for(world, creature, false),
     };
     let id = creature.index().to_string();
-    crate::dialogue_values::set(world, holder, &target.1, crate::dialogue_values::Value::Text(id));
+    crate::dialogue_values::set(
+        world,
+        holder,
+        &target.1,
+        crate::dialogue_values::Value::Text(id),
+    );
     Applied::Done
 }
 
@@ -1398,8 +1658,17 @@ fn set_talker(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
 ///
 /// Reference: `f_lose_morale` (`npctalk.cpp:7201-7203`): `d.actor( is_npc )->remove_morale( morale_type( ... ) )`, which erases every point of that type. Types the
 /// creature is not feeling are left alone, and losing one it never had is not a failure.
-fn lose_morale(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::LoseMorale { kind, listener: theirs } = effect else {
+fn lose_morale(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::LoseMorale {
+        kind,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(creature) = actor(speaker, listener, *theirs) else {
@@ -1416,8 +1685,17 @@ fn lose_morale(world: &mut World, speaker: Entity, listener: Option<Entity>, eff
 ///
 /// Reference: `f_remove_item_with` (`npctalk.cpp:4048-4054`): `d.actor( is_npc )->remove_items_with( ... )` with a predicate on the type id - all of that kind and
 /// nothing else. A kind the creature does not carry is not a failure: the reference's predicate simply matches nothing.
-fn remove_item_with(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RemoveItemWith { item, listener: theirs } = effect else {
+fn remove_item_with(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::RemoveItemWith {
+        item,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(creature) = actor(speaker, listener, *theirs) else {
@@ -1435,8 +1713,19 @@ fn remove_item_with(world: &mut World, speaker: Entity, listener: Option<Entity>
 /// Reference: `f_place_override` (`npctalk.cpp:4812-4818`): one timed event, `OVERRIDE_PLACE`, due at `calendar::turn + length + 1_seconds`, carrying the new name
 /// and the key. The port's turn is a second, so the plus-one is a turn. The renaming itself happens when that event comes due, which is the next round's work - and
 /// this function is where it will be found.
-fn place_override(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::PlaceOverride { length, key, place, fallback } = effect else {
+fn place_override(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::PlaceOverride {
+        length,
+        key,
+        place,
+        fallback,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(turns) = roll_duration(world, speaker, listener, length) else {
@@ -1466,8 +1755,17 @@ fn place_override(world: &mut World, speaker: Entity, listener: Option<Entity>, 
 /// Makes a creature wetter.
 ///
 /// Reference: `f_add_wet` (`npctalk.cpp:5468-5472`): the amount is worked out where the effect is applied and added with `wet_character`, which clamps.
-fn add_wet(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::AddWet { amount, listener: theirs } = effect else {
+fn add_wet(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::AddWet {
+        amount,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(creature) = actor(speaker, listener, *theirs) else {
@@ -1486,7 +1784,12 @@ fn add_wet(world: &mut World, speaker: Entity, listener: Option<Entity>, effect:
 ///
 /// Reference: `f_turn_cost` (`npctalk.cpp:5295-5299`): `target->mod_moves( -to_moves<int>( cost ) )`, and `to_moves` is a hundred moves a turn. The port's moves
 /// are whole points already, so the conversion is a multiplication and a cast.
-fn turn_cost(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn turn_cost(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::TurnCost { cost } = effect else {
         return Applied::CannotAnswer;
     };
@@ -1502,7 +1805,12 @@ fn turn_cost(world: &mut World, speaker: Entity, listener: Option<Entity>, effec
 /// Drops a mission from the avatar's list, without calling it done or failed.
 ///
 /// Reference: `f_remove_active_mission` (`npctalk.cpp:5964-5972`): the avatar's mission of that type is removed; one the character does not hold is not an error.
-fn remove_active_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn remove_active_mission(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::RemoveActiveMission { mission } = effect else {
         return Applied::CannotAnswer;
     };
@@ -1520,7 +1828,12 @@ fn remove_active_mission(world: &mut World, speaker: Entity, listener: Option<En
 ///
 /// Reference: `f_finish_mission` (`npctalk.cpp:5939-5950`): the avatar's own mission is completed or failed, and a mission the character does not hold does nothing.
 /// A staged mission (`step`) is not run yet: the port has no step counter, and answering `Done` for one would claim a rule it does not have.
-fn finish_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn finish_mission(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::FinishMission { mission, step, .. } = effect else {
         return Applied::CannotAnswer;
     };
@@ -1542,8 +1855,18 @@ fn finish_mission(world: &mut World, speaker: Entity, listener: Option<Entity>, 
 ///
 /// Reference: `f_set_condition` (`npctalk.cpp:5868-5880`): the condition is written into the dialogue's variables, and `u_has_condition` reads it back and evaluates
 /// it where it is asked - so the stored thing is the **condition**, not its answer at the time it was stored.
-fn set_condition(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SetCondition { name, condition, scope } = effect else {
+fn set_condition(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::SetCondition {
+        name,
+        condition,
+        scope,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     // Reference: `d.set_conditional` writes into the dialogue's own map, which exists whether or not anything has been stored yet - so the global holder is **made** when the
@@ -1572,14 +1895,24 @@ fn set_condition(world: &mut World, speaker: Entity, listener: Option<Entity>, e
 ///
 /// Reference: `f_alter_timed_events` (`npctalk.cpp:4879-4881`): `get_timed_events().set_all( key, now + time_in_future )`. The duration is parsed by the same
 /// reader the calendar uses, so a duration the port cannot parse is a refusal rather than a silent zero.
-fn alter_timed_events(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::AlterTimedEvents { key, time_in_future } = effect else {
+fn alter_timed_events(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::AlterTimedEvents {
+        key,
+        time_in_future,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(named) = crate::conditions::text_of(world, speaker, listener, key) else {
         return Applied::CannotAnswer;
     };
-    let Some(duration) = crate::conditions::text_of(world, speaker, listener, time_in_future) else {
+    let Some(duration) = crate::conditions::text_of(world, speaker, listener, time_in_future)
+    else {
         return Applied::CannotAnswer;
     };
     let turns = cdda_content::constructions::parse_duration(&duration);
@@ -1591,11 +1924,23 @@ fn alter_timed_events(world: &mut World, speaker: Entity, listener: Option<Entit
 ///
 /// Reference: `f_copy_var` (`npctalk.cpp:5797-5807`): `read_var_value` then `write_var_value`, with nothing drawn or interpreted in between. A source the store does
 /// not hold copies nothing, because the reference copies a null value and writing null is not writing a text.
-fn copy_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::CopyVar { from_scope, from_name, to_scope, to_name } = effect else {
+fn copy_var(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::CopyVar {
+        from_scope,
+        from_name,
+        to_scope,
+        to_name,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
-    let Some(from) = crate::conditions::holder_for_scope(world, speaker, listener, from_scope) else {
+    let Some(from) = crate::conditions::holder_for_scope(world, speaker, listener, from_scope)
+    else {
         return Applied::CannotAnswer;
     };
     let Some(to) = crate::conditions::holder_for_scope(world, speaker, listener, to_scope) else {
@@ -1612,8 +1957,19 @@ fn copy_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect
 ///
 /// Reference: `f_set_string_var` (`npctalk.cpp:5843-5866`): one entry of the list is drawn, the variable is written, and nothing else happens. The draw uses the
 /// world's own dice, which is the same dice every other draw in this module uses.
-fn set_string_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SetStringVar { parse_tags, value, scope, name } = effect else {
+fn set_string_var(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::SetStringVar {
+        parse_tags,
+        value,
+        scope,
+        name,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
@@ -1645,7 +2001,12 @@ fn set_string_var(world: &mut World, speaker: Entity, listener: Option<Entity>, 
     } else {
         text
     };
-    crate::dialogue_values::set(world, holder, name, crate::dialogue_values::Value::Text(text));
+    crate::dialogue_values::set(
+        world,
+        holder,
+        name,
+        crate::dialogue_values::Value::Text(text),
+    );
     Applied::Done
 }
 
@@ -1667,8 +2028,20 @@ fn draw_one_of(world: &mut World, many: usize) -> Option<usize> {
 ///
 /// Reference: `f_consume_item` (`npctalk.cpp:3943-3968`): charges when only charges were asked for, whole stacks when a count was, and a message when the creature
 /// has neither - the message is not an error, so the effect is `Done` either way. A partial removal never happens, because [`crate::inventory::take`] refuses one.
-fn consume_items(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::ConsumeItem { item, count, charges, listener: about_listener, .. } = effect else {
+fn consume_items(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::ConsumeItem {
+        item,
+        count,
+        charges,
+        listener: about_listener,
+        ..
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(creature) = actor(speaker, listener, *about_listener) else {
@@ -1703,7 +2076,9 @@ fn item_place(
     let holder = crate::dialogue_values::holder_for(world, speaker, scope == "global_val");
     let _ = listener;
     match crate::dialogue_values::value_of(world, holder, name) {
-        Some(crate::dialogue_values::Value::Position { x, y, z }) => Some(crate::Position { x, y, z }),
+        Some(crate::dialogue_values::Value::Position { x, y, z }) => {
+            Some(crate::Position { x, y, z })
+        }
         _ => None,
     }
 }
@@ -1712,8 +2087,22 @@ fn item_place(
 ///
 /// Reference: `f_spawn_item` (`npctalk.cpp:3771-3800`): `count` of them, each with `charges` charges when the data gives charges. An item the port's catalogue does
 /// not know is refused rather than dropped as something nameless.
-fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::SpawnItem { item, count, charges, force_equip, use_item_group, loc, .. } = effect else {
+fn spawn_items(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::SpawnItem {
+        item,
+        count,
+        charges,
+        force_equip,
+        use_item_group,
+        loc,
+        ..
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     // Reference: `force_equip` puts the item in the creature's hands, and the port has no wield slot to put it in - so it refuses rather than dropping the item
@@ -1763,7 +2152,12 @@ fn spawn_items(world: &mut World, speaker: Entity, listener: Option<Entity>, eff
 /// Reference: `f_spawn_npc` (`npctalk.cpp:7575-7620`): the squares are drawn within the radii - twenty-five attempts, the reference's own number - the real ones
 /// are placed before the imagined ones, and each is given the traits the data lists. The class id is the creature's name until the port has NPC class prototypes
 /// to look up; the being, its place and its traits are all real.
-fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn spawn_npcs(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::SpawnNpc {
         class,
         unique_id,
@@ -1798,11 +2192,17 @@ fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
     let mut squares = Vec::new();
     for _ in 0..(real + imagined) {
         // Reference: `f_spawn_npc` keeps a spawn to squares the outdoor flags allow, exactly as the monster spawn does.
-        let Some(around) = draw_near_with_where(world, held.as_mut(), (at.x, at.y, at.z), near, far, &|square| {
-            let outside = crate::outdoors::is_outside(world, square);
-            (!*outdoor_only || outside) && (!*indoor_only || !outside)
-        })
-        else {
+        let Some(around) = draw_near_with_where(
+            world,
+            held.as_mut(),
+            (at.x, at.y, at.z),
+            near,
+            far,
+            &|square| {
+                let outside = crate::outdoors::is_outside(world, square);
+                (!*outdoor_only || outside) && (!*indoor_only || !outside)
+            },
+        ) else {
             if let Some(dice) = held.take() {
                 crate::singletons::put_rolls(world, dice);
             }
@@ -1840,7 +2240,12 @@ fn spawn_npcs(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
     Applied::Done
 }
 
-fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn spawn_monsters(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::SpawnMonster {
         monster,
         target,
@@ -1869,24 +2274,32 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
         .map(|(x, y, z)| crate::Position { x, y, z })
         .or_else(|| world.get::<crate::Position>(speaker).copied())
     else {
-        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no position"); }
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+            println!("spawn refused: no position");
+        }
         return Applied::CannotAnswer;
     };
     let Some(named) = crate::conditions::text_of(world, speaker, listener, monster) else {
-        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no name"); }
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+            println!("spawn refused: no name");
+        }
         return Applied::CannotAnswer;
     };
     let Some(name) = pick_type(world, speaker, &named, *group, *target_range) else {
         return Applied::CannotAnswer;
     };
     let Some(kind) = crate::monster_catalog::type_of(world, &name).cloned() else {
-        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: unknown type {name}"); }
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+            println!("spawn refused: unknown type {name}");
+        }
         return Applied::CannotAnswer;
     };
     let real = draw_count(world, speaker, listener, real_count);
     let imagined = draw_count(world, speaker, listener, hallucination_count);
     let (Some(real), Some(imagined)) = (real, imagined) else {
-        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("spawn refused: no count"); }
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+            println!("spawn refused: no count");
+        }
         return Applied::CannotAnswer;
     };
     let mut held = crate::singletons::take_rolls(world);
@@ -1902,8 +2315,7 @@ fn spawn_monsters(world: &mut World, speaker: Entity, listener: Option<Entity>, 
                 let outside = crate::outdoors::is_outside(world, square);
                 (!*outdoor_only || outside) && (!*indoor_only || !outside)
             },
-        )
-        else {
+        ) else {
             if let Some(dice) = held.take() {
                 crate::singletons::put_rolls(world, dice);
             }
@@ -1957,7 +2369,9 @@ fn dress_spawn(
     friendly: bool,
 ) {
     if imagined {
-        world.entity_mut(spawn).insert(crate::monster_spawning::Hallucination);
+        world
+            .entity_mut(spawn)
+            .insert(crate::monster_spawning::Hallucination);
     }
     // The port has no attitudes yet, so friendliness is a **count** on the creature - one component, no second source of truth - and the attitude rules can read it
     // when they land. A spawn the data marks friendly starts with a count that never runs out, which is the reference's `friendly = -1` ("friendly for good").
@@ -2017,7 +2431,12 @@ fn draw_count(
 }
 
 /// Draws a square within `max_radius` of `around` and at least `min_radius` away, up to 25 times, as the reference does.
-fn draw_near(world: &mut World, around: (i32, i32, i32), min_radius: i32, max_radius: i32) -> Option<(i32, i32, i32)> {
+fn draw_near(
+    world: &mut World,
+    around: (i32, i32, i32),
+    min_radius: i32,
+    max_radius: i32,
+) -> Option<(i32, i32, i32)> {
     let mut held = crate::singletons::take_rolls(world);
     let drawn = draw_near_with(world, held.as_mut(), around, min_radius, max_radius);
     if let Some(dice) = held.take() {
@@ -2069,7 +2488,12 @@ fn draw_near_with_where(
 ///
 /// Reference: `f_add_var` (`npctalk.cpp:3589-3610`): `time: true` stores the current turn, `possible_values` draws one of its texts, and a plain `value`
 /// stores what the data wrote. The draw is the world's dice, so the same seed gives the same choice.
-fn add_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn add_var(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::AddVar {
         name,
         scope,
@@ -2111,7 +2535,8 @@ fn add_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect:
                 let Some(choice) = choices.get(at) else {
                     return Applied::CannotAnswer;
                 };
-                let Some(text) = crate::conditions::text_of(world, speaker, listener, choice) else {
+                let Some(text) = crate::conditions::text_of(world, speaker, listener, choice)
+                else {
                     return Applied::CannotAnswer;
                 };
                 crate::dialogue_values::Value::Text(text)
@@ -2126,7 +2551,13 @@ fn add_var(world: &mut World, speaker: Entity, listener: Option<Entity>, effect:
 ///
 /// Reference: `f_remove_var` (`npctalk.cpp:3656`): `u_lose_var` drops one of the speaker's, `npc_lose_var` one of the listener's, `global_lose_var` one of
 /// the world's. Dropping one that was never there is not an error - the reference's `remove_value` says nothing about it - so it is `Done`.
-fn lose_var(world: &mut World, speaker: Entity, listener: Option<Entity>, name: &str, scope: &str) -> Applied {
+fn lose_var(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    scope: &str,
+) -> Applied {
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
         return Applied::CannotAnswer;
     };
@@ -2139,7 +2570,12 @@ fn lose_var(world: &mut World, speaker: Entity, listener: Option<Entity>, name: 
 /// Reference: `f_run_eoc_selector` (`npctalk.cpp:6385`): the player picks one of the programs, or walks away when `allow_cancel` says they may. The
 /// port takes the answer from the queued [`crate::choices`] rather than drawing a menu - and **refuses** when nothing was queued, because a question the
 /// game could not ask is not a player pressing escape.
-fn run_selector(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn run_selector(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::RunEocSelector {
         options,
         allow_cancel,
@@ -2183,8 +2619,17 @@ fn run_selector(world: &mut World, speaker: Entity, listener: Option<Entity>, ef
 /// Takes several effects away, which the data writes as an array of names.
 ///
 /// Reference: `f_remove_effect` (`npctalk.cpp:8015`) with an array: each one is removed in turn, and one the creature does not have is not a failure.
-fn run_remove_effects(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RemoveEffects { effects, listener: theirs } = effect else {
+fn run_remove_effects(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::RemoveEffects {
+        effects,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     if actor(speaker, listener, *theirs).is_none() {
@@ -2210,7 +2655,12 @@ const SEARCH_RANGE: i32 = 540;
 /// Applies an update mapgen where the speaker stands.
 ///
 /// Reference: `f_mapgen_update` (`npctalk.cpp`): with no target named, the update is applied at the speaker's own overmap tile.
-fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn run_mapgen_update(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::MapgenUpdate {
         updates,
         target,
@@ -2275,7 +2725,12 @@ fn run_mapgen_update(world: &mut World, speaker: Entity, listener: Option<Entity
 ///
 /// Reference: `f_make_sound` (`npctalk.cpp:6131-6200`): the sound is placed at the maker's own square with the stated volume, and the words are
 /// shown when it is speech, an alarm or an order. A snippet sound picks its line by weight, and `same_snippet` remembers the pick.
-fn make_sound_effect(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn make_sound_effect(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::MakeSound {
         words,
         snippet,
@@ -2303,7 +2758,15 @@ fn make_sound_effect(world: &mut World, speaker: Entity, listener: Option<Entity
     if matches!(kind, cdda_content::dialogue::SoundKind::Background) {
         return Applied::Done;
     }
-    let said = sound_words(world, speaker, listener, creature, words.as_ref(), snippet.as_ref(), *same_snippet);
+    let said = sound_words(
+        world,
+        speaker,
+        listener,
+        creature,
+        words.as_ref(),
+        snippet.as_ref(),
+        *same_snippet,
+    );
     if let Some(said) = said {
         crate::messages::push(world, &said);
     }
@@ -2397,7 +2860,10 @@ fn add_morale(
         };
         times.push(turns);
     }
-    let (duration, decay_start) = (times.first().copied().unwrap_or(0), times.get(1).copied().unwrap_or(0));
+    let (duration, decay_start) = (
+        times.first().copied().unwrap_or(0),
+        times.get(1).copied().unwrap_or(0),
+    );
     crate::morale::add(
         world,
         creature,
@@ -2453,7 +2919,11 @@ fn roll_duration(
             rolled.or(Some(shortest))
         }
         // Reference: the variable holds a **duration in text**, and its absence means the data's own fallback (`get_duration_or_var`, `npctalk.cpp:3426-3450`).
-        cdda_content::dialogue::EffectDuration::Named { scope, name, fallback } => {
+        cdda_content::dialogue::EffectDuration::Named {
+            scope,
+            name,
+            fallback,
+        } => {
             let holder = crate::conditions::holder_for_scope(world, speaker, listener, scope)?;
             let held = crate::dialogue_values::text_of(world, holder, name);
             Some(match held {
@@ -2528,7 +2998,8 @@ fn draw(
     expression: &cdda_content::dialogue::Expression,
 ) -> Option<f64> {
     let mut dice = crate::singletons::take_rolls(world);
-    let value = crate::conditions::value_drawing(world, speaker, listener, expression, true, dice.as_mut());
+    let value =
+        crate::conditions::value_drawing(world, speaker, listener, expression, true, dice.as_mut());
     if let Some(dice) = dice.take() {
         crate::singletons::put_rolls(world, dice);
     }
@@ -2546,8 +3017,21 @@ fn as_turns(turns: i64) -> i32 {
 /// Reference: `f_location_variable` with `target_params` (`npctalk.cpp:4205-4210`, `4261-4300`): the search starts at the talker's own overmap tile, looks up to
 /// `search_range` tiles out - `OMAPX * 3`, 540, when the data does not say (`mission_util.cpp:429`) - and stores the **corner square** of the tile it finds. A least
 /// distance is honoured because the reference's search does; nothing found is a refusal, because the data asked for a place and there is none.
-fn store_overmap_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::LocationVariableFromOvermap { scope, name, terrain, min_distance, z, listener: theirs } = effect else {
+fn store_overmap_location(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::LocationVariableFromOvermap {
+        scope,
+        name,
+        terrain,
+        min_distance,
+        z,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(actor) = actor(speaker, listener, *theirs) else {
@@ -2574,7 +3058,9 @@ fn store_overmap_location(world: &mut World, speaker: Entity, listener: Option<E
         },
     };
     let origin = crate::overmap::tile_of(here.x, here.y);
-    let Some((x, y)) = crate::overmap::nearest_with_terrain(world, origin, &wanted, SEARCH_RANGE, least) else {
+    let Some((x, y)) =
+        crate::overmap::nearest_with_terrain(world, origin, &wanted, SEARCH_RANGE, least)
+    else {
         return Applied::CannotAnswer;
     };
     let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
@@ -2597,7 +3083,12 @@ fn store_overmap_location(world: &mut World, speaker: Entity, listener: Option<E
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`), plain form: the value is `d.const_actor( is_npc )->pos_abs()`, and the scope names where
 /// it goes the same way `math` names its target.
-fn store_location(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn store_location(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::LocationVariable {
         scope,
         name,
@@ -2639,45 +3130,49 @@ fn run_switch(
     on: &cdda_content::dialogue::Expression,
     cases: &[(cdda_content::dialogue::Expression, Vec<Effect>)],
 ) -> Applied {
-
-        let drawn = |world: &mut World, expression: &cdda_content::dialogue::Expression| {
-            let mut dice = crate::singletons::take_rolls(world);
-            let value = crate::conditions::value_drawing(
-                world,
-                speaker,
-                listener,
-                expression,
-                true,
-                dice.as_mut(),
-            );
-            if let Some(dice) = dice.take() {
-                crate::singletons::put_rolls(world, dice);
-            }
-            value
-        };
-        let Some(switched) = drawn(world, on) else {
+    let drawn = |world: &mut World, expression: &cdda_content::dialogue::Expression| {
+        let mut dice = crate::singletons::take_rolls(world);
+        let value = crate::conditions::value_drawing(
+            world,
+            speaker,
+            listener,
+            expression,
+            true,
+            dice.as_mut(),
+        );
+        if let Some(dice) = dice.take() {
+            crate::singletons::put_rolls(world, dice);
+        }
+        value
+    };
+    let Some(switched) = drawn(world, on) else {
+        return Applied::CannotAnswer;
+    };
+    // Reference: every case the value reaches replaces the chosen one, so the **last** match runs.
+    let mut chosen: Option<&Vec<Effect>> = None;
+    for (case, effects) in cases {
+        let Some(reached) = drawn(world, case) else {
             return Applied::CannotAnswer;
         };
-        // Reference: every case the value reaches replaces the chosen one, so the **last** match runs.
-        let mut chosen: Option<&Vec<Effect>> = None;
-        for (case, effects) in cases {
-            let Some(reached) = drawn(world, case) else {
-                return Applied::CannotAnswer;
-            };
-            if switched >= reached {
-                chosen = Some(effects);
-            }
-        }
-        match chosen {
-            Some(effects) => run_effects(world, speaker, listener, effects),
-            None => Applied::Done,
+        if switched >= reached {
+            chosen = Some(effects);
         }
     }
+    match chosen {
+        Some(effects) => run_effects(world, speaker, listener, effects),
+        None => Applied::Done,
+    }
+}
 
 /// Runs one of an `if`'s two lists, whichever its condition picks.
 ///
 /// Reference: `f_if` (`npctalk.cpp:6977-6993`): `if` is a condition, `then` runs when it holds, `else` when it does not, and an absent `else` runs nothing.
-fn run_branch(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn run_branch(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::If {
         condition,
         then,
@@ -2691,18 +3186,17 @@ fn run_branch(world: &mut World, speaker: Entity, listener: Option<Entity>, effe
     let answered = match condition.as_ref() {
         // A yes/no menu's indices are **yes = 0** and **no = 1**, and `CANCELLED` is walking away - so the answer is yes when the queued index is zero, and
         // anything else (a no, a cancel, an empty queue) answers the data's `default`.
-        cdda_content::dialogue::Condition::Query { default } => Some(match crate::choices::take(world) {
-            Some(answer) => answer == 0,
-            _ => *default,
-        }),
+        cdda_content::dialogue::Condition::Query { default } => {
+            Some(match crate::choices::take(world) {
+                Some(answer) => answer == 0,
+                _ => *default,
+            })
+        }
         _ => None,
     };
-    let taken = answered.unwrap_or_else(|| crate::conditions::holds_in_store(world, speaker, listener, condition));
-    let branch = if taken {
-        then
-    } else {
-        otherwise
-    };
+    let taken = answered
+        .unwrap_or_else(|| crate::conditions::holds_in_store(world, speaker, listener, condition));
+    let branch = if taken { then } else { otherwise };
     run_effects(world, speaker, listener, branch)
 }
 
@@ -2720,7 +3214,10 @@ fn run_learn_recipe(
     let Some(named) = crate::conditions::text_of(world, speaker, listener, recipe) else {
         return Applied::CannotAnswer;
     };
-    let actor = if matches!(recipe, cdda_content::dialogue::StringSource::Variable { .. }) {
+    let actor = if matches!(
+        recipe,
+        cdda_content::dialogue::StringSource::Variable { .. }
+    ) {
         listener.unwrap_or(speaker)
     } else {
         speaker
@@ -2738,21 +3235,49 @@ fn run_learn_recipe(
 /// Gives a creature an effect whose name may be a variable.
 ///
 /// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`): the name is a `str_or_var`, resolved where the effect is applied, and so is the duration.
-fn run_gained_effect(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::AddEffect { effect: named, duration, intensity, listener: theirs } = effect else {
+fn run_gained_effect(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::AddEffect {
+        effect: named,
+        duration,
+        intensity,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(text) = crate::conditions::text_of(world, speaker, listener, named) else {
         return Applied::CannotAnswer;
     };
-    add_effect(world, speaker, listener, &text, duration, intensity.as_ref(), *theirs)
+    add_effect(
+        world,
+        speaker,
+        listener,
+        &text,
+        duration,
+        intensity.as_ref(),
+        *theirs,
+    )
 }
 
 /// Takes an effect off a creature whose name may be a variable.
 ///
 /// Reference: `f_remove_effect` (`npctalk.cpp:8015`): the name is a `str_or_var`, and removing one the creature does not have is not a failure.
-fn run_lost_effect(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::RemoveEffect { effect: named, listener: theirs } = effect else {
+fn run_lost_effect(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::RemoveEffect {
+        effect: named,
+        listener: theirs,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(creature) = actor(speaker, listener, *theirs) else {
@@ -2786,7 +3311,9 @@ fn run_store_effect(
         Effect::RemoveEffect { .. } => run_lost_effect(world, speaker, listener, effect),
         Effect::SetCondition { .. } => set_condition(world, speaker, listener, effect),
         Effect::FinishMission { .. } => finish_mission(world, speaker, listener, effect),
-        Effect::RemoveActiveMission { .. } => remove_active_mission(world, speaker, listener, effect),
+        Effect::RemoveActiveMission { .. } => {
+            remove_active_mission(world, speaker, listener, effect)
+        }
         Effect::TurnCost { .. } => turn_cost(world, speaker, listener, effect),
         Effect::AddWet { .. } => add_wet(world, speaker, listener, effect),
         Effect::PlaceOverride { .. } => place_override(world, speaker, listener, effect),
@@ -2823,7 +3350,9 @@ fn run_store_effect(
 
         // Audio changes no game state, and the port has no audio: Done, not refused - nothing is missing from the simulation, only from the sound card. A
         // comment-only entry does nothing, which the reference's loader also does with it.
-        Effect::SoundEvent { .. } | Effect::PlaySoundEffect { .. } | Effect::Nothing => Applied::Done,
+        Effect::SoundEvent { .. } | Effect::PlaySoundEffect { .. } | Effect::Nothing => {
+            Applied::Done
+        }
         _ => return None,
     })
 }
@@ -2836,10 +3365,14 @@ pub fn run_effect(
     listener: Option<Entity>,
     effect: &Effect,
 ) -> Applied {
-    if let Some(done) = run_store_effect(world, speaker, listener, effect) { return done; }
+    if let Some(done) = run_store_effect(world, speaker, listener, effect) {
+        return done;
+    }
     match effect {
         Effect::Math(assignments) => run_math(world, speaker, listener, assignments),
-        Effect::LearnRecipe { recipe, forget } => run_learn_recipe(world, speaker, listener, recipe, *forget),
+        Effect::LearnRecipe { recipe, forget } => {
+            run_learn_recipe(world, speaker, listener, recipe, *forget)
+        }
         Effect::Message { .. } => say_message(world, speaker, listener, effect),
         Effect::Snippet {
             category,
@@ -2902,21 +3435,29 @@ pub fn run_effect(
         }
         Effect::WeightedList(weighted) => run_weighted_list(world, speaker, listener, weighted, 0),
         Effect::LocationVariable { .. } => store_location(world, speaker, listener, effect),
-        Effect::LocationVariableFromOvermap { .. } => store_overmap_location(world, speaker, listener, effect),
+        Effect::LocationVariableFromOvermap { .. } => {
+            store_overmap_location(world, speaker, listener, effect)
+        }
         Effect::Switch { on, cases } => run_switch(world, speaker, listener, on, cases),
         Effect::If { .. } => run_branch(world, speaker, listener, effect),
-        Effect::LearnTrait { trait_name, variant, listener: about_listener } => {
+        Effect::LearnTrait {
+            trait_name,
+            variant,
+            listener: about_listener,
+        } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;
             };
             // Reference: the trait is a `str_or_var`, read when the effect runs, so an earlier effect can have decided which one it is.
-            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
+            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name)
+            else {
                 return Applied::CannotAnswer;
             };
             crate::traits::add_trait(world, creature, &named);
             // Reference: `set_mutation( trait, variant )` keeps the cosmetic choice beside the trait; nothing in the rules reads it yet.
             if let Some(chosen) = variant {
-                let Some(name) = crate::conditions::text_of(world, speaker, listener, chosen) else {
+                let Some(name) = crate::conditions::text_of(world, speaker, listener, chosen)
+                else {
                     return Applied::CannotAnswer;
                 };
                 crate::traits::set_variant(world, creature, &named, &name);
@@ -2960,13 +3501,16 @@ pub fn run_effect(
         Effect::RevealMap { target, radius } => {
             // Reference: `f_reveal_map` (`npctalk.cpp:7752-7760`): the `var_info` names a square, `radius` is a `dbl_or_var` that defaults to zero, and the square is
             // projected to an overmap tile before the reveal (`project_to<coords::omt>`), which the overmap module's own `SQUARES_PER_OMT` division is.
-            let Some((x, y, _)) = crate::dialogue_values::position_of(world, speaker, listener, target) else {
+            let Some((x, y, _)) =
+                crate::dialogue_values::position_of(world, speaker, listener, target)
+            else {
                 return Applied::CannotAnswer;
             };
             let distance = match radius {
                 None => 0,
                 Some(given) => {
-                    let Some(value) = crate::conditions::value(world, speaker, listener, given) else {
+                    let Some(value) = crate::conditions::value(world, speaker, listener, given)
+                    else {
                         return Applied::CannotAnswer;
                     };
                     #[allow(clippy::cast_possible_truncation)]
@@ -2977,24 +3521,32 @@ pub fn run_effect(
             crate::overmap::reveal(world, crate::overmap::tile_of(x, y), distance);
             Applied::Done
         }
-        Effect::ActivateTrait { trait_name, listener: about_listener } => {
+        Effect::ActivateTrait {
+            trait_name,
+            listener: about_listener,
+        } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;
             };
             // Reference: `d.actor( is_npc )->activate_mutation( trait_id( new_trait.evaluate( d ) ) )` (`npctalk.cpp:3522-3524`).
-            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
+            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name)
+            else {
                 return Applied::CannotAnswer;
             };
             let _ = crate::mutation_activation::switch_on(world, creature, &named);
             Applied::Done
         }
-        Effect::LoseTrait { trait_name, listener: about_listener } => {
+        Effect::LoseTrait {
+            trait_name,
+            listener: about_listener,
+        } => {
             let Some(creature) = actor(speaker, listener, *about_listener) else {
                 return Applied::CannotAnswer;
             };
             // Reference: `unset_mutation` on a trait the creature does not have does nothing, and a `lose_trait` that finds
             // nothing to lose has still done its job - so the answer is `Done` either way.
-            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name) else {
+            let Some(named) = crate::conditions::text_of(world, speaker, listener, trait_name)
+            else {
                 return Applied::CannotAnswer;
             };
             crate::traits::remove_trait(world, creature, &named);
@@ -3028,7 +3580,12 @@ pub fn run_effects(
 ///
 /// Reference: `f_offer_mission` (`npctalk.cpp:5990-5998`): the reference takes the **beta** of the conversation - the NPC - and adds a mission of each named type to it.
 /// With no other creature present there is nobody to offer anything to, which is a refusal rather than a silent success.
-fn offer_mission(world: &mut World, _speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn offer_mission(
+    world: &mut World,
+    _speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::OfferMission { missions } = effect else {
         return Applied::CannotAnswer;
     };
@@ -3086,7 +3643,8 @@ fn trigger_event(
 ) -> Applied {
     let mut worked = Vec::with_capacity(args.len());
     for source in args {
-        let Some(text) = crate::conditions::converted_text_of(world, speaker, listener, source) else {
+        let Some(text) = crate::conditions::converted_text_of(world, speaker, listener, source)
+        else {
             return Applied::CannotAnswer;
         };
         worked.push(text);
@@ -3099,7 +3657,12 @@ fn trigger_event(
 ///
 /// Reference: `f_u_sell_item` (`npctalk.cpp:3897-3930`). The charges branch is tried first and only when the kind is counted in charges (`item::count_by_charges`), then the
 /// whole-item branch; neither having enough runs `false_eocs` **on the dialogue**, exactly as the reference's `run_eoc_vector( false_eocs, d )` does.
-fn sell_item(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn sell_item(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::SellItem {
         item,
         count,
@@ -3127,7 +3690,9 @@ fn sell_item(world: &mut World, speaker: Entity, listener: Option<Entity>, effec
         .and_then(|kind| crate::item_registry::traits_of(world, kind))
         .is_some_and(|(counted, _)| counted);
     // Reference: the charges branch asks `item::count_by_charges` **and** `has_charges`; the whole-item branch asks `has_amount`; anything else is the false branch.
-    let handed = (*by_charges && counted && crate::inventory::hand_over(world, speaker, buyer, &name, 0, many))
+    let handed = (*by_charges
+        && counted
+        && crate::inventory::hand_over(world, speaker, buyer, &name, 0, many))
         || crate::inventory::hand_over(world, speaker, buyer, &name, many, 0);
     if !handed {
         for program in false_programs {
@@ -3147,7 +3712,12 @@ fn sell_item(world: &mut World, speaker: Entity, listener: Option<Entity>, effec
 /// Reference: `f_map_run_item_eocs` (`npctalk.cpp:6830-6875`): the centre is `loc` or the actor's own square, the walk covers every square within `max_radius` and skips the
 /// ones inside `min_radius` (the reference's `rl_dist` is a square's **Chebyshev** distance, which is what a walking creature's step count is), and each item found is handed
 /// to the programs as the dialogue's beta. A menu mode refuses, because choosing for the player is not something this port can do.
-fn map_run_item_eocs(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
+fn map_run_item_eocs(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::MapRunItemEocs {
         mode,
         loc,
@@ -3176,7 +3746,8 @@ fn map_run_item_eocs(world: &mut World, speaker: Entity, listener: Option<Entity
     let mut found: Vec<(Entity, String)> = Vec::new();
     let mut items: Vec<(Entity, crate::Position, crate::ItemTypeId)> = Vec::new();
     {
-        let Some(mut query) = world.try_query::<(Entity, &crate::Position, &crate::GroundItem)>() else {
+        let Some(mut query) = world.try_query::<(Entity, &crate::Position, &crate::GroundItem)>()
+        else {
             return Applied::CannotAnswer;
         };
         for (entity, position, item) in query.iter(world) {
@@ -3195,9 +3766,9 @@ fn map_run_item_eocs(world: &mut World, speaker: Entity, listener: Option<Entity
             continue;
         };
         let accepted = search_data.is_empty()
-            || search_data.iter().any(|filter| {
-                filter_matches(world, speaker, entity, &name, false, false, filter)
-            });
+            || search_data
+                .iter()
+                .any(|filter| filter_matches(world, speaker, entity, &name, false, false, filter));
         if accepted {
             found.push((entity, name));
         }
@@ -3230,8 +3801,18 @@ fn map_run_item_eocs(world: &mut World, speaker: Entity, listener: Option<Entity
 /// Reference: `f_transform_line` (`npctalk.cpp:4781-4796`) and `map::transform_line` (`map.cpp:4802-4811`): both ends come from variables, the walk is `line_to`, and each
 /// square it passes through gets the transform's rule. The walk **excludes** its first square - `bresenham` reports the squares it moves *to* - which is why the far end changes
 /// and the near end does not.
-fn transform_line(world: &mut World, speaker: Entity, listener: Option<Entity>, effect: &Effect) -> Applied {
-    let Effect::TransformLine { transform, first, second } = effect else {
+fn transform_line(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
+    let Effect::TransformLine {
+        transform,
+        first,
+        second,
+    } = effect
+    else {
         return Applied::CannotAnswer;
     };
     let Some(named) = crate::conditions::text_of(world, speaker, listener, transform) else {
@@ -3251,8 +3832,11 @@ fn transform_line(world: &mut World, speaker: Entity, listener: Option<Entity>, 
     if crate::terrain_transform::holder(world).is_none() {
         return Applied::CannotAnswer;
     }
-    for square in cdda_core_types::line::line_to_3d([from.0, from.1, from.2], [to.0, to.1, to.2], 0, 0) {
-        let _ = crate::terrain_transform::apply_at(world, &named, (square[0], square[1], square[2]));
+    for square in
+        cdda_core_types::line::line_to_3d([from.0, from.1, from.2], [to.0, to.1, to.2], 0, 0)
+    {
+        let _ =
+            crate::terrain_transform::apply_at(world, &named, (square[0], square[1], square[2]));
     }
     Applied::Done
 }

@@ -176,7 +176,9 @@ pub fn read(
     vitamins: &BTreeMap<String, super::vitamins::Vitamin>,
 ) -> Result<Option<Comestible>, super::mapdata::LoadError> {
     let is_comestible = super::items::string(object, "comestible_type").is_some()
-        || super::items::strings(object, "subtypes").iter().any(|kind| kind == "COMESTIBLE")
+        || super::items::strings(object, "subtypes")
+            .iter()
+            .any(|kind| kind == "COMESTIBLE")
         || inherited.is_some();
     if !is_comestible {
         return Ok(None);
@@ -252,7 +254,9 @@ pub fn read(
     }
     value.rot_spawn = match super::items::sub_object(object, "rot_spawn") {
         Some(inner) => RotSpawn::read(inner)?,
-        None => inherited.map(|slot| slot.rot_spawn.clone()).unwrap_or_default(),
+        None => inherited
+            .map(|slot| slot.rot_spawn.clone())
+            .unwrap_or_default(),
     };
 
     if object.get("contamination").is_some() {
@@ -329,7 +333,9 @@ fn read_addictions(object: &Object, potential: i32) -> BTreeMap<String, i32> {
                 for (key, value) in pair.members() {
                     match value {
                         Value::Str(name) => id = Some(name.clone()),
-                        Value::Int(weight_value) => weight = i32::try_from(*weight_value).unwrap_or(potential),
+                        Value::Int(weight_value) => {
+                            weight = i32::try_from(*weight_value).unwrap_or(potential)
+                        }
                         Value::Float(weight_value) => weight = *weight_value as i32,
                         _ => id = Some(key.clone()),
                     }
@@ -411,7 +417,10 @@ fn spoils_in(object: &Object) -> Option<i64> {
 /// * the derivation sees the **raw** inherited slot, not a parent's derived one, so each prototype derives its own numbers;
 /// * it runs after `primary_material` has replaced the material list (`:463-467`), which is why `mead` - materials `["alcohol", "honey"]`, primary material
 ///   `alcohol` - has no honey vitamins at all.
-pub(crate) fn finalise(item: &mut super::items::ItemType, registries: &super::items::Registries<'_>) {
+pub(crate) fn finalise(
+    item: &mut super::items::ItemType,
+    registries: &super::items::Registries<'_>,
+) {
     // **A boring food gets boring.** `monotony_penalty` starts at `-1` and becomes **0 when any of the item's materials is `junk`**, else 2
     // (`src/item_factory.cpp:495-497`) — the one member whose default is computed from the material list rather than from a constant.
     if let Some(slot) = item.comestible.as_mut()

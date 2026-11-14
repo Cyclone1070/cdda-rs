@@ -78,7 +78,8 @@ impl MinStdRand0 {
     /// `minstd_rand0`'s range is narrower than `unsigned int`'s and wider than every smaller distribution's, so all three are reachable and each draws a different
     /// number of engine values — which is why a port cannot get this right by copying the shape of another library's.
     fn uniform_uint_in(&mut self, lo: u32, hi: u32) -> u32 {
-        self.uniform_uint_range(hi.wrapping_sub(lo)).wrapping_add(lo)
+        self.uniform_uint_range(hi.wrapping_sub(lo))
+            .wrapping_add(lo)
     }
 
     /// The distribution's body over `0..=urange`, before the low bound is added back.
@@ -111,7 +112,6 @@ impl MinStdRand0 {
             self.next_u32() - URNGMIN
         }
     }
-
 }
 
 const ENGINE_RANGE: u32 = MinStdRand0::MAX - MinStdRand0::MIN + 1;
@@ -752,7 +752,11 @@ impl Rolls {
     pub fn rng_bits(&mut self) -> u32 {
         if let Some(fixed) = self.fixed {
             // The lever in the units of a raw draw: a fraction of the whole 32-bit range.
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                clippy::cast_precision_loss
+            )]
             let bits = (fixed.clamp(0.0, 1.0) * f64::from(u32::MAX)) as u32;
             return bits;
         }

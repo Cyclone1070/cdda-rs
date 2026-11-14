@@ -9,7 +9,8 @@ use cdda_json::{Value, parse};
 use std::path::Path;
 
 fn squares() -> Vec<(i32, i32, char, f64)> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/frames/reference_frame.json");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/frames/reference_frame.json");
     let text = std::fs::read_to_string(path).expect("the reference frame exists");
     let value = parse(text.as_bytes()).expect("the frame is valid JSON");
     let Value::Object(root) = value else {
@@ -79,7 +80,8 @@ fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top(
     use std::path::Path;
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
-    let terrain_text = std::fs::read_to_string(root.join("prototypes/terrain.json")).expect("the terrain dump");
+    let terrain_text =
+        std::fs::read_to_string(root.join("prototypes/terrain.json")).expect("the terrain dump");
     let Value::Object(terrain_root) = parse(terrain_text.as_bytes()).expect("valid JSON") else {
         panic!("the terrain dump's root is not an object");
     };
@@ -88,8 +90,11 @@ fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top(
     };
     let mut symbols: BTreeMap<&str, char> = BTreeMap::new();
     for entry in prototypes {
-        let Value::Object(object) = entry else { continue };
-        let (Some(Value::Str(id)), Some(Value::Array(bytes))) = (object.get("id"), object.get("symbol"))
+        let Value::Object(object) = entry else {
+            continue;
+        };
+        let (Some(Value::Str(id)), Some(Value::Array(bytes))) =
+            (object.get("id"), object.get("symbol"))
         else {
             continue;
         };
@@ -100,10 +105,17 @@ fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top(
                 _ => None,
             })
             .collect();
-        symbols.insert(id.as_str(), String::from_utf8_lossy(&decoded).chars().next().unwrap_or(' '));
+        symbols.insert(
+            id.as_str(),
+            String::from_utf8_lossy(&decoded)
+                .chars()
+                .next()
+                .unwrap_or(' '),
+        );
     }
 
-    let frame_text = std::fs::read_to_string(root.join("frames/reference_frame.json")).expect("the frame");
+    let frame_text =
+        std::fs::read_to_string(root.join("frames/reference_frame.json")).expect("the frame");
     let Value::Object(frame_root) = parse(frame_text.as_bytes()).expect("valid JSON") else {
         panic!("the frame's root is not an object");
     };
@@ -114,7 +126,9 @@ fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top(
     let mut overlaid = 0;
     let mut unknown = 0;
     for entry in squares {
-        let Value::Object(square) = entry else { continue };
+        let Value::Object(square) = entry else {
+            continue;
+        };
         let (Some(Value::Str(terrain_id)), Some(Value::Str(glyph))) =
             (square.get("ter"), square.get("glyph"))
         else {
@@ -126,7 +140,10 @@ fn most_glyphs_are_the_terrain_s_symbol_and_the_rest_are_something_drawn_on_top(
             Some(_) => overlaid += 1,
         }
     }
-    assert_eq!(unknown, 0, "every terrain in the frame is in the terrain dump");
+    assert_eq!(
+        unknown, 0,
+        "every terrain in the frame is in the terrain dump"
+    );
     assert_eq!(plain, 1638, "squares printing their terrain's own symbol");
     assert_eq!(overlaid, 43, "squares with something drawn on top");
 }
@@ -138,10 +155,10 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     // The 43 that carry an item, creature or field are named out of the comparison rather than tolerated, because the port has none of those yet.
     use bevy_ecs::prelude::*;
     use cdda_core_types::level::Level;
+    use cdda_json::{Value, parse};
+    use cdda_sim::Prototypes;
     use cdda_sim::frame::frame;
     use cdda_sim::terrain_table::TerrainTable;
-    use cdda_sim::Prototypes;
-    use cdda_json::{Value, parse};
     use std::collections::BTreeMap;
     use std::path::Path;
 
@@ -149,7 +166,9 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     let read = |name: &str| std::fs::read_to_string(root.join(name)).expect("a corpus file");
 
     // The terrain prototypes: id to code, code to symbol and transparency.
-    let Value::Object(terrain_root) = parse(read("prototypes/terrain.json").as_bytes()).expect("valid") else {
+    let Value::Object(terrain_root) =
+        parse(read("prototypes/terrain.json").as_bytes()).expect("valid")
+    else {
         panic!("root is not an object");
     };
     let Some(Value::Array(prototypes)) = terrain_root.get("prototypes") else {
@@ -158,9 +177,15 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     let mut codes: BTreeMap<String, u32> = BTreeMap::new();
     let mut terrain = TerrainTable::new();
     for entry in prototypes {
-        let Value::Object(object) = entry else { continue };
-        let Some(Value::Str(id)) = object.get("id") else { continue };
-        let Some(Value::Array(bytes)) = object.get("symbol") else { continue };
+        let Value::Object(object) = entry else {
+            continue;
+        };
+        let Some(Value::Str(id)) = object.get("id") else {
+            continue;
+        };
+        let Some(Value::Array(bytes)) = object.get("symbol") else {
+            continue;
+        };
         let decoded: Vec<u8> = bytes
             .iter()
             .filter_map(|byte| match byte {
@@ -168,7 +193,10 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
                 _ => None,
             })
             .collect();
-        let symbol = String::from_utf8_lossy(&decoded).chars().next().unwrap_or(' ');
+        let symbol = String::from_utf8_lossy(&decoded)
+            .chars()
+            .next()
+            .unwrap_or(' ');
         #[allow(clippy::cast_possible_truncation)]
         let code = u32::try_from(codes.len()).expect("few") + 1;
         codes.insert(id.clone(), code);
@@ -177,7 +205,9 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     }
 
     // The reference's squares, as a level and the glyphs to compare against.
-    let Value::Object(frame_root) = parse(read("frames/reference_frame.json").as_bytes()).expect("valid") else {
+    let Value::Object(frame_root) =
+        parse(read("frames/reference_frame.json").as_bytes()).expect("valid")
+    else {
         panic!("root is not an object");
     };
     let radius = match frame_root.get("radius") {
@@ -204,15 +234,20 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     level.ensure(centre.0 - radius, centre.1 - radius, 1);
     let mut expected: BTreeMap<(i32, i32), char> = BTreeMap::new();
     for entry in squares {
-        let Value::Object(square) = entry else { continue };
+        let Value::Object(square) = entry else {
+            continue;
+        };
         let (Some(Value::Int(x)), Some(Value::Int(y))) = (square.get("x"), square.get("y")) else {
             continue;
         };
-        let (Some(Value::Str(terrain_id)), Some(Value::Str(glyph))) = (square.get("ter"), square.get("glyph"))
+        let (Some(Value::Str(terrain_id)), Some(Value::Str(glyph))) =
+            (square.get("ter"), square.get("glyph"))
         else {
             continue;
         };
-        let (Ok(x), Ok(y)) = (i32::try_from(*x), i32::try_from(*y)) else { continue };
+        let (Ok(x), Ok(y)) = (i32::try_from(*x), i32::try_from(*y)) else {
+            continue;
+        };
         let code = codes[terrain_id.as_str()];
         level.set_terrain(x, y, code, code);
         // Only the plain squares are the port's to reproduce: the others carry something drawn on top.
@@ -223,10 +258,13 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
 
     let mut world = World::new();
     cdda_sim::load_level(&mut world, &level);
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain,
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
     // **The frame is drawn in daylight, which it has to be.** The reference recorded this frame outdoors in the middle of a day: its own light column reads the sky's
     // hundred-odd lumens on every open square. A port that drew it in the dark would be comparing its own blank frames with the reference's glyphs - and, since a dark square
     // is exactly the square the draw path takes from memory, it would also be silently measuring the memory path instead of the terrain's.
@@ -236,18 +274,25 @@ fn the_port_prints_every_plain_square_the_way_the_reference_prints_it() {
     // is about - the glyphs. The sun's own cascade is gated in `sunlight_system`.
     {
         for entry in squares {
-            let Value::Object(square) = entry else { continue };
-            let (Some(Value::Int(x)), Some(Value::Int(y))) = (square.get("x"), square.get("y")) else {
+            let Value::Object(square) = entry else {
+                continue;
+            };
+            let (Some(Value::Int(x)), Some(Value::Int(y))) = (square.get("x"), square.get("y"))
+            else {
                 continue;
             };
             let Some(Value::Float(light)) = square.get("light") else {
                 continue;
             };
-            let (Ok(x), Ok(y)) = (i32::try_from(*x), i32::try_from(*y)) else { continue };
+            let (Ok(x), Ok(y)) = (i32::try_from(*x), i32::try_from(*y)) else {
+                continue;
+            };
             #[allow(clippy::cast_possible_truncation)]
             world.spawn((
                 cdda_sim::Position { x, y, z: 0 },
-                cdda_sim::LightSource { luminance: *light as f32 },
+                cdda_sim::LightSource {
+                    luminance: *light as f32,
+                },
             ));
         }
         cdda_sim::cast_lights_with(&mut world);

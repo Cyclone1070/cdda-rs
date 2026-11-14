@@ -70,7 +70,8 @@ fn charges_are_summed_not_the_items_that_hold_them() {
     let inside = drop_item(&mut world, (1, 1), BATTERY, 7);
     let box_entity = drop_item(&mut world, (1, 1), BOX, 1);
     world.entity_mut(box_entity).insert(Container::new(1_000));
-    insert_into(&mut world, box_entity, inside, |_| ItemFacts::solid(10)).expect("the box takes it");
+    insert_into(&mut world, box_entity, inside, |_| ItemFacts::solid(10))
+        .expect("the box takes it");
     inventory.add(box_entity);
     let broken_battery = drop_item(&mut world, (1, 1), BATTERY, 40);
     broken(&mut world, broken_battery);
@@ -104,15 +105,28 @@ fn an_inventory_spends_charges_from_the_item_before_the_box_and_whole_items_the_
     let inside = drop_item(&mut world, (1, 1), BATTERY, 7);
     let box_entity = drop_item(&mut world, (1, 1), BOX, 1);
     world.entity_mut(box_entity).insert(Container::new(1_000));
-    insert_into(&mut world, box_entity, inside, |_| ItemFacts::solid(10)).expect("the box takes it");
+    insert_into(&mut world, box_entity, inside, |_| ItemFacts::solid(10))
+        .expect("the box takes it");
     inventory.add(box_entity);
 
-    assert!(inventory.has_charges(&mut world, BATTERY, 107), "107 charges are there");
-    assert!(!inventory.has_charges(&mut world, BATTERY, 108), "and no more than 107");
+    assert!(
+        inventory.has_charges(&mut world, BATTERY, 107),
+        "107 charges are there"
+    );
+    assert!(
+        !inventory.has_charges(&mut world, BATTERY, 108),
+        "and no more than 107"
+    );
 
     // 100 is exactly the loose battery, so the box is untouched and the request is met.
     let spend = inventory.use_charges(&mut world, BATTERY, 100, |_| true);
-    assert_eq!(spend, Consumed { taken: 100, satisfied: true });
+    assert_eq!(
+        spend,
+        Consumed {
+            taken: 100,
+            satisfied: true
+        }
+    );
     assert_eq!(
         charges_of(&mut world, &inventory, BATTERY, i32::MAX),
         7,
@@ -126,13 +140,25 @@ fn an_inventory_spends_charges_from_the_item_before_the_box_and_whole_items_the_
 
     // Ten asked of the remaining seven: seven taken, and the caller learns the request came up short.
     let short = inventory.use_charges(&mut world, BATTERY, 10, |_| true);
-    assert_eq!(short, Consumed { taken: 7, satisfied: false });
+    assert_eq!(
+        short,
+        Consumed {
+            taken: 7,
+            satisfied: false
+        }
+    );
 
     // And a whole item is a whole item: one battery, not one charge.
     let loose_again = drop_item(&mut world, (1, 1), BATTERY, 50);
     inventory.add(loose_again);
     let whole = inventory.use_amount(&mut world, BATTERY, 1, |_| true);
-    assert_eq!(whole, Consumed { taken: 1, satisfied: true });
+    assert_eq!(
+        whole,
+        Consumed {
+            taken: 1,
+            satisfied: true
+        }
+    );
     assert_eq!(
         charges_of(&mut world, &inventory, BATTERY, i32::MAX),
         0,

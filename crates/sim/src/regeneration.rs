@@ -93,7 +93,9 @@ pub fn mend_everyone(world: &mut World) -> i32 {
         // (`monster.cpp:3460-3494`). The two are separate heals in the reference and are summed here into one, which is the same number and one fewer place to mend the body twice.
         let mut amount = mend_over(world, rate.per_hour, 1);
         if rate.in_dark
-            && let Some((x, y, _z)) = world.get::<crate::Position>(entity).map(|at| (at.x, at.y, at.z))
+            && let Some((x, y, _z)) = world
+                .get::<crate::Position>(entity)
+                .map(|at| (at.x, at.y, at.z))
         {
             let light = crate::singletons::light(world)
                 .at(x, y)
@@ -110,9 +112,7 @@ pub fn mend_everyone(world: &mut World) -> i32 {
         if let Some(mut rolls) = crate::singletons::take_rolls(world) {
             let speaks = rolls.one_in(2);
             crate::singletons::put_rolls(world, rolls);
-            if speaks
-                && let Some(line) = crate::creature::regeneration_message(amount)
-            {
+            if speaks && let Some(line) = crate::creature::regeneration_message(amount) {
                 let mut name = world
                     .get::<crate::creature::Creature>(entity)
                     .map(|creature| creature.name.clone())
@@ -123,12 +123,18 @@ pub fn mend_everyone(world: &mut World) -> i32 {
                     name = crate::monster_registry::name_of(world, kind.0);
                 }
                 let name = name.unwrap_or_else(|| "monster".to_owned());
-                crate::messages::push_kind(world, &line.replacen("%s", &name, 1), crate::messages::MessageKind::Warning);
+                crate::messages::push_kind(
+                    world,
+                    &line.replacen("%s", &name, 1),
+                    crate::messages::MessageKind::Warning,
+                );
             }
         }
         // Reference: the same function puts speed back as the body mends (`monster.cpp:4104-4115`), so a monster that was slowed by its wounds walks faster as it heals.
         let now = crate::creature::health_of(world, entity).unwrap_or(0);
-        let base = world.get::<crate::creature::Speed>(entity).map(|speed| speed.base);
+        let base = world
+            .get::<crate::creature::Speed>(entity)
+            .map(|speed| speed.base);
         if let Some(base) = base
             && let Some(faster) = speed_back(base, rate.type_speed, amount, rate.type_hp, now)
             && let Some(mut speed) = world.get_mut::<crate::creature::Speed>(entity)
@@ -165,7 +171,11 @@ pub fn speed_back(base: i32, type_speed: i32, healed: i32, type_hp: i32, hp: i32
 /// (`age_in_hours /= damage_level + 1`), and `rez_factor` is `48 - age_in_hours`. A corpse older than six hours is ready when the factor has run out, or on a one-in-`rez_factor`
 /// chance. Everything the reference does with vehicles and the player's distance is left out on purpose: this store has no vehicle and no distance rule for a corpse.
 #[must_use]
-pub fn ready_to_revive(age_hours: i32, damage_level: i32, rolls: &mut cdda_core_types::rng::Rolls) -> bool {
+pub fn ready_to_revive(
+    age_hours: i32,
+    damage_level: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
     let mut age = age_hours;
     if damage_level > 0 {
         age /= damage_level + 1;
@@ -194,7 +204,13 @@ pub fn wind_back_per_turn(base_rate_per_turn: f64, winded: bool) -> f64 {
 /// Gives a character its wind back over some turns, clamped to what it can hold.
 ///
 /// Reference: `Character::update_stamina`'s tail (`character.cpp:7079-7082`): `ceil( stamina_recovery * turns )`, added, then `std::min( std::max( get_stamina(), 0 ), max_stam )`.
-pub fn recover_wind(world: &mut World, entity: Entity, base_rate_per_turn: f64, winded: bool, turns: i64) -> i32 {
+pub fn recover_wind(
+    world: &mut World,
+    entity: Entity,
+    base_rate_per_turn: f64,
+    winded: bool,
+    turns: i64,
+) -> i32 {
     let per_turn = wind_back_per_turn(base_rate_per_turn, winded);
     #[allow(clippy::cast_precision_loss)]
     let total = (per_turn * turns as f64).ceil();

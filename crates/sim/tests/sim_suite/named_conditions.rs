@@ -15,7 +15,8 @@ fn effect(text: &str) -> cdda_content::dialogue::Effect {
 
 fn holds(world: &World, speaker: Entity, text: &str) -> bool {
     let value = cdda_json::parse(text.as_bytes()).expect("json");
-    let condition = cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
+    let condition =
+        cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
     cdda_sim::conditions::holds_with(world, speaker, None, &condition)
 }
 
@@ -58,9 +59,19 @@ fn a_condition_is_stored_under_a_name_and_asked_for_later() {
         "**a name nobody has set answers no**, which is `evaluate_conditional`'s own answer for an unknown key"
     );
 
-    let setting = effect(r#"{ "set_condition": "is_a_zombie", "condition": { "u_has_species": "ZOMBIE" } }"#);
-    let applied = cdda_sim::dialogue_effects::run_effects(&mut world, zombie, None, std::slice::from_ref(&setting));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect runs");
+    let setting =
+        effect(r#"{ "set_condition": "is_a_zombie", "condition": { "u_has_species": "ZOMBIE" } }"#);
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        zombie,
+        None,
+        std::slice::from_ref(&setting),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect runs"
+    );
 
     assert!(
         holds(&world, zombie, asked),

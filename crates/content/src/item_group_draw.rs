@@ -69,7 +69,9 @@ impl Entry {
                 probability: weight,
                 event,
             },
-            Self::Nothing { .. } => Self::Nothing { probability: weight },
+            Self::Nothing { .. } => Self::Nothing {
+                probability: weight,
+            },
         }
     }
 
@@ -338,7 +340,9 @@ fn expand(
             remaining -= entry.weight();
             // The holiday test sits **after** the subtraction and before the answer: an event-based entry whose in-season chance is zero is passed over,
             // and its weight has already been taken off the running total (`src/item_group.cpp:846-856`).
-            if (entry.is_event_based() && entry.in_season_probability(holiday) == 0) || remaining >= 0 {
+            if (entry.is_event_based() && entry.in_season_probability(holiday) == 0)
+                || remaining >= 0
+            {
                 continue;
             }
             match entry {

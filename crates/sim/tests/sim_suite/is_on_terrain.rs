@@ -20,7 +20,8 @@ fn the_ground_under_the_actor_is_asked_by_id() {
     cdda_sim::square::set_terrain(&mut world, (0, 0, 0), grass);
 
     let value = cdda_json::parse(br#"{ "u_is_on_terrain": "t_grass" }"#).expect("json");
-    let condition = cdda_content::dialogue::read_condition(&value).expect("**the port reads `u_is_on_terrain`**");
+    let condition = cdda_content::dialogue::read_condition(&value)
+        .expect("**the port reads `u_is_on_terrain`**");
     assert!(
         cdda_sim::conditions::holds_with(&world, speaker, None, &condition),
         "**the survivor stands on grass**"

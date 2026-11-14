@@ -26,7 +26,9 @@ fn pocket(capacity_ml: i64) -> Pocket {
 fn box_with(pockets: Vec<Pocket>) -> (World, Entity, Entity) {
     let mut world = World::new();
     let box_entity = drop_item(&mut world, (5, 5), ItemTypeId(9), 1);
-    world.entity_mut(box_entity).insert(Container::with_pockets(pockets));
+    world
+        .entity_mut(box_entity)
+        .insert(Container::with_pockets(pockets));
     let item = drop_item(&mut world, (5, 5), ItemTypeId(1), 1);
     (world, box_entity, item)
 }
@@ -105,11 +107,13 @@ fn a_liquid_is_not_measured_for_length() {
     // "liquids and gases avoid the size limit altogether" (`src/item_pocket.cpp:1409-1410`): a 1 litre of water in a watertight pocket with a 50 mm limit goes in.
     let mut world = World::new();
     let bottle = drop_item(&mut world, (5, 5), ItemTypeId(9), 1);
-    world.entity_mut(bottle).insert(Container::with_pockets(vec![Pocket {
-        watertight: true,
-        max_item_length_mm: 50,
-        ..pocket(5_000)
-    }]));
+    world
+        .entity_mut(bottle)
+        .insert(Container::with_pockets(vec![Pocket {
+            watertight: true,
+            max_item_length_mm: 50,
+            ..pocket(5_000)
+        }]));
     let water = drop_item(&mut world, (5, 5), ItemTypeId(1), 1);
     assert_eq!(
         insert_into(&mut world, bottle, water, |_| ItemFacts::liquid(1_000)),

@@ -72,12 +72,16 @@ pub fn holder(world: &World) -> Option<Entity> {
 #[must_use]
 pub fn code_of(world: &World, name: &str) -> Option<u32> {
     let element = holder(world)?;
-    world.get::<TerrainTypes>(element).and_then(|types| types.codes.get(name).copied())
+    world
+        .get::<TerrainTypes>(element)
+        .and_then(|types| types.codes.get(name).copied())
 }
 
 /// The name a terrain code belongs to, or nothing when the code is not in the table.
 #[must_use]
 pub fn name_of(world: &World, code: u32) -> Option<String> {
     let element = holder(world)?;
-    world.get::<TerrainTypes>(element).and_then(|types| types.names.get(&code).cloned())
+    world
+        .get::<TerrainTypes>(element)
+        .and_then(|types| types.names.get(&code).cloned())
 }

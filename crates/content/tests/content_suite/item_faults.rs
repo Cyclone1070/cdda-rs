@@ -58,8 +58,8 @@ fn dump() -> BTreeMap<String, Vec<(String, i32)>> {
 
 /// The reference's data directories.
 fn dirs() -> Vec<std::path::PathBuf> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     vec![reference.join("core"), reference.join("json")]
 }
 

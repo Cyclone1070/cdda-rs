@@ -358,10 +358,9 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
                     .iter()
                     .filter_map(|entry| match entry {
                         Value::Array(pair) => match (pair.first(), pair.get(1)) {
-                            (Some(Value::Str(item)), Some(Value::Int(count))) => Some((
-                                item.clone(),
-                                i32::try_from(*count).unwrap_or(0),
-                            )),
+                            (Some(Value::Str(item)), Some(Value::Int(count))) => {
+                                Some((item.clone(), i32::try_from(*count).unwrap_or(0)))
+                            }
                             _ => None,
                         },
                         _ => None,
@@ -374,7 +373,11 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             proficiencies: taught_by(object),
             container: {
                 let dump = match member(object, "made_item") {
-                    Some(Value::Str(id)) if object.get("result") != Some(&Value::Str(id.clone())) => Some(id.clone()),
+                    Some(Value::Str(id))
+                        if object.get("result") != Some(&Value::Str(id.clone())) =>
+                    {
+                        Some(id.clone())
+                    }
                     _ => None,
                 };
                 dump.or_else(|| {
@@ -396,7 +399,8 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
                     let mut product: i32 = 1;
                     for key in ["result_mult", "charges"] {
                         if let Some(Value::Int(count)) = member(object, key) {
-                            product = product.saturating_mul(i32::try_from(*count).unwrap_or(1).max(1));
+                            product =
+                                product.saturating_mul(i32::try_from(*count).unwrap_or(1).max(1));
                         }
                     }
                     product.max(1)
@@ -406,7 +410,9 @@ pub fn from_dump(value: &Value) -> Option<(Vec<Recipe>, usize)> {
             // gains nothing from batching.
             batch_rscale: match member(object, "batch_time_factors") {
                 Some(Value::Array(factors)) => match factors.first() {
-                    Some(Value::Int(percent)) => f64::from(i32::try_from(*percent).unwrap_or(0)) / 100.0,
+                    Some(Value::Int(percent)) => {
+                        f64::from(i32::try_from(*percent).unwrap_or(0)) / 100.0
+                    }
                     _ => 0.0,
                 },
                 _ => 0.0,
@@ -587,13 +593,20 @@ impl Recipe {
     #[must_use]
     pub fn difficulty_for(&self, skill_level: i32) -> i32 {
         self.practice.map_or(self.difficulty, |practice| {
-            practice_difficulty(skill_level, practice.min_difficulty, practice.max_difficulty)
+            practice_difficulty(
+                skill_level,
+                practice.min_difficulty,
+                practice.max_difficulty,
+            )
         })
     }
 
     /// The level at which this recipe stops teaching - the reference's `get_skill_cap`.
     #[must_use]
     pub fn teaching_cap(&self) -> i32 {
-        skill_cap(self.practice.map(|practice| practice.skill_limit), self.difficulty)
+        skill_cap(
+            self.practice.map(|practice| practice.skill_limit),
+            self.difficulty,
+        )
     }
 }

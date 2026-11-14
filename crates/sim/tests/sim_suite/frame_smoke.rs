@@ -30,10 +30,13 @@ fn world(smoke: i32) -> World {
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);
     terrain.insert_symbol(FLOOR, '.');
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain,
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
 
     // **Smoke's own numbers**: translucent at its first intensity and all but solid at its third (`src/field.cpp`), which is why a room fills up with it.
     let mut table = FieldTable::new();
@@ -83,5 +86,8 @@ fn dense_smoke_hides_what_is_behind_it_entirely() {
     cast_lights_with(&mut smoky);
     let drawn = frame(&mut smoky, (5, 5), 6, 10.0, 3.0);
     let seen = drawn.at(9, 5).expect("a floor").seen;
-    assert_eq!(seen, 0.0, "smoke at its third intensity is solid to a sight line");
+    assert_eq!(
+        seen, 0.0,
+        "smoke at its third intensity is solid to a sight line"
+    );
 }

@@ -44,7 +44,12 @@ pub fn read_speed_percent(intelligence: i32) -> i32 {
 ///
 /// The caller supplies the **smaller** of the two vision modifiers, which is the reference's `std::min`: the worse eyes win.
 #[must_use]
-pub fn time_to_read(base_seconds: i64, speed_percent: i32, vision_modifier: i32, intel_shortfall: i32) -> i64 {
+pub fn time_to_read(
+    base_seconds: i64,
+    speed_percent: i32,
+    vision_modifier: i32,
+    intel_shortfall: i32,
+) -> i64 {
     let mut seconds = base_seconds * i64::from(speed_percent) / 100;
     seconds *= i64::from(vision_modifier);
     if intel_shortfall > 0 {
@@ -77,7 +82,12 @@ pub fn book_time_seconds(
     intel_shortfall: i32,
     identified: bool,
 ) -> i64 {
-    let full = time_to_read(base_seconds, speed_percent, vision_modifier, intel_shortfall);
+    let full = time_to_read(
+        base_seconds,
+        speed_percent,
+        vision_modifier,
+        intel_shortfall,
+    );
     if identified { full } else { skimmed(full) }
 }
 
@@ -109,7 +119,12 @@ pub struct FunBook {
 /// flipping it, and takes one more off a book that was already no fun - so hate makes a bad book worse and a good book merely dull. The chapter halving comes **last**, so it halves what the traits did
 /// rather than what the book stated. And the halving needs `fun_bonus > 1` **after** the traits, so a book of fun one that loves-books makes two is halved.
 #[must_use]
-pub fn book_fun_for(book: FunBook, traits: &[&str], inspirational: bool, human_cookbook: bool) -> i32 {
+pub fn book_fun_for(
+    book: FunBook,
+    traits: &[&str],
+    inspirational: bool,
+    human_cookbook: bool,
+) -> i32 {
     let has = |trait_name: &str| traits.contains(&trait_name);
     let mut fun = book.fun;
     if (has("CANNIBAL") || has("PSYCHOPATH") || has("SAPIOVORE")) && human_cookbook {
@@ -134,7 +149,12 @@ pub fn book_fun_for(book: FunBook, traits: &[&str], inspirational: bool, human_c
 
 /// Whether a reader would call the book fun at all - the reference's `fun_to_read` (`character.cpp:11953-11956`), which is `book_fun_for > 0`.
 #[must_use]
-pub fn fun_to_read(book: FunBook, traits: &[&str], inspirational: bool, human_cookbook: bool) -> bool {
+pub fn fun_to_read(
+    book: FunBook,
+    traits: &[&str],
+    inspirational: bool,
+    human_cookbook: bool,
+) -> bool {
     book_fun_for(book, traits, inspirational, human_cookbook) > 0
 }
 
@@ -149,7 +169,11 @@ pub fn fun_to_read(book: FunBook, traits: &[&str], inspirational: bool, human_co
 /// **All three conditions must hold for the refusal**, and the third is the half a reader notices: an **unidentified** book can always be read, however miserable the character, because there is still
 /// something to learn from it. A book that is still fun needs no cheering up either.
 #[must_use]
-pub const fn morale_permits_reading(fun_to_read: bool, morale_level: i32, identified: bool) -> bool {
+pub const fn morale_permits_reading(
+    fun_to_read: bool,
+    morale_level: i32,
+    identified: bool,
+) -> bool {
     fun_to_read || crate::morale::has_morale_to_read(morale_level) || !identified
 }
 

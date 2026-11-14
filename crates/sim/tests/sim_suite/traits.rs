@@ -87,7 +87,10 @@ fn a_program_guarded_by_a_trait_runs_only_when_the_trait_is_there() {
 
     traits::add_trait(&mut world, survivor, "HALLUCINATION");
     eoc_registry::run_program(&mut world, survivor, None, "EOC_PARKOUR", 0);
-    assert_eq!(messages::lines(&world), vec!["you vault the fence".to_owned()]);
+    assert_eq!(
+        messages::lines(&world),
+        vec!["you vault the fence".to_owned()]
+    );
 }
 
 /// The data's whole trait ids, so the ids the tests use are real ones rather than inventions.
@@ -131,9 +134,15 @@ fn the_trait_ids_in_the_data_are_what_the_tests_use() {
     // The first version of this test used invented ids (`TRAIT_PARKOUR`), and this assertion is what caught it: the data's
     // mutations are spelled bare, without the `TRAIT_` prefix the reference's `trait_id` adds in code. A test that invents an id
     // proves the port handles a trait nobody has.
-    assert!(ids.contains("HALLUCINATION"), "the test's trait is a real one");
+    assert!(
+        ids.contains("HALLUCINATION"),
+        "the test's trait is a real one"
+    );
     assert!(ids.contains("MARTIAL_ARTS4"), "and so is the second");
-    assert!(ids.len() > 400, "the data defines the mutations a trait set would hold");
+    assert!(
+        ids.len() > 400,
+        "the data defines the mutations a trait set would hold"
+    );
 }
 
 /// A program can give and take a trait, which is how the data's mutations happen.
@@ -143,7 +152,7 @@ fn the_trait_ids_in_the_data_are_what_the_tests_use() {
 /// (36 `u_add_trait`, 103 `u_lose_trait`).
 #[test]
 fn a_program_can_give_and_take_a_trait() {
-    use cdda_sim::dialogue_effects::{run_effects, Applied};
+    use cdda_sim::dialogue_effects::{Applied, run_effects};
     use cdda_sim::messages;
 
     let mut world = World::new();

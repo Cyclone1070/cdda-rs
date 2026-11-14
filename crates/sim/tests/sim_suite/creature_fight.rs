@@ -6,7 +6,6 @@
 //! nobody calls.
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
-
 // The mending rates are compared exactly: they are the reference's own constants (0.02, 0.005), and a rate that arrives a hair off is a port that reordered the branches.
 #![allow(clippy::float_cmp)]
 
@@ -54,12 +53,14 @@ fn zombie(world: &mut World, square: (i32, i32, i32), hp: i32) -> Entity {
     set_health(world, entity, hp);
     set_speed(world, entity, 100, 0);
     // Two dice of three faces, at skill four - the corpus zombie's own numbers.
-    world.entity_mut(entity).insert(MeleeAttack(cdda_sim::melee::Attack {
-        accuracy_tenths: 40,
-        fixed: cdda_sim::melee::Damage::default(),
-        dice: 2,
-        sides: 3,
-    }));
+    world
+        .entity_mut(entity)
+        .insert(MeleeAttack(cdda_sim::melee::Attack {
+            accuracy_tenths: 40,
+            fixed: cdda_sim::melee::Damage::default(),
+            dice: 2,
+            sides: 3,
+        }));
     entity
 }
 
@@ -135,7 +136,11 @@ fn a_creature_with_no_goal_does_nothing() {
 
     a_turn(&mut world);
 
-    assert_eq!(creature_at(&world, (0, 0, 0)), vec![zombie_entity], "it stayed");
+    assert_eq!(
+        creature_at(&world, (0, 0, 0)),
+        vec![zombie_entity],
+        "it stayed"
+    );
     assert_eq!(health_of(&world, survivor), Some(30), "and nobody was hit");
 }
 
@@ -149,7 +154,9 @@ fn a_dodging_creature_takes_points_off_the_attacker_s_roll() {
     let mut world = World::new();
     let dodger = spawn_creature(&mut world, "a dodger", (0, 0, 0));
     let stumbler = spawn_creature(&mut world, "a stumbler", (1, 0, 0));
-    world.entity_mut(dodger).insert(cdda_sim::creature::Dodge { points: 3 });
+    world
+        .entity_mut(dodger)
+        .insert(cdda_sim::creature::Dodge { points: 3 });
 
     let swinging = cdda_sim::melee::Attack {
         accuracy_tenths: 40,
@@ -250,12 +257,22 @@ fn a_wounded_monster_mends_as_the_turns_pass_and_never_past_its_ceiling() {
     world
         .entity_mut(hurt)
         .insert(Health { hp: 40, max_hp: 80 })
-        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80, in_dark: false });
+        .insert(Mending {
+            per_hour: 3_600.0,
+            type_speed: 100,
+            type_hp: 80,
+            in_dark: false,
+        });
     let whole = cdda_sim::creature::spawn_creature(&mut world, "the whole one", (2, 2, 0));
     world
         .entity_mut(whole)
         .insert(Health { hp: 80, max_hp: 80 })
-        .insert(Mending { per_hour: 3_600.0, type_speed: 100, type_hp: 80, in_dark: false });
+        .insert(Mending {
+            per_hour: 3_600.0,
+            type_speed: 100,
+            type_hp: 80,
+            in_dark: false,
+        });
 
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
@@ -286,7 +303,8 @@ fn a_wounded_monster_mends_as_the_turns_pass_and_never_past_its_ceiling() {
 /// `regeneration::mending_per_hour` and `spawn_monster_of_type`. A zombie states no rate of its own, so its rate is the reviving fallback: `0.02 * 80`.
 #[test]
 fn a_monster_placed_from_its_type_carries_the_rate_its_body_gives_it() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let bytes = std::fs::read(path).expect("the monster dump exists");
     let root = cdda_json::parse(&bytes).expect("the dump is valid JSON");
     let cdda_json::Value::Object(root) = root else {
@@ -329,13 +347,29 @@ fn a_monster_gets_its_speed_back_with_its_body() {
 
     // The arguments are (base speed, the type's speed, what mending healed, the type's hit points, hit points now).
     // Everything back at once when the body is whole.
-    assert_eq!(speed_back(30, 70, 70, 80, 80), Some(70), "a whole body walks at its own speed");
+    assert_eq!(
+        speed_back(30, 70, 70, 80, 80),
+        Some(70),
+        "a whole body walks at its own speed"
+    );
     // And gradually while it is not: ten healed of a type's eighty puts back ten eightieths of seventy, which is eight whole points.
-    assert_eq!(speed_back(30, 70, 10, 80, 40), Some(38), "eight points for ten healed");
+    assert_eq!(
+        speed_back(30, 70, 10, 80, 40),
+        Some(38),
+        "eight points for ten healed"
+    );
     // A mending that heals nothing still gives a point - the reference's own floor.
-    assert_eq!(speed_back(30, 70, 0, 80, 40), Some(31), "at least one point");
+    assert_eq!(
+        speed_back(30, 70, 0, 80, 40),
+        Some(31),
+        "at least one point"
+    );
     // Nothing to restore means nothing changes, so the caller can skip the write.
-    assert_eq!(speed_back(70, 70, 40, 80, 40), None, "already as fast as its type");
+    assert_eq!(
+        speed_back(70, 70, 40, 80, 40),
+        None,
+        "already as fast as its type"
+    );
 }
 
 /// A slowed monster walks faster again as its body mends, in the turn stage that mends it.
@@ -362,7 +396,12 @@ fn a_slowed_monster_walks_faster_again_as_it_mends() {
         .entity_mut(hurt)
         .insert(Health { hp: 40, max_hp: 80 })
         .insert(Speed { base: 30, bonus: 0 })
-        .insert(Mending { per_hour: 3_600.0, type_speed: 70, type_hp: 80, in_dark: false });
+        .insert(Mending {
+            per_hour: 3_600.0,
+            type_speed: 70,
+            type_hp: 80,
+            in_dark: false,
+        });
 
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
@@ -450,7 +489,10 @@ fn a_monster_that_reaches_the_survivor_hurts_it_in_the_turn() {
             dice: 2,
             sides: 3,
         }))
-        .insert(cdda_sim::creature::Speed { base: 100, bonus: 0 })
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        })
         .insert(cdda_sim::creature::Goal { square: (0, 0, 0) });
 
     let before = cdda_sim::creature::health_of(&world, survivor).unwrap_or(0);
@@ -484,7 +526,10 @@ fn a_corpse_gets_up_when_its_age_says_so() {
 
     // Past forty-eight hours the factor is gone, so the answer is yes with no dice spent at all.
     let mut rolls = Rolls::new(3);
-    assert!(ready_to_revive(48, 0, &mut rolls), "two days is long enough");
+    assert!(
+        ready_to_revive(48, 0, &mut rolls),
+        "two days is long enough"
+    );
     assert!(ready_to_revive(72, 0, &mut rolls), "and longer still");
 
     // Damage makes a corpse younger: twelve hours at damage level one is six, which is not past the floor.
@@ -582,9 +627,15 @@ fn a_reviving_corpse_gets_up_and_nothing_else_does() {
         vec![(cdda_sim::MonsterKindId(0), (0, 0, 0))],
         "the two-day-old reviving corpse, on its own square"
     );
-    assert!(world.get_entity(old_riser).is_err(), "and its corpse is gone");
+    assert!(
+        world.get_entity(old_riser).is_err(),
+        "and its corpse is gone"
+    );
     assert!(world.get_entity(fresh).is_ok(), "an hour old stays down");
-    assert!(world.get_entity(old_stayer).is_ok(), "and one that does not revive stays down for ever");
+    assert!(
+        world.get_entity(old_stayer).is_ok(),
+        "and one that does not revive stays down for ever"
+    );
 }
 
 /// A monster killed in a turn leaves a corpse behind, and the corpse knows what it was.
@@ -638,7 +689,10 @@ fn a_monster_killed_in_a_turn_leaves_a_corpse() {
 
     cdda_sim::turn::run_turn(&mut world);
 
-    assert!(world.get_entity(zombie).is_err(), "the dead creature is gone");
+    assert!(
+        world.get_entity(zombie).is_err(),
+        "the dead creature is gone"
+    );
     let corpses: Vec<(Entity, cdda_sim::CorpseOf)> = {
         let mut query = world.query::<(Entity, &cdda_sim::CorpseOf)>();
         query
@@ -650,9 +704,16 @@ fn a_monster_killed_in_a_turn_leaves_a_corpse() {
     let Some((_, corpse)) = corpses.first() else {
         panic!("a corpse was expected")
     };
-    assert_eq!(corpse.kind, cdda_sim::MonsterKindId(0), "and knows what it was");
+    assert_eq!(
+        corpse.kind,
+        cdda_sim::MonsterKindId(0),
+        "and knows what it was"
+    );
     assert_eq!(corpse.monster_volume_ml, 62_500, "and how big it was");
-    assert_eq!(corpse.died_on, 500, "and when it died, which is what its age counts from");
+    assert_eq!(
+        corpse.died_on, 500,
+        "and when it died, which is what its age counts from"
+    );
     assert!(corpse.revives, "and that it can get up again");
 }
 
@@ -683,7 +744,8 @@ fn a_monster_spawned_from_its_type_carries_that_type_s_armour_piercing() {
 
     // The type is the corpus's own zombie with one field changed, so the fixture cannot drift from the data it stands for.
     let mut monster_type = {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/monsters/monsters.json");
         let text = std::fs::read(path).expect("the monster dump exists");
         let value = cdda_json::parse(&text).expect("the dump is valid JSON");
         let cdda_json::Value::Object(root) = value else {
@@ -700,7 +762,8 @@ fn a_monster_spawned_from_its_type_carries_that_type_s_armour_piercing() {
     };
     monster_type.id = "mon_piercer".to_owned();
     monster_type.melee_dice_ap = 5;
-    let monster = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, &monster_type, (1, 1, 0), 100);
+    let monster =
+        cdda_sim::creature::spawn_monster_of_type(&mut world, kind, &monster_type, (1, 1, 0), 100);
 
     let attack = world
         .get::<cdda_sim::creature::MeleeAttack>(monster)
@@ -727,7 +790,8 @@ fn a_monster_whose_data_states_a_flat_blow_hits_for_it() {
     use bevy_ecs::prelude::*;
 
     let types = {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/monsters/monsters.json");
         let text = std::fs::read(path).expect("the monster dump exists");
         let value = cdda_json::parse(&text).expect("the dump is valid JSON");
         let cdda_json::Value::Object(root) = value else {
@@ -738,10 +802,7 @@ fn a_monster_whose_data_states_a_flat_blow_hits_for_it() {
         };
         cdda_content::monsters::load_objects(prototypes).expect("the dump loads")
     };
-    let Some(crow) = types
-        .iter()
-        .find(|one| one.id == "mon_crow_mutant_small")
-    else {
+    let Some(crow) = types.iter().find(|one| one.id == "mon_crow_mutant_small") else {
         panic!("the corpus has the crow")
     };
     assert_eq!(crow.melee_cut, 2, "the dump states a cut of two");
@@ -767,8 +828,15 @@ fn a_monster_whose_data_states_a_flat_blow_hits_for_it() {
         .expect("a spawned monster can hit")
         .0;
     assert_eq!(attack.fixed.cut, 2, "the flat cut arrives with the monster");
-    assert_eq!(attack.fixed.bash, 0, "and the flat bash it does not have stays zero");
-    assert!(attack.dice > 0, "and its dice are still there as well: {}", attack.dice);
+    assert_eq!(
+        attack.fixed.bash, 0,
+        "and the flat bash it does not have stays zero"
+    );
+    assert!(
+        attack.dice > 0,
+        "and its dice are still there as well: {}",
+        attack.dice
+    );
 }
 
 /// A blow is charged to the monster before it lands, so a monster that has walked cannot also swing for free.
@@ -790,7 +858,8 @@ fn a_monster_pays_for_its_blow_out_of_its_own_moves() {
     cdda_sim::load_level(&mut world, &level);
 
     let mut monster_type = {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/monsters/monsters.json");
         let text = std::fs::read(path).expect("the monster dump exists");
         let value = cdda_json::parse(&text).expect("the dump is valid JSON");
         let cdda_json::Value::Object(root) = value else {
@@ -805,7 +874,10 @@ fn a_monster_pays_for_its_blow_out_of_its_own_moves() {
             .find(|one| one.id == "mon_zombie")
             .expect("the corpus has a zombie")
     };
-    assert_eq!(monster_type.attack_cost, 100, "a zombie's blow costs a turn");
+    assert_eq!(
+        monster_type.attack_cost, 100,
+        "a zombie's blow costs a turn"
+    );
     monster_type.attack_cost = 60;
 
     let zombie = cdda_sim::creature::spawn_monster_of_type(
@@ -852,7 +924,8 @@ fn a_monster_with_no_dice_hurts_nobody_however_much_flat_damage_its_data_states(
     cdda_sim::load_level(&mut world, &level);
 
     let mut monster_type = {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/monsters/monsters.json");
         let text = std::fs::read(path).expect("the monster dump exists");
         let value = cdda_json::parse(&text).expect("the dump is valid JSON");
         let cdda_json::Value::Object(root) = value else {
@@ -919,7 +992,8 @@ fn a_monster_that_hits_and_runs_is_running_after_its_blow() {
     cdda_sim::effect_registry::set_effect_types(&mut world, std::slice::from_ref(&kind));
 
     let mut monster_type = {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/monsters/monsters.json");
         let text = std::fs::read(path).expect("the monster dump exists");
         let value = cdda_json::parse(&text).expect("the dump is valid JSON");
         let cdda_json::Value::Object(root) = value else {
@@ -934,7 +1008,13 @@ fn a_monster_that_hits_and_runs_is_running_after_its_blow() {
             .find(|one| one.id == "mon_zombie")
             .expect("the corpus has a zombie")
     };
-    let runner = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &monster_type, (1, 1, 0), 100);
+    let runner = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        &monster_type,
+        (1, 1, 0),
+        100,
+    );
     let survivor = cdda_sim::spawn_player(&mut world, (0, 1), 80, 0);
 
     // A plain zombie does not run.
@@ -948,7 +1028,13 @@ fn a_monster_that_hits_and_runs_is_running_after_its_blow() {
 
     // The same monster with the flag, spawned from the same type.
     monster_type.flags.insert("HIT_AND_RUN".to_owned());
-    let runner = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &monster_type, (1, 2, 0), 100);
+    let runner = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        &monster_type,
+        (1, 2, 0),
+        100,
+    );
     let mut ran = false;
     for _ in 0..12 {
         cdda_sim::creature::strike_at(&mut world, runner, survivor);
@@ -986,13 +1072,19 @@ fn a_turn_gives_wind_back_and_panic_slows_it() {
     let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     world
         .entity_mut(survivor)
-        .insert(cdda_sim::creature::Stamina { cur: 100.0, max: 3_500.0 });
+        .insert(cdda_sim::creature::Stamina {
+            cur: 100.0,
+            max: 3_500.0,
+        });
     recover_wind(&mut world, survivor, 20.0, false, 1);
     let after = world
         .get::<cdda_sim::creature::Stamina>(survivor)
         .expect("the survivor has wind")
         .cur;
-    assert!((after - 120.0).abs() < 0.001, "one turn gives twenty back: {after}");
+    assert!(
+        (after - 120.0).abs() < 0.001,
+        "one turn gives twenty back: {after}"
+    );
 
     // And it never goes above the ceiling.
     recover_wind(&mut world, survivor, 20.0, false, 1_000);
@@ -1000,7 +1092,10 @@ fn a_turn_gives_wind_back_and_panic_slows_it() {
         .get::<cdda_sim::creature::Stamina>(survivor)
         .expect("still there")
         .cur;
-    assert!((capped - 3_500.0).abs() < 0.001, "and stops at the ceiling: {capped}");
+    assert!(
+        (capped - 3_500.0).abs() < 0.001,
+        "and stops at the ceiling: {capped}"
+    );
 }
 
 /// The turn gives a character its wind back, and a creature without wind is left alone.
@@ -1023,7 +1118,10 @@ fn the_turn_gives_a_character_its_wind_back() {
     let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     world
         .entity_mut(survivor)
-        .insert(cdda_sim::creature::Stamina { cur: 0.0, max: 3_500.0 });
+        .insert(cdda_sim::creature::Stamina {
+            cur: 0.0,
+            max: 3_500.0,
+        });
     let monster = cdda_sim::creature::spawn_creature(&mut world, "a rat", (2, 2, 0));
 
     cdda_sim::turn::run_turn(&mut world);
@@ -1032,7 +1130,10 @@ fn the_turn_gives_a_character_its_wind_back() {
         .get::<cdda_sim::creature::Stamina>(survivor)
         .expect("the survivor still has wind")
         .cur;
-    assert!((wind - 20.0).abs() < 0.001, "a turn gives twenty back: {wind}");
+    assert!(
+        (wind - 20.0).abs() < 0.001,
+        "a turn gives twenty back: {wind}"
+    );
     assert!(
         world.get::<cdda_sim::creature::Stamina>(monster).is_none(),
         "and a creature with no wind is not handed one"
@@ -1055,22 +1156,62 @@ fn a_monster_s_attitude_follows_its_morale_its_anger_and_its_wounds() {
     use cdda_sim::creature::{Attitude, attitude};
 
     // Negative morale: any wound past two thirds and it runs; a scratch and anger to spare and it follows.
-    assert_eq!(attitude(90, 100, -10, 25), Attitude::Follow, "hurt but still game");
-    assert_eq!(attitude(33, 100, -10, 25), Attitude::Flee, "a third of its hit points is not game");
-    assert_eq!(attitude(34, 100, -10, 25), Attitude::Follow, "one point more is");
-    assert_eq!(attitude(90, 100, -10, 5), Attitude::Flee, "anger that does not outweigh the fear runs");
+    assert_eq!(
+        attitude(90, 100, -10, 25),
+        Attitude::Follow,
+        "hurt but still game"
+    );
+    assert_eq!(
+        attitude(33, 100, -10, 25),
+        Attitude::Flee,
+        "a third of its hit points is not game"
+    );
+    assert_eq!(
+        attitude(34, 100, -10, 25),
+        Attitude::Follow,
+        "one point more is"
+    );
+    assert_eq!(
+        attitude(90, 100, -10, 5),
+        Attitude::Flee,
+        "anger that does not outweigh the fear runs"
+    );
 
     // No anger at all: it ignores a healthy survivor and runs from a hurt one.
-    assert_eq!(attitude(100, 100, 10, 0), Attitude::Ignore, "nothing to be angry about");
-    assert_eq!(attitude(61, 100, 10, 0), Attitude::Ignore, "sixty-one per cent is above the line");
-    assert_eq!(attitude(60, 100, 10, 0), Attitude::Flee, "sixty is the line, and it runs");
+    assert_eq!(
+        attitude(100, 100, 10, 0),
+        Attitude::Ignore,
+        "nothing to be angry about"
+    );
+    assert_eq!(
+        attitude(61, 100, 10, 0),
+        Attitude::Ignore,
+        "sixty-one per cent is above the line"
+    );
+    assert_eq!(
+        attitude(60, 100, 10, 0),
+        Attitude::Flee,
+        "sixty is the line, and it runs"
+    );
 
     // Some anger: it follows.
-    assert_eq!(attitude(100, 100, 10, 5), Attitude::Follow, "a little anger is a tail, not a fight");
+    assert_eq!(
+        attitude(100, 100, 10, 5),
+        Attitude::Follow,
+        "a little anger is a tail, not a fight"
+    );
 
     // And enough anger: it attacks.
-    assert_eq!(attitude(100, 100, 10, 10), Attitude::Attack, "ten points of anger is a fight");
-    assert_eq!(attitude(1, 100, 10, 50), Attitude::Attack, "one hit point and furious is still furious");
+    assert_eq!(
+        attitude(100, 100, 10, 10),
+        Attitude::Attack,
+        "ten points of anger is a fight"
+    );
+    assert_eq!(
+        attitude(1, 100, 10, 50),
+        Attitude::Attack,
+        "one hit point and furious is still furious"
+    );
 }
 
 /// A spawned monster starts with its type's morale and anger, which is what its attitude is read from.
@@ -1082,7 +1223,8 @@ fn a_spawned_monster_starts_with_its_type_s_morale_and_anger() {
     use bevy_ecs::prelude::*;
 
     let zombie_type = {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/monsters/monsters.json");
         let text = std::fs::read(path).expect("the monster dump exists");
         let value = cdda_json::parse(&text).expect("the dump is valid JSON");
         let cdda_json::Value::Object(root) = value else {
@@ -1105,15 +1247,25 @@ fn a_spawned_monster_starts_with_its_type_s_morale_and_anger() {
         }
     }
     cdda_sim::load_level(&mut world, &level);
-    let zombie = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &zombie_type, (1, 1, 0), 100);
+    let zombie = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        &zombie_type,
+        (1, 1, 0),
+        100,
+    );
 
     assert_eq!(
-        world.get::<cdda_sim::creature::Morale>(zombie).map(|carried| carried.0),
+        world
+            .get::<cdda_sim::creature::Morale>(zombie)
+            .map(|carried| carried.0),
         Some(zombie_type.morale),
         "the monster's morale is its type's"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Anger>(zombie).map(|carried| carried.0),
+        world
+            .get::<cdda_sim::creature::Anger>(zombie)
+            .map(|carried| carried.0),
         Some(zombie_type.aggression),
         "and its anger its type's aggression"
     );
@@ -1156,7 +1308,9 @@ fn a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal() 
     let survivor = cdda_sim::spawn_player(&mut world, (4, 2), 80, 0);
 
     let distance_to_survivor = |world: &World, entity: Entity| {
-        let place = world.get::<cdda_sim::Position>(entity).expect("it has a place");
+        let place = world
+            .get::<cdda_sim::Position>(entity)
+            .expect("it has a place");
         (place.x - 4).abs() + (place.y - 2).abs()
     };
 
@@ -1182,7 +1336,10 @@ fn a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal() 
         .insert(cdda_sim::creature::Anger(5));
     cdda_sim::creature::set_goal(&mut world, scared, (0, 1, 0));
     cdda_sim::creature::set_speed(&mut world, scared, 100, 0);
-    let scared_before = (world.get::<cdda_sim::Position>(scared).expect("a place").x, world.get::<cdda_sim::Position>(scared).expect("a place").y);
+    let scared_before = (
+        world.get::<cdda_sim::Position>(scared).expect("a place").x,
+        world.get::<cdda_sim::Position>(scared).expect("a place").y,
+    );
 
     for _ in 0..4 {
         cdda_sim::turn::run_turn(&mut world);
@@ -1199,7 +1356,8 @@ fn a_frightened_monster_runs_from_the_survivor_instead_of_walking_to_its_goal() 
         "the frightened one moved"
     );
     assert!(
-        (scared_after.x - 4).abs() + (scared_after.y - 2).abs() > (scared_before.0 - 4).abs() + (scared_before.1 - 2).abs(),
+        (scared_after.x - 4).abs() + (scared_after.y - 2).abs()
+            > (scared_before.0 - 4).abs() + (scared_before.1 - 2).abs(),
         "and moved away: {scared_before:?} then {:?}",
         (scared_after.x, scared_after.y)
     );
@@ -1215,20 +1373,38 @@ fn a_monster_runs_when_it_is_frightened_or_when_a_follower_gets_too_close() {
     use cdda_sim::creature::is_fleeing;
 
     // The vetoes come first: plenty of anger or morale means it never runs, whatever else is true.
-    assert!(!is_fleeing(1, 100, -10, 100, 1), "a hundred anger is fearless");
+    assert!(
+        !is_fleeing(1, 100, -10, 100, 1),
+        "a hundred anger is fearless"
+    );
     assert!(!is_fleeing(1, 100, 100, 0, 1), "and a hundred morale too");
 
     // Attitude says flee, so it flees at any distance.
-    assert!(is_fleeing(10, 80, -10, 5, 9), "negative morale and little anger");
+    assert!(
+        is_fleeing(10, 80, -10, 5, 9),
+        "negative morale and little anger"
+    );
     assert!(is_fleeing(10, 100, 10, 0, 9), "no anger and badly hurt");
 
     // Attitude says follow, so distance decides: four squares and closer is running, five is not.
-    assert!(is_fleeing(100, 100, 10, 5, 1), "a follower one square away is running");
-    assert!(is_fleeing(100, 100, 10, 5, 4), "four squares is still too close");
-    assert!(!is_fleeing(100, 100, 10, 5, 5), "five is far enough to follow");
+    assert!(
+        is_fleeing(100, 100, 10, 5, 1),
+        "a follower one square away is running"
+    );
+    assert!(
+        is_fleeing(100, 100, 10, 5, 4),
+        "four squares is still too close"
+    );
+    assert!(
+        !is_fleeing(100, 100, 10, 5, 5),
+        "five is far enough to follow"
+    );
 
     // And an attacker never runs.
-    assert!(!is_fleeing(100, 100, 10, 50, 1), "a furious monster does not back off");
+    assert!(
+        !is_fleeing(100, 100, 10, 50, 1),
+        "a furious monster does not back off"
+    );
 }
 
 /// A monster gets its nerve back a point at a time, and five at a time while it is still negative.
@@ -1239,29 +1415,86 @@ fn a_monster_runs_when_it_is_frightened_or_when_a_follower_gets_too_close() {
 fn a_monster_gets_its_nerve_back_a_point_at_a_time() {
     use cdda_sim::creature::{Nerve, regen_nerve};
 
-    let plain = Nerve { morale: 10, anger: 20, regenerates: true };
+    let plain = Nerve {
+        morale: 10,
+        anger: 20,
+        regenerates: true,
+    };
     // Not regenerating, or wounded: nothing changes.
-    let still = Nerve { regenerates: false, ..plain };
-    assert_eq!(regen_nerve(100, 100, -30, 0, still, false), (-30, 0), "a type that does not regenerate never calms");
-    assert_eq!(regen_nerve(99, 100, -30, 0, plain, false), (-30, 0), "and a wounded monster does not calm down");
+    let still = Nerve {
+        regenerates: false,
+        ..plain
+    };
+    assert_eq!(
+        regen_nerve(100, 100, -30, 0, still, false),
+        (-30, 0),
+        "a type that does not regenerate never calms"
+    );
+    assert_eq!(
+        regen_nerve(99, 100, -30, 0, plain, false),
+        (-30, 0),
+        "and a wounded monster does not calm down"
+    );
 
     // Positive morale below the type's value: exactly one point.
-    assert_eq!(regen_nerve(100, 100, 5, 15, plain, false), (6, 16), "one point each");
+    assert_eq!(
+        regen_nerve(100, 100, 5, 15, plain, false),
+        (6, 16),
+        "one point each"
+    );
 
     // Negative morale: one point, then five more, then clamped at the type's value.
-    assert_eq!(regen_nerve(100, 100, -30, -30, plain, false), (-24, -24), "six points of recovery from -30");
+    assert_eq!(
+        regen_nerve(100, 100, -30, -30, plain, false),
+        (-24, -24),
+        "six points of recovery from -30"
+    );
     // From three below zero: one point to -2, then five more, and the five lands at +3 rather than stopping at zero - the reference clamps to the **type's** value, not to zero.
-    assert_eq!(regen_nerve(100, 100, -3, -3, plain, false), (3, 3), "the jump lands where the arithmetic puts it");
+    assert_eq!(
+        regen_nerve(100, 100, -3, -3, plain, false),
+        (3, 3),
+        "the jump lands where the arithmetic puts it"
+    );
     // And it does clamp when the jump would pass the type's own value.
     assert_eq!(
-        regen_nerve(100, 100, -3, -3, Nerve { morale: 1, anger: 1, regenerates: true }, false),
+        regen_nerve(
+            100,
+            100,
+            -3,
+            -3,
+            Nerve {
+                morale: 1,
+                anger: 1,
+                regenerates: true
+            },
+            false
+        ),
         (1, 1),
         "the five-point jump is clamped to the type's value"
     );
-    assert_eq!(regen_nerve(100, 100, 5, 5, Nerve { morale: 1, anger: 1, regenerates: true }, false), (5, 5), "already above the type's value: nothing to regain");
+    assert_eq!(
+        regen_nerve(
+            100,
+            100,
+            5,
+            5,
+            Nerve {
+                morale: 1,
+                anger: 1,
+                regenerates: true
+            },
+            false
+        ),
+        (5, 5),
+        "already above the type's value: nothing to regain"
+    );
 
     // Fleeing at full health: straight back to the type's own nerve, and no further arithmetic to do.
-    assert_eq!(regen_nerve(100, 100, -50, -50, plain, true), (10, 20), "a fleeing monster at full health snaps back");
+    assert_eq!(
+        regen_nerve(100, 100, -50, -50, plain, true),
+        (10, 20),
+        "a fleeing monster at full health snaps back"
+    );
 }
 
 /// The turn gives a monster its nerve back, and a wounded one keeps its fear.
@@ -1289,7 +1522,11 @@ fn the_turn_gives_a_monster_its_nerve_back() {
         .insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 })
         .insert(cdda_sim::creature::Morale(10))
         .insert(cdda_sim::creature::Anger(10))
-        .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: true });
+        .insert(cdda_sim::creature::Nerve {
+            morale: 20,
+            anger: 20,
+            regenerates: true,
+        });
 
     // The wounded one's nerve is **already at its type's value**, so the drift rule of round 1131 cannot move it: this gate is about the regrowth gate, and a fixture that let drift fire
     // would answer "did it calm down?" with two rules at once.
@@ -1299,7 +1536,11 @@ fn the_turn_gives_a_monster_its_nerve_back() {
         .insert(cdda_sim::creature::Health { hp: 79, max_hp: 80 })
         .insert(cdda_sim::creature::Morale(10))
         .insert(cdda_sim::creature::Anger(10))
-        .insert(cdda_sim::creature::Nerve { morale: 10, anger: 10, regenerates: true });
+        .insert(cdda_sim::creature::Nerve {
+            morale: 10,
+            anger: 10,
+            regenerates: true,
+        });
 
     cdda_sim::turn::run_turn(&mut world);
 
@@ -1312,7 +1553,9 @@ fn the_turn_gives_a_monster_its_nerve_back() {
         "a point of morale, and one more if the drift fires: {calm_morale:?}"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Morale>(hurt).map(|carried| carried.0),
+        world
+            .get::<cdda_sim::creature::Morale>(hurt)
+            .map(|carried| carried.0),
         Some(10),
         "a wounded monster does not calm down - one hit point short is short"
     );
@@ -1336,8 +1579,10 @@ fn a_cornered_fighter_loses_its_nerve_and_then_finds_it_again() {
         }
     }
     cdda_sim::load_level(&mut world, &level);
-    let spooked = cdda_json::parse(br#"{"id":"spooked","max_duration":"1 hours"}"#).expect("valid json");
-    let recent = cdda_json::parse(br#"{"id":"spooked_recent","max_duration":"1 hours"}"#).expect("valid json");
+    let spooked =
+        cdda_json::parse(br#"{"id":"spooked","max_duration":"1 hours"}"#).expect("valid json");
+    let recent = cdda_json::parse(br#"{"id":"spooked_recent","max_duration":"1 hours"}"#)
+        .expect("valid json");
     let mut kinds = Vec::new();
     for (id, value) in [("spooked", spooked), ("spooked_recent", recent)] {
         let cdda_json::Value::Object(entry) = value else {
@@ -1355,7 +1600,11 @@ fn a_cornered_fighter_loses_its_nerve_and_then_finds_it_again() {
             .entity_mut(entity)
             .insert(cdda_sim::creature::Morale(0))
             .insert(cdda_sim::creature::Anger(5))
-            .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: false })
+            .insert(cdda_sim::creature::Nerve {
+                morale: 20,
+                anger: 20,
+                regenerates: false,
+            })
             .insert(cdda_sim::creature_flags::CreatureFlags(
                 ["CORNERED_FIGHTER".to_owned()].into_iter().collect(),
             ));
@@ -1386,7 +1635,9 @@ fn a_cornered_fighter_loses_its_nerve_and_then_finds_it_again() {
     }
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
-        world.get::<cdda_sim::creature::Morale>(crowded).map(|carried| carried.0),
+        world
+            .get::<cdda_sim::creature::Morale>(crowded)
+            .map(|carried| carried.0),
         Some(20),
         "a monster that was spooked recently snaps back to its type's morale and fights"
     );
@@ -1410,8 +1661,10 @@ fn a_cornered_fighter_is_daunted_by_the_survivor_standing_close() {
         }
     }
     cdda_sim::load_level(&mut world, &level);
-    let spooked = cdda_json::parse(br#"{"id":"spooked","max_duration":"1 hours"}"#).expect("valid json");
-    let recent = cdda_json::parse(br#"{"id":"spooked_recent","max_duration":"1 hours"}"#).expect("valid json");
+    let spooked =
+        cdda_json::parse(br#"{"id":"spooked","max_duration":"1 hours"}"#).expect("valid json");
+    let recent = cdda_json::parse(br#"{"id":"spooked_recent","max_duration":"1 hours"}"#)
+        .expect("valid json");
     let mut kinds = Vec::new();
     for (id, value) in [("spooked", spooked), ("spooked_recent", recent)] {
         let cdda_json::Value::Object(entry) = value else {
@@ -1431,7 +1684,11 @@ fn a_cornered_fighter_is_daunted_by_the_survivor_standing_close() {
             .entity_mut(entity)
             .insert(cdda_sim::creature::Morale(0))
             .insert(cdda_sim::creature::Anger(anger))
-            .insert(cdda_sim::creature::Nerve { morale: 20, anger: 20, regenerates: false })
+            .insert(cdda_sim::creature::Nerve {
+                morale: 20,
+                anger: 20,
+                regenerates: false,
+            })
             .insert(cdda_sim::creature_flags::CreatureFlags(
                 ["CORNERED_FIGHTER".to_owned()].into_iter().collect(),
             ));
@@ -1526,9 +1783,10 @@ fn an_effect_the_creature_wears_changes_how_many_moves_a_turn_gives_it() {
     singletons::put_rolls(&mut world, Rolls::new(61));
     // The number lives under `base_mods`, which is where the loader looks for it: a top-level `speed_mod` is not read at all, and the first version of this gate proved that by
     // failing on its own assertion about the data rather than on the rule.
-    let winded =
-        cdda_json::parse(br#"{"id":"winded","base_mods":{"speed_mod":[-10]},"max_duration":"1 hours"}"#)
-            .expect("valid json");
+    let winded = cdda_json::parse(
+        br#"{"id":"winded","base_mods":{"speed_mod":[-10]},"max_duration":"1 hours"}"#,
+    )
+    .expect("valid json");
     let cdda_json::Value::Object(entry) = winded else {
         panic!("an effect type is an object")
     };
@@ -1577,10 +1835,14 @@ fn an_effect_the_creature_wears_changes_its_dexterity() {
     singletons::put_rolls(&mut world, Rolls::new(67));
     // An array in `base_mods` is **per body-part level**, not per intensity: index zero is the creature as a whole (`get_effect_modifier_key`, `effect.cpp:310-316`), and intensity scaling
     // comes from a separate `scaling_mods` table. The first version of this gate assumed otherwise and measured a flat effect when it meant a heavy one.
-    let clumsy = cdda_json::parse(br#"{"id":"clumsy","base_mods":{"dex_mod":[-2]},"max_duration":"1 hours"}"#)
-        .expect("valid json");
-    let heavy = cdda_json::parse(br#"{"id":"made-of-lead","base_mods":{"dex_mod":[-10]},"max_duration":"1 hours"}"#)
-        .expect("valid json");
+    let clumsy = cdda_json::parse(
+        br#"{"id":"clumsy","base_mods":{"dex_mod":[-2]},"max_duration":"1 hours"}"#,
+    )
+    .expect("valid json");
+    let heavy = cdda_json::parse(
+        br#"{"id":"made-of-lead","base_mods":{"dex_mod":[-10]},"max_duration":"1 hours"}"#,
+    )
+    .expect("valid json");
     let cdda_json::Value::Object(entry) = clumsy else {
         panic!("an effect type is an object")
     };
@@ -1600,7 +1862,9 @@ fn an_effect_the_creature_wears_changes_its_dexterity() {
     let fumbling = cdda_sim::creature::spawn_creature(&mut world, "the fumbling one", (2, 2, 0));
     let wrecked = cdda_sim::creature::spawn_creature(&mut world, "the wrecked one", (3, 3, 0));
     for entity in [steady, fumbling, wrecked] {
-        world.entity_mut(entity).insert(cdda_sim::creature::Dexterity { base: 8 });
+        world
+            .entity_mut(entity)
+            .insert(cdda_sim::creature::Dexterity { base: 8 });
     }
     for entity in [fumbling, wrecked] {
         cdda_sim::applied_effects::add(
@@ -1644,8 +1908,10 @@ fn an_effect_the_creature_wears_changes_its_strength() {
 
     let mut world = World::new();
     singletons::put_rolls(&mut world, Rolls::new(71));
-    let strong = cdda_json::parse(br#"{"id":"hopped-up","base_mods":{"str_mod":[2]},"max_duration":"1 hours"}"#)
-        .expect("valid json");
+    let strong = cdda_json::parse(
+        br#"{"id":"hopped-up","base_mods":{"str_mod":[2]},"max_duration":"1 hours"}"#,
+    )
+    .expect("valid json");
     let cdda_json::Value::Object(entry) = strong else {
         panic!("an effect type is an object")
     };
@@ -1660,7 +1926,9 @@ fn an_effect_the_creature_wears_changes_its_strength() {
     let plain = cdda_sim::creature::spawn_creature(&mut world, "the plain one", (1, 1, 0));
     let hopped = cdda_sim::creature::spawn_creature(&mut world, "the hopped-up one", (2, 2, 0));
     for entity in [plain, hopped] {
-        world.entity_mut(entity).insert(cdda_sim::creature::Strength { base: 8 });
+        world
+            .entity_mut(entity)
+            .insert(cdda_sim::creature::Strength { base: 8 });
     }
     cdda_sim::applied_effects::add(
         &mut world,
@@ -1701,21 +1969,41 @@ fn a_weapon_wears_by_its_own_arithmetic_and_a_zero_chance_is_the_worst_case() {
     assert_eq!(strong, 266, "the arithmetic, truncated to an int");
     // A stronger arm **lowers** the chance, because the strength term is 64 over it.
     let stronger = melee_wear_chance(10.0, 3, 24.0, 20.0, 1.0, 1.0, false);
-    assert!(stronger < strong, "a stronger arm divides the chance: {stronger} against {strong}");
+    assert!(
+        stronger < strong,
+        "a stronger arm divides the chance: {stronger} against {strong}"
+    );
     // A durable weapon multiplies it by four, which is the opposite direction from the way it reads.
-    assert_eq!(melee_wear_chance(10.0, 3, 12.0, 20.0, 1.0, 1.0, true), strong * 4, "DURABLE_MELEE is four times tougher");
+    assert_eq!(
+        melee_wear_chance(10.0, 3, 12.0, 20.0, 1.0, 1.0, true),
+        strong * 4,
+        "DURABLE_MELEE is four times tougher"
+    );
     // A wear multiplier divides, and a zero multiplier means the weapon cannot wear at all.
-    assert!(melee_wear_chance(10.0, 3, 12.0, 20.0, 2.0, 1.0, false) < strong, "a higher wear multiplier is a softer weapon");
-    assert_eq!(melee_wear_chance(10.0, 3, 12.0, 20.0, 0.0, 1.0, false), 0, "no wear multiplier, no chance");
+    assert!(
+        melee_wear_chance(10.0, 3, 12.0, 20.0, 2.0, 1.0, false) < strong,
+        "a higher wear multiplier is a softer weapon"
+    );
+    assert_eq!(
+        melee_wear_chance(10.0, 3, 12.0, 20.0, 0.0, 1.0, false),
+        0,
+        "no wear multiplier, no chance"
+    );
 
     // The guard: a large chance almost never damages, a chance of one always does, and a chance of zero always does too.
     let mut dice = Rolls::new(1234);
     let broken = (0..2_000).filter(|_| wear_damages(500, &mut dice)).count();
     assert!(broken < 40, "one in five hundred: {broken} of 2000");
     let mut dice = Rolls::new(1234);
-    assert!((0..200).all(|_| wear_damages(1, &mut dice)), "a chance of one damages every time");
+    assert!(
+        (0..200).all(|_| wear_damages(1, &mut dice)),
+        "a chance of one damages every time"
+    );
     let mut dice = Rolls::new(1234);
-    assert!((0..200).all(|_| wear_damages(0, &mut dice)), "and so does a chance of zero, which is the reference's own quirk");
+    assert!(
+        (0..200).all(|_| wear_damages(0, &mut dice)),
+        "and so does a chance of zero, which is the reference's own quirk"
+    );
 }
 
 /// A swing dents the thing in the hand - a soft one every time, a rock hardly ever.
@@ -1732,12 +2020,18 @@ fn a_swing_dents_the_thing_in_the_hand() {
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4));
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
-    world
-        .entity_mut(zombie)
-        .insert(cdda_sim::creature::Health { hp: 900, max_hp: 900 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 900,
+        max_hp: 900,
+    });
     // A weapon of a kind that resists chipping not at all, taken in hand as a thing.
     // A turn's worth of moves, because taking a heavy thing in hand costs some and a creature with none cannot.
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     for _ in 0..2 {
         cdda_sim::creature::bank_a_turn(&mut world);
     }
@@ -1761,13 +2055,19 @@ fn a_swing_dents_the_thing_in_the_hand() {
     );
     cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 0)]);
     let damage_of = |world: &bevy_ecs::prelude::World| {
-        world.get::<cdda_sim::ItemDamage>(weapon).map_or(-1, |damage| damage.damage)
+        world
+            .get::<cdda_sim::ItemDamage>(weapon)
+            .map_or(-1, |damage| damage.damage)
     };
     assert_eq!(damage_of(&world), 0, "a new weapon is undamaged");
 
     let dealt = cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     assert!(dealt.is_some(), "the swing happened at all");
-    assert_eq!(damage_of(&world), 1000, "and cost the weapon one thousandth scale");
+    assert_eq!(
+        damage_of(&world),
+        1000,
+        "and cost the weapon one thousandth scale"
+    );
 
     // The same swing twice more: three swings, three thousandths, because a zero chance is the worst case and not the best.
     for _ in 0..2 {
@@ -1780,10 +2080,16 @@ fn a_swing_dents_the_thing_in_the_hand() {
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4));
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 9_000,
+        max_hp: 9_000,
+    });
     world
-        .entity_mut(zombie)
-        .insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     for _ in 0..2 {
         cdda_sim::creature::bank_a_turn(&mut world);
     }
@@ -1809,8 +2115,14 @@ fn a_swing_dents_the_thing_in_the_hand() {
     for _ in 0..20 {
         cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     }
-    let dents = world.get::<cdda_sim::ItemDamage>(weapon).map_or(0, |damage| damage.damage) / 1000;
-    assert!(dents < 5, "a chipping-resistant weapon takes few dents in twenty swings: {dents}");
+    let dents = world
+        .get::<cdda_sim::ItemDamage>(weapon)
+        .map_or(0, |damage| damage.damage)
+        / 1000;
+    assert!(
+        dents < 5,
+        "a chipping-resistant weapon takes few dents in twenty swings: {dents}"
+    );
 }
 
 /// A weapon taken past its maximum is destroyed by the blow, and the hand is empty.
@@ -1826,8 +2138,16 @@ fn a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow() {
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 9_000,
+        max_hp: 9_000,
+    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     for _ in 0..2 {
         cdda_sim::creature::bank_a_turn(&mut world);
     }
@@ -1859,12 +2179,17 @@ fn a_weapon_worn_past_its_maximum_is_destroyed_by_the_blow() {
     }
     // Four thousand is exactly the maximum, which is **not** destruction; the fifth is.
     assert_eq!(
-        world.get::<cdda_sim::ItemDamage>(weapon).map(|damage| damage.damage),
+        world
+            .get::<cdda_sim::ItemDamage>(weapon)
+            .map(|damage| damage.damage),
         Some(4_000),
         "worn to its maximum and still in one piece"
     );
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
-    assert!(world.get_entity(weapon).is_err(), "the fifth swing destroys it");
+    assert!(
+        world.get_entity(weapon).is_err(),
+        "the fifth swing destroys it"
+    );
     assert!(
         cdda_sim::creature::wielding(&mut world, survivor).is_none(),
         "and the hand is empty afterwards"
@@ -1884,8 +2209,16 @@ fn a_blow_leaves_room_for_a_fault_even_before_one_is_picked() {
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(3));
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 9_000,
+        max_hp: 9_000,
+    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     for _ in 0..2 {
         cdda_sim::creature::bank_a_turn(&mut world);
     }
@@ -1903,15 +2236,23 @@ fn a_blow_leaves_room_for_a_fault_even_before_one_is_picked() {
             cdda_sim::creature::Carried(survivor),
         ))
         .id();
-    assert!(world.get::<cdda_sim::ItemFaults>(weapon).is_none(), "a fresh weapon carries no fault set");
+    assert!(
+        world.get::<cdda_sim::ItemFaults>(weapon).is_none(),
+        "a fresh weapon carries no fault set"
+    );
     assert_eq!(
         cdda_sim::creature::wield(&mut world, survivor, weapon, 250),
         cdda_sim::creature::Wielded::Done
     );
     cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 0)]);
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
-    let faults = world.get::<cdda_sim::ItemFaults>(weapon).expect("the weapon can now carry faults");
-    assert!(faults.0.is_empty(), "but nothing invented one: the pick is not wired to a kind's list yet");
+    let faults = world
+        .get::<cdda_sim::ItemFaults>(weapon)
+        .expect("the weapon can now carry faults");
+    assert!(
+        faults.0.is_empty(),
+        "but nothing invented one: the pick is not wired to a kind's list yet"
+    );
 }
 
 /// A weapon damaged by a blow catches a mechanical fault, and a kind with no faults catches none.
@@ -1928,8 +2269,16 @@ fn a_damaged_weapon_catches_a_mechanical_fault() {
         cdda_sim::singletons::put_rolls(&mut world, Rolls::new(21));
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
         let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
-        world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
-        world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+        world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+            hp: 9_000,
+            max_hp: 9_000,
+        });
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::creature::Speed {
+                base: 100,
+                bonus: 0,
+            });
         for _ in 0..2 {
             cdda_sim::creature::bank_a_turn(&mut world);
         }
@@ -1952,21 +2301,42 @@ fn a_damaged_weapon_catches_a_mechanical_fault() {
             cdda_sim::creature::Wielded::Done
         );
         // Soft enough that every swing damages it, and the kind's own fault list and the catalogue's types.
-        cdda_sim::item_registry::set_item_chip_resistance(&mut world, &[(cdda_sim::ItemTypeId(7), 0)]);
-        cdda_sim::item_registry::set_item_fault_weights(&mut world, &[(cdda_sim::ItemTypeId(7), weights)]);
-        let typed: Vec<(String, String)> = faults.iter().map(|(fault, kind)| ((*fault).to_owned(), (*kind).to_owned())).collect();
+        cdda_sim::item_registry::set_item_chip_resistance(
+            &mut world,
+            &[(cdda_sim::ItemTypeId(7), 0)],
+        );
+        cdda_sim::item_registry::set_item_fault_weights(
+            &mut world,
+            &[(cdda_sim::ItemTypeId(7), weights)],
+        );
+        let typed: Vec<(String, String)> = faults
+            .iter()
+            .map(|(fault, kind)| ((*fault).to_owned(), (*kind).to_owned()))
+            .collect();
         cdda_sim::item_registry::set_fault_types(&mut world, &typed);
         cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
-        world.get::<cdda_sim::ItemFaults>(weapon).map(|faults| faults.0.clone()).unwrap_or_default()
+        world
+            .get::<cdda_sim::ItemFaults>(weapon)
+            .map(|faults| faults.0.clone())
+            .unwrap_or_default()
     };
 
     // One mechanical fault at full weight: it always comes back.
-    let caught = swing_once(&[("dented", "mechanical_damage")], vec![("dented".to_owned(), 100)]);
-    assert!(caught.contains("dented"), "the weapon caught the dent: {caught:?}");
+    let caught = swing_once(
+        &[("dented", "mechanical_damage")],
+        vec![("dented".to_owned(), 100)],
+    );
+    assert!(
+        caught.contains("dented"),
+        "the weapon caught the dent: {caught:?}"
+    );
 
     // A fault of another type is not eligible, so nothing is caught.
     let wrong_type = swing_once(&[("dented", "wet")], vec![("dented".to_owned(), 100)]);
-    assert!(wrong_type.is_empty(), "a wet fault is not mechanical damage: {wrong_type:?}");
+    assert!(
+        wrong_type.is_empty(),
+        "a wet fault is not mechanical damage: {wrong_type:?}"
+    );
 
     // A kind with no faults at all catches none.
     let none = swing_once(&[("dented", "mechanical_damage")], Vec::new());
@@ -1987,8 +2357,16 @@ fn a_worn_weapon_says_so_in_the_log() {
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(8));
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 9_000,
+        max_hp: 9_000,
+    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     for _ in 0..2 {
         cdda_sim::creature::bank_a_turn(&mut world);
     }
@@ -2015,7 +2393,8 @@ fn a_worn_weapon_says_so_in_the_log() {
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     let said = cdda_sim::messages::lines(&world);
     assert!(
-        said.iter().any(|line| line.contains("damaged by the force of the blow")),
+        said.iter()
+            .any(|line| line.contains("damaged by the force of the blow")),
         "the first swing only damages it: {said:?}"
     );
 
@@ -2025,7 +2404,8 @@ fn a_worn_weapon_says_so_in_the_log() {
     }
     let said = cdda_sim::messages::lines(&world);
     assert!(
-        said.iter().any(|line| line.contains("destroyed by the blow")),
+        said.iter()
+            .any(|line| line.contains("destroyed by the blow")),
         "and the last one breaks it: {said:?}"
     );
 }
@@ -2048,7 +2428,11 @@ fn a_broken_fragile_weapon_loses_its_weakest_part_four_times_as_often() {
     let (mut weak_lost, mut others_lost, mut others_total) = (0, 0, 0);
     for _ in 0..4_000 {
         let (kept, destroyed) = break_apart(&parts, &mut dice);
-        assert_eq!(kept.len() + destroyed.len(), 3, "every part is either kept or destroyed");
+        assert_eq!(
+            kept.len() + destroyed.len(),
+            3,
+            "every part is either kept or destroyed"
+        );
         if destroyed.contains(&"string".to_owned()) {
             weak_lost += 1;
         }
@@ -2060,9 +2444,15 @@ fn a_broken_fragile_weapon_loses_its_weakest_part_four_times_as_often() {
         }
     }
     // One in two against one in eight: about 2000 of 4000 against about 1000 of 8000.
-    assert!((1_800..2_200).contains(&weak_lost), "the weakest part goes about half the time: {weak_lost} of 4000");
+    assert!(
+        (1_800..2_200).contains(&weak_lost),
+        "the weakest part goes about half the time: {weak_lost} of 4000"
+    );
     let ratio = f64::from(others_lost) / f64::from(others_total);
-    assert!((0.10..0.15).contains(&ratio), "the others go about one in eight: {ratio:.3} of {others_total}");
+    assert!(
+        (0.10..0.15).contains(&ratio),
+        "the others go about one in eight: {ratio:.3} of {others_total}"
+    );
 }
 
 /// The weak part is the least chip-resistant one that counts, and the big part is the largest one - and cloth never counts.
@@ -2076,25 +2466,69 @@ fn the_weak_part_and_the_big_part_are_chosen_the_reference_way() {
     use cdda_sim::melee::{PartFacts, weak_and_big_parts};
 
     let parts = [
-        PartFacts { kind: "sheet_cotton", chip_resistance: 1, volume_ml: 50 },
-        PartFacts { kind: "steel_chunk", chip_resistance: 20, volume_ml: 250 },
-        PartFacts { kind: "pipe", chip_resistance: 12, volume_ml: 250 },
-        PartFacts { kind: "scrap", chip_resistance: 12, volume_ml: 0 },
+        PartFacts {
+            kind: "sheet_cotton",
+            chip_resistance: 1,
+            volume_ml: 50,
+        },
+        PartFacts {
+            kind: "steel_chunk",
+            chip_resistance: 20,
+            volume_ml: 250,
+        },
+        PartFacts {
+            kind: "pipe",
+            chip_resistance: 12,
+            volume_ml: 250,
+        },
+        PartFacts {
+            kind: "scrap",
+            chip_resistance: 12,
+            volume_ml: 0,
+        },
     ];
     let (weak, big) = weak_and_big_parts(&parts);
-    assert_eq!(weak, Some("pipe"), "the least resistant that is not blacklisted - and the first of two equal ones");
-    assert_eq!(big, Some("steel_chunk"), "the largest, first of equal volumes, and never a zero-volume part");
+    assert_eq!(
+        weak,
+        Some("pipe"),
+        "the least resistant that is not blacklisted - and the first of two equal ones"
+    );
+    assert_eq!(
+        big,
+        Some("steel_chunk"),
+        "the largest, first of equal volumes, and never a zero-volume part"
+    );
 
     // Cloth is the least resistant thing here and it still does not count: the blacklist is a rule, not a tie-breaker.
     let cloth_only = [
-        PartFacts { kind: "sheet_cotton", chip_resistance: 1, volume_ml: 50 },
-        PartFacts { kind: "fur", chip_resistance: 2, volume_ml: 200 },
+        PartFacts {
+            kind: "sheet_cotton",
+            chip_resistance: 1,
+            volume_ml: 50,
+        },
+        PartFacts {
+            kind: "fur",
+            chip_resistance: 2,
+            volume_ml: 200,
+        },
     ];
-    assert_eq!(weak_and_big_parts(&cloth_only), (None, None), "nothing that counts is left to choose");
+    assert_eq!(
+        weak_and_big_parts(&cloth_only),
+        (None, None),
+        "nothing that counts is left to choose"
+    );
 
     // And a part with no volume is never the big one, even alone: `big_vol` starts at zero and the test is strict.
-    let flat = [PartFacts { kind: "scrap", chip_resistance: 5, volume_ml: 0 }];
-    assert_eq!(weak_and_big_parts(&flat), (Some("scrap"), None), "the weak part is still chosen");
+    let flat = [PartFacts {
+        kind: "scrap",
+        chip_resistance: 5,
+        volume_ml: 0,
+    }];
+    assert_eq!(
+        weak_and_big_parts(&flat),
+        (Some("scrap"), None),
+        "the weak part is still chosen"
+    );
 }
 
 /// A fragile weapon wears at its weakest part, six times over - and at its own material when no part counts.
@@ -2107,14 +2541,35 @@ fn a_fragile_weapon_wears_at_its_weakest_part_six_times_over() {
     use cdda_sim::melee::{PartFacts, fragile_material_factor};
 
     let parts = [
-        PartFacts { kind: "pipe", chip_resistance: 12, volume_ml: 250 },
-        PartFacts { kind: "steel_chunk", chip_resistance: 20, volume_ml: 250 },
+        PartFacts {
+            kind: "pipe",
+            chip_resistance: 12,
+            volume_ml: 250,
+        },
+        PartFacts {
+            kind: "steel_chunk",
+            chip_resistance: 20,
+            volume_ml: 250,
+        },
     ];
-    assert!((fragile_material_factor(&parts, 30.0) - 2.0).abs() < 1e-9, "12 / 6, and the weapon's own 30 never enters");
+    assert!(
+        (fragile_material_factor(&parts, 30.0) - 2.0).abs() < 1e-9,
+        "12 / 6, and the weapon's own 30 never enters"
+    );
     // **The fallback is for a weapon with nothing that counts**, and only then: the reference's `weak_chip` stays `INT_MAX` exactly when every part was blacklisted or there were none.
-    let only_cloth = [PartFacts { kind: "leather", chip_resistance: 1, volume_ml: 90 }];
-    assert!((fragile_material_factor(&only_cloth, 30.0) - 30.0).abs() < 1e-9, "cloth gives no factor, so the weapon answers for itself");
-    assert!((fragile_material_factor(&[], 30.0) - 30.0).abs() < 1e-9, "and so does a weapon with no parts at all");
+    let only_cloth = [PartFacts {
+        kind: "leather",
+        chip_resistance: 1,
+        volume_ml: 90,
+    }];
+    assert!(
+        (fragile_material_factor(&only_cloth, 30.0) - 30.0).abs() < 1e-9,
+        "cloth gives no factor, so the weapon answers for itself"
+    );
+    assert!(
+        (fragile_material_factor(&[], 30.0) - 30.0).abs() < 1e-9,
+        "and so does a weapon with no parts at all"
+    );
 }
 
 /// The swing uses the weapon's weakest part when the weapon is fragile, and its own material when it is not.
@@ -2146,10 +2601,40 @@ fn a_fragile_weapon_wears_at_its_weakest_part_when_it_is_swung() {
             (strong, facts(Vec::new(), 40)),
         ],
     );
-    assert!(cdda_sim::item_registry::kind_has_flag(&world, whatever, "FRAGILE_MELEE"), "the weapon's kind is the fragile one");
-    let weapon = world.spawn(cdda_sim::GroundItem { kind: whatever, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
-    let weak_part = world.spawn(cdda_sim::GroundItem { kind: weak, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
-    let strong_part = world.spawn(cdda_sim::GroundItem { kind: strong, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
+    assert!(
+        cdda_sim::item_registry::kind_has_flag(&world, whatever, "FRAGILE_MELEE"),
+        "the weapon's kind is the fragile one"
+    );
+    let weapon = world
+        .spawn(cdda_sim::GroundItem {
+            kind: whatever,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
+        .id();
+    let weak_part = world
+        .spawn(cdda_sim::GroundItem {
+            kind: weak,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
+        .id();
+    let strong_part = world
+        .spawn(cdda_sim::GroundItem {
+            kind: strong,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
+        .id();
     cdda_sim::item_parts::add_part(&mut world, weapon, weak_part);
     cdda_sim::item_parts::add_part(&mut world, weapon, strong_part);
 
@@ -2159,7 +2644,16 @@ fn a_fragile_weapon_wears_at_its_weakest_part_when_it_is_swung() {
     );
 
     // The same weapon without parts answers for itself, which is the reference's `weak_chip == INT_MAX` fallback.
-    let bare = world.spawn(cdda_sim::GroundItem { kind: whatever, charges: 1, age: 0, burnt: 0, damage: 0, burn: None }).id();
+    let bare = world
+        .spawn(cdda_sim::GroundItem {
+            kind: whatever,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
+        .id();
     assert!(
         (cdda_sim::creature::weapon_material_factor(&mut world, bare) - 30.0).abs() < 1e-9,
         "no parts, no factor"
@@ -2201,14 +2695,29 @@ fn a_fragile_weapon_breaks_apart_instead_of_being_destroyed() {
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(99));
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 9_000,
+        max_hp: 9_000,
+    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     for _ in 0..2 {
         cdda_sim::creature::bank_a_turn(&mut world);
     }
     let held = world
         .spawn((
-            cdda_sim::GroundItem { kind: weapon, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::GroundItem {
+                kind: weapon,
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
             cdda_sim::ItemDamage::default(),
             cdda_sim::creature::Carried(survivor),
         ))
@@ -2218,10 +2727,24 @@ fn a_fragile_weapon_breaks_apart_instead_of_being_destroyed() {
         cdda_sim::creature::Wielded::Done
     );
     let cloth_part = world
-        .spawn(cdda_sim::GroundItem { kind: cloth, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .spawn(cdda_sim::GroundItem {
+            kind: cloth,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
         .id();
     let iron_part = world
-        .spawn(cdda_sim::GroundItem { kind: iron, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .spawn(cdda_sim::GroundItem {
+            kind: iron,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
         .id();
     cdda_sim::item_parts::add_part(&mut world, held, cloth_part);
     cdda_sim::item_parts::add_part(&mut world, held, iron_part);
@@ -2236,24 +2759,38 @@ fn a_fragile_weapon_breaks_apart_instead_of_being_destroyed() {
         "the fragile weapon comes apart: {said:?}"
     );
     assert!(
-        !said.iter().any(|line| line.contains("is destroyed by the blow")),
+        !said
+            .iter()
+            .any(|line| line.contains("is destroyed by the blow")),
         "and it is not reported as an ordinary destruction: {said:?}"
     );
-    assert!(!world.get_entity(held).is_ok_and(|_| true), "the weapon itself is gone");
+    assert!(
+        !world.get_entity(held).is_ok_and(|_| true),
+        "the weapon itself is gone"
+    );
 
     // **Every part is accounted for**: either it was destroyed (its line is in the log and its entity is gone) or it survived as itself, with no parent any more.
-    let destroyed_lines = said.iter().filter(|line| line.contains("is destroyed!")).count();
+    let destroyed_lines = said
+        .iter()
+        .filter(|line| line.contains("is destroyed!"))
+        .count();
     let mut gone = 0;
     let mut free = 0;
     for part in [cloth_part, iron_part] {
         if world.get_entity(part).is_ok() {
             free += 1;
-            assert!(world.get::<cdda_sim::item_parts::PartOf>(part).is_none(), "a survivor is nobody's part any more");
+            assert!(
+                world.get::<cdda_sim::item_parts::PartOf>(part).is_none(),
+                "a survivor is nobody's part any more"
+            );
         } else {
             gone += 1;
         }
     }
-    assert_eq!(gone, destroyed_lines, "one line per part that is gone: {said:?}");
+    assert_eq!(
+        gone, destroyed_lines,
+        "one line per part that is gone: {said:?}"
+    );
     assert_eq!(gone + free, 2, "two parts, each destroyed or free");
 }
 
@@ -2272,7 +2809,14 @@ fn a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind() {
     let spawn = |world: &mut World, kind| {
         world
             .spawn((
-                cdda_sim::GroundItem { kind, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+                cdda_sim::GroundItem {
+                    kind,
+                    charges: 1,
+                    age: 0,
+                    burnt: 0,
+                    damage: 0,
+                    burn: None,
+                },
                 cdda_sim::ItemDamage::default(),
             ))
             .id()
@@ -2281,11 +2825,21 @@ fn a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind() {
     let same_kind = spawn(&mut world, stone);
     let other_kind = spawn(&mut world, rock);
 
-    assert!(!cdda_sim::creature::has_wield_conflicts(&mut world, survivor, first), "empty hands take anything");
+    assert!(
+        !cdda_sim::creature::has_wield_conflicts(&mut world, survivor, first),
+        "empty hands take anything"
+    );
     // **The gate must not depend on the wield succeeding by luck**: wielding costs moves, so the turn is banked and the result asserted, or the three clauses below would be skipped and pass vacuously.
     // A thing is in a hand only once it is carried: the wield path refuses anything else (`Wielded::NotInHand`).
-    world.entity_mut(first).insert(cdda_sim::creature::Carried(survivor));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world
+        .entity_mut(first)
+        .insert(cdda_sim::creature::Carried(survivor));
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     cdda_sim::creature::bank_a_turn(&mut world);
     cdda_sim::creature::bank_a_turn(&mut world);
     assert_eq!(
@@ -2293,9 +2847,18 @@ fn a_hand_takes_a_thing_when_it_is_free_or_holds_the_same_kind() {
         cdda_sim::creature::Wielded::Done,
         "the fixture's wield has to happen, or the three rules below are never asked"
     );
-    assert!(cdda_sim::creature::has_wield_conflicts(&mut world, survivor, first), "the same thing twice is a conflict");
-    assert!(!cdda_sim::creature::has_wield_conflicts(&mut world, survivor, same_kind), "the same kind combines into the held hand");
-    assert!(cdda_sim::creature::has_wield_conflicts(&mut world, survivor, other_kind), "a different kind does not");
+    assert!(
+        cdda_sim::creature::has_wield_conflicts(&mut world, survivor, first),
+        "the same thing twice is a conflict"
+    );
+    assert!(
+        !cdda_sim::creature::has_wield_conflicts(&mut world, survivor, same_kind),
+        "the same kind combines into the held hand"
+    );
+    assert!(
+        cdda_sim::creature::has_wield_conflicts(&mut world, survivor, other_kind),
+        "a different kind does not"
+    );
 }
 
 /// The biggest part that survives a weapon's break goes into the hand.
@@ -2331,23 +2894,45 @@ fn the_biggest_part_of_a_broken_weapon_goes_into_the_hand() {
     };
     cdda_sim::item_registry::install_kind_facts(
         &mut world,
-        &[(weapon, facts(vec!["FRAGILE_MELEE".to_owned()], 0)), (shaft, facts(Vec::new(), 5))],
+        &[
+            (weapon, facts(vec!["FRAGILE_MELEE".to_owned()], 0)),
+            (shaft, facts(Vec::new(), 5)),
+        ],
     );
     cdda_sim::item_registry::set_item_volumes(&mut world, &[(shaft, 500)]);
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let held = world
         .spawn((
-            cdda_sim::GroundItem { kind: weapon, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::GroundItem {
+                kind: weapon,
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
             cdda_sim::ItemDamage::default(),
         ))
         .id();
     let part = world
-        .spawn(cdda_sim::GroundItem { kind: shaft, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .spawn(cdda_sim::GroundItem {
+            kind: shaft,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
         .id();
     cdda_sim::item_parts::add_part(&mut world, held, part);
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(seed));
     // Wielding costs moves, so the survivor banks two turns before the weapon breaks - otherwise the part is refused for a reason that has nothing to do with the rule.
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     cdda_sim::creature::bank_a_turn(&mut world);
     cdda_sim::creature::bank_a_turn(&mut world);
 
@@ -2361,7 +2946,10 @@ fn the_biggest_part_of_a_broken_weapon_goes_into_the_hand() {
         Some(part),
         "**and it is in the hand**, because it was the biggest thing that came out"
     );
-    assert!(world.get::<cdda_sim::item_parts::PartOf>(part).is_none(), "it is nobody's part any more");
+    assert!(
+        world.get::<cdda_sim::item_parts::PartOf>(part).is_none(),
+        "it is nobody's part any more"
+    );
 }
 
 /// A weapon that breaks drops what was inside it where the survivor stands.
@@ -2384,18 +2972,36 @@ fn a_weapon_that_breaks_drops_what_was_inside_it() {
         count_by_charges: false,
         is_comestible: false,
     };
-    cdda_sim::item_registry::install_kind_facts(&mut world, &[(weapon, facts(0)), (flask, facts(10))]);
+    cdda_sim::item_registry::install_kind_facts(
+        &mut world,
+        &[(weapon, facts(0)), (flask, facts(10))],
+    );
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (5, 7, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (6, 7, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Speed { base: 100, bonus: 0 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 9_000,
+        max_hp: 9_000,
+    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        });
     for _ in 0..2 {
         cdda_sim::creature::bank_a_turn(&mut world);
     }
     let held = world
         .spawn((
-            cdda_sim::GroundItem { kind: weapon, charges: 1, age: 0, burnt: 0, damage: 0, burn: None },
+            cdda_sim::GroundItem {
+                kind: weapon,
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
             cdda_sim::ItemDamage::default(),
             cdda_sim::creature::Carried(survivor),
         ))
@@ -2406,22 +3012,39 @@ fn a_weapon_that_breaks_drops_what_was_inside_it() {
         "the fixture's weapon goes into the hand"
     );
     let inside = world
-        .spawn(cdda_sim::GroundItem { kind: flask, charges: 1, age: 0, burnt: 0, damage: 0, burn: None })
+        .spawn(cdda_sim::GroundItem {
+            kind: flask,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        })
         .id();
-    assert!(cdda_sim::containment::put_inside(&mut world, inside, held), "the flask goes inside the weapon");
+    assert!(
+        cdda_sim::containment::put_inside(&mut world, inside, held),
+        "the flask goes inside the weapon"
+    );
 
     // Five blows: the last destroys the weapon.
     for _ in 0..5 {
         cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     }
     assert!(world.get_entity(held).is_err(), "the weapon is gone");
-    assert!(world.get_entity(inside).is_ok(), "**the flask is not**: it was spilled, not destroyed");
     assert!(
-        world.get::<cdda_sim::containment::ContainedIn>(inside).is_none(),
+        world.get_entity(inside).is_ok(),
+        "**the flask is not**: it was spilled, not destroyed"
+    );
+    assert!(
+        world
+            .get::<cdda_sim::containment::ContainedIn>(inside)
+            .is_none(),
         "and it is nobody's content any more"
     );
     assert_eq!(
-        world.get::<cdda_sim::Position>(inside).map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(inside)
+            .map(|at| (at.x, at.y, at.z)),
         Some((5, 7, 0)),
         "it is on the square the survivor stood on"
     );
@@ -2436,12 +3059,24 @@ fn a_weapon_that_breaks_drops_what_was_inside_it() {
 fn what_a_thing_is_worth_as_a_block() {
     use cdda_sim::melee::blocking_ability;
 
-    assert_eq!(blocking_ability(&["WBLOCK_3"], false), 10, "the best technique");
+    assert_eq!(
+        blocking_ability(&["WBLOCK_3"], false),
+        10,
+        "the best technique"
+    );
     assert_eq!(blocking_ability(&["WBLOCK_2"], false), 6, "then six");
     assert_eq!(blocking_ability(&["WBLOCK_1"], false), 4, "then four");
-    assert_eq!(blocking_ability(&[], true), 2, "and two for something worn with no technique");
+    assert_eq!(
+        blocking_ability(&[], true),
+        2,
+        "and two for something worn with no technique"
+    );
     assert_eq!(blocking_ability(&[], false), 0, "nothing else blocks");
-    assert_eq!(blocking_ability(&["WBLOCK_1", "WBLOCK_3"], false), 10, "**the chain takes the best**, whatever the order of the list");
+    assert_eq!(
+        blocking_ability(&["WBLOCK_1", "WBLOCK_3"], false),
+        10,
+        "**the chain takes the best**, whatever the order of the list"
+    );
 }
 
 /// Which thing a character blocks with: the best worn shield when it ties or beats the weapon, and never a worn bonus counted in the hand.
@@ -2460,12 +3095,36 @@ fn what_a_thing_is_worth_as_a_block() {
 fn the_best_shield_is_the_worn_one_when_it_ties_or_beats_the_weapon() {
     use cdda_sim::melee::{Shield, best_shield};
 
-    assert_eq!(best_shield(10, None), Shield::Weapon, "a technique weapon with nothing worn");
-    assert_eq!(best_shield(10, Some(9)), Shield::Weapon, "a worse worn shield stays worn and is not used");
-    assert_eq!(best_shield(10, Some(10)), Shield::Worn, "**a tie goes to the worn one**");
-    assert_eq!(best_shield(10, Some(12)), Shield::Worn, "and so does anything better");
-    assert_eq!(best_shield(2, None), Shield::None, "**a worn bonus in the hand is worth nothing** - two is discarded");
-    assert_eq!(best_shield(2, Some(2)), Shield::Worn, "and against that zero, any worn shield wins");
+    assert_eq!(
+        best_shield(10, None),
+        Shield::Weapon,
+        "a technique weapon with nothing worn"
+    );
+    assert_eq!(
+        best_shield(10, Some(9)),
+        Shield::Weapon,
+        "a worse worn shield stays worn and is not used"
+    );
+    assert_eq!(
+        best_shield(10, Some(10)),
+        Shield::Worn,
+        "**a tie goes to the worn one**"
+    );
+    assert_eq!(
+        best_shield(10, Some(12)),
+        Shield::Worn,
+        "and so does anything better"
+    );
+    assert_eq!(
+        best_shield(2, None),
+        Shield::None,
+        "**a worn bonus in the hand is worth nothing** - two is discarded"
+    );
+    assert_eq!(
+        best_shield(2, Some(2)),
+        Shield::Worn,
+        "and against that zero, any worn shield wins"
+    );
     assert_eq!(best_shield(0, None), Shield::None, "nothing to block with");
 }
 
@@ -2491,22 +3150,39 @@ fn a_block_is_attempted_only_by_someone_able_to_react_and_costs_only_when_it_lan
     let mut untouched = Rolls::new(7);
     let expected = untouched.rng(0, 99);
     let mut dice = Rolls::new(7);
-    assert_eq!(block_attempt(false, 3, 5.0, 1.0, &mut dice), BlockAttempt::NotAttempted);
-    assert_eq!(dice.rng(0, 99), expected, "the die a sleeper never rolled is still there");
+    assert_eq!(
+        block_attempt(false, 3, 5.0, 1.0, &mut dice),
+        BlockAttempt::NotAttempted
+    );
+    assert_eq!(
+        dice.rng(0, 99),
+        expected,
+        "the die a sleeper never rolled is still there"
+    );
 
     // No blocks left: the same, and no die.
     let mut untouched = Rolls::new(7);
     let expected = untouched.rng(0, 99);
     let mut dice = Rolls::new(7);
-    assert_eq!(block_attempt(true, 0, 5.0, 1.0, &mut dice), BlockAttempt::NotAttempted, "no blocks left means no attempt");
+    assert_eq!(
+        block_attempt(true, 0, 5.0, 1.0, &mut dice),
+        BlockAttempt::NotAttempted,
+        "no blocks left means no attempt"
+    );
     assert_eq!(dice.rng(0, 99), expected, "and no die spent");
 
     // A skill of five with a full reaction score is five times twenty in a hundred: certain.
     let mut dice = Rolls::new(1);
-    assert_eq!(block_attempt(true, 2, 5.0, 1.0, &mut dice), BlockAttempt::Blocked);
+    assert_eq!(
+        block_attempt(true, 2, 5.0, 1.0, &mut dice),
+        BlockAttempt::Blocked
+    );
     // And no skill at all never lands.
     let mut dice = Rolls::new(1);
-    assert_eq!(block_attempt(true, 2, 0.0, 1.0, &mut dice), BlockAttempt::RollFailed);
+    assert_eq!(
+        block_attempt(true, 2, 0.0, 1.0, &mut dice),
+        BlockAttempt::RollFailed
+    );
 }
 
 /// A block score becomes a fraction of damage stopped, on the reference's own curve.
@@ -2521,18 +3197,42 @@ fn a_block_score_becomes_a_fraction_of_the_damage_stopped() {
     // The answer is **the fraction of damage that keeps coming**, so blocked = 1 - answer.
     let blocked = |score| 1.0 - logarithmic_range(0, 40, score);
     let beginner = blocked(10);
-    assert!((0.08..0.20).contains(&beginner), "a beginner blocks about a tenth to a fifth: {beginner:.3}");
+    assert!(
+        (0.08..0.20).contains(&beginner),
+        "a beginner blocks about a tenth to a fifth: {beginner:.3}"
+    );
     let proficient = blocked(20);
-    assert!((0.40..0.55).contains(&proficient), "a proficient character about 45%: {proficient:.3}");
+    assert!(
+        (0.40..0.55).contains(&proficient),
+        "a proficient character about 45%: {proficient:.3}"
+    );
     let expert = blocked(28);
-    assert!((0.75..0.90).contains(&expert), "an expert about 80%: {expert:.3}");
+    assert!(
+        (0.75..0.90).contains(&expert),
+        "an expert about 80%: {expert:.3}"
+    );
 
     // The clamps, and the direction they fix: **a score at the minimum stops nothing, a score at the maximum stops everything.**
-    assert!((logarithmic_range(0, 40, 0) - 1.0).abs() < 1e-9, "the minimum lets everything through");
-    assert!((logarithmic_range(0, 40, -5) - 1.0).abs() < 1e-9, "and below it too");
-    assert!(logarithmic_range(0, 40, 40).abs() < 1e-9, "the maximum stops everything");
-    assert!(logarithmic_range(0, 40, 99).abs() < 1e-9, "and above it too");
-    assert!(logarithmic_range(10, 10, 10).abs() < 1e-9, "an empty interval answers zero, as the reference's error path does");
+    assert!(
+        (logarithmic_range(0, 40, 0) - 1.0).abs() < 1e-9,
+        "the minimum lets everything through"
+    );
+    assert!(
+        (logarithmic_range(0, 40, -5) - 1.0).abs() < 1e-9,
+        "and below it too"
+    );
+    assert!(
+        logarithmic_range(0, 40, 40).abs() < 1e-9,
+        "the maximum stops everything"
+    );
+    assert!(
+        logarithmic_range(0, 40, 99).abs() < 1e-9,
+        "and above it too"
+    );
+    assert!(
+        logarithmic_range(10, 10, 10).abs() < 1e-9,
+        "an empty interval answers zero, as the reference's error path does"
+    );
 }
 
 /// A block spends its flat bonus first and then scales what is left, and only on physical damage that a melee blow deals.
@@ -2546,21 +3246,56 @@ fn a_block_spends_its_flat_bonus_before_it_scales_anything() {
 
     // Two physical units and one that is not: flat 10 comes off the first two in turn.
     let mut units = vec![
-        DamageUnit { physical: true, melee_only: true, amount: 8.0 },
-        DamageUnit { physical: true, melee_only: true, amount: 9.0 },
-        DamageUnit { physical: false, melee_only: true, amount: 5.0 },
+        DamageUnit {
+            physical: true,
+            melee_only: true,
+            amount: 8.0,
+        },
+        DamageUnit {
+            physical: true,
+            melee_only: true,
+            amount: 9.0,
+        },
+        DamageUnit {
+            physical: false,
+            melee_only: true,
+            amount: 5.0,
+        },
     ];
     let blocked = block_damage(&mut units, 10.0, 0.5);
-    assert!((units[0].amount - 0.0).abs() < 1e-9, "the first unit is absorbed whole by the flat bonus: 8 of 10");
-    assert!((units[1].amount - 3.5).abs() < 1e-9, "the last 2 of the bonus come off the second, and half of the remaining 7 is blocked: {:.3}", units[1].amount);
-    assert!((units[2].amount - 5.0).abs() < 1e-9, "**a non-physical unit is untouched**, however big the block");
-    assert!((blocked - 8.0 - 2.0 - 3.5).abs() < 1e-9, "and the blocked total counts both halves: flat 10 plus the 3.5 the multiplier took");
+    assert!(
+        (units[0].amount - 0.0).abs() < 1e-9,
+        "the first unit is absorbed whole by the flat bonus: 8 of 10"
+    );
+    assert!(
+        (units[1].amount - 3.5).abs() < 1e-9,
+        "the last 2 of the bonus come off the second, and half of the remaining 7 is blocked: {:.3}",
+        units[1].amount
+    );
+    assert!(
+        (units[2].amount - 5.0).abs() < 1e-9,
+        "**a non-physical unit is untouched**, however big the block"
+    );
+    assert!(
+        (blocked - 8.0 - 2.0 - 3.5).abs() < 1e-9,
+        "and the blocked total counts both halves: flat 10 plus the 3.5 the multiplier took"
+    );
 
     // Setting the flat bonus to zero leaves the multiplier alone to do the work.
-    let mut units = vec![DamageUnit { physical: true, melee_only: true, amount: 10.0 }];
+    let mut units = vec![DamageUnit {
+        physical: true,
+        melee_only: true,
+        amount: 10.0,
+    }];
     let blocked = block_damage(&mut units, 0.0, 0.25);
-    assert!((units[0].amount - 2.5).abs() < 1e-9, "a quarter gets through");
-    assert!((blocked - 7.5).abs() < 1e-9, "and three quarters is blocked");
+    assert!(
+        (units[0].amount - 2.5).abs() < 1e-9,
+        "a quarter gets through"
+    );
+    assert!(
+        (blocked - 7.5).abs() < 1e-9,
+        "and three quarters is blocked"
+    );
 }
 
 /// How much of a blow a block stopped, in words - on a ladder whose first word is the opposite of its condition.
@@ -2573,14 +3308,30 @@ fn how_much_of_a_blow_a_block_stopped_in_words() {
     use cdda_sim::melee::blocked_description;
 
     assert_eq!(blocked_description(0.0), "all", "nothing got through");
-    assert_eq!(blocked_description(0.1), "nearly all", "a tenth got through");
-    assert_eq!(blocked_description(0.2), "most", "**0.2 is not under 0.2**, so it is a rung down");
+    assert_eq!(
+        blocked_description(0.1),
+        "nearly all",
+        "a tenth got through"
+    );
+    assert_eq!(
+        blocked_description(0.2),
+        "most",
+        "**0.2 is not under 0.2**, so it is a rung down"
+    );
     assert_eq!(blocked_description(0.39), "most", "just under two fifths");
-    assert_eq!(blocked_description(0.4), "a lot", "two fifths exactly moves a rung");
+    assert_eq!(
+        blocked_description(0.4),
+        "a lot",
+        "two fifths exactly moves a rung"
+    );
     assert_eq!(blocked_description(0.59), "a lot");
     assert_eq!(blocked_description(0.6), "some");
     assert_eq!(blocked_description(0.79), "some");
-    assert_eq!(blocked_description(0.8), "a little", "four fifths through is still a little blocked");
+    assert_eq!(
+        blocked_description(0.8),
+        "a little",
+        "four fifths through is still a little blocked"
+    );
     assert_eq!(blocked_description(0.99), "a little");
 }
 
@@ -2594,12 +3345,36 @@ fn a_counter_attack_needs_stamina_and_a_weapon_that_is_not_mostly_glass() {
     use cdda_sim::melee::{CounterAttack, counter_attack};
 
     // **Integer division**: 100 / 3 is 33, so 32 is under a third and 33 is not.
-    assert_eq!(counter_attack(32, 100, 0.0, 100.0), CounterAttack::TooExhausted, "32 is under the third");
-    assert_eq!(counter_attack(33, 100, 0.0, 100.0), CounterAttack::Yes, "**33 is exactly the third, and the test is strict**");
-    assert_eq!(counter_attack(33, 99, 0.0, 100.0), CounterAttack::Yes, "**integer division**: 99 / 3 is exactly 33, so a third is not under a third");
-    assert_eq!(counter_attack(100, 100, 25.0, 100.0), CounterAttack::TooFragile, "25 of 100 is over the fifth");
-    assert_eq!(counter_attack(100, 100, 20.0, 100.0), CounterAttack::Yes, "**exactly a fifth is not over it**");
-    assert_eq!(counter_attack(100, 100, 0.0, 0.0), CounterAttack::Yes, "a weapon with no materials has no glass in it");
+    assert_eq!(
+        counter_attack(32, 100, 0.0, 100.0),
+        CounterAttack::TooExhausted,
+        "32 is under the third"
+    );
+    assert_eq!(
+        counter_attack(33, 100, 0.0, 100.0),
+        CounterAttack::Yes,
+        "**33 is exactly the third, and the test is strict**"
+    );
+    assert_eq!(
+        counter_attack(33, 99, 0.0, 100.0),
+        CounterAttack::Yes,
+        "**integer division**: 99 / 3 is exactly 33, so a third is not under a third"
+    );
+    assert_eq!(
+        counter_attack(100, 100, 25.0, 100.0),
+        CounterAttack::TooFragile,
+        "25 of 100 is over the fifth"
+    );
+    assert_eq!(
+        counter_attack(100, 100, 20.0, 100.0),
+        CounterAttack::Yes,
+        "**exactly a fifth is not over it**"
+    );
+    assert_eq!(
+        counter_attack(100, 100, 0.0, 0.0),
+        CounterAttack::Yes,
+        "a weapon with no materials has no glass in it"
+    );
 }
 
 /// A body's overkill decides what is left of it: a corpse with damage scaled to the blow, or a splatter.
@@ -2626,11 +3401,23 @@ fn overkill_decides_what_is_left_of_a_body() {
         DeathRemains::Corpse { damage: 2500 },
         "**twice and a half the health over is a corpse at 2,500 damage**: 2.5 * 40 / 40 * 1,000"
     );
-    assert_eq!(death_remains(0, 40), DeathRemains::Corpse { damage: 0 }, "a body killed exactly is undamaged");
-    assert_eq!(death_remains(-120, 40), DeathRemains::Pulverized, "three times its health over is a splatter");
+    assert_eq!(
+        death_remains(0, 40),
+        DeathRemains::Corpse { damage: 0 },
+        "a body killed exactly is undamaged"
+    );
+    assert_eq!(
+        death_remains(-120, 40),
+        DeathRemains::Pulverized,
+        "three times its health over is a splatter"
+    );
 
     // A body killed for two and a half times its health over is 6.25 of corpse damage, and pulverised.
-    assert_eq!(death_remains(-100, 40), DeathRemains::Pulverized, "**two and a half times over splatters**");
+    assert_eq!(
+        death_remains(-100, 40),
+        DeathRemains::Pulverized,
+        "**two and a half times over splatters**"
+    );
     // And there is no health and overkill where the two halves of the `&&` disagree: damage above five *is* overkill above twice the health.
     for max_hp in 1..200 {
         for over in 0..=2 * max_hp + 2 {
@@ -2658,12 +3445,19 @@ fn a_corpse_carries_the_overkill_that_made_it() {
     let mut health = cdda_sim::creature::Health { hp: 0, max_hp: 40 };
     world.entity_mut(shambler).insert(health);
     cdda_sim::creature::set_health(&mut world, shambler, 40);
-    assert_eq!(world.get::<cdda_sim::creature::Health>(shambler).map(|h| h.max_hp), Some(40), "the ceiling is forty");
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Health>(shambler)
+            .map(|h| h.max_hp),
+        Some(40),
+        "the ceiling is forty"
+    );
     health.hp = -40;
     world.entity_mut(shambler).insert(health);
 
     let corpse_kind = cdda_sim::ItemTypeId(7);
-    let cleared = cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
+    let cleared =
+        cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
     assert_eq!(cleared, 1, "the body was cleared");
 
     let corpse = cdda_sim::items_at(&mut world, (1, 0))
@@ -2671,7 +3465,9 @@ fn a_corpse_carries_the_overkill_that_made_it() {
         .next()
         .expect("**a twice-over corpse is still a corpse**");
     assert_eq!(
-        world.get::<cdda_sim::GroundItem>(corpse).map(|item| item.damage),
+        world
+            .get::<cdda_sim::GroundItem>(corpse)
+            .map(|item| item.damage),
         Some(2500),
         "and it carries 2,500 damage from the overkill"
     );
@@ -2679,7 +3475,10 @@ fn a_corpse_carries_the_overkill_that_made_it() {
     // The same body killed three times its health over is a splatter, and leaves nothing whole.
     let other = cdda_sim::creature::spawn_creature(&mut world, "another shambler", (2, 0, 0));
     cdda_sim::creature::set_kind(&mut world, other, cdda_sim::MonsterKindId(42));
-    world.entity_mut(other).insert(cdda_sim::creature::Health { hp: -120, max_hp: 40 });
+    world.entity_mut(other).insert(cdda_sim::creature::Health {
+        hp: -120,
+        max_hp: 40,
+    });
     cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
     assert_eq!(
         cdda_sim::items_at(&mut world, (2, 0)).len(),
@@ -2697,7 +3496,12 @@ fn a_corpse_carries_the_overkill_that_made_it() {
 fn a_dead_body_takes_no_further_blows() {
     let mut world = World::new();
     let shambler = cdda_sim::creature::spawn_creature(&mut world, "a shambler", (1, 0, 0));
-    world.entity_mut(shambler).insert(cdda_sim::creature::Health { hp: -10, max_hp: 40 });
+    world
+        .entity_mut(shambler)
+        .insert(cdda_sim::creature::Health {
+            hp: -10,
+            max_hp: 40,
+        });
 
     cdda_sim::creature::hurt(&mut world, shambler, 30.0);
     assert_eq!(
@@ -2707,9 +3511,15 @@ fn a_dead_body_takes_no_further_blows() {
     );
 
     let alive = cdda_sim::creature::spawn_creature(&mut world, "a living one", (2, 0, 0));
-    world.entity_mut(alive).insert(cdda_sim::creature::Health { hp: 40, max_hp: 40 });
+    world
+        .entity_mut(alive)
+        .insert(cdda_sim::creature::Health { hp: 40, max_hp: 40 });
     cdda_sim::creature::hurt(&mut world, alive, 15.0);
-    assert_eq!(cdda_sim::creature::health_of(&world, alive), Some(25), "while a living body still takes its damage");
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, alive),
+        Some(25),
+        "while a living body still takes its damage"
+    );
 }
 
 /// A splatter's gibs follow the body's own damage and health, and a body of one health can be owed none.
@@ -2727,15 +3537,31 @@ fn a_dead_body_takes_no_further_blows() {
 fn a_splatter_gets_gibs_from_its_damage_and_its_health() {
     use cdda_sim::creature::gib_count;
 
-    assert_eq!(gib_count(2.5, 40), 1, "floor(2.5) - 1 is one, and 1 + 40/5 is nine, so the damage decides");
-    assert_eq!(gib_count(10.0, 100), 9, "and a big one is capped by the damage: nine against twenty-one");
-    assert_eq!(gib_count(1.0, 40), 0, "a body killed barely is owed no gibs");
+    assert_eq!(
+        gib_count(2.5, 40),
+        1,
+        "floor(2.5) - 1 is one, and 1 + 40/5 is nine, so the damage decides"
+    );
+    assert_eq!(
+        gib_count(10.0, 100),
+        9,
+        "and a big one is capped by the damage: nine against twenty-one"
+    );
+    assert_eq!(
+        gib_count(1.0, 40),
+        0,
+        "a body killed barely is owed no gibs"
+    );
     assert_eq!(
         gib_count(1.9, 4),
         0,
         "**the health side can decide too**: floor(1.9) - 1 is zero and 1 + 4/5 is one, so the smaller wins"
     );
-    assert_eq!(gib_count(0.4, 40), -1, "and under a whole point of corpse damage the answer is negative, as the reference's is");
+    assert_eq!(
+        gib_count(0.4, 40),
+        -1,
+        "and under a whole point of corpse damage the answer is negative, as the reference's is"
+    );
 }
 
 /// What a monster bleeds, and what it splatters into, follow its flags before its flesh.
@@ -2754,27 +3580,100 @@ fn a_splatter_gets_gibs_from_its_damage_and_its_health() {
 fn a_monster_bleeds_by_its_flags_before_its_flesh() {
     use cdda_sim::blood::{BloodTraits, blood_field, gib_field};
 
-    let acid_blooded = BloodTraits { acid: true, bile: true, arthropod: true, warm: true };
-    assert_eq!(blood_field(&acid_blooded, &["flesh"]), Some("fd_acid"), "**acid wins over everything below it**");
+    let acid_blooded = BloodTraits {
+        acid: true,
+        bile: true,
+        arthropod: true,
+        warm: true,
+    };
+    assert_eq!(
+        blood_field(&acid_blooded, &["flesh"]),
+        Some("fd_acid"),
+        "**acid wins over everything below it**"
+    );
 
-    let bile_blooded = BloodTraits { acid: false, bile: true, arthropod: true, warm: true };
-    assert_eq!(blood_field(&bile_blooded, &["flesh"]), Some("fd_bile"), "then bile");
+    let bile_blooded = BloodTraits {
+        acid: false,
+        bile: true,
+        arthropod: true,
+        warm: true,
+    };
+    assert_eq!(
+        blood_field(&bile_blooded, &["flesh"]),
+        Some("fd_bile"),
+        "then bile"
+    );
 
-    let arthropod = BloodTraits { acid: false, bile: false, arthropod: true, warm: true };
-    assert_eq!(blood_field(&arthropod, &["flesh"]), Some("fd_blood_invertebrate"), "then an arthropod's");
+    let arthropod = BloodTraits {
+        acid: false,
+        bile: false,
+        arthropod: true,
+        warm: true,
+    };
+    assert_eq!(
+        blood_field(&arthropod, &["flesh"]),
+        Some("fd_blood_invertebrate"),
+        "then an arthropod's"
+    );
 
-    let plain = BloodTraits { acid: false, bile: false, arthropod: false, warm: true };
-    assert_eq!(blood_field(&plain, &["flesh"]), Some("fd_blood"), "a warm fleshy thing bleeds blood");
-    assert_eq!(blood_field(&plain, &["veggy"]), Some("fd_blood_veggy"), "a plant bleeds sap");
-    assert_eq!(blood_field(&plain, &["iflesh"]), Some("fd_blood_insect"), "and an insect its own");
-    let cold = BloodTraits { acid: false, bile: false, arthropod: false, warm: false };
-    assert_eq!(blood_field(&cold, &["flesh"]), None, "**a cold flesh thing falls through**, and its bleed type is not loaded yet");
+    let plain = BloodTraits {
+        acid: false,
+        bile: false,
+        arthropod: false,
+        warm: true,
+    };
+    assert_eq!(
+        blood_field(&plain, &["flesh"]),
+        Some("fd_blood"),
+        "a warm fleshy thing bleeds blood"
+    );
+    assert_eq!(
+        blood_field(&plain, &["veggy"]),
+        Some("fd_blood_veggy"),
+        "a plant bleeds sap"
+    );
+    assert_eq!(
+        blood_field(&plain, &["iflesh"]),
+        Some("fd_blood_insect"),
+        "and an insect its own"
+    );
+    let cold = BloodTraits {
+        acid: false,
+        bile: false,
+        arthropod: false,
+        warm: false,
+    };
+    assert_eq!(
+        blood_field(&cold, &["flesh"]),
+        None,
+        "**a cold flesh thing falls through**, and its bleed type is not loaded yet"
+    );
 
-    assert_eq!(gib_field(&["flesh"], true), Some("fd_gibs_invertebrate"), "a mollusc gibs as an invertebrate");
-    assert_eq!(gib_field(&["veggy"], false), Some("fd_gibs_veggy"), "plants into veggy gibs");
-    assert_eq!(gib_field(&["iflesh"], false), Some("fd_gibs_insect"), "insects into insect gibs");
-    assert_eq!(gib_field(&["flesh"], false), Some("fd_gibs_flesh"), "and flesh into flesh gibs");
-    assert_eq!(gib_field(&["steel"], false), None, "while steel gibs into nothing at all");
+    assert_eq!(
+        gib_field(&["flesh"], true),
+        Some("fd_gibs_invertebrate"),
+        "a mollusc gibs as an invertebrate"
+    );
+    assert_eq!(
+        gib_field(&["veggy"], false),
+        Some("fd_gibs_veggy"),
+        "plants into veggy gibs"
+    );
+    assert_eq!(
+        gib_field(&["iflesh"], false),
+        Some("fd_gibs_insect"),
+        "insects into insect gibs"
+    );
+    assert_eq!(
+        gib_field(&["flesh"], false),
+        Some("fd_gibs_flesh"),
+        "and flesh into flesh gibs"
+    );
+    assert_eq!(
+        gib_field(&["steel"], false),
+        None,
+        "while steel gibs into nothing at all"
+    );
 }
 
 /// A pulverised body writes its gibs and its blood into the world, and an ordinary corpse bleeds where it fell.
@@ -2787,26 +3686,45 @@ fn a_splattered_body_writes_its_gibs_into_the_world() {
     let shambler = cdda_sim::spawn_monster(&mut world, (4, 4), cdda_sim::MonsterKindId(42), 40);
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_fixture", hp: 40 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_fixture",
+            hp: 40,
+        }],
     );
-    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(1), Some("fd_blood"), Some("fd_gibs_flesh"));
+    cdda_sim::monster_registry::set_remains(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        Some("fd_blood"),
+        Some("fd_gibs_flesh"),
+    );
     // The two fields the corpse will write, with the intensity range the data gives them.
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)]);
+    cdda_sim::field_registry::set_field_names(
+        &mut world,
+        &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)],
+    );
     cdda_sim::creature::set_kind(&mut world, shambler, cdda_sim::MonsterKindId(1));
     world
         .entity_mut(shambler)
-        .insert(cdda_sim::creature::Health { hp: -120, max_hp: 40 });
+        .insert(cdda_sim::creature::Health {
+            hp: -120,
+            max_hp: 40,
+        });
 
     let corpse_kind = cdda_sim::ItemTypeId(7);
     cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
 
-    let gibs = cdda_sim::field_registry::id_of(&mut world, "fd_gibs_flesh").expect("the field id is known");
-    let blood = cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("the field id is known");
+    let gibs = cdda_sim::field_registry::id_of(&mut world, "fd_gibs_flesh")
+        .expect("the field id is known");
+    let blood =
+        cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("the field id is known");
     assert!(
         cdda_sim::field_strength_at(&world, (4, 4, 0), gibs) > 0,
         "**the splatter left gibs on the square**"
     );
-    assert!(cdda_sim::field_strength_at(&world, (4, 4, 0), blood) > 0, "and blood with them");
+    assert!(
+        cdda_sim::field_strength_at(&world, (4, 4, 0), blood) > 0,
+        "and blood with them"
+    );
 }
 
 /// A hallucination that dies simply disappears: no message, no corpse, and no blood.
@@ -2828,21 +3746,54 @@ fn a_hallucination_leaves_nothing_behind() {
     let phantom = cdda_sim::spawn_monster(&mut world, (5, 5), cdda_sim::MonsterKindId(1), 40);
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_fixture", hp: 40 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_fixture",
+            hp: 40,
+        }],
     );
-    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(1), Some("fd_blood"), Some("fd_gibs_flesh"));
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)]);
+    cdda_sim::monster_registry::set_remains(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        Some("fd_blood"),
+        Some("fd_gibs_flesh"),
+    );
+    cdda_sim::field_registry::set_field_names(
+        &mut world,
+        &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)],
+    );
     cdda_sim::creature::set_kind(&mut world, phantom, cdda_sim::MonsterKindId(1));
-    world.entity_mut(phantom).insert(cdda_sim::creature::Hallucination);
-    world.entity_mut(phantom).insert(cdda_sim::creature::Health { hp: -40, max_hp: 40 });
+    world
+        .entity_mut(phantom)
+        .insert(cdda_sim::creature::Hallucination);
+    world
+        .entity_mut(phantom)
+        .insert(cdda_sim::creature::Health {
+            hp: -40,
+            max_hp: 40,
+        });
 
-    let cleared = cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| 62_500);
+    let cleared = cdda_sim::creature::reap_dead_creatures_as_corpses(
+        &mut world,
+        cdda_sim::ItemTypeId(7),
+        |_| 62_500,
+    );
 
     assert_eq!(cleared, 1, "it is gone");
-    assert!(world.get_entity(phantom).is_err(), "and no creature remains");
-    assert_eq!(cdda_sim::items_at(&mut world, (5, 5)).len(), 0, "**no corpse to butcher**");
+    assert!(
+        world.get_entity(phantom).is_err(),
+        "and no creature remains"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (5, 5)).len(),
+        0,
+        "**no corpse to butcher**"
+    );
     let blood = cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("known");
-    assert_eq!(cdda_sim::field_strength_at(&world, (5, 5, 0), blood), 0, "and no blood either");
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (5, 5, 0), blood),
+        0,
+        "and no blood either"
+    );
 }
 
 /// A body the player can see says that it died, and a quiet one does not.
@@ -2861,7 +3812,11 @@ fn a_hallucination_leaves_nothing_behind() {
 #[test]
 fn a_death_says_so_unless_the_body_is_quiet() {
     let line = cdda_sim::creature::death_message("shambler", false);
-    assert_eq!(line.as_deref(), Some("The shambler dies!"), "the ordinary body says so");
+    assert_eq!(
+        line.as_deref(),
+        Some("The shambler dies!"),
+        "the ordinary body says so"
+    );
     assert_eq!(
         cdda_sim::creature::death_message("shambler", true),
         None,
@@ -2878,7 +3833,10 @@ fn the_game_log_says_that_a_body_died() {
     let mut world = World::new();
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_fixture", hp: 40 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_fixture",
+            hp: 40,
+        }],
     );
     let loud = cdda_sim::spawn_monster(&mut world, (6, 6), cdda_sim::MonsterKindId(1), 40);
     cdda_sim::creature::set_health_left(&mut world, loud, 0);
@@ -2886,15 +3844,19 @@ fn the_game_log_says_that_a_body_died() {
     cdda_sim::creature::set_health_left(&mut world, quiet, 0);
     world
         .entity_mut(quiet)
-        .insert(cdda_sim::creature_flags::CreatureFlags(std::collections::BTreeSet::from([
-            "QUIETDEATH".to_owned(),
-        ])));
+        .insert(cdda_sim::creature_flags::CreatureFlags(
+            std::collections::BTreeSet::from(["QUIETDEATH".to_owned()]),
+        ));
 
-    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| 62_500);
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| {
+        62_500
+    });
 
     let lines = cdda_sim::messages::lines(&world);
     assert!(
-        lines.iter().any(|line| line.contains("mon_fixture") && line.contains("dies!")),
+        lines
+            .iter()
+            .any(|line| line.contains("mon_fixture") && line.contains("dies!")),
         "**the loud body's death is in the log**: {lines:?}"
     );
     assert_eq!(
@@ -2918,7 +3880,11 @@ fn a_type_can_have_its_own_death_sentence() {
         Some("The shoggoth becomes part of the endless chamber.".to_owned()),
         "**the name goes where the data put the placeholder**"
     );
-    assert_eq!(typed_death_message("", "shambler"), None, "a type with no sentence adds nothing");
+    assert_eq!(
+        typed_death_message("", "shambler"),
+        None,
+        "a type with no sentence adds nothing"
+    );
     assert_eq!(
         typed_death_message("It is gone.", "shambler"),
         Some("It is gone.".to_owned()),
@@ -2938,15 +3904,34 @@ fn the_type_decides_what_the_body_leaves() {
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
         &[
-            cdda_sim::monster_registry::MonsterKind { id: "mon_none", hp: 40 },
-            cdda_sim::monster_registry::MonsterKind { id: "mon_splatter", hp: 40 },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_none",
+                hp: 40,
+            },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_splatter",
+                hp: 40,
+            },
         ],
     );
-    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(1), Some("fd_blood"), Some("fd_gibs_flesh"));
-    cdda_sim::monster_registry::set_remains(&mut world, cdda_sim::MonsterKindId(2), Some("fd_blood"), Some("fd_gibs_flesh"));
+    cdda_sim::monster_registry::set_remains(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        Some("fd_blood"),
+        Some("fd_gibs_flesh"),
+    );
+    cdda_sim::monster_registry::set_remains(
+        &mut world,
+        cdda_sim::MonsterKindId(2),
+        Some("fd_blood"),
+        Some("fd_gibs_flesh"),
+    );
     cdda_sim::monster_registry::set_corpse_type(&mut world, cdda_sim::MonsterKindId(1), "none");
     cdda_sim::monster_registry::set_corpse_type(&mut world, cdda_sim::MonsterKindId(2), "splatter");
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)]);
+    cdda_sim::field_registry::set_field_names(
+        &mut world,
+        &[("fd_blood", 3, 0), ("fd_gibs_flesh", 3, 0)],
+    );
 
     // A `NO_CORPSE` body killed to exactly zero: nothing, where an ordinary one would leave a corpse.
     let nothing = cdda_sim::spawn_monster(&mut world, (8, 8), cdda_sim::MonsterKindId(1), 40);
@@ -2955,16 +3940,26 @@ fn the_type_decides_what_the_body_leaves() {
     let splat = cdda_sim::spawn_monster(&mut world, (9, 8), cdda_sim::MonsterKindId(2), 40);
     cdda_sim::creature::set_health_left(&mut world, splat, 0);
 
-    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| 62_500);
+    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(7), |_| {
+        62_500
+    });
 
-    assert_eq!(cdda_sim::items_at(&mut world, (8, 8)).len(), 0, "**none leaves nothing**");
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (8, 8)).len(),
+        0,
+        "**none leaves nothing**"
+    );
     let blood = cdda_sim::field_registry::id_of(&mut world, "fd_blood").expect("known");
     assert_eq!(
         cdda_sim::field_strength_at(&world, (8, 8, 0), blood),
         0,
         "and no blood either, because the bleeding lives in the normal branch"
     );
-    assert_eq!(cdda_sim::items_at(&mut world, (9, 8)).len(), 0, "splatter leaves no corpse on a gentle kill");
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (9, 8)).len(),
+        0,
+        "splatter leaves no corpse on a gentle kill"
+    );
     let gibs = cdda_sim::field_registry::id_of(&mut world, "fd_gibs_flesh").expect("known");
     assert!(
         cdda_sim::field_strength_at(&world, (9, 8, 0), gibs) > 0,
@@ -2980,14 +3975,22 @@ fn the_type_decides_what_the_body_leaves() {
 fn a_broken_body_leaves_the_broken_thing() {
     use cdda_sim::creature::broken_item_id;
 
-    assert_eq!(broken_item_id("mon_manhack", ""), "broken_manhack", "**the id is made from the monster's own**");
+    assert_eq!(
+        broken_item_id("mon_manhack", ""),
+        "broken_manhack",
+        "**the id is made from the monster's own**"
+    );
     assert_eq!(broken_item_id("mon_zombie", ""), "broken_zombie");
     assert_eq!(
         broken_item_id("mon_manhack", "broken_drone"),
         "broken_drone",
         "and the data's own id wins when it states one"
     );
-    assert_eq!(broken_item_id("manhack", ""), "broken_manhack", "an id without the prefix is left alone");
+    assert_eq!(
+        broken_item_id("manhack", ""),
+        "broken_manhack",
+        "an id without the prefix is left alone"
+    );
 }
 
 /// A `broken` body really leaves the broken item, found by the id the rule makes.
@@ -2999,7 +4002,10 @@ fn a_broken_body_drops_the_broken_item() {
     let mut world = World::new();
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_manhack", hp: 40 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_manhack",
+            hp: 40,
+        }],
     );
     cdda_sim::monster_registry::set_corpse_type(&mut world, cdda_sim::MonsterKindId(1), "broken");
     // The item the broken id rule makes has to exist in the registry, exactly as the loader would leave it.
@@ -3020,13 +4026,20 @@ fn a_broken_body_drops_the_broken_item() {
     let scrap = cdda_sim::spawn_monster(&mut world, (10, 10), cdda_sim::MonsterKindId(1), 40);
     cdda_sim::creature::set_health_left(&mut world, scrap, 0);
 
-    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(99), |_| 62_500);
+    cdda_sim::creature::reap_dead_creatures_as_corpses(
+        &mut world,
+        cdda_sim::ItemTypeId(99),
+        |_| 62_500,
+    );
 
     let left = cdda_sim::items_at(&mut world, (10, 10));
     assert_eq!(left.len(), 1, "**one broken thing on the square**");
-    let expected = cdda_sim::item_registry::id_of(&mut world, "broken_manhack").expect("the item is registered");
+    let expected = cdda_sim::item_registry::id_of(&mut world, "broken_manhack")
+        .expect("the item is registered");
     assert_eq!(
-        world.get::<cdda_sim::GroundItem>(left[0]).map(|item| item.kind),
+        world
+            .get::<cdda_sim::GroundItem>(left[0])
+            .map(|item| item.kind),
         Some(expected),
         "and it is the broken item the id rule named"
     );
@@ -3046,9 +4059,16 @@ fn a_body_drops_what_its_group_says() {
     let mut world = World::new();
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_looter", hp: 40 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_looter",
+            hp: 40,
+        }],
     );
-    cdda_sim::monster_registry::set_death_drops(&mut world, cdda_sim::MonsterKindId(1), "loot_group");
+    cdda_sim::monster_registry::set_death_drops(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        "loot_group",
+    );
     cdda_sim::item_registry::set_item_types(
         &mut world,
         &[cdda_sim::item_registry::Kind {
@@ -3084,12 +4104,18 @@ fn a_body_drops_what_its_group_says() {
 
     let looter = cdda_sim::spawn_monster(&mut world, (11, 11), cdda_sim::MonsterKindId(1), 40);
     cdda_sim::creature::set_health_left(&mut world, looter, 0);
-    cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, cdda_sim::ItemTypeId(99), |_| 62_500);
+    cdda_sim::creature::reap_dead_creatures_as_corpses(
+        &mut world,
+        cdda_sim::ItemTypeId(99),
+        |_| 62_500,
+    );
 
     let left = cdda_sim::items_at(&mut world, (11, 11));
     let rag = cdda_sim::item_registry::id_of(&mut world, "rag").expect("the item is registered");
     assert!(
-        left.iter().any(|item| world.get::<cdda_sim::GroundItem>(*item).is_some_and(|held| held.kind == rag)),
+        left.iter().any(|item| world
+            .get::<cdda_sim::GroundItem>(*item)
+            .is_some_and(|held| held.kind == rag)),
         "**the group's rag is on the square**: {left:?}"
     );
 }
@@ -3115,17 +4141,45 @@ fn a_body_drops_what_its_group_says() {
 fn a_mending_monster_says_how_well_it_is_mending() {
     use cdda_sim::creature::{dark_regeneration, regeneration_message};
 
-    assert_eq!(regeneration_message(0), None, "**nothing healed, nothing said**");
-    assert_eq!(regeneration_message(1), Some("The %s is healing slowly."), "under ten is slow");
-    assert_eq!(regeneration_message(10), Some("The %s seems a little healthier."), "ten is a little healthier");
-    assert_eq!(regeneration_message(49), Some("The %s seems a little healthier."), "and forty-nine is still that");
-    assert_eq!(regeneration_message(50), Some("The %s is visibly regenerating!"), "fifty is visible");
+    assert_eq!(
+        regeneration_message(0),
+        None,
+        "**nothing healed, nothing said**"
+    );
+    assert_eq!(
+        regeneration_message(1),
+        Some("The %s is healing slowly."),
+        "under ten is slow"
+    );
+    assert_eq!(
+        regeneration_message(10),
+        Some("The %s seems a little healthier."),
+        "ten is a little healthier"
+    );
+    assert_eq!(
+        regeneration_message(49),
+        Some("The %s seems a little healthier."),
+        "and forty-nine is still that"
+    );
+    assert_eq!(
+        regeneration_message(50),
+        Some("The %s is visibly regenerating!"),
+        "fifty is visible"
+    );
 
     // 50 * e^0 at full dark, and the curve halves every time light^2/10000 grows by ln 2 - so light 100 is 50 * e^-1.
     assert_eq!(dark_regeneration(0.0), 50, "in pitch dark, fifty");
-    assert_eq!(dark_regeneration(100.0), 18, "at a hundred, 50/e truncated to eighteen");
+    assert_eq!(
+        dark_regeneration(100.0),
+        18,
+        "at a hundred, 50/e truncated to eighteen"
+    );
     // At two hundred the curve is 50 * e^-4, which is 0.91 - **truncated to zero**, so the light has stopped it.
-    assert_eq!(dark_regeneration(200.0), 0, "and at two hundred the light has stopped it");
+    assert_eq!(
+        dark_regeneration(200.0),
+        0,
+        "and at two hundred the light has stopped it"
+    );
 }
 
 /// The mending system says how well a body is mending, on the reference's one-in-two.
@@ -3142,15 +4196,19 @@ fn the_mending_system_says_so_on_a_coin_flip() {
         let monster = cdda_sim::spawn_monster(&mut world, (12, 12), cdda_sim::MonsterKindId(1), 40);
         cdda_sim::creature::set_health_left(&mut world, monster, 20);
         // One hit point a turn: the smallest grade there is.
-        world.entity_mut(monster).insert(cdda_sim::regeneration::Mending {
-            per_hour: 3_600.0,
-            type_speed: 100,
-            type_hp: 40,
-        in_dark: false,
-        });
+        world
+            .entity_mut(monster)
+            .insert(cdda_sim::regeneration::Mending {
+                per_hour: 3_600.0,
+                type_speed: 100,
+                type_hp: 40,
+                in_dark: false,
+            });
         cdda_sim::regeneration::mend_everyone(&mut world);
         let lines = cdda_sim::messages::lines(&world);
-        if let Some(line) = lines.iter().find(|line| line.contains("healing") || line.contains("healthier") || line.contains("regenerating")) {
+        if let Some(line) = lines.iter().find(|line| {
+            line.contains("healing") || line.contains("healthier") || line.contains("regenerating")
+        }) {
             said += 1;
             assert!(
                 line.contains("is healing slowly."),
@@ -3158,7 +4216,10 @@ fn the_mending_system_says_so_on_a_coin_flip() {
             );
         }
     }
-    assert!(said > 5, "the one-in-two coin flip says it often enough to be seen: {said} of 40 seeds");
+    assert!(
+        said > 5,
+        "the one-in-two coin flip says it often enough to be seen: {said} of 40 seeds"
+    );
 }
 
 /// A square is in sunlight only when it has no roof over it **and** the sun is high enough to count.
@@ -3175,9 +4236,15 @@ fn the_mending_system_says_so_on_a_coin_flip() {
 fn sunlight_needs_an_open_sky_and_a_sun_above_five_degrees() {
     use cdda_sim::creature::is_in_sunlight;
 
-    assert!(is_in_sunlight(false, 900.0), "a noon sun over an open square is sunlight");
+    assert!(
+        is_in_sunlight(false, 900.0),
+        "a noon sun over an open square is sunlight"
+    );
     assert!(!is_in_sunlight(true, 900.0), "**a roof shuts it out**");
-    assert!(!is_in_sunlight(false, 87.0), "and the floor is exclusive: 87 is not above 87");
+    assert!(
+        !is_in_sunlight(false, 87.0),
+        "and the floor is exclusive: 87 is not above 87"
+    );
     assert!(is_in_sunlight(false, 87.1), "while a hair above it is");
     assert!(!is_in_sunlight(false, 0.0), "darkness is not sunlight");
 }
@@ -3193,14 +4260,17 @@ fn a_monster_mends_by_the_dark() {
     for lantern in [false, true] {
         let mut world = World::new();
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
-        let monster = cdda_sim::spawn_monster(&mut world, (13, 13), cdda_sim::MonsterKindId(1), 200);
+        let monster =
+            cdda_sim::spawn_monster(&mut world, (13, 13), cdda_sim::MonsterKindId(1), 200);
         cdda_sim::creature::set_health_left(&mut world, monster, 50);
-        world.entity_mut(monster).insert(cdda_sim::regeneration::Mending {
-            per_hour: 0.0,
-            type_speed: 100,
-            type_hp: 200,
-            in_dark: true,
-        });
+        world
+            .entity_mut(monster)
+            .insert(cdda_sim::regeneration::Mending {
+                per_hour: 0.0,
+                type_speed: 100,
+                type_hp: 200,
+                in_dark: true,
+            });
         if lantern {
             // A lamp on the body's own square: the lighting answer is built from the store like any other turn's.
             world.spawn((
@@ -3233,10 +4303,26 @@ fn a_monster_mends_by_the_dark() {
 fn the_weather_scales_the_sun() {
     use cdda_sim::creature::incident_sun_irradiance;
 
-    assert_eq!(incident_sun_irradiance(800.0, 1.0), 800.0, "clear weather passes the sun through");
-    assert_eq!(incident_sun_irradiance(800.0, 1.25), 1_000.0, "and a glare-making sky makes it stronger");
-    assert_eq!(incident_sun_irradiance(800.0, 0.0), 0.0, "an overcast sky puts it out");
-    assert_eq!(incident_sun_irradiance(800.0, -3.0), 0.0, "**and the clamp stops a negative sky at nothing**");
+    assert_eq!(
+        incident_sun_irradiance(800.0, 1.0),
+        800.0,
+        "clear weather passes the sun through"
+    );
+    assert_eq!(
+        incident_sun_irradiance(800.0, 1.25),
+        1_000.0,
+        "and a glare-making sky makes it stronger"
+    );
+    assert_eq!(
+        incident_sun_irradiance(800.0, 0.0),
+        0.0,
+        "an overcast sky puts it out"
+    );
+    assert_eq!(
+        incident_sun_irradiance(800.0, -3.0),
+        0.0,
+        "**and the clamp stops a negative sky at nothing**"
+    );
 }
 
 /// The sun glares into a creature's eyes, and a winter sun does it at a much lower height.
@@ -3258,34 +4344,73 @@ fn the_sun_glares_into_eyes() {
     use cdda_sim::glare::{Conditions, glare_of};
 
     let clear = Conditions::default();
-    assert_eq!(glare_of(true, 800.0, clear), Some(("snow_glare", 20)), "**a winter sun glares at 800 in snow**");
-    assert_eq!(glare_of(false, 800.0, clear), Some(("glare", 20)), "and a summer sun glares at 800 without it");
+    assert_eq!(
+        glare_of(true, 800.0, clear),
+        Some(("snow_glare", 20)),
+        "**a winter sun glares at 800 in snow**"
+    );
+    assert_eq!(
+        glare_of(false, 800.0, clear),
+        Some(("glare", 20)),
+        "and a summer sun glares at 800 without it"
+    );
     assert_eq!(
         glare_of(true, 600.0, clear),
         Some(("snow_glare", 20)),
         "**600 is snow glare in winter** - above moderate"
     );
-    assert_eq!(glare_of(false, 600.0, clear), None, "and nothing at all in summer: it is under high");
+    assert_eq!(
+        glare_of(false, 600.0, clear),
+        None,
+        "and nothing at all in summer: it is under high"
+    );
 
     let already = Conditions {
         already_glared: true,
         ..Conditions::default()
     };
-    assert_eq!(glare_of(false, 800.0, already), Some(("glare", 10)), "a second glare is shorter");
+    assert_eq!(
+        glare_of(false, 800.0, already),
+        Some(("glare", 10)),
+        "a second glare is shorter"
+    );
     let ceph = Conditions {
         ceph_vision: true,
         ..Conditions::default()
     };
-    assert_eq!(glare_of(false, 800.0, ceph), Some(("glare", 40)), "and the cephalopod trait doubles it");
+    assert_eq!(
+        glare_of(false, 800.0, ceph),
+        Some(("glare", 40)),
+        "and the cephalopod trait doubles it"
+    );
 
     for blocked in [
-        Conditions { sheltered: true, ..Conditions::default() },
-        Conditions { asleep: true, ..Conditions::default() },
-        Conditions { sun_glasses: true, ..Conditions::default() },
-        Conditions { glare_resist: true, ..Conditions::default() },
-        Conditions { blind: true, ..Conditions::default() },
+        Conditions {
+            sheltered: true,
+            ..Conditions::default()
+        },
+        Conditions {
+            asleep: true,
+            ..Conditions::default()
+        },
+        Conditions {
+            sun_glasses: true,
+            ..Conditions::default()
+        },
+        Conditions {
+            glare_resist: true,
+            ..Conditions::default()
+        },
+        Conditions {
+            blind: true,
+            ..Conditions::default()
+        },
     ] {
-        assert_eq!(glare_of(false, 900.0, blocked), None, "**any one prerequisite stops it**: {blocked:?}");
+        assert_eq!(
+            glare_of(false, 900.0, blocked),
+            None,
+            "**any one prerequisite stops it**: {blocked:?}"
+        );
     }
 }
 
@@ -3303,10 +4428,26 @@ fn the_sun_glares_into_eyes() {
 fn the_weather_shifts_the_sunlight_it_lets_through() {
     use cdda_sim::creature::incident_sunlight;
 
-    assert_eq!(incident_sunlight(100.0, 1.0, 0), 100.0, "clear weather passes the light through");
-    assert_eq!(incident_sunlight(100.0, 0.5, -30), 20.0, "**half of a hundred, then thirty less**");
-    assert_eq!(incident_sunlight(100.0, 1.0, -120), 0.0, "and the clamp stops a dark sky at nothing");
-    assert_eq!(incident_sunlight(100.0, 1.0, 15), 115.0, "a modifier above zero brightens, which the data does for glare");
+    assert_eq!(
+        incident_sunlight(100.0, 1.0, 0),
+        100.0,
+        "clear weather passes the light through"
+    );
+    assert_eq!(
+        incident_sunlight(100.0, 0.5, -30),
+        20.0,
+        "**half of a hundred, then thirty less**"
+    );
+    assert_eq!(
+        incident_sunlight(100.0, 1.0, -120),
+        0.0,
+        "and the clamp stops a dark sky at nothing"
+    );
+    assert_eq!(
+        incident_sunlight(100.0, 1.0, 15),
+        115.0,
+        "a modifier above zero brightens, which the data does for glare"
+    );
 }
 
 /// A stretch of weather is summed in coarse steps, and the steps get coarser the longer the stretch.
@@ -3330,10 +4471,26 @@ fn the_weather_shifts_the_sunlight_it_lets_through() {
 fn a_weather_sum_steps_in_coarser_ticks() {
     use cdda_sim::weather_sum::{MovesPerTick, tick_size};
 
-    assert_eq!(tick_size(9), MovesPerTick::Turn, "nine turns is summed a turn at a time");
-    assert_eq!(tick_size(10), MovesPerTick::Minute, "**and exactly ten turns is already a minute**");
-    assert_eq!(tick_size(7 * 24 * 60 * 60), MovesPerTick::Minute, "seven days exactly is still a minute");
-    assert_eq!(tick_size(7 * 24 * 60 * 60 + 1), MovesPerTick::Hour, "**one turn more and it is an hour**");
+    assert_eq!(
+        tick_size(9),
+        MovesPerTick::Turn,
+        "nine turns is summed a turn at a time"
+    );
+    assert_eq!(
+        tick_size(10),
+        MovesPerTick::Minute,
+        "**and exactly ten turns is already a minute**"
+    );
+    assert_eq!(
+        tick_size(7 * 24 * 60 * 60),
+        MovesPerTick::Minute,
+        "seven days exactly is still a minute"
+    );
+    assert_eq!(
+        tick_size(7 * 24 * 60 * 60 + 1),
+        MovesPerTick::Hour,
+        "**one turn more and it is an hour**"
+    );
 }
 
 /// One step of weather adds rain per turn, light per turn and exposure per second.
@@ -3345,18 +4502,43 @@ fn a_weather_sum_steps_in_coarser_ticks() {
 fn one_step_of_weather_adds_rain_light_and_exposure() {
     use cdda_sim::weather_sum::{MovesPerTick, rain_per_turn, step_of};
 
-    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::VeryLight, true), 1, "a turn of drizzle is one");
-    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::Light, true), 4, "of rain, four");
-    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::Heavy, true), 8, "of a downpour, eight");
-    assert_eq!(rain_per_turn(cdda_content::weather::Precipitation::Heavy, false), 0, "**and a snowing sky adds no rain at all**");
+    assert_eq!(
+        rain_per_turn(cdda_content::weather::Precipitation::VeryLight, true),
+        1,
+        "a turn of drizzle is one"
+    );
+    assert_eq!(
+        rain_per_turn(cdda_content::weather::Precipitation::Light, true),
+        4,
+        "of rain, four"
+    );
+    assert_eq!(
+        rain_per_turn(cdda_content::weather::Precipitation::Heavy, true),
+        8,
+        "of a downpour, eight"
+    );
+    assert_eq!(
+        rain_per_turn(cdda_content::weather::Precipitation::Heavy, false),
+        0,
+        "**and a snowing sky adds no rain at all**"
+    );
 
     let mut weather = cdda_content::weather::WeatherType::default();
     weather.precip = cdda_content::weather::Precipitation::Light;
     weather.rains = true;
     let minute = step_of(&weather, MovesPerTick::Minute, 100.0, 800.0);
-    assert_eq!(minute.rain, 240, "a minute of light rain is sixty turns of four");
-    assert_eq!(minute.sunlight, 6_000.0, "and a hundred of light for sixty turns");
-    assert_eq!(minute.radiant_exposure, 48_000.0, "with eight hundred of exposure for sixty seconds");
+    assert_eq!(
+        minute.rain, 240,
+        "a minute of light rain is sixty turns of four"
+    );
+    assert_eq!(
+        minute.sunlight, 6_000.0,
+        "and a hundred of light for sixty turns"
+    );
+    assert_eq!(
+        minute.radiant_exposure, 48_000.0,
+        "with eight hundred of exposure for sixty seconds"
+    );
 }
 
 /// Wind has a name and a direction, and both ladders are read from the top down.
@@ -3379,17 +4561,33 @@ fn wind_has_a_name_and_a_direction() {
 
     assert_eq!(description(0.0), "Calm", "**under one is calm**");
     assert_eq!(description(0.99), "Calm");
-    assert_eq!(description(1.0), "Light Air", "**and one is already light air**");
+    assert_eq!(
+        description(1.0),
+        "Light Air",
+        "**and one is already light air**"
+    );
     assert_eq!(description(3.0), "Light Air");
     assert_eq!(description(3.1), "Light Breeze");
-    assert_eq!(description(72.0), "Violent Storm", "seventy-two is still a violent storm");
+    assert_eq!(
+        description(72.0),
+        "Violent Storm",
+        "seventy-two is still a violent storm"
+    );
     assert_eq!(description(72.1), "Hurricane", "and above it, a hurricane");
 
     assert_eq!(direction(330), (0, -1), "330 is north");
     assert_eq!(direction(360), (0, -1), "and so is the whole turn past it");
-    assert_eq!(direction(329), (-1, -1), "329 has already turned north-west");
+    assert_eq!(
+        direction(329),
+        (-1, -1),
+        "329 has already turned north-west"
+    );
     assert_eq!(direction(31), (1, -1), "**thirty-one is north-east**");
-    assert_eq!(direction(0), (0, -1), "zero is the last row, which is north again");
+    assert_eq!(
+        direction(0),
+        (0, -1),
+        "zero is the last row, which is north again"
+    );
 }
 
 /// The wind is halved by a wood, raised by height and cut by a wall - in that order.
@@ -3400,29 +4598,65 @@ fn wind_has_a_name_and_a_direction() {
 fn the_ground_takes_the_wind() {
     use cdda_sim::wind::{Ground, local_windpower};
 
-    assert_eq!(local_windpower(20, Ground::default()), 20, "open ground leaves a gale a gale");
     assert_eq!(
-        local_windpower(20, Ground { forest: true, ..Ground::default() }),
+        local_windpower(20, Ground::default()),
+        20,
+        "open ground leaves a gale a gale"
+    );
+    assert_eq!(
+        local_windpower(
+            20,
+            Ground {
+                forest: true,
+                ..Ground::default()
+            }
+        ),
         10,
         "a wood halves it"
     );
     assert_eq!(
-        local_windpower(20, Ground { height: 3, ..Ground::default() }),
+        local_windpower(
+            20,
+            Ground {
+                height: 3,
+                ..Ground::default()
+            }
+        ),
         35,
         "height three adds `3 * min( 5, 20 )`"
     );
     assert_eq!(
-        local_windpower(20, Ground { blocked: true, ..Ground::default() }),
+        local_windpower(
+            20,
+            Ground {
+                blocked: true,
+                ..Ground::default()
+            }
+        ),
         2,
         "a wall cuts it to a tenth"
     );
     assert_eq!(
-        local_windpower(20, Ground { forest: true, height: 2, blocked: true, ..Ground::default() }),
+        local_windpower(
+            20,
+            Ground {
+                forest: true,
+                height: 2,
+                blocked: true,
+                ..Ground::default()
+            }
+        ),
         2,
         "**and all three in the reference's order**: ( 20/2 + 2*5 ) / 10"
     );
     assert_eq!(
-        local_windpower(90, Ground { sheltered: true, ..Ground::default() }),
+        local_windpower(
+            90,
+            Ground {
+                sheltered: true,
+                ..Ground::default()
+            }
+        ),
         0,
         "while indoors there is no wind however hard it blows"
     );
@@ -3446,38 +4680,74 @@ fn a_low_swing_costs_more_stamina() {
     use cdda_sim::melee::{Stance, stamina_cost, stance_malus};
 
     let standing = Stance::default();
-    assert_eq!(stance_malus(standing), 0, "a standing, armed swing pays nothing extra");
     assert_eq!(
-        stance_malus(Stance { on_ground: true, ..Stance::default() }),
+        stance_malus(standing),
+        0,
+        "a standing, armed swing pays nothing extra"
+    );
+    assert_eq!(
+        stance_malus(Stance {
+            on_ground: true,
+            ..Stance::default()
+        }),
         50,
         "**from the floor it is fifty**"
     );
     assert_eq!(
-        stance_malus(Stance { crouching: true, armed: true, ..Stance::default() }),
+        stance_malus(Stance {
+            crouching: true,
+            armed: true,
+            ..Stance::default()
+        }),
         20,
         "a crouched swing with a weapon is twenty"
     );
     assert_eq!(
-        stance_malus(Stance { crouching: true, armed: false, ..Stance::default() }),
+        stance_malus(Stance {
+            crouching: true,
+            armed: false,
+            ..Stance::default()
+        }),
         0,
         "and an unarmed crouch pays nothing: `!unarmed_attack()` is one of the conditions"
     );
     assert_eq!(
-        stance_malus(Stance { crouching: true, armed: true, natural_stance: true, ..Stance::default() }),
+        stance_malus(Stance {
+            crouching: true,
+            armed: true,
+            natural_stance: true,
+            ..Stance::default()
+        }),
         0,
         "nor does a natural stance"
     );
     assert_eq!(
-        stance_malus(Stance { on_ground: true, pseudopod_grasp: true, ..Stance::default() }),
+        stance_malus(Stance {
+            on_ground: true,
+            pseudopod_grasp: true,
+            ..Stance::default()
+        }),
         0,
         "**and pseudopods cancel the floor's fifty**"
     );
 
     // **The sign trap**: the answer is *negative* and the malus is *subtracted*, so a bigger malus makes the number **more negative** - which is *more* spent, not less. The
     // reference then takes `std::min( -50, ... )`, i.e. the more negative of the two, so the floor is a floor on the *rebate* rather than on the cost.
-    assert_eq!(stamina_cost(0, 0, 0, 1.0), -50, "an empty-handed standing swing is the floor");
-    assert_eq!(stamina_cost(0, 0, 20, 1.0), -70, "**a crouched one spends twenty more**");
-    assert_eq!(stamina_cost(0, 0, 50, 1.0), -100, "and the floor's malus fifty more again");
+    assert_eq!(
+        stamina_cost(0, 0, 0, 1.0),
+        -50,
+        "an empty-handed standing swing is the floor"
+    );
+    assert_eq!(
+        stamina_cost(0, 0, 20, 1.0),
+        -70,
+        "**a crouched one spends twenty more**"
+    );
+    assert_eq!(
+        stamina_cost(0, 0, 50, 1.0),
+        -100,
+        "and the floor's malus fifty more again"
+    );
 }
 
 /// Planting needs a square at fifty Fahrenheit, and fifty exactly counts.
@@ -3494,8 +4764,14 @@ fn a_low_swing_costs_more_stamina() {
 fn planting_needs_fifty_fahrenheit() {
     use cdda_sim::temperature::warm_enough_to_plant;
 
-    assert!(warm_enough_to_plant(283.15), "**exactly fifty Fahrenheit is warm enough**");
-    assert!(!warm_enough_to_plant(283.14), "and a hundredth of a degree colder is not");
+    assert!(
+        warm_enough_to_plant(283.15),
+        "**exactly fifty Fahrenheit is warm enough**"
+    );
+    assert!(
+        !warm_enough_to_plant(283.14),
+        "and a hundredth of a degree colder is not"
+    );
     assert!(warm_enough_to_plant(300.0), "a summer day certainly is");
     assert!(!warm_enough_to_plant(273.15), "and freezing is not");
 }
@@ -3526,9 +4802,21 @@ fn planting_needs_fifty_fahrenheit() {
 fn a_proficiency_can_only_make_a_swing_cheaper() {
     use cdda_sim::melee::proficiency_stamina_multiplier;
 
-    assert_eq!(proficiency_stamina_multiplier(&[]), 1.0, "no proficiencies, no discount");
-    assert_eq!(proficiency_stamina_multiplier(&[0.025]), 0.975, "a familiar's two and a half percent");
-    assert_eq!(proficiency_stamina_multiplier(&[0.05]), 0.95, "**two of them add inside the category**, which is the inner loop's sum");
+    assert_eq!(
+        proficiency_stamina_multiplier(&[]),
+        1.0,
+        "no proficiencies, no discount"
+    );
+    assert_eq!(
+        proficiency_stamina_multiplier(&[0.025]),
+        0.975,
+        "a familiar's two and a half percent"
+    );
+    assert_eq!(
+        proficiency_stamina_multiplier(&[0.05]),
+        0.95,
+        "**two of them add inside the category**, which is the inner loop's sum"
+    );
     assert_eq!(
         proficiency_stamina_multiplier(&[0.025, 0.025]),
         0.975,
@@ -3539,7 +4827,11 @@ fn a_proficiency_can_only_make_a_swing_cheaper() {
         (proficiency_stamina_multiplier(&[0.9, 0.9]) - 0.1).abs() < 1e-6,
         "and a bigger loss still only counts once"
     );
-    assert_eq!(proficiency_stamina_multiplier(&[1.5]), 0.0, "**the floor stops it at free**, never at a rebate");
+    assert_eq!(
+        proficiency_stamina_multiplier(&[1.5]),
+        0.0,
+        "**the floor stops it at free**, never at a rebate"
+    );
     assert_eq!(
         proficiency_stamina_multiplier(&[0.5, 0.0]),
         0.5,
@@ -3586,9 +4878,17 @@ fn a_stat_bonus_adds_up_and_archery_lowers_a_bow() {
     cdda_sim::proficiencies::install(&mut world, &dump);
 
     let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
-    assert_eq!(bonus(&mut world, survivor, "athlete", "strength"), 0.0, "nothing known, nothing added");
+    assert_eq!(
+        bonus(&mut world, survivor, "athlete", "strength"),
+        0.0,
+        "nothing known, nothing added"
+    );
     cdda_sim::proficiencies::learn(&mut world, survivor, "prof_athlete_basic");
-    assert_eq!(bonus(&mut world, survivor, "athlete", "strength"), 2.0, "a basic athlete is two strength");
+    assert_eq!(
+        bonus(&mut world, survivor, "athlete", "strength"),
+        2.0,
+        "a basic athlete is two strength"
+    );
     assert_eq!(
         bonus(&mut world, survivor, "archery", "strength"),
         0.0,
@@ -3596,10 +4896,18 @@ fn a_stat_bonus_adds_up_and_archery_lowers_a_bow() {
     );
 
     // The bow's requirement falls by the archery bonus and stops at zero.
-    assert_eq!(cdda_content::items::min_strength_required(12, 0.0, true), 12, "a bow with no proficiency asks for twelve");
+    assert_eq!(
+        cdda_content::items::min_strength_required(12, 0.0, true),
+        12,
+        "a bow with no proficiency asks for twelve"
+    );
     cdda_sim::proficiencies::learn(&mut world, survivor, "prof_archery_master");
     let archery = bonus(&mut world, survivor, "archery", "strength");
-    assert_eq!(cdda_content::items::min_strength_required(12, archery, true), 9, "**a master archer asks for nine**");
+    assert_eq!(
+        cdda_content::items::min_strength_required(12, archery, true),
+        9,
+        "**a master archer asks for nine**"
+    );
     assert_eq!(
         cdda_content::items::min_strength_required(12, archery, false),
         12,
@@ -3632,11 +4940,23 @@ fn drawing_a_bow_costs_stamina_by_its_weight() {
     use cdda_sim::shot::archery_stamina_cost;
 
     // A bow wanting ten, drawn by a strength of ten: ratio one, so ( 10 + 10 )^2 = 400.
-    assert_eq!(archery_stamina_cost(10, 10.0, 0.0, 0.0), 400, "**a bow at the limit of the arm costs four hundred**");
+    assert_eq!(
+        archery_stamina_cost(10, 10.0, 0.0, 0.0),
+        400,
+        "**a bow at the limit of the arm costs four hundred**"
+    );
     // Twice the strength halves the ratio: ( 5 + 10 )^2 = 225.
-    assert_eq!(archery_stamina_cost(10, 20.0, 0.0, 0.0), 225, "and twice the arm costs two hundred and twenty-five");
+    assert_eq!(
+        archery_stamina_cost(10, 20.0, 0.0, 0.0),
+        225,
+        "and twice the arm costs two hundred and twenty-five"
+    );
     // Four archery points are worth two thirds each: 400 becomes ( 20 - 2.666 )^2 = 300.44, truncated to 300.
-    assert_eq!(archery_stamina_cost(10, 10.0, 4.0, 0.0), 300, "four archery points take a hundred off");
+    assert_eq!(
+        archery_stamina_cost(10, 10.0, 4.0, 0.0),
+        300,
+        "four archery points take a hundred off"
+    );
     // **Three athletics points are worth one of modifier**, because the skill term divides by three: ( 20 - 1 )^2 = 361.
     assert_eq!(
         archery_stamina_cost(10, 10.0, 0.0, 3.0),
@@ -3665,13 +4985,33 @@ fn drawing_a_bow_costs_stamina_by_its_weight() {
 fn a_shot_is_graded_by_how_far_it_missed() {
     use cdda_sim::shot::{Grade, grade_of};
 
-    assert_eq!(grade_of(0.05), Grade::Headshot, "under a tenth is a critical");
-    assert_eq!(grade_of(0.1), Grade::Critical, "**exactly a tenth is merely critical**");
+    assert_eq!(
+        grade_of(0.05),
+        Grade::Headshot,
+        "under a tenth is a critical"
+    );
+    assert_eq!(
+        grade_of(0.1),
+        Grade::Critical,
+        "**exactly a tenth is merely critical**"
+    );
     assert_eq!(grade_of(0.2), Grade::Good, "and a fifth is a good hit");
-    assert_eq!(grade_of(0.5), Grade::Standard, "**half is the standard hit, not the good one**");
+    assert_eq!(
+        grade_of(0.5),
+        Grade::Standard,
+        "**half is the standard hit, not the good one**"
+    );
     assert_eq!(grade_of(0.8), Grade::Grazing, "four fifths is a graze");
-    assert_eq!(grade_of(0.99), Grade::Grazing, "and so is anything under a full miss");
-    assert_eq!(grade_of(1.0), Grade::Miss, "a shot that misses by a full square is not a hit at all");
+    assert_eq!(
+        grade_of(0.99),
+        Grade::Grazing,
+        "and so is anything under a full miss"
+    );
+    assert_eq!(
+        grade_of(1.0),
+        Grade::Miss,
+        "a shot that misses by a full square is not a hit at all"
+    );
 }
 
 /// A grade's damage multiplier is the reference's own branch arithmetic, and only the top two rungs reach the critical figure.
@@ -3702,9 +5042,18 @@ fn a_grade_multiplies_the_damage_its_own_way() {
         (damage_multiplier(Grade::Good, 1.0, 1.0, crit) - 3.0f64.sqrt() / 2.0).abs() < 1e-9,
         "and an unlucky one is half of it"
     );
-    assert!((damage_multiplier(Grade::Standard, 1.0, 0.0, crit) - 1.5).abs() < 1e-9, "a standard hit at the top is 1.5");
-    assert!((damage_multiplier(Grade::Standard, 1.0, 0.5, crit) - 1.0).abs() < 1e-9, "and in the middle is 1.0");
-    assert!((damage_multiplier(Grade::Grazing, 1.0, 0.05, crit) - 1.0).abs() < 1e-9, "a graze is `1.05 - hit_roll`");
+    assert!(
+        (damage_multiplier(Grade::Standard, 1.0, 0.0, crit) - 1.5).abs() < 1e-9,
+        "a standard hit at the top is 1.5"
+    );
+    assert!(
+        (damage_multiplier(Grade::Standard, 1.0, 0.5, crit) - 1.0).abs() < 1e-9,
+        "and in the middle is 1.0"
+    );
+    assert!(
+        (damage_multiplier(Grade::Grazing, 1.0, 0.05, crit) - 1.0).abs() < 1e-9,
+        "a graze is `1.05 - hit_roll`"
+    );
     assert!(
         (damage_multiplier(Grade::Headshot, 1.0, 0.0, crit) - 1.05 * crit).abs() < 1e-9,
         "**a headshot with a full crit_mod reaches the critical figure itself**: 1.05 * 1.5"
@@ -3718,7 +5067,11 @@ fn a_grade_multiplies_the_damage_its_own_way() {
         (damage_multiplier(Grade::Critical, 0.0, 0.0, crit) - 0.75 * 3.0f64.sqrt()).abs() < 1e-9,
         "while a critical with no crit_mod is three quarters of the standard figure"
     );
-    assert_eq!(damage_multiplier(Grade::Miss, 1.0, 0.0, crit), 0.0, "**a miss multiplies nothing**, because it never landed");
+    assert_eq!(
+        damage_multiplier(Grade::Miss, 1.0, 0.0, crit),
+        0.0,
+        "**a miss multiplies nothing**, because it never landed"
+    );
 }
 
 /// Armour over the vitals turns a critical into a plain hit, and a monster has none to turn.
@@ -3740,11 +5093,26 @@ fn a_grade_multiplies_the_damage_its_own_way() {
 fn armour_over_the_vitals_dulls_a_critical() {
     use cdda_sim::melee::crit_factor;
 
-    assert!((crit_factor(0) - 1.0).abs() < 1e-9, "bare skin leaves a critical a critical");
-    assert!((crit_factor(40) - 0.6).abs() < 1e-9, "**forty percent cover takes forty percent of the force**");
-    assert!((crit_factor(100) - 0.0).abs() < 1e-9, "and full cover takes all of it");
-    assert!((crit_factor(150) - 0.0).abs() < 1e-9, "**with the clamp stopping an over-covered part at zero**");
-    assert!((crit_factor(-5) - 1.0).abs() < 1e-9, "and a negative coverage clamps at none");
+    assert!(
+        (crit_factor(0) - 1.0).abs() < 1e-9,
+        "bare skin leaves a critical a critical"
+    );
+    assert!(
+        (crit_factor(40) - 0.6).abs() < 1e-9,
+        "**forty percent cover takes forty percent of the force**"
+    );
+    assert!(
+        (crit_factor(100) - 0.0).abs() < 1e-9,
+        "and full cover takes all of it"
+    );
+    assert!(
+        (crit_factor(150) - 0.0).abs() < 1e-9,
+        "**with the clamp stopping an over-covered part at zero**"
+    );
+    assert!(
+        (crit_factor(-5) - 1.0).abs() < 1e-9,
+        "and a negative coverage clamps at none"
+    );
 }
 
 /// What a creature is wearing covers the vitals by **adding up**, not by taking the best piece.
@@ -3757,10 +5125,19 @@ fn worn_armour_covers_the_vitals_by_adding_up() {
 
     // Three pieces: two that cover the part and one that does not.
     let cover = worn_vitals_cover(&[(true, 60), (true, 60), (false, 100)]);
-    assert_eq!(cover, 120, "**two sixty-per-cent vests are a hundred and twenty**, and the piece that misses adds nothing");
-    assert!((crit_factor(cover) - 0.0).abs() < 1e-9, "which the factor clamps to none of the critical");
+    assert_eq!(
+        cover, 120,
+        "**two sixty-per-cent vests are a hundred and twenty**, and the piece that misses adds nothing"
+    );
+    assert!(
+        (crit_factor(cover) - 0.0).abs() < 1e-9,
+        "which the factor clamps to none of the critical"
+    );
     assert_eq!(worn_vitals_cover(&[]), 0, "and bare skin is zero");
-    assert!((crit_factor(worn_vitals_cover(&[(true, 30)])) - 0.7).abs() < 1e-9, "one vest of thirty leaves seventy percent");
+    assert!(
+        (crit_factor(worn_vitals_cover(&[(true, 30)])) - 0.7).abs() < 1e-9,
+        "one vest of thirty leaves seventy percent"
+    );
 }
 
 /// The store answers what a creature's worn armour covers of one part's vitals, by asking each garment it wears.
@@ -3775,19 +5152,43 @@ fn the_store_says_what_a_creature_wears_over_its_vitals() {
     world.spawn((
         cdda_sim::creature::WornBy(survivor),
         cdda_sim::creature::Garment {
-            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { damage_type: "bash".to_owned(), resist: 1.0, thickness: 1.0, cover: 100 })],
+            layers: vec![(
+                "torso".to_owned(),
+                cdda_content::armour::Layer {
+                    damage_type: "bash".to_owned(),
+                    resist: 1.0,
+                    thickness: 1.0,
+                    cover: 100,
+                },
+            )],
             vitals: vec![("torso".to_owned(), 90)],
         },
     ));
     world.spawn((
         cdda_sim::creature::WornBy(survivor),
         cdda_sim::creature::Garment {
-            layers: vec![("head".to_owned(), cdda_content::armour::Layer { damage_type: "bash".to_owned(), resist: 1.0, thickness: 1.0, cover: 100 })],
+            layers: vec![(
+                "head".to_owned(),
+                cdda_content::armour::Layer {
+                    damage_type: "bash".to_owned(),
+                    resist: 1.0,
+                    thickness: 1.0,
+                    cover: 100,
+                },
+            )],
             vitals: vec![("head".to_owned(), 90)],
         },
     ));
-    assert_eq!(cdda_sim::creature::vitals_cover_of(&world, survivor, "torso"), 90, "**the vest covers ninety**");
-    assert_eq!(cdda_sim::creature::vitals_cover_of(&world, survivor, "head"), 90, "and the hat covers the head's");
+    assert_eq!(
+        cdda_sim::creature::vitals_cover_of(&world, survivor, "torso"),
+        90,
+        "**the vest covers ninety**"
+    );
+    assert_eq!(
+        cdda_sim::creature::vitals_cover_of(&world, survivor, "head"),
+        90,
+        "and the hat covers the head's"
+    );
     assert_eq!(
         cdda_sim::creature::vitals_cover_of(&world, survivor, "leg_l"),
         0,
@@ -3797,7 +5198,15 @@ fn the_store_says_what_a_creature_wears_over_its_vitals() {
     world.spawn((
         cdda_sim::creature::WornBy(survivor),
         cdda_sim::creature::Garment {
-            layers: vec![("torso".to_owned(), cdda_content::armour::Layer { damage_type: "bash".to_owned(), resist: 1.0, thickness: 1.0, cover: 100 })],
+            layers: vec![(
+                "torso".to_owned(),
+                cdda_content::armour::Layer {
+                    damage_type: "bash".to_owned(),
+                    resist: 1.0,
+                    thickness: 1.0,
+                    cover: 100,
+                },
+            )],
             vitals: Vec::new(),
         },
     ));
@@ -3825,8 +5234,14 @@ fn a_critical_sharpens_each_kind_of_damage_differently() {
     use cdda_sim::melee::crit_bonus;
 
     let stab = crit_bonus(cdda_sim::melee::Kind::Stab, 10, 1.0);
-    assert!((stab.damage - 2.0).abs() < 1e-9, "**a tenth-dan stab is twice the damage**");
-    assert!((stab.armour - 0.66).abs() < 1e-6, "and keeps two thirds of the armour");
+    assert!(
+        (stab.damage - 2.0).abs() < 1e-9,
+        "**a tenth-dan stab is twice the damage**"
+    );
+    assert!(
+        (stab.armour - 0.66).abs() < 1e-6,
+        "and keeps two thirds of the armour"
+    );
 
     let cut = crit_bonus(cdda_sim::melee::Kind::Cut, 0, 1.0);
     assert!((cut.damage - 1.25).abs() < 1e-9, "a cut is a quarter more");
@@ -3840,7 +5255,10 @@ fn a_critical_sharpens_each_kind_of_damage_differently() {
         "**and its armour multiplier is `0.5 * crit_mod`, not `1 - 0.5 * crit_mod`**"
     );
     // The asymmetry, pinned as a fact: at no crit_mod a bashing critical ignores all the armour.
-    assert!((crit_bonus(cdda_sim::melee::Kind::Bash, 0, 0.0).armour - 0.0).abs() < 1e-6, "which at zero means no armour at all");
+    assert!(
+        (crit_bonus(cdda_sim::melee::Kind::Bash, 0, 0.0).armour - 0.0).abs() < 1e-6,
+        "which at zero means no armour at all"
+    );
     // Stab's skill term is the only one that moves with skill.
     assert!(
         (crit_bonus(cdda_sim::melee::Kind::Stab, 0, 1.0).damage - 1.0).abs() < 1e-9,
@@ -3862,11 +5280,26 @@ fn a_critical_sharpens_each_kind_of_damage_differently() {
 fn a_critical_takes_its_armour_in_the_reference_s_order() {
     use cdda_sim::melee::armour_dulled;
 
-    assert!((armour_dulled(10.0, 0, 1.0) - 10.0).abs() < 1e-6, "a plain hit keeps the armour whole");
-    assert!((armour_dulled(10.0, 0, 0.75) - 7.5).abs() < 1e-6, "**a cutting crit keeps three quarters**");
-    assert!((armour_dulled(10.0, 5, 0.75) - 3.75).abs() < 1e-6, "**and takes the five off before the three quarters**");
-    assert!((armour_dulled(3.0, 5, 0.5) - 0.0).abs() < 1e-6, "**more penetration than armour stops at none**, never at negative");
-    assert!((armour_dulled(10.0, 0, 0.0) - 0.0).abs() < 1e-6, "and a bashing crit at no crit_mod ignores it all");
+    assert!(
+        (armour_dulled(10.0, 0, 1.0) - 10.0).abs() < 1e-6,
+        "a plain hit keeps the armour whole"
+    );
+    assert!(
+        (armour_dulled(10.0, 0, 0.75) - 7.5).abs() < 1e-6,
+        "**a cutting crit keeps three quarters**"
+    );
+    assert!(
+        (armour_dulled(10.0, 5, 0.75) - 3.75).abs() < 1e-6,
+        "**and takes the five off before the three quarters**"
+    );
+    assert!(
+        (armour_dulled(3.0, 5, 0.5) - 0.0).abs() < 1e-6,
+        "**more penetration than armour stops at none**, never at negative"
+    );
+    assert!(
+        (armour_dulled(10.0, 0, 0.0) - 0.0).abs() < 1e-6,
+        "and a bashing crit at no crit_mod ignores it all"
+    );
 }
 
 /// The reference's own critical chances, compared against the port's, row by row.
@@ -3881,13 +5314,19 @@ fn a_critical_takes_its_armour_in_the_reference_s_order() {
 fn the_ported_crit_chance_matches_the_reference() {
     use cdda_sim::melee::{CritInputs, crit_chance};
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/melee/crit-chance.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/melee/crit-chance.json");
     let bytes = std::fs::read(&path).expect("the crit chance dump is in the corpus");
     let value = cdda_json::parse(&bytes).expect("the crit chance dump parses");
     let rows = cdda_content::crit_chance::from_dump(&value).expect("the crit chance dump loads");
-    assert!(rows.len() > 1_000, "the dump holds {} rows, which is too few", rows.len());
+    assert!(
+        rows.len() > 1_000,
+        "the dump holds {} rows, which is too few",
+        rows.len()
+    );
 
-    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let dirs: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let items = cdda_content::items::load_paths(&dirs).expect("the game's items load");
@@ -3915,7 +5354,13 @@ fn the_ported_crit_chance_matches_the_reference() {
         if (port - row.chance).abs() > 1e-6 {
             failures.push(format!(
                 "{} dex {} per {} skill {} melee {} roll {}: port {port} reference {}",
-                row.weapon, row.dexterity, row.perception, row.weapon_skill, row.melee_skill, row.roll, row.chance
+                row.weapon,
+                row.dexterity,
+                row.perception,
+                row.weapon_skill,
+                row.melee_skill,
+                row.roll,
+                row.chance
             ));
         }
     }
@@ -3976,12 +5421,18 @@ fn an_empty_hands_accuracy_is_minus_two() {
 fn the_ported_swing_cost_matches_the_reference() {
     use cdda_sim::melee::{attack_speed, stamina_cost, stance_malus};
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/melee/swing-cost.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/melee/swing-cost.json");
     let bytes = std::fs::read(&path).expect("the swing cost dump is in the corpus");
     let value = cdda_json::parse(&bytes).expect("the swing cost dump parses");
     let rows = cdda_content::swing_cost::from_dump(&value).expect("the swing cost dump loads");
-    assert!(rows.len() > 100, "the dump holds {} rows, which is too few", rows.len());
-    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    assert!(
+        rows.len() > 100,
+        "the dump holds {} rows, which is too few",
+        rows.len()
+    );
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let dirs: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let items = cdda_content::items::load_paths(&dirs).expect("the game's items load");
@@ -4024,7 +5475,13 @@ fn the_ported_swing_cost_matches_the_reference() {
         if port_moves != row.attack_speed {
             failures.push(format!(
                 "{} {} skill {} dex {} stamina {}: moves {} vs reference {}",
-                row.weapon, row.stance, row.melee_skill, row.dexterity, row.stamina_ratio, port_moves, row.attack_speed
+                row.weapon,
+                row.stance,
+                row.melee_skill,
+                row.dexterity,
+                row.stamina_ratio,
+                port_moves,
+                row.attack_speed
             ));
         }
         // The stamina rule reads the weapon's **weight**, which the port takes as an argument rather than reading off a held item - so the join is the same game data by id.
@@ -4046,12 +5503,21 @@ fn the_ported_swing_cost_matches_the_reference() {
         if port_stamina != row.stamina_cost {
             failures.push(format!(
                 "{} {} skill {} dex {} stamina {}: stamina {port_stamina} vs reference {}",
-                row.weapon, row.stance, row.melee_skill, row.dexterity, row.stamina_ratio, row.stamina_cost
+                row.weapon,
+                row.stance,
+                row.melee_skill,
+                row.dexterity,
+                row.stamina_ratio,
+                row.stamina_cost
             ));
         }
     }
     assert_eq!(moves_checked, rows.len(), "every row's moves were compared");
-    assert_eq!(stamina_checked, rows.len(), "and every row's stamina, in all three stances");
+    assert_eq!(
+        stamina_checked,
+        rows.len(),
+        "and every row's stamina, in all three stances"
+    );
     assert!(
         failures.is_empty(),
         "{} disagreements of {} rows, first few: {:#?}",
@@ -4069,8 +5535,14 @@ fn the_ported_swing_cost_matches_the_reference() {
 fn the_stores_own_monster_dodges_worse_in_a_trap() {
     let mut world = bevy_ecs::world::World::new();
     let zombie = spawn_creature(&mut world, "a zombie", (0, 0, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Dodge { points: 4 });
-    assert_eq!(cdda_sim::creature::defence_of(&world, zombie).dodge, 4, "a free zombie dodges four");
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Dodge { points: 4 });
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, zombie).dodge,
+        4,
+        "a free zombie dodges four"
+    );
 
     cdda_sim::applied_effects::add(
         &mut world,
@@ -4111,31 +5583,42 @@ fn the_stores_own_monster_dodges_worse_in_a_trap() {
 fn a_winded_survivor_dodges_worse_in_the_store() {
     let mut world = bevy_ecs::world::World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Stamina {
-        cur: 3_500.0,
-        max: 3_500.0,
-    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dodge { points: 10 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Stamina {
+            cur: 3_500.0,
+            max: 3_500.0,
+        });
     assert_eq!(
         cdda_sim::creature::defence_of(&world, survivor).dodge,
         10,
         "**a full wind leaves the dodge whole**"
     );
-    world.entity_mut(survivor).insert(cdda_sim::creature::Stamina {
-        cur: 350.0,
-        max: 3_500.0,
-    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Stamina {
+            cur: 350.0,
+            max: 3_500.0,
+        });
     assert_eq!(
         cdda_sim::creature::defence_of(&world, survivor).dodge,
         0,
         "**and a tenth of one leaves nothing to dodge with**"
     );
-    world.entity_mut(survivor).insert(cdda_sim::creature::Stamina {
-        cur: 1_750.0,
-        max: 3_500.0,
-    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Stamina {
+            cur: 1_750.0,
+            max: 3_500.0,
+        });
     let half = cdda_sim::creature::defence_of(&world, survivor).dodge;
-    assert!((2..=8).contains(&half), "half a wind leaves fewer than ten: {half}");
+    assert!(
+        (2..=8).contains(&half),
+        "half a wind leaves fewer than ten: {half}"
+    );
 }
 
 /// A slowed creature dodges in proportion and a quick one gains nothing.
@@ -4145,9 +5628,15 @@ fn a_winded_survivor_dodges_worse_in_the_store() {
 fn a_slowed_creature_dodges_in_proportion() {
     let mut world = bevy_ecs::world::World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dodge { points: 10 });
     set_speed(&mut world, survivor, 100, 0);
-    assert_eq!(cdda_sim::creature::defence_of(&world, survivor).dodge, 10, "a walk");
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        10,
+        "a walk"
+    );
     set_speed(&mut world, survivor, 50, 0);
     assert_eq!(
         cdda_sim::creature::defence_of(&world, survivor).dodge,
@@ -4179,23 +5668,32 @@ fn a_creature_can_be_asked_what_it_wears_by_flag() {
             WornFlags(vec!["ROLLER_QUAD".to_owned(), "SKATES".to_owned()]),
         ))
         .id();
-    world
-        .spawn((WornBy(other), WornFlags(vec!["ROLLER_ONE".to_owned()])));
+    world.spawn((WornBy(other), WornFlags(vec!["ROLLER_ONE".to_owned()])));
 
     assert!(
         cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_QUAD"),
         "**the survivor is wearing quad skates**"
     );
-    assert!(!cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_ONE"), "and not inline ones");
+    assert!(
+        !cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_ONE"),
+        "and not inline ones"
+    );
     assert!(
         !cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_INLINE"),
         "a flag nothing carries is not worn"
     );
     // Someone else's skates are not the survivor's.
-    assert!(!cdda_sim::creature::wears_flag(&world, other, "ROLLER_QUAD"));
+    assert!(!cdda_sim::creature::wears_flag(
+        &world,
+        other,
+        "ROLLER_QUAD"
+    ));
     assert!(cdda_sim::creature::wears_flag(&world, other, "ROLLER_ONE"));
     world.entity_mut(skates).despawn();
-    assert!(!cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_QUAD"), "and a destroyed pair is gone");
+    assert!(
+        !cdda_sim::creature::wears_flag(&world, survivor, "ROLLER_QUAD"),
+        "and a destroyed pair is gone"
+    );
 }
 
 /// Skates in the store cost the survivor its dodge, and the trait halves the loss.
@@ -4207,8 +5705,14 @@ fn skates_in_the_store_cost_the_survivor_its_dodge() {
 
     let mut world = bevy_ecs::world::World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
-    assert_eq!(cdda_sim::creature::defence_of(&world, survivor).dodge, 10, "shoes");
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dodge { points: 10 });
+    assert_eq!(
+        cdda_sim::creature::defence_of(&world, survivor).dodge,
+        10,
+        "shoes"
+    );
     world.spawn((WornBy(survivor), WornFlags(vec!["ROLLER_QUAD".to_owned()])));
     assert_eq!(
         cdda_sim::creature::defence_of(&world, survivor).dodge,
@@ -4233,7 +5737,9 @@ fn a_hurt_head_in_the_store_slows_the_dodge() {
 
     let mut world = bevy_ecs::world::World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dodge { points: 10 });
     let head = BodyPart {
         name: "head".to_owned(),
         hit_size: 4.0,
@@ -4327,7 +5833,9 @@ fn a_hurt_leg_in_the_store_multiplies_the_dodge() {
 
     let mut world = bevy_ecs::world::World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dodge { points: 10 });
     // **A body is a whole set of parts, not the two the test is about**: the figure multiplies balance, move speed and footing, so a body of two legs multiplies by zero and the fixture
     // would have been testing nothing. This is the human set the dump states.
     let scored = |name: &str, score: &str, figure: f32| BodyPart {
@@ -4382,7 +5890,9 @@ fn a_hurt_leg_in_the_store_multiplies_the_dodge() {
 fn a_bigger_creature_in_the_store_dodges_less() {
     let mut world = bevy_ecs::world::World::new();
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Dodge { points: 10 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Dodge { points: 10 });
     assert_eq!(
         cdda_sim::creature::defence_of(&world, survivor).dodge,
         10,
@@ -4432,7 +5942,8 @@ fn a_body_built_from_the_data_answers_its_own_scores() {
         };
         cdda_content::body_parts::load_objects(parts).expect("the dump loads")
     };
-    let body = cdda_sim::creature::body_named("human_anatomy", &anatomies, &parts).expect("a human body");
+    let body =
+        cdda_sim::creature::body_named("human_anatomy", &anatomies, &parts).expect("a human body");
 
     let score = |name: &str| -> f32 {
         body.parts
@@ -4446,10 +5957,26 @@ fn a_body_built_from_the_data_answers_its_own_scores() {
             .sum()
     };
     // **A whole human's reaction is one and its balance is one**, which is what the data says and what the join has to carry through.
-    assert!((score("reaction") - 1.0).abs() < 1e-6, "reaction: {}", score("reaction"));
-    assert!((score("balance") - 1.0).abs() < 1e-6, "balance: {}", score("balance"));
-    assert!((score("move_speed") - 1.0).abs() < 1e-6, "move speed: {}", score("move_speed"));
-    assert!((score("footing") - 1.0).abs() < 1e-6, "footing: {}", score("footing"));
+    assert!(
+        (score("reaction") - 1.0).abs() < 1e-6,
+        "reaction: {}",
+        score("reaction")
+    );
+    assert!(
+        (score("balance") - 1.0).abs() < 1e-6,
+        "balance: {}",
+        score("balance")
+    );
+    assert!(
+        (score("move_speed") - 1.0).abs() < 1e-6,
+        "move speed: {}",
+        score("move_speed")
+    );
+    assert!(
+        (score("footing") - 1.0).abs() < 1e-6,
+        "footing: {}",
+        score("footing")
+    );
     assert!(
         body.parts.iter().all(|part| part.base_hp >= 0),
         "every part states the health it is measured against"
@@ -4468,11 +5995,17 @@ fn the_blow_that_kills_says_who_killed() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 5, max_hp: 5 });
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Health { hp: 5, max_hp: 5 });
 
     // A blow that does not kill leaves no killer.
     cdda_sim::creature::hurt_by(&mut world, zombie, 2.0, Some(survivor));
-    assert_eq!(cdda_sim::creature::health_of(&world, zombie), Some(3), "the body is hurt");
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, zombie),
+        Some(3),
+        "the body is hurt"
+    );
     assert!(
         world.get::<cdda_sim::creature::KilledBy>(zombie).is_none(),
         "**and a body that is still standing has no killer**"
@@ -4480,9 +6013,15 @@ fn the_blow_that_kills_says_who_killed() {
 
     // The blow that takes it to zero does.
     cdda_sim::creature::hurt_by(&mut world, zombie, 3.0, Some(survivor));
-    assert_eq!(cdda_sim::creature::health_of(&world, zombie), Some(0), "the body is at zero");
     assert_eq!(
-        world.get::<cdda_sim::creature::KilledBy>(zombie).map(|who| who.0),
+        cdda_sim::creature::health_of(&world, zombie),
+        Some(0),
+        "the body is at zero"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::KilledBy>(zombie)
+            .map(|who| who.0),
         Some(survivor),
         "**the killer is on the body**"
     );
@@ -4499,7 +6038,10 @@ fn killing_a_body_practises_what_its_families_teach() {
     let mut world = World::new();
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_teachable", hp: 5 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_teachable",
+            hp: 5,
+        }],
     );
     let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_teachable").expect("the kind");
     cdda_sim::monster_registry::set_weakpoint_families(

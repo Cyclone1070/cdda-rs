@@ -102,7 +102,10 @@ fn a_doubling_multiplier_doubles_the_draw() {
 fn skill_becomes_dispersion_on_the_reference_s_curve() {
     use cdda_sim::dispersion::from_skill;
 
-    assert!((from_skill(10.0, 300.0)).abs() < f64::EPSILON, "a master has no penalty");
+    assert!(
+        (from_skill(10.0, 300.0)).abs() < f64::EPSILON,
+        "a master has no penalty"
+    );
     // Skill 0: 10 * 10 = 100, plus 300 * (1.25 + 5 * 10 / 5) = 300 * 11.25.
     let unskilled = from_skill(0.0, 300.0);
     assert!(
@@ -121,7 +124,8 @@ fn skill_becomes_dispersion_on_the_reference_s_curve() {
     );
     // The weapon's own dispersion matters more to a beginner than to an expert, which is the comment the reference writes beside the branch.
     assert!(
-        from_skill(9.0, 600.0) - from_skill(9.0, 300.0) < from_skill(1.0, 600.0) - from_skill(1.0, 300.0),
+        from_skill(9.0, 600.0) - from_skill(9.0, 300.0)
+            < from_skill(1.0, 600.0) - from_skill(1.0, 300.0),
         "a worse weapon hurts a poor shot more"
     );
 }
@@ -153,19 +157,37 @@ fn a_throw_s_spread_follows_the_reference_s_code_and_not_its_comments() {
         "difficulty 1000 over (8 * 0 + 4): the comment says 1000, the code says 2500"
     );
     assert_eq!(
-        throwing_dispersion(&Throw { skill: 10.0, ..rock.clone() }),
+        throwing_dispersion(&Throw {
+            skill: 10.0,
+            ..rock.clone()
+        }),
         119,
         "and at full skill: 10000 / 84, truncated - the comment says 250, the code says 119"
     );
 
     // Every gram above `strength * 100` is a point of difficulty, and every millilitre over one litre is another.
-    let heavy = Throw { weight_g: 1_000, ..rock.clone() };
+    let heavy = Throw {
+        weight_g: 1_000,
+        ..rock.clone()
+    };
     assert_eq!(throwing_dispersion(&heavy), 3_000, "1200 of difficulty");
-    let bulky = Throw { volume_ml: 2_000, ..rock.clone() };
+    let bulky = Throw {
+        volume_ml: 2_000,
+        ..rock.clone()
+    };
     assert_eq!(throwing_dispersion(&bulky), 5_000, "2000 of difficulty");
     // Charges are split out first, so a handful of pebbles throws like one pebble.
-    let handful = Throw { weight_g: 2_500, volume_ml: 5_000, charges: 5, ..rock.clone() };
-    assert_eq!(throwing_dispersion(&handful), 2_500, "one 500 g, one litre pebble's worth");
+    let handful = Throw {
+        weight_g: 2_500,
+        volume_ml: 5_000,
+        charges: 5,
+        ..rock.clone()
+    };
+    assert_eq!(
+        throwing_dispersion(&handful),
+        2_500,
+        "one 500 g, one litre pebble's worth"
+    );
 
     // A dodging target adds its own term: the per-dodge cost times a dodge that counts **ten times** at point blank and once from two squares out.
     let dodge_two = Some(cdda_sim::dispersion::Dodging {
@@ -175,13 +197,19 @@ fn a_throw_s_spread_follows_the_reference_s_code_and_not_its_comments() {
         dex_modifier: 1.0,
     });
     assert_eq!(
-        throwing_dispersion(&Throw { target: dodge_two.clone(), ..rock.clone() }),
+        throwing_dispersion(&Throw {
+            target: dodge_two.clone(),
+            ..rock.clone()
+        }),
         3_000,
         "20 points of dodge at 25 a point"
     );
     assert_eq!(
         throwing_dispersion(&Throw {
-            target: Some(cdda_sim::dispersion::Dodging { distance: 2, ..dodge_far() }),
+            target: Some(cdda_sim::dispersion::Dodging {
+                distance: 2,
+                ..dodge_far()
+            }),
             ..rock.clone()
         }),
         2_550,
@@ -190,12 +218,18 @@ fn a_throw_s_spread_follows_the_reference_s_code_and_not_its_comments() {
 
     // Eyes full of water cost ten points of perception each, and being blind quadruples the whole thing.
     assert_eq!(
-        throwing_dispersion(&Throw { eye_encumbrance: 20, ..rock.clone() }),
+        throwing_dispersion(&Throw {
+            eye_encumbrance: 20,
+            ..rock.clone()
+        }),
         2_600,
         "ten points over perception, ten each"
     );
     assert_eq!(
-        throwing_dispersion(&Throw { blinded: true, ..rock.clone() }),
+        throwing_dispersion(&Throw {
+            blinded: true,
+            ..rock.clone()
+        }),
         10_000,
         "a blind throw is four times as wide"
     );
@@ -213,7 +247,11 @@ fn the_per_dodge_cost_is_a_hundred_over_two_plus_a_quarter_of_dexterity() {
     assert_eq!(per_dodge(12, 1.0), 20);
     assert_eq!(per_dodge(24, 1.0), 12, "truncated from 12.5");
     // A modifier above one makes dexterity worth more, and never lets the cost fall below zero.
-    assert_eq!(per_dodge(8, 2.0), 12, "twice the dexterity of eight is sixteen");
+    assert_eq!(
+        per_dodge(8, 2.0),
+        12,
+        "twice the dexterity of eight is sixteen"
+    );
     assert_eq!(per_dodge(0, 10.0), 5, "and one is the floor of the divisor");
 }
 

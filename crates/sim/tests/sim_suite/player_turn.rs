@@ -6,8 +6,8 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    MonsterKindId, Player, Position, TurnRules, monster_turns_striking, player_turn,
-    spawn_monster, spawn_player,
+    MonsterKindId, Player, Position, TurnRules, monster_turns_striking, player_turn, spawn_monster,
+    spawn_player,
 };
 
 const FLOOR: u32 = 1;
@@ -161,7 +161,15 @@ fn a_dodging_monster_avoids_the_player_s_blow() {
     cdda_sim::creature::set_moves(&mut world, me, 100);
     let plain = spawn_monster(&mut world, (1, 0), MonsterKindId(2), 100);
     let mut rolls = Rolls::new(9);
-    player_turn(&mut world, (1, 0), (1, 4, 0), 100, &rules(), &mut rolls, &level());
+    player_turn(
+        &mut world,
+        (1, 0),
+        (1, 4, 0),
+        100,
+        &rules(),
+        &mut rolls,
+        &level(),
+    );
     let plain_left = monster_hp(&world, plain);
 
     let mut world = World::new();
@@ -172,7 +180,15 @@ fn a_dodging_monster_avoids_the_player_s_blow() {
         .entity_mut(nimble)
         .insert(cdda_sim::creature::Dodge { points: 20 });
     let mut rolls = Rolls::new(9);
-    player_turn(&mut world, (1, 0), (1, 4, 0), 100, &rules(), &mut rolls, &level());
+    player_turn(
+        &mut world,
+        (1, 0),
+        (1, 4, 0),
+        100,
+        &rules(),
+        &mut rolls,
+        &level(),
+    );
     let nimble_left = monster_hp(&world, nimble);
 
     assert!(

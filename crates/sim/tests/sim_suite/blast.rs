@@ -89,25 +89,25 @@ fn cases() -> (i32, Vec<Case>) {
                             other => panic!("a hit off the room's level: {other:?}"),
                         }
                         (
-                        i32::try_from(match &parts[0] {
-                            Value::Int(value) => *value,
-                            other => panic!("x: {other:?}"),
-                        })
-                        .expect("small"),
-                        i32::try_from(match &parts[1] {
-                            Value::Int(value) => *value,
-                            other => panic!("y: {other:?}"),
-                        })
-                        .expect("small"),
-                        match &parts[3] {
-                            Value::Float(value) => {
-                                #[allow(clippy::cast_possible_truncation)]
-                                {
-                                    *value as f32
+                            i32::try_from(match &parts[0] {
+                                Value::Int(value) => *value,
+                                other => panic!("x: {other:?}"),
+                            })
+                            .expect("small"),
+                            i32::try_from(match &parts[1] {
+                                Value::Int(value) => *value,
+                                other => panic!("y: {other:?}"),
+                            })
+                            .expect("small"),
+                            match &parts[3] {
+                                Value::Float(value) => {
+                                    #[allow(clippy::cast_possible_truncation)]
+                                    {
+                                        *value as f32
+                                    }
                                 }
-                            }
-                            other => panic!("force: {other:?}"),
-                        },
+                                other => panic!("force: {other:?}"),
+                            },
                         )
                     }
                     other => panic!("a hit: {other:?}"),
@@ -184,16 +184,13 @@ fn room(case: &Case, data: &BTreeMap<String, MapData>, half: i32, width: usize) 
     };
     Room {
         half,
-        levels: [
-            level(&case.below),
-            level(&case.room),
-            level(&case.above),
-        ],
+        levels: [level(&case.below), level(&case.room), level(&case.above)],
     }
 }
 
 fn data() -> BTreeMap<String, MapData> {
-    let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
     load_paths(&[&reference.join("core"), &reference.join("json")])
         .expect("the map data loads")
         .into_iter()
@@ -297,7 +294,10 @@ fn squares_with_the_other_force(ours: &[(i32, i32, f32)], theirs: &[(i32, i32, f
 #[test]
 fn a_blast_bashes_the_same_squares_with_the_same_force() {
     let (half, cases) = cases();
-    assert_eq!(half, 11, "the recorded grid is the room plus its two-square margin");
+    assert_eq!(
+        half, 11,
+        "the recorded grid is the room plus its two-square margin"
+    );
     assert_eq!(cases.len(), 3, "three blasts");
     let data = data();
     let mut wrong = Vec::new();
@@ -311,9 +311,20 @@ fn a_blast_bashes_the_same_squares_with_the_same_force() {
         bashed_total += case.hits.len();
         declared_other_levels += case.other_levels;
     }
-    assert!(wrong.is_empty(), "{} wrong:\n{}", wrong.len(), wrong.iter().take(8).cloned().collect::<Vec<_>>().join("\n"));
-    assert_eq!(swaps, 0, "every square is hit with the force the reference hits it with");
-    assert_eq!(bashed_total, 812, "the three blasts bash this many squares in the room");
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong.iter().take(8).cloned().collect::<Vec<_>>().join("\n")
+    );
+    assert_eq!(
+        swaps, 0,
+        "every square is hit with the force the reference hits it with"
+    );
+    assert_eq!(
+        bashed_total, 812,
+        "the three blasts bash this many squares in the room"
+    );
     assert_eq!(
         declared_other_levels, 1262,
         "and these many above and below it, which the fixture declares rather than records"

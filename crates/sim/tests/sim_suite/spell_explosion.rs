@@ -6,7 +6,12 @@
 //! The gates below hold the dice still and check the two things a falloff decides: **the force at the centre is the spell's damage**, so a monster standing there is hit hardest,
 //! and **a square further out is hit with less** - which is the whole point of `area / 10`.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing, clippy::float_cmp)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp
+)]
 
 use bevy_ecs::prelude::*;
 
@@ -74,7 +79,8 @@ fn a_blast_hits_hardest_at_its_centre_and_less_further_out() {
     cdda_sim::PositionIndex::rebuild(&mut world);
     // Power 100 with a factor of 0.8 per square: 100 at the centre, 80 one square out, 51 at three.
     let spell = a_spell(100.0, 8.0);
-    let outcome = cdda_sim::explosion::explode(&mut world, Some(caster), (0, 0, 0), 100.0, 0.8, true);
+    let outcome =
+        cdda_sim::explosion::explode(&mut world, Some(caster), (0, 0, 0), 100.0, 0.8, true);
     assert!(
         outcome.reached > 1,
         "the wavefront reached {} squares, so this is a blast and not a single square",

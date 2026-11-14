@@ -69,7 +69,9 @@ pub fn restore(world: &mut World) -> usize {
         let mut query = world.query::<(Entity, &crate::Position, &Snapshot)>();
         query
             .iter(world)
-            .map(|(entity, position, snapshot)| (entity, (position.x, position.y, position.z), *snapshot))
+            .map(|(entity, position, snapshot)| {
+                (entity, (position.x, position.y, position.z), *snapshot)
+            })
             .collect()
     };
     for (entity, at, snapshot) in &remembered {

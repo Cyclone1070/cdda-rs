@@ -91,7 +91,11 @@ fn recorded() -> (BTreeMap<String, BashInfo>, BTreeMap<String, BashInfo>) {
 #[test]
 fn every_bash_block_loads_as_the_reference_holds_it() {
     let (terrain, furniture) = recorded();
-    assert_eq!(terrain.len(), 958, "the reference has 958 bashable terrains");
+    assert_eq!(
+        terrain.len(),
+        958,
+        "the reference has 958 bashable terrains"
+    );
     assert_eq!(furniture.len(), 612, "and 612 pieces of furniture");
     let dirs = crate::corpus::dirs();
     let args: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
@@ -111,24 +115,42 @@ fn every_bash_block_loads_as_the_reference_holds_it() {
         ("furniture", &ported_furniture, &furniture),
     ] {
         if ported.len() != expected.len() {
-            wrong.push(format!("{kind}: {} blocks against {}", ported.len(), expected.len()));
+            wrong.push(format!(
+                "{kind}: {} blocks against {}",
+                ported.len(),
+                expected.len()
+            ));
         }
         for (id, want) in expected {
             match ported.get(id) {
                 None => wrong.push(format!("{kind} {id}: no bash block")),
                 Some(have) if have != want => {
-                    wrong.push(format!("{kind} {id}: the port has {have:?}, the reference has {want:?}"));
+                    wrong.push(format!(
+                        "{kind} {id}: the port has {have:?}, the reference has {want:?}"
+                    ));
                 }
                 Some(_) => {}
             }
         }
         for id in ported.keys() {
             if !expected.contains_key(id) {
-                wrong.push(format!("{kind} {id}: a bash block the reference does not have"));
+                wrong.push(format!(
+                    "{kind} {id}: a bash block the reference does not have"
+                ));
             }
         }
     }
-    assert!(wrong.is_empty(), "{} wrong of 1,570:\n{}", wrong.len(), wrong.iter().take(12).cloned().collect::<Vec<_>>().join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} wrong of 1,570:\n{}",
+        wrong.len(),
+        wrong
+            .iter()
+            .take(12)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
 }
 
 /// The two defaults that are not zero, pinned on their own so that a port that got them wrong says which one.
@@ -136,8 +158,14 @@ fn every_bash_block_loads_as_the_reference_holds_it() {
 fn the_defaults_are_the_reference_s() {
     let (terrain, furniture) = recorded();
     // `ter_set_bashed_from_above` defaults to `ter_set` (`src/mapdata.cpp:423`), so the two agree unless the data says otherwise.
-    let differ = terrain.values().filter(|bash| bash.set_from_above.as_deref() != Some(bash.set.as_str())).count();
-    assert!(differ > 0, "some terrain bashes differently from above: {differ}");
+    let differ = terrain
+        .values()
+        .filter(|bash| bash.set_from_above.as_deref() != Some(bash.set.as_str()))
+        .count();
+    assert!(
+        differ > 0,
+        "some terrain bashes differently from above: {differ}"
+    );
     assert!(
         terrain.values().all(|bash| bash.set_from_above.is_some()),
         "every terrain block says what it becomes from above, whether the data names it or not"
@@ -171,18 +199,32 @@ fn the_defaults_are_the_reference_s() {
 #[test]
 fn the_item_groups_are_names_and_the_rest_are_anonymous() {
     let (terrain, furniture) = recorded();
-    let named = terrain.values().chain(furniture.values()).filter(|bash| bash.drop_group.is_some()).count();
+    let named = terrain
+        .values()
+        .chain(furniture.values())
+        .filter(|bash| bash.drop_group.is_some())
+        .count();
     let anonymous = terrain
         .values()
         .chain(furniture.values())
         .filter(|bash| bash.drop_group.is_none())
         .count();
-    assert!(named > 100, "the data names most of its drop groups: {named}");
+    assert!(
+        named > 100,
+        "the data names most of its drop groups: {named}"
+    );
     assert!(
         anonymous > 1_000,
         "and writes the rest inline, which the reference turns into an anonymous group: {anonymous}"
     );
     // A fresh block that names no items is **not** a block with no group: the reference gives it `EMPTY_GROUP`.
-    let empty = terrain.values().chain(furniture.values()).filter(|bash| bash.drop_group.as_deref() == Some("EMPTY_GROUP")).count();
-    assert!(empty > 0, "the default group is a name, not an absence: {empty}");
+    let empty = terrain
+        .values()
+        .chain(furniture.values())
+        .filter(|bash| bash.drop_group.as_deref() == Some("EMPTY_GROUP"))
+        .count();
+    assert!(
+        empty > 0,
+        "the default group is a name, not an absence: {empty}"
+    );
 }

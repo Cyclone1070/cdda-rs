@@ -17,7 +17,8 @@ fn member<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
 }
 
 fn types() -> Vec<Value> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/thrown-damage.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/thrown-damage.json");
     let bytes = std::fs::read(path).expect("the thrown-damage dump exists");
     let root = parse(&bytes).expect("the dump is valid JSON");
     let Value::Object(root) = root else {

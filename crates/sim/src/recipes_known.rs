@@ -27,7 +27,13 @@ pub struct KnownRecipes(pub BTreeSet<String>);
 ///
 /// **The refusal is silent and complete**: nothing is added and the set is not created, so a character who was only ever offered never-learn recipes carries no component at all - the same
 /// "missing means none" rule [`crate::identification`] follows. `override_never_learn` exists because **reading a book** can teach a recipe the character could not otherwise learn.
-pub fn learn(world: &mut World, creature: Entity, recipe: &str, never_learn: bool, override_never_learn: bool) -> bool {
+pub fn learn(
+    world: &mut World,
+    creature: Entity,
+    recipe: &str,
+    never_learn: bool,
+    override_never_learn: bool,
+) -> bool {
     if never_learn && !override_never_learn {
         return false;
     }

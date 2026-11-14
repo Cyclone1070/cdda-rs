@@ -56,7 +56,9 @@ pub fn kind_of(world: &mut World, id: &str) -> Option<EffectType> {
 /// has nothing to build, and giving it a read-only door is what lets such a rule keep `&World` like the rest of the read side.
 #[must_use]
 pub fn kind_named(world: &World, id: &str) -> Option<EffectType> {
-    let types = world.iter_entities().find_map(|entity| entity.get::<EffectTypes>())?;
+    let types = world
+        .iter_entities()
+        .find_map(|entity| entity.get::<EffectTypes>())?;
     let at = types.by_id.get(id).copied()?;
     types.kinds.get(at).cloned()
 }

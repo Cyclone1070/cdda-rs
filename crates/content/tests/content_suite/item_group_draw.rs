@@ -4,8 +4,8 @@
 
 use cdda_content::item_group_draw::{Definition, Entry, draw, load_definitions};
 use cdda_core_types::rng::Rolls;
-use std::fmt::Write as _;
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 fn from_json(text: &str) -> BTreeMap<String, Definition> {
     let value = cdda_json::parse(text.as_bytes()).expect("valid json");
@@ -176,15 +176,27 @@ fn the_draw_asks_the_reference_for_its_dice_ranges() {
             {"item":"meat","prob":50},{"item":"bone","prob":100}]}]"#,
     );
     let distribution_rolls = "int 0 2 0\nint 1 1 1\n";
-    let mut rolls = Rolls::replaying(cdda_core_types::rng::Recording::parse(distribution_rolls).expect("a recording"));
+    let mut rolls = Rolls::replaying(
+        cdda_core_types::rng::Recording::parse(distribution_rolls).expect("a recording"),
+    );
     let drawn = draw(&groups, "one_of", &mut rolls);
-    assert_eq!(drawn, vec![("meat".to_owned(), 1)], "the zero takes the first entry");
+    assert_eq!(
+        drawn,
+        vec![("meat".to_owned(), 1)],
+        "the zero takes the first entry"
+    );
 
     // The collection: one `rng( 0, 99 )` per entry, the first fifty and then a hundred - so the first entry is skipped at 50 and the second is taken at 0.
     let collection_rolls = "int 0 99 50\nint 0 99 0\nint 1 1 1\n";
-    let mut rolls = Rolls::replaying(cdda_core_types::rng::Recording::parse(collection_rolls).expect("a recording"));
+    let mut rolls = Rolls::replaying(
+        cdda_core_types::rng::Recording::parse(collection_rolls).expect("a recording"),
+    );
     let drawn = draw(&groups, "a_pile", &mut rolls);
-    assert_eq!(drawn, vec![("bone".to_owned(), 1)], "the chance that failed, then the one that passed");
+    assert_eq!(
+        drawn,
+        vec![("bone".to_owned(), 1)],
+        "the chance that failed, then the one that passed"
+    );
 }
 
 /// A holiday item is skipped in the middle of a distribution, and the walk keeps going.
@@ -201,7 +213,8 @@ fn a_holiday_item_is_passed_over_and_the_next_one_is_taken() {
     );
     // The die is a zero, which chooses the first entry by weight - and the first entry is out of season.
     let recording = "int 0 1 0\nint 1 1 1\n";
-    let mut rolls = Rolls::replaying(cdda_core_types::rng::Recording::parse(recording).expect("a recording"));
+    let mut rolls =
+        Rolls::replaying(cdda_core_types::rng::Recording::parse(recording).expect("a recording"));
     let drawn = draw(&groups, "one_of", &mut rolls);
     assert_eq!(
         drawn,
@@ -223,9 +236,8 @@ fn a_fixed_count_draws_no_die() {
     );
     // One die for the distribution's own choice, and **nothing after it**: the count is five however the dice fall.
     let recording = "int 0 0 0\n";
-    let mut rolls = Rolls::replaying(
-        cdda_core_types::rng::Recording::parse(recording).expect("a recording"),
-    );
+    let mut rolls =
+        Rolls::replaying(cdda_core_types::rng::Recording::parse(recording).expect("a recording"));
     let drawn = draw(&groups, "a_box", &mut rolls);
     assert_eq!(drawn, vec![("meat".to_owned(), 5)]);
     assert_eq!(
@@ -248,9 +260,8 @@ fn a_count_of_zero_produces_nothing() {
     // The die is a zero, which chooses the first entry by weight - and the first entry asks for none of them. The range is `rng( 0, 3 )` and not `rng( 0, 2 )`:
     // the weight is the entry's **probability**, so a zero count keeps its entry in the group's total (`add_entry`, `src/item_group.cpp:813-821`).
     let recording = "int 0 3 0\n";
-    let mut rolls = Rolls::replaying(
-        cdda_core_types::rng::Recording::parse(recording).expect("a recording"),
-    );
+    let mut rolls =
+        Rolls::replaying(cdda_core_types::rng::Recording::parse(recording).expect("a recording"));
     assert!(draw(&groups, "an_empty_box", &mut rolls).is_empty());
 }
 
@@ -300,5 +311,9 @@ fn deep_nesting_is_drawn_in_full() {
     let groups = from_json(&json);
     let mut rolls = Rolls::new(11);
     let drawn = draw(&groups, "g0", &mut rolls);
-    assert_eq!(drawn, vec![("meat".to_owned(), 1)], "ten levels down: {drawn:?}");
+    assert_eq!(
+        drawn,
+        vec![("meat".to_owned(), 1)],
+        "ten levels down: {drawn:?}"
+    );
 }

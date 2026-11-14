@@ -10,7 +10,8 @@ use bevy_ecs::prelude::*;
 
 fn holds(world: &World, speaker: Entity, text: &str) -> bool {
     let value = cdda_json::parse(text.as_bytes()).expect("json");
-    let condition = cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
+    let condition =
+        cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
     cdda_sim::conditions::holds_with(world, speaker, None, &condition)
 }
 

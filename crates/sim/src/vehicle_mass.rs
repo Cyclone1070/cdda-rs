@@ -8,9 +8,9 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::vehicles::{part_spec, Vehicle};
-use crate::vehicle_cargo::items_in_part;
 use crate::GroundItem;
+use crate::vehicle_cargo::items_in_part;
+use crate::vehicles::{Vehicle, part_spec};
 
 /// What one part adds to the vehicle, in grams.
 ///
@@ -30,7 +30,9 @@ pub fn part_mass(world: &World, vehicle: Entity, part: usize) -> i64 {
     let items: i64 = items_in_part(world, vehicle, part)
         .into_iter()
         .filter_map(|item| world.get::<GroundItem>(item))
-        .map(|item| crate::item_registry::weight_in(world, item.kind) * i64::from(item.charges.max(1)))
+        .map(|item| {
+            crate::item_registry::weight_in(world, item.kind) * i64::from(item.charges.max(1))
+        })
         .sum();
     base + items * spec.cargo_weight_modifier / 100
 }

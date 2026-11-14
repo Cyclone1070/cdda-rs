@@ -76,7 +76,9 @@ fn read_lines(category: &str, object: &Object) -> Vec<Line> {
                             _ => format!("{category}_{}", lines.len()),
                         };
                         let weight = match one.get("weight") {
-                            Some(cdda_json::Value::Int(weight)) => i32::try_from(*weight).unwrap_or(100),
+                            Some(cdda_json::Value::Int(weight)) => {
+                                i32::try_from(*weight).unwrap_or(100)
+                            }
                             _ => 100,
                         };
                         lines.push(Line {

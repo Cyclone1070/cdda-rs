@@ -29,7 +29,8 @@ impl Scaling {
     /// the level and stops at the maximum. An expression anywhere in the triple answers `None` rather than a guess.
     #[must_use]
     pub fn at(&self, level: i32) -> Option<f64> {
-        let (Some(start), Some(increment), Some(end)) = (self.start, self.increment, self.end) else {
+        let (Some(start), Some(increment), Some(end)) = (self.start, self.increment, self.end)
+        else {
             return None;
         };
         #[allow(clippy::cast_precision_loss)]

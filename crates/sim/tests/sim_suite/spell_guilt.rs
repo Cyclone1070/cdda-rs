@@ -3,7 +3,12 @@
 //! Reference: `spell_effect::guilt` (`magic_spell_effect.cpp:1617-1711`). Three facts carry it and each is a gate below: **only a monster can cast it**, the penalty **fades as the
 //! tally grows** and stops altogether at the spell's damage, and a character with no conscience (a psychopath) feels nothing.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing, clippy::float_cmp)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp
+)]
 
 use bevy_ecs::prelude::*;
 
@@ -14,11 +19,14 @@ fn a_world(kills: i32) -> (World, Entity, Entity) {
     let kind = if let Some(kind) = kind {
         kind
     } else {
-            cdda_sim::monster_registry::set_monster_types(
-                &mut world,
-                &[cdda_sim::monster_registry::MonsterKind { id: "mon_blob", hp: 40 }],
-            );
-            cdda_sim::monster_registry::id_of(&mut world, "mon_blob").expect("mon_blob")
+        cdda_sim::monster_registry::set_monster_types(
+            &mut world,
+            &[cdda_sim::monster_registry::MonsterKind {
+                id: "mon_blob",
+                hp: 40,
+            }],
+        );
+        cdda_sim::monster_registry::id_of(&mut world, "mon_blob").expect("mon_blob")
     };
     let person = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     let caster = cdda_sim::spawn_monster(&mut world, (1, 0), kind, 40);
@@ -75,7 +83,10 @@ fn a_guilt_spell_bites_harder_the_fewer_of_its_kind_you_have_killed() {
         .get::<cdda_sim::morale::Morale>(fresh)
         .and_then(|felt| felt.0.first().cloned())
         .expect("the morale point was added");
-    assert_eq!(point.kind, "morale_killed_monster", "of the reference's own type");
+    assert_eq!(
+        point.kind, "morale_killed_monster",
+        "of the reference's own type"
+    );
     assert_eq!(
         point.bonus, -5,
         "**nothing killed yet is a level-one malus of five**: `-5 * guilt_mult * ( 1 - 0 )`"

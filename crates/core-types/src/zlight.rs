@@ -19,7 +19,9 @@
 //! something that already reproduces the reference's numbers.
 
 use crate::light::TRANSPARENCY_OPEN_AIR;
-use crate::shadowcasting::{Slope, Span, accumulate_transparency, sight_calc, sight_check, split_span};
+use crate::shadowcasting::{
+    Slope, Span, accumulate_transparency, sight_calc, sight_check, split_span,
+};
 
 /// The smallest and largest level the reference casts over.
 ///
@@ -223,7 +225,9 @@ pub fn cast_horizontal_segment(
 #[must_use]
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 pub fn rl_distance(dx: i32, dy: i32, dz: i32) -> i32 {
-    let squared = f64::from(dx) * f64::from(dx) + f64::from(dy) * f64::from(dy) + f64::from(dz) * f64::from(dz);
+    let squared = f64::from(dx) * f64::from(dx)
+        + f64::from(dy) * f64::from(dy)
+        + f64::from(dz) * f64::from(dz);
     squared.sqrt() as i32
 }
 
@@ -442,7 +446,14 @@ pub fn cast_zlight(
         let mut count = 0;
         for transform in VERTICAL_TRANSFORMS {
             count += cast_vertical_segment(
-                plane, transform, z_transform, origin, radius, bounds, numerator, seen,
+                plane,
+                transform,
+                z_transform,
+                origin,
+                radius,
+                bounds,
+                numerator,
+                seen,
             );
         }
         count
@@ -487,6 +498,8 @@ pub fn build_seen_cache(
 ) -> Seen {
     let mut seen = Seen::new();
     seen.insert(origin, 1.0);
-    cast_zlight(plane, origin, radius, bounds, numerator, direction, &mut seen);
+    cast_zlight(
+        plane, origin, radius, bounds, numerator, direction, &mut seen,
+    );
     seen
 }

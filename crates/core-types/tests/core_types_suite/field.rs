@@ -107,7 +107,11 @@ fn a_field_decays_on_the_reference_schedule_when_the_recording_says_so() {
     entry.set_age(1);
     // age becomes two, so `decay_time` is now - 2 + 1: one turn in the past.
     entry.do_decay(5_000, &mut rolls);
-    assert_eq!(entry.intensity(), 1, "the level went, and the field survived");
+    assert_eq!(
+        entry.intensity(),
+        1,
+        "the level went, and the field survived"
+    );
     assert_eq!(entry.age(), 0, "and the age restarted with the new level");
 }
 
@@ -138,7 +142,11 @@ fn setting_the_age_restarts_the_decay_schedule() {
     entry.set_age(1);
     // Far in the future: nothing happens.
     entry.do_decay(5_000, &mut rolls);
-    assert_eq!(entry.intensity(), 2, "the first draw put the deadline ahead");
+    assert_eq!(
+        entry.intensity(),
+        2,
+        "the first draw put the deadline ahead"
+    );
     // Something else sets the age, so the deadline is thrown away and drawn again.
     entry.set_age(0);
     entry.do_decay(5_000, &mut rolls);
@@ -155,14 +163,19 @@ fn every_decay_draws_a_fresh_deadline() {
     // each time and the deadline it computed last turn is never reused. A field therefore dies on the turn its draw is no longer than its age - the
     // extinguisher's risen cloud draws one turn at age two and goes at once. A port that cached the deadline kept that cloud alive for the rest of the
     // session, because a frozen clock can never pass a deadline that is ahead of it.
-    let recording = Recording::parse("drawn decay.turns 40\ndrawn decay.turns 1\n").expect("two drawn");
+    let recording =
+        Recording::parse("drawn decay.turns 40\ndrawn decay.turns 1\n").expect("two drawn");
     let mut rolls = Rolls::replaying(recording);
     let mut entry = FieldEntry::new(3, 10, false, false);
     entry.set_intensity(2);
     entry.set_age(1);
     // The first draw is forty turns out: nothing happens.
     entry.do_decay(5_000, &mut rolls);
-    assert_eq!(entry.intensity(), 2, "the first draw put the deadline ahead");
+    assert_eq!(
+        entry.intensity(),
+        2,
+        "the first draw put the deadline ahead"
+    );
     // The second decay must spend the second draw, not reuse the first: one turn at age three is in the past.
     entry.do_decay(5_000, &mut rolls);
     assert_eq!(

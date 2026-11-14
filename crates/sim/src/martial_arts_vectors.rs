@@ -93,7 +93,10 @@ pub fn aims_available(
             .iter()
             .filter(|part| part.primary_limb_type.as_deref() == Some(need.kind.as_str()))
             // **A limb counts while its hit points are above its own health limit** (`martialarts.cpp:1500-1510`), which the dump now states rather than the port assuming.
-            .filter(|part| part.base_hp - crate::creature::wound_on(world, striker, &part.name) > part.health_limit)
+            .filter(|part| {
+                part.base_hp - crate::creature::wound_on(world, striker, &part.name)
+                    > part.health_limit
+            })
             .count();
         i32::try_from(standing).unwrap_or(i32::MAX) >= need.count
     })

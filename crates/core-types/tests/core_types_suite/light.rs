@@ -63,13 +63,33 @@ fn the_map_s_own_light_at_is_four_arms_and_never_says_bright_only() {
     // **`map::light_at` (`src/lightmap.cpp:674-697`), transcribed.** It is not `apparent_light_at`: it knows nothing about obstruction, range or remembering, and it is
     // what the draw path asks first. The four arms are, in the reference's order, a source in the square (BRIGHT), then `LIGHT_AMBIENT_LIT` (LIT), then
     // `LIGHT_AMBIENT_LOW` (LOW), then DARK - so a square with a source of ten is BRIGHT even when it is otherwise black, and a square at 9.999 is not.
-    use cdda_core_types::light::{light_at, LitLevel};
+    use cdda_core_types::light::{LitLevel, light_at};
 
-    assert_eq!(light_at(10.0, 0.0), LitLevel::Bright, "a source at the threshold is bright");
-    assert_eq!(light_at(9.99, 9.99), LitLevel::Low, "just under it is not, whatever the field says");
-    assert_eq!(light_at(0.0, 10.0), LitLevel::Lit, "the lit threshold is inclusive");
-    assert_eq!(light_at(0.0, 9.99), LitLevel::Low, "and just under it is low");
-    assert_eq!(light_at(0.0, 3.5), LitLevel::Low, "the low threshold is inclusive too");
+    assert_eq!(
+        light_at(10.0, 0.0),
+        LitLevel::Bright,
+        "a source at the threshold is bright"
+    );
+    assert_eq!(
+        light_at(9.99, 9.99),
+        LitLevel::Low,
+        "just under it is not, whatever the field says"
+    );
+    assert_eq!(
+        light_at(0.0, 10.0),
+        LitLevel::Lit,
+        "the lit threshold is inclusive"
+    );
+    assert_eq!(
+        light_at(0.0, 9.99),
+        LitLevel::Low,
+        "and just under it is low"
+    );
+    assert_eq!(
+        light_at(0.0, 3.5),
+        LitLevel::Low,
+        "the low threshold is inclusive too"
+    );
     assert_eq!(
         light_at(0.0, 3.49),
         LitLevel::Dark,

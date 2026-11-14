@@ -30,7 +30,8 @@ struct Sample {
 }
 
 fn samples() -> (i32, Vec<Sample>) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/astronomy/sun.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/astronomy/sun.json");
     let text = std::fs::read_to_string(&path).expect("the astronomy dump");
     let Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
         panic!("root")
@@ -109,7 +110,11 @@ fn the_sun_s_whole_chain_matches_the_reference() {
     );
     // **A hundredth of an arc second is the floor**, because the obliquity the reference quotes is `23.439279` degrees - six decimals - and half a millionth of a
     // degree in that constant moves the declination by about a millionth. The rest of the chain is exact against the dump's twelve printed places.
-    assert!(worst[1] < 1e-5, "right ascension and declination: {} degrees off", worst[1]);
+    assert!(
+        worst[1] < 1e-5,
+        "right ascension and declination: {} degrees off",
+        worst[1]
+    );
     assert!(worst[2] < 1e-5, "sidereal time: {} degrees off", worst[2]);
     assert!(worst[3] < 1e-5, "hour angle: {} degrees off", worst[3]);
     assert!(worst[4] < 1e-5, "altitude: {} degrees off", worst[4]);

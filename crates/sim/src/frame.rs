@@ -87,7 +87,6 @@ impl Frame {
     }
 }
 
-
 /// One square of a frame, drawn the way the reference's loop draws it.
 ///
 /// Reference: `map::draw`'s inner loop (`src/map.cpp:6930-6960`): the square's `lit_level`, the `visibility_type` it becomes, and the two branches - a background for

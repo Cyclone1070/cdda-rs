@@ -23,14 +23,14 @@ fn recipe(
         qualities,
         skill: String::new(),
         difficulty: 0,
-            time_moves: 0,
-            batch_rscale: 0.0,
-            batch_rsize: 0,
-            made_per_batch: 1,
-            byproduct_group: Vec::new(),
-            proficiencies: Vec::new(),
-            container: None,
-            byproducts: Vec::new(),
+        time_moves: 0,
+        batch_rscale: 0.0,
+        batch_rsize: 0,
+        made_per_batch: 1,
+        byproduct_group: Vec::new(),
+        proficiencies: Vec::new(),
+        container: None,
+        byproducts: Vec::new(),
     }
 }
 

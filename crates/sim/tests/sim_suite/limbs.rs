@@ -3,7 +3,12 @@
 //! Reference: `bodypart::wound_adjusted_limb_value`, `encumb_adjusted_limb_value` and `skill_adjusted_limb_value` (`src/bodypart.cpp:967-996`), which
 //! `bodypart::get_limb_score` (`:998-1018`) applies in that order before summing a creature's score.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing
+)]
 
 /// A hurt part is worth less in proportion, and only below three quarters of its health.
 ///
@@ -15,10 +20,21 @@ fn a_hurt_part_is_worth_less() {
 
     #[allow(clippy::float_cmp)]
     {
-        assert_eq!(wound_adjusted_limb_value(1.0, 100, 100), 1.0, "a whole part is worth its whole figure");
-        assert_eq!(wound_adjusted_limb_value(1.0, 76, 100), 1.0, "**and three quarters is still whole**");
+        assert_eq!(
+            wound_adjusted_limb_value(1.0, 100, 100),
+            1.0,
+            "a whole part is worth its whole figure"
+        );
+        assert_eq!(
+            wound_adjusted_limb_value(1.0, 76, 100),
+            1.0,
+            "**and three quarters is still whole**"
+        );
     }
-    assert!((wound_adjusted_limb_value(1.0, 75, 100) - 1.0).abs() < 1e-9, "the threshold itself is whole");
+    assert!(
+        (wound_adjusted_limb_value(1.0, 75, 100) - 1.0).abs() < 1e-9,
+        "the threshold itself is whole"
+    );
     assert!(
         (wound_adjusted_limb_value(1.0, 50, 100) - 2.0 / 3.0).abs() < 1e-9,
         "**half health leaves two thirds**"
@@ -27,7 +43,10 @@ fn a_hurt_part_is_worth_less() {
         (wound_adjusted_limb_value(1.0, 25, 100) - 1.0 / 3.0).abs() < 1e-9,
         "and a quarter of the health is a third of the score"
     );
-    assert!((wound_adjusted_limb_value(0.7, 0, 100) - 0.0).abs() < 1e-9, "a ruined part is worth nothing");
+    assert!(
+        (wound_adjusted_limb_value(0.7, 0, 100) - 0.0).abs() < 1e-9,
+        "a ruined part is worth nothing"
+    );
 }
 
 /// Load costs a part a twentieth per point past its threshold, and an overloaded limb is worth nothing.
@@ -40,8 +59,16 @@ fn a_loaded_part_is_worth_less() {
 
     #[allow(clippy::float_cmp)]
     {
-        assert_eq!(encumb_adjusted_limb_value(1.0, 0, 0, false), 1.0, "nothing in the way");
-        assert_eq!(encumb_adjusted_limb_value(1.0, 3, 3, false), 1.0, "**and up to the threshold is free**");
+        assert_eq!(
+            encumb_adjusted_limb_value(1.0, 0, 0, false),
+            1.0,
+            "nothing in the way"
+        );
+        assert_eq!(
+            encumb_adjusted_limb_value(1.0, 3, 3, false),
+            1.0,
+            "**and up to the threshold is free**"
+        );
     }
     assert!(
         (encumb_adjusted_limb_value(1.0, 6, 3, false) - 19.0 / 20.0).abs() < 1e-9,
@@ -75,9 +102,17 @@ fn skill_never_lowers_a_limb_value() {
     #[allow(clippy::float_cmp)]
     {
         assert_eq!(skill_adjusted_limb_value(1.0, 0), 1.0, "a beginner");
-        assert_eq!(skill_adjusted_limb_value(1.0, 5), 1.0, "**and a master: the reference's minimum keeps the value**");
+        assert_eq!(
+            skill_adjusted_limb_value(1.0, 5),
+            1.0,
+            "**and a master: the reference's minimum keeps the value**"
+        );
     }
-    assert_eq!(skill_adjusted_limb_value(0.7, 10), 0.7, "whatever figure is asked about");
+    assert_eq!(
+        skill_adjusted_limb_value(0.7, 10),
+        0.7,
+        "whatever figure is asked about"
+    );
 }
 
 /// A creature's score is the sum of its parts, each weighted by how much of a limb type it is.
@@ -92,15 +127,30 @@ fn a_creature_s_score_is_its_parts_added_up() {
         ("manip".to_owned(), 0.1, 0.2),
         ("lift".to_owned(), 0.5, 0.5),
     ];
-    assert!((part_limb_score(&arm, "lift") - 0.5).abs() < 1e-6, "an arm lifts half");
-    assert!((part_limb_score(&arm, "grip") - 0.0).abs() < 1e-6, "**a score it does not state is nothing**, not a guess");
+    assert!(
+        (part_limb_score(&arm, "lift") - 0.5).abs() < 1e-6,
+        "an arm lifts half"
+    );
+    assert!(
+        (part_limb_score(&arm, "grip") - 0.0).abs() < 1e-6,
+        "**a score it does not state is nothing**, not a guess"
+    );
 
     // Two arms at a weight of one each, and a torso that lifts nothing.
-    assert!((limb_score_total(&[(0.5, 1.0), (0.5, 1.0), (0.0, 1.0)]) - 1.0).abs() < 1e-6, "two arms lift one");
+    assert!(
+        (limb_score_total(&[(0.5, 1.0), (0.5, 1.0), (0.0, 1.0)]) - 1.0).abs() < 1e-6,
+        "two arms lift one"
+    );
     // **A part that is only half of a limb type counts half**, which is what the weight is for.
-    assert!((limb_score_total(&[(0.5, 0.5)]) - 0.25).abs() < 1e-6, "half an arm counts half");
+    assert!(
+        (limb_score_total(&[(0.5, 0.5)]) - 0.25).abs() < 1e-6,
+        "half an arm counts half"
+    );
     // And the floor is zero: a wound cannot make a score negative.
-    assert!((limb_score_total(&[(0.5, -3.0)]) - 0.0).abs() < 1e-6, "a negative total is nothing");
+    assert!(
+        (limb_score_total(&[(0.5, -3.0)]) - 0.0).abs() < 1e-6,
+        "a negative total is nothing"
+    );
 }
 
 /// The dumped body's scores add up the way the reference's own sum would.
@@ -124,7 +174,8 @@ fn the_dumped_body_adds_up() {
 
     // **A human body is a list of parts, not the dump's whole list**: the dump states every part type the game has, so the test names the ones a human has.
     let human = [
-        "torso", "head", "eyes", "mouth", "arm_l", "arm_r", "hand_l", "hand_r", "leg_l", "leg_r", "foot_l", "foot_r",
+        "torso", "head", "eyes", "mouth", "arm_l", "arm_r", "hand_l", "hand_r", "leg_l", "leg_r",
+        "foot_l", "foot_r",
     ];
     let figures: Vec<(f32, f32)> = human
         .iter()
@@ -144,7 +195,10 @@ fn the_dumped_body_adds_up() {
     // The arms carry theirs and the legs carry none, which is a fact the data states rather than one the port assumes.
     let legs = limbs_balance(&parts, "leg_l");
     assert!(legs.abs() < 1e-6, "a leg states no balance: {legs}");
-    let torso = parts.iter().find(|part| part.id == "torso").expect("a torso");
+    let torso = parts
+        .iter()
+        .find(|part| part.id == "torso")
+        .expect("a torso");
     assert!(
         (part_limb_score(&torso.limb_scores, "balance") - 0.7).abs() < 1e-6,
         "and the torso carries most of it"
@@ -155,7 +209,10 @@ fn the_dumped_body_adds_up() {
 
 /// The balance one dumped part states, through the port's lookup.
 fn limbs_balance(parts: &[cdda_content::body_parts::BodyPartType], id: &str) -> f32 {
-    let part = parts.iter().find(|part| part.id == id).expect("the part is in the dump");
+    let part = parts
+        .iter()
+        .find(|part| part.id == id)
+        .expect("the part is in the dump");
     cdda_sim::limbs::part_limb_score(&part.limb_scores, "balance")
 }
 
@@ -199,7 +256,10 @@ fn a_hurt_head_slows_the_reaction_down() {
 fn a_hurt_leg_multiplies_the_dodge_down() {
     use cdda_sim::limbs::limb_dodge_modifier;
 
-    assert!((limb_dodge_modifier(1.0, 1.0, 1.0) - 1.0).abs() < 1e-6, "**a whole body is one**");
+    assert!(
+        (limb_dodge_modifier(1.0, 1.0, 1.0) - 1.0).abs() < 1e-6,
+        "**a whole body is one**"
+    );
     assert!(
         (limb_dodge_modifier(1.0, 0.5, 1.0) - 0.5).abs() < 1e-6,
         "**one leg out of two halves the dodge**"
@@ -212,7 +272,10 @@ fn a_hurt_leg_multiplies_the_dodge_down() {
         (limb_dodge_modifier(0.5, 1.0, 1.0) - 0.5f64.powf(1.5)).abs() < 1e-6,
         "**and the balance is raised to three halves**, so losing half of it costs more than half"
     );
-    assert!((limb_dodge_modifier(1.0, 0.0, 1.0) - 0.0).abs() < 1e-6, "no legs, no dodge");
+    assert!(
+        (limb_dodge_modifier(1.0, 0.0, 1.0) - 0.0).abs() < 1e-6,
+        "no legs, no dodge"
+    );
     assert!(
         (limb_dodge_modifier(-1.0, 1.0, 1.0) - 0.0).abs() < 1e-6,
         "and the product is floored at zero, which is what the data's min says"
@@ -227,9 +290,21 @@ fn a_hurt_leg_multiplies_the_dodge_down() {
 fn a_bigger_body_divides_the_dodge() {
     use cdda_sim::limbs::body_size_ratio;
 
-    assert!((body_size_ratio(100.0, 100.0) - 1.0).abs() < 1e-6, "**a human against a human is one**");
-    assert!((body_size_ratio(200.0, 100.0) - 2.0).abs() < 1e-6, "twice the size, twice the ratio");
-    assert!((body_size_ratio(50.0, 100.0) - 0.5).abs() < 1e-6, "and half the size, half of it");
+    assert!(
+        (body_size_ratio(100.0, 100.0) - 1.0).abs() < 1e-6,
+        "**a human against a human is one**"
+    );
+    assert!(
+        (body_size_ratio(200.0, 100.0) - 2.0).abs() < 1e-6,
+        "twice the size, twice the ratio"
+    );
+    assert!(
+        (body_size_ratio(50.0, 100.0) - 0.5).abs() < 1e-6,
+        "and half the size, half of it"
+    );
     // A base of zero would divide by nothing; the reference never meets one, and the port answers the neutral figure rather than inventing a division.
-    assert!((body_size_ratio(100.0, 0.0) - 1.0).abs() < 1e-6, "no base, no change");
+    assert!(
+        (body_size_ratio(100.0, 0.0) - 1.0).abs() < 1e-6,
+        "no base, no change"
+    );
 }

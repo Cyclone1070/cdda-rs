@@ -29,7 +29,11 @@ fn a_mission_is_a_component_and_the_condition_reads_it() {
         missions::active_missions(&world, survivor),
         vec!["MISSION_REACH_REFUGEE_CENTER".to_owned()]
     );
-    assert!(missions::finish(&mut world, survivor, "MISSION_REACH_REFUGEE_CENTER"));
+    assert!(missions::finish(
+        &mut world,
+        survivor,
+        "MISSION_REACH_REFUGEE_CENTER"
+    ));
     assert!(!cdda_sim::conditions::holds(&world, survivor, &guard));
 }
 
@@ -105,7 +109,10 @@ fn the_mission_ids_in_the_data_are_what_the_tests_use() {
         ids.contains("MISSION_REACH_REFUGEE_CENTER"),
         "the test's mission is a real one"
     );
-    assert!(ids.contains("MISSION_ISHERWOOD_CHRIS_1"), "and so is the second");
+    assert!(
+        ids.contains("MISSION_ISHERWOOD_CHRIS_1"),
+        "and so is the second"
+    );
     assert!(ids.len() > 100, "the data defines a hundred-odd missions");
 }
 
@@ -126,11 +133,19 @@ fn a_mission_is_offered_to_the_creature_being_talked_to() {
     let Some(one) = cdda_content::dialogue::read_effect(&value) else {
         panic!("the port reads this effect");
     };
-    let applied = cdda_sim::dialogue_effects::run_effects(&mut world, talker, Some(listener), &[one]);
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the offer is answered");
+    let applied =
+        cdda_sim::dialogue_effects::run_effects(&mut world, talker, Some(listener), &[one]);
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the offer is answered"
+    );
     assert_eq!(
         missions::offers(&world, listener),
-        vec!["MISSION_FIX_GENERATOR".to_owned(), "MISSION_FUEL_RUN".to_owned()],
+        vec![
+            "MISSION_FIX_GENERATOR".to_owned(),
+            "MISSION_FUEL_RUN".to_owned()
+        ],
         "and the creature being talked to is the one offering them"
     );
     assert!(

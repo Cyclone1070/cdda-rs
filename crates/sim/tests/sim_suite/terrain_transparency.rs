@@ -13,9 +13,12 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::light::TRANSPARENCY_OPEN_AIR;
 use cdda_sim::field_table::FieldTable;
+use cdda_sim::light;
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::{Field, LightSource, Position, Prototypes, Weather, cast_lights_with, set_weather, set_field_table};
-use cdda_sim::{light};
+use cdda_sim::{
+    Field, LightSource, Position, Prototypes, Weather, cast_lights_with, set_field_table,
+    set_weather,
+};
 
 /// A level whose square `(5, 5)` is the given terrain code, with a lamp west of it.
 fn level_with(code: u32) -> World {
@@ -38,10 +41,13 @@ fn level_with(code: u32) -> World {
 
 /// Puts the prototypes into the world, which is where the cast reads them from now.
 fn load(world: &mut World, table: &TerrainTable) {
-    cdda_sim::set_prototypes(world, Prototypes {
-        terrain: table.clone(),
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        world,
+        Prototypes {
+            terrain: table.clone(),
+            furniture: TerrainTable::new(),
+        },
+    );
     set_field_table(world, FieldTable::new());
 }
 
@@ -183,10 +189,13 @@ fn an_opaque_table_on_a_glass_floor_is_opaque() {
     let behind_the_table = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        cdda_sim::set_prototypes(&mut world, Prototypes {
-            terrain: table.clone(),
-            furniture: table.clone(),
-        });
+        cdda_sim::set_prototypes(
+            &mut world,
+            Prototypes {
+                terrain: table.clone(),
+                furniture: table.clone(),
+            },
+        );
         cdda_sim::square::set_furniture(&mut world, (5, 5, 0), 9);
         cast_lights_with(&mut world);
         light(&world).max_at(8, 5)
@@ -216,10 +225,13 @@ fn furniture_that_is_see_through_does_not_stop_the_ray() {
     let through = {
         let mut world = level_with(1);
         load(&mut world, &table);
-        cdda_sim::set_prototypes(&mut world, Prototypes {
-            terrain: table.clone(),
-            furniture: table.clone(),
-        });
+        cdda_sim::set_prototypes(
+            &mut world,
+            Prototypes {
+                terrain: table.clone(),
+                furniture: table.clone(),
+            },
+        );
         cdda_sim::square::set_furniture(&mut world, (5, 5, 0), 8);
         cast_lights_with(&mut world);
         light(&world).max_at(8, 5)

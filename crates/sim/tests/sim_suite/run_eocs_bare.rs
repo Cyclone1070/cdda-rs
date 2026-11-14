@@ -16,10 +16,20 @@ fn a_call_by_bare_name_reads_and_refuses_when_the_program_is_missing() {
         r#"{ "run_eocs": "EOC_FEAR_PARALYZE2" }"#,
     ] {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
-        let effect = cdda_content::dialogue::read_effect(&value).expect("**a call by bare name reads**");
-        assert_eq!(effect.kind(), "run_eocs", "and it is the call the data wrote");
+        let effect =
+            cdda_content::dialogue::read_effect(&value).expect("**a call by bare name reads**");
         assert_eq!(
-            cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect)),
+            effect.kind(),
+            "run_eocs",
+            "and it is the call the data wrote"
+        );
+        assert_eq!(
+            cdda_sim::dialogue_effects::run_effects(
+                &mut world,
+                speaker,
+                None,
+                std::slice::from_ref(&effect)
+            ),
             cdda_sim::dialogue_effects::Applied::CannotAnswer,
             "a call to a program nobody installed is a refusal, not a silent success"
         );

@@ -8,7 +8,9 @@ use bevy_ecs::prelude::{Component, Entity, With, World};
 
 /// Every group definition the data loaded, by id.
 #[derive(Component, Debug, Clone, Default, PartialEq)]
-pub struct ItemGroups(pub std::collections::BTreeMap<String, cdda_content::item_group_draw::Definition>);
+pub struct ItemGroups(
+    pub std::collections::BTreeMap<String, cdda_content::item_group_draw::Definition>,
+);
 
 /// Marks the one entity that holds the world's item groups.
 #[derive(Component, Debug, Clone, Copy, Default)]

@@ -46,7 +46,8 @@ pub struct DropType {
 pub fn load(paths: &[&str]) -> Result<BTreeMap<String, DropType>, String> {
     let mut types = BTreeMap::new();
     for path in paths {
-        let parsed = crate::read_json(std::path::Path::new(path)).ok_or_else(|| format!("{path}: could not be read"))?;
+        let parsed = crate::read_json(std::path::Path::new(path))
+            .ok_or_else(|| format!("{path}: could not be read"))?;
         let Value::Array(entries) = parsed.as_ref() else {
             return Err(format!("{path}: not an array"));
         };

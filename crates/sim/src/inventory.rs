@@ -11,8 +11,8 @@
 use bevy_ecs::prelude::*;
 use std::collections::BTreeMap;
 
-use crate::creature::Carried;
 use crate::GroundItem;
+use crate::creature::Carried;
 
 /// How many of each kind of thing a creature is carrying, by the item's own id.
 ///
@@ -61,7 +61,11 @@ pub fn carried_kinds(world: &mut World, creature: Entity) -> Vec<crate::ItemType
 /// Reference: `Character::weight_carried`, which sums the items in the inventory. The port sums the entities that point
 /// at the creature, which is the same set without a container to walk.
 #[must_use]
-pub fn weight_carried(world: &mut World, creature: Entity, names: &crate::item_registry::ItemNames) -> i64 {
+pub fn weight_carried(
+    world: &mut World,
+    creature: Entity,
+    names: &crate::item_registry::ItemNames,
+) -> i64 {
     let mut total = 0;
     let mut query = world.query::<(&Carried, &GroundItem)>();
     for (carried, item) in query.iter(world) {
@@ -76,7 +80,11 @@ pub fn weight_carried(world: &mut World, creature: Entity, names: &crate::item_r
 ///
 /// Reference: `Character::volume_carried`.
 #[must_use]
-pub fn volume_carried(world: &mut World, creature: Entity, names: &crate::item_registry::ItemNames) -> i64 {
+pub fn volume_carried(
+    world: &mut World,
+    creature: Entity,
+    names: &crate::item_registry::ItemNames,
+) -> i64 {
     let mut total = 0;
     let mut query = world.query::<(&Carried, &GroundItem)>();
     for (carried, item) in query.iter(world) {
@@ -89,7 +97,12 @@ pub fn volume_carried(world: &mut World, creature: Entity, names: &crate::item_r
 
 /// How many of one thing a creature is carrying.
 #[must_use]
-pub fn how_many(world: &mut World, creature: Entity, item: &str, name_of: impl Fn(crate::ItemTypeId) -> Option<String>) -> i32 {
+pub fn how_many(
+    world: &mut World,
+    creature: Entity,
+    item: &str,
+    name_of: impl Fn(crate::ItemTypeId) -> Option<String>,
+) -> i32 {
     carried_by_id(world, creature, name_of)
         .get(item)
         .copied()
@@ -128,15 +141,11 @@ pub fn count_of(world: &World, creature: Entity, name: &str) -> (i32, i32) {
 ///
 /// Answers whether everything asked for was there. Nothing is taken when it is not: a partial removal would leave the world in a state neither the data nor the
 /// reference describes.
-pub fn take(
-    world: &mut World,
-    creature: Entity,
-    name: &str,
-    stacks: i32,
-    charges: i32,
-) -> bool {
+pub fn take(world: &mut World, creature: Entity, name: &str, stacks: i32, charges: i32) -> bool {
     let mut found = Vec::new();
-    let Some(mut query) = world.try_query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>() else {
+    let Some(mut query) =
+        world.try_query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>()
+    else {
         return false;
     };
     for (entity, carried, item) in query.iter(world) {
@@ -207,7 +216,9 @@ pub fn hand_over(
     charges: i32,
 ) -> bool {
     let mut found = Vec::new();
-    let Some(mut query) = world.try_query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>() else {
+    let Some(mut query) =
+        world.try_query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>()
+    else {
         return false;
     };
     for (entity, carried, item) in query.iter(world) {
@@ -234,7 +245,9 @@ pub fn hand_over(
         if left_stacks > 0 {
             left_stacks -= 1;
             // **The stack changes hands**: the same entity, the same charges, a different owner.
-            world.entity_mut(entity).insert(crate::creature::Carried(to));
+            world
+                .entity_mut(entity)
+                .insert(crate::creature::Carried(to));
             continue;
         }
         if left_charges <= 0 {
@@ -244,7 +257,9 @@ pub fn hand_over(
         left_charges -= taken;
         let remaining = held.max(1) - taken;
         if remaining <= 0 {
-            world.entity_mut(entity).insert(crate::creature::Carried(to));
+            world
+                .entity_mut(entity)
+                .insert(crate::creature::Carried(to));
         } else {
             if let Some(mut item) = world.get_mut::<crate::GroundItem>(entity) {
                 item.charges = remaining;

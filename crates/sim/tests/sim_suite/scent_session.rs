@@ -32,7 +32,8 @@ fn whole(value: &cdda_json::Value) -> i32 {
 fn turns() -> Vec<Squares> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/scent-session.json");
     let text = std::fs::read_to_string(&path).expect("the recorded session");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(turns)) = root.get("turns") else {
@@ -102,13 +103,19 @@ fn a_recorded_scent_layer_diffuses_the_way_the_reference_says() {
         theirs.sort_unstable();
         // **Only the squares that differ**, because a whole-layer dump hides a single square in eighty-one rows of agreement.
         if ours != theirs && wrong.len() < 8 {
-            let mine: std::collections::BTreeMap<(i32, i32), i32> =
-                ours.iter().map(|(x, y, value)| ((*x, *y), *value)).collect();
-            let reference: std::collections::BTreeMap<(i32, i32), i32> =
-                theirs.iter().map(|(x, y, value)| ((*x, *y), *value)).collect();
+            let mine: std::collections::BTreeMap<(i32, i32), i32> = ours
+                .iter()
+                .map(|(x, y, value)| ((*x, *y), *value))
+                .collect();
+            let reference: std::collections::BTreeMap<(i32, i32), i32> = theirs
+                .iter()
+                .map(|(x, y, value)| ((*x, *y), *value))
+                .collect();
             for square in mine.keys().chain(reference.keys()) {
-                let (ours_here, theirs_here) =
-                    (mine.get(square).copied().unwrap_or(0), reference.get(square).copied().unwrap_or(0));
+                let (ours_here, theirs_here) = (
+                    mine.get(square).copied().unwrap_or(0),
+                    reference.get(square).copied().unwrap_or(0),
+                );
                 if ours_here != theirs_here && wrong.len() < 8 {
                     wrong.push((index, square.0, square.1, ours_here, theirs_here));
                 }
@@ -122,7 +129,8 @@ fn a_recorded_scent_layer_diffuses_the_way_the_reference_says() {
             .iter()
             .copied()
             .filter(|(x, y, _)| {
-                (window.min_x()..=window.max_x()).contains(x) && (window.min_y()..=window.max_y()).contains(y)
+                (window.min_x()..=window.max_x()).contains(x)
+                    && (window.min_y()..=window.max_y()).contains(y)
             })
             .collect();
         let ours_digest = scent_digest(&ours);
@@ -130,8 +138,10 @@ fn a_recorded_scent_layer_diffuses_the_way_the_reference_says() {
         if ours_digest != theirs_digest && wrong.is_empty() {
             // A digest can only disagree here if the square-by-square comparison above missed it, which would mean a square the port reports that the record does not or
             // the other way round. Saying so is worth more than the number itself.
-            let mine: std::collections::BTreeMap<(i32, i32), i32> =
-                ours.iter().map(|(x, y, value)| ((*x, *y), *value)).collect();
+            let mine: std::collections::BTreeMap<(i32, i32), i32> = ours
+                .iter()
+                .map(|(x, y, value)| ((*x, *y), *value))
+                .collect();
             let reference: std::collections::BTreeMap<(i32, i32), i32> = theirs_inside
                 .iter()
                 .filter(|(_, _, value)| *value != 0)
@@ -140,7 +150,14 @@ fn a_recorded_scent_layer_diffuses_the_way_the_reference_says() {
             let mut extra: Vec<_> = mine
                 .iter()
                 .filter(|(square, value)| reference.get(square) != Some(value))
-                .map(|(square, value)| (square.0, square.1, *value, reference.get(square).copied().unwrap_or(-1)))
+                .map(|(square, value)| {
+                    (
+                        square.0,
+                        square.1,
+                        *value,
+                        reference.get(square).copied().unwrap_or(-1),
+                    )
+                })
                 .collect();
             extra.extend(
                 reference
@@ -149,7 +166,10 @@ fn a_recorded_scent_layer_diffuses_the_way_the_reference_says() {
                     .map(|(square, value)| (square.0, square.1, -1, *value)),
             );
             let ours_nonzero = ours.iter().filter(|(_, _, value)| *value != 0).count();
-            let theirs_nonzero = theirs_inside.iter().filter(|(_, _, value)| *value != 0).count();
+            let theirs_nonzero = theirs_inside
+                .iter()
+                .filter(|(_, _, value)| *value != 0)
+                .count();
             let mut duplicates = 0_usize;
             let mut visited = std::collections::BTreeSet::new();
             for (x, y, value) in &theirs_inside {
@@ -168,7 +188,10 @@ fn a_recorded_scent_layer_diffuses_the_way_the_reference_says() {
         session_digest = crate::replay_digest::fold(session_digest, index, ours_digest);
         compared += 1;
     }
-    assert!(compared >= 10, "every recorded turn was diffused: {compared}");
+    assert!(
+        compared >= 10,
+        "every recorded turn was diffused: {compared}"
+    );
     assert!(
         wrong.is_empty(),
         "the port's scent disagrees with the recording (turn, x, y, ours, theirs): {wrong:#?}"
@@ -209,7 +232,8 @@ fn scent_digest(squares: &[(i32, i32, i32)]) -> u64 {
     // **One value per square, and only squares that hold something.** Two things about the record force this: it lists every square of its window including the zeroes,
     // and it lists the window on **each of three levels**, so a square appears two or three times in the same turn. A digest over the raw list would depend on the dump's
     // shape rather than on the scent.
-    let mut per_square: std::collections::BTreeMap<(i32, i32), i32> = std::collections::BTreeMap::new();
+    let mut per_square: std::collections::BTreeMap<(i32, i32), i32> =
+        std::collections::BTreeMap::new();
     for (x, y, value) in squares.iter().filter(|(_, _, value)| *value != 0) {
         per_square.insert((*x, *y), *value);
     }
@@ -226,7 +250,10 @@ fn the_scent_session_has_a_receipt_too() {
     // The same receipt rule as the gas sessions: one number for a whole session, pinned so a change of behaviour is a diff rather than a drift. Scent is layer one, so
     // this number and the gas receipts are values of the same digest and could be folded together if a session ever carried both.
     let receipt = scent_receipt();
-    assert_eq!(receipt, 0xaac1_3754_0710_41c0_u64, "the scent session receipt is {receipt:#018x}");
+    assert_eq!(
+        receipt, 0xaac1_3754_0710_41c0_u64,
+        "the scent session receipt is {receipt:#018x}"
+    );
 }
 
 /// The scent session's receipt, recomputed over the **record**: the port's own replay is gated turn by turn above, and what is pinned here is the fold of the recorded

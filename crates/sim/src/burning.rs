@@ -21,7 +21,11 @@ pub fn burn_span(intensity: i32) -> (i32, i32) {
 /// Reference: the `switch( adjusted_intensity )` with its fallthroughs (`map_field.cpp:1668-1691`), which builds the list **from the feet up** and stops at the intensity - and which burns
 /// **every part at once** for a creature that is on the ground. The names are the reference's own body-part ids.
 #[must_use]
-pub fn parts_burned(intensity: i32, on_the_ground: bool, all_parts: &[&'static str]) -> Vec<&'static str> {
+pub fn parts_burned(
+    intensity: i32,
+    on_the_ground: bool,
+    all_parts: &[&'static str],
+) -> Vec<&'static str> {
     if on_the_ground {
         return all_parts.to_vec();
     }

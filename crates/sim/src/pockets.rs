@@ -57,7 +57,10 @@ pub fn fits(pocket: Pocket, held: Contents, thing_volume_ml: i32, thing_weight_g
     if pocket.holster && held.count > 0 {
         return Fits::AlreadyFull;
     }
-    if pocket.max_item_ml.is_some_and(|most| thing_volume_ml > most) {
+    if pocket
+        .max_item_ml
+        .is_some_and(|most| thing_volume_ml > most)
+    {
         return Fits::TooBigForThePocket;
     }
     if pocket.max_weight_g > 0 && held.weight_g + thing_weight_g > pocket.max_weight_g {

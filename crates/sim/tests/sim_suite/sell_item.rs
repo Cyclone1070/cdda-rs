@@ -8,7 +8,12 @@
 use bevy_ecs::prelude::*;
 
 /// A survivor, a shopkeeper, and a kind of item the survivor carries.
-fn a_shop(world: &mut World, id: &str, count_by_charges: bool, carried: i32) -> (Entity, Entity, Vec<Entity>) {
+fn a_shop(
+    world: &mut World,
+    id: &str,
+    count_by_charges: bool,
+    carried: i32,
+) -> (Entity, Entity, Vec<Entity>) {
     cdda_sim::item_registry::set_item_types(
         world,
         &[cdda_sim::item_registry::Kind {
@@ -63,9 +68,17 @@ fn selling_hands_the_items_over_and_raises_the_debt() {
     let held = cdda_sim::inventory::count_of(&world, survivor, "drivebelt");
     assert_eq!(held.0, 3, "the survivor starts with three");
 
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, survivor, Some(shopkeeper), std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the sale runs");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        survivor,
+        Some(shopkeeper),
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the sale runs"
+    );
 
     assert_eq!(
         cdda_sim::inventory::count_of(&world, survivor, "drivebelt").0,
@@ -96,9 +109,17 @@ fn selling_what_is_not_there_runs_the_false_branch_and_moves_nothing() {
              "false_eocs": [ { "id": "EOC_SHORT", "effect": [ { "u_message": "not enough" } ] } ] }"#,
     );
     let (survivor, shopkeeper, _) = a_shop(&mut world, "drivebelt", false, 1);
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, survivor, Some(shopkeeper), std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect answers");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        survivor,
+        Some(shopkeeper),
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect answers"
+    );
 
     let lines = cdda_sim::messages::lines(&world);
     assert!(

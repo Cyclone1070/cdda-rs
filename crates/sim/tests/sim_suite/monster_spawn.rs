@@ -6,9 +6,9 @@
 
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
+use bevy_ecs::prelude::*;
 use cdda_json::{Value, parse};
 use cdda_sim::creature::{Armour, MeleeAttack, health_of, spawn_monster_of_type, speed_of};
-use bevy_ecs::prelude::*;
 use cdda_sim::{MonsterKindId, Position};
 use std::path::Path;
 
@@ -34,18 +34,19 @@ fn a_zombie_spawned_from_its_type_has_the_numbers_its_type_states() {
     let monster_type = zombie_type();
     let mut world = World::new();
 
-    let zombie = spawn_monster_of_type(
-        &mut world,
-        MonsterKindId(42),
-        &monster_type,
-        (3, 4, 0),
-        100,
-    );
+    let zombie =
+        spawn_monster_of_type(&mut world, MonsterKindId(42), &monster_type, (3, 4, 0), 100);
 
     assert_eq!(health_of(&world, zombie), Some(80), "eighty hit points");
-    assert_eq!(speed_of(&world, zombie), 70, "speed seventy at one hundred percent");
     assert_eq!(
-        world.get::<Position>(zombie).map(|place| (place.x, place.y)),
+        speed_of(&world, zombie),
+        70,
+        "speed seventy at one hundred percent"
+    );
+    assert_eq!(
+        world
+            .get::<Position>(zombie)
+            .map(|place| (place.x, place.y)),
         Some((3, 4)),
         "it stands where it was placed"
     );
@@ -56,7 +57,9 @@ fn a_zombie_spawned_from_its_type_has_the_numbers_its_type_states() {
     let armour = world.get::<Armour>(zombie).expect("it has a body");
     assert_eq!((armour.bash, armour.cut), (0, 0), "a zombie wears nothing");
     assert_eq!(
-        world.get::<cdda_sim::creature::CreatureKind>(zombie).map(|kind| kind.0),
+        world
+            .get::<cdda_sim::creature::CreatureKind>(zombie)
+            .map(|kind| kind.0),
         Some(MonsterKindId(42)),
         "and it knows what it is, so its death can leave a body"
     );

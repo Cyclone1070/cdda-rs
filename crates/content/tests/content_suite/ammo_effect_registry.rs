@@ -14,7 +14,8 @@ use std::collections::BTreeSet;
 fn the_registry_holds_every_effect_the_content_defines() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/items/ammo-effect-registry.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let Value::Object(root) = cdda_json::parse(&bytes).expect("valid json") else {
         panic!("the dump is an object")
     };
@@ -35,8 +36,8 @@ fn the_registry_holds_every_effect_the_content_defines() {
         .collect();
     assert_eq!(recorded.len(), 82, "the content defines 82 effects");
 
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let ours = ammo_effects::load_paths(&paths).expect("the effects load");
@@ -50,12 +51,13 @@ fn the_one_effect_id_the_content_uses_without_defining_it_is_still_accepted() {
     // (`data/json/flags.json:183` defines it as a flag). The reference loads every one of them without complaint, because an `ammo_effect_str_id` is a string and
     // nothing validates it at load (`src/ammo_effect.h:16-32`). A port that refused unknown ids would therefore be **stricter than the reference** and would not
     // load the content at all, so the gate pins the slack rather than wishing it away.
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let known = ammo_effects::load_paths(&paths).expect("the effects load");
-    let items = cdda_content::items::load_paths(&paths).expect("the items load, unknown effect and all");
+    let items =
+        cdda_content::items::load_paths(&paths).expect("the items load, unknown effect and all");
     let unknown: BTreeSet<String> = items
         .iter()
         .flat_map(|item| item.ammo_effects.iter().cloned())

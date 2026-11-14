@@ -5,9 +5,7 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
-use cdda_sim::{
-    MonsterKindId, Position, TurnRules, monster_turns_striking, spawn_monster,
-};
+use cdda_sim::{MonsterKindId, Position, TurnRules, monster_turns_striking, spawn_monster};
 
 const FLOOR: u32 = 1;
 
@@ -79,8 +77,14 @@ fn enough_blows_kill_and_the_dead_stop_striking() {
             killed += 1;
         }
     }
-    assert!(killed > 0, "two hit points do not survive three turns of blows, sometimes: {killed} of 16");
-    assert!(killed < 16, "and not every time, because a blow is a die: {killed} of 16");
+    assert!(
+        killed > 0,
+        "two hit points do not survive three turns of blows, sometimes: {killed} of 16"
+    );
+    assert!(
+        killed < 16,
+        "and not every time, because a blow is a die: {killed} of 16"
+    );
 }
 
 #[test]

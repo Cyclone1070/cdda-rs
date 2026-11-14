@@ -213,7 +213,12 @@ impl ZoneManager {
     ///
     /// Reference: `zone_manager::get_zone_at` (`src/clzones.cpp:1112-1121`), which is `get_zones_at(...).front()`.
     #[must_use]
-    pub fn zone_at(&self, at: (i32, i32, i32), zone_type: &str, faction: &str) -> Option<&ZoneData> {
+    pub fn zone_at(
+        &self,
+        at: (i32, i32, i32),
+        zone_type: &str,
+        faction: &str,
+    ) -> Option<&ZoneData> {
         self.zones_at(at, zone_type, faction).into_iter().next()
     }
 
@@ -235,10 +240,9 @@ impl ZoneManager {
     /// `z.get_type().str().substr( 0, 4 ) == "LOOT"`. So a zone of a future type called `LOOTAGE` would count, and one called `AUTO_EAT` would not.
     #[must_use]
     pub fn loot_zone_at(&self, at: (i32, i32, i32), faction: &str) -> Option<&ZoneData> {
-        self.zones
-            .iter()
-            .rev()
-            .find(|zone| zone.faction == faction && zone.zone_type.starts_with("LOOT") && zone.has_inside(at))
+        self.zones.iter().rev().find(|zone| {
+            zone.faction == faction && zone.zone_type.starts_with("LOOT") && zone.has_inside(at)
+        })
     }
 }
 
@@ -288,7 +292,13 @@ impl ZoneManager {
     /// the eight neighbours and a diagonal is as far as a straight line. `square_dist` on three-dimensional points ignores the level, so a zone on the floor above counts;
     /// the fixture is flat and does not distinguish that.
     #[must_use]
-    pub fn has_near(&self, at: (i32, i32, i32), range: i32, zone_type: &str, faction: &str) -> bool {
+    pub fn has_near(
+        &self,
+        at: (i32, i32, i32),
+        range: i32,
+        zone_type: &str,
+        faction: &str,
+    ) -> bool {
         self.points_of(zone_type, faction)
             .iter()
             .any(|point| square_dist(*point, at) <= range)

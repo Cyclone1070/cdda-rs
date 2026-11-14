@@ -136,7 +136,11 @@ fn a_permanent_summon_has_no_deadline_at_all() {
         "**a permanent summon carries no deadline at all**, which is how the reference says 'for good'"
     );
     cdda_sim::calendar::set_turn(&mut world, 10_000_000);
-    assert_eq!(cdda_sim::summoned::expire(&mut world), 0, "so nothing expires");
+    assert_eq!(
+        cdda_sim::summoned::expire(&mut world),
+        0,
+        "so nothing expires"
+    );
     assert!(
         cdda_sim::creature::health_of(&world, summoned[0]).is_some_and(|hp| hp > 0),
         "however long the world runs"

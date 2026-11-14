@@ -13,8 +13,8 @@
 
 use cdda_core_types::shadowcasting::sight_calc;
 use cdda_core_types::zlight::{
-    DOWNWARD_SEGMENTS, Plane, Seen, VerticalDirection, cast_horizontal_segment, cast_vertical_segment,
-    cast_zlight, direction_to_cast,
+    DOWNWARD_SEGMENTS, Plane, Seen, VerticalDirection, cast_horizontal_segment,
+    cast_vertical_segment, cast_zlight, direction_to_cast,
 };
 
 /// The transparency the fixture's open squares carry: open air, already multiplied by the weather's sight penalty.
@@ -46,11 +46,7 @@ fn a_sideways_ray_descends_one_level_per_step() {
     // The reference's own picture of this segment is "Down lateral": the ray walks sideways and drops. With a radius of three and nothing to stop it, the squares one
     // level down have to be reachable, and the first of them sits one step away - not three - because `delta.z` climbs with the sweep's major axis.
     let seen = open_plane((10, 10, 0), 3);
-    let below: Vec<(i32, i32, i32)> = seen
-        .keys()
-        .copied()
-        .filter(|(_, _, z)| *z < 0)
-        .collect();
+    let below: Vec<(i32, i32, i32)> = seen.keys().copied().filter(|(_, _, z)| *z < 0).collect();
     assert!(
         !below.is_empty(),
         "the cast reaches the level below through open air: {seen:?}"
@@ -104,10 +100,7 @@ fn the_reference_s_traced_intensity_is_what_this_rule_produces() {
         "distance three through the open air: {traced}"
     );
     let four = sight_calc(1.0, OPEN, 4);
-    assert!(
-        (four - 0.857_844).abs() < 1e-5,
-        "and distance four: {four}"
-    );
+    assert!((four - 0.857_844).abs() < 1e-5, "and distance four: {four}");
 }
 
 #[test]
@@ -198,7 +191,10 @@ fn the_flat_sweep_and_the_recursive_cast_are_different_algorithms() {
             0,
             (origin.0, origin.1, 0),
             radius,
-            (i32::try_from(side).expect("a small grid"), i32::try_from(side).expect("a small grid")),
+            (
+                i32::try_from(side).expect("a small grid"),
+                i32::try_from(side).expect("a small grid"),
+            ),
             1.0,
             &mut swept,
         );
@@ -289,7 +285,15 @@ fn a_sealed_level_can_only_be_seen_upwards() {
         floor: &|_, _, level| level == 0,
     };
     let mut seen = Seen::new();
-    cast_zlight(&plane, (10, 10, 0), 3, (21, 21), 1.0, direction_to_cast(true), &mut seen);
+    cast_zlight(
+        &plane,
+        (10, 10, 0),
+        3,
+        (21, 21),
+        1.0,
+        direction_to_cast(true),
+        &mut seen,
+    );
     assert!(
         seen.keys().all(|(_, _, z)| *z >= 0),
         "upward only, so nothing below: {:?}",
@@ -307,8 +311,19 @@ fn the_whole_cast_covers_every_square_a_hole_lets_it_reach() {
         floor: &|x, y, level| level == 0 && (x, y) != hole,
     };
     let mut seen = Seen::new();
-    cast_zlight(&plane, (10, 10, 0), 4, (21, 21), 1.0, VerticalDirection::Both, &mut seen);
-    assert!(seen.contains_key(&(hole.0, hole.1, -1)), "under the hole: {seen:?}");
+    cast_zlight(
+        &plane,
+        (10, 10, 0),
+        4,
+        (21, 21),
+        1.0,
+        VerticalDirection::Both,
+        &mut seen,
+    );
+    assert!(
+        seen.contains_key(&(hole.0, hole.1, -1)),
+        "under the hole: {seen:?}"
+    );
     assert!(
         !seen.contains_key(&(10, 10, -1)),
         "under the character's own feet, where the floor is whole: {seen:?}"

@@ -10,9 +10,9 @@ use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::field_table::FieldTable;
+use cdda_sim::light;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{Field, FireMap, Position, Prototypes, run_environment_turn, set_field_table};
-use cdda_sim::{light};
 
 const FLOOR: u32 = 1;
 const FIRE: u32 = 2;
@@ -59,10 +59,13 @@ fn world() -> World {
     cdda_sim::load_level(&mut world, &level);
     let mut terrain = TerrainTable::new();
     terrain.insert(FLOOR, true);
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain,
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
     let mut fields = FieldTable::new();
     fields.insert(FIRE, &[0.7, 0.4, 0.1]);
     fields.insert_light(FIRE, &[20.0, 60.0, 160.0]);
@@ -93,7 +96,15 @@ fn a_fire_burning_through_a_turn_is_lit_at_the_end_of_it() {
     let mut world = world();
     spawn_fire(&mut world, 3);
     let mut rolls = Rolls::new(1);
-    run_environment_turn(&mut world, &HardFloor, 0, (5, 5), 0, every_square_takes, &mut rolls);
+    run_environment_turn(
+        &mut world,
+        &HardFloor,
+        0,
+        (5, 5),
+        0,
+        every_square_takes,
+        &mut rolls,
+    );
 
     let lit = light(&world).max_at(5, 5);
     assert!(lit > 50.0, "the fire lights itself: {lit}");
@@ -106,14 +117,26 @@ fn a_square_whose_fire_is_gone_is_dark_at_the_end_of_the_next_turn() {
     let mut world = world();
     let fire = spawn_fire(&mut world, 3);
     let mut rolls = Rolls::new(1);
-    run_environment_turn(&mut world, &HardFloor, 0, (5, 5), 0, every_square_takes, &mut rolls);
+    run_environment_turn(
+        &mut world,
+        &HardFloor,
+        0,
+        (5, 5),
+        0,
+        every_square_takes,
+        &mut rolls,
+    );
     assert!(light(&world).max_at(5, 5) > 50.0, "lit while it burns");
 
     world.despawn(fire);
-    run_environment_turn(&mut world, &HardFloor, 0, (5, 5), 0, every_square_takes, &mut rolls);
-    assert_eq!(
-        light(&world).max_at(5, 5),
-        0.0,
-        "and dark once it is gone"
+    run_environment_turn(
+        &mut world,
+        &HardFloor,
+        0,
+        (5, 5),
+        0,
+        every_square_takes,
+        &mut rolls,
     );
+    assert_eq!(light(&world).max_at(5, 5), 0.0, "and dark once it is gone");
 }

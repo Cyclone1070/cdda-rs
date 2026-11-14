@@ -9,7 +9,8 @@ use cdda_json::{Value, parse};
 
 /// What a prototype's dump says about each kind of blow.
 fn dumped() -> Vec<(String, i64, i64, i64)> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let bytes = std::fs::read(path).expect("the monster dump exists");
     let root = parse(&bytes).expect("the dump is valid JSON");
     let Value::Object(root) = root else {
@@ -49,7 +50,8 @@ fn a_monsters_three_armours_arrive_as_its_data_states_them() {
     let rows = dumped();
     assert_eq!(rows.len(), 1_154, "every monster prototype in the dump");
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let bytes = std::fs::read(path).expect("the monster dump exists");
     let root = parse(&bytes).expect("the dump is valid JSON");
     let Value::Object(root) = root else {
@@ -59,8 +61,10 @@ fn a_monsters_three_armours_arrive_as_its_data_states_them() {
         panic!("the dump has no prototypes");
     };
     let loaded = cdda_content::monsters::load_objects(prototypes).expect("the dump loads");
-    let by_id: std::collections::BTreeMap<&str, &cdda_content::monsters::MonsterType> =
-        loaded.iter().map(|monster| (monster.id.as_str(), monster)).collect();
+    let by_id: std::collections::BTreeMap<&str, &cdda_content::monsters::MonsterType> = loaded
+        .iter()
+        .map(|monster| (monster.id.as_str(), monster))
+        .collect();
 
     let mut wrong = Vec::new();
     for (id, bash, cut, stab) in &rows {
@@ -78,13 +82,14 @@ fn a_monsters_three_armours_arrive_as_its_data_states_them() {
         }
     }
     let first_few: Vec<&String> = wrong.iter().take(5).collect();
-    assert!(wrong.is_empty(), "{} of 1,154 wrong: {first_few:?}", wrong.len());
+    assert!(
+        wrong.is_empty(),
+        "{} of 1,154 wrong: {first_few:?}",
+        wrong.len()
+    );
 
     // Stabbing armour is not a copy of cutting armour: some types have one and not the other, which is the whole reason the two fields exist.
-    let apart = rows
-        .iter()
-        .filter(|(_, _, cut, stab)| cut != stab)
-        .count();
+    let apart = rows.iter().filter(|(_, _, cut, stab)| cut != stab).count();
     assert!(
         apart > 0,
         "some monsters resist cutting and stabbing differently: {apart}"

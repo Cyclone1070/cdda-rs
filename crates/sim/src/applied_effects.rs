@@ -27,7 +27,9 @@ pub fn worn(world: &World, creature: Entity) -> Vec<ActiveEffect> {
 /// numbers changed instead, which is what [`ActiveEffect::new`] already decides.
 pub fn add(world: &mut World, creature: Entity, effect: ActiveEffect) {
     let Some(mut worn) = world.get_mut::<AppliedEffects>(creature) else {
-        world.entity_mut(creature).insert(AppliedEffects(vec![effect]));
+        world
+            .entity_mut(creature)
+            .insert(AppliedEffects(vec![effect]));
         return;
     };
     if let Some(existing) = worn.0.iter_mut().find(|worn| worn.id == effect.id) {

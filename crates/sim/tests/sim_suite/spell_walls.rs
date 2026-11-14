@@ -67,7 +67,9 @@ fn a_blast(flag: Option<&str>) -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
-        valid_targets: ["hostile".to_owned(), "ground".to_owned()].into_iter().collect(),
+        valid_targets: ["hostile".to_owned(), "ground".to_owned()]
+            .into_iter()
+            .collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),
@@ -76,7 +78,11 @@ fn a_blast(flag: Option<&str>) -> cdda_content::spells::Spell {
 }
 
 /// The squares a blast covers, asked of the effect's own rule rather than rebuilt here.
-fn covered(world: &mut World, caster: Entity, spell: &cdda_content::spells::Spell) -> BTreeSet<(i32, i32)> {
+fn covered(
+    world: &mut World,
+    caster: Entity,
+    spell: &cdda_content::spells::Spell,
+) -> BTreeSet<(i32, i32)> {
     cdda_sim::spell_effects::squares_in_area(world, caster, spell, 0, (4, 0, 0))
         .into_iter()
         .map(|(x, y, _)| (x, y))

@@ -41,7 +41,8 @@ fn coordinate(origin: &[cdda_json::Value], at: usize) -> i32 {
 
 /// The recording, parsed.
 fn recording() -> cdda_json::Object {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_mass.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_mass.json");
     let bytes = std::fs::read(path).expect("the mass recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -137,7 +138,10 @@ fn a_vehicle_weighs_its_parts_and_its_cargo() {
     let (mut world, vehicle, basket, parts, stowed) = bicycle_with_cargo();
     let root = recording();
     let rocks = int_of(&root, "rocks");
-    assert_eq!(stowed, rocks, "the port stowed every rock the reference did");
+    assert_eq!(
+        stowed, rocks,
+        "the port stowed every rock the reference did"
+    );
 
     let cargo = i64::from(int_of(&root, "cargo_mass_g"));
     assert_eq!(
@@ -147,7 +151,8 @@ fn a_vehicle_weighs_its_parts_and_its_cargo() {
     );
 
     for (index, entry) in parts.iter().enumerate() {
-        let expected = i64::from(int_of(entry, "base_mass_g")) + i64::from(int_of(entry, "items_mass_g"));
+        let expected =
+            i64::from(int_of(entry, "base_mass_g")) + i64::from(int_of(entry, "items_mass_g"));
         assert_eq!(
             part_mass(&world, vehicle, index),
             expected,
@@ -161,7 +166,10 @@ fn a_vehicle_weighs_its_parts_and_its_cargo() {
     );
 
     let recorded_total = i64::from(int_of(&root, "total_mass_g"));
-    assert!(recorded_total > 0, "the reference weighed something: {recorded_total}");
+    assert!(
+        recorded_total > 0,
+        "the reference weighed something: {recorded_total}"
+    );
     assert_eq!(
         mass(&world, vehicle),
         recorded_total,

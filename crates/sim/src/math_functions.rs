@@ -62,7 +62,10 @@ pub fn holder(world: &World) -> Option<Entity> {
 /// # Errors
 ///
 /// Returns the reason an entry could not be read; a definition the reference would refuse is refused here too.
-pub fn install_from_values(world: &mut World, values: &[cdda_json::Value]) -> Result<usize, String> {
+pub fn install_from_values(
+    world: &mut World,
+    values: &[cdda_json::Value],
+) -> Result<usize, String> {
     let mut definitions = Vec::new();
     for value in values {
         collect_definitions(value, &mut definitions);

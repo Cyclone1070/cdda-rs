@@ -8,8 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{
-    Body, Garment, GarmentBlow, PartArmour, Struck, Toughness, Wear, Wore, WornBy, armour_on, damage_worn,
-    dress, settle_armour, spawn_creature, take_off, wear,
+    Body, Garment, GarmentBlow, PartArmour, Struck, Toughness, Wear, Wore, WornBy, armour_on,
+    damage_worn, dress, settle_armour, spawn_creature, take_off, wear,
 };
 
 /// A blow of the given damage against a garment resisting one point, with a roll of zero - which meets any chance.
@@ -65,8 +65,8 @@ fn a_vest_on_the_torso_becomes_armour_on_the_torso() {
             hit_difficulty: 1.0,
             upper: false,
             lower: false,
-                ..Default::default()
-            }],
+            ..Default::default()
+        }],
     });
     let worn = world.spawn((WornBy(survivor), vest())).id();
 
@@ -82,8 +82,15 @@ fn a_vest_on_the_torso_becomes_armour_on_the_torso() {
         0,
         "and the vest says nothing about an arm"
     );
-    assert!(world.get::<PartArmour>(survivor).is_some(), "the answer is stored for the blow to read");
-    assert_eq!(world.get::<WornBy>(worn), Some(&WornBy(survivor)), "and the link is on the item");
+    assert!(
+        world.get::<PartArmour>(survivor).is_some(),
+        "the answer is stored for the blow to read"
+    );
+    assert_eq!(
+        world.get::<WornBy>(worn),
+        Some(&WornBy(survivor)),
+        "and the link is on the item"
+    );
 }
 
 #[test]
@@ -131,7 +138,11 @@ fn two_layers_on_one_part_add_up() {
 
     dress(&mut world);
 
-    assert_eq!(armour_on(&world, survivor, "torso", None), 5, "three of steel and two of leather");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        5,
+        "three of steel and two of leather"
+    );
 }
 
 /// Putting something on and taking it off, which is what a survivor does with a vest.
@@ -145,10 +156,18 @@ fn a_garment_can_be_put_on_once_and_taken_off_again() {
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::creature::give_moves(&mut world, survivor, 1_000);
     let vest = world.spawn(vest()).id();
-    assert_eq!(armour_on(&world, survivor, "torso", None), 0, "nothing on yet");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        0,
+        "nothing on yet"
+    );
 
     assert_eq!(wear(&mut world, survivor, vest), Wore::Worn);
-    assert_eq!(armour_on(&world, survivor, "torso", None), 3, "half a millimetre of steel");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        3,
+        "half a millimetre of steel"
+    );
     assert_eq!(
         wear(&mut world, survivor, vest),
         Wore::AlreadyWorn,
@@ -161,8 +180,15 @@ fn a_garment_can_be_put_on_once_and_taken_off_again() {
     );
 
     assert!(take_off(&mut world, vest), "it came off");
-    assert_eq!(armour_on(&world, survivor, "torso", None), 0, "and the armour went with it");
-    assert!(!take_off(&mut world, vest), "taking it off twice is nothing to do");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        0,
+        "and the armour went with it"
+    );
+    assert!(
+        !take_off(&mut world, vest),
+        "taking it off twice is nothing to do"
+    );
 }
 
 #[test]
@@ -175,7 +201,10 @@ fn something_that_is_not_a_garment_cannot_be_worn() {
         Wore::NotAWearable,
         "a thing that says nothing about what it protects is not clothing"
     );
-    assert!(world.get::<WornBy>(rock).is_none(), "and it is not worn either");
+    assert!(
+        world.get::<WornBy>(rock).is_none(),
+        "and it is not worn either"
+    );
     assert_eq!(armour_on(&world, survivor, "torso", None), 0);
 }
 
@@ -201,8 +230,15 @@ fn a_garment_wears_out_in_four_steps_and_is_gone_on_the_fifth() {
             Struck::Damaged,
             "step {step}"
         );
-        assert_eq!(world.get::<Wear>(vest).map(|wear| wear.damage), Some(step * 1000));
-        assert_eq!(armour_on(&world, survivor, "torso", None), 3, "and it still protects");
+        assert_eq!(
+            world.get::<Wear>(vest).map(|wear| wear.damage),
+            Some(step * 1000)
+        );
+        assert_eq!(
+            armour_on(&world, survivor, "torso", None),
+            3,
+            "and it still protects"
+        );
     }
 
     assert_eq!(
@@ -230,7 +266,11 @@ fn a_blow_that_misses_the_garment_leaves_it_whole() {
         Struck::Untouched,
         "a sturdy thing under its threshold takes nothing"
     );
-    assert_eq!(world.get::<Wear>(vest).map(|wear| wear.damage), None, "and no damage is recorded");
+    assert_eq!(
+        world.get::<Wear>(vest).map(|wear| wear.damage),
+        None,
+        "and no damage is recorded"
+    );
 }
 
 /// The flags a garment's data carries decide how hard it is to ruin - and the three of them together are not a
@@ -303,7 +343,11 @@ fn an_unbreakable_garment_is_never_damaged() {
         );
     }
     assert_eq!(world.get::<Wear>(garment).map(|wear| wear.damage), None);
-    assert_eq!(armour_on(&world, survivor, "torso", None), 3, "and it still protects");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        3,
+        "and it still protects"
+    );
 }
 
 /// Whether a garment is damaged is a draw of its own, not a function of how hard the blow was.
@@ -382,7 +426,11 @@ fn putting_something_on_costs_moves_by_its_layer() {
     use cdda_sim::creature::{Layering, give_moves, moves_left, wear, wear_cost};
 
     // A litre of anything costs a hundred and fifty moves to handle.
-    assert_eq!(wear_cost(1_000, Layering::Normal), 150, "ordinary clothes: as they come");
+    assert_eq!(
+        wear_cost(1_000, Layering::Normal),
+        150,
+        "ordinary clothes: as they come"
+    );
     assert_eq!(
         wear_cost(1_000, Layering::Skintight),
         225,
@@ -393,13 +441,20 @@ fn putting_something_on_costs_moves_by_its_layer() {
         100,
         "an outer layer is divided by one and a half"
     );
-    assert_eq!(wear_cost(1_000, Layering::Belted), 75, "and a belt is halved");
+    assert_eq!(
+        wear_cost(1_000, Layering::Belted),
+        75,
+        "and a belt is halved"
+    );
 
     let mut world = bevy_ecs::prelude::World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let shirt = world
         .spawn((
-            cdda_sim::creature::Garment { layers: Vec::new(), vitals: Vec::new() },
+            cdda_sim::creature::Garment {
+                layers: Vec::new(),
+                vitals: Vec::new(),
+            },
             cdda_sim::creature::Carried(survivor),
         ))
         .id();
@@ -410,7 +465,10 @@ fn putting_something_on_costs_moves_by_its_layer() {
         "fifty moves is not a hundred"
     );
     give_moves(&mut world, survivor, 200);
-    assert_eq!(wear(&mut world, survivor, shirt), cdda_sim::creature::Wore::Worn);
+    assert_eq!(
+        wear(&mut world, survivor, shirt),
+        cdda_sim::creature::Wore::Worn
+    );
     assert_eq!(
         moves_left(&world, survivor),
         150,

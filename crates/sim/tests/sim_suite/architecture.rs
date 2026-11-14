@@ -119,7 +119,8 @@ fn the_index_is_exactly_the_store() {
         "the fixture is meant to hold things with no square too, or half the comparison is dead"
     );
     assert_eq!(
-        expected, actual,
+        expected,
+        actual,
         "the index and the store disagree: {} entities carry a square, the index lists {}. \
          A missing entry is an invisible thing; an extra entry is a ghost.",
         expected.len(),
@@ -189,16 +190,15 @@ fn a_destroyed_thing_leaves_no_ghost() {
 #[test]
 fn a_thing_is_whatever_its_components_say() {
     let mut world = World::new();
-    let thing = world
-        .spawn((Position {
-            x: 3,
-            y: 4,
-            z: 0,
-        },))
-        .id();
+    let thing = world.spawn((Position { x: 3, y: 4, z: 0 },)).id();
 
     let items = |world: &mut World| world.query::<&GroundItem>().iter(world).count();
-    let monsters = |world: &mut World| world.query::<&cdda_sim::creature::Creature>().iter(world).count();
+    let monsters = |world: &mut World| {
+        world
+            .query::<&cdda_sim::creature::Creature>()
+            .iter(world)
+            .count()
+    };
 
     assert_eq!(items(&mut world), 0);
     assert_eq!(monsters(&mut world), 0);
@@ -278,7 +278,10 @@ fn workspace() -> std::path::PathBuf {
 /// Every `.rs` file under `crates/*/src`, which is where the port's own code lives.
 fn sources() -> Vec<(String, String)> {
     fn walk(dir: &std::path::Path, out: &mut Vec<(String, String)>) {
-        for entry in std::fs::read_dir(dir).expect("a readable directory").flatten() {
+        for entry in std::fs::read_dir(dir)
+            .expect("a readable directory")
+            .flatten()
+        {
             let path = entry.path();
             if path.is_dir() {
                 walk(&path, out);
@@ -515,8 +518,8 @@ fn installing_a_registry_twice_leaves_one_of_it() {
             hp: 80,
         }],
     );
-    let effect = cdda_json::parse(br#"{"id":"stunned","max_duration":"100 turns"}"#)
-        .expect("valid json");
+    let effect =
+        cdda_json::parse(br#"{"id":"stunned","max_duration":"100 turns"}"#).expect("valid json");
     let cdda_json::Value::Object(entry) = effect else {
         panic!("an effect type is an object");
     };
@@ -536,7 +539,11 @@ fn installing_a_registry_twice_leaves_one_of_it() {
         .query_filtered::<Entity, With<cdda_sim::effect_registry::TheEffectTypes>>()
         .iter(&world)
         .count();
-    assert_eq!((fields, monsters, effects), (1, 1, 1), "one entity per registry, after two installs each");
+    assert_eq!(
+        (fields, monsters, effects),
+        (1, 1, 1),
+        "one entity per registry, after two installs each"
+    );
     assert_eq!(cdda_sim::field_registry::count(&mut world), 2);
     assert_eq!(cdda_sim::monster_registry::count(&mut world), 1);
     assert_eq!(cdda_sim::effect_registry::count(&mut world), 1);
@@ -588,8 +595,16 @@ fn a_drawn_chunk_lands_as_terrain_on_its_own_squares() {
     let written = cdda_sim::mapgen_place::place_drawn(&mut world, &drawn, (1, 1, 0), &code_of);
     assert_eq!(written, 3, "three symbols had terrain under them");
 
-    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 1, 0)), Some(1), "A is grass");
-    assert_eq!(cdda_sim::square::terrain_at(&world, (2, 1, 0)), Some(2), "B is wall");
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 1, 0)),
+        Some(1),
+        "A is grass"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 1, 0)),
+        Some(2),
+        "B is wall"
+    );
     assert_eq!(
         cdda_sim::square::terrain_at(&world, (2, 2, 0)),
         Some(1),
@@ -600,15 +615,26 @@ fn a_drawn_chunk_lands_as_terrain_on_its_own_squares() {
         Some(0),
         "the blank square kept the level's own terrain"
     );
-    assert_eq!(cdda_sim::square::extent(&world), before, "no square was added");
+    assert_eq!(
+        cdda_sim::square::extent(&world),
+        before,
+        "no square was added"
+    );
 
     // And the store holds exactly one ground per square: a write that made a second one would read back whichever it found first.
-    let mut grounds: std::collections::BTreeMap<(i32, i32, i32), usize> = std::collections::BTreeMap::new();
+    let mut grounds: std::collections::BTreeMap<(i32, i32, i32), usize> =
+        std::collections::BTreeMap::new();
     let mut query = world.query::<(&cdda_sim::Position, Option<&cdda_sim::square::Terrain>)>();
     for (position, terrain) in query.iter(&world) {
         if terrain.is_some() {
-            *grounds.entry((position.x, position.y, position.z)).or_insert(0) += 1;
+            *grounds
+                .entry((position.x, position.y, position.z))
+                .or_insert(0) += 1;
         }
     }
-    assert_eq!(grounds.values().filter(|count| **count > 1).count(), 0, "one ground per square");
+    assert_eq!(
+        grounds.values().filter(|count| **count > 1).count(),
+        0,
+        "one ground per square"
+    );
 }

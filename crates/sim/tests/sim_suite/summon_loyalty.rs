@@ -63,7 +63,9 @@ fn a_summon(flags: &[&str], how_many: f64, area: f64) -> cdda_content::spells::S
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
-        valid_targets: ["hostile".to_owned(), "ground".to_owned()].into_iter().collect(),
+        valid_targets: ["hostile".to_owned(), "ground".to_owned()]
+            .into_iter()
+            .collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),
@@ -76,7 +78,11 @@ fn summoned(world: &mut World, caster: Entity) -> Vec<Entity> {
         .query::<Entity>()
         .iter(world)
         .filter(|entity| *entity != caster)
-        .filter(|entity| world.get::<cdda_sim::creature::CreatureKind>(*entity).is_some())
+        .filter(|entity| {
+            world
+                .get::<cdda_sim::creature::CreatureKind>(*entity)
+                .is_some()
+        })
         .collect()
 }
 
@@ -127,10 +133,11 @@ fn every_summon_lands_inside_the_spells_own_area() {
     let spell = a_summon(&[], 9.0, 1.0);
     // **The area is the one the spell had when it was cast**, which is the reference's own order: `calculate_spell_effect_area` filters first and everything after works on the
     // result. Asked afterwards, the squares the summons now stand on answer differently - they hold allies, and an ally is not what a hostile-and-ground spell was aimed at.
-    let area: Vec<(i32, i32)> = cdda_sim::spell_effects::squares_in_area(&world, caster, &spell, 0, (2, 0, 0))
-        .into_iter()
-        .map(|(x, y, _)| (x, y))
-        .collect();
+    let area: Vec<(i32, i32)> =
+        cdda_sim::spell_effects::squares_in_area(&world, caster, &spell, 0, (2, 0, 0))
+            .into_iter()
+            .map(|(x, y, _)| (x, y))
+            .collect();
     assert_eq!(
         cdda_sim::spell_effects::apply(&mut world, caster, &spell, 0, (2, 0, 0)),
         cdda_sim::spell_effects::Effective::Done,
@@ -143,7 +150,9 @@ fn every_summon_lands_inside_the_spells_own_area() {
         "**an area of one holds all nine**, which is what drawing without replacement from the blast gives"
     );
     for monster in &made {
-        let at = world.get::<cdda_sim::Position>(*monster).map(|held| (held.x, held.y));
+        let at = world
+            .get::<cdda_sim::Position>(*monster)
+            .map(|held| (held.x, held.y));
         assert!(
             at.is_some_and(|at| area.contains(&at)),
             "**every summon stands inside the area**: {at:?} in {area:?}"

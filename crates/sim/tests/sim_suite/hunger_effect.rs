@@ -59,7 +59,8 @@ fn flag(object: &cdda_json::Object, key: &str) -> bool {
 fn recorded() -> (i64, f32, i64, Vec<Case>) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/characters/hunger-effect.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -73,7 +74,9 @@ fn recorded() -> (i64, f32, i64, Vec<Case>) {
     let cases = cases
         .iter()
         .map(|case| {
-            let Value::Object(case) = case else { panic!("a case") };
+            let Value::Object(case) = case else {
+                panic!("a case")
+            };
             let effect = match case.get("effect") {
                 Some(Value::Str(effect)) => effect.clone(),
                 other => panic!("{other:?}"),
@@ -153,8 +156,16 @@ fn every_state_wears_the_hunger_effect_the_reference_chooses() {
     }
     // **Non-vacuity**: seven rungs of the ladder have to be reached, and two never can be. Both of those are dead code in the reference rather than a gap in the grid,
     // and a change that made them reachable would be a behaviour change worth failing on.
-    assert_eq!(seen.get("hunger_engorged").copied().unwrap_or(0), 18, "{seen:?}");
-    assert_eq!(seen.get("hunger_hungry").copied().unwrap_or(0), 14, "{seen:?}");
+    assert_eq!(
+        seen.get("hunger_engorged").copied().unwrap_or(0),
+        18,
+        "{seen:?}"
+    );
+    assert_eq!(
+        seen.get("hunger_hungry").copied().unwrap_or(0),
+        14,
+        "{seen:?}"
+    );
     assert!(
         seen.get("hunger_famished").copied().unwrap_or(0) > 0,
         "the famished rung is reached: {seen:?}"
@@ -216,17 +227,25 @@ fn the_effect_is_replaced_only_when_it_changes() {
         permanent: false,
     });
     body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
-    assert_eq!(body.hunger_effect_id(), Some("hunger_blank"), "the old effect is gone");
+    assert_eq!(
+        body.hunger_effect_id(),
+        Some("hunger_blank"),
+        "the old effect is gone"
+    );
 
     // Running the same state again leaves the effect alone rather than refreshing it.
     let before = body.hunger_effect.clone();
     body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
-    assert_eq!(body.hunger_effect, before, "an effect already worn is not re-added");
+    assert_eq!(
+        body.hunger_effect, before,
+        "an effect already worn is not re-added"
+    );
 }
 
 /// The effects the body can install, loaded from the reference's own data: nine hunger effects, each with the ceiling and duration percentage the registry holds.
 fn hunger_effects() -> std::collections::BTreeMap<String, cdda_content::effects::EffectType> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [path.join("core"), path.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     cdda_content::effects::load_paths(&paths).expect("the effects load")
@@ -240,12 +259,17 @@ fn a_hunger_effect_runs_for_a_day_and_is_put_back_when_it_ends() {
     use cdda_sim::digest::MetabolicRates;
 
     let effects = hunger_effects();
-    let kind = effects.get("hunger_blank").expect("the type the ladder chooses for a fed, empty body");
+    let kind = effects
+        .get("hunger_blank")
+        .expect("the type the ladder chooses for a fed, empty body");
     assert_eq!(
         kind.max_duration, 31_536_000,
         "the registry caps a hunger effect at 365 days"
     );
-    assert_eq!(HUNGER_EFFECT_DURATION, 86_400, "and it is installed for one day");
+    assert_eq!(
+        HUNGER_EFFECT_DURATION, 86_400,
+        "and it is installed for one day"
+    );
 
     let vitamins = std::collections::BTreeMap::new();
     let rates = MetabolicRates {
@@ -280,7 +304,11 @@ fn a_hunger_effect_runs_for_a_day_and_is_put_back_when_it_ends() {
     // Asking again does **not** refresh it: the character keeps the day it already had.
     body.decay_effects(&effects, 0);
     let after_one_turn = body.hunger_effect.clone().expect("still worn");
-    assert_eq!(after_one_turn.duration, HUNGER_EFFECT_DURATION - 1, "one turn gone");
+    assert_eq!(
+        after_one_turn.duration,
+        HUNGER_EFFECT_DURATION - 1,
+        "one turn gone"
+    );
     body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
     assert_eq!(
         body.hunger_effect.clone().expect("still worn").duration,
@@ -293,14 +321,23 @@ fn a_hunger_effect_runs_for_a_day_and_is_put_back_when_it_ends() {
         body.decay_effects(&effects, turn);
     }
     assert!(
-        body.hunger_effect.as_ref().is_none_or(|effect| effect.duration <= 1),
+        body.hunger_effect
+            .as_ref()
+            .is_none_or(|effect| effect.duration <= 1),
         "the day is nearly over"
     );
     body.decay_effects(&effects, HUNGER_EFFECT_DURATION);
-    assert_eq!(body.hunger_effect_id(), None, "the effect ran out and was taken away");
+    assert_eq!(
+        body.hunger_effect_id(),
+        None,
+        "the effect ran out and was taken away"
+    );
     body.update_stomach(&rates, &inputs, &vitamins, &effects, (0.0, 0.0));
     assert_eq!(
-        body.hunger_effect.clone().expect("an effect is worn").duration,
+        body.hunger_effect
+            .clone()
+            .expect("an effect is worn")
+            .duration,
         HUNGER_EFFECT_DURATION,
         "and the next update installs it again, at full length"
     );

@@ -39,7 +39,8 @@ pub fn bash_square(
     silent: bool,
 ) -> Option<BashOutcome> {
     let data = crate::mapsquare::table(world)?.0;
-    let ground = crate::square::terrain_at(world, at).and_then(|code| crate::terrain_types::name_of(world, code))?;
+    let ground = crate::square::terrain_at(world, at)
+        .and_then(|code| crate::terrain_types::name_of(world, code))?;
     let furniture = crate::square::furniture_at(world, at)
         .and_then(|code| crate::furniture_types::name_of(world, code))
         .unwrap_or_else(|| "f_null".to_owned());
@@ -284,7 +285,9 @@ fn destined_terrain(
     let below = data.get(&target.below);
     if ZLEVELS
         && smash_terrain
-        && data.get(&terrain).is_some_and(|now| now.has_flag("EMPTY_SPACE"))
+        && data
+            .get(&terrain)
+            .is_some_and(|now| now.has_flag("EMPTY_SPACE"))
         && below.is_some_and(|below| below.has_flag("SUPPORTS_ROOF"))
     {
         let allow_air = params.bash_floor && below.is_some_and(|below| below.move_cost != 0);
@@ -305,7 +308,13 @@ const ZLEVELS: bool = true;
 /// happen for a square at ground level, which is the only kind this function is asked about.
 fn get_roof(below_roof: Option<&str>, allow_air: bool) -> String {
     below_roof.map_or_else(
-        || if allow_air { "t_open_air".to_owned() } else { "t_dirt".to_owned() },
+        || {
+            if allow_air {
+                "t_open_air".to_owned()
+            } else {
+                "t_dirt".to_owned()
+            }
+        },
         str::to_owned,
     )
 }
@@ -320,7 +329,9 @@ fn choose_block(
     has_furniture: bool,
 ) -> (Option<cdda_content::mapdata::BashInfo>, bool) {
     match furniture {
-        Some(furniture) if has_furniture && furniture.bash.is_some() => (furniture.bash.clone(), true),
+        Some(furniture) if has_furniture && furniture.bash.is_some() => {
+            (furniture.bash.clone(), true)
+        }
         _ => (terrain.bash.clone(), false),
     }
 }

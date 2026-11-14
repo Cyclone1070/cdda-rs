@@ -9,7 +9,7 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::vehicles::{part_spec, Vehicle};
+use crate::vehicles::{Vehicle, part_spec};
 use crate::{GroundItem, ItemTypeId};
 
 /// The most a part may hold, whatever its size says.
@@ -80,7 +80,9 @@ pub fn stored_volume(world: &World, vehicle: Entity, part: usize) -> i64 {
     items_in_part(world, vehicle, part)
         .into_iter()
         .filter_map(|item| world.get::<GroundItem>(item))
-        .map(|item| crate::item_registry::volume_in(world, item.kind) * i64::from(item.charges.max(1)))
+        .map(|item| {
+            crate::item_registry::volume_in(world, item.kind) * i64::from(item.charges.max(1))
+        })
         .sum()
 }
 

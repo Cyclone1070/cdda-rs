@@ -10,9 +10,9 @@
 use bevy_ecs::prelude::*;
 use std::collections::BTreeMap;
 
+use crate::ItemTypeId;
 use crate::pockets::Pocket;
 use crate::singletons;
-use crate::ItemTypeId;
 
 /// Every item type's id, by the number the store uses for it.
 ///
@@ -74,7 +74,9 @@ impl ItemTypes {
     /// How much room a kind takes, in millilitres - `itype::volume`, which a stack of one answers.
     #[must_use]
     pub fn volume_of(&self, kind: ItemTypeId) -> i64 {
-        self.volumes_ml.get(kind.0 as usize).map_or(0, |volume| i64::from(*volume))
+        self.volumes_ml
+            .get(kind.0 as usize)
+            .map_or(0, |volume| i64::from(*volume))
     }
 
     /// What a kind weighs, in grams.
@@ -129,7 +131,9 @@ pub struct TheItemTypes;
 /// Reference: `item::has_flag` (`item.cpp`), which looks a flag up on the item's type. Kept apart from [`ItemTypes`] because the registry is built from
 /// a small [`Kind`] and flags are a separate question with their own loader - and a second installer cannot disagree with the first about a number.
 #[derive(Debug, Clone, Default, PartialEq, Component)]
-pub struct ItemFlags(pub std::collections::BTreeMap<ItemTypeId, std::collections::BTreeSet<String>>);
+pub struct ItemFlags(
+    pub std::collections::BTreeMap<ItemTypeId, std::collections::BTreeSet<String>>,
+);
 
 /// Marks the entity holding the item flags.
 #[derive(Debug, Clone, Copy, Default, Component)]
@@ -140,10 +144,7 @@ pub fn set_item_flags(world: &mut World, flags: &[(ItemTypeId, &[&str])]) {
     let holder = singletons::singleton::<ItemFlags, TheItemFlags>(world);
     let mut by_kind = std::collections::BTreeMap::new();
     for (kind, names) in flags {
-        by_kind.insert(
-            *kind,
-            names.iter().map(|name| (*name).to_owned()).collect(),
-        );
+        by_kind.insert(*kind, names.iter().map(|name| (*name).to_owned()).collect());
     }
     world.entity_mut(holder).insert(ItemFlags(by_kind));
 }
@@ -337,19 +338,19 @@ impl ItemNames {
     }
 
     /// The name of a kind, asked without needing to change the store - the same answer as [`name_of`], for callers that only
-/// hold the world by reference.
-#[must_use]
-pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
-    let mut query = world.try_query_filtered::<&ItemTypes, With<TheItemTypes>>()?;
-    let registry = query.iter(world).next()?;
-    registry
-        .names
-        .get(kind.0 as usize)
-        .filter(|name| !name.is_empty())
-        .cloned()
-}
+    /// hold the world by reference.
+    #[must_use]
+    pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
+        let mut query = world.try_query_filtered::<&ItemTypes, With<TheItemTypes>>()?;
+        let registry = query.iter(world).next()?;
+        registry
+            .names
+            .get(kind.0 as usize)
+            .filter(|name| !name.is_empty())
+            .cloned()
+    }
 
-/// The kind a name refers to.
+    /// The kind a name refers to.
     #[must_use]
     pub fn id_of(&self, name: &str) -> Option<ItemTypeId> {
         self.by_name.get(name).copied()
@@ -382,28 +383,19 @@ pub fn name_in(world: &World, kind: ItemTypeId) -> Option<String> {
     /// apart rather than summed here: armour resists them differently.
     #[must_use]
     pub fn melee_bash_of(&self, kind: ItemTypeId) -> f64 {
-        self.melee_bash
-            .get(kind.0 as usize)
-            .copied()
-            .unwrap_or(0.0)
+        self.melee_bash.get(kind.0 as usize).copied().unwrap_or(0.0)
     }
 
     /// What a kind does when swung, in points of cutting damage.
     #[must_use]
     pub fn melee_cut_of(&self, kind: ItemTypeId) -> f64 {
-        self.melee_cut
-            .get(kind.0 as usize)
-            .copied()
-            .unwrap_or(0.0)
+        self.melee_cut.get(kind.0 as usize).copied().unwrap_or(0.0)
     }
 
     /// What a kind does when swung, in points of stabbing damage.
     #[must_use]
     pub fn melee_stab_of(&self, kind: ItemTypeId) -> f64 {
-        self.melee_stab
-            .get(kind.0 as usize)
-            .copied()
-            .unwrap_or(0.0)
+        self.melee_stab.get(kind.0 as usize).copied().unwrap_or(0.0)
     }
 
     /// How well a kind is balanced for a swing, as `item::get_to_hit` answers.
@@ -462,20 +454,22 @@ pub fn peek(world: &World) -> Option<&ItemTypes> {
 #[must_use]
 pub fn snapshot(world: &mut World) -> ItemNames {
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
-    world.get::<ItemTypes>(entity).map_or_else(ItemNames::default, |registry| ItemNames {
-        names: registry.names.clone(),
-        by_name: registry.by_name.clone(),
-        volumes_ml: registry.volumes_ml.clone(),
-        weights_g: registry.weights_g.clone(),
-        holds_ml: registry.holds_ml.clone(),
-        pockets: registry.pockets.clone(),
-        pocket_ranges: registry.pocket_ranges.clone(),
-        thrown_damage: registry.thrown_damage.clone(),
-        melee_bash: registry.melee_bash.clone(),
-        melee_cut: registry.melee_cut.clone(),
-        melee_stab: registry.melee_stab.clone(),
-        to_hit: registry.to_hit.clone(),
-    })
+    world
+        .get::<ItemTypes>(entity)
+        .map_or_else(ItemNames::default, |registry| ItemNames {
+            names: registry.names.clone(),
+            by_name: registry.by_name.clone(),
+            volumes_ml: registry.volumes_ml.clone(),
+            weights_g: registry.weights_g.clone(),
+            holds_ml: registry.holds_ml.clone(),
+            pockets: registry.pockets.clone(),
+            pocket_ranges: registry.pocket_ranges.clone(),
+            thrown_damage: registry.thrown_damage.clone(),
+            melee_bash: registry.melee_bash.clone(),
+            melee_cut: registry.melee_cut.clone(),
+            melee_stab: registry.melee_stab.clone(),
+            to_hit: registry.to_hit.clone(),
+        })
 }
 
 /// The name of a kind, as the data spells it.
@@ -483,7 +477,11 @@ pub fn snapshot(world: &mut World) -> ItemNames {
 pub fn name_of(world: &mut World, kind: ItemTypeId) -> Option<String> {
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
     let registry = world.get::<ItemTypes>(entity)?;
-    registry.names.get(kind.0 as usize).filter(|name| !name.is_empty()).cloned()
+    registry
+        .names
+        .get(kind.0 as usize)
+        .filter(|name| !name.is_empty())
+        .cloned()
 }
 
 /// The name of a kind, asked without needing to change the store - the same answer as [`name_of`], for callers that only
@@ -540,7 +538,9 @@ pub fn pockets_of(world: &mut World, kind: ItemTypeId) -> Vec<Pocket> {
 #[must_use]
 pub fn count(world: &mut World) -> usize {
     let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
-    world.get::<ItemTypes>(entity).map_or(0, |registry| registry.by_name.len())
+    world
+        .get::<ItemTypes>(entity)
+        .map_or(0, |registry| registry.by_name.len())
 }
 
 /// How well each kind resists being chipped by use, filed by the number the registry gave it.
@@ -681,16 +681,29 @@ pub fn install_kind_facts(world: &mut World, kinds: &[(ItemTypeId, KindFacts)]) 
         .iter()
         .map(|(kind, facts)| (*kind, facts.flags.iter().map(String::as_str).collect()))
         .collect();
-    let flag_slices: Vec<(ItemTypeId, &[&str])> = flags.iter().map(|(kind, names)| (*kind, names.as_slice())).collect();
+    let flag_slices: Vec<(ItemTypeId, &[&str])> = flags
+        .iter()
+        .map(|(kind, names)| (*kind, names.as_slice()))
+        .collect();
     set_item_flags(world, &flag_slices);
-    let qualities: Vec<(ItemTypeId, Vec<(String, i32)>)> =
-        kinds.iter().map(|(kind, facts)| (*kind, facts.qualities.clone())).collect();
-    let quality_slices: Vec<(ItemTypeId, &[(String, i32)])> =
-        qualities.iter().map(|(kind, levels)| (*kind, levels.as_slice())).collect();
+    let qualities: Vec<(ItemTypeId, Vec<(String, i32)>)> = kinds
+        .iter()
+        .map(|(kind, facts)| (*kind, facts.qualities.clone()))
+        .collect();
+    let quality_slices: Vec<(ItemTypeId, &[(String, i32)])> = qualities
+        .iter()
+        .map(|(kind, levels)| (*kind, levels.as_slice()))
+        .collect();
     set_item_qualities(world, &quality_slices);
-    let chip: Vec<(ItemTypeId, i32)> = kinds.iter().map(|(kind, facts)| (*kind, facts.chip_resistance)).collect();
+    let chip: Vec<(ItemTypeId, i32)> = kinds
+        .iter()
+        .map(|(kind, facts)| (*kind, facts.chip_resistance))
+        .collect();
     set_item_chip_resistance(world, &chip);
-    let faults: Vec<(ItemTypeId, Vec<(String, i32)>)> = kinds.iter().map(|(kind, facts)| (*kind, facts.faults.clone())).collect();
+    let faults: Vec<(ItemTypeId, Vec<(String, i32)>)> = kinds
+        .iter()
+        .map(|(kind, facts)| (*kind, facts.faults.clone()))
+        .collect();
     set_item_fault_weights(world, &faults);
     let traits: Vec<(ItemTypeId, bool, bool)> = kinds
         .iter()
@@ -713,7 +726,9 @@ pub struct TheFaultTypes;
 /// Installs the fault catalogue's types.
 pub fn set_fault_types(world: &mut World, faults: &[(String, String)]) {
     let holder = singletons::singleton::<FaultTypes, TheFaultTypes>(world);
-    world.entity_mut(holder).insert(FaultTypes(faults.iter().cloned().collect()));
+    world
+        .entity_mut(holder)
+        .insert(FaultTypes(faults.iter().cloned().collect()));
 }
 
 /// What kind of fault an id names, or nothing when the catalogue has never been installed or does not name it.
@@ -737,9 +752,14 @@ pub struct FaultBlocks(pub std::collections::BTreeMap<String, std::collections::
 pub struct TheFaultBlocks;
 
 /// Installs what each fault prevents.
-pub fn set_fault_blocks(world: &mut World, blocks: &[(String, std::collections::BTreeSet<String>)]) {
+pub fn set_fault_blocks(
+    world: &mut World,
+    blocks: &[(String, std::collections::BTreeSet<String>)],
+) {
     let holder = singletons::singleton::<FaultBlocks, TheFaultBlocks>(world);
-    world.entity_mut(holder).insert(FaultBlocks(blocks.iter().cloned().collect()));
+    world
+        .entity_mut(holder)
+        .insert(FaultBlocks(blocks.iter().cloned().collect()));
 }
 
 /// What one fault prevents, or nothing when the catalogue has never been installed or the fault blocks nothing.
@@ -766,7 +786,9 @@ pub struct TheFaultMessages;
 /// Installs the line each fault prints.
 pub fn set_fault_messages(world: &mut World, messages: &[(String, String)]) {
     let holder = singletons::singleton::<FaultMessages, TheFaultMessages>(world);
-    world.entity_mut(holder).insert(FaultMessages(messages.iter().cloned().collect()));
+    world
+        .entity_mut(holder)
+        .insert(FaultMessages(messages.iter().cloned().collect()));
 }
 
 /// What a fault says when it is caught, or nothing when the catalogue has never been installed or the fault is silent.

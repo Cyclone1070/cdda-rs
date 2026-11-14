@@ -84,7 +84,11 @@ pub fn can_power_mutation(
 /// the ones its data names, so a mutation paid in hunger leaves thirst alone.
 ///
 /// Mana is not paid here: the port has no mana store yet, and a charge taken from somewhere else would be an invented number rather than the reference's.
-pub fn pay_for_switching_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity, cost: Affordability) {
+pub fn pay_for_switching_on(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::entity::Entity,
+    cost: Affordability,
+) {
     if cost.hunger
         && let Some(mut body) = world.get_mut::<crate::body::Body>(creature)
     {
@@ -109,7 +113,11 @@ pub struct SwitchedMutations(pub std::collections::BTreeMap<String, Switched>);
 
 /// The record for one mutation, as it stands.
 #[must_use]
-pub fn state_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity, id: &str) -> Switched {
+pub fn state_of(
+    world: &bevy_ecs::prelude::World,
+    creature: bevy_ecs::entity::Entity,
+    id: &str,
+) -> Switched {
     world
         .get::<SwitchedMutations>(creature)
         .and_then(|held| held.0.get(id).copied())
@@ -124,7 +132,11 @@ pub fn state_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::entity::En
 ///
 /// The mutation's own `activated_eocs` are **not** run here: they are programs, and the port runs programs through the effect system rather than from inside a rule.
 #[must_use]
-pub fn switch_on(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity, id: &str) -> bool {
+pub fn switch_on(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::entity::Entity,
+    id: &str,
+) -> bool {
     let Some(data) = crate::mutation_data::holder(world) else {
         return false;
     };

@@ -17,7 +17,8 @@ struct Dumped {
 }
 
 fn dumped() -> BTreeMap<String, Dumped> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/thrown-damage.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/thrown-damage.json");
     let bytes = std::fs::read(path).expect("the item dump exists");
     let root = parse(&bytes).expect("the dump is valid JSON");
     let Value::Object(root) = root else {
@@ -65,7 +66,8 @@ fn dumped() -> BTreeMap<String, Dumped> {
 /// Every item the game ships is loaded with the melee numbers the reference gives it.
 #[test]
 fn every_items_melee_numbers_are_the_references() {
-    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded = cdda_content::items::load_paths(&paths).expect("the game's items load");
@@ -102,7 +104,10 @@ fn every_items_melee_numbers_are_the_references() {
         "{} of {compared} wrong: {first_few:?}",
         wrong.len()
     );
-    assert!(compared > 9_000, "and most of them were compared: {compared}");
+    assert!(
+        compared > 9_000,
+        "and most of them were compared: {compared}"
+    );
 }
 
 /// A weapon's category names the proficiencies that make it cheaper to swing, and the data pairs them up.
@@ -114,16 +119,24 @@ fn every_items_melee_numbers_are_the_references() {
 fn a_weapon_category_names_its_proficiencies() {
     use std::collections::BTreeSet;
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data/json");
     let file = data.join("weapon_categories.json");
     let Ok(text) = std::fs::read_to_string(&file) else {
         return;
     };
     let value = cdda_json::parse(text.as_bytes()).expect("the weapon categories parse");
     let categories = cdda_content::weapon_categories::from_data(&value);
-    assert_eq!(categories.len(), 25, "**twenty-five weapon categories** in the data");
+    assert_eq!(
+        categories.len(),
+        25,
+        "**twenty-five weapon categories** in the data"
+    );
 
-    let swords = categories.iter().find(|category| category.id == "SHORT_SWORDS").expect("short swords are a category");
+    let swords = categories
+        .iter()
+        .find(|category| category.id == "SHORT_SWORDS")
+        .expect("short swords are a category");
     assert_eq!(
         swords.proficiencies,
         vec![
@@ -133,10 +146,19 @@ fn a_weapon_category_names_its_proficiencies() {
         ],
         "and the data names the three proficiencies in its own order"
     );
-    let named: BTreeSet<&str> = categories.iter().flat_map(|category| category.proficiencies.iter().map(String::as_str)).collect();
-    assert!(named.len() > 70, "the categories name {} proficiencies between them", named.len());
+    let named: BTreeSet<&str> = categories
+        .iter()
+        .flat_map(|category| category.proficiencies.iter().map(String::as_str))
+        .collect();
     assert!(
-        categories.iter().all(|category| !category.proficiencies.is_empty()),
+        named.len() > 70,
+        "the categories name {} proficiencies between them",
+        named.len()
+    );
+    assert!(
+        categories
+            .iter()
+            .all(|category| !category.proficiencies.is_empty()),
         "and not one of them is empty"
     );
 }
@@ -147,7 +169,8 @@ fn a_weapon_category_names_its_proficiencies() {
 /// where a weapon belongs to more than one kind - so a loader that read only strings would silently drop every grouped weapon. The gate counts both forms over the whole corpus.
 #[test]
 fn a_weapon_states_its_category() {
-    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded = cdda_content::items::load_paths(&paths).expect("the game's items load");
@@ -162,13 +185,16 @@ fn a_weapon_states_its_category() {
         categorised.len()
     );
     assert!(
-        categorised.iter().any(|item| item.weapon_category.len() > 1),
+        categorised
+            .iter()
+            .any(|item| item.weapon_category.len() > 1),
         "and at least one belongs to more than one kind, which is the array form"
     );
     assert!(
-        categorised
+        categorised.iter().all(|item| item
+            .weapon_category
             .iter()
-            .all(|item| item.weapon_category.iter().all(|category| !category.is_empty())),
+            .all(|category| !category.is_empty())),
         "with every name a real one"
     );
 }
@@ -179,19 +205,24 @@ fn a_weapon_states_its_category() {
 /// exactly the kind of gun whose requirement the archery proficiencies reduce, so a loader that dropped the field would leave the reduction with nothing to reduce.
 #[test]
 fn a_weapon_states_the_strength_it_wants() {
-    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded = cdda_content::items::load_paths(&paths).expect("the game's items load");
 
-    let demanding: Vec<&cdda_content::items::ItemType> = loaded
-        .iter()
-        .filter(|item| item.min_strength > 0)
-        .collect();
+    let demanding: Vec<&cdda_content::items::ItemType> =
+        loaded.iter().filter(|item| item.min_strength > 0).collect();
     // **Twenty, and that small number is the finding**: the field only appears where an item states it, and the reference's own default is zero for everything else.
-    assert_eq!(demanding.len(), 20, "twenty types say how strong a hand they need");
+    assert_eq!(
+        demanding.len(),
+        20,
+        "twenty types say how strong a hand they need"
+    );
     assert!(
-        demanding.iter().any(|item| item.gun_skill.as_deref() == Some("archery")),
+        demanding
+            .iter()
+            .any(|item| item.gun_skill.as_deref() == Some("archery")),
         "and at least one of them is a bow, which is the one the archery proficiencies reduce"
     );
     // The largest is **90**, which is a mounted weapon rather than a typo: the field is the data's own number and the port passes it through unchanged.
@@ -208,7 +239,8 @@ fn a_weapon_states_the_strength_it_wants() {
 /// `Creature::get_crit_factor` (`creature.cpp:890-901`) subtracts, so a loader that defaulted it to the part's coverage would make every jacket stop every critical.
 #[test]
 fn armour_states_its_vitals_coverage() {
-    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded = cdda_content::items::load_paths(&paths).expect("the game's items load");
@@ -222,7 +254,10 @@ fn armour_states_its_vitals_coverage() {
         .iter()
         .find(|part| part.covers.iter().any(|part| part == "torso"))
         .expect("the vest covers the torso");
-    assert_eq!(torso.cover_vitals, 90, "**the vest's torso entry covers ninety percent of the vitals**");
+    assert_eq!(
+        torso.cover_vitals, 90,
+        "**the vest's torso entry covers ninety percent of the vitals**"
+    );
 
     let covering: Vec<&cdda_content::items::ItemType> = loaded
         .iter()
@@ -234,7 +269,10 @@ fn armour_states_its_vitals_coverage() {
         covering.len()
     );
     // **Most things state nothing**, and the default is zero: a plain shirt is not vitals armour.
-    let shirt = loaded.iter().find(|item| item.id == "longshirt").expect("the data has a long shirt");
+    let shirt = loaded
+        .iter()
+        .find(|item| item.id == "longshirt")
+        .expect("the data has a long shirt");
     assert!(
         shirt.armor_parts.iter().all(|part| part.cover_vitals == 0),
         "**and a long shirt covers none of the vitals**"
@@ -247,7 +285,8 @@ fn armour_states_its_vitals_coverage() {
 /// not zero** - a loader that defaulted them to nothing would make every ordinary coat stop no blow at all, which is the class of error the vitals field already had to be fixed for.
 #[test]
 fn a_garment_states_its_melee_coverage_or_its_plain_one() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [root.join("core"), root.join("json")];
     let dirs: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let items = cdda_content::items::load_paths(&dirs).expect("the game's items load");
@@ -264,14 +303,20 @@ fn a_garment_states_its_melee_coverage_or_its_plain_one() {
             }
         }
     }
-    assert!(fallen_back > 500, "most garments state nothing extra: {fallen_back}");
+    assert!(
+        fallen_back > 500,
+        "most garments state nothing extra: {fallen_back}"
+    );
     assert!(
         stated > 0,
         "**and some state a different figure, which is why the twins exist at all**"
     );
     assert_eq!(
         fallen_back + stated,
-        items.iter().map(|item| item.armor_parts.len()).sum::<usize>(),
+        items
+            .iter()
+            .map(|item| item.armor_parts.len())
+            .sum::<usize>(),
         "every armour entry was counted"
     );
 }

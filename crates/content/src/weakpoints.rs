@@ -215,7 +215,10 @@ pub fn expand_all(map: &BTreeMap<String, f64>, default: f64) -> BTreeMap<String,
     let all = map.get("all").copied().unwrap_or(default);
     let mut out = BTreeMap::new();
     for damage_type in ["bash", "cut", "stab"] {
-        out.insert(damage_type.to_owned(), map.get(damage_type).copied().unwrap_or(all));
+        out.insert(
+            damage_type.to_owned(),
+            map.get(damage_type).copied().unwrap_or(all),
+        );
     }
     out
 }

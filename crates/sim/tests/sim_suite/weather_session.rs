@@ -54,9 +54,11 @@ fn number(object: &cdda_json::Object, key: &str) -> f64 {
 }
 
 fn turns() -> Vec<Turn> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/weather-session.json");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/weather-session.json");
     let text = std::fs::read_to_string(&path).expect("the recorded session");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(list)) = root.get("turns") else {
@@ -130,7 +132,10 @@ fn every_turn_carries_the_sky_and_a_moved_clock() {
         let (before, after) = (&pair[0], &pair[1]);
         let step = after.now - before.now;
         if step != 3600 && wrong.len() < 4 {
-            wrong.push(format!("turn {} advanced by {step} instead of 3600", after.turn));
+            wrong.push(format!(
+                "turn {} advanced by {step} instead of 3600",
+                after.turn
+            ));
         }
         if after.next < after.now && wrong.len() < 4 {
             wrong.push(format!(
@@ -143,8 +148,14 @@ fn every_turn_carries_the_sky_and_a_moved_clock() {
     assert!(wrong.is_empty(), "the session's clock disagrees: {wrong:?}");
     assert_eq!(clocked, turns.len() - 1, "every pair of turns was compared");
     // The sky is a state, not decoration: the temperature has to move with the day, and a session whose sky never moves cannot be a transition.
-    let warmest = turns.iter().map(|turn| turn.temperature).fold(f64::MIN, f64::max);
-    let coldest = turns.iter().map(|turn| turn.temperature).fold(f64::MAX, f64::min);
+    let warmest = turns
+        .iter()
+        .map(|turn| turn.temperature)
+        .fold(f64::MIN, f64::max);
+    let coldest = turns
+        .iter()
+        .map(|turn| turn.temperature)
+        .fold(f64::MAX, f64::min);
     assert!(
         warmest - coldest > 1.0,
         "the day's temperature moved: {coldest} to {warmest}"
@@ -185,7 +196,10 @@ fn the_port_recomputes_the_sessions_sky_from_its_own_inputs() {
         checked += 1;
     }
     assert_eq!(checked, turns.len(), "every recorded turn was recomputed");
-    assert!(checked >= 20, "the session is long enough to be a day: {checked}");
+    assert!(
+        checked >= 20,
+        "the session is long enough to be a day: {checked}"
+    );
     assert!(
         wrong.is_empty(),
         "the port's sky disagrees with the recording: {wrong:?}"
@@ -207,15 +221,25 @@ struct Hour {
 /// sweeps run beside it. The `wind.sector` values are separate because `get_wind_direction` draws from the engine with a `std::discrete_distribution`
 /// (`weather_gen.cpp:256-276`), which `rng()` never sees.
 fn hours() -> Vec<Hour> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/weather-session.rolls.txt");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/weather-session.rolls.txt");
     let text = std::fs::read_to_string(&path).expect("the recorded dice");
-    let mut hours: Vec<Hour> = vec![Hour { dice: Vec::new(), sectors: Vec::new() }];
+    let mut hours: Vec<Hour> = vec![Hour {
+        dice: Vec::new(),
+        sectors: Vec::new(),
+    }];
     let mut inside = false;
     for line in text.lines() {
         if let Some(label) = line.strip_prefix("mark ") {
             if let Some(number) = label.strip_prefix("weather.session.hour.") {
                 let index: usize = number.parse().expect("an hour");
-                hours.resize(index + 1, Hour { dice: Vec::new(), sectors: Vec::new() });
+                hours.resize(
+                    index + 1,
+                    Hour {
+                        dice: Vec::new(),
+                        sectors: Vec::new(),
+                    },
+                );
                 inside = true;
             } else {
                 inside = false;
@@ -230,7 +254,11 @@ fn hours() -> Vec<Hour> {
             let low = parts.next().expect("low").parse().expect("a number");
             let high = parts.next().expect("high").parse().expect("a number");
             let drawn = parts.next().expect("drawn").parse().expect("a number");
-            hours.last_mut().expect("an hour").dice.push((low, high, drawn));
+            hours
+                .last_mut()
+                .expect("an hour")
+                .dice
+                .push((low, high, drawn));
         } else if let Some(rest) = line.strip_prefix("drawn wind.sector ") {
             let sector: usize = rest.trim().parse().expect("a sector");
             hours.last_mut().expect("an hour").sectors.push(sector);
@@ -266,17 +294,31 @@ fn the_port_decides_the_sessions_weather_from_the_recorded_dice() {
     let mut checked = 0;
     for turn in &turns[1..] {
         let index = usize::try_from(turn.turn).expect("a turn number");
-        let Some(hour) = hours.get(index) else { continue };
+        let Some(hour) = hours.get(index) else {
+            continue;
+        };
         let mut supplied = hour.dice.iter();
         let mut roll = |low: i32, high: i32| {
             let Some((want_low, want_high, drawn)) = supplied.next().copied() else {
-                panic!("turn {} asks for a die the reference never rolled", turn.turn);
+                panic!(
+                    "turn {} asks for a die the reference never rolled",
+                    turn.turn
+                );
             };
-            assert_eq!((low, high), (want_low, want_high), "turn {} asks for the dice the reference asked for", turn.turn);
+            assert_eq!(
+                (low, high),
+                (want_low, want_high),
+                "turn {} asks for the dice the reference asked for",
+                turn.turn
+            );
             drawn
         };
         let mut sectors = hour.sectors.iter().copied();
-        let mut sector = |_season: usize| sectors.next().expect("a sector was drawn when the direction changed");
+        let mut sector = |_season: usize| {
+            sectors
+                .next()
+                .expect("a sector was drawn when the direction changed")
+        };
         let _ = system.tick(
             &cdda_sim::weather::Forecast {
                 generator: &generator,
@@ -289,15 +331,31 @@ fn the_port_decides_the_sessions_weather_from_the_recorded_dice() {
         );
         let mut note = |what: &str, ours: &str, theirs: &str| {
             if ours != theirs && wrong.len() < 8 {
-                wrong.push((turn.turn, what.to_string(), ours.to_string(), theirs.to_string()));
+                wrong.push((
+                    turn.turn,
+                    what.to_string(),
+                    ours.to_string(),
+                    theirs.to_string(),
+                ));
             }
         };
-        note("weather", system.manager.weather.as_deref().unwrap_or("none"), turn.weather.as_str());
-        note("next turn", &system.manager.next_turn.to_string(), &turn.next.to_string());
+        note(
+            "weather",
+            system.manager.weather.as_deref().unwrap_or("none"),
+            turn.weather.as_str(),
+        );
+        note(
+            "next turn",
+            &system.manager.next_turn.to_string(),
+            &turn.next.to_string(),
+        );
         checked += 1;
     }
     assert!(checked >= 20, "every recorded hour was replayed: {checked}");
-    assert!(wrong.is_empty(), "the port's weather disagrees with the recording: {wrong:?}");
+    assert!(
+        wrong.is_empty(),
+        "the port's weather disagrees with the recording: {wrong:?}"
+    );
 }
 
 #[test]
@@ -346,13 +404,22 @@ fn the_weather_session_has_a_receipt() {
             (2, 0, 0, 7, 0, turn.turn),
             (2, 0, 0, 8, 0, name_hash(&turn.weather)),
         ];
-        record_receipt = crate::replay_digest::fold(record_receipt, index, crate::replay_digest::digest(&recorded));
+        record_receipt = crate::replay_digest::fold(
+            record_receipt,
+            index,
+            crate::replay_digest::digest(&recorded),
+        );
     }
     assert_eq!(
         receipt, record_receipt,
         "the port's receipt is the recording's: {receipt:#018x} against {record_receipt:#018x}"
     );
-    assert_eq!(receipt, 0x4c22_1d74_263f_52f4_u64, "the weather session receipt is {receipt:#018x} over {} turns", turns.len());
+    assert_eq!(
+        receipt,
+        0x4c22_1d74_263f_52f4_u64,
+        "the weather session receipt is {receipt:#018x} over {} turns",
+        turns.len()
+    );
 }
 
 /// A stable number for a weather id's name.

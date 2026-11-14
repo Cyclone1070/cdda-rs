@@ -93,14 +93,7 @@ fn a_hit_is_heard_where_it_lands_with_a_third_of_its_damage() {
     let (mut world, caster, victim) = a_world();
     let spell = an_attack(&[]);
     assert_eq!(
-        cdda_sim::spellcasting::cast_attack(
-            &mut world,
-            (0, 0, 0),
-            &spell,
-            0,
-            victim,
-            0.5
-        ),
+        cdda_sim::spellcasting::cast_attack(&mut world, (0, 0, 0), &spell, 0, victim, 0.5),
         cdda_sim::spellcasting::Cast::Hit {
             part: "torso".to_owned(),
             dealt: 9
@@ -126,7 +119,14 @@ fn silence_and_noise_are_the_spells_flags() {
     let (mut world, _caster, victim) = a_world();
     assert!(
         matches!(
-            cdda_sim::spellcasting::cast_attack(&mut world, (0, 0, 0), &an_attack(&["SILENT"]), 0, victim, 0.5),
+            cdda_sim::spellcasting::cast_attack(
+                &mut world,
+                (0, 0, 0),
+                &an_attack(&["SILENT"]),
+                0,
+                victim,
+                0.5
+            ),
             cdda_sim::spellcasting::Cast::Hit { .. }
         ),
         "the silent cast still hit"
@@ -139,7 +139,14 @@ fn silence_and_noise_are_the_spells_flags() {
     let (mut world, _caster, victim) = a_world();
     assert!(
         matches!(
-            cdda_sim::spellcasting::cast_attack(&mut world, (0, 0, 0), &an_attack(&["LOUD"]), 0, victim, 0.5),
+            cdda_sim::spellcasting::cast_attack(
+                &mut world,
+                (0, 0, 0),
+                &an_attack(&["LOUD"]),
+                0,
+                victim,
+                0.5
+            ),
             cdda_sim::spellcasting::Cast::Hit { .. }
         ),
         "the loud cast hit too"

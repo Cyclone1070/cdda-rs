@@ -36,7 +36,9 @@ fn a_creature_in_pain_settles_at_a_lower_focus() {
     let settled_focus = |pain: i32| {
         let mut world = World::new();
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-        world.entity_mut(survivor).insert(cdda_sim::creature::Pain(pain));
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::creature::Pain(pain));
         // The reference's `once_every( 1_minutes )` is a minute of game time, so the calendar has to be there for the stage to run at all.
         for minute in 0..=60 {
             cdda_sim::calendar::set_turn(&mut world, minute * 60);
@@ -61,11 +63,19 @@ fn a_creature_in_pain_settles_at_a_lower_focus() {
 /// sixty, 575 at forty and 1000 at twenty.
 #[test]
 fn a_tired_creature_cannot_settle_above_its_ceiling() {
-    assert_eq!(cdda_sim::skills::sleepiness_cap(150, 0), 150, "an awake creature has no ceiling");
+    assert_eq!(
+        cdda_sim::skills::sleepiness_cap(150, 0),
+        150,
+        "an awake creature has no ceiling"
+    );
     assert_eq!(cdda_sim::skills::sleepiness_cap(150, 191), 80, "tired");
     assert_eq!(cdda_sim::skills::sleepiness_cap(150, 383), 60, "dead tired");
     assert_eq!(cdda_sim::skills::sleepiness_cap(150, 575), 40, "exhausted");
-    assert_eq!(cdda_sim::skills::sleepiness_cap(150, 1000), 20, "barely awake");
+    assert_eq!(
+        cdda_sim::skills::sleepiness_cap(150, 1000),
+        20,
+        "barely awake"
+    );
     assert_eq!(
         cdda_sim::skills::sleepiness_cap(50, 1000),
         20,
@@ -105,7 +115,10 @@ fn sleepiness_climbs_with_the_clock_and_stops_at_the_cap() {
         cdda_sim::needs::sleepiness_of(&world, survivor)
     };
     let short = sleepiness_after(60);
-    assert!(short > 0, "an hour of being awake leaves a creature sleepy, and it was {short}");
+    assert!(
+        short > 0,
+        "an hour of being awake leaves a creature sleepy, and it was {short}"
+    );
     assert!(
         (55..=65).contains(&short),
         "five a step for twelve steps is about sixty, and it was {short}"
@@ -212,14 +225,14 @@ fn a_sleepiness_enchantment_slows_the_clock() {
     let after_an_hour = |halved: bool| {
         let mut world = World::new();
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-        world.entity_mut(survivor).insert(
-            cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
+        world
+            .entity_mut(survivor)
+            .insert(cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
                 kcal: 2_400.0,
                 hunger: 1.0,
                 thirst: 1.0,
                 sleepiness: 1.0,
-            }),
-        );
+            }));
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(17));
         if halved {
             let text = "{\"mutations\":[{\"id\":\"LIGHT_SLEEPER\",\"valid\":true,\

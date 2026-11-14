@@ -34,7 +34,8 @@ struct Lit {
 fn sessions() -> Vec<Vec<Lit>> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/light-session.json");
     let text = std::fs::read_to_string(&path).expect("the recorded light session");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(turns)) = root.get("turns") else {
@@ -87,13 +88,23 @@ fn at(turn: &[Lit], x: i32, y: i32, z: i32) -> Lit {
 #[test]
 fn the_session_carries_light_on_four_levels_every_turn() {
     let sessions = sessions();
-    assert_eq!(sessions.len(), 7, "seven turns: the state before the first sweep and six after");
+    assert_eq!(
+        sessions.len(),
+        7,
+        "seven turns: the state before the first sweep and six after"
+    );
     for turn in &sessions {
-        assert_eq!(turn.len(), 75, "twenty-five squares on each of three levels");
+        assert_eq!(
+            turn.len(),
+            75,
+            "twenty-five squares on each of three levels"
+        );
         let levels: std::collections::BTreeSet<i32> = turn.iter().map(|square| square.z).collect();
         assert_eq!(
             levels,
-            [0, 1, -1].into_iter().collect::<std::collections::BTreeSet<i32>>(),
+            [0, 1, -1]
+                .into_iter()
+                .collect::<std::collections::BTreeSet<i32>>(),
             "the fire's level, the one above it and the one below"
         );
     }
@@ -112,7 +123,10 @@ fn a_fire_is_bright_on_its_own_square_and_never_reaches_the_level_below() {
 
     let below = at(turn, 63, 71, -1);
     assert_eq!(below.source, 0, "nothing below the floor emits light");
-    assert_eq!(below.level, 1, "and the square reads LOW, which is a cellar's own light");
+    assert_eq!(
+        below.level, 1,
+        "and the square reads LOW, which is a cellar's own light"
+    );
     assert!(
         below.sky <= 3.7,
         "the cellar's sky ({}) is its level's natural light, not the fire's",
@@ -121,8 +135,14 @@ fn a_fire_is_bright_on_its_own_square_and_never_reaches_the_level_below() {
 
     let beside = at(turn, 64, 71, 0);
     assert_eq!(beside.source, 0, "a neighbour has no source of its own");
-    assert_eq!(beside.level, 3, "but the fire's rays reach it: it reads LIT");
-    assert!(beside.level < fire.level, "and it is dimmer than the fire itself");
+    assert_eq!(
+        beside.level, 3,
+        "but the fire's rays reach it: it reads LIT"
+    );
+    assert!(
+        beside.level < fire.level,
+        "and it is dimmer than the fire itself"
+    );
 }
 
 #[test]
@@ -130,8 +150,14 @@ fn the_fire_grows_and_the_light_grows_with_it() {
     // A session whose light never changes would pass the shape gate and cover nothing. The fire spreads on the third turn; the number of lights with a source of their
     // own goes up with it, which is the change the replay has to reproduce.
     let sessions = sessions();
-    let first: usize = sessions[0].iter().filter(|square| square.source > 0).count();
-    let last: usize = sessions[6].iter().filter(|square| square.source > 0).count();
+    let first: usize = sessions[0]
+        .iter()
+        .filter(|square| square.source > 0)
+        .count();
+    let last: usize = sessions[6]
+        .iter()
+        .filter(|square| square.source > 0)
+        .count();
     assert!(
         last > first,
         "the fire spread: {first} lit squares at the start, {last} at the end"
@@ -147,14 +173,17 @@ fn every_recorded_square_is_classified_the_way_the_reference_s_classifier_would(
     // * a square whose own source is at or above `LIGHT_SOURCE_BRIGHT` **must** read BRIGHT, whatever else is true of it;
     // * nothing may read `BRIGHT_ONLY` (2), because that value only comes from `apparent_light_at`, which takes obstruction and range into account;
     // * a square that reads DARK **must** have ambient below `LIGHT_AMBIENT_LOW`, since the light a square carries is at least its ambient.
-    use cdda_core_types::light::{light_at, AMBIENT_LOW, LitLevel, SOURCE_BRIGHT};
+    use cdda_core_types::light::{AMBIENT_LOW, LitLevel, SOURCE_BRIGHT, light_at};
 
     let sessions = sessions();
     let mut checked = 0_usize;
     let mut with_source = 0_usize;
     for turn in &sessions {
         for square in turn {
-            let port = light_at(f32::from(i16::try_from(square.source).expect("a source")), square.sky as f32);
+            let port = light_at(
+                f32::from(i16::try_from(square.source).expect("a source")),
+                square.sky as f32,
+            );
             let reference = match square.level {
                 0 => LitLevel::Dark,
                 1 => LitLevel::Low,
@@ -164,7 +193,11 @@ fn every_recorded_square_is_classified_the_way_the_reference_s_classifier_would(
                 other => panic!("no such lit level in the reference: {other}"),
             };
             if f32::from(i16::try_from(square.source).expect("a source")) >= SOURCE_BRIGHT {
-                assert_eq!(reference, LitLevel::Bright, "a square with its own source is bright");
+                assert_eq!(
+                    reference,
+                    LitLevel::Bright,
+                    "a square with its own source is bright"
+                );
                 with_source += 1;
             }
             if reference == LitLevel::Dark {
@@ -178,10 +211,20 @@ fn every_recorded_square_is_classified_the_way_the_reference_s_classifier_would(
                     square.sky
                 );
             }
-            assert_ne!(reference, LitLevel::BrightOnly, "light_at never answers bright-only");
+            assert_ne!(
+                reference,
+                LitLevel::BrightOnly,
+                "light_at never answers bright-only"
+            );
             checked += 1;
         }
     }
-    assert_eq!(checked, 525, "seven turns of seventy-five squares were classified");
-    assert!(with_source > 0, "at least one square carries its own source");
+    assert_eq!(
+        checked, 525,
+        "seven turns of seventy-five squares were classified"
+    );
+    assert!(
+        with_source > 0,
+        "at least one square carries its own source"
+    );
 }

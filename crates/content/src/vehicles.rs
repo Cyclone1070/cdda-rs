@@ -127,7 +127,6 @@ pub fn turret_parts(items: &[crate::items::ItemType]) -> Vec<String> {
     parts
 }
 
-
 /// Reads one prototype object from the dump.
 fn prototype_of(entry: &Value) -> Result<Prototype, String> {
     let Value::Object(object) = entry else {
@@ -185,11 +184,13 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         _ => Err(format!("a part's {key} is not a number")),
     };
     let rolling_resistance = match object.get("rolling_resistance") {
-        Some(Value::Float(value)) => {
+        Some(Value::Float(value)) =>
+        {
             #[allow(clippy::cast_possible_truncation)]
             Some(*value as f32)
         }
-        Some(Value::Int(value)) => {
+        Some(Value::Int(value)) =>
+        {
             #[allow(clippy::cast_precision_loss)]
             Some(*value as f32)
         }
@@ -245,11 +246,13 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
         rolling_resistance,
         power: i32::try_from(number("power")?).unwrap_or(0),
         damaged_power_factor: match object.get("damaged_power_factor") {
-            Some(Value::Float(value)) => {
+            Some(Value::Float(value)) =>
+            {
                 #[allow(clippy::cast_possible_truncation)]
                 Some(*value as f32)
             }
-            Some(Value::Int(value)) => {
+            Some(Value::Int(value)) =>
+            {
                 #[allow(clippy::cast_precision_loss)]
                 Some(*value as f32)
             }
@@ -293,7 +296,10 @@ pub fn from_dump(value: &Value) -> Result<Vehicles, String> {
     };
     // The dump's parts are objects since version 2: an id list could not answer a question about a vehicle.
     let parts = match root.get("parts") {
-        Some(Value::Array(entries)) => entries.iter().map(part_of).collect::<Result<Vec<_>, String>>()?,
+        Some(Value::Array(entries)) => entries
+            .iter()
+            .map(part_of)
+            .collect::<Result<Vec<_>, String>>()?,
         _ => return Err("the dump has no parts array".to_string()),
     };
     let prototypes = match root.get("prototypes") {

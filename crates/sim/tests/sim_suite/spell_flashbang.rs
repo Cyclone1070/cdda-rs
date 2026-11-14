@@ -126,7 +126,9 @@ fn a_robot_is_not_deafened_and_nothing_out_of_range_is_touched() {
         "**and nine squares away is outside the eight-square bang**"
     );
     assert!(
-        cdda_sim::sounds::heard_this_turn(&mut world).iter().any(|sound| sound.volume == 12),
+        cdda_sim::sounds::heard_this_turn(&mut world)
+            .iter()
+            .any(|sound| sound.volume == 12),
         "the bang itself made a sound of twelve, which is the reference's own volume"
     );
 }

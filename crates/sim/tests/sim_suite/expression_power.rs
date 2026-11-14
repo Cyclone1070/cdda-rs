@@ -20,7 +20,10 @@ fn value_of(text: &str) -> f64 {
 
 #[test]
 fn the_caret_is_a_power_and_binds_tighter_than_a_product() {
-    assert!((value_of("2 ^ 3") - 8.0).abs() < f64::EPSILON, "two cubed is eight");
+    assert!(
+        (value_of("2 ^ 3") - 8.0).abs() < f64::EPSILON,
+        "two cubed is eight"
+    );
     assert!(
         (value_of("2 * 3 ^ 2") - 18.0).abs() < f64::EPSILON,
         "and it binds tighter than a product: 2 * 9, not 36"
@@ -42,8 +45,14 @@ fn the_caret_is_a_power_and_binds_tighter_than_a_product() {
 /// `BILE_STINK_DURATION = u_effect_duration('bile_stink') > 0 ? … : 600`, which is the shape a port must carry.
 #[test]
 fn a_ternary_chooses_one_branch() {
-    assert!((value_of("1 ? 5 : 7") - 5.0).abs() < f64::EPSILON, "a true test takes the first branch");
-    assert!((value_of("0 ? 5 : 7") - 7.0).abs() < f64::EPSILON, "and a false one the second");
+    assert!(
+        (value_of("1 ? 5 : 7") - 5.0).abs() < f64::EPSILON,
+        "a true test takes the first branch"
+    );
+    assert!(
+        (value_of("0 ? 5 : 7") - 7.0).abs() < f64::EPSILON,
+        "and a false one the second"
+    );
     assert!(
         (value_of("0 ? 0 ? -1 : -2 : 1") - 1.0).abs() < f64::EPSILON,
         "and a nested ternary groups the way the reference rewrites it"

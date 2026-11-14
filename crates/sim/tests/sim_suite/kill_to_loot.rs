@@ -10,9 +10,9 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
     ButcherAction, ButcherFinish, ButcherState, CorpseDamage, CreatureSize, GroundItem,
-    HarvestEntry, HarvestSpec, HarvestTable, ItemTypeId, MonsterKindId, Position,
-    butcher_finish, butchery_moves_left, butchery_turn, corpses_at, items_at, reap_dead_monsters,
-    spawn_monster, start_butchery, strike,
+    HarvestEntry, HarvestSpec, HarvestTable, ItemTypeId, MonsterKindId, Position, butcher_finish,
+    butchery_moves_left, butchery_turn, corpses_at, items_at, reap_dead_monsters, spawn_monster,
+    start_butchery, strike,
 };
 
 const CORPSE: ItemTypeId = ItemTypeId(3_000);
@@ -61,7 +61,11 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
         strike(&mut world, zombie, 20, 0),
         "twelve hit points against twenty"
     );
-    assert_eq!(reap_dead_monsters(&mut world, CORPSE, |_| 62_499), 1, "one body reaped");
+    assert_eq!(
+        reap_dead_monsters(&mut world, CORPSE, |_| 62_499),
+        1,
+        "one body reaped"
+    );
     assert_eq!(
         corpses_at(&mut world, (5, 5)),
         1,
@@ -94,7 +98,7 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
             scale_num: (0.0, 0.0),
             mass_ratio: None,
             max: None,
-        is_group: false,
+            is_group: false,
         },
         HarvestSpec {
             part: Some(HarvestEntry::Bone),
@@ -102,7 +106,7 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
             scale_num: (0.0, 0.0),
             mass_ratio: None,
             max: None,
-        is_group: false,
+            is_group: false,
         },
     ];
     let mut rolls = Rolls::new(2468);
@@ -113,24 +117,24 @@ fn a_kill_becomes_loot_with_every_rule_in_the_chain_agreeing() {
             entries: &entries,
             ids: &["meat", "bone"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             action: cdda_sim::ButcherAction::Full,
             size: cdda_sim::CreatureSize::Medium,
             dex: 10,
-    tool_quality: 0,
-    butchery: 0,
+            tool_quality: 0,
+            butchery: 0,
             skill_levels: Vec::new(),
-    yield_multiplier: 1.0,
+            yield_multiplier: 1.0,
             damage: CorpseDamage::Light,
             gibbed: false,
-    field_dressed: false,
-    quartered: false,
-    field_dress_failed: false,
-    butch_basic: 1.0,
-    skin_basic: 1.0,
-    skin_adv: 1.0,
+            field_dressed: false,
+            quartered: false,
+            field_dress_failed: false,
+            butch_basic: 1.0,
+            skin_basic: 1.0,
+            skin_adv: 1.0,
             skinned: false,
         },
         drops,
@@ -174,7 +178,7 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
             scale_num: (0.0, 0.0),
             mass_ratio: None,
             max: None,
-        is_group: false,
+            is_group: false,
         }];
         let mut rolls = Rolls::new(seed);
         butcher_finish(
@@ -184,24 +188,24 @@ fn the_same_seed_kills_the_same_creature_and_butchers_the_same_loot() {
                 entries: &entries,
                 ids: &["meat"],
                 leftovers: None,
-    weight: 0.0,
+                weight: 0.0,
             },
             ButcherFinish {
                 action: cdda_sim::ButcherAction::Full,
                 size: cdda_sim::CreatureSize::Medium,
                 skill_levels: Vec::new(),
-    yield_multiplier: 1.0,
+                yield_multiplier: 1.0,
                 dex: 10,
-    tool_quality: 0,
-    butchery: 0,
+                tool_quality: 0,
+                butchery: 0,
                 damage: CorpseDamage::Light,
                 gibbed: false,
-    field_dressed: false,
-    quartered: false,
-    field_dress_failed: false,
-    butch_basic: 1.0,
-    skin_basic: 1.0,
-    skin_adv: 1.0,
+                field_dressed: false,
+                quartered: false,
+                field_dress_failed: false,
+                butch_basic: 1.0,
+                skin_basic: 1.0,
+                skin_adv: 1.0,
                 skinned: false,
             },
             drops,

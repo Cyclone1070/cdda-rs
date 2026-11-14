@@ -101,8 +101,7 @@ pub fn of(world: &World) -> Option<&Calendar> {
 
 /// Sets the turn count, creating the calendar if this is the first time the world has been told what time it is.
 pub fn set_turn(world: &mut World, turn: i64) {
-    let entity =
-        crate::singletons::singleton::<Calendar, TheCalendar>(world);
+    let entity = crate::singletons::singleton::<Calendar, TheCalendar>(world);
     if let Some(mut calendar) = world.get_mut::<Calendar>(entity) {
         calendar.turn = turn;
     }

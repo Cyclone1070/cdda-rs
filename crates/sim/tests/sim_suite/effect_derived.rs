@@ -52,8 +52,10 @@ fn boolean(object: &cdda_json::Object, key: &str) -> bool {
 
 #[test]
 fn every_types_average_modifier_matches_the_reference() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-derived.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-derived.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -62,9 +64,14 @@ fn every_types_average_modifier_matches_the_reference() {
         panic!("types")
     };
     assert_eq!(integer(&root, "count"), 5_552, "every recorded case");
-    assert_eq!(integer(&root, "fired"), 0, "and the reference's kill rolls fired none of them");
+    assert_eq!(
+        integer(&root, "fired"),
+        0,
+        "and the reference's kill rolls fired none of them"
+    );
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let effects: std::collections::BTreeMap<String, EffectType> =
@@ -133,8 +140,16 @@ fn every_types_average_modifier_matches_the_reference() {
         averaged > 0 && minimum_only > 0,
         "both branches of the stated-maximum gate are reached: {averaged} averaged, {minimum_only} minimum only"
     );
-    assert!(resistant > 0 && zero > 0, "and both levels, with zeros among the answers: {resistant} resistant, {zero} zero");
-    assert!(differing.is_empty(), "{} differences:\n{}", differing.len(), differing.join("\n"));
+    assert!(
+        resistant > 0 && zero > 0,
+        "and both levels, with zeros among the answers: {resistant} resistant, {zero} zero"
+    );
+    assert!(
+        differing.is_empty(),
+        "{} differences:\n{}",
+        differing.len(),
+        differing.join("\n")
+    );
 }
 
 #[test]
@@ -143,13 +158,22 @@ fn a_stated_maximum_below_one_does_not_count_as_a_range() {
     // a maximum of nothing and the minimum comes back alone. The data has no such case - the corpus's both-branch count shows every stated maximum is whole - so the
     // rule is pinned here instead, on a type assembled for it: without this test, `max != 0.0` passes the whole corpus.
     let mut object = cdda_json::Object::new();
-    object.insert("id".to_string(), Value::Str("harness_fractional_max".to_string()));
-    object.insert("name".to_string(), Value::Str("a fractional maximum".to_string()));
+    object.insert(
+        "id".to_string(),
+        Value::Str("harness_fractional_max".to_string()),
+    );
+    object.insert(
+        "name".to_string(),
+        Value::Str("a fractional maximum".to_string()),
+    );
     let mut per = cdda_json::Object::new();
     // The loader keys the table by the data's own names (`per_min` reads as `Min` under `PER`), so the range is stated with those keys, not as a nested object.
     // PAIN is the group with both a minimum key and a maximum key; the stats (`per_mod`) only have a minimum, so a range cannot be stated for them at all.
     per.insert("pain_min".to_string(), Value::Array(vec![Value::Int(2)]));
-    per.insert("pain_max".to_string(), Value::Array(vec![Value::Float(0.5)]));
+    per.insert(
+        "pain_max".to_string(),
+        Value::Array(vec![Value::Float(0.5)]),
+    );
     object.insert("base_mods".to_string(), Value::Object(per));
     let kind = cdda_content::effects::read_one("harness_fractional_max", &object);
 
@@ -170,8 +194,10 @@ fn a_kill_chance_is_chosen_by_intensity_and_capped_at_the_lists_end() {
     // The reference indexes the list by `intensity - 1` and caps the index at the last entry (`cap_to_size`, `src/effect.cpp:1107-1116`), so a list of two answers at
     // intensity four, five or a hundred all read the **second** entry - a reading that clamped to the first would kill far less often. The recording holds the one effect
     // in the data with a kill chance (`star_vampire_blood_drink_feral`, one in twenty), whose rolls the reference made; the port replays each one.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-derived.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-derived.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -179,7 +205,8 @@ fn a_kill_chance_is_chosen_by_intensity_and_capped_at_the_lists_end() {
     let Some(Value::Array(types)) = root.get("types") else {
         panic!("types")
     };
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let effects: std::collections::BTreeMap<String, EffectType> =
@@ -209,7 +236,8 @@ fn a_kill_chance_is_chosen_by_intensity_and_capped_at_the_lists_end() {
             let expected = boolean(case, "answer");
             // The reference rolled one real in `[0, 1)`; the port is given that same number, so both decide on the same die.
             let mut rolls = cdda_core_types::rng::Rolls::replaying(
-                cdda_core_types::rng::Recording::parse(&format!("real 0 1 {roll}\n")).expect("a recording"),
+                cdda_core_types::rng::Recording::parse(&format!("real 0 1 {roll}\n"))
+                    .expect("a recording"),
             );
             let actual = cdda_sim::effects::kill_roll(kind, level, intensity, &mut rolls);
             replayed += 1;
@@ -224,16 +252,53 @@ fn a_kill_chance_is_chosen_by_intensity_and_capped_at_the_lists_end() {
             }
         }
     }
-    assert_eq!(true_answers, 0, "and the reference's rolls fired none of them, one in twenty being one in twenty");
-    assert_eq!(replayed, 1_392, "every recorded kill roll is replayed: 174 types, four intensities, two levels");
-    assert!(differing.is_empty(), "{} differences:\n{}", differing.len(), differing.join("\n"));
+    assert_eq!(
+        true_answers, 0,
+        "and the reference's rolls fired none of them, one in twenty being one in twenty"
+    );
+    assert_eq!(
+        replayed, 1_392,
+        "every recorded kill roll is replayed: 174 types, four intensities, two levels"
+    );
+    assert!(
+        differing.is_empty(),
+        "{} differences:\n{}",
+        differing.len(),
+        differing.join("\n")
+    );
 
     // And the cap itself, on a list assembled for it: intensity three of a two-entry list reads the second entry, not the first.
-    let star = effects.get("star_vampire_blood_drink_feral").expect("the one effect with a kill chance");
-    assert_eq!(star.kill_chance, vec![(1, 20)], "one in twenty, as the data states it");
-    assert_eq!(cdda_sim::effects::cap_to_size(2, 1), 0, "intensity one reads the first entry");
-    assert_eq!(cdda_sim::effects::cap_to_size(2, 2), 1, "intensity two the second");
-    assert_eq!(cdda_sim::effects::cap_to_size(2, 3), 1, "and three keeps the second");
-    assert_eq!(cdda_sim::effects::cap_to_size(2, 100), 1, "however far past the end it goes");
-    assert_eq!(cdda_sim::effects::cap_to_size(2, 0), 1, "and an intensity of zero underflows to the last entry, as the reference does");
+    let star = effects
+        .get("star_vampire_blood_drink_feral")
+        .expect("the one effect with a kill chance");
+    assert_eq!(
+        star.kill_chance,
+        vec![(1, 20)],
+        "one in twenty, as the data states it"
+    );
+    assert_eq!(
+        cdda_sim::effects::cap_to_size(2, 1),
+        0,
+        "intensity one reads the first entry"
+    );
+    assert_eq!(
+        cdda_sim::effects::cap_to_size(2, 2),
+        1,
+        "intensity two the second"
+    );
+    assert_eq!(
+        cdda_sim::effects::cap_to_size(2, 3),
+        1,
+        "and three keeps the second"
+    );
+    assert_eq!(
+        cdda_sim::effects::cap_to_size(2, 100),
+        1,
+        "however far past the end it goes"
+    );
+    assert_eq!(
+        cdda_sim::effects::cap_to_size(2, 0),
+        1,
+        "and an intensity of zero underflows to the last entry, as the reference does"
+    );
 }

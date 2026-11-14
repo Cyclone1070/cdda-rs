@@ -19,13 +19,14 @@ const NO_COUNTDOWN: i64 = 2_147_483_647;
 fn recorded() -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/items/transform-applies.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
 }
 
 fn loaded() -> BTreeMap<String, ItemType> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -96,7 +97,9 @@ fn every_transform_does_to_its_item_what_the_reference_does() {
         };
         let result_kind = text(entry, "result");
         let Some(target) = items.get(&result_kind) else {
-            differing.push(format!("{id}: the reference's result {result_kind} is not loaded"));
+            differing.push(format!(
+                "{id}: the reference's result {result_kind} is not loaded"
+            ));
             continue;
         };
         let before = transform::Before {
@@ -128,26 +131,48 @@ fn every_transform_does_to_its_item_what_the_reference_does() {
             turns => Some(turns),
         };
         let mismatches: Vec<String> = [
-            (after.kind != result_kind, format!("kind {} != {result_kind}", after.kind)),
+            (
+                after.kind != result_kind,
+                format!("kind {} != {result_kind}", after.kind),
+            ),
             (
                 i64::from(after.charges) != int(entry, "charges_after"),
-                format!("charges {} != {}", after.charges, int(entry, "charges_after")),
+                format!(
+                    "charges {} != {}",
+                    after.charges,
+                    int(entry, "charges_after")
+                ),
             ),
             (
                 after.count_by_charges != boolean(entry, "cbc_after"),
-                format!("count_by_charges {} != {}", after.count_by_charges, boolean(entry, "cbc_after")),
+                format!(
+                    "count_by_charges {} != {}",
+                    after.count_by_charges,
+                    boolean(entry, "cbc_after")
+                ),
             ),
             (
                 after.active != boolean(entry, "active_after"),
-                format!("active {} != {}", after.active, boolean(entry, "active_after")),
+                format!(
+                    "active {} != {}",
+                    after.active,
+                    boolean(entry, "active_after")
+                ),
             ),
             (
                 after.countdown_at != expected_countdown,
-                format!("countdown {:?} != {expected_countdown:?}", after.countdown_at),
+                format!(
+                    "countdown {:?} != {expected_countdown:?}",
+                    after.countdown_at
+                ),
             ),
             (
                 i64::from(after.item_counter) != int(entry, "item_counter_after"),
-                format!("item_counter {} != {}", after.item_counter, int(entry, "item_counter_after")),
+                format!(
+                    "item_counter {} != {}",
+                    after.item_counter,
+                    int(entry, "item_counter_after")
+                ),
             ),
         ]
         .into_iter()
@@ -158,11 +183,17 @@ fn every_transform_does_to_its_item_what_the_reference_does() {
         }
     }
     // **Non-vacuity.** A rule that always answered "inactive, no timer" would pass a gate whose fixtures were all inactive, so the corpus has to reach both.
-    assert!(active > 100, "most transforms end active for one of three reasons: {active}");
+    assert!(
+        active > 100,
+        "most transforms end active for one of three reasons: {active}"
+    );
     assert!(timers > 40, "and a fair number start a timer: {timers}");
     // **The declared count is asserted, not just printed.** Four transforms put their result inside a container, which is a shape the port does not perform yet; if
     // that number ever grows the gate has stopped covering something without saying so.
-    assert_eq!(declared, 4, "four transforms are the container shape the port declares");
+    assert_eq!(
+        declared, 4,
+        "four transforms are the container shape the port declares"
+    );
     assert!(
         differing.is_empty(),
         "{} of 459 transforms disagree; the first ten are {:#?}",

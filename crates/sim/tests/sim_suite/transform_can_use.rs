@@ -17,15 +17,16 @@ use cdda_sim::transform;
 use std::collections::{BTreeMap, BTreeSet};
 
 fn recorded() -> Value {
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/transform-can-use.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/transform-can-use.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
 }
 
 fn loaded() -> BTreeMap<String, ItemType> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -66,8 +67,8 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
     };
     assert_eq!(types.len(), 459, "every transform was recorded");
     let items = loaded();
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let qualities = cdda_content::qualities::load_paths(&paths).expect("the qualities load");
@@ -109,7 +110,9 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
             // sentence is compared whole, not as a template.
             if !actor.qualities_needed.is_empty() {
                 quality_verdicts += 1;
-                if let Some(disagreement) = quality_refusal(actor, &standing, &qualities, &text(state, "message")) {
+                if let Some(disagreement) =
+                    quality_refusal(actor, &standing, &qualities, &text(state, "message"))
+                {
                     differing.push(format!("{id}: {disagreement}"));
                 }
                 continue;
@@ -149,10 +152,19 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
         }
     }
     // **Non-vacuity**: the corpus has to reach the order, not just one branch. `NotWorn` before `NotWielded` is the ordering rule, and both have to appear.
-    assert!(refusals.contains("NotWorn"), "the wearing rule has to fire: {refusals:?}");
-    assert!(refusals.contains("NotWielded"), "and so does the wielding rule: {refusals:?}");
+    assert!(
+        refusals.contains("NotWorn"),
+        "the wearing rule has to fire: {refusals:?}"
+    );
+    assert!(
+        refusals.contains("NotWielded"),
+        "and so does the wielding rule: {refusals:?}"
+    );
     assert!(allowed > 600, "most standings are allowed: {allowed}");
-    assert_eq!(quality_verdicts, 9, "three types state qualities, in three standings each");
+    assert_eq!(
+        quality_verdicts, 9,
+        "three types state qualities, in three standings each"
+    );
     // **What this corpus cannot see, said out loud.** No transform states both `need_worn` and `need_wielding`, so no standing in this recording can tell the order
     // of those two rules apart; that ordering is pinned by a transcribed unit test beside the code instead (`src/iuse_actor.cpp:433-441`).
     let both = items
@@ -163,7 +175,10 @@ fn every_transform_refuses_in_the_reference_s_own_order_and_words() {
             _ => false,
         })
         .count();
-    assert_eq!(both, 0, "no actor in this content states both position rules");
+    assert_eq!(
+        both, 0,
+        "no actor in this content states both position rules"
+    );
     assert!(
         differing.is_empty(),
         "{} verdicts disagree; the first ten are {:#?}",
@@ -179,12 +194,15 @@ fn quality_refusal(
     qualities: &BTreeMap<String, cdda_content::qualities::Quality>,
     message: &str,
 ) -> Option<String> {
-    let Err(transform::Refusal::MissingQualities(unmet)) = transform::can_use(actor, standing, |_, _| false)
+    let Err(transform::Refusal::MissingQualities(unmet)) =
+        transform::can_use(actor, standing, |_, _| false)
     else {
         return Some("nothing offers the quality, so it must refuse".to_owned());
     };
     let ours = transform::quality_message(&unmet, |quality| {
-        qualities.get(quality).map_or_else(|| quality.to_owned(), |def| def.name.clone())
+        qualities
+            .get(quality)
+            .map_or_else(|| quality.to_owned(), |def| def.name.clone())
     });
     (ours != message).then(|| format!("the port says {ours:?}, the reference says {message:?}"))
 }

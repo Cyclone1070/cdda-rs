@@ -733,7 +733,10 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     if let Some(math) = object.get("math") {
         return read_expression(math).map(Condition::Math);
     }
-    for (member, listener) in [("u_can_see_location", false), ("npc_can_see_location", true)] {
+    for (member, listener) in [
+        ("u_can_see_location", false),
+        ("npc_can_see_location", true),
+    ] {
         if let Some(Value::Object(target)) = object.get(member) {
             return Some(Condition::CanSeeLocation {
                 target: named_variable(target)?,
@@ -775,7 +778,9 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
         return Some(guard);
     }
     // Reference: `f_has_item` (`condition.cpp:826-834`), the sibling of `u_has_items` that asks only "any at all".
-    if let Some(outside) = read_outside_condition(object) { return Some(outside); }
+    if let Some(outside) = read_outside_condition(object) {
+        return Some(outside);
+    }
     if let Some(nearby) = read_near_om_condition(object) {
         return Some(nearby);
     }
@@ -809,8 +814,6 @@ pub fn read_condition(value: &Value) -> Option<Condition> {
     }
     read_has_effect(object)
 }
-
-
 
 /// Reads the guards that ask about the world rather than a creature: the weather and the avatar's missions.
 ///
@@ -854,7 +857,6 @@ fn read_world_guard(object: &cdda_json::Object) -> Option<Condition> {
     None
 }
 
-
 /// Reads the two guards that ask about a bionic, `u_has_bionics` and `npc_has_bionics`.
 ///
 /// Reference: `f_has_bionics` (`condition.cpp:940-951`).
@@ -879,7 +881,10 @@ fn read_bionic_condition(object: &cdda_json::Object) -> Option<Condition> {
 /// Reference: `f_near_om_location` (`condition.cpp:1074`): the member names the terrain and a sibling `range` says how far to look, defaulting to **1**.
 /// The two camp names (`FACTION_CAMP_ANY`, `FACTION_CAMP_START`) are questions about camps rather than about terrain, so they are refused here.
 fn read_near_om_condition(object: &cdda_json::Object) -> Option<Condition> {
-    for (member, listener) in [("u_near_om_location", false), ("npc_near_om_location", true)] {
+    for (member, listener) in [
+        ("u_near_om_location", false),
+        ("npc_near_om_location", true),
+    ] {
         let Some(value) = object.get(member) else {
             continue;
         };
@@ -916,7 +921,10 @@ fn read_outside_condition(object: &cdda_json::Object) -> Option<Condition> {
 }
 
 fn read_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
-    for (member, listener) in [("u_has_worn_with_flag", false), ("npc_has_worn_with_flag", true)] {
+    for (member, listener) in [
+        ("u_has_worn_with_flag", false),
+        ("npc_has_worn_with_flag", true),
+    ] {
         if let Some(cdda_json::Value::Str(flag)) = object.get(member) {
             return Some(Condition::HasWornWithFlag {
                 flag: flag.clone(),
@@ -1132,7 +1140,10 @@ fn read_run_npc_eocs(object: &cdda_json::Object) -> Option<Effect> {
         };
         // Reference: `load_eoc_vector` reads each entry with `load_eoc`, which takes a name **or** a program written in place - and the data uses the second form
         // for the guard programs, so reading only names leaves every one of them refused.
-        let programs = entries.iter().map(read_program_ref).collect::<Option<Vec<_>>>()?;
+        let programs = entries
+            .iter()
+            .map(read_program_ref)
+            .collect::<Option<Vec<_>>>()?;
         let unique_ids = match object.get("unique_ids") {
             None => Vec::new(),
             Some(Value::Array(ids)) => ids
@@ -1283,7 +1294,14 @@ pub fn read_string_source(value: &Value) -> Option<StringSource> {
     match value {
         Value::Str(text) => Some(StringSource::Literal(text.clone())),
         Value::Object(object) => {
-            for scope in ["u_val", "n_val", "npc_val", "global_val", "var_val", "context_val"] {
+            for scope in [
+                "u_val",
+                "n_val",
+                "npc_val",
+                "global_val",
+                "var_val",
+                "context_val",
+            ] {
                 if let Some(Value::Str(name)) = object.get(scope) {
                     return Some(StringSource::Variable {
                         scope: scope.to_owned(),
@@ -1373,7 +1391,9 @@ fn tokenize(text: &str) -> Option<Vec<Token>> {
 
 /// The operator at the front of the text, longest spelling first so `<=` is not read as `<`.
 fn read_operator(text: &str) -> Option<(Token, usize)> {
-    for spelling in ["<=", ">=", "==", "!=", "+", "-", "*", "/", "%", "^", "<", ">", "?"] {
+    for spelling in [
+        "<=", ">=", "==", "!=", "+", "-", "*", "/", "%", "^", "<", ">", "?",
+    ] {
         if text.starts_with(spelling) {
             return Some((Token::Operator(spelling.to_owned()), spelling.len()));
         }
@@ -1689,7 +1709,14 @@ fn read_expression_inner(value: &Value) -> Option<Expression> {
             if let Some(inner) = object.get("math") {
                 return read_expression_inner(inner);
             }
-            for scope in ["u_val", "n_val", "npc_val", "global_val", "var_val", "context_val"] {
+            for scope in [
+                "u_val",
+                "n_val",
+                "npc_val",
+                "global_val",
+                "var_val",
+                "context_val",
+            ] {
                 if let Some(Value::Str(name)) = object.get(scope) {
                     // A `default` beside the variable is the fallback `dbl_or_var_part::evaluate` uses when the variable holds nothing.
                     if let Some(fallback) = object.get("default") {
@@ -1973,7 +2000,10 @@ fn read_lose_morale(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_remove_item_with` (`npctalk.cpp:4046-4056`): one required `str_or_var` member. The gate matters: this reader is tried on every object no other
 /// reader claimed, so answering for an absent member would swallow the data.
 fn read_remove_item_with(object: &cdda_json::Object) -> Option<Effect> {
-    for (member, listener) in [("u_remove_item_with", false), ("npc_remove_item_with", true)] {
+    for (member, listener) in [
+        ("u_remove_item_with", false),
+        ("npc_remove_item_with", true),
+    ] {
         let Some(item) = object.get(member) else {
             continue;
         };
@@ -2040,7 +2070,10 @@ fn read_foreach(object: &cdda_json::Object) -> Option<Effect> {
     match object.get("target") {
         Some(Value::Str(named)) => target = Some(named.clone()),
         Some(Value::Array(entries)) => {
-            ids = entries.iter().map(read_string_source).collect::<Option<Vec<_>>>()?;
+            ids = entries
+                .iter()
+                .map(read_string_source)
+                .collect::<Option<Vec<_>>>()?;
         }
         _ => return None,
     }
@@ -2519,7 +2552,9 @@ pub fn read_assignment(text: &str) -> Option<Assignment> {
         Expression::Variable { scope, name } => AssignmentTarget::Variable { scope, name },
         // A destination must be a variable: a number, a call or an operator chain is an expression, and a `math` statement
         // whose left-hand side is an expression has no place to put its answer.
-        Expression::Call { name, arguments, .. } => AssignmentTarget::Call { name, arguments },
+        Expression::Call {
+            name, arguments, ..
+        } => AssignmentTarget::Call { name, arguments },
         Expression::Number(_)
         | Expression::Text(_)
         | Expression::Pair { .. }
@@ -2552,7 +2587,10 @@ fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
             b'(' => depth += 1,
             b')' => depth -= 1,
             b'=' if depth == 0 => {
-                let (op, width) = match (at.checked_sub(1).and_then(|before| bytes.get(before)), bytes.get(at + 1)) {
+                let (op, width) = match (
+                    at.checked_sub(1).and_then(|before| bytes.get(before)),
+                    bytes.get(at + 1),
+                ) {
                     (Some(b'+'), _) => (AssignmentOp::Add, 2),
                     (Some(b'-'), _) => (AssignmentOp::Subtract, 2),
                     (Some(b'*'), _) => (AssignmentOp::Multiply, 2),
@@ -2564,11 +2602,7 @@ fn split_assignment(text: &str) -> Option<(&str, AssignmentOp, &str)> {
                     AssignmentOp::Set => at,
                     _ => at.checked_sub(1)?,
                 };
-                return Some((
-                    text.get(..before_op)?,
-                    op,
-                    text.get(at + width..)?,
-                ));
+                return Some((text.get(..before_op)?, op, text.get(at + width..)?));
             }
             _ => {}
         }
@@ -3896,7 +3930,8 @@ pub fn read_program(value: &Value) -> Option<Program> {
     let event = match object.get("required_event") {
         None => None,
         Some(Value::Str(kind)) => {
-            let is_event = matches!(object.get("eoc_type"), Some(Value::Str(spelled)) if spelled == "EVENT");
+            let is_event =
+                matches!(object.get("eoc_type"), Some(Value::Str(spelled)) if spelled == "EVENT");
             if !is_event {
                 return None;
             }
@@ -3935,23 +3970,16 @@ fn read_message_effect(object: &cdda_json::Object) -> Option<Effect> {
             let (text, fallback) = match value {
                 // Reference: `get_translation_or_var( JsonObject )` (`condition.cpp:371-385`) tries the **translation** form first - an object with a `str`
                 // member - and only then reads the object as a variable. The data writes both.
-                Value::Object(inside) if inside.get("str").is_some() => (
-                    StringSource::Literal(read_message(value)?),
-                    None,
-                ),
+                Value::Object(inside) if inside.get("str").is_some() => {
+                    (StringSource::Literal(read_message(value)?), None)
+                }
                 Value::Object(inside) => {
                     let (scope, name) = named_variable(inside)?;
                     let fallback = match inside.get("default") {
                         None => None,
                         Some(given) => Some(read_string_source(given)?),
                     };
-                    (
-                        StringSource::Variable {
-                            scope,
-                            name,
-                        },
-                        fallback,
-                    )
+                    (StringSource::Variable { scope, name }, fallback)
                 }
                 other => (StringSource::Literal(read_message(other)?), None),
             };
@@ -4011,27 +4039,90 @@ pub const NAMED_STRING_EFFECTS: &[&str] = &[
 /// throws for a name that is not in the table, so the port refuses such a program - and a name that *is* here but whose function is not written reads and refuses when it runs,
 /// which is what every other unported rule does.
 pub const LEGACY_STRING_EFFECTS: &[&str] = &[
-    "abandon_camp", "assign_camp", "assign_guard", "assign_mission",
-    "barber_beard", "barber_hair", "basecamp_mission", "bionic_install",
-    "bionic_install_allies", "bionic_remove", "bionic_remove_allies", "buy_chicken",
-    "buy_cow", "buy_haircut", "buy_horse", "buy_shave",
-    "clear_mission", "clear_overrides", "copy_npc_rules", "deny_equipment",
-    "deny_follow", "deny_lead", "deny_personal_info", "deny_train",
-    "dismount", "distribute_food_auto", "do_butcher", "do_chop_plank",
-    "do_chop_trees", "do_construction", "do_craft", "do_disassembly",
-    "do_eread", "do_farming", "do_fishing", "do_mining",
-    "do_mopping", "do_read", "do_read_repeatedly", "do_vehicle_deconstruct",
-    "do_vehicle_repair", "drop_items_in_place", "drop_stolen_item", "drop_weapon",
-    "end_conversation", "find_mount", "flee", "follow",
-    "follow_only", "give_aid", "give_all_aid", "give_equipment",
-    "goto_location", "hostile", "insult_combat", "lead_to_safety",
-    "leave", "lesser_give_aid", "lesser_give_all_aid", "mission_failure",
-    "mission_reward", "mission_success", "morale_chat_activity", "nothing",
-    "npc_thankful", "pick_style", "player_leaving", "player_weapon_away",
-    "player_weapon_drop", "remove_stolen_status", "reveal_stats", "revert_activity",
-    "set_npc_pickup", "sort_loot", "start_camp", "start_mugging",
-    "start_trade", "start_training", "start_training_npc", "start_training_seminar",
-    "stop_following", "stop_guard", "stranger_neutral", "wake_up",
+    "abandon_camp",
+    "assign_camp",
+    "assign_guard",
+    "assign_mission",
+    "barber_beard",
+    "barber_hair",
+    "basecamp_mission",
+    "bionic_install",
+    "bionic_install_allies",
+    "bionic_remove",
+    "bionic_remove_allies",
+    "buy_chicken",
+    "buy_cow",
+    "buy_haircut",
+    "buy_horse",
+    "buy_shave",
+    "clear_mission",
+    "clear_overrides",
+    "copy_npc_rules",
+    "deny_equipment",
+    "deny_follow",
+    "deny_lead",
+    "deny_personal_info",
+    "deny_train",
+    "dismount",
+    "distribute_food_auto",
+    "do_butcher",
+    "do_chop_plank",
+    "do_chop_trees",
+    "do_construction",
+    "do_craft",
+    "do_disassembly",
+    "do_eread",
+    "do_farming",
+    "do_fishing",
+    "do_mining",
+    "do_mopping",
+    "do_read",
+    "do_read_repeatedly",
+    "do_vehicle_deconstruct",
+    "do_vehicle_repair",
+    "drop_items_in_place",
+    "drop_stolen_item",
+    "drop_weapon",
+    "end_conversation",
+    "find_mount",
+    "flee",
+    "follow",
+    "follow_only",
+    "give_aid",
+    "give_all_aid",
+    "give_equipment",
+    "goto_location",
+    "hostile",
+    "insult_combat",
+    "lead_to_safety",
+    "leave",
+    "lesser_give_aid",
+    "lesser_give_all_aid",
+    "mission_failure",
+    "mission_reward",
+    "mission_success",
+    "morale_chat_activity",
+    "nothing",
+    "npc_thankful",
+    "pick_style",
+    "player_leaving",
+    "player_weapon_away",
+    "player_weapon_drop",
+    "remove_stolen_status",
+    "reveal_stats",
+    "revert_activity",
+    "set_npc_pickup",
+    "sort_loot",
+    "start_camp",
+    "start_mugging",
+    "start_trade",
+    "start_training",
+    "start_training_npc",
+    "start_training_seminar",
+    "stop_following",
+    "stop_guard",
+    "stranger_neutral",
+    "wake_up",
 ];
 
 /// Reads the string spellings of the effects the data writes as a bare name.
@@ -4050,7 +4141,9 @@ fn read_string_effect(name: &str) -> Option<Effect> {
         // Reference: the table's own `nothing`, which runs no effect at all.
         "nothing" => Some(Effect::Nothing),
         // A legacy talk function the port has not written: it **reads**, because the reference knows the name, and refuses where it runs.
-        other if LEGACY_STRING_EFFECTS.contains(&other) || NAMED_STRING_EFFECTS.contains(&other) => {
+        other
+            if LEGACY_STRING_EFFECTS.contains(&other) || NAMED_STRING_EFFECTS.contains(&other) =>
+        {
             Some(Effect::LegacyStringEffect {
                 name: other.to_owned(),
             })
@@ -4106,14 +4199,18 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if let Some(dialogue) = read_open_dialogue(object) {
         return Some(dialogue);
     }
-    if let Some(selector) = read_eoc_selector(object) {         return Some(selector); }
+    if let Some(selector) = read_eoc_selector(object) {
+        return Some(selector);
+    }
     if let Some(weighted) = read_weighted_list(object) {
         return Some(weighted);
     }
     if let Some(location) = read_location_variable(object) {
         return Some(location);
     }
-    if let Some(found) = read_unnamed_effect(object) { return Some(found); }
+    if let Some(found) = read_unnamed_effect(object) {
+        return Some(found);
+    }
     if let Some(switched) = read_switch(object) {
         return Some(switched);
     }
@@ -4140,7 +4237,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
     if matches!(object.get("snippet"), Some(Value::Bool(true))) {
         return read_snippet(object);
     }
-    if let Some(changed) = read_effect_change(object) { return Some(changed); }
+    if let Some(changed) = read_effect_change(object) {
+        return Some(changed);
+    }
     // Reference: `f_reveal_map` (`npctalk.cpp:7752-7760`): a required `var_info` and an optional `radius` read as a `dbl_or_var`, which is why a `math` radius is legal here.
     if let Some(given) = object.get("reveal_map") {
         let target = read_variable_target(given)?;
@@ -4214,7 +4313,9 @@ pub fn read_effect(value: &Value) -> Option<Effect> {
             });
         }
     }
-    if let Some(carried) = read_carried_effect(object) { return Some(carried); }
+    if let Some(carried) = read_carried_effect(object) {
+        return Some(carried);
+    }
     read_message_effect(object)
 }
 
@@ -4232,12 +4333,6 @@ fn read_effect_list(value: Option<&Value>) -> Option<Vec<Effect>> {
         None => None,
     }
 }
-
-
-
-
-
-
 
 /// Reads `assign_mission`.
 ///
@@ -4260,7 +4355,12 @@ fn read_assign_mission(object: &cdda_json::Object) -> Option<Effect> {
 ///
 /// Reference: `f_learn_recipe` / `f_forget_recipe` (`npctalk.cpp:5250-5266`) both take one recipe id and hand it to the actor.
 fn read_learn_recipe(object: &cdda_json::Object) -> Option<Effect> {
-    for (member, forget) in [("u_learn_recipe", false), ("npc_learn_recipe", false), ("u_forget_recipe", true), ("npc_forget_recipe", true)] {
+    for (member, forget) in [
+        ("u_learn_recipe", false),
+        ("npc_learn_recipe", false),
+        ("u_forget_recipe", true),
+        ("npc_forget_recipe", true),
+    ] {
         if let Some(value) = object.get(member) {
             return read_string_source(value).map(|recipe| Effect::LearnRecipe { recipe, forget });
         }
@@ -4286,7 +4386,10 @@ fn read_run_monster_eocs(object: &cdda_json::Object) -> Option<Effect> {
             Value::Array(entries) => entries.as_slice(),
             other => std::slice::from_ref(other),
         };
-        let programs = entries.iter().map(read_program_ref).collect::<Option<Vec<_>>>()?;
+        let programs = entries
+            .iter()
+            .map(read_program_ref)
+            .collect::<Option<Vec<_>>>()?;
         let mtype_ids = match object.get("mtype_ids") {
             None => Vec::new(),
             Some(Value::Array(ids)) => ids
@@ -4332,10 +4435,13 @@ fn read_teleport(object: &cdda_json::Object) -> Option<Effect> {
             None => None,
             Some(value) => Some(read_string_source(value)?),
         };
-        let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
-            Value::Str(name) => Some((scope.clone(), name.clone())),
-            _ => None,
-        })?;
+        let (scope, name) = target
+            .members()
+            .iter()
+            .find_map(|(scope, value)| match value {
+                Value::Str(name) => Some((scope.clone(), name.clone())),
+                _ => None,
+            })?;
         return Some(Effect::Teleport {
             scope,
             name,
@@ -4353,7 +4459,9 @@ fn read_teleport(object: &cdda_json::Object) -> Option<Effect> {
 /// Reference: `f_message` (`npctalk.cpp:5312-5405`): with `snippet: true` the member is a category of text, the line is picked from it by weight,
 /// and `same_snippet` remembers the pick so the same line repeats.
 fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
-    if let Some(carried) = read_carried_effect(object) { return Some(carried); }
+    if let Some(carried) = read_carried_effect(object) {
+        return Some(carried);
+    }
     for member in ["u_message", "npc_message"] {
         let Some(value) = object.get(member) else {
             continue;
@@ -4366,8 +4474,6 @@ fn read_snippet(object: &cdda_json::Object) -> Option<Effect> {
     }
     None
 }
-
-
 
 /// Reads a mapgen update that applies where the speaker stands.
 ///
@@ -4404,7 +4510,6 @@ fn read_mapgen_update(object: &cdda_json::Object) -> Option<Effect> {
     })
 }
 
-
 /// Reads a `target_var`, which names a variable holding a square.
 ///
 /// Reference: `read_var_value` (`npctalk.cpp`): the shape is `{"global_val": "here"}`, `{"u_val": …}` or `{"npc_val": …}`, which the port reads
@@ -4419,10 +4524,12 @@ fn read_variable_target(value: &Value) -> Option<AssignmentTarget> {
     };
     match scope.as_str() {
         // `context_val` is the fourth scope the reference's `read_var_info` accepts, and the data uses it for a target the dialogue computed a moment ago.
-        "u_val" | "npc_val" | "global_val" | "n_val" | "context_val" => Some(AssignmentTarget::Variable {
-            scope: scope.clone(),
-            name: name.clone(),
-        }),
+        "u_val" | "npc_val" | "global_val" | "n_val" | "context_val" => {
+            Some(AssignmentTarget::Variable {
+                scope: scope.clone(),
+                name: name.clone(),
+            })
+        }
         _ => None,
     }
 }
@@ -4461,8 +4568,16 @@ fn read_make_sound(object: &cdda_json::Object) -> Option<Effect> {
             None => SoundKind::Background,
         };
         return Some(Effect::MakeSound {
-            words: if snippet { None } else { Some(read_string_source(words)?) },
-            snippet: if snippet { Some(read_string_source(words)?) } else { None },
+            words: if snippet {
+                None
+            } else {
+                Some(read_string_source(words)?)
+            },
+            snippet: if snippet {
+                Some(read_string_source(words)?)
+            } else {
+                None
+            },
             same_snippet: matches!(object.get("same_snippet"), Some(Value::Bool(true))),
             volume: read_math_expression(object.get("volume")?)?,
             kind,
@@ -4485,8 +4600,14 @@ fn read_add_morale(object: &cdda_json::Object) -> Option<Effect> {
             kind: read_string_source(kind)?,
             bonus: read_math_expression(object.get("bonus")?)?,
             max_bonus: read_math_expression(object.get("max_bonus")?)?,
-            duration: read_effect_duration(object.get("duration"), EffectDuration::Turns(Some(3600)))?,
-            decay_start: read_effect_duration(object.get("decay_start"), EffectDuration::Turns(Some(1800)))?,
+            duration: read_effect_duration(
+                object.get("duration"),
+                EffectDuration::Turns(Some(3600)),
+            )?,
+            decay_start: read_effect_duration(
+                object.get("decay_start"),
+                EffectDuration::Turns(Some(1800)),
+            )?,
             capped: matches!(object.get("capped"), Some(Value::Bool(true))),
             listener,
         });
@@ -4499,7 +4620,9 @@ fn read_effect_duration(value: Option<&Value>, fallback: EffectDuration) -> Opti
     match value {
         None => Some(fallback),
         Some(Value::Str(text)) if text == "PERMANENT" => Some(EffectDuration::Permanent),
-        Some(Value::Str(text)) => Some(EffectDuration::Turns(Some(crate::constructions::parse_duration(text)))),
+        Some(Value::Str(text)) => Some(EffectDuration::Turns(Some(
+            crate::constructions::parse_duration(text),
+        ))),
         Some(Value::Int(turns)) => Some(EffectDuration::Turns(Some(*turns))),
         Some(Value::Float(turns)) => {
             #[allow(clippy::cast_possible_truncation)]
@@ -4517,11 +4640,18 @@ fn read_effect_duration(value: Option<&Value>, fallback: EffectDuration) -> Opti
                 Value::Int(turns) => *turns,
                 _ => return None,
             };
-            let (scope, name) = given.members().iter().find_map(|(scope, value)| match value {
-                Value::Str(name) if scope != "default" => Some((scope.clone(), name.clone())),
-                _ => None,
-            })?;
-            Some(EffectDuration::Named { scope, name, fallback })
+            let (scope, name) = given
+                .members()
+                .iter()
+                .find_map(|(scope, value)| match value {
+                    Value::Str(name) if scope != "default" => Some((scope.clone(), name.clone())),
+                    _ => None,
+                })?;
+            Some(EffectDuration::Named {
+                scope,
+                name,
+                fallback,
+            })
         }
         Some(Value::Object(_)) => Some(EffectDuration::Computed(read_math_expression(value?)?)),
         Some(Value::Array(ends)) => {
@@ -4687,11 +4817,24 @@ fn read_switch(object: &cdda_json::Object) -> Option<Effect> {
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4300-4320`), the `search_type == "monster"` branch. A `target_params` beside it would search an overmap area
 /// first, which this reader does not do - the refusal is a missing rule, not a missing store, since the monster table is here.
-fn read_monster_around(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+fn read_monster_around(
+    object: &cdda_json::Object,
+    target: &cdda_json::Object,
+    listener: bool,
+) -> Option<Effect> {
     let Value::Str(monster) = object.get("monster")? else {
         return None;
     };
-    for asked in ["terrain", "furniture", "field", "npc", "species", "trap", "zone", "target_params"] {
+    for asked in [
+        "terrain",
+        "furniture",
+        "field",
+        "npc",
+        "species",
+        "trap",
+        "zone",
+        "target_params",
+    ] {
         if object.get(asked).is_some() {
             return None;
         }
@@ -4748,7 +4891,11 @@ fn read_location_variable_adjust(object: &cdda_json::Object) -> Option<Effect> {
 ///
 /// Reference: `mission_util::parse_mission_om_target` (`mission_util.cpp:391-450`) and the search in `f_location_variable` (`npctalk.cpp:4261-4300`). The port reads
 /// what it can carry out - a terrain, a least distance and a level - and refuses an overmap special, whose tiles are matched by a rule the port does not have.
-fn read_overmap_search(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+fn read_overmap_search(
+    object: &cdda_json::Object,
+    target: &cdda_json::Object,
+    listener: bool,
+) -> Option<Effect> {
     let Value::Object(params) = object.get("target_params")? else {
         return None;
     };
@@ -4883,7 +5030,10 @@ fn read_search_filter(entry: &Value) -> Option<SearchFilter> {
         return None;
     };
     if !filter.members().iter().all(|(key, _)| {
-        matches!(key.as_str(), "id" | "wielded_only" | "worn_only" | "condition" | "//")
+        matches!(
+            key.as_str(),
+            "id" | "wielded_only" | "worn_only" | "condition" | "//"
+        )
     }) {
         return None;
     }
@@ -5013,7 +5163,10 @@ fn read_transform_radius(object: &cdda_json::Object) -> Option<Effect> {
     };
     // The radius's member is the activation's own name, not the bare `transform_radius`: the data writes `u_transform_radius` and `npc_transform_radius`, and reading
     // only the bare one refused every entry in the corpus.
-    let (given, listener) = match (object.get("u_transform_radius"), object.get("npc_transform_radius")) {
+    let (given, listener) = match (
+        object.get("u_transform_radius"),
+        object.get("npc_transform_radius"),
+    ) {
         (Some(radius), _) => (radius, false),
         (_, Some(radius)) => (radius, true),
         _ => return None,
@@ -5080,9 +5233,22 @@ fn read_set_field(object: &cdda_json::Object) -> Option<Effect> {
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4231-4240`): exactly one of the search types may name what to look for, and `furniture` is one of them - the walk is
 /// the same one the terrain search makes.
-fn read_furniture_around(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+fn read_furniture_around(
+    object: &cdda_json::Object,
+    target: &cdda_json::Object,
+    listener: bool,
+) -> Option<Effect> {
     let furniture = object.get("furniture")?;
-    for asked in ["terrain", "field", "monster", "npc", "species", "trap", "zone", "target_params"] {
+    for asked in [
+        "terrain",
+        "field",
+        "monster",
+        "npc",
+        "species",
+        "trap",
+        "zone",
+        "target_params",
+    ] {
         if object.get(asked).is_some() {
             return None;
         }
@@ -5107,9 +5273,22 @@ fn read_furniture_around(object: &cdda_json::Object, target: &cdda_json::Object,
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4231-4240`): exactly **one** of `terrain`, `furniture`, `field`, `monster`, `npc`, `species`, `trap` and `zone`
 /// may name the search, and `target_max_radius` is how far it reaches. The port reads the terrain one; the rest are separate rules and refuse.
-fn read_terrain_around(object: &cdda_json::Object, target: &cdda_json::Object, listener: bool) -> Option<Effect> {
+fn read_terrain_around(
+    object: &cdda_json::Object,
+    target: &cdda_json::Object,
+    listener: bool,
+) -> Option<Effect> {
     let terrain = object.get("terrain")?;
-    for asked in ["furniture", "field", "monster", "npc", "species", "trap", "zone", "target_params"] {
+    for asked in [
+        "furniture",
+        "field",
+        "monster",
+        "npc",
+        "species",
+        "trap",
+        "zone",
+        "target_params",
+    ] {
         if object.get(asked).is_some() {
             return None;
         }
@@ -5188,7 +5367,9 @@ fn read_terrain_target(
     let target_min_radius = whole_radius("target_min_radius")?;
     let target_max_radius = whole_radius("target_max_radius")?;
     // One search target only, and the furniture case is the one the data uses beside an overmap tile: `f_chair` inside `horse_farm_isherwood_13`.
-    for asked in ["terrain", "field", "monster", "npc", "species", "trap", "zone"] {
+    for asked in [
+        "terrain", "field", "monster", "npc", "species", "trap", "zone",
+    ] {
         if object.get(asked).is_some() {
             return None;
         }
@@ -5223,7 +5404,9 @@ fn read_radius_search(
     target: &cdda_json::Object,
     listener: bool,
 ) -> Option<Effect> {
-    let radii = object.get("min_radius").or_else(|| object.get("max_radius"))?;
+    let radii = object
+        .get("min_radius")
+        .or_else(|| object.get("max_radius"))?;
     let _ = radii;
     // Nothing else may be asked: a terrain, a monster or a mission target is a different search with its own rules.
     for asked in [
@@ -5319,7 +5502,10 @@ fn read_is_on_terrain(object: &cdda_json::Object) -> Option<Condition> {
 ///
 /// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): one reader for both members, the member itself choosing terrain or furniture.
 fn read_map_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
-    for (member, furniture) in [("map_terrain_with_flag", false), ("map_furniture_with_flag", true)] {
+    for (member, furniture) in [
+        ("map_terrain_with_flag", false),
+        ("map_furniture_with_flag", true),
+    ] {
         let Some(flag) = object.get(member) else {
             continue;
         };
@@ -5336,10 +5522,13 @@ fn read_map_flag_condition(object: &cdda_json::Object) -> Option<Condition> {
 }
 
 fn named_variable(target: &cdda_json::Object) -> Option<(String, String)> {
-    target.members().iter().find_map(|(scope, value)| match value {
-        Value::Str(name) => Some((scope.clone(), name.clone())),
-        _ => None,
-    })
+    target
+        .members()
+        .iter()
+        .find_map(|(scope, value)| match value {
+            Value::Str(name) => Some((scope.clone(), name.clone())),
+            _ => None,
+        })
 }
 
 fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
@@ -5358,7 +5547,10 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         "trap",
         "zone",
     ];
-    for (member, listener) in [("u_location_variable", false), ("npc_location_variable", true)] {
+    for (member, listener) in [
+        ("u_location_variable", false),
+        ("npc_location_variable", true),
+    ] {
         let Some(Value::Object(target)) = object.get(member) else {
             continue;
         };
@@ -5383,10 +5575,13 @@ fn read_location_variable(object: &cdda_json::Object) -> Option<Effect> {
         if SEARCHING.iter().any(|key| object.get(key).is_some()) {
             return None;
         }
-        let (scope, name) = target.members().iter().find_map(|(scope, value)| match value {
-            Value::Str(name) => Some((scope.clone(), name.clone())),
-            _ => None,
-        })?;
+        let (scope, name) = target
+            .members()
+            .iter()
+            .find_map(|(scope, value)| match value {
+                Value::Str(name) => Some((scope.clone(), name.clone())),
+                _ => None,
+            })?;
         return Some(Effect::LocationVariable {
             scope,
             name,
@@ -5523,7 +5718,10 @@ fn single_named_variable(object: &cdda_json::Object) -> Option<(String, String)>
     let Value::Str(name) = value else {
         return None;
     };
-    if !matches!(scope.as_str(), "u_val" | "npc_val" | "n_val" | "global_val" | "context_val") {
+    if !matches!(
+        scope.as_str(),
+        "u_val" | "npc_val" | "n_val" | "global_val" | "context_val"
+    ) {
         return None;
     }
     Some((scope.clone(), name.clone()))
@@ -5564,10 +5762,7 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
             if object.get("effect").is_none()
                 && let Some(id) = named
             {
-                return Some(ProgramRef::Named {
-                    id,
-                    variables,
-                });
+                return Some(ProgramRef::Named { id, variables });
             }
             //
             // **This is where two attempts at the reference's inline rule have died**, and both cost 11 programs and 35 `switch` entries: reading an `id` beside an
@@ -5596,10 +5791,7 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
                 });
             }
             let Some(effects) = read_effect_list(object.get("effect")) else {
-                return named.map(|id| ProgramRef::Named {
-                    id,
-                    variables,
-                });
+                return named.map(|id| ProgramRef::Named { id, variables });
             };
             let condition = match object.get("condition") {
                 None => None,
@@ -5628,70 +5820,72 @@ fn read_program_ref(value: &Value) -> Option<ProgramRef> {
 /// an absent one is 1000 turns. A `target_part` other than `bp_null` names a body part the port does not model, so an entry that
 /// states one is refused rather than applied to the whole creature.
 fn read_effect_change(object: &cdda_json::Object) -> Option<Effect> {
-// Reference: `f_add_effect` (`npctalk.cpp:3426-3450`). A duration of `PERMANENT` keeps the effect until something removes it,
-// and an absent one is 1000 turns. A `target_part` other than `bp_null` names a body part the port does not model, so an entry
-// that states one is refused rather than applied to the whole creature.
-for (member, listener, learn) in [
-    ("u_add_effect", false, true),
-    ("npc_add_effect", true, true),
-    // Reference: `npctalk.cpp:8015` names these `u_lose_effect` / `npc_lose_effect`. The port read `u_remove_effect`, which the data never writes -
-    // so every one of the 29 `u_lose_effect` entries refused and the refusal was blamed on the effect rather than on the reader.
-    ("u_lose_effect", false, false),
-    ("npc_lose_effect", true, false),
-    ("u_remove_effect", false, false),
-    ("npc_remove_effect", true, false),
-] {
-    if let Some(Value::Array(effects)) = object.get(member)
-        && !learn
-        && effects.iter().all(|effect| matches!(effect, Value::Str(_)))
-    {
-        // Reference: `f_remove_effect` takes the member as a variable string or an array of them, and removes each.
-        let names: Vec<String> = effects
-            .iter()
-            .filter_map(|effect| match effect {
-                Value::Str(text) => Some(text.clone()),
-                _ => None,
-            })
-            .collect();
-        return Some(Effect::RemoveEffects {
-            effects: names,
-            listener,
-        });
-    }
-    // The data names the effect with a **variable** as often as a literal - `{"context_val": "effect"}` - so the name is read the same way every other string in
-    // a dialogue is, and a variable is resolved where the effect is applied.
-    if let Some(given) = object.get(member) {
-        // A `target_part` names the body part an effect lands on. The port has no limb model - a creature is one thing, not a set of parts - so the part
-        // is **ignored rather than refused**: the effect lands on the creature, which is where the reference puts it once a part is chosen.
-        let _ = object.get("target_part");
-        let _ = object.get("bodypart");
-        if learn {
-            // Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) accepts a duration **string**, a number of turns, or an
-            // array of two of either, which the reference rolls between. The port reads all three; a roll is made at run time.
-            // One reader for a duration, shared with every other effect that takes one: a number, a range, a `math` expression, or a variable. The
-            // inline copy that used to live here refused the last two, so `u_add_effect` with a rolled or variable length refused while a morale point
-            // with the same shape read - the same rule written twice, and only one of them kept up.
-            let duration =
-                read_effect_duration(object.get("duration"), EffectDuration::Turns(Some(1000)))?;
-
-            // Reference: `get_dbl_or_var( jo, "intensity" )` - an intensity may be an expression, evaluated when the effect is applied.
-            let intensity = match object.get("intensity") {
-                Some(value) => Some(read_math_expression(value)?),
-                None => None,
-            };
-            return Some(Effect::AddEffect {
-                effect: read_string_source(given)?,
-                duration,
-                intensity,
+    // Reference: `f_add_effect` (`npctalk.cpp:3426-3450`). A duration of `PERMANENT` keeps the effect until something removes it,
+    // and an absent one is 1000 turns. A `target_part` other than `bp_null` names a body part the port does not model, so an entry
+    // that states one is refused rather than applied to the whole creature.
+    for (member, listener, learn) in [
+        ("u_add_effect", false, true),
+        ("npc_add_effect", true, true),
+        // Reference: `npctalk.cpp:8015` names these `u_lose_effect` / `npc_lose_effect`. The port read `u_remove_effect`, which the data never writes -
+        // so every one of the 29 `u_lose_effect` entries refused and the refusal was blamed on the effect rather than on the reader.
+        ("u_lose_effect", false, false),
+        ("npc_lose_effect", true, false),
+        ("u_remove_effect", false, false),
+        ("npc_remove_effect", true, false),
+    ] {
+        if let Some(Value::Array(effects)) = object.get(member)
+            && !learn
+            && effects.iter().all(|effect| matches!(effect, Value::Str(_)))
+        {
+            // Reference: `f_remove_effect` takes the member as a variable string or an array of them, and removes each.
+            let names: Vec<String> = effects
+                .iter()
+                .filter_map(|effect| match effect {
+                    Value::Str(text) => Some(text.clone()),
+                    _ => None,
+                })
+                .collect();
+            return Some(Effect::RemoveEffects {
+                effects: names,
                 listener,
             });
         }
-        return Some(Effect::RemoveEffect {
-            effect: read_string_source(given)?,
-            listener,
-        });
+        // The data names the effect with a **variable** as often as a literal - `{"context_val": "effect"}` - so the name is read the same way every other string in
+        // a dialogue is, and a variable is resolved where the effect is applied.
+        if let Some(given) = object.get(member) {
+            // A `target_part` names the body part an effect lands on. The port has no limb model - a creature is one thing, not a set of parts - so the part
+            // is **ignored rather than refused**: the effect lands on the creature, which is where the reference puts it once a part is chosen.
+            let _ = object.get("target_part");
+            let _ = object.get("bodypart");
+            if learn {
+                // Reference: `get_duration_or_var` (`npctalk.cpp:3426-3450`) accepts a duration **string**, a number of turns, or an
+                // array of two of either, which the reference rolls between. The port reads all three; a roll is made at run time.
+                // One reader for a duration, shared with every other effect that takes one: a number, a range, a `math` expression, or a variable. The
+                // inline copy that used to live here refused the last two, so `u_add_effect` with a rolled or variable length refused while a morale point
+                // with the same shape read - the same rule written twice, and only one of them kept up.
+                let duration = read_effect_duration(
+                    object.get("duration"),
+                    EffectDuration::Turns(Some(1000)),
+                )?;
+
+                // Reference: `get_dbl_or_var( jo, "intensity" )` - an intensity may be an expression, evaluated when the effect is applied.
+                let intensity = match object.get("intensity") {
+                    Some(value) => Some(read_math_expression(value)?),
+                    None => None,
+                };
+                return Some(Effect::AddEffect {
+                    effect: read_string_source(given)?,
+                    duration,
+                    intensity,
+                    listener,
+                });
+            }
+            return Some(Effect::RemoveEffect {
+                effect: read_string_source(given)?,
+                listener,
+            });
+        }
     }
-}
     None
 }
 
@@ -5710,4 +5904,3 @@ pub fn read_message(value: &Value) -> Option<String> {
         _ => None,
     }
 }
-

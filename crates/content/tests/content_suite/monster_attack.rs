@@ -12,8 +12,7 @@ use cdda_json::{Value, parse};
 use std::path::Path;
 
 fn loaded() -> Vec<MonsterType> {
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
     let text = std::fs::read(path).expect("the monster dump exists");
     let value = parse(&text).expect("the dump is valid JSON");
     let Value::Object(root) = value else {
@@ -57,5 +56,8 @@ fn a_type_that_never_states_armour_has_none() {
         .expect("the corpus has the null monster");
     assert_eq!(nonesuch.melee_dice, 0, "no dice");
     assert_eq!(nonesuch.armor_bash, 0, "no armour");
-    assert_eq!(nonesuch.hp, 1, "and one hit point, as the reference's default");
+    assert_eq!(
+        nonesuch.hp, 1,
+        "and one hit point, as the reference's default"
+    );
 }

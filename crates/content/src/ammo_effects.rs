@@ -30,7 +30,11 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<BTreeSet<String>, LoadErr
     Ok(out)
 }
 
-fn collect(value: &Value, out: &mut BTreeSet<String>, path: &std::path::Path) -> Result<(), LoadError> {
+fn collect(
+    value: &Value,
+    out: &mut BTreeSet<String>,
+    path: &std::path::Path,
+) -> Result<(), LoadError> {
     match value {
         Value::Array(items) => {
             for item in items {
@@ -50,7 +54,6 @@ fn collect(value: &Value, out: &mut BTreeSet<String>, path: &std::path::Path) ->
                     message: format!("ammo effect {id} is defined twice: {}", path.display()),
                 });
             }
-
         }
         _ => {}
     }

@@ -19,7 +19,12 @@ use cdda_content::spells::Spell;
 /// **The caster is its square, not its entity.** Everything the reference asks a caster here is `p != caster.pos()` and `p == caster.pos()`; a square is therefore the whole
 /// question, and taking it that way keeps this rule callable from a cast that was handed a square - which `spellcasting::cast_attack` is.
 #[must_use]
-pub fn allows(world: &World, caster_square: (i32, i32, i32), spell: &Spell, square: (i32, i32, i32)) -> bool {
+pub fn allows(
+    world: &World,
+    caster_square: (i32, i32, i32),
+    spell: &Spell,
+    square: (i32, i32, i32),
+) -> bool {
     let creature = crate::creature::creature_at(world, square).first().copied();
     let Some(creature) = creature else {
         // Reference: a square with no creature and no vehicle is `ground`, and a vehicle square is either `vehicle` or `ground` - the port has no vehicles, so both answers are the
@@ -37,7 +42,8 @@ pub fn allows(world: &World, caster_square: (i32, i32, i32), spell: &Spell, squa
     if spell.valid_targets.contains("self") && square == caster_square {
         valid = true;
     }
-    valid && by_monster_id(world, spell, creature)
+    valid
+        && by_monster_id(world, spell, creature)
         && by_species(world, spell, creature)
         && not_ignored_species(world, spell, creature)
 }

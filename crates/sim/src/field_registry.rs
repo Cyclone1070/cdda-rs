@@ -55,9 +55,11 @@ pub fn set_field_names(world: &mut World, kinds: &[(&str, u32, i32)]) {
         }
     }
     let entity = singletons::singleton::<FieldNames, TheFieldNames>(world);
-    world
-        .entity_mut(entity)
-        .insert(FieldNames { names, by_name, max_intensity });
+    world.entity_mut(entity).insert(FieldNames {
+        names,
+        by_name,
+        max_intensity,
+    });
 }
 
 /// The number a field name refers to, or nothing when the store has never heard of it.

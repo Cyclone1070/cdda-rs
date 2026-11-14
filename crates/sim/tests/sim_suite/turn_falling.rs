@@ -14,7 +14,8 @@ use cdda_core_types::fire::{Ground, Neighbour};
 use cdda_core_types::rng::Rolls;
 use cdda_sim::falling::FieldRules;
 use cdda_sim::{
-    queue_support_loss, run_environment_turn, set_field_rules, support_lost, Field, FireMap, GroundItem, ItemTypeId, Position,
+    Field, FireMap, GroundItem, ItemTypeId, Position, queue_support_loss, run_environment_turn,
+    set_field_rules, support_lost,
 };
 
 /// A map with one hole in it: the squares in `holes` have no floor, everything else does.
@@ -70,15 +71,7 @@ fn square_of(world: &World, entity: Entity) -> (i32, i32, i32) {
 /// A turn with nothing on fire and nothing spreading, which is what these fixtures need.
 fn quiet_turn(world: &mut World, map: &impl FireMap) {
     let mut rolls = Rolls::new(1);
-    run_environment_turn(
-        world,
-        map,
-        0,
-        (0, 0),
-        0,
-        |_, _| false,
-        &mut rolls,
-    );
+    run_environment_turn(world, map, 0, (0, 0), 0, |_, _| false, &mut rolls);
 }
 
 #[test]
@@ -88,13 +81,20 @@ fn an_item_above_a_hole_falls_in_the_turn_and_the_queue_is_emptied() {
     cdda_sim::fire_facts::set_fire_facts(
         &mut world,
         (0, 0, 0),
-        cdda_sim::TerrainFacts { no_floor: true, ..cdda_sim::TerrainFacts::default() },
+        cdda_sim::TerrainFacts {
+            no_floor: true,
+            ..cdda_sim::TerrainFacts::default()
+        },
     );
     let item = item_at(&mut world, 0, 0, 0);
     queue_support_loss(&mut world, (0, 0, 0));
     quiet_turn(&mut world, &map);
     // The floor under the hole is the level below, one step down: the map says -1 has a floor.
-    assert_eq!(square_of(&world, item), (0, 0, -1), "the item fell one level");
+    assert_eq!(
+        square_of(&world, item),
+        (0, 0, -1),
+        "the item fell one level"
+    );
     assert!(
         support_lost(&mut world).squares.is_empty(),
         "and the queue was emptied, so a square is asked once"
@@ -125,18 +125,17 @@ fn a_cosmetic_field_above_a_hole_falls_with_the_item() {
     cdda_sim::fire_facts::set_fire_facts(
         &mut world,
         (30, 30, 0),
-        cdda_sim::TerrainFacts { no_floor: true, ..cdda_sim::TerrainFacts::default() },
+        cdda_sim::TerrainFacts {
+            no_floor: true,
+            ..cdda_sim::TerrainFacts::default()
+        },
     );
     let mut entry = FieldEntry::new(3, 100, true, false);
     entry.set_intensity(1);
     let smoke = FieldId(7);
     let field = world
         .spawn((
-            Position {
-                x: 30,
-                y: 30,
-                z: 0,
-            },
+            Position { x: 30, y: 30, z: 0 },
             Field {
                 id: smoke,
                 entry,
@@ -160,5 +159,9 @@ fn a_cosmetic_field_above_a_hole_falls_with_the_item() {
         (30, 30, -1),
         "one level down"
     );
-    assert_eq!(square_of(&world, item), (30, 30, -1), "and the item with it");
+    assert_eq!(
+        square_of(&world, item),
+        (30, 30, -1),
+        "and the item with it"
+    );
 }

@@ -119,7 +119,10 @@ fn the_unobstructed_chain_is_bright_then_lit_then_low_then_nothing() {
     // then `BLANK`.
     use cdda_core_types::light::LitLevel;
 
-    assert_eq!(lit_level_at(50.0, false, 12.0, 4.0, false), LitLevel::Bright);
+    assert_eq!(
+        lit_level_at(50.0, false, 12.0, 4.0, false),
+        LitLevel::Bright
+    );
     assert_eq!(
         lit_level_at(10.0, false, 12.0, 4.0, true),
         LitLevel::Bright,
@@ -177,7 +180,10 @@ fn view() -> View {
 }
 
 /// Light of the given strength on one square.
-fn lit_square(square: (i32, i32), value: f32) -> std::collections::BTreeMap<(i32, i32), cdda_core_types::shadowcasting::FourQuadrants> {
+fn lit_square(
+    square: (i32, i32),
+    value: f32,
+) -> std::collections::BTreeMap<(i32, i32), cdda_core_types::shadowcasting::FourQuadrants> {
     let mut light = std::collections::BTreeMap::new();
     light.insert(
         square,
@@ -234,7 +240,12 @@ fn blocked_room() -> cdda_core_types::level::Level {
     level
 }
 
-fn four_way(north_east: f32, south_east: f32, south_west: f32, north_west: f32) -> cdda_core_types::shadowcasting::FourQuadrants {
+fn four_way(
+    north_east: f32,
+    south_east: f32,
+    south_west: f32,
+    north_west: f32,
+) -> cdda_core_types::shadowcasting::FourQuadrants {
     use cdda_core_types::shadowcasting::{FourQuadrants, Quadrant};
     let mut quarters = FourQuadrants::uniform(0.0);
     quarters.set(Quadrant::NorthEast, north_east);
@@ -384,7 +395,9 @@ fn a_frame_of_forty_nine_squares_casts_the_sight_once() {
     let mut level = open_level();
     let before = level.sight_casts();
     let drawn = view();
-    let grid = level.seen_grid(drawn.origin, drawn.radius, |code| (drawn.transparency_of)(code));
+    let grid = level.seen_grid(drawn.origin, drawn.radius, |code| {
+        (drawn.transparency_of)(code)
+    });
     let mut light = std::collections::BTreeMap::new();
     for x in 0..7 {
         for y in 0..7 {

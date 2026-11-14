@@ -56,7 +56,10 @@ impl LineIterable {
         let length = self.delta_line.len().max(1);
         self.index = (self.index + 1) % length;
         if self.index == 0 {
-            self.cur_origin = (self.cur_origin.0 + self.delta.0, self.cur_origin.1 + self.delta.1);
+            self.cur_origin = (
+                self.cur_origin.0 + self.delta.0,
+                self.cur_origin.1 + self.delta.1,
+            );
         }
     }
 
@@ -64,7 +67,10 @@ impl LineIterable {
     fn prev(&mut self) {
         let length = self.delta_line.len().max(1);
         if self.index == 0 {
-            self.cur_origin = (self.cur_origin.0 - self.delta.0, self.cur_origin.1 - self.delta.1);
+            self.cur_origin = (
+                self.cur_origin.0 - self.delta.0,
+                self.cur_origin.1 - self.delta.1,
+            );
         }
         self.index = (self.index + length - 1) % length;
     }
@@ -89,8 +95,7 @@ fn side_of(a: (i32, i32), b: (i32, i32), c: (i32, i32)) -> i32 {
 /// Reference: `spell_detail::between_or_on` (`magic_spell_effect.cpp:138-142`): the point is inside when it is not clockwise of the near line and not counter-clockwise of
 /// the far one.
 fn between_or_on(a0: (i32, i32), a1: (i32, i32), d: (i32, i32), c: (i32, i32)) -> bool {
-    side_of(a0, (a0.0 + d.0, a0.1 + d.1), c) != 1
-        && side_of(a1, (a1.0 + d.0, a1.1 + d.1), c) != -1
+    side_of(a0, (a0.0 + d.0, a0.1 + d.1), c) != 1 && side_of(a1, (a1.0 + d.0, a1.1 + d.1), c) != -1
 }
 
 /// Walks one pass of the path, recording squares until the band's edge or an obstruction stops it.
@@ -156,29 +161,65 @@ pub fn line(
     let base_line = LineIterable::new(origin, delta, path_with_origin);
 
     let mut result: BTreeSet<(i32, i32)> = BTreeSet::new();
-    build_line(base_line.clone(), (source.0, source.1, at_level), delta, delta_perp, passable, &mut result);
+    build_line(
+        base_line.clone(),
+        (source.0, source.1, at_level),
+        delta,
+        delta_perp,
+        passable,
+        &mut result,
+    );
 
     if delta_side == 0 {
         // Axis aligned: straight legs each way.
-        for p in crate::line::between(origin, (unit_cw_perp_axis.0 * cw_len, unit_cw_perp_axis.1 * cw_len)) {
+        for p in crate::line::between(
+            origin,
+            (unit_cw_perp_axis.0 * cw_len, unit_cw_perp_axis.1 * cw_len),
+        ) {
             let mut line = base_line.clone();
             line.reset(p);
             if !passable((source.0 + p.0, source.1 + p.1, at_level)) {
                 break;
             }
-            build_line(line, (source.0, source.1, at_level), delta, delta_perp, passable, &mut result);
+            build_line(
+                line,
+                (source.0, source.1, at_level),
+                delta,
+                delta_perp,
+                passable,
+                &mut result,
+            );
         }
-        for p in crate::line::between(origin, (unit_cw_perp_axis.0 * -ccw_len, unit_cw_perp_axis.1 * -ccw_len)) {
+        for p in crate::line::between(
+            origin,
+            (
+                unit_cw_perp_axis.0 * -ccw_len,
+                unit_cw_perp_axis.1 * -ccw_len,
+            ),
+        ) {
             let mut line = base_line.clone();
             line.reset(p);
             if !passable((source.0 + p.0, source.1 + p.1, at_level)) {
                 break;
             }
-            build_line(line, (source.0, source.1, at_level), delta, delta_perp, passable, &mut result);
+            build_line(
+                line,
+                (source.0, source.1, at_level),
+                delta,
+                delta_perp,
+                passable,
+                &mut result,
+            );
         }
     } else if delta_side == 1 {
         // The delta leans clockwise of the primary axis: the counter-clockwise leg starts behind the perpendicular and is walked forward.
-        for p in crate::line::between(origin, (unit_cw_perp_axis.0 * -ccw_len, unit_cw_perp_axis.1 * -ccw_len)) {
+        for p in crate::line::between(
+            origin,
+            (
+                unit_cw_perp_axis.0 * -ccw_len,
+                unit_cw_perp_axis.1 * -ccw_len,
+            ),
+        ) {
             let mut line = base_line.clone();
             line.reset(p);
             while side_of(origin, delta_perp, line.get()) == 1 {
@@ -187,9 +228,19 @@ pub fn line(
             if !passable((source.0 + p.0, source.1 + p.1, at_level)) {
                 break;
             }
-            build_line(line, (source.0, source.1, at_level), delta, delta_perp, passable, &mut result);
+            build_line(
+                line,
+                (source.0, source.1, at_level),
+                delta,
+                delta_perp,
+                passable,
+                &mut result,
+            );
         }
-        for p in crate::line::between(origin, (unit_cw_perp_axis.0 * cw_len, unit_cw_perp_axis.1 * cw_len)) {
+        for p in crate::line::between(
+            origin,
+            (unit_cw_perp_axis.0 * cw_len, unit_cw_perp_axis.1 * cw_len),
+        ) {
             let mut line = base_line.clone();
             line.reset(p);
             while side_of(origin, delta_perp, line.get()) != 1 {
@@ -199,11 +250,24 @@ pub fn line(
             if !passable((source.0 + p.0, source.1 + p.1, at_level)) {
                 break;
             }
-            build_line(line, (source.0, source.1, at_level), delta, delta_perp, passable, &mut result);
+            build_line(
+                line,
+                (source.0, source.1, at_level),
+                delta,
+                delta_perp,
+                passable,
+                &mut result,
+            );
         }
     } else {
         // The delta leans counter-clockwise: the two legs swap which way they are walked.
-        for p in crate::line::between(origin, (unit_cw_perp_axis.0 * -ccw_len, unit_cw_perp_axis.1 * -ccw_len)) {
+        for p in crate::line::between(
+            origin,
+            (
+                unit_cw_perp_axis.0 * -ccw_len,
+                unit_cw_perp_axis.1 * -ccw_len,
+            ),
+        ) {
             let mut line = base_line.clone();
             line.reset(p);
             while side_of(origin, delta_perp, line.get()) != 1 {
@@ -213,9 +277,19 @@ pub fn line(
             if !passable((source.0 + p.0, source.1 + p.1, at_level)) {
                 break;
             }
-            build_line(line, (source.0, source.1, at_level), delta, delta_perp, passable, &mut result);
+            build_line(
+                line,
+                (source.0, source.1, at_level),
+                delta,
+                delta_perp,
+                passable,
+                &mut result,
+            );
         }
-        for p in crate::line::between(origin, (unit_cw_perp_axis.0 * cw_len, unit_cw_perp_axis.1 * cw_len)) {
+        for p in crate::line::between(
+            origin,
+            (unit_cw_perp_axis.0 * cw_len, unit_cw_perp_axis.1 * cw_len),
+        ) {
             let mut line = base_line.clone();
             line.reset(p);
             while side_of(origin, delta_perp, line.get()) == 1 {
@@ -224,7 +298,14 @@ pub fn line(
             if !passable((source.0 + p.0, source.1 + p.1, at_level)) {
                 break;
             }
-            build_line(line, (source.0, source.1, at_level), delta, delta_perp, passable, &mut result);
+            build_line(
+                line,
+                (source.0, source.1, at_level),
+                delta,
+                delta_perp,
+                passable,
+                &mut result,
+            );
         }
     }
 

@@ -15,8 +15,8 @@
 )]
 
 use cdda_content::items::ItemType;
-use cdda_sim::fun_for::{Eater, Food, comestible_fun, fun_for};
 use cdda_json::Value;
+use cdda_sim::fun_for::{Eater, Food, comestible_fun, fun_for};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// One row of the sweep, mirrored from the harness's `fun_configurations`.
@@ -32,28 +32,226 @@ struct Configuration {
 }
 
 const CONFIGURATIONS: [Configuration; 22] = [
-    Configuration { name: "plain", trait_id: None, effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "sick_cold", trait_id: None, effect_id: Some("common_cold"), item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "sick_flu", trait_id: None, effect_id: Some("flu"), item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "item_cold", trait_id: None, effect_id: None, item_flag: Some("COLD"), relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "item_frozen", trait_id: None, effect_id: None, item_flag: Some("FROZEN"), relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "rotten", trait_id: None, effect_id: None, item_flag: None, relative_rot: 1.5, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "rotten_saprophage", trait_id: Some("SAPROPHAGE"), effect_id: None, item_flag: None, relative_rot: 1.5, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "rotten_saprovore", trait_id: Some("SAPROVORE"), effect_id: None, item_flag: None, relative_rot: 1.5, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "gourmand", trait_id: Some("GOURMAND"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "thresh_feline", trait_id: Some("THRESH_FELINE"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "thresh_lupine", trait_id: Some("THRESH_LUPINE"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "thresh_cattle", trait_id: Some("THRESH_CATTLE"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "thresh_rabbit", trait_id: Some("THRESH_RABBIT"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "thresh_mouse", trait_id: Some("THRESH_MOUSE"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "thresh_rat", trait_id: Some("THRESH_RAT"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "thresh_bird", trait_id: Some("THRESH_BIRD"), effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "sick_gourmand", trait_id: Some("GOURMAND"), effect_id: Some("common_cold"), item_flag: None, relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "cold_item_cold_eater", trait_id: None, effect_id: Some("common_cold"), item_flag: Some("COLD"), relative_rot: 0.0, bionic_id: None, bionic_active: false, power_kj: 0 },
-    Configuration { name: "grossfood", trait_id: None, effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: Some("bio_faulty_grossfood"), bionic_active: false, power_kj: 0 },
-    Configuration { name: "taste_blocker_10kj", trait_id: None, effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: Some("bio_taste_blocker"), bionic_active: true, power_kj: 10 },
-    Configuration { name: "taste_blocker_20kj", trait_id: None, effect_id: None, item_flag: None, relative_rot: 0.0, bionic_id: Some("bio_taste_blocker"), bionic_active: true, power_kj: 20 },
-    Configuration { name: "taste_blocker_rotten_20kj", trait_id: None, effect_id: None, item_flag: None, relative_rot: 1.5, bionic_id: Some("bio_taste_blocker"), bionic_active: true, power_kj: 20 },
+    Configuration {
+        name: "plain",
+        trait_id: None,
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "sick_cold",
+        trait_id: None,
+        effect_id: Some("common_cold"),
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "sick_flu",
+        trait_id: None,
+        effect_id: Some("flu"),
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "item_cold",
+        trait_id: None,
+        effect_id: None,
+        item_flag: Some("COLD"),
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "item_frozen",
+        trait_id: None,
+        effect_id: None,
+        item_flag: Some("FROZEN"),
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "rotten",
+        trait_id: None,
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 1.5,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "rotten_saprophage",
+        trait_id: Some("SAPROPHAGE"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 1.5,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "rotten_saprovore",
+        trait_id: Some("SAPROVORE"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 1.5,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "gourmand",
+        trait_id: Some("GOURMAND"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "thresh_feline",
+        trait_id: Some("THRESH_FELINE"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "thresh_lupine",
+        trait_id: Some("THRESH_LUPINE"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "thresh_cattle",
+        trait_id: Some("THRESH_CATTLE"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "thresh_rabbit",
+        trait_id: Some("THRESH_RABBIT"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "thresh_mouse",
+        trait_id: Some("THRESH_MOUSE"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "thresh_rat",
+        trait_id: Some("THRESH_RAT"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "thresh_bird",
+        trait_id: Some("THRESH_BIRD"),
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "sick_gourmand",
+        trait_id: Some("GOURMAND"),
+        effect_id: Some("common_cold"),
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "cold_item_cold_eater",
+        trait_id: None,
+        effect_id: Some("common_cold"),
+        item_flag: Some("COLD"),
+        relative_rot: 0.0,
+        bionic_id: None,
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "grossfood",
+        trait_id: None,
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: Some("bio_faulty_grossfood"),
+        bionic_active: false,
+        power_kj: 0,
+    },
+    Configuration {
+        name: "taste_blocker_10kj",
+        trait_id: None,
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: Some("bio_taste_blocker"),
+        bionic_active: true,
+        power_kj: 10,
+    },
+    Configuration {
+        name: "taste_blocker_20kj",
+        trait_id: None,
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 0.0,
+        bionic_id: Some("bio_taste_blocker"),
+        bionic_active: true,
+        power_kj: 20,
+    },
+    Configuration {
+        name: "taste_blocker_rotten_20kj",
+        trait_id: None,
+        effect_id: None,
+        item_flag: None,
+        relative_rot: 1.5,
+        bionic_id: Some("bio_taste_blocker"),
+        bionic_active: true,
+        power_kj: 20,
+    },
 ];
 
 /// One recorded food: its id, the fun its data states, the fun the *item* is worth, where its rot lands, whether it is food, and the pairs.
@@ -67,8 +265,10 @@ struct Recorded {
 }
 
 fn recorded() -> (Vec<String>, Vec<Recorded>) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/fun-for.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/fun-for.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -89,7 +289,9 @@ fn recorded() -> (Vec<String>, Vec<Recorded>) {
     let rows = foods
         .iter()
         .map(|food| {
-            let Value::Object(food) = food else { panic!("a food") };
+            let Value::Object(food) = food else {
+                panic!("a food")
+            };
             let id = match food.get("id") {
                 Some(Value::Str(id)) => id.clone(),
                 other => panic!("{other:?}"),
@@ -114,7 +316,9 @@ fn recorded() -> (Vec<String>, Vec<Recorded>) {
             let pairs = pairs
                 .iter()
                 .map(|pair| {
-                    let Value::Array(pair) = pair else { panic!("a pair") };
+                    let Value::Array(pair) = pair else {
+                        panic!("a pair")
+                    };
                     let [Value::Int(fun), Value::Int(fun_max)] = pair.as_slice() else {
                         panic!("two numbers")
                     };
@@ -143,7 +347,8 @@ fn every_comestible_is_worth_what_the_reference_says_to_every_eater() {
     assert_eq!(names.len(), 22, "twenty-two eater states");
     assert_eq!(rows.len(), 1686, "and every comestible");
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let items: BTreeMap<String, ItemType> = cdda_content::items::load_paths(&paths)
@@ -156,20 +361,34 @@ fn every_comestible_is_worth_what_the_reference_says_to_every_eater() {
     let mut per_configuration: BTreeMap<&str, usize> = BTreeMap::new();
     let mut moved_by_rot = 0;
     let mut moved_by_gourmand = 0;
-    let flag_data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let flag_data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let flag_dirs = [flag_data.clone()];
-    let flag_paths: Vec<&std::path::Path> = flag_dirs.iter().map(std::path::PathBuf::as_path).collect();
+    let flag_paths: Vec<&std::path::Path> =
+        flag_dirs.iter().map(std::path::PathBuf::as_path).collect();
     let taste_mods = cdda_content::flags::load_paths(&flag_paths).expect("the flags load");
     let taste_mod = |flag: &str| taste_mods.get(flag).map_or(0, |flag| flag.taste_mod);
 
     for row in &rows {
-        let Recorded { id, stated_fun, item_fun, rot_set, is_food, pairs } = row;
-        let item = items.get(id).unwrap_or_else(|| panic!("{id} is in the corpus"));
+        let Recorded {
+            id,
+            stated_fun,
+            item_fun,
+            rot_set,
+            is_food,
+            pairs,
+        } = row;
+        let item = items
+            .get(id)
+            .unwrap_or_else(|| panic!("{id} is in the corpus"));
         let slot = item
             .comestible
             .as_ref()
             .unwrap_or_else(|| panic!("{id} has a comestible slot"));
-        assert_eq!(slot.fun, *stated_fun, "{id}: the recording and the content agree on its stated fun");
+        assert_eq!(
+            slot.fun, *stated_fun,
+            "{id}: the recording and the content agree on its stated fun"
+        );
         // The item's own taste, which is the input `fun_for` actually takes: the stated fun plus every flag's `taste_mod`, floored at -5 once mushy.
         let ours_item_fun = comestible_fun(*stated_fun, &item.flags, taste_mod);
         if ours_item_fun != *item_fun {
@@ -189,14 +408,29 @@ fn every_comestible_is_worth_what_the_reference_says_to_every_eater() {
                 monotony_penalty: slot.monotony_penalty,
                 flags: &food_flags,
                 // A food that does not spoil has **no** rot, whatever `set_relative_rot` was asked for, so the recording says where it actually landed.
-                relative_rot: if configuration.relative_rot > 0.0 { *rot_set } else { 0.0 },
+                relative_rot: if configuration.relative_rot > 0.0 {
+                    *rot_set
+                } else {
+                    0.0
+                },
                 component_hash: 0,
                 is_food: *is_food,
             };
-            let traits: BTreeSet<String> = configuration.trait_id.map(|id| id.to_owned()).into_iter().collect();
-            let effects: BTreeSet<String> = configuration.effect_id.map(|id| id.to_owned()).into_iter().collect();
-            let bionics: BTreeSet<String> =
-                configuration.bionic_id.map(|id| id.to_owned()).into_iter().collect();
+            let traits: BTreeSet<String> = configuration
+                .trait_id
+                .map(|id| id.to_owned())
+                .into_iter()
+                .collect();
+            let effects: BTreeSet<String> = configuration
+                .effect_id
+                .map(|id| id.to_owned())
+                .into_iter()
+                .collect();
+            let bionics: BTreeSet<String> = configuration
+                .bionic_id
+                .map(|id| id.to_owned())
+                .into_iter()
+                .collect();
             let active: BTreeSet<String> = if configuration.bionic_active {
                 bionics.clone()
             } else {
@@ -214,10 +448,15 @@ fn every_comestible_is_worth_what_the_reference_says_to_every_eater() {
                 now: 0,
             };
             let ours = fun_for(&food, &eater);
-            let theirs = *pairs.get(index).unwrap_or_else(|| panic!("{id}: every configuration has a pair"));
+            let theirs = *pairs
+                .get(index)
+                .unwrap_or_else(|| panic!("{id}: every configuration has a pair"));
             if ours != theirs {
                 *per_configuration.entry(configuration.name).or_default() += 1;
-                differing.push(format!("{id}/{name}: the port says {ours:?}, the reference says {theirs:?}", name = configuration.name));
+                differing.push(format!(
+                    "{id}/{name}: the port says {ours:?}, the reference says {theirs:?}",
+                    name = configuration.name
+                ));
             }
             if index == 5 && Some(&theirs) != pairs.first() {
                 moved_by_rot += 1;
@@ -228,13 +467,22 @@ fn every_comestible_is_worth_what_the_reference_says_to_every_eater() {
         }
     }
     if std::env::var("FUN_FOR_DEBUG").is_ok() {
-        let plain: Vec<&String> = differing.iter().filter(|line| line.contains("/plain:")).collect();
+        let plain: Vec<&String> = differing
+            .iter()
+            .filter(|line| line.contains("/plain:"))
+            .collect();
         eprintln!("plain: {plain:#?}");
     }
     // **Non-vacuity**: a port that returned the stated fun untouched would still match on most rows, so the counts that matter are the ones where a branch moved the
     // answer. Rot moves 224 foods and the gourmand 1,256; if either fell to zero the comparison would be proving nothing about that branch.
-    assert!(moved_by_rot > 200, "rot changes the answer for {moved_by_rot} foods");
-    assert!(moved_by_gourmand > 1200, "and the gourmand for {moved_by_gourmand}");
+    assert!(
+        moved_by_rot > 200,
+        "rot changes the answer for {moved_by_rot} foods"
+    );
+    assert!(
+        moved_by_gourmand > 1200,
+        "and the gourmand for {moved_by_gourmand}"
+    );
     assert!(
         differing.is_empty(),
         "{} of {} pairs disagree, by configuration {per_configuration:?}; the first twelve are {:#?}",

@@ -112,8 +112,12 @@ fn the_fixture_overlaps_so_order_matters() {
         if food.len() > 1 {
             first_differs_from_last += 1;
         }
-        let bottom = manager.bottom_zone(where_, "your_followers").map(|zone| &zone.name);
-        let loot = manager.loot_zone_at(where_, "your_followers").map(|zone| &zone.name);
+        let bottom = manager
+            .bottom_zone(where_, "your_followers")
+            .map(|zone| &zone.name);
+        let loot = manager
+            .loot_zone_at(where_, "your_followers")
+            .map(|zone| &zone.name);
         if bottom != loot {
             loot_differs_from_bottom += 1;
         }
@@ -176,27 +180,61 @@ fn every_square_gets_the_manager_s_answer() {
         let loot = manager.loot_zone_at(where_, "your_followers");
         let other = manager.zones_at(where_, "LOOT_FOOD", "no_faction");
 
-        let name = |zone: Option<&ZoneData>| zone.map_or_else(String::new, |zone| zone.name.clone());
+        let name =
+            |zone: Option<&ZoneData>| zone.map_or_else(String::new, |zone| zone.name.clone());
         if ported_inside != inside {
-            wrong.push(format!("({},{}): inside {ported_inside:?} against {inside:?}", where_.0, where_.1));
+            wrong.push(format!(
+                "({},{}): inside {ported_inside:?} against {inside:?}",
+                where_.0, where_.1
+            ));
         }
         if food.len() != expected_count {
-            wrong.push(format!("({},{}): {} food zones against {expected_count}", where_.0, where_.1, food.len()));
+            wrong.push(format!(
+                "({},{}): {} food zones against {expected_count}",
+                where_.0,
+                where_.1,
+                food.len()
+            ));
         }
         if name(first) != expected_first {
-            wrong.push(format!("({},{}): first is {} against {expected_first}", where_.0, where_.1, name(first)));
+            wrong.push(format!(
+                "({},{}): first is {} against {expected_first}",
+                where_.0,
+                where_.1,
+                name(first)
+            ));
         }
         if name(bottom) != expected_bottom {
-            wrong.push(format!("({},{}): bottom is {} against {expected_bottom}", where_.0, where_.1, name(bottom)));
+            wrong.push(format!(
+                "({},{}): bottom is {} against {expected_bottom}",
+                where_.0,
+                where_.1,
+                name(bottom)
+            ));
         }
         if name(loot) != expected_loot {
-            wrong.push(format!("({},{}): loot is {} against {expected_loot}", where_.0, where_.1, name(loot)));
+            wrong.push(format!(
+                "({},{}): loot is {} against {expected_loot}",
+                where_.0,
+                where_.1,
+                name(loot)
+            ));
         }
         if other.len() != expected_other {
-            wrong.push(format!("({},{}): {} other-faction zones against {expected_other}", where_.0, where_.1, other.len()));
+            wrong.push(format!(
+                "({},{}): {} other-faction zones against {expected_other}",
+                where_.0,
+                where_.1,
+                other.len()
+            ));
         }
     }
-    assert!(wrong.is_empty(), "{} wrong of 1,440 answers:\n{}", wrong.len(), wrong.join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} wrong of 1,440 answers:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }
 
 /// The cached question, and the one thing it does differently.
@@ -220,15 +258,35 @@ fn the_cached_questions_skip_a_switched_off_zone() {
         let where_ = (number(probe, "x"), number(probe, "y"), 0);
         let cached = |key: &str| flag(probe, key);
         let ported = [
-            ("has_food", manager.has(where_, "LOOT_FOOD", "your_followers")),
-            ("has_water", manager.has(where_, "LOOT_DRINK", "your_followers")),
-            ("has_fishing", manager.has(where_, "FISHING_SPOT", "your_followers")),
-            ("near_food_2", manager.has_near(where_, 2, "LOOT_FOOD", "your_followers")),
-            ("near_water_1", manager.has_near(where_, 1, "LOOT_DRINK", "your_followers")),
+            (
+                "has_food",
+                manager.has(where_, "LOOT_FOOD", "your_followers"),
+            ),
+            (
+                "has_water",
+                manager.has(where_, "LOOT_DRINK", "your_followers"),
+            ),
+            (
+                "has_fishing",
+                manager.has(where_, "FISHING_SPOT", "your_followers"),
+            ),
+            (
+                "near_food_2",
+                manager.has_near(where_, 2, "LOOT_FOOD", "your_followers"),
+            ),
+            (
+                "near_water_1",
+                manager.has_near(where_, 1, "LOOT_DRINK", "your_followers"),
+            ),
         ];
         for (key, answer) in ported {
             if answer != cached(key) {
-                wrong.push(format!("({},{}): {key} is {answer} against {}", where_.0, where_.1, cached(key)));
+                wrong.push(format!(
+                    "({},{}): {key} is {answer} against {}",
+                    where_.0,
+                    where_.1,
+                    cached(key)
+                ));
             }
         }
         // Two counts, because they are different facts: how often the switched-off zone is **the** answer to "what am I standing in", and how often it is the answer while
@@ -248,5 +306,10 @@ fn the_cached_questions_skip_a_switched_off_zone() {
         switched_off_only >= 5,
         "and on five of those it is the only zone, so the cached question says no: {switched_off_only}"
     );
-    assert!(wrong.is_empty(), "{} wrong of 1,200 answers:\n{}", wrong.len(), wrong.join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} wrong of 1,200 answers:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }

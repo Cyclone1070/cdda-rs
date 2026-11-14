@@ -35,7 +35,8 @@ fn a_world(with_body: bool) -> (World, Entity) {
         }],
     );
     if with_body {
-        let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("the kind is installed");
+        let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie")
+            .expect("the kind is installed");
         cdda_sim::monster_registry::set_bodies(
             &mut world,
             &[(
@@ -106,7 +107,10 @@ fn a_spawned_monster_carries_the_body_its_kind_names() {
         1,
         "**the body is the kind's own**, part for part"
     );
-    assert_eq!(body.parts[0].name, "torso", "and it is the part the anatomy states");
+    assert_eq!(
+        body.parts[0].name, "torso",
+        "and it is the part the anatomy states"
+    );
 
     let (mut world, _caster) = a_world(false);
     let bodiless = cdda_sim::spawn_monster(&mut world, (3, 0), cdda_sim::MonsterKindId(1), 40);

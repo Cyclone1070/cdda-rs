@@ -85,7 +85,7 @@ fn dump() -> Vec<Fault> {
                 id: text("id"),
                 name: text("name"),
                 message: String::new(),
-            description: text("description"),
+                description: text("description"),
                 fault_type: text("type"),
                 item_prefix: text("item_prefix"),
                 item_suffix: text("item_suffix"),
@@ -106,8 +106,8 @@ fn dump() -> Vec<Fault> {
 }
 
 fn loaded() -> BTreeMap<String, Fault> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -137,7 +137,11 @@ fn every_fault_matches_the_reference_number_for_number() {
     }
     // The gate has to exercise the interesting half: 19 faults adjust melee damage and 9 raise the repair ceiling.
     assert!(
-        recorded.iter().filter(|fault| !fault.melee_damage_mod.is_empty()).count() > 15,
+        recorded
+            .iter()
+            .filter(|fault| !fault.melee_damage_mod.is_empty())
+            .count()
+            > 15,
         "the melee modifiers have to be exercised"
     );
     assert!(
@@ -209,8 +213,8 @@ fn recorded_fix(entry: &Value) -> cdda_content::faults::FaultFix {
 #[test]
 fn every_fault_fix_matches_the_reference() {
     // 40 fixes, each with a time, a set of skills, the faults it moves and the damage and degradation it changes. Small enough to compare completely.
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/fault-fixes.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/fault-fixes.json");
     let bytes =
         std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let Value::Object(root) = cdda_json::parse(&bytes).expect("valid json") else {
@@ -219,8 +223,8 @@ fn every_fault_fix_matches_the_reference() {
     let Some(Value::Array(fixes)) = root.get("fixes") else {
         panic!("the dump holds fixes")
     };
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded: BTreeMap<String, cdda_content::faults::FaultFix> =
@@ -248,10 +252,15 @@ fn every_fault_fix_matches_the_reference() {
             adding += 1;
         }
         if fix != &expected {
-            differing.push(format!("{id}: the port says {fix:?}, the reference says {expected:?}"));
+            differing.push(format!(
+                "{id}: the port says {fix:?}, the reference says {expected:?}"
+            ));
         }
     }
-    assert!(with_skills > 10, "the skill requirement has to be exercised: {with_skills}");
+    assert!(
+        with_skills > 10,
+        "the skill requirement has to be exercised: {with_skills}"
+    );
     assert!(adding > 0, "and so does the fix that adds a fault");
     assert!(
         differing.is_empty(),

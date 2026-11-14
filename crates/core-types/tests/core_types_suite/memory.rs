@@ -104,7 +104,8 @@ fn an_empty_memory_is_empty() {
 #[test]
 #[allow(clippy::too_many_lines)]
 fn a_remembered_tile_carries_its_terrain_its_decoration_and_its_symbol() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/memory/tiles.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/memory/tiles.json");
     let text = std::fs::read_to_string(path).expect("the memory dump exists");
     let value = cdda_json::parse(text.as_bytes()).expect("the memory dump is valid JSON");
     let cdda_json::Value::Object(root) = value else {
@@ -153,12 +154,16 @@ fn a_remembered_tile_carries_its_terrain_its_decoration_and_its_symbol() {
     // **Every branch of the clear, pinned before the comparison.** A gate that compared an empty store with an empty recording would pass and prove nothing.
     assert_eq!(memory.len(), 5, "five squares were written");
     assert_eq!(
-        memory.at((1, 0)).map(|tile| (tile.decoration.clone(), tile.symbol)),
+        memory
+            .at((1, 0))
+            .map(|tile| (tile.decoration.clone(), tile.symbol)),
         Some((String::new(), 0)),
         "a decoration cleared by its own prefix takes its symbol with it"
     );
     assert_eq!(
-        memory.at((2, 0)).map(|tile| (tile.decoration.clone(), tile.symbol)),
+        memory
+            .at((2, 0))
+            .map(|tile| (tile.decoration.clone(), tile.symbol)),
         Some(("graffiti_hello".to_owned(), u32::from(b'Y'))),
         "a decoration a prefix does not match keeps everything"
     );
@@ -168,7 +173,9 @@ fn a_remembered_tile_carries_its_terrain_its_decoration_and_its_symbol() {
         "the empty prefix matches every decoration"
     );
     assert_eq!(
-        memory.at((4, 0)).map(|tile| (tile.terrain_id.clone(), tile.decoration.clone())),
+        memory
+            .at((4, 0))
+            .map(|tile| (tile.terrain_id.clone(), tile.decoration.clone())),
         Some(("t_grass".to_owned(), "f_chair".to_owned())),
         "a second terrain write keeps the decoration"
     );
@@ -183,7 +190,9 @@ fn a_remembered_tile_carries_its_terrain_its_decoration_and_its_symbol() {
                 && text_of(square, "dec").is_empty()
                 && whole(square, "symbol") == 0;
             if !unwritten {
-                wrong.push(format!("({dx}, {dy}) is not remembered, and the reference has a tile there"));
+                wrong.push(format!(
+                    "({dx}, {dy}) is not remembered, and the reference has a tile there"
+                ));
             }
             continue;
         };
@@ -210,6 +219,14 @@ fn a_remembered_tile_carries_its_terrain_its_decoration_and_its_symbol() {
         }
         compared += 1;
     }
-    assert_eq!(compared, 5, "five remembered squares are compared with the reference");
-    assert!(wrong.is_empty(), "{} wrong:\n{}", wrong.len(), wrong.join("\n"));
+    assert_eq!(
+        compared, 5,
+        "five remembered squares are compared with the reference"
+    );
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }

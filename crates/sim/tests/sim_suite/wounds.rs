@@ -22,7 +22,9 @@ use std::path::Path;
 const FLOOR: u32 = 1;
 
 fn read(name: &str) -> Value {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus").join(name);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus")
+        .join(name);
     let text = std::fs::read(path).unwrap_or_else(|_| panic!("{name} exists"));
     parse(&text).unwrap_or_else(|_| panic!("{name} is valid JSON"))
 }
@@ -89,12 +91,14 @@ fn attacker(world: &mut World) -> Entity {
     let entity = spawn_creature(world, "a zombie", (0, 0, 0));
     set_health(world, entity, 20);
     set_speed(world, entity, 100, 0);
-    world.entity_mut(entity).insert(MeleeAttack(cdda_sim::melee::Attack {
-        accuracy_tenths: 400,
-        fixed: cdda_sim::melee::Damage::default(),
-        dice: 1,
-        sides: 1,
-    }));
+    world
+        .entity_mut(entity)
+        .insert(MeleeAttack(cdda_sim::melee::Attack {
+            accuracy_tenths: 400,
+            fixed: cdda_sim::melee::Damage::default(),
+            dice: 1,
+            sides: 1,
+        }));
     entity
 }
 
@@ -106,7 +110,9 @@ fn a_blow_lands_on_a_part_of_the_body_and_the_store_remembers_which() {
     set_health(&mut world, survivor, 100);
     let body = human_body();
     assert_eq!(body.len(), 12, "a person has twelve parts");
-    world.entity_mut(survivor).insert(Body { parts: body.clone() });
+    world.entity_mut(survivor).insert(Body {
+        parts: body.clone(),
+    });
     set_goal(&mut world, zombie_entity, (1, 0, 0));
     singletons::put_rolls(&mut world, Rolls::new(4));
 
@@ -114,7 +120,9 @@ fn a_blow_lands_on_a_part_of_the_body_and_the_store_remembers_which() {
 
     let taken = 100 - health_of(&world, survivor).expect("still alive");
     assert_eq!(taken, 1, "one die of one face does exactly one");
-    let wounds = world.get::<cdda_sim::creature::Wounds>(survivor).expect("a wound");
+    let wounds = world
+        .get::<cdda_sim::creature::Wounds>(survivor)
+        .expect("a wound");
     assert_eq!(wounds.0.len(), 1, "one blow, one part");
     let (part, amount) = wounds.0.iter().next().expect("a part");
     assert_eq!(*amount, taken, "the wound is the damage");
@@ -135,7 +143,11 @@ fn a_creature_with_no_body_takes_the_damage_and_records_no_part() {
 
     cdda_sim::turn::run_turn(&mut world);
 
-    assert_eq!(health_of(&world, victim), Some(99), "the damage still lands");
+    assert_eq!(
+        health_of(&world, victim),
+        Some(99),
+        "the damage still lands"
+    );
     assert!(
         world.get::<cdda_sim::creature::Wounds>(victim).is_none(),
         "but a creature with no body has no part to record it against"
@@ -166,14 +178,11 @@ fn armour_protects_the_part_it_covers_and_no_other() {
             }));
         let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
         set_health(&mut world, survivor, 100);
-        world
-            .entity_mut(survivor)
-            .insert(Body { parts: human_body() });
+        world.entity_mut(survivor).insert(Body {
+            parts: human_body(),
+        });
         if let Some(garment) = garment {
-            world.spawn((
-                cdda_sim::creature::WornBy(survivor),
-                garment,
-            ));
+            world.spawn((cdda_sim::creature::WornBy(survivor), garment));
         }
         set_goal(&mut world, zombie_entity, (1, 0, 0));
         singletons::put_rolls(&mut world, Rolls::new(11));
@@ -224,14 +233,21 @@ fn armour_protects_the_part_it_covers_and_no_other() {
             }));
         let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
         set_health(&mut world, survivor, 100);
-        world
-            .entity_mut(survivor)
-            .insert(Body { parts: human_body() });
+        world.entity_mut(survivor).insert(Body {
+            parts: human_body(),
+        });
         set_goal(&mut world, zombie_entity, (1, 0, 0));
         singletons::put_rolls(&mut world, Rolls::new(11));
         cdda_sim::turn::run_turn(&mut world);
-        let wounds = world.get::<cdda_sim::creature::Wounds>(survivor).expect("a wound");
-        wounds.0.iter().next().map(|(part, _)| part.clone()).expect("one part")
+        let wounds = world
+            .get::<cdda_sim::creature::Wounds>(survivor)
+            .expect("a wound");
+        wounds
+            .0
+            .iter()
+            .next()
+            .map(|(part, _)| part.clone())
+            .expect("one part")
     };
 
     let bare = blow_with(None);
@@ -289,7 +305,11 @@ fn a_worn_out_garment_protects_less_of_the_part_it_covers() {
     world.entity_mut(jacket).insert(WornBy(survivor));
 
     cdda_sim::creature::dress(&mut world);
-    assert_eq!(armour_on(&world, survivor, "torso", None), 4, "a whole jacket protects by four");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        4,
+        "a whole jacket protects by four"
+    );
 
     // **Four thousand points of damage is the fifth level, and the same jacket protects by two** - which `dress` has to be asked for again, because the armour is derived and not a rule of
     // the blow.
@@ -300,5 +320,9 @@ fn a_worn_out_garment_protects_less_of_the_part_it_covers() {
         2,
         "**a level-five jacket keeps half its protection, through the same derived figure**"
     );
-    assert_eq!(armour_on(&world, survivor, "head", None), 0, "and a part it does not cover is still bare");
+    assert_eq!(
+        armour_on(&world, survivor, "head", None),
+        0,
+        "and a part it does not cover is still bare"
+    );
 }

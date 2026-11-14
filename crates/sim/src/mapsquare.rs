@@ -19,7 +19,12 @@ pub struct TheMapData;
 
 /// Installs the map data every square rule reads.
 pub fn set_data(world: &mut World, entries: impl IntoIterator<Item = MapData>) {
-    let table = MapDataTable(entries.into_iter().map(|data| (data.id.clone(), data)).collect());
+    let table = MapDataTable(
+        entries
+            .into_iter()
+            .map(|data| (data.id.clone(), data))
+            .collect(),
+    );
     let entity = crate::singletons::singleton::<MapDataTable, TheMapData>(world);
     world.entity_mut(entity).insert(table);
 }

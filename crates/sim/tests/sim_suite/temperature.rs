@@ -14,8 +14,8 @@
 
 use std::path::Path;
 
-use cdda_json::{parse, Value};
-use cdda_sim::temperature::{convection, heat_radiation, temperature, Heat};
+use cdda_json::{Value, parse};
+use cdda_sim::temperature::{Heat, convection, heat_radiation, temperature};
 
 fn record() -> Value {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/temperature/squares.json");
@@ -25,7 +25,9 @@ fn record() -> Value {
 
 fn member<'a>(value: &'a Value, key: &str) -> &'a Value {
     match value {
-        Value::Object(object) => object.get(key).unwrap_or_else(|| panic!("{key} is a member")),
+        Value::Object(object) => object
+            .get(key)
+            .unwrap_or_else(|| panic!("{key} is a member")),
         other => panic!("an object: {other:?}"),
     }
 }
@@ -137,12 +139,25 @@ fn a_square_is_warmer_by_the_square_of_every_heat_source_it_can_see() {
             wrong.push(format!("dx {dx}: {mine:.9} against {theirs:.9}"));
         }
     }
-    assert!(wrong.is_empty(), "{} wrong:\n{}", wrong.len(), wrong.join("\n"));
-    // Non-vacuity: the corridor has two sources at different strengths, so the numbers are not all the same and one of them is a sum.
-    let heats: Vec<f64> = squares.iter().map(|square| real(member(square, "heat"))).collect();
-    assert!(heats.iter().any(|heat| *heat > 0.0), "some square is warmed");
     assert!(
-        heats.windows(2).any(|pair| (pair[0] - pair[1]).abs() > 1e-9),
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+    // Non-vacuity: the corridor has two sources at different strengths, so the numbers are not all the same and one of them is a sum.
+    let heats: Vec<f64> = squares
+        .iter()
+        .map(|square| real(member(square, "heat")))
+        .collect();
+    assert!(
+        heats.iter().any(|heat| *heat > 0.0),
+        "some square is warmed"
+    );
+    assert!(
+        heats
+            .windows(2)
+            .any(|pair| (pair[0] - pair[1]).abs() > 1e-9),
         "and the warmth varies"
     );
 }
@@ -161,9 +176,15 @@ fn a_field_on_a_square_warms_the_square_itself() {
     // `fd_cold_air3` at intensity one is -16 F, which is the only field in this fixture.
     let mine = f64::from(convection(&[(-16, false)]));
     let theirs = real(member(square, "convection"));
-    assert!((mine - theirs).abs() < 1e-4, "{mine:.9} against {theirs:.9}");
+    assert!(
+        (mine - theirs).abs() < 1e-4,
+        "{mine:.9} against {theirs:.9}"
+    );
     // Every other square answers zero, which is what "convection is about the square itself" means.
-    for other in squares.iter().filter(|square| int(member(square, "field")) == 0) {
+    for other in squares
+        .iter()
+        .filter(|square| int(member(square, "field")) == 0)
+    {
         assert!(
             real(member(other, "convection")).abs() < 1e-9,
             "no field, no convection"
@@ -207,7 +228,14 @@ fn the_total_adds_the_three_terms_to_the_weather() {
         }
         // And a square below street level ignores all three and answers the year's average.
         #[allow(clippy::cast_possible_truncation)]
-        let underground = f64::from(temperature(weather as f32, base as f32, -1, heat, field, 0.0));
+        let underground = f64::from(temperature(
+            weather as f32,
+            base as f32,
+            -1,
+            heat,
+            field,
+            0.0,
+        ));
         if (underground - real(member(square, "underground"))).abs() > 1e-3 {
             wrong.push(format!(
                 "dx {dx} underground: {underground:.6} against {:.6}",
@@ -215,5 +243,10 @@ fn the_total_adds_the_three_terms_to_the_weather() {
             ));
         }
     }
-    assert!(wrong.is_empty(), "{} wrong:\n{}", wrong.len(), wrong.join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }

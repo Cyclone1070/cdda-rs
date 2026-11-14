@@ -109,8 +109,14 @@ pub fn bleed_field<'a>(
     if bleed_rate <= 0 {
         return None;
     }
-    let found = species.iter().find_map(|kind| bleeds_of(kind).filter(|field| !field.is_empty()))?;
+    let found = species
+        .iter()
+        .find_map(|kind| bleeds_of(kind).filter(|field| !field.is_empty()))?;
     // `fd_null` is the reference's own "no field" id and the data spells it out for species that bleed nothing (`species_type::bleeds` defaults to it). Returning it would have the
     // splatter look up a field the registry does not define, so the rule answers `None` - the same answer, said in the port's own voice.
-    if found == "fd_null" { None } else { Some(found) }
+    if found == "fd_null" {
+        None
+    } else {
+        Some(found)
+    }
 }

@@ -40,7 +40,8 @@ impl Check {
 /// The table, one row per check.
 #[must_use]
 pub fn report(checks: &[Check]) -> String {
-    let mut out = String::from("check                                                   cases  result\n");
+    let mut out =
+        String::from("check                                                   cases  result\n");
     for check in checks {
         let result = if check.green() {
             "pass".to_string()
@@ -69,7 +70,10 @@ pub fn corpus(root: &Path) -> Check {
     let mut files = Vec::new();
     collect(root, &mut files);
     for path in files {
-        let extension = path.extension().and_then(|kind| kind.to_str()).unwrap_or("");
+        let extension = path
+            .extension()
+            .and_then(|kind| kind.to_str())
+            .unwrap_or("");
         if extension != "json" {
             continue;
         }
@@ -144,7 +148,10 @@ pub fn oracle_sessions() -> Check {
         }
     }
     Check {
-        name: format!("oracle: {} recorded session(s) replay turn for turn", names.len()),
+        name: format!(
+            "oracle: {} recorded session(s) replay turn for turn",
+            names.len()
+        ),
         cases,
         failures,
     }
@@ -181,7 +188,10 @@ pub fn corpus_is_read(root: &Path) -> Check {
         let Ok(relative) = file.strip_prefix(&corpus) else {
             continue;
         };
-        let Some(family) = relative.components().next().and_then(|first| first.as_os_str().to_str())
+        let Some(family) = relative
+            .components()
+            .next()
+            .and_then(|first| first.as_os_str().to_str())
         else {
             continue;
         };
@@ -193,7 +203,9 @@ pub fn corpus_is_read(root: &Path) -> Check {
                 continue;
             }
             if !sources.contains(family) {
-                failures.push(format!("corpus/{family}: no test names it and it belongs to no family"));
+                failures.push(format!(
+                    "corpus/{family}: no test names it and it belongs to no family"
+                ));
             }
             continue;
         }
@@ -212,7 +224,10 @@ pub fn corpus_is_read(root: &Path) -> Check {
         }
     }
     Check {
-        name: format!("corpus: every family is read ({} blocked)", BLOCKED_FAMILIES.len()),
+        name: format!(
+            "corpus: every family is read ({} blocked)",
+            BLOCKED_FAMILIES.len()
+        ),
         cases,
         failures,
     }
@@ -251,7 +266,9 @@ pub fn index_matches_the_store(world: &mut bevy_ecs::prelude::World) -> Check {
                 .contains(entity)
         });
         if !found {
-            failures.push(format!("{entity:?} stands at {square:?} and the index does not have it"));
+            failures.push(format!(
+                "{entity:?} stands at {square:?} and the index does not have it"
+            ));
         }
     }
     Check {
@@ -298,7 +315,10 @@ pub fn screens(root: &Path) -> Check {
         };
         let scenario = root.join("scenarios").join(format!("{stem}.txt"));
         let Ok(text) = std::fs::read_to_string(&scenario) else {
-            failures.push(format!("{}: draws a picture but has no scenario", path.display()));
+            failures.push(format!(
+                "{}: draws a picture but has no scenario",
+                path.display()
+            ));
             continue;
         };
         cases += 1;
@@ -312,7 +332,10 @@ pub fn screens(root: &Path) -> Check {
         );
         match crate::run(&replay) {
             Ok(outcome) if !outcome.passed() => {
-                failures.push(format!("{stem}: the scenario does not play: {:?}", outcome.failures));
+                failures.push(format!(
+                    "{stem}: the scenario does not play: {:?}",
+                    outcome.failures
+                ));
             }
             Ok(outcome) => {
                 // **A picture of nothing is not a picture.** A scenario reports how many squares it lit, and a recording taken before the frame could draw says zero - which is what this check was
@@ -345,7 +368,8 @@ pub fn screens(root: &Path) -> Check {
         cases,
         failures,
     }
-}#[cfg(test)]
+}
+#[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
     use super::*;
@@ -381,8 +405,9 @@ mod tests {
     #[test]
     fn an_empty_check_is_not_green() {
         let nothing = Check::passed("nothing at all", 0);
-        assert!(!nothing.green(), "a check that compared nothing proves nothing");
+        assert!(
+            !nothing.green(),
+            "a check that compared nothing proves nothing"
+        );
     }
 }
-
-

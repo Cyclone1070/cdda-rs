@@ -9,14 +9,30 @@
 fn a_sound_arrives_as_its_volume_less_the_distance() {
     use cdda_sim::hearing::heard_volume;
 
-    assert_eq!(heard_volume(8, 3, false), Some(5), "eight loud, three squares away");
-    assert_eq!(heard_volume(8, 8, false), None, "exactly at its range, it is not heard");
+    assert_eq!(
+        heard_volume(8, 3, false),
+        Some(5),
+        "eight loud, three squares away"
+    );
+    assert_eq!(
+        heard_volume(8, 8, false),
+        None,
+        "exactly at its range, it is not heard"
+    );
     assert_eq!(heard_volume(8, 9, false), None, "and past it, silence");
     // Good hearing doubles the **volume**, not the distance: eight loud is sixteen to a good ear, so it carries sixteen squares.
-    assert_eq!(heard_volume(8, 15, true), Some(1), "a good ear hears it fifteen squares out");
+    assert_eq!(
+        heard_volume(8, 15, true),
+        Some(1),
+        "a good ear hears it fifteen squares out"
+    );
     assert_eq!(heard_volume(8, 16, true), None, "and not at sixteen");
     // A whisper is heard by nobody, however good the ear.
-    assert_eq!(heard_volume(2, 2, false), None, "two loud at two squares is nothing");
+    assert_eq!(
+        heard_volume(2, 2, false),
+        None,
+        "two loud at two squares is nothing"
+    );
 }
 
 #[test]
@@ -24,7 +40,11 @@ fn a_louder_sound_is_guessed_more_precisely_and_the_bands_are_the_rule() {
     use cdda_sim::hearing::max_error;
 
     // The reference's ladder is `< 2`, `< 5`, `< 10`, `< 20`, and anything else is exact - so the boundaries are what a mistake would move.
-    assert_eq!(max_error(1), 10, "the quietest thing a creature can hear is ten squares out");
+    assert_eq!(
+        max_error(1),
+        10,
+        "the quietest thing a creature can hear is ten squares out"
+    );
     assert_eq!(max_error(2), 5, "and two loud is already five");
     assert_eq!(max_error(4), 5);
     assert_eq!(max_error(5), 3);
@@ -40,8 +60,16 @@ fn good_hearing_also_makes_a_creature_remember_longer() {
     use cdda_sim::hearing::wander_turns;
 
     assert_eq!(wander_turns(5, false), 5, "five turns for five loud");
-    assert_eq!(wander_turns(5, true), 30, "and six times as long for a good ear");
-    assert_eq!(wander_turns(0, true), 0, "a sound nobody heard is walked towards for no time at all");
+    assert_eq!(
+        wander_turns(5, true),
+        30,
+        "and six times as long for a good ear"
+    );
+    assert_eq!(
+        wander_turns(0, true),
+        0,
+        "a sound nobody heard is walked towards for no time at all"
+    );
 }
 
 /// A creature that hears a thud gets a place to walk towards, and a deaf one gets nothing.
@@ -56,7 +84,9 @@ fn the_creature_that_hears_a_thud_gets_a_place_to_walk_towards() {
     cdda_sim::creature_flags::add_flag(&mut world, near, "HEARS");
     // Reference: `monster::hear_sound` walks towards a noise only when `morale >= 0 && anger >= 10` (`monster.cpp:3969-3971`). A creature the port never gave an `Anger` reads as
     // **zero anger**, which is "uninterested" - the same lesson round 1159 learned about `Strength`: **a missing component is not an error in the store, it is a zero.**
-    world.entity_mut(near).insert(cdda_sim::creature::Anger(100));
+    world
+        .entity_mut(near)
+        .insert(cdda_sim::creature::Anger(100));
     let far = cdda_sim::creature::spawn_creature(&mut world, "the distant one", (30, 0, 0));
     cdda_sim::creature_flags::add_flag(&mut world, far, "HEARS");
     let deaf = cdda_sim::creature::spawn_creature(&mut world, "the deaf one", (1, 1, 0));
@@ -72,7 +102,10 @@ fn the_creature_that_hears_a_thud_gets_a_place_to_walk_towards() {
     let heard = world.get::<cdda_sim::hearing::HeardSound>(near).copied();
     let heard = heard.unwrap_or_else(|| panic!("the near listener heard nothing"));
     assert_eq!(heard.volume, 5, "eight loud five squares out is five");
-    assert_eq!(heard.wander_turns, 5, "and it walks towards it for five turns");
+    assert_eq!(
+        heard.wander_turns, 5,
+        "and it walks towards it for five turns"
+    );
     assert!(
         heard.at.0.abs() <= 3 && heard.at.1.abs() <= 3,
         "the guess is within the loud sound's three squares of error: {:?}",
@@ -113,7 +146,10 @@ fn a_creature_that_hears_a_noise_walks_towards_it_until_the_noise_is_old() {
     // A speed of one hundred, so each turn banks one step's worth of moves.
     world
         .entity_mut(listener)
-        .insert(cdda_sim::creature::Speed { base: 100, bonus: 0 })
+        .insert(cdda_sim::creature::Speed {
+            base: 100,
+            bonus: 0,
+        })
         // The anger a monster gets from its type; without it the reference's own condition (`anger >= 10`) says it is uninterested and it stays put.
         .insert(cdda_sim::creature::Anger(100));
 
@@ -132,20 +168,32 @@ fn a_creature_that_hears_a_noise_walks_towards_it_until_the_noise_is_old() {
     );
     cdda_sim::hearing::hear_sounds(&mut world);
     assert_eq!(
-        world.get::<cdda_sim::creature::Wander>(listener).map(|wander| wander.square),
+        world
+            .get::<cdda_sim::creature::Wander>(listener)
+            .map(|wander| wander.square),
         Some((0, 0, 0)),
         "a noise loud enough to be guessed exactly is walked towards exactly"
     );
 
-    let before = world.get::<cdda_sim::Position>(listener).map(|place| (place.x, place.y, place.z));
+    let before = world
+        .get::<cdda_sim::Position>(listener)
+        .map(|place| (place.x, place.y, place.z));
     // The step itself, called directly: this says whether a creature with moves and a route walks, separately from whether the turn gave it the chance.
     cdda_sim::creature::bank_a_turn(&mut world);
     let walked = cdda_sim::routing::walk_towards(&mut world, listener, (0, 0, 0), (12, 12));
-    assert_eq!(walked, cdda_sim::routing::Walk::Stepped, "one step towards the noise");
-    let stepped = world.get::<cdda_sim::Position>(listener).map(|place| (place.x, place.y, place.z));
+    assert_eq!(
+        walked,
+        cdda_sim::routing::Walk::Stepped,
+        "one step towards the noise"
+    );
+    let stepped = world
+        .get::<cdda_sim::Position>(listener)
+        .map(|place| (place.x, place.y, place.z));
     assert_ne!(stepped, before, "and the creature is somewhere else");
     cdda_sim::turn::run_turn(&mut world);
-    let after = world.get::<cdda_sim::Position>(listener).map(|place| (place.x, place.y, place.z));
+    let after = world
+        .get::<cdda_sim::Position>(listener)
+        .map(|place| (place.x, place.y, place.z));
     assert!(
         after.is_some_and(|after| after.0 < before.unwrap_or((10, 0, 0)).0),
         "the creature stepped towards the noise: {before:?} became {after:?}"
@@ -182,7 +230,9 @@ fn a_docile_creature_does_not_walk_towards_a_noise() {
     );
     // It still **hears** it: the reference refuses the walk, not the hearing, and a creature that heard nothing would fail a test that checked the memory instead.
     assert!(
-        world.get::<cdda_sim::hearing::HeardSound>(listener).is_some(),
+        world
+            .get::<cdda_sim::hearing::HeardSound>(listener)
+            .is_some(),
         "but it does hear it"
     );
 }
@@ -221,15 +271,25 @@ fn a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     world
         .entity_mut(survivor)
-        .insert(Health { hp: 100, max_hp: 100 })
-        .insert(cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 });
+        .insert(Health {
+            hp: 100,
+            max_hp: 100,
+        })
+        .insert(cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 0,
+        });
 
     // A zombie six squares away, able to hear, walking at a hundred speed, with a blow worth a couple of points.
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (6, 0, 0));
     world
         .entity_mut(zombie)
         .insert(Health { hp: 30, max_hp: 30 })
-        .insert(Speed { base: 100, bonus: 0 })
+        .insert(Speed {
+            base: 100,
+            bonus: 0,
+        })
         .insert(MeleeAttack(cdda_sim::melee::Attack {
             accuracy_tenths: 40,
             fixed: cdda_sim::melee::Damage::default(),
@@ -238,7 +298,9 @@ fn a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives() {
         }));
     cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
     // The anger the reference's own monsters carry from their type (`monster.cpp:282`); without it the port reads zero and the monster is uninterested rather than angry.
-    world.entity_mut(zombie).insert(cdda_sim::creature::Anger(100));
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Anger(100));
 
     // The thud of a rock landing where the survivor stands.
     cdda_sim::sounds::make_sound(&mut world, (0, 0, 0), 30);
@@ -268,7 +330,8 @@ fn a_noise_brings_a_monster_to_the_survivor_and_it_swings_when_it_arrives() {
 #[test]
 fn a_monster_from_its_type_carries_the_types_flags() {
     // The corpus zombie, which carries `HEARS`, `GOODHEARING`, `SEES` and the rest of the flags its data states.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let text = std::fs::read(path).expect("the monster dump exists");
     let root = cdda_json::parse(&text).expect("the dump is valid JSON");
     let cdda_json::Value::Object(root) = root else {

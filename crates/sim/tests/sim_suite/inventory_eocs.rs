@@ -66,7 +66,10 @@ fn a_survivor_with(world: &mut World, names: &[&str]) -> Vec<Entity> {
 #[test]
 fn a_program_runs_on_every_item_the_data_asks_for() {
     let mut world = World::new();
-    let items = a_survivor_with(&mut world, &["smart_phone_locked", "smart_phone_locked", "rock"]);
+    let items = a_survivor_with(
+        &mut world,
+        &["smart_phone_locked", "smart_phone_locked", "rock"],
+    );
     assert_eq!(items.len(), 3, "the three items are carried");
 
     // The data's own shape, from `computer_eocs.json`: turn every locked phone into a phone.
@@ -85,9 +88,17 @@ fn a_program_runs_on_every_item_the_data_asks_for() {
     let Some(speaker) = speaker else {
         panic!("the items know whose they are");
     };
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the list runs");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the list runs"
+    );
 
     // Both phones became phones, and the rock was never in the search.
     let names = cdda_sim::item_registry::snapshot(&mut world);
@@ -122,8 +133,12 @@ fn a_manual_pick_refuses_because_the_port_has_no_chooser() {
     let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
         panic!("the reader does not judge the mode");
     };
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
     assert_eq!(
         applied,
         cdda_sim::dialogue_effects::Applied::CannotAnswer,
@@ -147,7 +162,12 @@ fn a_message_may_be_a_variable() {
     };
     // Unset: there is nothing to say, and the effect refuses rather than announcing the variable's name.
     assert_eq!(
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect)),
+        cdda_sim::dialogue_effects::run_effects(
+            &mut world,
+            speaker,
+            None,
+            std::slice::from_ref(&effect)
+        ),
         cdda_sim::dialogue_effects::Applied::CannotAnswer,
         "an unset variable says nothing"
     );
@@ -161,7 +181,12 @@ fn a_message_may_be_a_variable() {
         cdda_sim::dialogue_values::Value::Text("the lock clicks".to_owned()),
     );
     assert_eq!(
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect)),
+        cdda_sim::dialogue_effects::run_effects(
+            &mut world,
+            speaker,
+            None,
+            std::slice::from_ref(&effect)
+        ),
         cdda_sim::dialogue_effects::Applied::Done,
         "and a set one speaks"
     );
@@ -201,7 +226,12 @@ fn a_trait_may_be_named_by_a_variable() {
         cdda_sim::dialogue_values::Value::Text("WINGS_INSECT_active".to_owned()),
     );
     assert_eq!(
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect)),
+        cdda_sim::dialogue_effects::run_effects(
+            &mut world,
+            speaker,
+            None,
+            std::slice::from_ref(&effect)
+        ),
         cdda_sim::dialogue_effects::Applied::Done,
         "and the effect runs"
     );
@@ -237,21 +267,21 @@ fn the_npc_member_searches_the_listeners_items() {
     let rock = if let Some(kind) = rock {
         kind
     } else {
-            cdda_sim::item_registry::set_item_types(
-                &mut world,
-                &[cdda_sim::item_registry::Kind {
-                    id: "rock",
-                    volume_ml: 250,
-                    weight_g: 500,
-                    pockets: &[],
-                    thrown_damage: 0.0,
-                    melee_bash: 0.0,
-                    melee_cut: 0.0,
-                    melee_stab: 0.0,
-                    to_hit: -2,
-                }],
-            );
-            cdda_sim::item_registry::id_of(&mut world, "rock").expect("just registered")
+        cdda_sim::item_registry::set_item_types(
+            &mut world,
+            &[cdda_sim::item_registry::Kind {
+                id: "rock",
+                volume_ml: 250,
+                weight_g: 500,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: -2,
+            }],
+        );
+        cdda_sim::item_registry::id_of(&mut world, "rock").expect("just registered")
     };
     let carried = cdda_sim::drop_item(&mut world, (1, 0), rock, 1);
     world.entity_mut(carried).remove::<cdda_sim::Position>();
@@ -334,8 +364,14 @@ fn a_search_that_matches_nothing_runs_the_false_branch_once() {
                 "false_eocs": [ { "id": "EOC_NONE", "effect": [ { "u_message": "found none" } ] } ]
             }"#;
             let value = cdda_json::parse(text.as_bytes()).expect("json");
-            let effect = cdda_content::dialogue::read_effect(&value).expect("the port reads both branches");
-            cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+            let effect =
+                cdda_content::dialogue::read_effect(&value).expect("the port reads both branches");
+            cdda_sim::dialogue_effects::run_effects(
+                &mut world,
+                speaker,
+                None,
+                std::slice::from_ref(&effect),
+            );
             return cdda_sim::messages::lines(&world);
         };
         let text = r#"{
@@ -345,8 +381,14 @@ fn a_search_that_matches_nothing_runs_the_false_branch_once() {
             "false_eocs": [ { "id": "EOC_NONE", "effect": [ { "u_message": "found none" } ] } ]
         }"#;
         let value = cdda_json::parse(text.as_bytes()).expect("json");
-        let effect = cdda_content::dialogue::read_effect(&value).expect("the port reads both branches");
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+        let effect =
+            cdda_content::dialogue::read_effect(&value).expect("the port reads both branches");
+        cdda_sim::dialogue_effects::run_effects(
+            &mut world,
+            speaker,
+            None,
+            std::slice::from_ref(&effect),
+        );
         cdda_sim::messages::lines(&world)
     }
 
@@ -385,8 +427,9 @@ fn entries_are_alternatives_and_one_may_be_a_condition() {
             .first()
             .and_then(|item| world.get::<cdda_sim::creature::Carried>(*item))
             .map(|carried| carried.0);
-        let speaker = existing
-            .unwrap_or_else(|| cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0)));
+        let speaker = existing.unwrap_or_else(|| {
+            cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0))
+        });
         let text = format!(
             r#"{{ "u_run_inv_eocs": "all", "search_data": {search_data},
                 "true_eocs": [ {{ "id": "EOC_YES", "effect": [ {{ "u_message": "matched" }} ] }} ],
@@ -394,26 +437,40 @@ fn entries_are_alternatives_and_one_may_be_a_condition() {
         );
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         let effect = cdda_content::dialogue::read_effect(&value).expect("the filter is readable");
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+        cdda_sim::dialogue_effects::run_effects(
+            &mut world,
+            speaker,
+            None,
+            std::slice::from_ref(&effect),
+        );
         cdda_sim::messages::lines(&world)
     }
 
     // The rock is carried but **not wielded**, so a port that ANDed the entries would find nothing.
     // **The entry that matches is the second one**, so a reader that stopped at the first would answer nothing.
-    let either = messages(r#"[ { "wielded_only": true }, { "id": "rock" } ]"#, &["rock"]);
+    let either = messages(
+        r#"[ { "wielded_only": true }, { "id": "rock" } ]"#,
+        &["rock"],
+    );
     assert!(
         either.iter().any(|line| line.contains("matched")),
         "**the rock passes the first entry alone**: {either:?}"
     );
 
     // A condition that is false leaves the item out, and the false branch answers instead.
-    let refused = messages(r#"[ { "condition": { "math": [ "1 == 2" ] } } ]"#, &["rock"]);
+    let refused = messages(
+        r#"[ { "condition": { "math": [ "1 == 2" ] } } ]"#,
+        &["rock"],
+    );
     assert!(
         refused.iter().any(|line| line.contains("no match")),
         "**a condition that does not hold excludes the item**: {refused:?}"
     );
 
-    let allowed = messages(r#"[ { "condition": { "math": [ "1 == 1" ] } } ]"#, &["rock"]);
+    let allowed = messages(
+        r#"[ { "condition": { "math": [ "1 == 1" ] } } ]"#,
+        &["rock"],
+    );
     assert!(
         allowed.iter().any(|line| line.contains("matched")),
         "and one that holds keeps it: {allowed:?}"

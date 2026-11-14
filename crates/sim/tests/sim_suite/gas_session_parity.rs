@@ -56,19 +56,27 @@ struct Takes {
 
 impl Takes {
     fn load(session: &cdda_oracle::session::Session, name: &str) -> Self {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/terrain.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/prototypes/terrain.json");
         let _ = name;
         let text = std::fs::read_to_string(path).expect("the terrain prototypes");
-        let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+        let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+        else {
             panic!("an object");
         };
-        let Some(cdda_json::Value::Array(entries)) = root.get("prototypes") else { panic!("prototypes") };
+        let Some(cdda_json::Value::Array(entries)) = root.get("prototypes") else {
+            panic!("prototypes")
+        };
         let mut move_cost = std::collections::BTreeMap::new();
         let mut permeable = std::collections::BTreeMap::new();
         let mut steps = std::collections::BTreeMap::new();
         for entry in entries {
-            let cdda_json::Value::Object(object) = entry else { continue };
-            let Some(cdda_json::Value::Str(id)) = object.get("id") else { continue };
+            let cdda_json::Value::Object(object) = entry else {
+                continue;
+            };
+            let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+                continue;
+            };
             let cost = match object.get("move_cost") {
                 Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
                 _ => 0,
@@ -117,7 +125,8 @@ impl Takes {
             // A square the dump did not describe is not in the bubble, and the reference treats an out-of-bounds tile as impassable.
             return false;
         };
-        self.move_cost.get(id).copied().unwrap_or(0) > 0 || self.permeable.get(id).copied().unwrap_or(false)
+        self.move_cost.get(id).copied().unwrap_or(0) > 0
+            || self.permeable.get(id).copied().unwrap_or(false)
     }
 
     /// What a square says about a step between levels.
@@ -240,9 +249,11 @@ fn gas_type(session: &cdda_oracle::session::Session) -> GasType {
     else {
         return GasType::default();
     };
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/fields.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/prototypes/fields.json");
     let text = std::fs::read_to_string(path).expect("the field prototypes");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("an object");
     };
     let Some(cdda_json::Value::Array(entries)) = root.get("prototypes") else {
@@ -264,7 +275,10 @@ fn gas_type(session: &cdda_oracle::session::Session) -> GasType {
                 Some(cdda_json::Value::Int(value)) => *value,
                 _ => 0,
             };
-            let linear = matches!(object.get("linear_half_life"), Some(cdda_json::Value::Bool(true)));
+            let linear = matches!(
+                object.get("linear_half_life"),
+                Some(cdda_json::Value::Bool(true))
+            );
             let percent_spread = match object.get("percent_spread") {
                 Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
                 _ => 0,
@@ -364,7 +378,8 @@ fn replay(name: &str) -> Spent {
         let wind_at = wind_at(recorded, wind.direction);
         // The other half of `gas_can_spread_to`: the square can be walked, and a step to another level is legal. Whether the square already holds gas at least as
         // thick as the gas arriving is the crate's question, because only it can see the field a previous square of the same sweep left there.
-        let can_take = |from: (i32, i32, i32), to: (i32, i32, i32)| takes.open(to) && takes.may_step(from, to);
+        let can_take =
+            |from: (i32, i32, i32), to: (i32, i32, i32)| takes.open(to) && takes.may_step(from, to);
         // Each turn gets its own recording, so a turn that spends a different number of dice says so here instead of shifting every turn after it.
         let recorded_dice = session
             .dice_by_turn
@@ -373,7 +388,11 @@ fn replay(name: &str) -> Spent {
             .unwrap_or_else(|| cdda_core_types::rng::Recording::parse("").expect("empty"));
         let offered = recorded_dice.remaining();
         if std::env::var("GAS_TRACE").is_ok() {
-            eprintln!("turn {index}: {offered} dice, now {}, port {:?}", session.now.get(index - 1).copied().unwrap_or(0), fields(&mut world));
+            eprintln!(
+                "turn {index}: {offered} dice, now {}, port {:?}",
+                session.now.get(index - 1).copied().unwrap_or(0),
+                fields(&mut world)
+            );
         }
         let engine_offered = recorded_dice.engine_draws.len();
         let mut rolls = Rolls::replaying(recorded_dice);
@@ -383,7 +402,10 @@ fn replay(name: &str) -> Spent {
         // A cursor, not a list: a gas that spreads into a **later** submap is aged in the same turn, so the sweep has to notice submaps that did not exist when it
         // started. One that spreads backwards waits for the next turn, which is the whole point of the order.
         let mut cursor: Option<(i32, i32, i32)> = None;
-        while let Some(key) = submaps(&mut world).into_iter().find(|key| cursor.is_none_or(|cursor| *key > cursor)) {
+        while let Some(key) = submaps(&mut world)
+            .into_iter()
+            .find(|key| cursor.is_none_or(|cursor| *key > cursor))
+        {
             cursor = Some(key);
             run_port_sweep(
                 &mut world,
@@ -402,7 +424,10 @@ fn replay(name: &str) -> Spent {
         engine_spent += engine_offered - rolls.engine_draws_left();
         compared += 1;
         if unspent != 0 && disagreements.len() < 6 {
-            disagreements.push((index, format!("{unspent} recorded dice went unspent this turn")));
+            disagreements.push((
+                index,
+                format!("{unspent} recorded dice went unspent this turn"),
+            ));
         }
         let _ = (found, &mut map);
         let ours = fields(&mut world);
@@ -449,7 +474,11 @@ fn sixty_recorded_turns_of_a_gas_replay_square_for_square() {
     );
     // A gate that compared nothing would pass for the wrong reason, and one that drew nothing would pass without ever exercising the spread rule.
     assert_eq!(report.turns, 59, "every recorded turn was replayed");
-    assert!(report.dice >= 80, "the replay spent the reference's own dice: {}", report.dice);
+    assert!(
+        report.dice >= 80,
+        "the replay spent the reference's own dice: {}",
+        report.dice
+    );
 }
 
 #[test]
@@ -463,7 +492,11 @@ fn a_gas_on_a_stairwell_falls_the_way_the_recording_says() {
         report.disagreements
     );
     assert_eq!(report.turns, 39, "every recorded turn was replayed");
-    assert!(report.dice >= 15, "the replay spent the reference's own dice: {}", report.dice);
+    assert!(
+        report.dice >= 15,
+        "the replay spent the reference's own dice: {}",
+        report.dice
+    );
 }
 
 #[test]
@@ -477,7 +510,11 @@ fn a_gas_on_a_roof_spreads_into_the_wind_the_recording_says() {
         report.disagreements
     );
     assert_eq!(report.turns, 23, "every recorded turn was replayed");
-    assert_eq!(report.dice, 10, "every recorded die was spent: {}", report.dice);
+    assert_eq!(
+        report.dice, 10,
+        "every recorded die was spent: {}",
+        report.dice
+    );
     assert_eq!(
         report.engine, 10,
         "and every decay deadline the reference drew: {}",
@@ -493,7 +530,11 @@ fn the_session_receipt_is_one_number_per_session() {
     //
     // A pinned digest is a receipt, not a specification: it says "this is what the port produced when the gate was written", and it has to be **re-derived** from the
     // recording whenever the port is meant to change. That is the point - a change that is meant to happen is a line in a diff, not a silent drift.
-    for (name, expected) in [("gas-60", 0xbb45_13a5_ce73_269a_u64), ("gas-fall", 0x0333_42d5_a784_5618_u64), ("gas-wind", 0x12ca_5c3c_6921_06d4_u64)] {
+    for (name, expected) in [
+        ("gas-60", 0xbb45_13a5_ce73_269a_u64),
+        ("gas-fall", 0x0333_42d5_a784_5618_u64),
+        ("gas-wind", 0x12ca_5c3c_6921_06d4_u64),
+    ] {
         let report = replay(name);
         assert!(
             report.disagreements.is_empty(),

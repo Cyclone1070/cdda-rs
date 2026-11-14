@@ -228,24 +228,222 @@ const MOD_KEYS: [(&str, &[(&str, ModAction)]); 31] = [
     ("PER", &[("per_mod", ModAction::Min)]),
     ("INT", &[("int_mod", ModAction::Min)]),
     ("SPEED", &[("speed_mod", ModAction::Min)]),
-    ("PAIN", &[("pain_amount", ModAction::Amount), ("pain_min", ModAction::Min), ("pain_max", ModAction::Max), ("pain_max_val", ModAction::MaxVal), ("pain_chance", ModAction::ChanceTop), ("pain_chance_bot", ModAction::ChanceBot), ("pain_tick", ModAction::Tick)]),
-    ("HURT", &[("hurt_amount", ModAction::Amount), ("hurt_min", ModAction::Min), ("hurt_max", ModAction::Max), ("hurt_chance", ModAction::ChanceTop), ("hurt_chance_bot", ModAction::ChanceBot), ("hurt_tick", ModAction::Tick)]),
-    ("SLEEP", &[("sleep_amount", ModAction::Amount), ("sleep_min", ModAction::Min), ("sleep_max", ModAction::Max), ("sleep_chance", ModAction::ChanceTop), ("sleep_chance_bot", ModAction::ChanceBot), ("sleep_tick", ModAction::Tick)]),
-    ("PKILL", &[("pkill_amount", ModAction::Amount), ("pkill_min", ModAction::Min), ("pkill_max", ModAction::Max), ("pkill_max_val", ModAction::MaxVal), ("pkill_chance", ModAction::ChanceTop), ("pkill_chance_bot", ModAction::ChanceBot), ("pkill_tick", ModAction::Tick)]),
-    ("STIM", &[("stim_amount", ModAction::Amount), ("stim_min", ModAction::Min), ("stim_max", ModAction::Max), ("stim_min_val", ModAction::MinVal), ("stim_max_val", ModAction::MaxVal), ("stim_chance", ModAction::ChanceTop), ("stim_chance_bot", ModAction::ChanceBot), ("stim_tick", ModAction::Tick)]),
-    ("HEALTH", &[("health_amount", ModAction::Amount), ("health_min", ModAction::Min), ("health_max", ModAction::Max), ("health_min_val", ModAction::MinVal), ("health_max_val", ModAction::MaxVal), ("health_chance", ModAction::ChanceTop), ("health_chance_bot", ModAction::ChanceBot), ("health_tick", ModAction::Tick)]),
-    ("H_MOD", &[("h_mod_amount", ModAction::Amount), ("h_mod_min", ModAction::Min), ("h_mod_max", ModAction::Max), ("h_mod_min_val", ModAction::MinVal), ("h_mod_max_val", ModAction::MaxVal), ("h_mod_chance", ModAction::ChanceTop), ("h_mod_chance_bot", ModAction::ChanceBot), ("h_mod_tick", ModAction::Tick)]),
-    ("RAD", &[("rad_amount", ModAction::Amount), ("rad_min", ModAction::Min), ("rad_max", ModAction::Max), ("rad_max_val", ModAction::MaxVal), ("rad_chance", ModAction::ChanceTop), ("rad_chance_bot", ModAction::ChanceBot), ("rad_tick", ModAction::Tick)]),
-    ("HUNGER", &[("hunger_amount", ModAction::Amount), ("hunger_min", ModAction::Min), ("hunger_max", ModAction::Max), ("hunger_min_val", ModAction::MinVal), ("hunger_max_val", ModAction::MaxVal), ("hunger_chance", ModAction::ChanceTop), ("hunger_chance_bot", ModAction::ChanceBot), ("hunger_tick", ModAction::Tick)]),
-    ("THIRST", &[("thirst_amount", ModAction::Amount), ("thirst_min", ModAction::Min), ("thirst_max", ModAction::Max), ("thirst_min_val", ModAction::MinVal), ("thirst_max_val", ModAction::MaxVal), ("thirst_chance", ModAction::ChanceTop), ("thirst_chance_bot", ModAction::ChanceBot), ("thirst_tick", ModAction::Tick)]),
-    ("PERSPIRATION", &[("perspiration_amount", ModAction::Amount), ("perspiration_min", ModAction::Min), ("perspiration_max", ModAction::Max), ("perspiration_min_val", ModAction::MinVal), ("perspiration_max_val", ModAction::MaxVal), ("perspiration_chance", ModAction::ChanceTop), ("perspiration_chance_bot", ModAction::ChanceBot), ("perspiration_tick", ModAction::Tick)]),
-    ("SLEEPINESS", &[("sleepiness_amount", ModAction::Amount), ("sleepiness_min", ModAction::Min), ("sleepiness_max", ModAction::Max), ("sleepiness_min_val", ModAction::MinVal), ("sleepiness_max_val", ModAction::MaxVal), ("sleepiness_chance", ModAction::ChanceTop), ("sleepiness_chance_bot", ModAction::ChanceBot), ("sleepiness_tick", ModAction::Tick)]),
-    ("STAMINA", &[("stamina_amount", ModAction::Amount), ("stamina_min", ModAction::Min), ("stamina_max", ModAction::Max), ("stamina_max_val", ModAction::MaxVal), ("stamina_chance", ModAction::ChanceTop), ("stamina_chance_bot", ModAction::ChanceBot), ("stamina_tick", ModAction::Tick)]),
-    ("BLOOD_PRESSURE", &[("blood_pressure_amount", ModAction::Amount), ("blood_pressure_min", ModAction::Min), ("blood_pressure_max", ModAction::Max), ("blood_pressure_max_val", ModAction::MaxVal), ("blood_pressure_min_val", ModAction::MinVal), ("blood_pressure_chance", ModAction::ChanceTop), ("blood_pressure_chance_bot", ModAction::ChanceBot), ("blood_pressure_tick", ModAction::Tick)]),
-    ("HEART_RATE", &[("heart_rate_amount", ModAction::Amount), ("heart_rate_min", ModAction::Min), ("heart_rate_max", ModAction::Max), ("heart_rate_max_val", ModAction::MaxVal), ("heart_rate_min_val", ModAction::MinVal), ("heart_rate_chance", ModAction::ChanceTop), ("heart_rate_chance_bot", ModAction::ChanceBot), ("heart_rate_tick", ModAction::Tick)]),
-    ("RESPIRATORY_RATE", &[("respiratory_rate_amount", ModAction::Amount), ("respiratory_rate_min", ModAction::Min), ("respiratory_rate_max", ModAction::Max), ("respiratory_rate_max_val", ModAction::MaxVal), ("respiratory_rate_min_val", ModAction::MinVal), ("respiratory_rate_chance", ModAction::ChanceTop), ("respiratory_rate_chance_bot", ModAction::ChanceBot), ("respiratory_rate_tick", ModAction::Tick)]),
-    ("COUGH", &[("cough_chance", ModAction::ChanceTop), ("cough_chance_bot", ModAction::ChanceBot), ("cough_tick", ModAction::Tick)]),
-    ("VOMIT", &[("vomit_chance", ModAction::ChanceTop), ("vomit_chance_bot", ModAction::ChanceBot), ("vomit_tick", ModAction::Tick)]),
+    (
+        "PAIN",
+        &[
+            ("pain_amount", ModAction::Amount),
+            ("pain_min", ModAction::Min),
+            ("pain_max", ModAction::Max),
+            ("pain_max_val", ModAction::MaxVal),
+            ("pain_chance", ModAction::ChanceTop),
+            ("pain_chance_bot", ModAction::ChanceBot),
+            ("pain_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "HURT",
+        &[
+            ("hurt_amount", ModAction::Amount),
+            ("hurt_min", ModAction::Min),
+            ("hurt_max", ModAction::Max),
+            ("hurt_chance", ModAction::ChanceTop),
+            ("hurt_chance_bot", ModAction::ChanceBot),
+            ("hurt_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "SLEEP",
+        &[
+            ("sleep_amount", ModAction::Amount),
+            ("sleep_min", ModAction::Min),
+            ("sleep_max", ModAction::Max),
+            ("sleep_chance", ModAction::ChanceTop),
+            ("sleep_chance_bot", ModAction::ChanceBot),
+            ("sleep_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "PKILL",
+        &[
+            ("pkill_amount", ModAction::Amount),
+            ("pkill_min", ModAction::Min),
+            ("pkill_max", ModAction::Max),
+            ("pkill_max_val", ModAction::MaxVal),
+            ("pkill_chance", ModAction::ChanceTop),
+            ("pkill_chance_bot", ModAction::ChanceBot),
+            ("pkill_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "STIM",
+        &[
+            ("stim_amount", ModAction::Amount),
+            ("stim_min", ModAction::Min),
+            ("stim_max", ModAction::Max),
+            ("stim_min_val", ModAction::MinVal),
+            ("stim_max_val", ModAction::MaxVal),
+            ("stim_chance", ModAction::ChanceTop),
+            ("stim_chance_bot", ModAction::ChanceBot),
+            ("stim_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "HEALTH",
+        &[
+            ("health_amount", ModAction::Amount),
+            ("health_min", ModAction::Min),
+            ("health_max", ModAction::Max),
+            ("health_min_val", ModAction::MinVal),
+            ("health_max_val", ModAction::MaxVal),
+            ("health_chance", ModAction::ChanceTop),
+            ("health_chance_bot", ModAction::ChanceBot),
+            ("health_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "H_MOD",
+        &[
+            ("h_mod_amount", ModAction::Amount),
+            ("h_mod_min", ModAction::Min),
+            ("h_mod_max", ModAction::Max),
+            ("h_mod_min_val", ModAction::MinVal),
+            ("h_mod_max_val", ModAction::MaxVal),
+            ("h_mod_chance", ModAction::ChanceTop),
+            ("h_mod_chance_bot", ModAction::ChanceBot),
+            ("h_mod_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "RAD",
+        &[
+            ("rad_amount", ModAction::Amount),
+            ("rad_min", ModAction::Min),
+            ("rad_max", ModAction::Max),
+            ("rad_max_val", ModAction::MaxVal),
+            ("rad_chance", ModAction::ChanceTop),
+            ("rad_chance_bot", ModAction::ChanceBot),
+            ("rad_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "HUNGER",
+        &[
+            ("hunger_amount", ModAction::Amount),
+            ("hunger_min", ModAction::Min),
+            ("hunger_max", ModAction::Max),
+            ("hunger_min_val", ModAction::MinVal),
+            ("hunger_max_val", ModAction::MaxVal),
+            ("hunger_chance", ModAction::ChanceTop),
+            ("hunger_chance_bot", ModAction::ChanceBot),
+            ("hunger_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "THIRST",
+        &[
+            ("thirst_amount", ModAction::Amount),
+            ("thirst_min", ModAction::Min),
+            ("thirst_max", ModAction::Max),
+            ("thirst_min_val", ModAction::MinVal),
+            ("thirst_max_val", ModAction::MaxVal),
+            ("thirst_chance", ModAction::ChanceTop),
+            ("thirst_chance_bot", ModAction::ChanceBot),
+            ("thirst_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "PERSPIRATION",
+        &[
+            ("perspiration_amount", ModAction::Amount),
+            ("perspiration_min", ModAction::Min),
+            ("perspiration_max", ModAction::Max),
+            ("perspiration_min_val", ModAction::MinVal),
+            ("perspiration_max_val", ModAction::MaxVal),
+            ("perspiration_chance", ModAction::ChanceTop),
+            ("perspiration_chance_bot", ModAction::ChanceBot),
+            ("perspiration_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "SLEEPINESS",
+        &[
+            ("sleepiness_amount", ModAction::Amount),
+            ("sleepiness_min", ModAction::Min),
+            ("sleepiness_max", ModAction::Max),
+            ("sleepiness_min_val", ModAction::MinVal),
+            ("sleepiness_max_val", ModAction::MaxVal),
+            ("sleepiness_chance", ModAction::ChanceTop),
+            ("sleepiness_chance_bot", ModAction::ChanceBot),
+            ("sleepiness_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "STAMINA",
+        &[
+            ("stamina_amount", ModAction::Amount),
+            ("stamina_min", ModAction::Min),
+            ("stamina_max", ModAction::Max),
+            ("stamina_max_val", ModAction::MaxVal),
+            ("stamina_chance", ModAction::ChanceTop),
+            ("stamina_chance_bot", ModAction::ChanceBot),
+            ("stamina_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "BLOOD_PRESSURE",
+        &[
+            ("blood_pressure_amount", ModAction::Amount),
+            ("blood_pressure_min", ModAction::Min),
+            ("blood_pressure_max", ModAction::Max),
+            ("blood_pressure_max_val", ModAction::MaxVal),
+            ("blood_pressure_min_val", ModAction::MinVal),
+            ("blood_pressure_chance", ModAction::ChanceTop),
+            ("blood_pressure_chance_bot", ModAction::ChanceBot),
+            ("blood_pressure_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "HEART_RATE",
+        &[
+            ("heart_rate_amount", ModAction::Amount),
+            ("heart_rate_min", ModAction::Min),
+            ("heart_rate_max", ModAction::Max),
+            ("heart_rate_max_val", ModAction::MaxVal),
+            ("heart_rate_min_val", ModAction::MinVal),
+            ("heart_rate_chance", ModAction::ChanceTop),
+            ("heart_rate_chance_bot", ModAction::ChanceBot),
+            ("heart_rate_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "RESPIRATORY_RATE",
+        &[
+            ("respiratory_rate_amount", ModAction::Amount),
+            ("respiratory_rate_min", ModAction::Min),
+            ("respiratory_rate_max", ModAction::Max),
+            ("respiratory_rate_max_val", ModAction::MaxVal),
+            ("respiratory_rate_min_val", ModAction::MinVal),
+            ("respiratory_rate_chance", ModAction::ChanceTop),
+            ("respiratory_rate_chance_bot", ModAction::ChanceBot),
+            ("respiratory_rate_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "COUGH",
+        &[
+            ("cough_chance", ModAction::ChanceTop),
+            ("cough_chance_bot", ModAction::ChanceBot),
+            ("cough_tick", ModAction::Tick),
+        ],
+    ),
+    (
+        "VOMIT",
+        &[
+            ("vomit_chance", ModAction::ChanceTop),
+            ("vomit_chance_bot", ModAction::ChanceBot),
+            ("vomit_tick", ModAction::Tick),
+        ],
+    ),
     ("HEAL_RATE", &[("healing_rate", ModAction::Amount)]),
     ("HEAL_HEAD", &[("healing_head", ModAction::Amount)]),
     ("HEAL_TORSO", &[("healing_torso", ModAction::Amount)]),
@@ -264,12 +462,15 @@ pub const DEFAULT_MAX_DURATION: i64 = 365 * 24 * 60 * 60;
 /// # Errors
 ///
 /// If a file cannot be read or parsed.
-pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, EffectType>, crate::mapdata::LoadError> {
+pub fn load_paths(
+    dirs: &[&Path],
+) -> Result<BTreeMap<String, EffectType>, crate::mapdata::LoadError> {
     let mut out: BTreeMap<String, EffectType> = BTreeMap::new();
     for dir in dirs {
-        let files = crate::json_files_in_load_order(dir).map_err(|error| crate::mapdata::LoadError {
-            message: format!("{}: {error}", dir.display()),
-        })?;
+        let files =
+            crate::json_files_in_load_order(dir).map_err(|error| crate::mapdata::LoadError {
+                message: format!("{}: {error}", dir.display()),
+            })?;
         for path in files {
             let Some(value) = crate::read_json(&path) else {
                 continue;

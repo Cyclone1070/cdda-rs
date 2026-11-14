@@ -55,7 +55,11 @@ fn a_noise_spell_makes_a_sound_as_loud_as_its_damage() {
     let made = sounds::heard_this_turn(&mut world);
     assert_eq!(made.len(), 1, "one sound");
     assert_eq!(made[0].volume, 14, "as loud as the spell's damage");
-    assert_eq!(made[0].position, (3, 4, 0), "from the square the spell reached");
+    assert_eq!(
+        made[0].position,
+        (3, 4, 0),
+        "from the square the spell reached"
+    );
 }
 
 #[test]
@@ -68,7 +72,11 @@ fn a_sound_is_louder_the_closer_you_stand_and_ends_with_the_turn() {
         description: "bang!".to_owned(),
     };
     assert_eq!(sounds::volume_at(&sound, (0, 0, 0)), 10, "at the source");
-    assert_eq!(sounds::volume_at(&sound, (3, 0, 0)), 7, "three squares away");
+    assert_eq!(
+        sounds::volume_at(&sound, (3, 0, 0)),
+        7,
+        "three squares away"
+    );
     assert_eq!(
         sounds::volume_at(&sound, (20, 0, 0)),
         0,
@@ -107,7 +115,10 @@ fn only_speech_and_orders_provoke_and_a_gunshot_does_not() {
         SoundCategory::Alert,
         SoundCategory::Order,
     ] {
-        assert!(is_provocative(provocative), "`{provocative:?}` is provocative, as the reference says");
+        assert!(
+            is_provocative(provocative),
+            "`{provocative:?}` is provocative, as the reference says"
+        );
     }
     for quiet in [
         SoundCategory::Background,
@@ -120,10 +131,17 @@ fn only_speech_and_orders_provoke_and_a_gunshot_does_not() {
         SoundCategory::Alarm,
         SoundCategory::Combat,
     ] {
-        assert!(!is_provocative(quiet), "`{quiet:?}` is not provocative, however loud or violent it sounds");
+        assert!(
+            !is_provocative(quiet),
+            "`{quiet:?}` is not provocative, however loud or violent it sounds"
+        );
     }
     // Nine and four is the whole enumeration: every category is on one side of the line.
-    assert_eq!(9 + 4, 13, "thirteen categories, nine quiet and four provocative");
+    assert_eq!(
+        9 + 4,
+        13,
+        "thirteen categories, nine quiet and four provocative"
+    );
 }
 
 /// A sound is provocative if its category says so **or** if it arrived loud - which is why monsters come to gunfire after all.
@@ -138,22 +156,43 @@ fn a_sound_is_provocative_by_its_kind_or_its_loudness() {
 
     let mut dice = Rolls::new(77);
     // Loudness alone: a combat sound of ten never beats a roll around thirty, and one of sixty always does.
-    let quiet = (0..200).filter(|_| heard_as_provocative(SoundCategory::Combat, 10, &mut dice)).count();
-    assert_eq!(quiet, 0, "a quiet gunshot's own category is not provocative, and ten is not loud: {quiet}");
+    let quiet = (0..200)
+        .filter(|_| heard_as_provocative(SoundCategory::Combat, 10, &mut dice))
+        .count();
+    assert_eq!(
+        quiet, 0,
+        "a quiet gunshot's own category is not provocative, and ten is not loud: {quiet}"
+    );
     let mut dice = Rolls::new(77);
-    let loud = (0..200).filter(|_| heard_as_provocative(SoundCategory::Combat, 60, &mut dice)).count();
-    assert!(loud > 190, "but sixty beats a roll of normal thirty and five nearly always: {loud} of 200");
+    let loud = (0..200)
+        .filter(|_| heard_as_provocative(SoundCategory::Combat, 60, &mut dice))
+        .count();
+    assert!(
+        loud > 190,
+        "but sixty beats a roll of normal thirty and five nearly always: {loud} of 200"
+    );
 
     // Category alone: speech at a whisper is provocative whatever the volume.
     let mut dice = Rolls::new(77);
     for _ in 0..100 {
-        assert!(heard_as_provocative(SoundCategory::Speech, 1, &mut dice), "somebody talking is always worth a look");
-        assert!(heard_as_provocative(SoundCategory::Order, 1, &mut dice), "and an order more so");
+        assert!(
+            heard_as_provocative(SoundCategory::Speech, 1, &mut dice),
+            "somebody talking is always worth a look"
+        );
+        assert!(
+            heard_as_provocative(SoundCategory::Order, 1, &mut dice),
+            "and an order more so"
+        );
     }
     // And the famous line: a hundred and fifty-four squares of gunshot is provocative because it is loud, not because it is violent.
     let mut dice = Rolls::new(77);
-    let shot = (0..200).filter(|_| heard_as_provocative(SoundCategory::Combat, 154, &mut dice)).count();
-    assert_eq!(shot, 200, "a .223 at the shooter's own square is heard as provocative every time: {shot}");
+    let shot = (0..200)
+        .filter(|_| heard_as_provocative(SoundCategory::Combat, 154, &mut dice))
+        .count();
+    assert_eq!(
+        shot, 200,
+        "a .223 at the shooter's own square is heard as provocative every time: {shot}"
+    );
 }
 
 /// A monster already walking towards something interesting is not distracted by something duller.
@@ -177,24 +216,55 @@ fn a_monster_following_something_interesting_ignores_a_duller_sound() {
         wander.provocative = true;
     }
     // A dull sound that would hold it only ten turns, and a louder dull one that would hold it twenty.
-    cdda_sim::sounds::make_a_sound_of_kind(&mut world, (9, 0, 0), 30, "bang!", cdda_sim::sounds::SoundCategory::Combat);
+    cdda_sim::sounds::make_a_sound_of_kind(
+        &mut world,
+        (9, 0, 0),
+        30,
+        "bang!",
+        cdda_sim::sounds::SoundCategory::Combat,
+    );
     cdda_sim::hearing::hear_sounds(&mut world);
 
-    let wander = world.get::<cdda_sim::creature::Wander>(zombie).copied().expect("it is still wandering");
-    assert_eq!(wander.turns_left, 40, "the dull sound did not replace a provocative wander");
-    assert_eq!(wander.square, (5, 5, 0), "and it is still heading where the interesting sound was");
+    let wander = world
+        .get::<cdda_sim::creature::Wander>(zombie)
+        .copied()
+        .expect("it is still wandering");
+    assert_eq!(
+        wander.turns_left, 40,
+        "the dull sound did not replace a provocative wander"
+    );
+    assert_eq!(
+        wander.square,
+        (5, 5, 0),
+        "and it is still heading where the interesting sound was"
+    );
 
     // A sound that would hold it sixty turns wins, because it lasts longer - the second guard is about duration, not volume.
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(31));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (0, 0, 0));
     cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
-    world.entity_mut(zombie).insert(cdda_sim::creature::Anger(100));
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Anger(100));
     cdda_sim::creature::set_wander(&mut world, zombie, (5, 5, 0), 10);
-    cdda_sim::sounds::make_a_sound_of_kind(&mut world, (9, 0, 0), 60, "bang!", cdda_sim::sounds::SoundCategory::Combat);
+    cdda_sim::sounds::make_a_sound_of_kind(
+        &mut world,
+        (9, 0, 0),
+        60,
+        "bang!",
+        cdda_sim::sounds::SoundCategory::Combat,
+    );
     cdda_sim::hearing::hear_sounds(&mut world);
-    let wander = world.get::<cdda_sim::creature::Wander>(zombie).copied().expect("it is wandering");
-    assert!(wander.turns_left > 40, "a longer-lasting sound does take over: {}", wander.turns_left);
+    let wander = world
+        .get::<cdda_sim::creature::Wander>(zombie)
+        .copied()
+        .expect("it is wandering");
+    assert!(
+        wander.turns_left > 40,
+        "a longer-lasting sound does take over: {}",
+        wander.turns_left
+    );
 }
 
 /// A hearing monster walks towards the noise, a frightened one walks away from it, and an uninterested one does not move - three outcomes, not one.
@@ -216,7 +286,13 @@ fn a_frightened_monster_walks_away_from_the_noise_and_an_uninterested_one_does_n
             .insert(cdda_sim::creature::Morale(morale))
             .insert(cdda_sim::creature::Anger(anger));
         // A loud shout to the east, at a square whose x differs by four, so the mirror point is unambiguous.
-        cdda_sim::sounds::make_a_sound_of_kind(&mut world, (14, 10, 0), 60, "shout", cdda_sim::sounds::SoundCategory::Speech);
+        cdda_sim::sounds::make_a_sound_of_kind(
+            &mut world,
+            (14, 10, 0),
+            60,
+            "shout",
+            cdda_sim::sounds::SoundCategory::Speech,
+        );
         cdda_sim::hearing::hear_sounds(&mut world);
         world.get::<cdda_sim::creature::Wander>(zombie).copied()
     };
@@ -226,10 +302,16 @@ fn a_frightened_monster_walks_away_from_the_noise_and_an_uninterested_one_does_n
     assert_eq!(bold.square.1, 10, "and stays on the same line");
 
     let scared = hearing(-50, 100).expect("a frightened monster walks somewhere too");
-    assert_eq!(scared.square.0, 6, "but to the mirror point, four squares the other way");
+    assert_eq!(
+        scared.square.0, 6,
+        "but to the mirror point, four squares the other way"
+    );
     assert_eq!(scared.square.1, 10, "on the same line");
 
-    assert!(hearing(0, 5).is_none(), "a monster with morale but no anger walks nowhere at all");
+    assert!(
+        hearing(0, 5).is_none(),
+        "a monster with morale but no anger walks nowhere at all"
+    );
 }
 
 /// A deaf monster hears nothing, even though its type says it has ears.
@@ -252,15 +334,40 @@ fn a_deaf_monster_hears_nothing_though_its_type_says_it_has_ears() {
 
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (2, 0, 0));
     cdda_sim::creature_flags::add_flag(&mut world, zombie, "HEARS");
-    world.entity_mut(zombie).insert(cdda_sim::creature::Anger(100));
-    assert!(cdda_sim::hearing::can_hear(&world, zombie), "it has ears and is not deaf");
+    world
+        .entity_mut(zombie)
+        .insert(cdda_sim::creature::Anger(100));
+    assert!(
+        cdda_sim::hearing::can_hear(&world, zombie),
+        "it has ears and is not deaf"
+    );
 
     // The same monster, deafened: the flag is still there and it hears nothing.
-    cdda_sim::applied_effects::add(&mut world, zombie, cdda_sim::effects::ActiveEffect::new(&kind, 100, 1));
-    assert!(!cdda_sim::hearing::can_hear(&world, zombie), "deaf beats ears");
-    cdda_sim::sounds::make_a_sound_of_kind(&mut world, (0, 0, 0), 40, "bang!", cdda_sim::sounds::SoundCategory::Combat);
-    assert_eq!(cdda_sim::hearing::hear_sounds(&mut world), 0, "and a loud sound reaches nobody who cannot hear");
-    assert!(world.get::<cdda_sim::creature::Wander>(zombie).is_none(), "so it does not walk anywhere");
+    cdda_sim::applied_effects::add(
+        &mut world,
+        zombie,
+        cdda_sim::effects::ActiveEffect::new(&kind, 100, 1),
+    );
+    assert!(
+        !cdda_sim::hearing::can_hear(&world, zombie),
+        "deaf beats ears"
+    );
+    cdda_sim::sounds::make_a_sound_of_kind(
+        &mut world,
+        (0, 0, 0),
+        40,
+        "bang!",
+        cdda_sim::sounds::SoundCategory::Combat,
+    );
+    assert_eq!(
+        cdda_sim::hearing::hear_sounds(&mut world),
+        0,
+        "and a loud sound reaches nobody who cannot hear"
+    );
+    assert!(
+        world.get::<cdda_sim::creature::Wander>(zombie).is_none(),
+        "so it does not walk anywhere"
+    );
 }
 
 /// The log keeps the newest lines and drops the oldest, at the reference's default limit.
@@ -277,8 +384,16 @@ fn the_message_log_drops_the_oldest_lines_first() {
     }
     let lines = cdda_sim::messages::lines(&world);
     // **The steady state is the limit plus one**, because the reference trims *before* pushing: `while( size > limit ) pop; push;` leaves the list one over.
-    assert_eq!(lines.len(), cdda_sim::messages::MESSAGE_LIMIT + 1, "the trim runs before the push, so one line sits over the limit");
-    assert_eq!(lines.first().map(String::as_str), Some("line 9"), "and the oldest lines are the ones dropped");
+    assert_eq!(
+        lines.len(),
+        cdda_sim::messages::MESSAGE_LIMIT + 1,
+        "the trim runs before the push, so one line sits over the limit"
+    );
+    assert_eq!(
+        lines.first().map(String::as_str),
+        Some("line 9"),
+        "and the oldest lines are the ones dropped"
+    );
     assert_eq!(
         lines.last().map(String::as_str),
         Some(format!("line {}", cdda_sim::messages::MESSAGE_LIMIT + 9).as_str()),

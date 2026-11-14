@@ -37,7 +37,10 @@ fn a_field_poured_out_stops_at_its_maximum_and_spends_what_it_has() {
     for x in -3..=3 {
         for y in -3..=3 {
             let here = strength(&world, x, y);
-            assert!(here <= 3, "no square goes above the maximum, and ({x},{y}) is at {here}");
+            assert!(
+                here <= 3,
+                "no square goes above the maximum, and ({x},{y}) is at {here}"
+            );
             total += here;
             if (x, y) == (0, 0) {
                 on_the_centre = here;
@@ -100,16 +103,13 @@ fn a_field_passes_a_permeable_square_and_not_a_solid_one() {
     // Enough gas to travel well past the wall: a square costs at least one unit, so 400 units reach the far side wherever the
     // way is open, and the assertion does not depend on where in a front the draw happens to stop.
     let blocked = cdda_sim::field_passage::blocked_within(&world, (0, 0, 0), 400);
-    assert!(!blocked.is_empty(), "the solid part of the wall is collected");
-    field_spread::propagate(
-        &mut world,
-        (0, 0, 0),
-        GAS,
-        400,
-        3,
-        &mut rolls,
-        |x, y, z| !blocked.contains(&(x, y, z)),
+    assert!(
+        !blocked.is_empty(),
+        "the solid part of the wall is collected"
     );
+    field_spread::propagate(&mut world, (0, 0, 0), GAS, 400, 3, &mut rolls, |x, y, z| {
+        !blocked.contains(&(x, y, z))
+    });
 
     assert!(
         strength(&world, 1, 0) > 0,

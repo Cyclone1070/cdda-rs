@@ -87,7 +87,10 @@ fn a_strong_fire_vent_thins_only_one_time_in_three() {
     for attempt in 0..30 {
         let mut world = World::new();
         let entity = spawn(&mut world, FIRE_VENT, 3, 5);
-        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
+        let seed = u32::try_from(attempt)
+            .unwrap_or(u32::MAX)
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fire_vent(&mut world, entity, &mut rolls);
         match fields(&mut world).as_slice() {
@@ -116,6 +119,13 @@ fn a_burning_burst_leaves_hot_air_over_the_square() {
         .collect();
     // Five wisps, not five entities: `create_hot_air` draws five offsets and `add_field` **thickens** a square that already holds hot air rather than stacking a
     // second field on it, so the total is what says five wisps were made and no square can hold more than two of them here.
-    assert_eq!(hot.iter().sum::<i32>(), 5, "five thin wisps, as create_hot_air makes");
-    assert!(hot.iter().all(|&i| i <= 2), "no square caught more than two: {hot:?}");
+    assert_eq!(
+        hot.iter().sum::<i32>(),
+        5,
+        "five thin wisps, as create_hot_air makes"
+    );
+    assert!(
+        hot.iter().all(|&i| i <= 2),
+        "no square caught more than two: {hot:?}"
+    );
 }

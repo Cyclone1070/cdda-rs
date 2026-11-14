@@ -122,6 +122,12 @@ fn ordinary_flammable_ground_feeds_every_turn_and_still_rolls_for_bashing() {
             spared += 1;
         }
     }
-    assert!(bashed > 0, "a burning field bashes at intensity two sometimes");
-    assert!(spared > 0, "and sometimes it does not: {bashed} bashed, {spared} spared");
+    assert!(
+        bashed > 0,
+        "a burning field bashes at intensity two sometimes"
+    );
+    assert!(
+        spared > 0,
+        "and sometimes it does not: {bashed} bashed, {spared} spared"
+    );
 }

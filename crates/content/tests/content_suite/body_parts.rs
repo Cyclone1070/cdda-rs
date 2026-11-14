@@ -42,7 +42,10 @@ fn a_torso_is_the_biggest_target_and_the_head_is_harder_to_reach() {
 
     let torso = part(&parts, "torso");
     assert_eq!(torso.hit_size, 36.0, "a torso is thirty-six");
-    assert_eq!(torso.hit_difficulty, 1.0, "and no harder than average to aim at");
+    assert_eq!(
+        torso.hit_difficulty, 1.0,
+        "and no harder than average to aim at"
+    );
     assert!(!torso.upper && !torso.lower, "it is neither high nor low");
 
     let head = part(&parts, "head");
@@ -91,16 +94,28 @@ fn a_body_part_states_its_limb_scores() {
         .iter()
         .find(|(score, _, _)| score == "balance")
         .expect("a torso states a balance");
-    assert!((balance.1 - 0.7).abs() < 1e-6, "**a torso's balance is 0.7**: {}", balance.1);
+    assert!(
+        (balance.1 - 0.7).abs() < 1e-6,
+        "**a torso's balance is 0.7**: {}",
+        balance.1
+    );
     assert!(
         (balance.2 - balance.1).abs() < 1e-6,
         "and its max is the score when the reference states no second figure"
     );
 
     let arm = part(&parts, "arm_l");
-    let lift = arm.limb_scores.iter().find(|(score, _, _)| score == "lift").expect("an arm lifts");
+    let lift = arm
+        .limb_scores
+        .iter()
+        .find(|(score, _, _)| score == "lift")
+        .expect("an arm lifts");
     assert!((lift.1 - 0.5).abs() < 1e-6, "an arm's lift is half");
-    let manip = arm.limb_scores.iter().find(|(score, _, _)| score == "manip").expect("an arm manipulates");
+    let manip = arm
+        .limb_scores
+        .iter()
+        .find(|(score, _, _)| score == "manip")
+        .expect("an arm manipulates");
     assert!(
         (manip.1 - 0.1).abs() < 1e-6 && (manip.2 - 0.2).abs() < 1e-6,
         "**and `manip` states a max of its own**, which is why the dump carries three figures: {} {}",
@@ -108,10 +123,16 @@ fn a_body_part_states_its_limb_scores() {
         manip.2
     );
     assert!(
-        arm.limb_types.iter().any(|(kind, weight)| kind == "arm" && (*weight - 1.0).abs() < 1e-6),
+        arm.limb_types
+            .iter()
+            .any(|(kind, weight)| kind == "arm" && (*weight - 1.0).abs() < 1e-6),
         "an arm belongs to the arm limb type at a weight of one"
     );
-    assert_eq!(arm.primary_limb_type.as_deref(), Some("arm"), "which is then its primary type");
+    assert_eq!(
+        arm.primary_limb_type.as_deref(),
+        Some("arm"),
+        "which is then its primary type"
+    );
 
     // Every part in the dump carries a score list and a type, which is what makes the sum answerable for a whole body.
     assert!(

@@ -317,7 +317,8 @@ fn exactly_two_types_in_the_data_weigh_something_else_when_damaged() {
     // **The corpus side of `item::weight( integral: true )`.** The dump carries both numbers now, and the data's own answer is worth pinning: two types differ, and three
     // gunmods say zero **on purpose** - a gunmod's weight does not count toward the gun's integral weight. A loader that treated zero as "unset" and copied the ordinary
     // weight over it would make those three count, and nothing else in the port would notice.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
     let bytes = std::fs::read(&path).expect("the dump");
     let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
         panic!("the dump is an object")
@@ -374,8 +375,15 @@ fn exactly_two_types_in_the_data_weigh_something_else_when_damaged() {
         ("barrel_ported", 225, 0),
         ("match_trigger", 120, 0),
     ] {
-        let item = loaded.iter().find(|item| item.id == id).expect("the type loads");
-        assert_eq!(item.weight, weight * 1_000, "{id} weighs what the dump says");
+        let item = loaded
+            .iter()
+            .find(|item| item.id == id)
+            .expect("the type loads");
+        assert_eq!(
+            item.weight,
+            weight * 1_000,
+            "{id} weighs what the dump says"
+        );
         assert_eq!(
             item.integral_weight,
             integral * 1_000,
@@ -389,7 +397,8 @@ fn the_stack_size_the_volume_rule_divides_by_is_in_the_dump() {
     // `item::volume` divides a charge-counted item's volume by `stack_size` and rounds up, so a port without the divisor cannot say what a pile takes up. The dump
     // carries it now, with the flag that decides whether it matters: 1,261 types in the data are counted in charges, and the battery is the one to check by hand -
     // 100 ml for 100 charges, which is one millilitre a charge.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
     let bytes = std::fs::read(&path).expect("the dump");
     let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
         panic!("the dump is an object")
@@ -406,7 +415,10 @@ fn the_stack_size_the_volume_rule_divides_by_is_in_the_dump() {
         let Some(cdda_json::Value::Str(id)) = entry.get("id") else {
             panic!("an id")
         };
-        let counted = matches!(entry.get("count_by_charges"), Some(cdda_json::Value::Bool(true)));
+        let counted = matches!(
+            entry.get("count_by_charges"),
+            Some(cdda_json::Value::Bool(true))
+        );
         if !counted {
             continue;
         }
@@ -419,7 +431,10 @@ fn the_stack_size_the_volume_rule_divides_by_is_in_the_dump() {
             battery = Some((whole("volume"), whole("stack_size")));
         }
     }
-    assert_eq!(charged, 1_261, "every charge-counted type carries its stack size");
+    assert_eq!(
+        charged, 1_261,
+        "every charge-counted type carries its stack size"
+    );
     assert_eq!(
         battery,
         Some((100, 100)),
@@ -431,7 +446,8 @@ fn the_stack_size_the_volume_rule_divides_by_is_in_the_dump() {
 fn the_integral_volume_is_in_the_dump_and_the_loader_keeps_a_deliberate_zero() {
     // **The corpus side of `item::volume( integral: true )`.** 120 types answer differently from their ordinary volume, and 97 of those say **zero** on purpose - a
     // pseudo magazine, a debug item, a `null` - which is the same trap the integral weight had: zero is a value, not an absence.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
     let bytes = std::fs::read(&path).expect("the dump");
     let cdda_json::Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
         panic!("the dump is an object")
@@ -457,7 +473,10 @@ fn the_integral_volume_is_in_the_dump_and_the_loader_keeps_a_deliberate_zero() {
             zero_on_purpose += 1;
         }
     }
-    assert_eq!(differing, 120, "120 types take up a different room packed down");
+    assert_eq!(
+        differing, 120,
+        "120 types take up a different room packed down"
+    );
     assert_eq!(zero_on_purpose, 97, "and 97 of them say zero on purpose");
     // The loader carries it, and a deliberate zero survives: a pseudo magazine is one millilitre as it stands and nothing packed down.
     let loaded = crate::corpus::items_loaded();
@@ -497,11 +516,27 @@ fn the_corpus_says_what_its_kinds_are() {
             .filter(|entry| matches!(entry, cdda_json::Value::Object(row) if matches!(row.get(name), Some(cdda_json::Value::Bool(true)))))
             .count()
     };
-    assert_eq!(prototypes.len(), 9912, "**nine thousand nine hundred and twelve kinds**");
-    assert_eq!(count("holds_container_pocket"), 1146, "a thousand and a hundred and forty-six hold a container pocket");
-    assert_eq!(count("is_tool"), 1237, "twelve hundred and thirty-seven are tools");
+    assert_eq!(
+        prototypes.len(),
+        9912,
+        "**nine thousand nine hundred and twelve kinds**"
+    );
+    assert_eq!(
+        count("holds_container_pocket"),
+        1146,
+        "a thousand and a hundred and forty-six hold a container pocket"
+    );
+    assert_eq!(
+        count("is_tool"),
+        1237,
+        "twelve hundred and thirty-seven are tools"
+    );
     assert_eq!(count("is_gun"), 406, "four hundred and six are guns");
-    assert_eq!(count("is_ammo"), 736, "seven hundred and thirty-six are ammunition");
+    assert_eq!(
+        count("is_ammo"),
+        736,
+        "seven hundred and thirty-six are ammunition"
+    );
 }
 
 /// The four questions are answered from the kind's own data, and **a magazine is not a container**.
@@ -552,12 +587,18 @@ fn a_simple_fixture_loads_every_kind_it_states() {
         assert!(
             loaded.iter().any(|kind| kind.id == id),
             "**{id} went missing from the fixture**: the loader kept {:?}",
-            loaded.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>()
+            loaded
+                .iter()
+                .map(|kind| kind.id.as_str())
+                .collect::<Vec<_>>()
         );
     }
     assert_eq!(loaded.len(), 6, "and nothing else was invented");
     let find = |id: &str| loaded.iter().find(|kind| kind.id == id).expect("a kind");
-    assert!(find("lighter").is_tool(), "the tool's slot is the subtype it states");
+    assert!(
+        find("lighter").is_tool(),
+        "the tool's slot is the subtype it states"
+    );
     assert!(find("pistol").is_gun(), "and the gun's is its own");
 }
 
@@ -591,7 +632,8 @@ fn a_slot_named_as_a_type_is_not_an_item() {
 /// so this is a comparison against the reference and not against a rule the port wrote down. The three the dump names and the port answers from the kind's slots must agree on all 9,912.
 #[test]
 fn every_kind_answers_what_it_is_the_way_the_reference_does() {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data/json");
     let loaded = items::load_paths(&[&data]).expect("the reference data loads");
     let dump = std::fs::read(root().join("corpus/prototypes/items.json")).expect("the item dump");
     let parsed = cdda_json::parse(&dump).expect("valid JSON");
@@ -603,7 +645,11 @@ fn every_kind_answers_what_it_is_the_way_the_reference_does() {
     };
     let ours: std::collections::BTreeMap<&str, &items::ItemType> =
         loaded.iter().map(|kind| (kind.id.as_str(), kind)).collect();
-    assert_eq!(ours.len(), loaded.len(), "**ids are unique, so the map kept every kind**");
+    assert_eq!(
+        ours.len(),
+        loaded.len(),
+        "**ids are unique, so the map kept every kind**"
+    );
 
     let mut compared = 0;
     for entry in prototypes {
@@ -620,7 +666,11 @@ fn every_kind_answers_what_it_is_the_way_the_reference_does() {
         assert_eq!(kind.is_tool(), said("is_tool"), "{id} is a tool");
         assert_eq!(kind.is_gun(), said("is_gun"), "{id} is a gun");
         assert_eq!(kind.is_ammo(), said("is_ammo"), "{id} is ammunition");
-        assert_eq!(kind.is_container(), said("holds_container_pocket"), "{id} holds a container pocket");
+        assert_eq!(
+            kind.is_container(),
+            said("holds_container_pocket"),
+            "{id} holds a container pocket"
+        );
         compared += 1;
     }
     assert!(
@@ -636,7 +686,8 @@ fn every_kind_answers_what_it_is_the_way_the_reference_does() {
 /// the four questions it checked, so the same treatment is given to the three facts beside them: the reference's own answer is in the dump, and the port's answer must be the same for all 9,912.
 #[test]
 fn every_kind_s_other_facts_are_the_reference_s() {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data/json");
     let loaded = items::load_paths(&[&data]).expect("the reference data loads");
     let dump = std::fs::read(root().join("corpus/prototypes/items.json")).expect("the item dump");
     let parsed = cdda_json::parse(&dump).expect("valid JSON");
@@ -666,7 +717,11 @@ fn every_kind_s_other_facts_are_the_reference_s() {
             _ => 0,
         };
         assert_eq!(kind.is_gunmod, said("is_gunmod"), "{id} is a gunmod");
-        assert_eq!(kind.charges_to_use(), number("charges_to_use"), "{id} costs charges");
+        assert_eq!(
+            kind.charges_to_use(),
+            number("charges_to_use"),
+            "{id} costs charges"
+        );
         // The slot keeps **kilocalories** and the dump carries the reference's `get_default_nutr()`, so the comparison is between the same fact in the same unit.
         // The dump's `nutr` column **is** the reference's `get_default_nutr()` (`itype.h:256-258`), in nutrition units and not in kilocalories.
         let our_calories = kind
@@ -677,5 +732,8 @@ fn every_kind_s_other_facts_are_the_reference_s() {
         assert_eq!(our_calories, their_calories, "{id} states calories");
         compared += 1;
     }
-    assert!(compared > 9_800, "**the bulk of the corpus was compared**: {compared}");
+    assert!(
+        compared > 9_800,
+        "**the bulk of the corpus was compared**: {compared}"
+    );
 }

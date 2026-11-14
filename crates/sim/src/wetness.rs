@@ -19,7 +19,9 @@ pub fn add(world: &mut World, creature: bevy_ecs::prelude::Entity, amount: i32) 
         wet.0 = (wet.0 + amount).clamp(0, soaked);
         return;
     }
-    world.entity_mut(creature).insert(Wetness(amount.clamp(0, soaked)));
+    world
+        .entity_mut(creature)
+        .insert(Wetness(amount.clamp(0, soaked)));
 }
 
 /// How wet a creature is, answering dry for one that has never been wet.

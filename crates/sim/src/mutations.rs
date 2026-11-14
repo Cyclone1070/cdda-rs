@@ -71,7 +71,13 @@ fn satisfied(world: &World, creature: Entity, needed: &[String]) -> bool {
 ///
 /// Reference: `Character::mutate_towards` (`mutation.cpp:600-700`): the conflicting traits are removed **first**, so the creature never holds two mutations that
 /// cancel each other, and the gain is refused when the prerequisites are not met.
-pub fn gain(world: &mut World, creature: Entity, data: &MutationData, categories: &Categories, id: &str) -> Gain {
+pub fn gain(
+    world: &mut World,
+    creature: Entity,
+    data: &MutationData,
+    categories: &Categories,
+    id: &str,
+) -> Gain {
     let verdict = can_gain(world, creature, data, id);
     if verdict != Gain::Yes {
         return verdict;
@@ -85,8 +91,12 @@ pub fn gain(world: &mut World, creature: Entity, data: &MutationData, categories
     let keep: Vec<String> = prerequisite_closure(data, id);
     let of_new = rule.categories.clone();
     let chance = removal_chance(categories, &of_new);
-    let mut rolled = crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
-    let mut held = world.get::<Mutations>(creature).cloned().unwrap_or_default();
+    let mut rolled =
+        crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    let mut held = world
+        .get::<Mutations>(creature)
+        .cloned()
+        .unwrap_or_default();
     let mut kept: Vec<String> = Vec::new();
     for known in &held.0 {
         if known == id || keep.contains(known) {
@@ -210,7 +220,12 @@ pub fn category_level(world: &World, creature: Entity, data: &MutationData, cate
 
 /// Every mutation a creature could become next in one category, in the data's own id order.
 #[must_use]
-pub fn candidates(world: &World, creature: Entity, data: &MutationData, category: &str) -> Vec<String> {
+pub fn candidates(
+    world: &World,
+    creature: Entity,
+    data: &MutationData,
+    category: &str,
+) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for id in data.ids() {
         let Some(rule) = data.get(id) else {
@@ -231,7 +246,11 @@ pub fn candidates(world: &World, creature: Entity, data: &MutationData, category
 ///
 /// Reference: `f_mutate` (`npctalk.cpp:3560-3570`) asks `Character::mutation_category_level` for every category the creature touches and mutates towards the **highest**.
 #[must_use]
-pub fn strongest_category(world: &World, creature: Entity, data: &MutationData) -> Option<(String, i32)> {
+pub fn strongest_category(
+    world: &World,
+    creature: Entity,
+    data: &MutationData,
+) -> Option<(String, i32)> {
     let mut best: Option<(String, i32)> = None;
     for id in mutations_of(world, creature) {
         let Some(rule) = data.get(&id) else {
@@ -285,7 +304,10 @@ pub fn mutate_category_with(
     let blocked = !true_random;
     // Reference: `mutation_ok`'s last check (`mutation.cpp:1052-1057`) refuses a trait the creature has not stored enough of the category's mutagen to pay for, and
     // `mutate_category` hands it the **category's** vitamin rather than a per-trait one (`mutation.cpp:1380-1382`).
-    let mutagen = categories.get(category).map(|one| one.vitamin.clone()).unwrap_or_default();
+    let mutagen = categories
+        .get(category)
+        .map(|one| one.vitamin.clone())
+        .unwrap_or_default();
     let mut valid: Vec<String> = candidates(world, creature, data, category)
         .into_iter()
         .filter(|id| {
@@ -318,7 +340,12 @@ pub fn mutate_category_with(
 /// Reference: `enchantment_cache::get_value_add` and `get_value_multiply` (`magic_enchantment.h:217-218`): every source's `values_add` for a stat is summed, and every
 /// `values_multiply` is summed too - the reference then applies `( base + add ) * ( 1 + multiply )`, which is what [`apply`] does.
 #[must_use]
-pub fn enchantment_values(world: &World, creature: Entity, data: &MutationData, stat: &str) -> (f64, f64) {
+pub fn enchantment_values(
+    world: &World,
+    creature: Entity,
+    data: &MutationData,
+    stat: &str,
+) -> (f64, f64) {
     enchantment_values_from(data, world, creature, stat)
 }
 
@@ -366,7 +393,12 @@ pub fn roll_is_bad(
 /// Reference: `Character::get_instability_per_category` (`mutation.cpp:1055-1087`): every mutation held that is not a threshold, has a category and is not a starting trait
 /// counts its **height** - one point if the category is the one being mutated into, **two** otherwise, so a creature that has wandered off its tree is more unstable.
 #[must_use]
-pub fn instability_in_category(world: &World, creature: Entity, data: &MutationData, category: &str) -> i32 {
+pub fn instability_in_category(
+    world: &World,
+    creature: Entity,
+    data: &MutationData,
+    category: &str,
+) -> i32 {
     let mut total = 0;
     for id in mutations_of(world, creature) {
         let Some(rule) = data.get(&id) else {
@@ -453,7 +485,13 @@ pub fn total_in_category(data: &MutationData, category: &str, count: Count) -> u
 /// Reference: `Character::mutation_ok`'s `mut_vit` check (`mutation.cpp:1052-1057`): `vitamin_get( mut_vit ) < mutation->vitamin_cost` refuses the trait. A category with no
 /// vitamin stated costs nothing, which is what the reference's null id does.
 #[must_use]
-pub fn can_pay_in_vitamins(world: &World, creature: Entity, data: &MutationData, mutagen: &str, id: &str) -> bool {
+pub fn can_pay_in_vitamins(
+    world: &World,
+    creature: Entity,
+    data: &MutationData,
+    mutagen: &str,
+    id: &str,
+) -> bool {
     if mutagen.is_empty() {
         return true;
     }

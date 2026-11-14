@@ -12,8 +12,8 @@
 use bevy_ecs::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::singletons;
 use crate::MonsterKindId;
+use crate::singletons;
 
 /// One monster kind, as the store needs to know it.
 #[derive(Debug, Clone, Copy)]
@@ -119,8 +119,14 @@ pub fn set_weakpoint_families(
 
 /// The weak-point families one kind's body rewards, empty when the world never installed them.
 #[must_use]
-pub fn families_of(world: &World, kind: crate::MonsterKindId) -> Vec<cdda_content::weakpoints::Family> {
-    let Some(types) = world.iter_entities().find_map(|entity| entity.get::<MonsterTypes>()) else {
+pub fn families_of(
+    world: &World,
+    kind: crate::MonsterKindId,
+) -> Vec<cdda_content::weakpoints::Family> {
+    let Some(types) = world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+    else {
         return Vec::new();
     };
     let Some(&(start, how_many)) = types.family_ranges.get(kind.0 as usize) else {
@@ -223,8 +229,14 @@ pub fn set_dissections(
 
 /// What one kind's body yields when dissected: the entries and their drop ids, empty when the data states none.
 #[must_use]
-pub fn dissect_of(world: &World, kind: crate::MonsterKindId) -> (Vec<crate::HarvestSpec>, Vec<String>) {
-    let Some(types) = world.iter_entities().find_map(|entity| entity.get::<MonsterTypes>()) else {
+pub fn dissect_of(
+    world: &World,
+    kind: crate::MonsterKindId,
+) -> (Vec<crate::HarvestSpec>, Vec<String>) {
+    let Some(types) = world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+    else {
         return (Vec::new(), Vec::new());
     };
     let Some(&(start, how_many)) = types.dissect_ranges.get(kind.0 as usize) else {
@@ -233,8 +245,14 @@ pub fn dissect_of(world: &World, kind: crate::MonsterKindId) -> (Vec<crate::Harv
     let start = start as usize;
     let end = start + how_many as usize;
     (
-        types.dissect_entries.get(start..end).map_or_else(Vec::new, <[crate::HarvestSpec]>::to_vec),
-        types.dissect_ids.get(start..end).map_or_else(Vec::new, <[String]>::to_vec),
+        types
+            .dissect_entries
+            .get(start..end)
+            .map_or_else(Vec::new, <[crate::HarvestSpec]>::to_vec),
+        types
+            .dissect_ids
+            .get(start..end)
+            .map_or_else(Vec::new, <[String]>::to_vec),
     )
 }
 
@@ -316,9 +334,14 @@ pub fn set_armours(world: &mut World, entries: &[(crate::MonsterKindId, crate::c
     for (kind, armour) in entries {
         let at = kind.0 as usize;
         if types.armours.len() <= at {
-            types
-                .armours
-                .resize(at + 1, crate::creature::Armour { bash: 0, cut: 0, stab: 0 });
+            types.armours.resize(
+                at + 1,
+                crate::creature::Armour {
+                    bash: 0,
+                    cut: 0,
+                    stab: 0,
+                },
+            );
         }
         if let Some(slot) = types.armours.get_mut(at) {
             *slot = *armour;
@@ -351,8 +374,14 @@ pub fn body_of(world: &World, kind: crate::MonsterKindId) -> Option<crate::creat
 ///
 /// Empty when the world never installed them, which is the honest answer - a body with no recorded harvest butchers to nothing rather than to a guess.
 #[must_use]
-pub fn harvest_of(world: &World, kind: crate::MonsterKindId) -> (Vec<crate::HarvestSpec>, Vec<String>) {
-    let Some(types) = world.iter_entities().find_map(|entity| entity.get::<MonsterTypes>()) else {
+pub fn harvest_of(
+    world: &World,
+    kind: crate::MonsterKindId,
+) -> (Vec<crate::HarvestSpec>, Vec<String>) {
+    let Some(types) = world
+        .iter_entities()
+        .find_map(|entity| entity.get::<MonsterTypes>())
+    else {
         return (Vec::new(), Vec::new());
     };
     let Some(&(start, how_many)) = types.harvest_ranges.get(kind.0 as usize) else {
@@ -361,8 +390,14 @@ pub fn harvest_of(world: &World, kind: crate::MonsterKindId) -> (Vec<crate::Harv
     let start = start as usize;
     let end = start + how_many as usize;
     (
-        types.harvest_entries.get(start..end).map_or_else(Vec::new, <[crate::HarvestSpec]>::to_vec),
-        types.harvest_ids.get(start..end).map_or_else(Vec::new, <[String]>::to_vec),
+        types
+            .harvest_entries
+            .get(start..end)
+            .map_or_else(Vec::new, <[crate::HarvestSpec]>::to_vec),
+        types
+            .harvest_ids
+            .get(start..end)
+            .map_or_else(Vec::new, <[String]>::to_vec),
     )
 }
 
@@ -572,7 +607,12 @@ pub fn count(world: &mut World) -> usize {
 /// Reference: `mtype::bloodType` and `mtype::gibType` (`mtype.cpp:431-470`), whose answers are computed from the monster's flags, materials and species by
 /// [`cdda_content::blood`]. This keeps the **answer** rather than the inputs, because a death happens long after the data was loaded and the ladder's two functions are pure.
 #[allow(clippy::indexing_slicing, clippy::assigning_clones)]
-pub fn set_remains(world: &mut World, kind: MonsterKindId, blood: Option<&str>, gibs: Option<&str>) {
+pub fn set_remains(
+    world: &mut World,
+    kind: MonsterKindId,
+    blood: Option<&str>,
+    gibs: Option<&str>,
+) {
     let entity = singletons::singleton::<MonsterTypes, TheMonsterTypes>(world);
     let Some(mut registry) = world.get_mut::<MonsterTypes>(entity) else {
         return;

@@ -29,8 +29,14 @@ fn a_square_report_names_what_stands_there() {
 
     let report = inspect::square_report(&world, (2, 2, 0));
 
-    assert!(report.contains("holds 3 thing(s)"), "the square, its ground and the chair: {report}");
-    assert!(report.contains("Terrain"), "the ground's code is shown: {report}");
+    assert!(
+        report.contains("holds 3 thing(s)"),
+        "the square, its ground and the chair: {report}"
+    );
+    assert!(
+        report.contains("Terrain"),
+        "the ground's code is shown: {report}"
+    );
     assert!(report.contains("Furniture"), "and the chair's: {report}");
 }
 
@@ -41,14 +47,25 @@ fn the_store_report_counts_every_kind_of_thing() {
 
     let counts = inspect::component_counts(&world);
 
-    assert_eq!(counts.get("Square"), Some(&144), "one square per square of the level");
-    assert_eq!(counts.get("Ground"), Some(&144), "and one piece of ground under each");
+    assert_eq!(
+        counts.get("Square"),
+        Some(&144),
+        "one square per square of the level"
+    );
+    assert_eq!(
+        counts.get("Ground"),
+        Some(&144),
+        "and one piece of ground under each"
+    );
     assert_eq!(
         counts.get("Furniture"),
         Some(&1),
         "only the square that was given a chair has one"
     );
-    assert!(!counts.contains_key("Field"), "and nothing invented a field");
+    assert!(
+        !counts.contains_key("Field"),
+        "and nothing invented a field"
+    );
 }
 
 #[test]
@@ -57,7 +74,19 @@ fn a_fingerprint_changes_when_the_square_does() {
     materialise(&mut world, &level());
     let before = inspect::world_fingerprints(&world);
 
-    let item = world.spawn((Position { x: 2, y: 2, z: 0 }, cdda_sim::GroundItem { kind: cdda_sim::ItemTypeId(1), charges: 1, age: 0, burnt: 0, damage: 0, burn: None })).id();
+    let item = world
+        .spawn((
+            Position { x: 2, y: 2, z: 0 },
+            cdda_sim::GroundItem {
+                kind: cdda_sim::ItemTypeId(1),
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+        ))
+        .id();
     cdda_sim::singletons::index_mut(&mut world).insert(item, (2, 2, 0));
     let after = inspect::world_fingerprints(&world);
 

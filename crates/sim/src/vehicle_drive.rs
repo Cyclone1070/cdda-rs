@@ -115,11 +115,7 @@ fn simple_cubic_solution(cube: f64, square: f64, linear: f64, constant: f64) -> 
         let (re1, im1) = cube_root_complex(q, root);
         let (re2, im2) = cube_root_complex(q, -root);
         let (re, im) = (re1 + re2, im1 + im2);
-        if im < 2.0 {
-            p + re
-        } else {
-            0.0
-        }
+        if im < 2.0 { p + re } else { 0.0 }
     } else {
         let root = tricky_bit.sqrt();
         (q + root).cbrt() + (q - root).cbrt() + p

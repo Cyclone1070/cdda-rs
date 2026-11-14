@@ -18,20 +18,29 @@ fn the_category_dump_reads_with_its_removal_chance_and_threshold() {
     let Some((table, read)) = cdda_content::mutations::categories_from_dump(&root) else {
         return;
     };
-    assert_eq!(read, 29, "every mutation category is in the dump, and it read {read}");
+    assert_eq!(
+        read, 29,
+        "every mutation category is in the dump, and it read {read}"
+    );
     assert_eq!(read, table.len());
 
     // HUMAN never lets go of its starting traits, and every category wants the same strength for a threshold; URSINE is the ordinary third.
     assert!(
-        table.get("HUMAN").is_some_and(|one| one.base_removal_chance == 0),
+        table
+            .get("HUMAN")
+            .is_some_and(|one| one.base_removal_chance == 0),
         "the human baseline never removes a starting trait"
     );
     assert!(
-        table.get("URSINE").is_some_and(|one| one.base_removal_chance == 33),
+        table
+            .get("URSINE")
+            .is_some_and(|one| one.base_removal_chance == 33),
         "a beast category removes one a third of the time"
     );
     assert!(
-        table.get("HUMAN").is_some_and(|one| one.threshold_min == 2200),
+        table
+            .get("HUMAN")
+            .is_some_and(|one| one.threshold_min == 2200),
         "and a threshold wants 2200 of category strength"
     );
 }

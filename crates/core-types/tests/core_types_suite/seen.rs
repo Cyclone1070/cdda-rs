@@ -165,17 +165,13 @@ fn a_wall_ends_the_cast_and_the_squares_beyond_it_are_not_seen() {
     for y in 0..12 {
         level.set_terrain(8, y, WALL, OPEN);
     }
-    let grid = level.seen_grid(
-        (5, 5),
-        6,
-        |code| {
-            if code == WALL {
-                0.0
-            } else {
-                TRANSPARENCY_OPEN_AIR
-            }
-        },
-    );
+    let grid = level.seen_grid((5, 5), 6, |code| {
+        if code == WALL {
+            0.0
+        } else {
+            TRANSPARENCY_OPEN_AIR
+        }
+    });
     assert!(grid.at((8, 5)) > 0.0, "the wall itself is seen");
     assert!(grid.at((9, 5)) == 0.0, "nothing behind it");
     assert!(grid.at((11, 5)) == 0.0, "nor further along");

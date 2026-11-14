@@ -101,7 +101,13 @@ fn every_number_the_sun_is_computed_from_matches_the_reference() {
         "the dump holds {} samples, which is too few to say which step diverges",
         samples.len()
     );
-    let mut worst = [(0.0_f64, "ra"), (0.0, "dec"), (0.0, "sidereal"), (0.0, "hour_angle"), (0.0, "days")];
+    let mut worst = [
+        (0.0_f64, "ra"),
+        (0.0, "dec"),
+        (0.0, "sidereal"),
+        (0.0, "hour_angle"),
+        (0.0, "days"),
+    ];
     let mut disagreements = Vec::new();
     for sample in &samples {
         let ours = sun_internals(TimePoint::from_turn(sample.turn), &config);
@@ -136,6 +142,11 @@ fn every_number_the_sun_is_computed_from_matches_the_reference() {
         disagreements.len(),
         samples.len(),
         worst,
-        disagreements.iter().take(6).cloned().collect::<Vec<_>>().join("\n")
+        disagreements
+            .iter()
+            .take(6)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }

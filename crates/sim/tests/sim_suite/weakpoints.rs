@@ -3,7 +3,13 @@
 //! Source: `corpus/weakpoints/weakpoint-chance.json` is `--dump-weakpoint-chance`, which writes the reference's own `weakpoint::hit_chance` over a grid of skill, difficulty and coverage, for
 //! both halves of its branch. A test that wrote its own bell curve would prove the arithmetic and say nothing about whether the port's `erf` is the reference's.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing, clippy::float_cmp, clippy::cast_precision_loss)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp,
+    clippy::cast_precision_loss
+)]
 
 /// The port's normal tail is the reference's, row for row.
 ///
@@ -13,7 +19,8 @@
 /// missed would move whole columns of the grid.
 #[test]
 fn the_ported_weakpoint_chance_matches_the_reference() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weakpoints/weakpoint-chance.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/weakpoints/weakpoint-chance.json");
     let text = std::fs::read_to_string(&path).expect("the weakpoint dump is in the corpus");
     let value = cdda_json::parse(text.as_bytes()).expect("the dump parses");
     let cdda_json::Value::Object(root) = value else {
@@ -56,7 +63,10 @@ fn the_ported_weakpoint_chance_matches_the_reference() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 240, "**every row of the reference's grid was checked**");
+    assert_eq!(
+        checked, 240,
+        "**every row of the reference's grid was checked**"
+    );
 }
 
 /// A skilful attacker gets several draws at a weak point, and the reweighing favours the hard ones.
@@ -68,14 +78,32 @@ fn a_skilful_attacker_reweighs_the_hard_weak_points_up() {
     use cdda_sim::weakpoints::{reweigh, rolls_for};
 
     // The reference's own two worked examples, to a thousandth.
-    assert!((rolls_for(10.0) - 5.0).abs() < 1e-9, "**ten points of skill is five rolls**");
-    assert!((rolls_for(0.0) - 1.0).abs() < 1e-9, "and a beginner gets one");
-    assert!((rolls_for(-3.0) - 1.0).abs() < 1e-9, "and never fewer than one");
-    assert!((reweigh(0.01, 5.0) - 0.049).abs() < 1e-3, "one percent with five rolls is 4.9 percent");
+    assert!(
+        (rolls_for(10.0) - 5.0).abs() < 1e-9,
+        "**ten points of skill is five rolls**"
+    );
+    assert!(
+        (rolls_for(0.0) - 1.0).abs() < 1e-9,
+        "and a beginner gets one"
+    );
+    assert!(
+        (rolls_for(-3.0) - 1.0).abs() < 1e-9,
+        "and never fewer than one"
+    );
+    assert!(
+        (reweigh(0.01, 5.0) - 0.049).abs() < 1e-3,
+        "one percent with five rolls is 4.9 percent"
+    );
     // The reference's second example is written the other way round: **a seventy-five percent chance of *not* hitting becomes 23.7** - that is `1 - reweigh( 0.25, 5 )`, not `reweigh( 0.75, 5 )`.
-    assert!((1.0 - reweigh(0.25, 5.0) - 0.237).abs() < 1e-3, "**and a quarter's chance of missing falls to 23.7 percent**");
+    assert!(
+        (1.0 - reweigh(0.25, 5.0) - 0.237).abs() < 1e-3,
+        "**and a quarter's chance of missing falls to 23.7 percent**"
+    );
     // A single roll changes nothing, which is why a beginner's distribution is the plain coverage.
-    assert!((reweigh(0.42, 1.0) - 0.42).abs() < 1e-12, "one roll is no reweighing at all");
+    assert!(
+        (reweigh(0.42, 1.0) - 0.42).abs() < 1e-12,
+        "one roll is no reweighing at all"
+    );
 }
 
 /// Which weak point a roll lands on, walked the way the reference walks its list.
@@ -109,10 +137,26 @@ fn a_roll_walks_the_weak_points_in_reweighed_order() {
         },
     ];
     // A beginner gets one roll, so each entry's share is its own raw chance: twenty-five, then twenty-five.
-    assert_eq!(select_weakpoint(&list, 0.0, 0.0), Some(0), "a low roll takes the first");
-    assert_eq!(select_weakpoint(&list, 0.0, 24.999), Some(0), "**and twenty-five is the boundary**: below it is the first");
-    assert_eq!(select_weakpoint(&list, 0.0, 25.0), Some(1), "at exactly twenty-five the first has had its share");
-    assert_eq!(select_weakpoint(&list, 0.0, 49.999), Some(1), "and the second absorbs the rest");
+    assert_eq!(
+        select_weakpoint(&list, 0.0, 0.0),
+        Some(0),
+        "a low roll takes the first"
+    );
+    assert_eq!(
+        select_weakpoint(&list, 0.0, 24.999),
+        Some(0),
+        "**and twenty-five is the boundary**: below it is the first"
+    );
+    assert_eq!(
+        select_weakpoint(&list, 0.0, 25.0),
+        Some(1),
+        "at exactly twenty-five the first has had its share"
+    );
+    assert_eq!(
+        select_weakpoint(&list, 0.0, 49.999),
+        Some(1),
+        "and the second absorbs the rest"
+    );
     assert_eq!(
         select_weakpoint(&list, 0.0, 100.0),
         None,
@@ -120,14 +164,37 @@ fn a_roll_walks_the_weak_points_in_reweighed_order() {
     );
 
     // With five rolls the distribution is reweighed: the pair's fifty percent becomes 96.875, and the first entry takes most of it.
-    assert!((100.0 * reweigh(0.5, 5.0) - 96.875).abs() < 1e-9, "fifty percent through five rolls is 96.875");
+    assert!(
+        (100.0 * reweigh(0.5, 5.0) - 96.875).abs() < 1e-9,
+        "fifty percent through five rolls is 96.875"
+    );
     // **An expert nearly always finds the first weak point**: at ten points of skill against a difficulty of zero the tail is almost one, so the pair's raw chance is nearly its whole coverage
     // and the reweighed first share is 96.875 of a hundred.
-    assert_eq!(select_weakpoint(&list, 10.0, 50.0), Some(0), "**an expert's fifty is still the first weak point**");
-    assert_eq!(select_weakpoint(&list, 10.0, 89.0), Some(0), "and so is eighty-nine");
-    assert_eq!(select_weakpoint(&list, 10.0, 96.9), Some(1), "only past 96.875 does the second one open");
-    assert_eq!(select_weakpoint(&list, 10.0, 99.99), Some(1), "which absorbs what is left of a hundred");
-    assert_eq!(select_weakpoint(&list, 10.0, 100.0), None, "and the roll's own top is the body");
+    assert_eq!(
+        select_weakpoint(&list, 10.0, 50.0),
+        Some(0),
+        "**an expert's fifty is still the first weak point**"
+    );
+    assert_eq!(
+        select_weakpoint(&list, 10.0, 89.0),
+        Some(0),
+        "and so is eighty-nine"
+    );
+    assert_eq!(
+        select_weakpoint(&list, 10.0, 96.9),
+        Some(1),
+        "only past 96.875 does the second one open"
+    );
+    assert_eq!(
+        select_weakpoint(&list, 10.0, 99.99),
+        Some(1),
+        "which absorbs what is left of a hundred"
+    );
+    assert_eq!(
+        select_weakpoint(&list, 10.0, 100.0),
+        None,
+        "and the roll's own top is the body"
+    );
 }
 
 /// Hitting a weak point changes the armour it meets and the damage it deals.
@@ -154,16 +221,32 @@ fn a_weak_point_changes_the_armour_and_the_damage() {
     };
 
     // Armour: ten bash becomes five by the multiplier and three by the penalty after it - **in that order**, so a penalty is worth more against heavy armour.
-    let mut armour = [("bash".to_owned(), 10.0), ("cut".to_owned(), 4.0)].into_iter().collect();
+    let mut armour = [("bash".to_owned(), 10.0), ("cut".to_owned(), 4.0)]
+        .into_iter()
+        .collect();
     apply_to_armour(&factors, &mut armour);
-    assert!((armour["bash"] - 3.0).abs() < 1e-9, "**half of ten, less two, is three**: {}", armour["bash"]);
-    assert!((armour["cut"] - 4.0).abs() < 1e-9, "and a type the weak point says nothing about is untouched");
+    assert!(
+        (armour["bash"] - 3.0).abs() < 1e-9,
+        "**half of ten, less two, is three**: {}",
+        armour["bash"]
+    );
+    assert!(
+        (armour["cut"] - 4.0).abs() < 1e-9,
+        "and a type the weak point says nothing about is untouched"
+    );
 
     // Damage: a cut of ten is twenty normally, and **thirty on a crit rather than sixty**.
     let damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
     let ordinary = apply_to_damage(&factors, &damage, false);
-    assert!((ordinary[0].1 - 20.0).abs() < 1e-9, "the cut is doubled: {}", ordinary[0].1);
-    assert!((ordinary[1].1 - 10.0).abs() < 1e-9, "and the bash is untouched");
+    assert!(
+        (ordinary[0].1 - 20.0).abs() < 1e-9,
+        "the cut is doubled: {}",
+        ordinary[0].1
+    );
+    assert!(
+        (ordinary[1].1 - 10.0).abs() < 1e-9,
+        "and the bash is untouched"
+    );
 
     let damage = [("cut".to_owned(), 10.0), ("bash".to_owned(), 10.0)];
     let critical = apply_to_damage(&factors, &damage, true);
@@ -172,7 +255,10 @@ fn a_weak_point_changes_the_armour_and_the_damage() {
         "**a crit triples, and does not also double**: {}",
         critical[0].1
     );
-    assert!((critical[1].1 - 10.0).abs() < 1e-9, "and the bash is still untouched");
+    assert!(
+        (critical[1].1 - 10.0).abs() < 1e-9,
+        "and the bash is still untouched"
+    );
 }
 
 /// How good an attacker is at finding a weak point.
@@ -194,12 +280,21 @@ fn a_weak_point_needs_a_skilled_eye_to_find() {
 
     // A survivor with three levels of melee and none of the weapon's skill, an ordinary body's dexterity and perception, and whole eyes and head.
     let ordinary = attacker_skill(3.0, 0.0, 10, 10, 1.0, 1.0);
-    assert!((ordinary - 2.0).abs() < 1e-9, "**one and a half of skill plus half of a point of stat**: {ordinary}");
+    assert!(
+        (ordinary - 2.0).abs() < 1e-9,
+        "**one and a half of skill plus half of a point of stat**: {ordinary}"
+    );
     // **Eight is the centre**: a survivor of exactly eight and eight has no stat bonus at all, and no skill means no chance of finding anything.
-    assert!((attacker_skill(0.0, 0.0, 8, 8, 1.0, 1.0) - 0.0).abs() < 1e-9, "a beginner of ordinary build");
+    assert!(
+        (attacker_skill(0.0, 0.0, 8, 8, 1.0, 1.0) - 0.0).abs() < 1e-9,
+        "a beginner of ordinary build"
+    );
     // **The limbs multiply the whole thing**: half the reaction halves the skill.
     let hurt = attacker_skill(3.0, 0.0, 10, 10, 1.0, 0.5);
-    assert!((hurt - 1.5).abs() < 1e-9, "**half of the head halves the skill**: {hurt}");
+    assert!(
+        (hurt - 1.5).abs() < 1e-9,
+        "**half of the head halves the skill**: {hurt}"
+    );
     assert!(
         (attacker_skill(3.0, 0.0, 10, 10, 0.0, 0.0) - 0.0).abs() < 1e-9,
         "and no eyes and no reaction finds nothing at all"
@@ -247,9 +342,16 @@ fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
         let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
         world.entity_mut(zombie).insert((
-            cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
+            cdda_sim::creature::Health {
+                hp: 9_000,
+                max_hp: 9_000,
+            },
             // **An unarmoured body**, because the fixture is about the weak point rather than about which layer the blow stopped in.
-            cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+            cdda_sim::creature::Armour {
+                bash: 0,
+                cut: 0,
+                stab: 0,
+            },
         ));
         world.entity_mut(survivor).insert((
             cdda_sim::creature::Dexterity { base: 8 },
@@ -283,16 +385,28 @@ fn a_blow_that_lands_on_a_weak_point_is_changed_by_it() {
                 families: Vec::new(),
             });
         }
-        let dealt = cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie).unwrap_or(-1);
+        let dealt =
+            cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie)
+                .unwrap_or(-1);
         let lost = 9_000 - cdda_sim::creature::health_of(&world, zombie).unwrap_or(9_000);
-        assert_eq!(dealt, lost, "what the swing says it dealt is what the body lost");
+        assert_eq!(
+            dealt, lost,
+            "what the swing says it dealt is what the body lost"
+        );
         dealt
     }
 
     let plain = blow(false);
     let weak = blow(true);
-    assert!(plain > 0, "the rock hurts a body with no weak points: {plain}");
-    assert_eq!(weak, plain * 2, "**and the same blow into a doubled weak point is worth twice as much**: {weak} against {plain}");
+    assert!(
+        plain > 0,
+        "the rock hurts a body with no weak points: {plain}"
+    );
+    assert_eq!(
+        weak,
+        plain * 2,
+        "**and the same blow into a doubled weak point is worth twice as much**: {weak} against {plain}"
+    );
 }
 
 /// A monster the store spawns from its type carries the weak points its body has.
@@ -327,7 +441,8 @@ fn a_spawned_monster_carries_its_weak_points() {
         }],
     );
     let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("the kind");
-    let spawned = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, zombie, (1, 1, 0), 100);
+    let spawned =
+        cdda_sim::creature::spawn_monster_of_type(&mut world, kind, zombie, (1, 1, 0), 100);
     let carried = world
         .get::<cdda_sim::weakpoints::WeakPoints>(spawned)
         .expect("**a spawned zombie keeps the weak points its type states**");
@@ -350,9 +465,12 @@ fn a_spawned_monster_carries_its_weak_points() {
         }],
     );
     let kind = cdda_sim::monster_registry::id_of(&mut world, "plain").expect("the kind");
-    let spawned = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, plain, (1, 1, 0), 100);
+    let spawned =
+        cdda_sim::creature::spawn_monster_of_type(&mut world, kind, plain, (1, 1, 0), 100);
     assert!(
-        world.get::<cdda_sim::weakpoints::WeakPoints>(spawned).is_none(),
+        world
+            .get::<cdda_sim::weakpoints::WeakPoints>(spawned)
+            .is_none(),
         "a body with nothing to aim at carries no weak point set"
     );
 }
@@ -368,18 +486,46 @@ fn a_spawned_monster_carries_its_weak_points() {
 fn a_blow_is_read_against_the_difficulty_of_its_biggest_damage_type() {
     use cdda_sim::weakpoints::{AttackType, difficulty_for, type_of_melee_attack};
 
-    assert_eq!(type_of_melee_attack((20, 0, 0)), AttackType::MeleeBash, "a crowbar's blow is bash");
-    assert_eq!(type_of_melee_attack((0, 20, 0)), AttackType::MeleeCut, "a machete's is cut");
-    assert_eq!(type_of_melee_attack((0, 0, 20)), AttackType::MeleeStab, "and a knife's is stab");
+    assert_eq!(
+        type_of_melee_attack((20, 0, 0)),
+        AttackType::MeleeBash,
+        "a crowbar's blow is bash"
+    );
+    assert_eq!(
+        type_of_melee_attack((0, 20, 0)),
+        AttackType::MeleeCut,
+        "a machete's is cut"
+    );
+    assert_eq!(
+        type_of_melee_attack((0, 0, 20)),
+        AttackType::MeleeStab,
+        "and a knife's is stab"
+    );
     // **The biggest wins, not the first**: a blow of five bash and twelve stab is a stab.
-    assert_eq!(type_of_melee_attack((5, 0, 12)), AttackType::MeleeStab, "the largest amount decides");
+    assert_eq!(
+        type_of_melee_attack((5, 0, 12)),
+        AttackType::MeleeStab,
+        "the largest amount decides"
+    );
     // A tie keeps the earlier type, because the reference only replaces on a strictly larger amount.
-    assert_eq!(type_of_melee_attack((10, 0, 10)), AttackType::MeleeBash, "a tie keeps the first");
-    assert_eq!(type_of_melee_attack((0, 0, 0)), AttackType::None, "a blow worth nothing has no type");
+    assert_eq!(
+        type_of_melee_attack((10, 0, 10)),
+        AttackType::MeleeBash,
+        "a tie keeps the first"
+    );
+    assert_eq!(
+        type_of_melee_attack((0, 0, 0)),
+        AttackType::None,
+        "a blow worth nothing has no type"
+    );
 
     // The list is read by the index the enum states, which is the reference's own numbering.
     let difficulty = [-100.0, 2.0, 4.0, 6.0, 8.0];
-    assert_eq!(difficulty_for(&difficulty, AttackType::None), -100.0, "the default entry");
+    assert_eq!(
+        difficulty_for(&difficulty, AttackType::None),
+        -100.0,
+        "the default entry"
+    );
     assert_eq!(difficulty_for(&difficulty, AttackType::MeleeBash), 2.0);
     assert_eq!(difficulty_for(&difficulty, AttackType::MeleeCut), 4.0);
     assert_eq!(difficulty_for(&difficulty, AttackType::MeleeStab), 6.0);
@@ -425,17 +571,32 @@ fn a_struck_weak_point_can_trigger_an_effect() {
     );
     // A body of a thousand taking the same thirty: three percent, so **out of range** whatever the chance says.
     let mut rolls = cdda_core_types::rng::Rolls::new(7);
-    assert!(!triggers(&stun, 30, 1_000, &mut rolls), "three percent of a huge body does not");
+    assert!(
+        !triggers(&stun, 30, 1_000, &mut rolls),
+        "three percent of a huge body does not"
+    );
     // The cap: a blow that takes everything is a hundred percent, not more, so a gate with a ceiling of a hundred still passes.
     let mut rolls = cdda_core_types::rng::Rolls::new(7);
-    assert!(triggers(&stun, 500, 100, &mut rolls), "**the share is capped at a hundred**, so overkill still passes");
+    assert!(
+        triggers(&stun, 500, 100, &mut rolls),
+        "**the share is capped at a hundred**, so overkill still passes"
+    );
     // A chance of zero never fires, because the comparison is strict.
-    let never = TriggeredEffect { chance: 0.0, ..stun.clone() };
+    let never = TriggeredEffect {
+        chance: 0.0,
+        ..stun.clone()
+    };
     let mut rolls = cdda_core_types::rng::Rolls::new(7);
-    assert!(!triggers(&never, 30, 120, &mut rolls), "a chance of zero never fires");
+    assert!(
+        !triggers(&never, 30, 120, &mut rolls),
+        "a chance of zero never fires"
+    );
     // A body with no maximum has no share to speak of, and the reference would divide by zero; the port answers zero rather than a nonsense share.
     let mut rolls = cdda_core_types::rng::Rolls::new(7);
-    assert!(!triggers(&stun, 30, 0, &mut rolls), "a body with no maximum triggers nothing");
+    assert!(
+        !triggers(&stun, 30, 0, &mut rolls),
+        "a body with no maximum triggers nothing"
+    );
 }
 
 /// A blow into a weak point that triggers an effect leaves it on the body.
@@ -502,8 +663,15 @@ fn a_blow_into_a_weak_point_leaves_the_effect_it_triggers() {
     );
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
     world.entity_mut(zombie).insert((
-        cdda_sim::creature::Health { hp: 120, max_hp: 120 },
-        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        cdda_sim::creature::Health {
+            hp: 120,
+            max_hp: 120,
+        },
+        cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 0,
+        },
     ));
     world.entity_mut(survivor).insert((
         cdda_sim::creature::Dexterity { base: 8 },
@@ -545,7 +713,10 @@ fn a_blow_into_a_weak_point_leaves_the_effect_it_triggers() {
         .iter()
         .find(|worn| worn.id == "stunned")
         .expect("**a blow into a weak point that stuns leaves the body stunned**");
-    assert_eq!(stun.duration, 2, "for the two turns the data states, from a range of two to two");
+    assert_eq!(
+        stun.duration, 2,
+        "for the two turns the data states, from a range of two to two"
+    );
 }
 
 /// A shot spends the weak point it lands on, read against the projectile difficulty.
@@ -561,16 +732,25 @@ fn a_shot_spends_the_weak_point_it_lands_on() {
     use cdda_sim::weakpoints::{WeakPoint, WeakPoints, WeakpointFactors};
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the corpus has the Mini-14").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the corpus has the Mini-14")
+        .clone();
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
     // **A cartridge carries the damage, not the gun**: `.223` is thirty-nine points of stab, which is what the weak point's multiplier has something to double.
-    let round = rounds.iter().find(|round| round.id == "223").expect("the corpus has a .223").clone();
+    let round = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the corpus has a .223")
+        .clone();
 
     // One world, one shot: the same seed, the same gun, the same distance - with or without a weak point that doubles the bullet.
     let shot = |weak: bool| -> i32 {
@@ -589,8 +769,15 @@ fn a_shot_spends_the_weak_point_it_lands_on() {
                 name: "a big thing".to_owned(),
                 size: cdda_sim::CreatureSize::Huge,
             },
-            cdda_sim::creature::Health { hp: 900, max_hp: 900 },
-            cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+            cdda_sim::creature::Health {
+                hp: 900,
+                max_hp: 900,
+            },
+            cdda_sim::creature::Armour {
+                bash: 0,
+                cut: 0,
+                stab: 0,
+            },
         ));
         if weak {
             let mut factors = WeakpointFactors::default();
@@ -618,20 +805,42 @@ fn a_shot_spends_the_weak_point_it_lands_on() {
                 families: Vec::new(),
             });
         }
-        let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&round), None, 0.0, false);
-        assert_eq!(fired.hurt, 900 - cdda_sim::creature::health_of(&world, beast).unwrap_or(900), "what the shot says it dealt is what the body lost");
+        let fired = cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (1, 0, 0),
+            18.0,
+            Some(&round),
+            None,
+            0.0,
+            false,
+        );
+        assert_eq!(
+            fired.hurt,
+            900 - cdda_sim::creature::health_of(&world, beast).unwrap_or(900),
+            "what the shot says it dealt is what the body lost"
+        );
         fired.hurt
     };
 
     let plain = shot(false);
     let weak = shot(true);
-    assert!(plain > 0, "the rifle hurts a body with no weak points: {plain}");
+    assert!(
+        plain > 0,
+        "the rifle hurts a body with no weak points: {plain}"
+    );
     assert!(
         weak > plain,
         "**the same bullet into a doubled weak point is worth more**: {weak} against {plain}"
     );
     // **The doubling is not exact, because the blow is a cut and a stab at once**: the multiplier names the stab only, so the gate reads the direction and the sum.
-    assert_eq!(weak, plain * 2, "the Mini-14's round is all stab, so the doubling is exact: {weak} against {plain}");
+    assert_eq!(
+        weak,
+        plain * 2,
+        "the Mini-14's round is all stab, so the doubling is exact: {weak} against {plain}"
+    );
 }
 
 /// A thrown thing spends the weak point it lands on, with the thrower's own figures.
@@ -659,8 +868,15 @@ fn a_thrown_thing_spends_the_weak_point_it_lands_on() {
                 name: "a big thing".to_owned(),
                 size: cdda_sim::CreatureSize::Huge,
             },
-            cdda_sim::creature::Health { hp: 900, max_hp: 900 },
-            cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+            cdda_sim::creature::Health {
+                hp: 900,
+                max_hp: 900,
+            },
+            cdda_sim::creature::Armour {
+                bash: 0,
+                cut: 0,
+                stab: 0,
+            },
         ));
         if weak {
             let mut factors = WeakpointFactors::default();
@@ -716,7 +932,10 @@ fn a_thrown_thing_spends_the_weak_point_it_lands_on() {
 
     let plain = toss(false);
     let weak = toss(true);
-    assert!(plain > 0, "the rock hurts a body with no weak points: {plain}");
+    assert!(
+        plain > 0,
+        "the rock hurts a body with no weak points: {plain}"
+    );
     assert_eq!(
         weak,
         plain * 2,
@@ -880,9 +1099,16 @@ fn striking_a_body_practises_what_that_body_rewards() {
 
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
-    world.entity_mut(zombie).insert(( 
-        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
-        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+    world.entity_mut(zombie).insert((
+        cdda_sim::creature::Health {
+            hp: 9_000,
+            max_hp: 9_000,
+        },
+        cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 0,
+        },
         WeakPoints {
             entries: Vec::new(),
             default: WeakPoint {
@@ -982,8 +1208,15 @@ fn a_swing_practises_the_body_it_struck() {
     ));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
     world.entity_mut(zombie).insert((
-        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
-        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        cdda_sim::creature::Health {
+            hp: 9_000,
+            max_hp: 9_000,
+        },
+        cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 0,
+        },
         WeakPoints {
             entries: Vec::new(),
             default: WeakPoint {

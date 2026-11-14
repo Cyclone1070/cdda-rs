@@ -43,8 +43,17 @@ fn standable(world: &mut World, square: (i32, i32, i32)) -> bool {
 /// Reference: `teleport::teleport_creature` (`teleport.cpp:152-170`): twelve-ish lines that draw an angle in **degrees as radians** - `std::cos( rangle )` on a value from
 /// `rng( 0, 360 )`, which is the reference's own arithmetic and not a mistake to tidy - and a distance, and keep the last draw if twenty of them land on something solid.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-pub fn creature(world: &mut World, who: Entity, min_distance: i32, max_distance: i32, safe: bool) -> Teleport {
-    let Some(origin) = world.get::<crate::Position>(who).map(|at| (at.x, at.y, at.z)) else {
+pub fn creature(
+    world: &mut World,
+    who: Entity,
+    min_distance: i32,
+    max_distance: i32,
+    safe: bool,
+) -> Teleport {
+    let Some(origin) = world
+        .get::<crate::Position>(who)
+        .map(|at| (at.x, at.y, at.z))
+    else {
         return Teleport::Unchanged;
     };
     // Reference: the arguments are checked before a single draw (`teleport.cpp:154-157`), and a rule that has already refused does not touch the dice.
@@ -86,7 +95,10 @@ fn standable_refused(world: &mut World, square: (i32, i32, i32)) -> bool {
 /// landing **refuses** when the teleport is safe (`"You cannot teleport safely."`); and a solid landing without safety kills the creature outright - `apply_damage` of
 /// 9,999 to the torso, which is the reference's way of saying "there is no body left to find".
 pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: bool) -> Teleport {
-    let Some(origin) = world.get::<crate::Position>(who).map(|at| (at.x, at.y, at.z)) else {
+    let Some(origin) = world
+        .get::<crate::Position>(who)
+        .map(|at| (at.x, at.y, at.z))
+    else {
         return Teleport::Unchanged;
     };
     if origin == target {
@@ -106,5 +118,8 @@ pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: b
     }
     // A moved thing that kept its old index entry would stand on two squares, which is the ghost the architecture gate exists for.
     crate::PositionIndex::rebuild(world);
-    Teleport::Moved { from: origin, to: target }
+    Teleport::Moved {
+        from: origin,
+        to: target,
+    }
 }

@@ -56,7 +56,10 @@ fn a_charm_adds_to_how_long_a_wounded_monster_stays_friendly() {
         300,
         "**thirty thousand seconds is three hundred turns**, which is the duration over the reference's hundred"
     );
-    assert!(cdda_sim::friendly::is_friendly(&world, monster), "and it is on our side");
+    assert!(
+        cdda_sim::friendly::is_friendly(&world, monster),
+        "and it is on our side"
+    );
 }
 
 /// **A monster with more hit points than the spell's damage shrugs it off**, and a friendly one is not re-charmed.
@@ -75,7 +78,10 @@ fn a_healthy_monster_resists_and_a_friendly_one_is_left_alone() {
         cdda_sim::spell_effects::Effective::NothingAffected,
         "**thirty hit points against twenty damage is not below the threshold**"
     );
-    assert!(!cdda_sim::friendly::is_friendly(&world, healthy), "and it is still hostile");
+    assert!(
+        !cdda_sim::friendly::is_friendly(&world, healthy),
+        "and it is still hostile"
+    );
 
     // The content's own spell: a damage of zero against a monster with hit points left.
     let content = a_spell(0.0, 30_000.0, 8.0);

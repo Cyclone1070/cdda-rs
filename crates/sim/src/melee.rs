@@ -373,10 +373,13 @@ pub fn crit_chance(inputs: &CritInputs, roll_hit: f32, target_dodge: f32) -> f64
     let weapon = limited(weapon);
 
     // The body's: a quarter, plus a hundredth a point of dexterity and a fiftieth a point of perception.
-    let body = limited(0.25 + 0.01 * f64::from(inputs.dexterity) + 0.02 * f64::from(inputs.perception));
+    let body =
+        limited(0.25 + 0.01 * f64::from(inputs.dexterity) + 0.02 * f64::from(inputs.perception));
 
     // The skill's: a quarter, plus a fortieth a point of the weapon's skill, and half the melee skill on top of that.
-    let skill = limited(0.25 + (f64::from(inputs.weapon_skill) + f64::from(inputs.melee_skill) / 2.5) * 0.025);
+    let skill = limited(
+        0.25 + (f64::from(inputs.weapon_skill) + f64::from(inputs.melee_skill) / 2.5) * 0.025,
+    );
 
     let triple = weapon * body * skill;
     let bonus = inputs.martial_arts_bonus;
@@ -425,11 +428,14 @@ pub fn attack_speed(
     // times the base with the same discount stapled on.
     // Reference: `melee.cpp:2685-2686` multiplies by the **lift** and **balance** figures before the skill term is added - so a swinger who cannot lift or balance pays more on the scaled
     // base only, and the skill's discount is not multiplied.
-    let mut cost = (base * penalty * stance.lift_modifier * stance.balance_modifier) + f64::from(skill_cost) - f64::from(dex_bonus);
+    let mut cost = (base * penalty * stance.lift_modifier * stance.balance_modifier)
+        + f64::from(skill_cost)
+        - f64::from(dex_bonus);
     // Reference: `melee.cpp:2696-2704` - the two branches are exclusive: a swinger on the floor is not also charged for crouching.
     if stance.on_ground {
         cost *= if stance.pseudopod_grasp { 1.5 } else { 4.0 };
-    } else if stance.crouching && !stance.pseudopod_grasp && !stance.natural_stance && stance.armed {
+    } else if stance.crouching && !stance.pseudopod_grasp && !stance.natural_stance && stance.armed
+    {
         cost *= 1.5;
     }
     // Reference: `if( move_cost < 25.0 ) return 25; return std::round( move_cost );` (`melee.cpp:2706-2710`) - **the floor is twenty-five and the answer rounds**, which is the pair the
@@ -546,7 +552,12 @@ pub fn proficiency_stamina_multiplier(losses: &[f32]) -> f32 {
 /// the melee skill as a rebate and subtracts any stance penalty, then keeps at least **-50** - `std::min( -50, ... )`. The result is **negative**, because the reference spends it by
 /// adding it: a swing returns the stamina to take.
 #[must_use]
-pub fn stamina_cost(weight_g: i64, melee_skill: i32, stance_malus: i32, proficiency_multiplier: f32) -> i32 {
+pub fn stamina_cost(
+    weight_g: i64,
+    melee_skill: i32,
+    stance_malus: i32,
+    proficiency_multiplier: f32,
+) -> i32 {
     let standard = -(weight_g / 16 + 50);
     #[allow(clippy::cast_possible_truncation)]
     let total = i32::try_from(standard).unwrap_or(i32::MIN / 2) + melee_skill - stance_malus;
@@ -586,7 +597,8 @@ pub fn melee_wear_chance(
     }
     let stat_factor = dexterity / 2.0 + f64::from(melee_skill) + (64.0 / arm_strength.max(4.0));
     #[allow(clippy::cast_possible_truncation)]
-    let mut chance = (stat_factor * chip_resistance / (wear_multiplier * enchant_multiplier)) as i32;
+    let mut chance =
+        (stat_factor * chip_resistance / (wear_multiplier * enchant_multiplier)) as i32;
     if durable_melee {
         chance *= 4;
     }
@@ -674,7 +686,9 @@ pub fn weak_and_big_parts<'a>(parts: &'a [PartFacts<'a>]) -> (Option<&'a str>, O
 }
 
 /// The same choice, keeping the parts themselves: a caller that wants the chosen part's numbers must not have to find it again by kind, which would pick the wrong one when two parts share a kind.
-fn weak_and_big<'a>(parts: &'a [PartFacts<'a>]) -> (Option<&'a PartFacts<'a>>, Option<&'a PartFacts<'a>>) {
+fn weak_and_big<'a>(
+    parts: &'a [PartFacts<'a>],
+) -> (Option<&'a PartFacts<'a>>, Option<&'a PartFacts<'a>>) {
     let mut weak: Option<&PartFacts<'a>> = None;
     let mut big: Option<&PartFacts<'a>> = None;
     for part in parts {
@@ -710,7 +724,9 @@ fn weak_and_big<'a>(parts: &'a [PartFacts<'a>]) -> (Option<&'a PartFacts<'a>>, O
 pub fn fragile_material_factor(parts: &[PartFacts<'_>], own_chip_resistance: f64) -> f64 {
     const FRAGILE_FACTOR: f64 = 6.0;
     let (weak, _) = weak_and_big(parts);
-    weak.map_or(own_chip_resistance, |part| f64::from(part.chip_resistance) / FRAGILE_FACTOR)
+    weak.map_or(own_chip_resistance, |part| {
+        f64::from(part.chip_resistance) / FRAGILE_FACTOR
+    })
 }
 
 /// What a thing is worth as a block, from the techniques it carries.
@@ -771,7 +787,11 @@ pub fn best_shield(weapon_value: i32, best_worn_value: Option<i32>) -> Shield {
     if best_value == 2 {
         best_value = 0;
     }
-    let mut choice = if best_value > 0 { Shield::Weapon } else { Shield::None };
+    let mut choice = if best_value > 0 {
+        Shield::Weapon
+    } else {
+        Shield::None
+    };
     if let Some(worn) = best_worn_value
         && worn >= best_value
     {
@@ -999,7 +1019,12 @@ pub enum CounterAttack {
 /// and a weapon **exactly at** the glass threshold is still sound (`>` against a rounded allowance). The allowance is rounded rather than floored, so a weapon with a total portion of 108 allows
 /// `round( 21.6 ) = 22` glass, not 21.
 #[must_use]
-pub fn counter_attack(stamina: i32, stamina_max: i32, glass_ml: f64, material_total_ml: f64) -> CounterAttack {
+pub fn counter_attack(
+    stamina: i32,
+    stamina_max: i32,
+    glass_ml: f64,
+    material_total_ml: f64,
+) -> CounterAttack {
     // Integer division, as the reference's `/ 3` on integers is.
     if stamina < stamina_max / 3 {
         return CounterAttack::TooExhausted;

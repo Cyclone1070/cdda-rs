@@ -9,8 +9,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::creature::{
-    Creature, Moves, StepOutcome, bank_a_turn, combined_move_cost, creature_at, give_moves, run_cost,
-    scaled_speed, set_speed, spawn_creature, try_step,
+    Creature, Moves, StepOutcome, bank_a_turn, combined_move_cost, creature_at, give_moves,
+    run_cost, scaled_speed, set_speed, spawn_creature, try_step,
 };
 use cdda_sim::{Position, singletons};
 
@@ -62,7 +62,11 @@ fn a_creature_carries_its_own_name_and_place_in_the_world() {
         .iter()
         .filter_map(|entity| world.get::<Creature>(*entity).map(|one| one.name.clone()))
         .collect();
-    assert_eq!(names, vec!["the survivor", "a dog"], "each keeps its own name");
+    assert_eq!(
+        names,
+        vec!["the survivor", "a dog"],
+        "each keeps its own name"
+    );
 }
 
 #[test]
@@ -75,22 +79,38 @@ fn a_creature_banks_its_speed_in_action_points_each_turn() {
 
     bank_a_turn(&mut world);
 
-    assert_eq!(moves_of(&world, quick), 100, "the quick one banks its whole speed");
+    assert_eq!(
+        moves_of(&world, quick),
+        100,
+        "the quick one banks its whole speed"
+    );
     assert_eq!(moves_of(&world, slow), 50, "the slow one banks half of it");
 
     bank_a_turn(&mut world);
-    assert_eq!(moves_of(&world, quick), 200, "and points accumulate while unspent");
+    assert_eq!(
+        moves_of(&world, quick),
+        200,
+        "and points accumulate while unspent"
+    );
 }
 
 /// Speed as the reference scales it: `mon.speed *= MONSTER_SPEED / 100.0` on an `int`
 /// (`monstergenerator.cpp:346`), so the product truncates toward zero.
 #[test]
 fn the_monster_speed_option_scales_speed_and_truncates() {
-    assert_eq!(scaled_speed(100, 100), 100, "a hundred percent is unchanged");
+    assert_eq!(
+        scaled_speed(100, 100),
+        100,
+        "a hundred percent is unchanged"
+    );
     assert_eq!(scaled_speed(100, 150), 150, "a half again");
     assert_eq!(scaled_speed(100, 33), 33, "a third, truncated");
     assert_eq!(scaled_speed(130, 75), 97, "97.5 truncates to 97");
-    assert_eq!(scaled_speed(70, 100), 70, "and a speed that needs no scaling keeps its value");
+    assert_eq!(
+        scaled_speed(70, 100),
+        70,
+        "and a speed that needs no scaling keeps its value"
+    );
 }
 
 /// What a step costs, as the reference works it out.
@@ -107,13 +127,20 @@ fn a_diagonal_step_round_trips_through_the_root_of_two_and_truncates() {
         let straight = run_cost(cost, false);
         let diagonal = run_cost(cost, true);
         assert_eq!(straight, cost, "a straight step is the square's cost");
-        assert!(diagonal <= straight, "a diagonal is never dearer than a straight step");
+        assert!(
+            diagonal <= straight,
+            "a diagonal is never dearer than a straight step"
+        );
         assert!(
             straight - diagonal <= 1,
             "and never more than a point cheaper: {cost} came back as {diagonal}"
         );
     }
-    assert_eq!(run_cost(100, true), 99, "a hundred comes back as ninety-nine");
+    assert_eq!(
+        run_cost(100, true),
+        99,
+        "a hundred comes back as ninety-nine"
+    );
 }
 
 #[test]
@@ -124,7 +151,11 @@ fn a_creature_moves_when_it_can_pay_for_the_step() {
 
     let outcome = try_step(&mut world, you, (6, 5, 0), 100);
 
-    assert_eq!(outcome, StepOutcome::Moved, "a hundred moves buys a hundred-move step");
+    assert_eq!(
+        outcome,
+        StepOutcome::Moved,
+        "a hundred moves buys a hundred-move step"
+    );
     assert_eq!(
         creature_at(&world, (6, 5, 0)),
         vec![you],
@@ -145,9 +176,17 @@ fn a_creature_without_the_points_stays_where_it_is() {
 
     let outcome = try_step(&mut world, you, (6, 5, 0), 100);
 
-    assert_eq!(outcome, StepOutcome::TooSlow, "ninety-nine cannot pay for a hundred");
+    assert_eq!(
+        outcome,
+        StepOutcome::TooSlow,
+        "ninety-nine cannot pay for a hundred"
+    );
     assert_eq!(creature_at(&world, (5, 5, 0)), vec![you], "it did not move");
-    assert_eq!(moves_of(&world, you), 99, "and it was not charged for trying");
+    assert_eq!(
+        moves_of(&world, you),
+        99,
+        "and it was not charged for trying"
+    );
 }
 
 /// What entering a square costs, which is the map's answer and not the creature's.
@@ -161,15 +200,31 @@ fn a_creature_without_the_points_stays_where_it_is() {
 #[test]
 fn a_step_costs_both_squares_scaled_by_how_far_it_goes() {
     assert_eq!(combined_move_cost(2, 2, 0, 1), 100, "floor to floor");
-    assert_eq!(combined_move_cost(2, 2, 0, 2), 142, "floor to floor, diagonally");
-    assert_eq!(combined_move_cost(2, 2, 0, 3), 200, "and up or down a level too");
-    assert_eq!(combined_move_cost(3, 2, 0, 1), 125, "a rougher square costs more");
+    assert_eq!(
+        combined_move_cost(2, 2, 0, 2),
+        142,
+        "floor to floor, diagonally"
+    );
+    assert_eq!(
+        combined_move_cost(2, 2, 0, 3),
+        200,
+        "and up or down a level too"
+    );
+    assert_eq!(
+        combined_move_cost(3, 2, 0, 1),
+        125,
+        "a rougher square costs more"
+    );
     assert_eq!(
         combined_move_cost(3, 2, 0, 2),
         177,
         "177.5 truncates, because every factor here is an integer"
     );
-    assert_eq!(combined_move_cost(2, 2, 10, 1), 350, "the caller's modifier adds to both");
+    assert_eq!(
+        combined_move_cost(2, 2, 10, 1),
+        350,
+        "the caller's modifier adds to both"
+    );
 }
 
 /// The action points a creature has left.

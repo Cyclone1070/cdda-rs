@@ -73,7 +73,9 @@ pub fn scent_grid(world: &mut World) -> Scent {
         let Some(cell) = cells.get_mut(y * side + x) else {
             continue;
         };
-        let (blocks, reduces) = table.as_ref().map_or((false, false), |table| table.marks(code));
+        let (blocks, reduces) = table
+            .as_ref()
+            .map_or((false, false), |table| table.marks(code));
         cell.blocks = blocks;
         cell.reduces = reduces;
     }

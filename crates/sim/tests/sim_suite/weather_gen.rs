@@ -51,12 +51,18 @@ fn number(object: &cdda_json::Object, key: &str) -> f64 {
 
 fn hours() -> Vec<Hour> {
     let text = std::fs::read_to_string(corpus()).expect("the recorded weather");
-    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(Value::Array(steps)) = root.get("steps") else { panic!("no steps") };
+    let Value::Object(root) = parse(text.as_bytes()).expect("valid JSON") else {
+        panic!("root")
+    };
+    let Some(Value::Array(steps)) = root.get("steps") else {
+        panic!("no steps")
+    };
     steps
         .iter()
         .map(|step| {
-            let Value::Object(step) = step else { panic!("a step is an object") };
+            let Value::Object(step) = step else {
+                panic!("a step is an object")
+            };
             Hour {
                 hour: number(step, "hour") as i64,
                 temperature_k: number(step, "temperature_k"),
@@ -141,12 +147,16 @@ fn the_generator_reproduces_the_recorded_humidity_and_pressure() {
         };
         let humidity = cdda_sim::weather_gen::humidity(&generator, &common);
         let pressure = cdda_sim::weather_gen::pressure(&generator, &common);
-        let off = (humidity - hour.humidity).abs() > 1e-6 || (pressure - hour.pressure).abs() > 1e-6;
+        let off =
+            (humidity - hour.humidity).abs() > 1e-6 || (pressure - hour.pressure).abs() > 1e-6;
         if off && wrong.len() < 6 {
             wrong.push((hour.hour, humidity, hour.humidity, pressure, hour.pressure));
         }
     }
-    assert!(wrong.is_empty(), "every recorded humidity and pressure, within a millionth: {wrong:?}");
+    assert!(
+        wrong.is_empty(),
+        "every recorded humidity and pressure, within a millionth: {wrong:?}"
+    );
 }
 
 #[test]
@@ -166,7 +176,10 @@ fn humidity_is_clamped_to_a_percentage() {
         season: 0,
     };
     let wet = cdda_sim::weather_gen::humidity(&generator, &common);
-    assert!((0.0..=100.0).contains(&wet), "humidity stays a percentage: {wet}");
+    assert!(
+        (0.0..=100.0).contains(&wet),
+        "humidity stays a percentage: {wet}"
+    );
 }
 
 /// The dice the reference rolled, hour by hour, from the trace the weather series was recorded with.
@@ -174,19 +187,29 @@ fn humidity_is_clamped_to_a_percentage() {
 /// The trace carries a `mark weather.hour.N` before each update, so each hour's draws are the ones between its mark and the next: the wind's three, the
 /// wind direction's check, and the duration the weather was rolled to last.
 fn recorded_dice_by_hour() -> std::collections::BTreeMap<i64, Vec<(i32, i32, i32)>> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.rolls.txt");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.rolls.txt");
     let text = std::fs::read_to_string(path).expect("the recorded dice");
-    let mut by_hour: std::collections::BTreeMap<i64, Vec<(i32, i32, i32)>> = std::collections::BTreeMap::new();
+    let mut by_hour: std::collections::BTreeMap<i64, Vec<(i32, i32, i32)>> =
+        std::collections::BTreeMap::new();
     let mut current: Option<i64> = None;
     for line in text.lines() {
         if let Some(hour) = line.strip_prefix("mark weather.hour.") {
             current = Some(hour.parse().expect("an hour number"));
-            by_hour.entry(hour.parse().expect("an hour number")).or_default();
+            by_hour
+                .entry(hour.parse().expect("an hour number"))
+                .or_default();
         } else if let Some(rest) = line.strip_prefix("int ") {
             let mut parts = rest.split(' ');
-            let Some(low) = parts.next().and_then(|text| text.parse::<i32>().ok()) else { continue };
-            let Some(high) = parts.next().and_then(|text| text.parse::<i32>().ok()) else { continue };
-            let Some(drawn) = parts.next().and_then(|text| text.parse::<i32>().ok()) else { continue };
+            let Some(low) = parts.next().and_then(|text| text.parse::<i32>().ok()) else {
+                continue;
+            };
+            let Some(high) = parts.next().and_then(|text| text.parse::<i32>().ok()) else {
+                continue;
+            };
+            let Some(drawn) = parts.next().and_then(|text| text.parse::<i32>().ok()) else {
+                continue;
+            };
             if let Some(hour) = current {
                 by_hour.entry(hour).or_default().push((low, high, drawn));
             }
@@ -202,13 +225,18 @@ fn the_generator_reproduces_the_recorded_wind_power_from_the_recorded_dice() {
     // exactly the dice the reference used, hour by hour, so any difference here is the formula and not the luck.
     let hours = hours();
     let dice = recorded_dice_by_hour();
-    assert!(dice.values().flatten().count() > 100, "a day of weather rolls more than a hundred times");
+    assert!(
+        dice.values().flatten().count() > 100,
+        "a day of weather rolls more than a hundred times"
+    );
     let generator = cdda_sim::weather_gen::Generator::default_region();
     let mut checked = 0;
     let mut wrong = Vec::new();
     for hour in &hours {
         // Hour zero's weather was decided before the recording began, so it rolled nothing.
-        let Some(drawn) = dice.get(&hour.hour) else { continue };
+        let Some(drawn) = dice.get(&hour.hour) else {
+            continue;
+        };
         if drawn.len() < 3 {
             continue;
         }
@@ -222,7 +250,9 @@ fn the_generator_reproduces_the_recorded_wind_power_from_the_recorded_dice() {
         };
         let mut supplied = drawn.iter();
         let mut roll = |low: i32, high: i32| {
-            let (want_low, want_high, value) = *supplied.next().expect("the formula asks for three dice and no more");
+            let (want_low, want_high, value) = *supplied
+                .next()
+                .expect("the formula asks for three dice and no more");
             assert_eq!(
                 (low, high),
                 (want_low, want_high),
@@ -239,7 +269,10 @@ fn the_generator_reproduces_the_recorded_wind_power_from_the_recorded_dice() {
         }
     }
     assert!(checked >= 20, "most of a day's hours rolled: {checked}");
-    assert!(wrong.is_empty(), "every recorded wind power, from the recorded dice: {wrong:?}");
+    assert!(
+        wrong.is_empty(),
+        "every recorded wind power, from the recorded dice: {wrong:?}"
+    );
 }
 
 #[test]
@@ -247,7 +280,14 @@ fn a_wind_direction_index_becomes_an_angle() {
     // Reference: `weather_gen.cpp:250-255`. The distribution picks one of sixteen sectors and `convert_winddir` multiplies by 22.5 and truncates, so the
     // sectors are 0, 22, 45, ..., 337 degrees - not 0, 22.5, 45. Truncation is the whole point of the test: rounding would put every odd sector one
     // degree out and nothing else in the system would notice.
-    for (index, angle) in [(0usize, 0), (1, 22), (4, 90), (9, 202), (14, 315), (15, 337)] {
+    for (index, angle) in [
+        (0usize, 0),
+        (1, 22),
+        (4, 90),
+        (9, 202),
+        (14, 315),
+        (15, 337),
+    ] {
         assert_eq!(
             cdda_sim::weather_gen::wind_direction_angle(index),
             angle,
@@ -267,13 +307,18 @@ fn the_direction_is_redrawn_exactly_when_the_reference_redrew_it() {
     let mut changed = Vec::new();
     let mut redrawn = Vec::new();
     for hour in &hours {
-        let Some(drawn) = dice.get(&hour.hour) else { continue };
+        let Some(drawn) = dice.get(&hour.hour) else {
+            continue;
+        };
         if drawn.len() < 3 {
             continue;
         }
         let wind = hour.windpower as i32;
         // The direction check is the draw that starts at zero, when the reference made one at all.
-        let check = drawn.iter().find(|(low, _, _)| *low == 0).map(|(_, _, value)| *value);
+        let check = drawn
+            .iter()
+            .find(|(low, _, _)| *low == 0)
+            .map(|(_, _, value)| *value);
         let must_redraw = cdda_sim::weather_gen::needs_new_direction(wind, check);
         if must_redraw {
             redrawn.push(hour.hour);
@@ -287,7 +332,10 @@ fn the_direction_is_redrawn_exactly_when_the_reference_redrew_it() {
         redrawn, changed,
         "the hours the port would redraw are the hours the direction changed"
     );
-    assert!(!changed.is_empty(), "the recording contains at least one change, or this proves nothing");
+    assert!(
+        !changed.is_empty(),
+        "the recording contains at least one change, or this proves nothing"
+    );
 }
 
 #[test]
@@ -296,11 +344,20 @@ fn the_first_update_draws_a_direction_and_the_next_calm_one_draws_again() {
     // direction only moves when the wind is calm or the check fires. A recorded day cannot show the first case, because its first hour was already decided
     // before the recording began.
     let mut wind = cdda_sim::weather_gen::WindDirection::default();
-    assert!(wind.needs_redraw(4, None), "an unset direction is drawn whatever the wind is doing");
+    assert!(
+        wind.needs_redraw(4, None),
+        "an unset direction is drawn whatever the wind is doing"
+    );
     wind.set_from_sector(9);
     assert_eq!(wind.degrees, Some(202), "sector nine is 202 degrees");
-    assert!(!wind.needs_redraw(4, Some(517)), "a steady wind with an unfired check keeps the direction");
-    assert!(wind.needs_redraw(0, None), "a dead calm redraws without rolling");
+    assert!(
+        !wind.needs_redraw(4, Some(517)),
+        "a steady wind with an unfired check keeps the direction"
+    );
+    assert!(
+        wind.needs_redraw(0, None),
+        "a dead calm redraws without rolling"
+    );
     assert!(wind.needs_redraw(4, Some(0)), "a fired check redraws");
 }
 
@@ -311,8 +368,13 @@ fn the_temperature_s_terms_match_the_reference_bit_for_bit() {
     // an ulp of a float boundary looks exactly like a formula error - and one of the ten recorded days has such an hour.
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/manager-240h.json");
     let text = std::fs::read_to_string(path).expect("the recorded manager");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else { panic!("steps") };
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
+        panic!("root")
+    };
+    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else {
+        panic!("steps")
+    };
     let generator = cdda_sim::weather_gen::Generator::default_region();
     let number = |object: &cdda_json::Object, key: &str| -> f64 {
         match object.get(key) {
@@ -323,7 +385,9 @@ fn the_temperature_s_terms_match_the_reference_bit_for_bit() {
     };
     let mut worst: Vec<(i64, &str, f64, f64)> = Vec::new();
     for step in steps {
-        let cdda_json::Value::Object(step) = step else { panic!("a step") };
+        let cdda_json::Value::Object(step) = step else {
+            panic!("a step")
+        };
         let common = cdda_sim::weather_gen::CommonData {
             x: number(step, "common_x"),
             y: number(step, "common_y"),
@@ -332,20 +396,39 @@ fn the_temperature_s_terms_match_the_reference_bit_for_bit() {
             mod_seed: number(step, "mod_seed") as u32,
             season: number(step, "season") as usize,
         };
-        let terms = cdda_sim::weather_gen::temperature_terms(&generator, &common, number(step, "day_fraction"));
+        let terms = cdda_sim::weather_gen::temperature_terms(
+            &generator,
+            &common,
+            number(step, "day_fraction"),
+        );
         let hour = number(step, "hour") as i64;
         for (name, ours, theirs) in [
             ("celsius", terms.celsius, number(step, "celsius_double")),
             ("day", terms.day, number(step, "dayv")),
-            ("seasonality", terms.seasonality, number(step, "seasonality")),
+            (
+                "seasonality",
+                terms.seasonality,
+                number(step, "seasonality"),
+            ),
             ("noise", terms.noise, number(step, "noise")),
-            ("humidity_noise", cdda_sim::weather_gen::noise_for(&common, 101), number(step, "humidity_noise")),
-            ("pressure_noise", cdda_sim::weather_gen::noise_for(&common, 211), number(step, "pressure_noise")),
+            (
+                "humidity_noise",
+                cdda_sim::weather_gen::noise_for(&common, 101),
+                number(step, "humidity_noise"),
+            ),
+            (
+                "pressure_noise",
+                cdda_sim::weather_gen::noise_for(&common, 211),
+                number(step, "pressure_noise"),
+            ),
         ] {
             if (ours - theirs).abs() > 1e-13 && worst.len() < 8 {
                 worst.push((hour, name, ours, theirs));
             }
         }
     }
-    assert!(worst.is_empty(), "every term matches the reference's double: {worst:?}");
+    assert!(
+        worst.is_empty(),
+        "every term matches the reference's double: {worst:?}"
+    );
 }

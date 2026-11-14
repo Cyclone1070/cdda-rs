@@ -1,6 +1,5 @@
 #![allow(clippy::expect_used, clippy::float_cmp, clippy::panic)]
 
-
 /// How well a character aims a blow: their dexterity, their skills, and the weapon's own balance.
 ///
 /// Reference: `Character::get_melee_hit_base` (`melee.cpp:375-386`) is `get_hit_base()` - which is `get_dex() / 4.0f` (`character.cpp:5705-5709`) - plus `get_hit_weapon`, which is
@@ -16,10 +15,22 @@ fn how_well_a_character_aims_a_blow() {
     assert_eq!(hit_base_tenths(12), 30, "twelve is three points");
 
     // Skills are thirds and halves: unarmed three is one point, melee four is two.
-    assert_eq!(hit_weapon_tenths(3, 4, 0), 30, "one point of unarmed and two of melee");
+    assert_eq!(
+        hit_weapon_tenths(3, 4, 0),
+        30,
+        "one point of unarmed and two of melee"
+    );
     // The weapon's own balance is added last and can be negative - a badly balanced thing aims worse.
-    assert_eq!(hit_weapon_tenths(0, 0, -2), -20, "a clumsy weapon takes accuracy away");
-    assert_eq!(hit_weapon_tenths(0, 0, 3), 30, "a well balanced one gives it");
+    assert_eq!(
+        hit_weapon_tenths(0, 0, -2),
+        -20,
+        "a clumsy weapon takes accuracy away"
+    );
+    assert_eq!(
+        hit_weapon_tenths(0, 0, 3),
+        30,
+        "a well balanced one gives it"
+    );
 }
 
 /// The registry knows what a swung thing is worth, for every type the reference dumped.
@@ -29,7 +40,8 @@ fn how_well_a_character_aims_a_blow() {
 /// `to_hit` that quietly became zero, fails here rather than in a swing nobody can see.
 #[test]
 fn the_registry_carries_what_a_swung_thing_is_worth() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/thrown-damage.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/thrown-damage.json");
     let Ok(bytes) = std::fs::read(path) else {
         panic!("the item dump exists")
     };
@@ -78,17 +90,19 @@ fn the_registry_carries_what_a_swung_thing_is_worth() {
     let mut world = bevy_ecs::prelude::World::new();
     let borrowed: Vec<cdda_sim::item_registry::Kind<'_>> = rows
         .iter()
-        .map(|(id, bash, cut, stab, to_hit)| cdda_sim::item_registry::Kind {
-            id,
-            volume_ml: 50,
-            weight_g: 100,
-            pockets: &[],
-            thrown_damage: 0.0,
-            melee_bash: *bash,
-            melee_cut: *cut,
-            melee_stab: *stab,
-            to_hit: *to_hit,
-        })
+        .map(
+            |(id, bash, cut, stab, to_hit)| cdda_sim::item_registry::Kind {
+                id,
+                volume_ml: 50,
+                weight_g: 100,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: *bash,
+                melee_cut: *cut,
+                melee_stab: *stab,
+                to_hit: *to_hit,
+            },
+        )
         .collect();
     cdda_sim::item_registry::set_item_types(&mut world, &borrowed);
     let names = cdda_sim::item_registry::snapshot(&mut world);
@@ -111,15 +125,23 @@ fn the_registry_carries_what_a_swung_thing_is_worth() {
             || (got.2 - stab).abs() > f64::EPSILON
             || got.3 != *to_hit
         {
-            wrong.push(format!("{id}: ({bash}, {cut}, {stab}, {to_hit}) became {got:?}"));
+            wrong.push(format!(
+                "{id}: ({bash}, {cut}, {stab}, {to_hit}) became {got:?}"
+            ));
         }
     }
     let first_few: Vec<&String> = wrong.iter().take(5).collect();
-    assert!(wrong.is_empty(), "{} of 9,912 wrong: {first_few:?}", wrong.len());
+    assert!(
+        wrong.is_empty(),
+        "{} of 9,912 wrong: {first_few:?}",
+        wrong.len()
+    );
 
     // Named checks, because a comparison of nine thousand rows says nothing about which rows matter.
     let of = |id: &str| {
-        let kind = names.id_of(id).unwrap_or_else(|| panic!("the registry has {id}"));
+        let kind = names
+            .id_of(id)
+            .unwrap_or_else(|| panic!("the registry has {id}"));
         (
             names.melee_bash_of(kind),
             names.melee_stab_of(kind),
@@ -127,8 +149,16 @@ fn the_registry_carries_what_a_swung_thing_is_worth() {
         )
     };
     assert_eq!(of("rock"), (7.0, 0.0, -1), "a rock in the fist");
-    assert_eq!(of("knife_combat"), (0.0, 21.0, -1), "a knife stabs and does not bash");
-    assert_eq!(of("null"), (0.0, 0.0, -2), "and the null item is worth nothing, and aims worst");
+    assert_eq!(
+        of("knife_combat"),
+        (0.0, 21.0, -1),
+        "a knife stabs and does not bash"
+    );
+    assert_eq!(
+        of("null"),
+        (0.0, 0.0, -2),
+        "and the null item is worth nothing, and aims worst"
+    );
 }
 
 /// The chance a swing is a critical hit.
@@ -156,9 +186,7 @@ fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
         melee_skill: 0,
         martial_arts_bonus: 0.0,
     };
-    let triple = |inputs: &CritInputs| {
-        crit_chance(inputs, 0.0, 0.0)
-    };
+    let triple = |inputs: &CritInputs| crit_chance(inputs, 0.0, 0.0);
     // **30% * 49% * 25% = 0.03675**, the reference's "~1/16": the weapon's third is **0.3 and not 0.5**, because the null item's accuracy is -2 (`itype.h:1540`) and the negative
     // branch cuts the half. The oracle's own dump said so in round 1337, where this fixture had written 0.5 and been accepted.
     assert!(
@@ -169,7 +197,8 @@ fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
     // And with a roll past the target's dodge by half again, a pair is added: the reference's "~1/8" on top.
     let good_roll = crit_chance(&fresh, 10.0, 4.0);
     assert!(
-        (good_roll - (0.036_75 + 0.5 * (0.3 * 0.49 + 0.49 * 0.25 + 0.3 * 0.25 - 3.0 * 0.036_75))).abs()
+        (good_roll - (0.036_75 + 0.5 * (0.3 * 0.49 + 0.49 * 0.25 + 0.3 * 0.25 - 3.0 * 0.036_75)))
+            .abs()
             < 0.000_1,
         "a roll of ten against a dodge of four is a double chance: {good_roll}"
     );
@@ -251,10 +280,18 @@ fn a_swing_is_a_critical_hit_by_three_chances_multiplied() {
 /// `65 + (520 / 62.5 + 1456 / 60) = 97`, and a survivor of dexterity 8 with no melee skill swinging it pays `48 + 48 - 4 = 92` moves at full stamina.
 #[test]
 fn a_swing_costs_the_time_its_weapon_takes_and_the_swinger_s_skill_saves() {
-    use cdda_sim::melee::{attack_speed, attack_time, Stance};
+    use cdda_sim::melee::{Stance, attack_speed, attack_time};
 
-    assert_eq!(attack_time(520, 1_456, 1), 97, "a crowbar takes ninety-seven");
-    assert_eq!(attack_time(0, 0, 1), 65, "and a thing of no size or weight takes the base sixty-five");
+    assert_eq!(
+        attack_time(520, 1_456, 1),
+        97,
+        "a crowbar takes ninety-seven"
+    );
+    assert_eq!(
+        attack_time(0, 0, 1),
+        65,
+        "and a thing of no size or weight takes the base sixty-five"
+    );
     assert_eq!(
         attack_time(520, 1_456, 2),
         81,
@@ -262,15 +299,39 @@ fn a_swing_costs_the_time_its_weapon_takes_and_the_swinger_s_skill_saves() {
     );
 
     // Half a crowbar's time is forty-eight; the skill discount at zero skill is the whole of it; dexterity 8 saves four.
-    assert_eq!(attack_speed(48, 0, 8, 1.0, Stance::default()), 92, "a clumsy survivor's swing");
+    assert_eq!(
+        attack_speed(48, 0, 8, 1.0, Stance::default()),
+        92,
+        "a clumsy survivor's swing"
+    );
     // Ten points of melee skill remove two thirds of the base: `48 * 5 / 15 = 16`.
-    assert_eq!(attack_speed(48, 10, 8, 1.0, Stance::default()), 60, "an expert's swing");
+    assert_eq!(
+        attack_speed(48, 10, 8, 1.0, Stance::default()),
+        60,
+        "an expert's swing"
+    );
     // Half the stamina is no penalty at all; at none it doubles the base.
-    assert_eq!(attack_speed(48, 0, 8, 0.5, Stance::default()), 92, "half stamina costs nothing extra");
-    assert_eq!(attack_speed(48, 0, 8, 0.0, Stance::default()), 140, "no stamina costs double the base: 96 + 48 - 4");
+    assert_eq!(
+        attack_speed(48, 0, 8, 0.5, Stance::default()),
+        92,
+        "half stamina costs nothing extra"
+    );
+    assert_eq!(
+        attack_speed(48, 0, 8, 0.0, Stance::default()),
+        140,
+        "no stamina costs double the base: 96 + 48 - 4"
+    );
     // A quarter of stamina is exactly the threshold, so nothing is added yet.
-    assert_eq!(attack_speed(48, 0, 8, 0.25, Stance::default()), 92, "a quarter of stamina is the threshold");
-    assert_eq!(attack_speed(48, 0, 8, 0.125, Stance::default()), 116, "an eighth of stamina adds half again to the base");
+    assert_eq!(
+        attack_speed(48, 0, 8, 0.25, Stance::default()),
+        92,
+        "a quarter of stamina is the threshold"
+    );
+    assert_eq!(
+        attack_speed(48, 0, 8, 0.125, Stance::default()),
+        116,
+        "an eighth of stamina adds half again to the base"
+    );
 }
 
 /// Practising a skill adds to its exercise, and the exercise buys levels at a rising price.
@@ -282,15 +343,43 @@ fn a_swing_costs_the_time_its_weapon_takes_and_the_swinger_s_skill_saves() {
 fn practising_a_skill_buys_levels_at_a_rising_price() {
     use cdda_sim::skills::{practise, price_of_the_next_level};
 
-    assert_eq!(price_of_the_next_level(0), 10_000, "the first level costs ten thousand");
-    assert_eq!(price_of_the_next_level(1), 40_000, "the second forty thousand");
-    assert_eq!(price_of_the_next_level(2), 90_000, "the third ninety thousand");
+    assert_eq!(
+        price_of_the_next_level(0),
+        10_000,
+        "the first level costs ten thousand"
+    );
+    assert_eq!(
+        price_of_the_next_level(1),
+        40_000,
+        "the second forty thousand"
+    );
+    assert_eq!(
+        price_of_the_next_level(2),
+        90_000,
+        "the third ninety thousand"
+    );
 
-    assert_eq!(practise(0, 0, 9_999), (0, 9_999), "nearly there is not there");
-    assert_eq!(practise(0, 9_999, 1), (1, 0), "and the last point buys the level");
-    assert_eq!(practise(0, 9_990, 30), (1, 20), "the overspend carries into the next level");
+    assert_eq!(
+        practise(0, 0, 9_999),
+        (0, 9_999),
+        "nearly there is not there"
+    );
+    assert_eq!(
+        practise(0, 9_999, 1),
+        (1, 0),
+        "and the last point buys the level"
+    );
+    assert_eq!(
+        practise(0, 9_990, 30),
+        (1, 20),
+        "the overspend carries into the next level"
+    );
     // A huge gain cascades: 50,000 from nothing buys level one, spends 10,000, leaves 40,000, which buys level two exactly.
-    assert_eq!(practise(0, 0, 50_000), (2, 0), "and one big gain may buy two levels");
+    assert_eq!(
+        practise(0, 0, 50_000),
+        (2, 0),
+        "and one big gain may buy two levels"
+    );
     assert_eq!(practise(3, 0, 0), (3, 0), "nothing practises nothing");
 }
 
@@ -303,13 +392,33 @@ fn practising_a_skill_buys_levels_at_a_rising_price() {
 fn a_swing_costs_stamina_in_proportion_to_what_it_weighs() {
     use cdda_sim::melee::stamina_cost;
 
-    assert_eq!(stamina_cost(500, 0, 0, 1.0), -81, "a half-kilo knife costs eighty-one");
-    assert_eq!(stamina_cost(0, 0, 0, 1.0), -50, "and empty hands cost the floor");
-    assert_eq!(stamina_cost(500, 10, 0, 1.0), -71, "ten points of melee skill give ten back");
-    assert_eq!(stamina_cost(500, 0, 20, 1.0), -101, "and crouching costs twenty more");
+    assert_eq!(
+        stamina_cost(500, 0, 0, 1.0),
+        -81,
+        "a half-kilo knife costs eighty-one"
+    );
+    assert_eq!(
+        stamina_cost(0, 0, 0, 1.0),
+        -50,
+        "and empty hands cost the floor"
+    );
+    assert_eq!(
+        stamina_cost(500, 10, 0, 1.0),
+        -71,
+        "ten points of melee skill give ten back"
+    );
+    assert_eq!(
+        stamina_cost(500, 0, 20, 1.0),
+        -101,
+        "and crouching costs twenty more"
+    );
     // The floor holds however light the weapon or skilled the hand: `std::min( -50, ... )`.
     assert_eq!(stamina_cost(0, 100, 0, 1.0), -50, "there is no free swing");
-    assert_eq!(stamina_cost(4_000, 0, 0, 1.0), -300, "a four-kilo maul costs three hundred");
+    assert_eq!(
+        stamina_cost(4_000, 0, 0, 1.0),
+        -300,
+        "a four-kilo maul costs three hundred"
+    );
 }
 
 /// Dexterity's contribution to ranged dispersion: half a unit a point below twenty, nothing above it.
@@ -320,12 +429,24 @@ fn a_swing_costs_stamina_in_proportion_to_what_it_weighs() {
 fn dexterity_only_ever_adds_dispersion_and_only_below_twenty() {
     use cdda_sim::dispersion::from_dexterity;
 
-    assert_eq!(from_dexterity(20), 0, "twenty dexterity is the point the penalty stops");
+    assert_eq!(
+        from_dexterity(20),
+        0,
+        "twenty dexterity is the point the penalty stops"
+    );
     assert_eq!(from_dexterity(24), 0, "and above it nothing improves");
     assert_eq!(from_dexterity(10), 5, "ten dexterity is five units");
     assert_eq!(from_dexterity(8), 6, "eight is six");
-    assert_eq!(from_dexterity(9), 5, "and nine is five and a half, **truncated** to five rather than rounded to six");
-    assert_eq!(from_dexterity(1), 9, "one dexterity is nine and a half, truncated");
+    assert_eq!(
+        from_dexterity(9),
+        5,
+        "and nine is five and a half, **truncated** to five rather than rounded to six"
+    );
+    assert_eq!(
+        from_dexterity(1),
+        9,
+        "one dexterity is nine and a half, truncated"
+    );
 }
 
 /// Perception's dispersion and the composed figure a shot starts with.
@@ -336,7 +457,11 @@ fn dexterity_only_ever_adds_dispersion_and_only_below_twenty() {
 fn perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up() {
     use cdda_sim::dispersion::{Shotmaker, from_perception, weapon_dispersion};
 
-    assert_eq!(from_perception(20), 0, "twenty perception is the point the penalty stops");
+    assert_eq!(
+        from_perception(20),
+        0,
+        "twenty perception is the point the penalty stops"
+    );
     assert_eq!(from_perception(10), 12, "ten perception is twelve units");
     assert_eq!(from_perception(24), 0, "and above twenty nothing improves");
     assert_eq!(
@@ -355,7 +480,10 @@ fn perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up() {
         archery: false,
         divider: 18.0,
     };
-    assert!((weapon_dispersion(skilled) - 100.0).abs() < f64::EPSILON, "the weapon alone: this struct's field is the **already-divided** figure, which `shotmaker_for` is what builds");
+    assert!(
+        (weapon_dispersion(skilled) - 100.0).abs() < f64::EPSILON,
+        "the weapon alone: this struct's field is the **already-divided** figure, which `shotmaker_for` is what builds"
+    );
 
     // Eight dexterity costs six and ten perception costs twelve, and the average skill of five is what the curve is asked about.
     let clumsy = Shotmaker {
@@ -381,7 +509,10 @@ fn perception_costs_more_dispersion_than_dexterity_and_the_shot_adds_them_up() {
     // The bow's term is measured against **450** instead of 300, and the skill curve takes the weapon's own dispersion as its input - so a bigger denominator means a **bigger** penalty,
     // not a smaller one. The first version of this assertion had the direction backwards, which is the kind of sign a reader would never question.
     assert!(
-        weapon_dispersion(Shotmaker { archery: true, ..clumsy }) > weapon_dispersion(clumsy),
+        weapon_dispersion(Shotmaker {
+            archery: true,
+            ..clumsy
+        }) > weapon_dispersion(clumsy),
         "a bow at the same skill is priced against 450 rather than 300, so its skill term is the larger of the two"
     );
 }
@@ -399,7 +530,8 @@ fn from_dexterity_for_this_test() -> i32 {
 fn a_gun_and_a_shooter_compose_the_dispersion_a_shot_starts_with() {
     use bevy_ecs::prelude::*;
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
     let bytes = std::fs::read(path).expect("the guns dump exists");
     let value = cdda_json::parse(&bytes).expect("valid JSON");
     let guns = cdda_content::guns::load_dump(&value).expect("the dump loads");
@@ -428,18 +560,29 @@ fn a_gun_and_a_shooter_compose_the_dispersion_a_shot_starts_with() {
     assert!(!beginner.archery, "and a launcher is not archery");
 
     // Mastery: ten in `gun` and ten in `pistol`, so the average is ten, the curve answers zero, and the stats no longer cost anything.
-    world.entity_mut(shooter).insert(cdda_sim::creature::Dexterity { base: 20 });
-    world.entity_mut(shooter).insert(cdda_sim::creature::Perception { base: 20 });
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Dexterity { base: 20 });
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Perception { base: 20 });
     world.entity_mut(shooter).insert(cdda_sim::creature::Skills(
         [("gun".to_owned(), 10), ("pistol".to_owned(), 10)]
             .into_iter()
             .collect(),
     ));
     let master = cdda_sim::dispersion::shotmaker_for(&world, shooter, &launcher, 18.0);
-    assert_eq!(master.gun_skill, 10, "the gun skill is the reference's own `gun`");
-    assert_eq!(master.weapon_skill, 10, "and the weapon's skill is the one the gun's data names");
+    assert_eq!(
+        master.gun_skill, 10,
+        "the gun skill is the reference's own `gun`"
+    );
+    assert_eq!(
+        master.weapon_skill, 10,
+        "and the weapon's skill is the one the gun's data names"
+    );
     assert!(
-        cdda_sim::dispersion::weapon_dispersion(master) < cdda_sim::dispersion::weapon_dispersion(beginner),
+        cdda_sim::dispersion::weapon_dispersion(master)
+            < cdda_sim::dispersion::weapon_dispersion(beginner),
         "mastery is narrower than beginnerhood: {} against {}",
         cdda_sim::dispersion::weapon_dispersion(master),
         cdda_sim::dispersion::weapon_dispersion(beginner)
@@ -455,11 +598,26 @@ fn a_target_s_size_is_the_fraction_of_its_tile_a_shot_is_judged_against() {
     use cdda_sim::CreatureSize;
     use cdda_sim::ballistics::{aim_of, occupied_tile_fraction};
 
-    assert!((occupied_tile_fraction(CreatureSize::Tiny) - 0.1).abs() < f64::EPSILON, "a cat fills a tenth");
-    assert!((occupied_tile_fraction(CreatureSize::Small) - 0.25).abs() < f64::EPSILON, "a dog a quarter");
-    assert!((occupied_tile_fraction(CreatureSize::Medium) - 0.5).abs() < f64::EPSILON, "a person half");
-    assert!((occupied_tile_fraction(CreatureSize::Large) - 0.75).abs() < f64::EPSILON, "a cow three quarters");
-    assert!((occupied_tile_fraction(CreatureSize::Huge) - 1.0).abs() < f64::EPSILON, "and a hulk its whole tile");
+    assert!(
+        (occupied_tile_fraction(CreatureSize::Tiny) - 0.1).abs() < f64::EPSILON,
+        "a cat fills a tenth"
+    );
+    assert!(
+        (occupied_tile_fraction(CreatureSize::Small) - 0.25).abs() < f64::EPSILON,
+        "a dog a quarter"
+    );
+    assert!(
+        (occupied_tile_fraction(CreatureSize::Medium) - 0.5).abs() < f64::EPSILON,
+        "a person half"
+    );
+    assert!(
+        (occupied_tile_fraction(CreatureSize::Large) - 0.75).abs() < f64::EPSILON,
+        "a cow three quarters"
+    );
+    assert!(
+        (occupied_tile_fraction(CreatureSize::Huge) - 1.0).abs() < f64::EPSILON,
+        "and a hulk its whole tile"
+    );
 
     // Ten arcminutes at ten squares misses by about two hundredths of a tile. Against a cat that is a fifth of the target; against a cow, a fortieth.
     let at_cat = aim_of(10.0, 10.0, occupied_tile_fraction(CreatureSize::Tiny));
@@ -485,14 +643,38 @@ fn a_target_s_size_is_the_fraction_of_its_tile_a_shot_is_judged_against() {
 fn a_gun_s_dispersion_is_divided_and_floored_before_anything_is_added_to_it() {
     use cdda_sim::dispersion::gun_dispersion;
 
-    assert_eq!(gun_dispersion(100, 0, 30, 18.0), 6, "a hundred divided by eighteen is six");
-    assert_eq!(gun_dispersion(0, 0, 30, 18.0), 1, "and the reference's floor is one, not zero");
-    assert_eq!(gun_dispersion(9, 0, 30, 18.0), 1, "nine rounds to one, and the floor keeps it there");
-    assert_eq!(gun_dispersion(-50, 0, 30, 18.0), 1, "a negative figure is floored at zero before the division, then at one");
+    assert_eq!(
+        gun_dispersion(100, 0, 30, 18.0),
+        6,
+        "a hundred divided by eighteen is six"
+    );
+    assert_eq!(
+        gun_dispersion(0, 0, 30, 18.0),
+        1,
+        "and the reference's floor is one, not zero"
+    );
+    assert_eq!(
+        gun_dispersion(9, 0, 30, 18.0),
+        1,
+        "nine rounds to one, and the floor keeps it there"
+    );
+    assert_eq!(
+        gun_dispersion(-50, 0, 30, 18.0),
+        1,
+        "a negative figure is floored at zero before the division, then at one"
+    );
 
     // Damage on the gun adds thirty a level *before* the division, so a battered rifle is worse than a new one by a fifth of a level's worth.
-    assert_eq!(gun_dispersion(100, 1, 30, 18.0), 7, "one level of damage takes 100 to 7");
-    assert_eq!(gun_dispersion(100, 5, 30, 18.0), 14, "and five levels to 14");
+    assert_eq!(
+        gun_dispersion(100, 1, 30, 18.0),
+        7,
+        "one level of damage takes 100 to 7"
+    );
+    assert_eq!(
+        gun_dispersion(100, 5, 30, 18.0),
+        14,
+        "and five levels to 14"
+    );
     assert!(
         gun_dispersion(100, 5, 30, 18.0) > gun_dispersion(100, 0, 30, 18.0),
         "which is the whole point of the damage term"
@@ -517,7 +699,11 @@ fn a_swing_from_the_floor_takes_four_times_as_long() {
     use cdda_sim::melee::{Stance, attack_speed};
 
     let standing = Stance::default();
-    assert_eq!(attack_speed(48, 0, 8, 1.0, standing), 92, "a standing swing is the arithmetic's own figure");
+    assert_eq!(
+        attack_speed(48, 0, 8, 1.0, standing),
+        92,
+        "a standing swing is the arithmetic's own figure"
+    );
     // 96 + 48 - 10 = 134 for a clumsy survivor with no wind...
     let downed = Stance {
         on_ground: true,
@@ -533,7 +719,11 @@ fn a_swing_from_the_floor_takes_four_times_as_long() {
         armed: true,
         ..Stance::default()
     };
-    assert_eq!(attack_speed(48, 0, 8, 1.0, crouched), 138, "a crouched armed swing is half again: ( 48 + 48 - 4 ) * 1.5");
+    assert_eq!(
+        attack_speed(48, 0, 8, 1.0, crouched),
+        138,
+        "a crouched armed swing is half again: ( 48 + 48 - 4 ) * 1.5"
+    );
     // **The floor is twenty-five moves**, which nothing in the port could reach before because it floored at zero.
     let quick = Stance::default();
     assert_eq!(
@@ -552,8 +742,14 @@ fn a_swing_from_the_floor_takes_four_times_as_long() {
 fn a_limb_score_becomes_a_multiplier_by_inversion() {
     use cdda_sim::melee::limb_score_modifier;
 
-    assert!((limb_score_modifier(1.0, 3.0) - 1.0).abs() < 1e-9, "**a whole score is no change**");
-    assert!((limb_score_modifier(0.5, 3.0) - 2.0).abs() < 1e-9, "half a score doubles the cost");
+    assert!(
+        (limb_score_modifier(1.0, 3.0) - 1.0).abs() < 1e-9,
+        "**a whole score is no change**"
+    );
+    assert!(
+        (limb_score_modifier(0.5, 3.0) - 2.0).abs() < 1e-9,
+        "half a score doubles the cost"
+    );
     assert!(
         (limb_score_modifier(0.0, 3.0) - 3.0).abs() < 1e-9,
         "**no score at all would divide by zero, so the reference's zero branch answers the cap** (`character_modifier.cpp:361-364`)"
@@ -583,7 +779,11 @@ fn armour_states_a_melee_coverage_and_a_ranged_one() {
         130,
         "**the melee figure of every garment that covers the part**"
     );
-    assert_eq!(worn_cover(&garments, CoverType::Ranged), 110, "and the ranged one");
+    assert_eq!(
+        worn_cover(&garments, CoverType::Ranged),
+        110,
+        "and the ranged one"
+    );
     assert_eq!(
         worn_cover(&garments, CoverType::Default),
         150,
@@ -610,7 +810,11 @@ fn armour_states_a_melee_coverage_and_a_ranged_one() {
 fn a_trapped_monster_dodges_worse() {
     use cdda_sim::melee::monster_dodge;
 
-    assert_eq!(monster_dodge(4, &[]), 4, "a free monster dodges as its type says");
+    assert_eq!(
+        monster_dodge(4, &[]),
+        4,
+        "a free monster dodges as its type says"
+    );
     assert_eq!(
         monster_dodge(4, &["beartrap"]),
         2,
@@ -619,14 +823,26 @@ fn a_trapped_monster_dodges_worse() {
     for trap in ["lightsnare", "heavysnare", "tied"] {
         assert_eq!(monster_dodge(4, &[trap]), 2, "{trap} halves it too");
     }
-    assert_eq!(monster_dodge(4, &["bouldering"]), 1, "a bouldering one quarters it, rounded down");
+    assert_eq!(
+        monster_dodge(4, &["bouldering"]),
+        1,
+        "a bouldering one quarters it, rounded down"
+    );
     assert_eq!(
         monster_dodge(4, &["downed"]),
         0,
         "**and one on the floor dodges nothing at all**, whatever else it is suffering"
     );
-    assert_eq!(monster_dodge(4, &["downed", "beartrap"]), 0, "the floor is asked first");
-    assert_eq!(monster_dodge(3, &["beartrap", "bouldering"]), 0, "both penalties apply, and the floor rounds down");
+    assert_eq!(
+        monster_dodge(4, &["downed", "beartrap"]),
+        0,
+        "the floor is asked first"
+    );
+    assert_eq!(
+        monster_dodge(3, &["beartrap", "bouldering"]),
+        0,
+        "both penalties apply, and the floor rounds down"
+    );
 }
 
 /// A winded survivor dodges worse, on the reference's own curve.
@@ -660,7 +876,10 @@ fn a_winded_survivor_dodges_worse() {
     );
     // Half a wind is somewhere between, and more wind is always better than less.
     let half = stamina_dodge_modifier(0.5 * max, max);
-    assert!((0.2..0.8).contains(&half), "half a wind leaves half a dodge: {half}");
+    assert!(
+        (0.2..0.8).contains(&half),
+        "half a wind leaves half a dodge: {half}"
+    );
     assert!(stamina_dodge_modifier(0.8 * max, max) > half);
     assert!(stamina_dodge_modifier(0.3 * max, max) < half);
 }
@@ -680,13 +899,22 @@ fn a_winded_survivor_dodges_worse() {
 fn a_slow_creature_dodges_in_proportion() {
     use cdda_sim::melee::speed_dodge_modifier;
 
-    assert!((speed_dodge_modifier(100) - 1.0).abs() < 1e-9, "**a walk is no penalty**");
+    assert!(
+        (speed_dodge_modifier(100) - 1.0).abs() < 1e-9,
+        "**a walk is no penalty**"
+    );
     assert!(
         (speed_dodge_modifier(120) - 1.0).abs() < 1e-9,
         "**and being quick is not a reward**: the branch does not fire above a hundred"
     );
-    assert!((speed_dodge_modifier(50) - 0.5).abs() < 1e-9, "half speed, half the dodge");
-    assert!((speed_dodge_modifier(0) - 0.0).abs() < 1e-9, "and no speed at all, none");
+    assert!(
+        (speed_dodge_modifier(50) - 0.5).abs() < 1e-9,
+        "half speed, half the dodge"
+    );
+    assert!(
+        (speed_dodge_modifier(0) - 0.0).abs() < 1e-9,
+        "and no speed at all, none"
+    );
 }
 
 /// Roller skates cost a survivor most of its dodge, and a skater only half of it.
@@ -711,5 +939,9 @@ fn skates_cost_a_survivor_most_of_its_dodge() {
         "**an unskilled skater keeps a fifth**, and the division takes the fraction"
     );
     assert_eq!(skate_dodge(10, true, true), 5, "and a skater keeps half");
-    assert_eq!(skate_dodge(3, true, false), 0, "three points of dodge on skates is none");
+    assert_eq!(
+        skate_dodge(3, true, false),
+        0,
+        "three points of dodge on skates is none"
+    );
 }

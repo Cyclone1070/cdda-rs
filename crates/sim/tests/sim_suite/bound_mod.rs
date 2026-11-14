@@ -20,7 +20,8 @@ fn integer(object: &cdda_json::Object, key: &str) -> i32 {
 #[test]
 fn every_bounding_matches_the_reference() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/bound-mod.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -36,7 +37,9 @@ fn every_bounding_matches_the_reference() {
     let mut untouched = 0;
     let mut zero_limit = 0;
     for case in cases {
-        let Value::Object(case) = case else { panic!("a case") };
+        let Value::Object(case) = case else {
+            panic!("a case")
+        };
         let value = integer(case, "val");
         let modulation = integer(case, "mod");
         let maximum = integer(case, "max");
@@ -60,8 +63,14 @@ fn every_bounding_matches_the_reference() {
     }
     // **Non-vacuity**: the grid has to reach all three outcomes and the zero-limit cases, or it is only testing the identity.
     assert!(untouched > 200, "movements left alone: {untouched}");
-    assert!(clamped_high > 50, "movements cut by the ceiling: {clamped_high}");
-    assert!(clamped_low > 50, "movements raised by the floor: {clamped_low}");
+    assert!(
+        clamped_high > 50,
+        "movements cut by the ceiling: {clamped_high}"
+    );
+    assert!(
+        clamped_low > 50,
+        "movements raised by the floor: {clamped_low}"
+    );
     assert!(zero_limit > 200, "cases with a zero limit: {zero_limit}");
     assert!(
         differing.is_empty(),

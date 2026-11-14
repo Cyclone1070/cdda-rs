@@ -16,8 +16,8 @@ use bevy_ecs::prelude::*;
 use cdda_content::spells::Scaling;
 use cdda_sim::creature::{Body, Garment, WornBy, dress, health_of, set_health, spawn_creature};
 use cdda_sim::hit_location::BodyPart;
-use cdda_sim::spellcasting::{Cast, cast_at, cast_attack, lands_on};
 use cdda_sim::spawn_monster;
+use cdda_sim::spellcasting::{Cast, cast_at, cast_attack, lands_on};
 
 fn torso_only() -> Body {
     Body {
@@ -27,8 +27,8 @@ fn torso_only() -> Body {
             hit_difficulty: 1.0,
             upper: false,
             lower: false,
-                ..Default::default()
-            }],
+            ..Default::default()
+        }],
     }
 }
 
@@ -86,7 +86,11 @@ fn a_taser_at_arm_s_length_takes_fifteen_off_a_bare_torso() {
         },
         "fifteen electric damage, nothing in the way"
     );
-    assert_eq!(health_of(&world, victim), Some(65), "and the health says so");
+    assert_eq!(
+        health_of(&world, victim),
+        Some(65),
+        "and the health says so"
+    );
 }
 
 #[test]
@@ -193,19 +197,23 @@ fn a_spell_lands_where_the_hit_sizes_say_and_not_where_the_melee_rule_would() {
         hit_difficulty: 1.0,
         upper: false,
         lower: false,
-                ..Default::default()
-            };
+        ..Default::default()
+    };
     let head = BodyPart {
         name: "head".to_owned(),
         hit_size: 10.0,
         hit_difficulty: 3.0,
         upper: true,
         lower: false,
-                ..Default::default()
-            };
+        ..Default::default()
+    };
     let parts = vec![torso, head];
 
-    assert_eq!(lands_on(&parts, 0.0).as_deref(), Some("torso"), "the first draw is the first part");
+    assert_eq!(
+        lands_on(&parts, 0.0).as_deref(),
+        Some("torso"),
+        "the first draw is the first part"
+    );
     assert_eq!(
         lands_on(&parts, 0.89).as_deref(),
         Some("torso"),
@@ -227,10 +235,7 @@ fn a_spell_lands_where_the_hit_sizes_say_and_not_where_the_melee_rule_would() {
 fn the_same_seed_lands_the_blow_in_the_same_place() {
     let cast_once = |seed: u32| {
         let (mut world, victim) = world_with_victim((1, 0));
-        cdda_sim::singletons::put_rolls(
-            &mut world,
-            cdda_core_types::rng::Rolls::new(seed),
-        );
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
         cast_at(&mut world, (0, 0, 0), &taser(), 0, victim)
     };
     assert_eq!(cast_once(7), cast_once(7), "a seed replays the same cast");
@@ -255,7 +260,7 @@ fn a_vest_that_stops_blow_after_blow_comes_apart_and_then_the_flesh_does() {
                     "torso".to_owned(),
                     cdda_content::armour::Layer {
                         // **The layer names the type the spell deals**, because a garment now protects by type: the taser is electric, so a layer that resists bash would stop nothing.
-                    damage_type: "electric".to_owned(),
+                        damage_type: "electric".to_owned(),
                         resist: 5.0,
                         thickness: 1.0,
                         cover: 100,
@@ -317,10 +322,9 @@ fn a_spell_that_names_an_effect_puts_it_on_its_target() {
     let mut world = World::new();
     // The effect type the store will look the spell's `effect_str` up in. It is built by loading a dump entry, which is
     // how a type reaches the store in the game - a literal here would be a second constructor the port does not have.
-    let loader = cdda_json::parse(
-        br#"{"id":"stunned","max_intensity":1,"max_duration":"100 turns"}"#,
-    )
-    .expect("valid json");
+    let loader =
+        cdda_json::parse(br#"{"id":"stunned","max_intensity":1,"max_duration":"100 turns"}"#)
+            .expect("valid json");
     let cdda_json::Value::Object(entry) = loader else {
         panic!("an effect type is an object");
     };

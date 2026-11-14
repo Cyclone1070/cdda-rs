@@ -18,9 +18,9 @@
 //! them), which needs the effects system; `has_calorie_deficit()` and the BMI weight categories it consults; the sleep-recovery and activity-history bookkeeping; and
 //! the vitamin `decays_into` cascade on a negative change.
 
-use bevy_ecs::prelude::Component;
 use crate::digest::{DigestRates, MetabolicRates, StomachContents, digest_rates};
 use crate::food_summary::FoodSummary;
+use bevy_ecs::prelude::Component;
 use cdda_content::vitamins::Vitamin;
 use std::collections::BTreeMap;
 
@@ -211,7 +211,12 @@ pub const HUNGER_EFFECT_INTENSITY: i32 = 1;
 /// The hit-terms-flat shape is kept here because that is what the reference does.
 #[allow(clippy::cast_precision_loss)]
 #[must_use]
-pub fn would_be_engorged_with(contains_ml: i64, intake_ml: i64, capacity_ml: i64, deficit: bool) -> bool {
+pub fn would_be_engorged_with(
+    contains_ml: i64,
+    intake_ml: i64,
+    capacity_ml: i64,
+    deficit: bool,
+) -> bool {
     if capacity_ml <= 0 {
         return false;
     }
@@ -222,7 +227,12 @@ pub fn would_be_engorged_with(contains_ml: i64, intake_ml: i64, capacity_ml: i64
 /// Whether another bite would make the stomach full: `stomach_contents::would_be_full_with` (`src/stomach.cpp:380-385`), and again the threshold depends on the deficit.
 #[allow(clippy::cast_precision_loss)]
 #[must_use]
-pub fn would_be_full_with(contains_ml: i64, intake_ml: i64, capacity_ml: i64, deficit: bool) -> bool {
+pub fn would_be_full_with(
+    contains_ml: i64,
+    intake_ml: i64,
+    capacity_ml: i64,
+    deficit: bool,
+) -> bool {
     if capacity_ml <= 0 {
         return false;
     }
@@ -391,17 +401,26 @@ impl Body {
     ) {
         // Reference: `stomach_contents::capacity` (`stomach.cpp:362-366`) scales the stored maximum by the creature's `STOMACH_SIZE_MULTIPLIER`, so a mutation that
         // changes how much a body can hold changes how fast it fills and empties.
-        let stomach_capacity = self.stomach.capacity_of(stomach_enchantment.0, stomach_enchantment.1);
+        let stomach_capacity = self
+            .stomach
+            .capacity_of(stomach_enchantment.0, stomach_enchantment.1);
         if inputs.five_mins > 0 {
-            let stomach_rates: DigestRates =
-                digest_rates(rates, true, self.stomach.capacity_of(stomach_enchantment.0, stomach_enchantment.1));
+            let stomach_rates: DigestRates = digest_rates(
+                rates,
+                true,
+                self.stomach
+                    .capacity_of(stomach_enchantment.0, stomach_enchantment.1),
+            );
             let guts_rates: DigestRates = digest_rates(rates, false, self.guts.capacity_ml());
-            let to_guts = self
-                .stomach
-                .digest(&stomach_rates, inputs.five_mins, inputs.half_hours, vitamins);
-            let to_body = self
-                .guts
-                .digest(&guts_rates, inputs.five_mins, inputs.half_hours, vitamins);
+            let to_guts = self.stomach.digest(
+                &stomach_rates,
+                inputs.five_mins,
+                inputs.half_hours,
+                vitamins,
+            );
+            let to_body =
+                self.guts
+                    .digest(&guts_rates, inputs.five_mins, inputs.half_hours, vitamins);
 
             // "Water from stomach skips guts and gets absorbed by body." Five millilitres to a point of thirst, and a drying food's negative water gives points back.
             let water_points = -(to_guts.water_ml / 5);
@@ -434,8 +453,8 @@ impl Body {
             if !inputs.foodless && rates.hunger > 0.0 {
                 self.set_hunger(self.hunger.saturating_add(inputs.hunger_roll));
                 // The body burns its basal rate whatever else happens.
-                let burnt = -(f64::from(inputs.five_mins as f32 * inputs.kcal_per_time * 1_000.0).floor()
-                    as i64);
+                let burnt = -(f64::from(inputs.five_mins as f32 * inputs.kcal_per_time * 1_000.0)
+                    .floor() as i64);
                 self.mod_stored_calories(burnt);
             }
         }
@@ -500,7 +519,11 @@ impl Body {
         let wearing = self.hunger_effect.as_ref().map(|effect| effect.id.as_str());
         if wearing != Some(chosen) {
             self.hunger_effect = effects.get(chosen).map(|kind| {
-                crate::effects::ActiveEffect::new(kind, HUNGER_EFFECT_DURATION, HUNGER_EFFECT_INTENSITY)
+                crate::effects::ActiveEffect::new(
+                    kind,
+                    HUNGER_EFFECT_DURATION,
+                    HUNGER_EFFECT_INTENSITY,
+                )
             });
         }
     }
@@ -554,7 +577,10 @@ impl Body {
 
 /// The body a creature carries, if it is a character rather than a monster.
 #[must_use]
-pub fn body_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::entity::Entity) -> Option<&Body> {
+pub fn body_of(
+    world: &bevy_ecs::prelude::World,
+    creature: bevy_ecs::entity::Entity,
+) -> Option<&Body> {
     world.get::<Body>(creature)
 }
 
@@ -575,7 +601,11 @@ pub fn with_body_mut(
 
 /// What is stored of a vitamin, if the creature has a body that keeps any.
 #[must_use]
-pub fn vitamin_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, name: &str) -> Option<i32> {
+pub fn vitamin_of(
+    world: &bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    name: &str,
+) -> Option<i32> {
     body_of(world, creature).map(|body| body.vitamins.get(name).copied().unwrap_or(0))
 }
 

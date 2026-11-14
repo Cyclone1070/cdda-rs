@@ -37,9 +37,12 @@ fn kind(id: &str) -> Option<String> {
 /// The blocks the content states: a broken handle prevents chipping and cracking.
 fn blocks(id: &str) -> BTreeSet<String> {
     if id == "fault_handle_broken" {
-        ["fault_handle_chipping".to_owned(), "fault_handle_cracked".to_owned()]
-            .into_iter()
-            .collect()
+        [
+            "fault_handle_chipping".to_owned(),
+            "fault_handle_cracked".to_owned(),
+        ]
+        .into_iter()
+        .collect()
     } else {
         BTreeSet::new()
     }
@@ -68,7 +71,14 @@ fn the_pick_reduces_a_raw_draw_modulo_the_total_weight() {
     for (bits, expected) in cases {
         let mut rolls = rolls_with_bits(bits);
         assert_eq!(
-            pick_fault(&table(), &empty, "mechanical_damage", kind, blocks, &mut rolls),
+            pick_fault(
+                &table(),
+                &empty,
+                "mechanical_damage",
+                kind,
+                blocks,
+                &mut rolls
+            ),
             Some(expected.to_owned()),
             "a raw draw of {bits}"
         );
@@ -89,7 +99,14 @@ fn a_blocked_or_already_present_fault_is_off_the_list_and_a_single_one_draws_not
     let broken: BTreeSet<String> = ["fault_handle_broken".to_owned()].into_iter().collect();
     let mut rolls = Rolls::replaying(Recording::parse("int 0 1 0\n").expect("one die"));
     assert_eq!(
-        pick_fault(&table(), &broken, "mechanical_damage", kind, blocks, &mut rolls),
+        pick_fault(
+            &table(),
+            &broken,
+            "mechanical_damage",
+            kind,
+            blocks,
+            &mut rolls
+        ),
         None,
         "a broken handle blocks the other two and is already there, so nothing is left of that kind"
     );
@@ -101,9 +118,12 @@ fn a_blocked_or_already_present_fault_is_off_the_list_and_a_single_one_draws_not
 
     // **A list of one draws nothing at all.** `weighted_int_list::pick_ent` returns zero when there is a single entry
     // (`src/weighted_list.h:249-251`), so the recording keeps its die.
-    let chipped: BTreeSet<String> = ["fault_handle_chipping".to_owned(), "fault_handle_cracked".to_owned()]
-        .into_iter()
-        .collect();
+    let chipped: BTreeSet<String> = [
+        "fault_handle_chipping".to_owned(),
+        "fault_handle_cracked".to_owned(),
+    ]
+    .into_iter()
+    .collect();
     let mut rolls = Rolls::replaying(Recording::parse("").expect("an empty recording"));
     assert_eq!(
         pick_fault(
@@ -119,11 +139,20 @@ fn a_blocked_or_already_present_fault_is_off_the_list_and_a_single_one_draws_not
     );
 
     // And `can_have_fault` says the same thing the filter does, one fault at a time.
-    assert!(!can_have_fault(5, "fault_handle_chipping", &broken, blocks), "blocked");
+    assert!(
+        !can_have_fault(5, "fault_handle_chipping", &broken, blocks),
+        "blocked"
+    );
     assert!(
         !can_have_fault(5, "fault_handle_broken", &broken, blocks),
         "already present"
     );
-    assert!(can_have_fault(5, "fault_handle_broken", &BTreeSet::new(), blocks), "nothing stops it");
-    assert!(!can_have_fault(0, "fault_blade_chipped", &BTreeSet::new(), blocks), "a zero weight is not on the list");
+    assert!(
+        can_have_fault(5, "fault_handle_broken", &BTreeSet::new(), blocks),
+        "nothing stops it"
+    );
+    assert!(
+        !can_have_fault(0, "fault_blade_chipped", &BTreeSet::new(), blocks),
+        "a zero weight is not on the list"
+    );
 }

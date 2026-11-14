@@ -6,7 +6,7 @@
 #![allow(clippy::panic, clippy::float_cmp, clippy::expect_used)]
 
 use cdda_sim::Weather;
-use cdda_sim::{light};
+use cdda_sim::light;
 
 #[test]
 fn a_clear_sky_costs_nothing() {

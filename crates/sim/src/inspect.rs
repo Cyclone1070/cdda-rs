@@ -209,7 +209,10 @@ pub fn world_fingerprints(world: &World) -> BTreeMap<(i32, i32, i32), u64> {
 
 /// The squares whose fingerprint differs between two worlds, which is what a turn report lists.
 #[must_use]
-pub fn squares_that_differ(before: &BTreeMap<(i32, i32, i32), u64>, after: &BTreeMap<(i32, i32, i32), u64>) -> Vec<(i32, i32, i32)> {
+pub fn squares_that_differ(
+    before: &BTreeMap<(i32, i32, i32), u64>,
+    after: &BTreeMap<(i32, i32, i32), u64>,
+) -> Vec<(i32, i32, i32)> {
     let mut changed = Vec::new();
     for (square, hash) in after {
         if before.get(square) != Some(hash) {

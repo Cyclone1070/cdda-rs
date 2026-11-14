@@ -119,7 +119,11 @@ fn cold_food_that_tastes_good_is_twice_the_fun() {
         "and coffee does not care"
     );
     let (fun, fun_max) = fun_for(&food(-5, &cold), &eater(&traits, &effects, &[]));
-    assert_eq!((fun, fun_max), (1, 5), "but cold, bad food is made tolerable instead");
+    assert_eq!(
+        (fun, fun_max),
+        (1, 5),
+        "but cold, bad food is made tolerable instead"
+    );
 }
 
 #[test]
@@ -159,7 +163,10 @@ fn a_feline_enjoys_cat_food_and_a_lupine_dog_food() {
         assert!(fun < 0, "everyone else dislikes {food_flag} food: {fun}");
         let traits = flags(&[threshold]);
         let (fun, _) = fun_for(&food(-4, &foul), &eater(&traits, &effects, &[]));
-        assert_eq!(fun, 2, "a {threshold} eater likes it as much as they disliked it, halved");
+        assert_eq!(
+            fun, 2,
+            "a {threshold} eater likes it as much as they disliked it, halved"
+        );
     }
     let feline = flags(&["THRESH_FELINE"]);
     let neutral = flags(&["FELINE"]);
@@ -178,10 +185,22 @@ fn a_gourmand_tastes_food_more_strongly_in_both_directions() {
     let ordinary = flags(&[]);
     let gourmand = flags(&["GOURMAND"]);
     let none = flags(&[]);
-    assert_eq!(fun_for(&food(10, &none), &eater(&ordinary, &effects, &[])), (10, 30));
-    assert_eq!(fun_for(&food(10, &none), &eater(&gourmand, &effects, &[])), (15, 90));
-    assert_eq!(fun_for(&food(-8, &none), &eater(&ordinary, &effects, &[])), (-8, -48));
-    assert_eq!(fun_for(&food(-8, &none), &eater(&gourmand, &effects, &[])), (-4, -8));
+    assert_eq!(
+        fun_for(&food(10, &none), &eater(&ordinary, &effects, &[])),
+        (10, 30)
+    );
+    assert_eq!(
+        fun_for(&food(10, &none), &eater(&gourmand, &effects, &[])),
+        (15, 90)
+    );
+    assert_eq!(
+        fun_for(&food(-8, &none), &eater(&ordinary, &effects, &[])),
+        (-8, -48)
+    );
+    assert_eq!(
+        fun_for(&food(-8, &none), &eater(&gourmand, &effects, &[])),
+        (-4, -8)
+    );
     assert_eq!(
         fun_for(&food(-1, &none), &eater(&gourmand, &effects, &[])),
         (-1, -6),
@@ -197,20 +216,43 @@ fn food_eaten_too_often_costs_its_monotony_penalty_each_time() {
     let traits = flags(&[]);
     let none = flags(&[]);
     let toastem = food(10, &none);
-    let once = [ConsumptionEvent { when: 0, type_id: "toastem".to_owned(), component_hash: 0 }];
+    let once = [ConsumptionEvent {
+        when: 0,
+        type_id: "toastem".to_owned(),
+        component_hash: 0,
+    }];
     let twice = [
-        ConsumptionEvent { when: 0, type_id: "toastem".to_owned(), component_hash: 0 },
-        ConsumptionEvent { when: 0, type_id: "toastem".to_owned(), component_hash: 0 },
+        ConsumptionEvent {
+            when: 0,
+            type_id: "toastem".to_owned(),
+            component_hash: 0,
+        },
+        ConsumptionEvent {
+            when: 0,
+            type_id: "toastem".to_owned(),
+            component_hash: 0,
+        },
     ];
     assert_eq!(fun_for(&toastem, &eater(&traits, &effects, &[])).0, 10);
     assert_eq!(fun_for(&toastem, &eater(&traits, &effects, &once)).0, 8);
     assert_eq!(fun_for(&toastem, &eater(&traits, &effects, &twice)).0, 6);
 
     // A different meal of the same food, a meal eaten three days ago, and a meal of something else all count for nothing.
-    let other_jam =
-        [ConsumptionEvent { when: 0, type_id: "toastem".to_owned(), component_hash: 7 }];
-    let stale = [ConsumptionEvent { when: -3 * 24 * 60 * 60, type_id: "toastem".to_owned(), component_hash: 0 }];
-    let other_food = [ConsumptionEvent { when: 0, type_id: "bread".to_owned(), component_hash: 0 }];
+    let other_jam = [ConsumptionEvent {
+        when: 0,
+        type_id: "toastem".to_owned(),
+        component_hash: 7,
+    }];
+    let stale = [ConsumptionEvent {
+        when: -3 * 24 * 60 * 60,
+        type_id: "toastem".to_owned(),
+        component_hash: 0,
+    }];
+    let other_food = [ConsumptionEvent {
+        when: 0,
+        type_id: "bread".to_owned(),
+        component_hash: 0,
+    }];
     for history in [&other_jam[..], &stale[..], &other_food[..]] {
         assert_eq!(
             fun_for(&toastem, &eater(&traits, &effects, history)).0,
@@ -221,7 +263,11 @@ fn food_eaten_too_often_costs_its_monotony_penalty_each_time() {
 
     // Four plates of a 10-fun food would be 2 fun, five would be 0, and it stops there rather than going negative.
     let many: Vec<ConsumptionEvent> = (0..5)
-        .map(|_| ConsumptionEvent { when: 0, type_id: "toastem".to_owned(), component_hash: 0 })
+        .map(|_| ConsumptionEvent {
+            when: 0,
+            type_id: "toastem".to_owned(),
+            component_hash: 0,
+        })
         .collect();
     assert_eq!(fun_for(&toastem, &eater(&traits, &effects, &many)).0, 0);
 
@@ -265,7 +311,11 @@ fn a_taste_blocker_bionic_needs_enough_power_to_nullify_bad_taste() {
     rotten.relative_rot = 1.5;
     let _ = &rotten;
     blocker.power_kj = 16;
-    assert_eq!(fun_for(&rotten, &blocker).0, 0, "16 kJ hides a rotten -15 too");
+    assert_eq!(
+        fun_for(&rotten, &blocker).0,
+        0,
+        "16 kJ hides a rotten -15 too"
+    );
 
     // A bionic that is not active does nothing, and neither does power without the bionic.
     let mut inactive = eater(&traits, &effects, &[]);
@@ -314,7 +364,8 @@ fn the_foods_the_upstream_cases_name_still_have_the_properties_those_cases_assum
     // The cases above stand on what the *content* says about six foods: that garlic is worse than -1, that cola asks to be eaten cold, that ice cream melts, that cat
     // and dog food carry the species flags, and that toast-em is worth eating at all. If the data moves, those cases would keep passing while testing nothing, so
     // the assumptions are checked against the corpus rather than against numbers transcribed here.
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let items: std::collections::BTreeMap<String, cdda_content::items::ItemType> =
@@ -344,15 +395,35 @@ fn the_foods_the_upstream_cases_name_still_have_the_properties_those_cases_assum
         );
     };
 
-    assert!(fun("toastem") > 4, "toast-em is worth eating: {}", fun("toastem"));
-    assert!(fun("garlic") < -1, "garlic is worse than -1: {}", fun("garlic"));
+    assert!(
+        fun("toastem") > 4,
+        "toast-em is worth eating: {}",
+        fun("toastem")
+    );
+    assert!(
+        fun("garlic") < -1,
+        "garlic is worse than -1: {}",
+        fun("garlic")
+    );
     has("cola", "EATEN_COLD");
     has("icecream", "MELTS");
     has("catfood", "FELINE");
     has("dogfood", "LUPINE");
-    assert!(fun("catfood") < 0, "cat food tastes foul to the rest of us: {}", fun("catfood"));
-    assert!(fun("dogfood") < 0, "and so does dog food: {}", fun("dogfood"));
-    assert!(fun("pine_nuts") > 0, "pine nuts are worth eating: {}", fun("pine_nuts"));
+    assert!(
+        fun("catfood") < 0,
+        "cat food tastes foul to the rest of us: {}",
+        fun("catfood")
+    );
+    assert!(
+        fun("dogfood") < 0,
+        "and so does dog food: {}",
+        fun("dogfood")
+    );
+    assert!(
+        fun("pine_nuts") > 0,
+        "pine nuts are worth eating: {}",
+        fun("pine_nuts")
+    );
 }
 
 #[test]
@@ -368,6 +439,14 @@ fn the_item_itself_adds_its_flags_taste_and_goes_tasteless_once_mushy() {
     assert_eq!(comestible_fun(20, &bad, taste), 15);
 
     let mushy = flags(&["MUSHY"]);
-    assert_eq!(comestible_fun(20, &mushy, taste), -5, "good food gone mushy is at best -5");
-    assert_eq!(comestible_fun(-30, &mushy, taste), -30, "and bad food is left as bad as it was");
+    assert_eq!(
+        comestible_fun(20, &mushy, taste),
+        -5,
+        "good food gone mushy is at best -5"
+    );
+    assert_eq!(
+        comestible_fun(-30, &mushy, taste),
+        -30,
+        "and bad food is left as bad as it was"
+    );
 }

@@ -43,10 +43,13 @@ fn port_products(
 #[test]
 fn the_loaded_recipes_make_what_the_reference_makes() {
     let recipes_dump = corpus("recipes.json");
-    let (recipes, count) = cdda_content::recipes::from_dump(&recipes_dump).expect("the recipe dump reads");
+    let (recipes, count) =
+        cdda_content::recipes::from_dump(&recipes_dump).expect("the recipe dump reads");
     assert_eq!(recipes.len(), count, "the dump agrees with its own count");
-    let by_id: BTreeMap<&str, &cdda_content::recipes::Recipe> =
-        recipes.iter().map(|recipe| (recipe.id.as_str(), recipe)).collect();
+    let by_id: BTreeMap<&str, &cdda_content::recipes::Recipe> = recipes
+        .iter()
+        .map(|recipe| (recipe.id.as_str(), recipe))
+        .collect();
     let products = corpus("crafting-results.json");
     let cdda_json::Value::Object(root) = products.as_ref() else {
         panic!("the crafting dump is an object");
@@ -92,7 +95,10 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
                 // The reference wraps a `contained` result in its container - `can_beans` comes out inside a `can_medium` (`create_result`, `recipe.cpp:768-771`) -
                 // and the port does not model containers yet. That is a **known hole, counted rather than ignored**: anything else disagreeing is a real failure.
                 {
-                    failures.push(format!("{} batch {size}: makes {mine:?}, the reference {wanted:?}", recipe.id));
+                    failures.push(format!(
+                        "{} batch {size}: makes {mine:?}, the reference {wanted:?}",
+                        recipe.id
+                    ));
                 }
             }
             let spare: BTreeMap<String, i32> = byproducts.iter().cloned().collect();
@@ -115,7 +121,10 @@ fn the_loaded_recipes_make_what_the_reference_makes() {
             }
         }
     }
-    assert!(checked > 10_000, "the comparison saw {checked} batches, not a handful");
+    assert!(
+        checked > 10_000,
+        "the comparison saw {checked} batches, not a handful"
+    );
     // The container hole has a number, so closing it is a change to one line rather than a discovery.
     assert_eq!(
         drawn_byproducts, 14,

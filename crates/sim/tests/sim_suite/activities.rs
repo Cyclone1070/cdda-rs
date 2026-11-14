@@ -67,7 +67,11 @@ fn a_time_based_job_takes_the_same_three_turns_for_a_quick_creature_and_a_slow_o
         turns
     };
 
-    assert_eq!(turns(100), 3, "two hundred and fifty moves at a hundred a turn");
+    assert_eq!(
+        turns(100),
+        3,
+        "two hundred and fifty moves at a hundred a turn"
+    );
     assert_eq!(
         turns(200),
         3,
@@ -96,7 +100,11 @@ fn a_speed_based_job_is_quicker_for_a_quicker_creature() {
     };
 
     assert_eq!(turns(100), 4, "four hundred moves at a hundred a turn");
-    assert_eq!(turns(200), 2, "and two turns for a creature that has twice the moves");
+    assert_eq!(
+        turns(200),
+        2,
+        "and two turns for a creature that has twice the moves"
+    );
 }
 
 #[test]
@@ -109,19 +117,22 @@ fn a_busy_creature_does_not_walk() {
         .insert(doing("reading", 1_000, Basis::Time));
     world
         .entity_mut(busy)
-        .insert(cdda_sim::creature::Goal {
-            square: (3, 0, 0),
-        });
+        .insert(cdda_sim::creature::Goal { square: (3, 0, 0) });
 
     cdda_sim::turn::run_turn(&mut world);
 
-    let place = world.get::<cdda_sim::Position>(busy).expect("it has a square");
+    let place = world
+        .get::<cdda_sim::Position>(busy)
+        .expect("it has a square");
     assert_eq!(
         (place.x, place.y),
         (0, 0),
         "a creature doing something spends its turn on that, not on walking"
     );
-    assert!(moves_left(&world, busy) <= 0, "and it has no moves left to spend");
+    assert!(
+        moves_left(&world, busy) <= 0,
+        "and it has no moves left to spend"
+    );
 }
 
 /// An activity that finishes does what it was for.
@@ -188,8 +199,15 @@ fn something_light_enough_to_handle_at_once_is_not_an_activity() {
         cdda_sim::creature::Began::Done,
         "a quarter of a litre is a hundred and twelve moves, and the creature has five hundred"
     );
-    assert!(world.get::<cdda_sim::creature::Doing>(survivor).is_none(), "no activity was needed");
-    assert_eq!(cdda_sim::items_at(&mut world, (1, 0)).len(), 0, "and it is in hand already");
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(survivor).is_none(),
+        "no activity was needed"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        0,
+        "and it is in hand already"
+    );
 }
 
 /// The rule on its own, without the turn loop around it.
@@ -203,7 +221,10 @@ fn spending_a_turn_directly_moves_the_counter() {
         .insert(doing("digging", 200, Basis::Speed));
     let finished = cdda_sim::creature::spend_a_turn_on(&mut world, busy);
     assert!(!finished);
-    assert_eq!(world.get::<Doing>(busy).map(|doing| doing.moves_left), Some(100));
+    assert_eq!(
+        world.get::<Doing>(busy).map(|doing| doing.moves_left),
+        Some(100)
+    );
 }
 
 /// Every activity the port starts has something that finishes it, and the table is what says so.
@@ -315,14 +336,21 @@ fn cancelling_a_craft_keeps_the_ingredients_and_loses_the_work() {
         Craft::Started
     );
 
-    assert!(stop_doing(&mut world, crafter), "there was something to give up on");
+    assert!(
+        stop_doing(&mut world, crafter),
+        "there was something to give up on"
+    );
 
-    assert!(world.get::<Doing>(crafter).is_none(), "the survivor is free");
+    assert!(
+        world.get::<Doing>(crafter).is_none(),
+        "the survivor is free"
+    );
     assert!(
         world.get::<Making>(crafter).is_some(),
         "but the recipe is still theirs: a paused craft is not a lost one"
     );
-    let carried = cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
+    let carried =
+        cdda_sim::inventory::carried_by_id(&mut world, crafter, |kind| names.name_of(kind));
     assert_eq!(carried.get("rag"), Some(&2), "both rags are still in hand");
     assert_eq!(carried.get("rope"), None, "and no rope was made");
     assert!(
@@ -368,8 +396,8 @@ fn every_activity_has_a_canceller() {
 /// it is not queued at all.
 #[test]
 fn a_paused_craft_is_resumed_where_it_stopped() {
-    use cdda_sim::creature::{Doing, resume_backlog, spawn_creature, stop_doing};
     use cdda_sim::crafting::{Craft, begin_craft_from_carried};
+    use cdda_sim::creature::{Doing, resume_backlog, spawn_creature, stop_doing};
 
     let mut world = World::new();
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -433,7 +461,10 @@ fn a_paused_craft_is_resumed_where_it_stopped() {
     }
     assert!(stop_doing(&mut world, crafter));
 
-    assert!(resume_backlog(&mut world, crafter), "there is work to resume");
+    assert!(
+        resume_backlog(&mut world, crafter),
+        "there is work to resume"
+    );
     assert_eq!(
         world.get::<Doing>(crafter).map(|doing| doing.moves_left),
         Some(5_000),
@@ -474,10 +505,10 @@ fn a_pickup_that_was_stopped_is_not_queued() {
 /// stops the work, and nothing is thrown away by being stopped.
 #[test]
 fn pain_interrupts_a_craft_and_the_work_is_kept() {
+    use cdda_sim::crafting::{Craft, Making, begin_craft_from_carried};
     use cdda_sim::creature::{
         Basis, Distraction, Doing, disturb, heeds, resume_backlog, spawn_creature,
     };
-    use cdda_sim::crafting::{Craft, Making, begin_craft_from_carried};
 
     let mut world = World::new();
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -544,7 +575,10 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
         "pain is not something a craft heeds past"
     );
     assert!(world.get::<Doing>(crafter).is_none(), "the craft stopped");
-    assert!(world.get::<Making>(crafter).is_some(), "but the recipe is still theirs");
+    assert!(
+        world.get::<Making>(crafter).is_some(),
+        "but the recipe is still theirs"
+    );
     assert!(resume_backlog(&mut world, crafter));
     assert_eq!(
         world.get::<Doing>(crafter).map(|doing| doing.moves_left),
@@ -569,7 +603,9 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
     assert!(disturb(&mut world, crafter, Distraction::Pain));
     assert!(resume_backlog(&mut world, crafter));
     assert_eq!(
-        world.get::<Doing>(crafter).map(|doing| doing.activity.clone()),
+        world
+            .get::<Doing>(crafter)
+            .map(|doing| doing.activity.clone()),
         Some("craft".to_owned()),
         "the craft is what was waiting; the pickup left nothing behind"
     );
@@ -582,8 +618,8 @@ fn pain_interrupts_a_craft_and_the_work_is_kept() {
 /// that harm arriving through `hurt` - the function every blow already goes through - is enough on its own.
 #[test]
 fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
-    use cdda_sim::creature::{Doing, health_of, hurt, resume_backlog, spawn_creature};
     use cdda_sim::crafting::{Craft, Making, begin_craft_from_carried};
+    use cdda_sim::creature::{Doing, health_of, hurt, resume_backlog, spawn_creature};
 
     let mut world = World::new();
     let crafter = spawn_creature(&mut world, "the survivor", (0, 0, 0));
@@ -647,9 +683,19 @@ fn a_blow_stops_a_craft_without_anyone_asking_it_to() {
 
     hurt(&mut world, crafter, 9.0);
 
-    assert_eq!(health_of(&world, crafter), Some(71), "nine points of harm landed");
-    assert!(world.get::<Doing>(crafter).is_none(), "and stopped the craft");
-    assert!(world.get::<Making>(crafter).is_some(), "without losing the recipe");
+    assert_eq!(
+        health_of(&world, crafter),
+        Some(71),
+        "nine points of harm landed"
+    );
+    assert!(
+        world.get::<Doing>(crafter).is_none(),
+        "and stopped the craft"
+    );
+    assert!(
+        world.get::<Making>(crafter).is_some(),
+        "without losing the recipe"
+    );
     assert!(resume_backlog(&mut world, crafter), "the work is waiting");
     assert_eq!(
         world.get::<Doing>(crafter).map(|doing| doing.moves_left),
@@ -678,13 +724,21 @@ fn focus_scales_what_a_practice_worths() {
         "a fresh survivor is at a hundred"
     );
     assert_eq!(
-        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        world
+            .get::<cdda_sim::skills::Focus>(survivor)
+            .map(|focus| focus.0),
         Some(100),
         "and the spawn gives it"
     );
-    assert!((cdda_sim::skills::adjust_for_focus(&world, survivor, 40.0) - 40.0).abs() < f32::EPSILON);
-    world.entity_mut(survivor).insert(cdda_sim::skills::Focus(50));
-    assert!((cdda_sim::skills::adjust_for_focus(&world, survivor, 40.0) - 20.0).abs() < f32::EPSILON);
+    assert!(
+        (cdda_sim::skills::adjust_for_focus(&world, survivor, 40.0) - 40.0).abs() < f32::EPSILON
+    );
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::skills::Focus(50));
+    assert!(
+        (cdda_sim::skills::adjust_for_focus(&world, survivor, 40.0) - 20.0).abs() < f32::EPSILON
+    );
 }
 
 /// Focus drifts towards the equilibrium morale sets, a tenth of the gap a minute.
@@ -705,14 +759,20 @@ fn focus_drifts_towards_the_equilibrium_morale_sets() {
     let survivor = spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::skills::update_mental_focus(&mut world, survivor, 0);
     assert_eq!(
-        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        world
+            .get::<cdda_sim::skills::Focus>(survivor)
+            .map(|focus| focus.0),
         Some(100),
         "at the equilibrium it stays put"
     );
-    world.entity_mut(survivor).insert(cdda_sim::skills::Focus(40));
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::skills::Focus(40));
     cdda_sim::skills::update_mental_focus(&mut world, survivor, 0);
     assert_eq!(
-        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        world
+            .get::<cdda_sim::skills::Focus>(survivor)
+            .map(|focus| focus.0),
         Some(46),
         "forty to a hundred closes a tenth of the sixty-point gap"
     );
@@ -732,14 +792,18 @@ fn the_sixtieth_turn_is_the_one_that_moves_focus() {
     cdda_sim::calendar::set_turn(&mut world, 59);
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
-        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        world
+            .get::<cdda_sim::skills::Focus>(survivor)
+            .map(|focus| focus.0),
         Some(40),
         "turn fifty-nine is not a minute's boundary"
     );
     cdda_sim::calendar::set_turn(&mut world, 60);
     cdda_sim::turn::run_turn(&mut world);
     assert_eq!(
-        world.get::<cdda_sim::skills::Focus>(survivor).map(|focus| focus.0),
+        world
+            .get::<cdda_sim::skills::Focus>(survivor)
+            .map(|focus| focus.0),
         Some(46),
         "turn sixty is, and a tenth of the gap closes"
     );

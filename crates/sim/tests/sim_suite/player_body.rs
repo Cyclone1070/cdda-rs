@@ -41,10 +41,18 @@ fn player_hp(world: &World, entity: Entity) -> i32 {
 fn the_player_arrives_at_full_health_with_its_armour() {
     let mut world = World::new();
     let player = spawn_player(&mut world, (5, 5), 80, 2);
-    assert_eq!(cdda_sim::creature::health_of(&world, player), Some(80), "eighty hit points");
-    let health = world.get::<cdda_sim::creature::Health>(player).expect("a body");
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, player),
+        Some(80),
+        "eighty hit points"
+    );
+    let health = world
+        .get::<cdda_sim::creature::Health>(player)
+        .expect("a body");
     assert_eq!(health.max_hp, 80, "and eighty is its ceiling");
-    let armour = world.get::<cdda_sim::creature::Armour>(player).expect("worn armour");
+    let armour = world
+        .get::<cdda_sim::creature::Armour>(player)
+        .expect("worn armour");
     assert_eq!(armour.bash, 2, "two points of armour against a blow");
     assert!(!player_dead(&mut world));
 }

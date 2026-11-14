@@ -21,7 +21,9 @@ use bevy_ecs::prelude::*;
 #[must_use]
 pub fn square_cost(world: &World, square: (i32, i32, i32)) -> Option<i32> {
     let code = crate::square::terrain_at(world, square)?;
-    let cost = crate::singletons::prototypes(world)?.terrain.move_cost(code)?;
+    let cost = crate::singletons::prototypes(world)?
+        .terrain
+        .move_cost(code)?;
     if cost <= 0 { None } else { Some(cost) }
 }
 
@@ -30,7 +32,10 @@ pub fn square_cost(world: &World, square: (i32, i32, i32)) -> Option<i32> {
 /// The cost of a step is `combined_movecost`'s: both squares charged for, scaled by how many axes
 /// differ. The estimate is the reference's own - one step's worth per square of Manhattan distance -
 /// which is what makes the search greedy rather than exhaustive.
-pub fn scorer(world: &World, dest: (i32, i32)) -> impl Fn((i32, i32), Option<(i32, i32)>) -> Score + '_ {
+pub fn scorer(
+    world: &World,
+    dest: (i32, i32),
+) -> impl Fn((i32, i32), Option<(i32, i32)>) -> Score + '_ {
     move |position: (i32, i32), previous: Option<(i32, i32)>| {
         let Some(cost_here) = square_cost(world, (position.0, position.1, 0)) else {
             return Score::REJECTED;
@@ -91,7 +96,11 @@ pub fn walk_towards(
     let path = route(world, (from.0, from.1), (target.0, target.1), bounds);
     // The path runs from the destination back to the source, so the square to step into is the one
     // just before the last - the source itself is last, and it has no direction.
-    let Some(step) = path.len().checked_sub(2).and_then(|before| path.get(before)) else {
+    let Some(step) = path
+        .len()
+        .checked_sub(2)
+        .and_then(|before| path.get(before))
+    else {
         return Walk::NoRoute;
     };
     let next = (step.x, step.y, from.2);

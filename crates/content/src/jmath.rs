@@ -55,7 +55,11 @@ impl Registry {
                 Some(Json::Int(count)) => usize::try_from(*count).unwrap_or(0),
                 _ => 0,
             };
-            functions.push(Function { id: id.to_string(), num_args, body: body.to_string() });
+            functions.push(Function {
+                id: id.to_string(),
+                num_args,
+                body: body.to_string(),
+            });
         }
         Ok(Registry { functions })
     }
@@ -96,15 +100,26 @@ pub struct Bound<'a> {
 impl<'a> Bound<'a> {
     /// Binds `arguments` to `_0`, `_1`, and so on, and defers to `outer` for every other name.
     #[must_use]
-    pub fn new(outer: &'a dyn Context, functions: &'a Registry, arguments: &'a [Value]) -> Bound<'a> {
-        Bound { outer, functions, arguments }
+    pub fn new(
+        outer: &'a dyn Context,
+        functions: &'a Registry,
+        arguments: &'a [Value],
+    ) -> Bound<'a> {
+        Bound {
+            outer,
+            functions,
+            arguments,
+        }
     }
 }
 
 impl Context for Bound<'_> {
     fn number(&self, name: &str) -> Option<f64> {
         // `_0` through `_n` are the bound arguments; anything else belongs to the outer context.
-        if let Some(index) = name.strip_prefix('_').and_then(|digits| digits.parse::<usize>().ok()) {
+        if let Some(index) = name
+            .strip_prefix('_')
+            .and_then(|digits| digits.parse::<usize>().ok())
+        {
             return self.arguments.get(index).and_then(Value::as_number);
         }
         self.outer.number(name)
@@ -114,7 +129,11 @@ impl Context for Bound<'_> {
         if let Some(function) = self.functions.get(name) {
             if arguments.len() != function.num_args {
                 return Err(MathError::Type {
-                    message: format!("{name} takes {} arguments, not {}", function.num_args, arguments.len()),
+                    message: format!(
+                        "{name} takes {} arguments, not {}",
+                        function.num_args,
+                        arguments.len()
+                    ),
                 });
             }
             let inner = Bound::new(self.outer, self.functions, arguments);
@@ -129,9 +148,16 @@ impl Context for Bound<'_> {
 /// # Errors
 ///
 /// Returns [`MathError::UnknownName`] when no such function exists, and whatever the body's own evaluation returns.
-pub fn call(registry: &Registry, outer: &dyn Context, name: &str, arguments: &[Value]) -> Result<Value, MathError> {
+pub fn call(
+    registry: &Registry,
+    outer: &dyn Context,
+    name: &str,
+    arguments: &[Value],
+) -> Result<Value, MathError> {
     let Some(function) = registry.get(name) else {
-        return Err(MathError::UnknownName { name: name.to_string() });
+        return Err(MathError::UnknownName {
+            name: name.to_string(),
+        });
     };
     let inner = Bound::new(outer, registry, arguments);
     evaluate(&function.body, &inner)
@@ -158,7 +184,11 @@ pub fn read_entries(entries: &[Object]) -> Result<Registry, String> {
             Some(cdda_json::Value::Int(count)) => usize::try_from(*count).unwrap_or(0),
             _ => 0,
         };
-        functions.push(Function { id: id.to_string(), num_args, body: body.to_string() });
+        functions.push(Function {
+            id: id.to_string(),
+            num_args,
+            body: body.to_string(),
+        });
     }
     Ok(Registry { functions })
 }

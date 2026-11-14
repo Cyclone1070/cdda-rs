@@ -132,7 +132,10 @@ mod tests {
     #[test]
     fn a_wild_miss_turns_by_no_more_than_thirty_degrees() {
         let cap = std::f64::consts::PI / 6.0;
-        assert!((arcmin_to_radians(1_800.0) - cap).abs() < 1e-12, "thirty degrees is 1800 arcminutes");
+        assert!(
+            (arcmin_to_radians(1_800.0) - cap).abs() < 1e-12,
+            "thirty degrees is 1800 arcminutes"
+        );
         assert!(arcmin_to_radians(90_000.0).min(cap) < cap + 1e-12);
     }
 }

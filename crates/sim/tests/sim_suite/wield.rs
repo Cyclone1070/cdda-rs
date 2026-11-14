@@ -21,13 +21,18 @@ fn wielding_takes_a_carried_thing_in_hand_and_out_of_its_pocket() {
     let crowbar = cdda_sim::drop_item(&mut world, (0, 0), ItemTypeId(7), 1);
     world.entity_mut(crowbar).remove::<cdda_sim::Position>();
     world.entity_mut(crowbar).insert(Carried(survivor));
-    world
-        .entity_mut(crowbar)
-        .insert(InPocket { worn: pack, index: 0 });
+    world.entity_mut(crowbar).insert(InPocket {
+        worn: pack,
+        index: 0,
+    });
 
     assert_eq!(wield(&mut world, survivor, crowbar, 500), Wielded::Done);
 
-    assert_eq!(wielding(&mut world, survivor), Some(crowbar), "it is in hand");
+    assert_eq!(
+        wielding(&mut world, survivor),
+        Some(crowbar),
+        "it is in hand"
+    );
     assert!(
         world.get::<InPocket>(crowbar).is_none(),
         "and no longer in a pocket, because a thing cannot be in two places"
@@ -61,7 +66,11 @@ fn a_creature_holds_one_thing_at_a_time() {
     assert_eq!(wield(&mut world, survivor, first, 100), Wielded::Done);
     assert_eq!(wield(&mut world, survivor, second, 100), Wielded::Done);
 
-    assert_eq!(wielding(&mut world, survivor), Some(second), "the second is in hand");
+    assert_eq!(
+        wielding(&mut world, survivor),
+        Some(second),
+        "the second is in hand"
+    );
     assert!(
         world.get::<WieldedBy>(first).is_none(),
         "and the first is not, though it is still carried"

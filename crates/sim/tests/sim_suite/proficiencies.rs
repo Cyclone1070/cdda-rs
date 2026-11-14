@@ -15,17 +15,37 @@ fn practice_adds_up_until_the_proficiency_is_learned() {
 
     // Eight hours to learn it, and a craft that practised an hour.
     let eight_hours = 8 * 60 * 60;
-    assert!(!cdda_sim::proficiencies::practice(&mut world, survivor, "prof_tailor", 60 * 60, eight_hours));
+    assert!(!cdda_sim::proficiencies::practice(
+        &mut world,
+        survivor,
+        "prof_tailor",
+        60 * 60,
+        eight_hours
+    ));
     assert_eq!(
         cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_tailor"),
         60 * 60,
         "an hour of practice is an hour"
     );
-    assert!(!cdda_sim::proficiencies::knows(&world, survivor, "prof_tailor"));
+    assert!(!cdda_sim::proficiencies::knows(
+        &world,
+        survivor,
+        "prof_tailor"
+    ));
 
     // Seven more hours reaches the eight, and that practice is the one that teaches it.
-    assert!(cdda_sim::proficiencies::practice(&mut world, survivor, "prof_tailor", 7 * 60 * 60, eight_hours));
-    assert!(cdda_sim::proficiencies::knows(&world, survivor, "prof_tailor"));
+    assert!(cdda_sim::proficiencies::practice(
+        &mut world,
+        survivor,
+        "prof_tailor",
+        7 * 60 * 60,
+        eight_hours
+    ));
+    assert!(cdda_sim::proficiencies::knows(
+        &world,
+        survivor,
+        "prof_tailor"
+    ));
     assert_eq!(
         cdda_sim::proficiencies::practiced_seconds(&world, survivor, "prof_tailor"),
         0,
@@ -33,8 +53,20 @@ fn practice_adds_up_until_the_proficiency_is_learned() {
     );
 
     // Practising something already known changes nothing and learns nothing again.
-    assert!(!cdda_sim::proficiencies::practice(&mut world, survivor, "prof_tailor", 60 * 60, eight_hours));
-    assert!(!cdda_sim::proficiencies::practice(&mut world, survivor, "prof_tailor", 0, eight_hours));
+    assert!(!cdda_sim::proficiencies::practice(
+        &mut world,
+        survivor,
+        "prof_tailor",
+        60 * 60,
+        eight_hours
+    ));
+    assert!(!cdda_sim::proficiencies::practice(
+        &mut world,
+        survivor,
+        "prof_tailor",
+        0,
+        eight_hours
+    ));
 }
 
 /// A craft's time is **divided** between the proficiencies it teaches.
@@ -86,8 +118,16 @@ fn a_craft_divides_its_time_between_what_it_teaches() {
         eight_hours,
         &|_| true
     ));
-    assert!(cdda_sim::proficiencies::knows(&world, crafter, "prof_tailor"));
-    assert!(cdda_sim::proficiencies::knows(&world, crafter, "prof_knitting"));
+    assert!(cdda_sim::proficiencies::knows(
+        &world,
+        crafter,
+        "prof_tailor"
+    ));
+    assert!(cdda_sim::proficiencies::knows(
+        &world,
+        crafter,
+        "prof_knitting"
+    ));
 
     // A proficiency the crafter cannot learn is not practised and does not take a share of the time.
     let refused = [cdda_sim::proficiencies::Taught {
@@ -128,7 +168,9 @@ fn a_craft_practises_what_it_teaches_while_it_runs() {
     cdda_sim::proficiencies::install(&mut world, &proficiencies);
     let names = cdda_sim::item_registry::ItemNames {
         names: vec![String::new(), "rag".to_owned()],
-        by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))].into_iter().collect(),
+        by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))]
+            .into_iter()
+            .collect(),
         volumes_ml: vec![0, 250],
         weights_g: vec![0, 5],
         holds_ml: vec![0, 0],
@@ -207,7 +249,11 @@ fn an_unmet_prerequisite_does_not_accumulate_practice() {
     };
     cdda_sim::proficiencies::install(&mut world, &proficiencies);
 
-    assert!(cdda_sim::proficiencies::can_learn(&world, crafter, "prof_athlete_basic"));
+    assert!(cdda_sim::proficiencies::can_learn(
+        &world,
+        crafter,
+        "prof_athlete_basic"
+    ));
     assert!(
         !cdda_sim::proficiencies::can_learn(&world, crafter, "prof_athlete_expert"),
         "an expert trade waits for the basic one"
@@ -219,7 +265,11 @@ fn an_unmet_prerequisite_does_not_accumulate_practice() {
 
     // Learning the basic one opens the expert one, because the guard asks the graph rather than a list fixed at load time.
     cdda_sim::proficiencies::learn(&mut world, crafter, "prof_athlete_basic");
-    assert!(cdda_sim::proficiencies::can_learn(&world, crafter, "prof_athlete_expert"));
+    assert!(cdda_sim::proficiencies::can_learn(
+        &world,
+        crafter,
+        "prof_athlete_expert"
+    ));
 }
 
 /// The craft asks the data before it teaches: a trade whose prerequisite is unknown is not practised.
@@ -230,10 +280,13 @@ fn an_unmet_prerequisite_does_not_accumulate_practice() {
 fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
     let mut world = bevy_ecs::prelude::World::new();
     let crafter = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    let Ok(dump) = cdda_json::parse(br#"{"count": 2, "proficiencies": [
+    let Ok(dump) = cdda_json::parse(
+        br#"{"count": 2, "proficiencies": [
             {"id": "prof_basic", "seconds": 20, "can_learn": true, "required": []},
             {"id": "prof_expert", "seconds": 20, "can_learn": true, "required": ["prof_basic"]}
-        ]}"#.as_slice()) else {
+        ]}"#
+        .as_slice(),
+    ) else {
         return;
     };
     let Some((proficiencies, _)) = cdda_content::proficiencies::from_dump(&dump) else {
@@ -243,7 +296,9 @@ fn a_craft_does_not_teach_a_trade_whose_prerequisite_is_unknown() {
 
     let names = cdda_sim::item_registry::ItemNames {
         names: vec![String::new(), "rag".to_owned()],
-        by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))].into_iter().collect(),
+        by_name: [("rag".to_owned(), cdda_sim::ItemTypeId(1))]
+            .into_iter()
+            .collect(),
         volumes_ml: vec![0, 250],
         weights_g: vec![0, 5],
         holds_ml: vec![0, 0],
@@ -348,7 +403,8 @@ fn a_kill_practises_the_families_the_body_names() {
         _ => 0,
     };
 
-    let taught = cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
+    let taught =
+        cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
 
     assert_eq!(
         cdda_sim::proficiencies::practiced_seconds(&world, killer, "prof_cutting"),
@@ -366,7 +422,8 @@ fn a_kill_practises_the_families_the_body_names() {
     );
     // The tenth kill of a body worth ten of those minutes is what learns it, and the rule says so on that kill and not before.
     for _ in 1..10 {
-        let _ = cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
+        let _ =
+            cdda_sim::proficiencies::practise_a_kill(&mut world, killer, &families, &learn_times);
     }
     assert!(
         cdda_sim::proficiencies::knows(&world, killer, "prof_cutting"),
@@ -377,7 +434,10 @@ fn a_kill_practises_the_families_the_body_names() {
         600,
         "while the proficiency that takes ten thousand seconds is still learning, at ten minutes"
     );
-    assert!(taught.is_empty(), "none of them was learned by the **first** kill: {taught:?}");
+    assert!(
+        taught.is_empty(),
+        "none of them was learned by the **first** kill: {taught:?}"
+    );
 }
 
 /// **Dissecting a body teaches for two fifteen-minute halves.** The reference splits half an hour into two calls and ORs what they learned.
@@ -398,7 +458,8 @@ fn dissecting_teaches_two_halves_of_fifteen_minutes() {
     }];
 
     // Two thousand seconds to learn it, so half an hour is not enough and the second call is the one that gets close.
-    let learned = cdda_sim::proficiencies::practise_a_dissection(&mut world, butcher, &families, &|_| 2_000);
+    let learned =
+        cdda_sim::proficiencies::practise_a_dissection(&mut world, butcher, &families, &|_| 2_000);
 
     assert!(
         !learned,

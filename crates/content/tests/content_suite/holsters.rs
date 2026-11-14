@@ -47,8 +47,8 @@ fn dump() -> BTreeMap<String, Holster> {
 fn every_holster_is_read_the_way_the_reference_reads_it() {
     let recorded = dump();
     assert_eq!(recorded.len(), 76, "every holster was recorded");
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded: BTreeMap<String, ItemType> = load_paths(&paths)

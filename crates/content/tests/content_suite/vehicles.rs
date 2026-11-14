@@ -34,7 +34,11 @@ fn known_ids_are_present_and_no_id_repeats() {
     );
     let mut sorted = ids.clone();
     sorted.dedup();
-    assert_eq!(sorted.len(), ids.len(), "no duplicates, and the dump is sorted");
+    assert_eq!(
+        sorted.len(),
+        ids.len(),
+        "no duplicates, and the dump is sorted"
+    );
 }
 
 /// **A part carries what it is, not only its name.** `seat` is the reference's own example: 300 hit points, a 60% damage modifier, made of the item `seat`, in the
@@ -42,7 +46,11 @@ fn known_ids_are_present_and_no_id_repeats() {
 #[test]
 fn a_part_carries_its_item_its_slot_and_its_armour() {
     let dump = dump();
-    let seat = dump.parts.iter().find(|part| part.id == "seat").expect("the seat");
+    let seat = dump
+        .parts
+        .iter()
+        .find(|part| part.id == "seat")
+        .expect("the seat");
     assert_eq!(seat.durability, 300, "hit points");
     assert_eq!(seat.damage_modifier, 60, "damage modifier, a percentage");
     assert_eq!(seat.item, "seat", "the item it is made of");
@@ -53,17 +61,31 @@ fn a_part_carries_its_item_its_slot_and_its_armour() {
     assert_eq!(seat.damage_reduction.get("bash"), Some(&5.0), "bash armour");
     // A seat is a `CARGO` part and its size is that cargo: 25 litres, not zero. The dump is the authority here, and the flag is what says the size is cargo rather
     // than a bed's or a workbench's.
-    assert_eq!(seat.size, 25_000, "25 litres of cargo room, which its `CARGO` flag promises");
+    assert_eq!(
+        seat.size, 25_000,
+        "25 litres of cargo room, which its `CARGO` flag promises"
+    );
 }
 
 /// Every invented turret part is present and named the way `finalize` names it, which is what tells a port that read only the data's records where the other 239 came from.
 #[test]
 fn the_invented_turret_parts_are_in_the_store() {
     let dump = dump();
-    let turrets: Vec<&vehicles::PartSpec> = dump.parts.iter().filter(|part| part.id.starts_with("turret_")).collect();
-    assert_eq!(turrets.len(), 241, "**the turrets the data never writes**: `finalize` makes one per mountable gun");
+    let turrets: Vec<&vehicles::PartSpec> = dump
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with("turret_"))
+        .collect();
+    assert_eq!(
+        turrets.len(),
+        241,
+        "**the turrets the data never writes**: `finalize` makes one per mountable gun"
+    );
     let named: Vec<&String> = turrets.iter().map(|part| &part.item).collect();
-    assert!(named.iter().any(|item| *item == "m1918"), "a turret is made of the gun it mounts");
+    assert!(
+        named.iter().any(|item| *item == "m1918"),
+        "a turret is made of the gun it mounts"
+    );
 }
 
 /// **A blueprint names parts the store holds.** A prototype is a list of placements - what part, where - and a placement that names a part the store does not have is a
@@ -71,7 +93,8 @@ fn the_invented_turret_parts_are_in_the_store() {
 #[test]
 fn every_placement_in_every_blueprint_names_a_part_the_store_holds() {
     let dump = dump();
-    let known: std::collections::BTreeSet<&String> = dump.parts.iter().map(|part| &part.id).collect();
+    let known: std::collections::BTreeSet<&String> =
+        dump.parts.iter().map(|part| &part.id).collect();
     let mut placements = 0usize;
     let mut unknown: Vec<(&String, &String)> = Vec::new();
     for prototype in &dump.prototypes {
@@ -82,9 +105,16 @@ fn every_placement_in_every_blueprint_names_a_part_the_store_holds() {
             }
         }
     }
-    println!("{} placements across {} prototypes", placements, dump.prototypes.len());
+    println!(
+        "{} placements across {} prototypes",
+        placements,
+        dump.prototypes.len()
+    );
     assert_eq!(placements, 19_938, "every placement in the data");
-    assert!(unknown.is_empty(), "placements naming parts the store lacks: {unknown:?}");
+    assert!(
+        unknown.is_empty(),
+        "placements naming parts the store lacks: {unknown:?}"
+    );
 }
 
 /// A known prototype, part for part: the 2-seater helicopter's blueprint opens with a cross-variant frame in the same square as its seat, controls and dashboard.
@@ -93,8 +123,15 @@ fn every_placement_in_every_blueprint_names_a_part_the_store_holds() {
 #[test]
 fn a_blueprint_says_what_part_goes_where() {
     let dump = dump();
-    let helicopter = dump.prototypes.iter().find(|proto| proto.id == "2seater2").expect("the helicopter");
-    assert_eq!(helicopter.name, "2-seater helicopter A", "the name the data gives it");
+    let helicopter = dump
+        .prototypes
+        .iter()
+        .find(|proto| proto.id == "2seater2")
+        .expect("the helicopter");
+    assert_eq!(
+        helicopter.name, "2-seater helicopter A",
+        "the name the data gives it"
+    );
     assert_eq!(helicopter.parts.len(), 71, "parts in the blueprint");
     let first = helicopter.parts.first().expect("a first part");
     assert_eq!(first.part, "frame", "a frame comes first");
@@ -105,7 +142,10 @@ fn a_blueprint_says_what_part_goes_where() {
         .iter()
         .filter(|placement| (placement.x, placement.y) == (0, 0))
         .count();
-    assert!(same_square > 1, "**several parts share a square**: {same_square} of them do");
+    assert!(
+        same_square > 1,
+        "**several parts share a square**: {same_square} of them do"
+    );
 }
 
 /// One prototype in the data has an **empty** blueprint. It is recorded rather than skipped, because a builder that quietly dropped it would make 249 prototypes into 248
@@ -120,5 +160,8 @@ fn the_one_empty_blueprint_is_kept_and_named() {
         .map(|proto| &proto.id)
         .collect();
     assert_eq!(empty.len(), 1, "exactly one: {empty:?}");
-    assert!(dump.parts.len() == 701, "and the part store is untouched by it");
+    assert!(
+        dump.parts.len() == 701,
+        "and the part store is untouched by it"
+    );
 }

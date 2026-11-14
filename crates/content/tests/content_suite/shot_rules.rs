@@ -17,16 +17,41 @@ fn every_skill_s_attack_time_line_loads_and_the_rifle_is_not_the_default() {
     assert_eq!(skills.len(), 27, "every skill the reference has");
 
     let line = |id: &str| {
-        let skill = skills.iter().find(|skill| skill.id == id).expect("the skill is in the dump");
-        (skill.base_time, skill.time_reduction_per_level, skill.min_time)
+        let skill = skills
+            .iter()
+            .find(|skill| skill.id == id)
+            .expect("the skill is in the dump");
+        (
+            skill.base_time,
+            skill.time_reduction_per_level,
+            skill.min_time,
+        )
     };
-    assert_eq!(line("rifle"), (30, 1, 20), "a rifle: thirty moves, one off a level, floor twenty");
+    assert_eq!(
+        line("rifle"),
+        (30, 1, 20),
+        "a rifle: thirty moves, one off a level, floor twenty"
+    );
     assert_eq!(line("pistol"), (30, 1, 20), "and a pistol the same line");
-    assert_eq!(line("archery"), (50, 3, 20), "archery is slower to learn and quicker to floor");
-    assert_eq!(line("gun"), (220, 25, 50), "marksmanship is the struct's default block, and the slowest line there is");
+    assert_eq!(
+        line("archery"),
+        (50, 3, 20),
+        "archery is slower to learn and quicker to floor"
+    );
+    assert_eq!(
+        line("gun"),
+        (220, 25, 50),
+        "marksmanship is the struct's default block, and the slowest line there is"
+    );
     assert_eq!(line("throw"), (220, 25, 50), "throwing shares it");
 
     // The names are the reference's display names, not the ids: `rifle` is shown as `rifles`.
-    let rifle = skills.iter().find(|skill| skill.id == "rifle").expect("a rifle");
-    assert_eq!(rifle.name, "rifles", "the display name, which an id-keyed port would lose");
+    let rifle = skills
+        .iter()
+        .find(|skill| skill.id == "rifle")
+        .expect("a rifle");
+    assert_eq!(
+        rifle.name, "rifles",
+        "the display name, which an id-keyed port would lose"
+    );
 }

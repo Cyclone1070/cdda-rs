@@ -30,9 +30,9 @@ pub fn accept(world: &mut World, character: Entity, mission: &str) {
         held.active.insert(mission.to_owned());
         return;
     }
-    world
-        .entity_mut(character)
-        .insert(Missions { active: BTreeSet::from([mission.to_owned()]) });
+    world.entity_mut(character).insert(Missions {
+        active: BTreeSet::from([mission.to_owned()]),
+    });
 }
 
 /// Drops a mission, answering whether it was there.
@@ -54,9 +54,9 @@ pub fn has_mission(world: &World, character: Entity, mission: &str) -> bool {
 /// Every mission a character has taken, in id order.
 #[must_use]
 pub fn active_missions(world: &World, character: Entity) -> Vec<String> {
-    world.get::<Missions>(character).map_or_else(Vec::new, |held| {
-        held.active.iter().cloned().collect()
-    })
+    world
+        .get::<Missions>(character)
+        .map_or_else(Vec::new, |held| held.active.iter().cloned().collect())
 }
 
 /// The player, or nothing when no entity has claimed to be one.
@@ -97,15 +97,15 @@ pub fn offer(world: &mut World, character: Entity, mission: &str) {
         held.kinds.insert(mission.to_owned());
         return;
     }
-    world
-        .entity_mut(character)
-        .insert(Offers { kinds: BTreeSet::from([mission.to_owned()]) });
+    world.entity_mut(character).insert(Offers {
+        kinds: BTreeSet::from([mission.to_owned()]),
+    });
 }
 
 /// Every mission a character is offering, in id order.
 #[must_use]
 pub fn offers(world: &World, character: Entity) -> Vec<String> {
-    world.get::<Offers>(character).map_or_else(Vec::new, |held| {
-        held.kinds.iter().cloned().collect()
-    })
+    world
+        .get::<Offers>(character)
+        .map_or_else(Vec::new, |held| held.kinds.iter().cloned().collect())
 }

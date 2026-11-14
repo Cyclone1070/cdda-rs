@@ -19,7 +19,10 @@ fn pocket(capacity_ml: i32, max_weight_g: i32) -> Pocket {
 
 #[test]
 fn a_thing_that_fits_goes_in() {
-    assert_eq!(fits(pocket(2_000, 5_000), Contents::default(), 1_500, 1_000), Fits::Yes);
+    assert_eq!(
+        fits(pocket(2_000, 5_000), Contents::default(), 1_500, 1_000),
+        Fits::Yes
+    );
 }
 
 #[test]

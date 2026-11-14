@@ -11,7 +11,9 @@ use cdda_sim::creature::body_named;
 use std::path::Path;
 
 fn read(name: &str) -> Value {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus").join(name);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus")
+        .join(name);
     let text = std::fs::read(path).unwrap_or_else(|_| panic!("{name} exists"));
     parse(&text).unwrap_or_else(|_| panic!("{name} is valid JSON"))
 }
@@ -46,7 +48,11 @@ fn a_person_s_body_is_assembled_from_the_two_files_that_describe_it() {
         .find(|part| part.name == "torso")
         .expect("a torso");
     assert_eq!(torso.hit_size, 36.0, "with the size the reference states");
-    let head = body.parts.iter().find(|part| part.name == "head").expect("a head");
+    let head = body
+        .parts
+        .iter()
+        .find(|part| part.name == "head")
+        .expect("a head");
     assert!(head.upper, "and the head out of a short attacker's reach");
     assert!(
         body.parts.iter().any(|part| part.name == "left arm"),

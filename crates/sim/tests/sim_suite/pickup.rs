@@ -9,7 +9,9 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
-use cdda_sim::creature::{Carried, Picked, give_moves, handling_cost, moves_left, pick_up, spawn_creature};
+use cdda_sim::creature::{
+    Carried, Picked, give_moves, handling_cost, moves_left, pick_up, spawn_creature,
+};
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{Position, Prototypes};
 
@@ -56,8 +58,16 @@ fn picking_something_up_takes_it_off_the_square() {
         world.get::<Position>(rock).is_none(),
         "the carried thing has no square, which is what keeps it out of the index"
     );
-    assert_eq!(world.get::<Carried>(rock), Some(&Carried(survivor)), "and it knows who holds it");
-    assert_eq!(moves_left(&world, survivor), 500 - 112, "having paid to handle it");
+    assert_eq!(
+        world.get::<Carried>(rock),
+        Some(&Carried(survivor)),
+        "and it knows who holds it"
+    );
+    assert_eq!(
+        moves_left(&world, survivor),
+        500 - 112,
+        "having paid to handle it"
+    );
 }
 
 #[test]
@@ -68,7 +78,11 @@ fn a_thing_on_another_square_is_not_in_reach() {
     let rock = cdda_sim::drop_item(&mut world, (2, 0), cdda_sim::ItemTypeId(9), 1);
 
     assert_eq!(pick_up(&mut world, survivor, rock, 250), Picked::NotHere);
-    assert_eq!(cdda_sim::items_at(&mut world, (2, 0)).len(), 1, "it stays where it is");
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (2, 0)).len(),
+        1,
+        "it stays where it is"
+    );
     assert_eq!(moves_left(&world, survivor), 500, "and nothing was spent");
 }
 
@@ -86,7 +100,11 @@ fn picking_something_up_twice_is_refused_and_costs_nothing() {
         Picked::AlreadyCarried,
         "it is already in hand"
     );
-    assert_eq!(moves_left(&world, survivor), after_first, "and asking again is free");
+    assert_eq!(
+        moves_left(&world, survivor),
+        after_first,
+        "and asking again is free"
+    );
 }
 
 #[test]
@@ -97,13 +115,25 @@ fn a_thing_too_big_for_the_moves_left_waits() {
     let rock = cdda_sim::drop_item(&mut world, (1, 0), cdda_sim::ItemTypeId(9), 1);
 
     assert_eq!(pick_up(&mut world, survivor, rock, 250), Picked::TooSlow);
-    assert_eq!(cdda_sim::items_at(&mut world, (1, 0)).len(), 1, "it is still on the floor");
-    assert_eq!(moves_left(&world, survivor), 50, "and the turn was not spent");
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        1,
+        "it is still on the floor"
+    );
+    assert_eq!(
+        moves_left(&world, survivor),
+        50,
+        "and the turn was not spent"
+    );
 }
 
 #[test]
 fn handling_fifty_moves_a_litre_up_to_two_hundred() {
-    assert_eq!(handling_cost(0), 100, "a handful of nothing still takes a base turn");
+    assert_eq!(
+        handling_cost(0),
+        100,
+        "a handful of nothing still takes a base turn"
+    );
     assert_eq!(handling_cost(1_000), 150, "a litre is fifty moves");
     assert_eq!(handling_cost(2_000), 200, "two litres a hundred");
     assert_eq!(handling_cost(4_000), 300, "four litres the cap");

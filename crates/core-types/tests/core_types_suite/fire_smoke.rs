@@ -117,5 +117,8 @@ fn wind_makes_smoke_less_likely() {
         }
     }
     assert!(windy > still, "windy {windy}, still {still}");
-    assert!(still > 20, "and a still fire still smokes sometimes: {still} of 400");
+    assert!(
+        still > 20,
+        "and a still fire still smokes sometimes: {still} of 400"
+    );
 }

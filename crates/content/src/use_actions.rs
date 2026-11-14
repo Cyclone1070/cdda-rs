@@ -169,9 +169,7 @@ impl Transform {
             target_charges: whole("target_charges", -1),
             target_ammo: text("target_ammo"),
             target_timer_seconds: match object.get("target_timer") {
-                Some(value @ (Value::Str(_) | Value::Int(_))) => {
-                    duration_in_moves(value) / 100
-                }
+                Some(value @ (Value::Str(_) | Value::Int(_))) => duration_in_moves(value) / 100,
                 _ => 0,
             },
             active: flag("active", false),
@@ -291,7 +289,8 @@ pub fn read_use_actions(object: &Object) -> Result<UseActions, LoadError> {
                 } else {
                     kind.clone()
                 };
-                let action = read_actor(&name, actor)?.unwrap_or(UseAction::Other { kind: kind.clone() });
+                let action =
+                    read_actor(&name, actor)?.unwrap_or(UseAction::Other { kind: kind.clone() });
                 let scale = actor.get("ammo_scale").and_then(float_as_int);
                 (name, action, scale)
             }
@@ -371,10 +370,16 @@ fn duration_seconds(value: Option<&Value>) -> i64 {
 /// If a ported actor's fields are malformed.
 pub fn read_actor(kind: &str, object: &Object) -> Result<Option<UseAction>, LoadError> {
     match kind {
-        "transform" | "delayed_transform" => Ok(Some(UseAction::Transform(Transform::read(kind, object)?))),
-        "consume_drug" => Ok(Some(UseAction::ConsumeDrug(ConsumeDrug::read(kind, object)?))),
+        "transform" | "delayed_transform" => {
+            Ok(Some(UseAction::Transform(Transform::read(kind, object)?)))
+        }
+        "consume_drug" => Ok(Some(UseAction::ConsumeDrug(ConsumeDrug::read(
+            kind, object,
+        )?))),
         "link_up" => Ok(Some(UseAction::LinkUp(LinkUp::read(kind, object)?))),
-        "firestarter" => Ok(Some(UseAction::Firestarter(Firestarter::read(kind, object)?))),
+        "firestarter" => Ok(Some(UseAction::Firestarter(Firestarter::read(
+            kind, object,
+        )?))),
         "holster" => Ok(Some(UseAction::Holster(Holster::read(kind, object)?))),
         "deploy_furn" => Ok(Some(UseAction::DeployFurn(DeployFurn::read(kind, object)?))),
         "place_trap" => Ok(Some(UseAction::PlaceTrap(PlaceTrap::read(kind, object)?))),
@@ -699,7 +704,9 @@ impl LinkUp {
 #[must_use]
 pub fn parse_watts(text: &str) -> i64 {
     let split = text
-        .find(|character: char| !(character.is_ascii_digit() || character == '.' || character == '-'))
+        .find(|character: char| {
+            !(character.is_ascii_digit() || character == '.' || character == '-')
+        })
         .unwrap_or(text.len());
     let (number, unit) = text.split_at(split);
     let Ok(number) = number.trim().parse::<f64>() else {
@@ -830,7 +837,7 @@ impl DeployFurn {
             other => {
                 return Err(LoadError {
                     message: format!("a deploy_furn action's furn_type is text: {other:?}"),
-                })
+                });
             }
         };
         Ok(Self {

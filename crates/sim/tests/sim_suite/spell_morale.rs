@@ -43,10 +43,12 @@ fn a_world() -> (World, Entity, Entity) {
     cdda_sim::morale::set_types(&mut world, &["morale_feeling_good".to_owned()]);
     let person = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     let monster = world.spawn(cdda_sim::Position { x: 0, y: 0, z: 0 }).id();
-    world.entity_mut(monster).insert(cdda_sim::creature::Creature {
-        name: "a zombie".to_owned(),
-        size: cdda_sim::CreatureSize::Medium,
-    });
+    world
+        .entity_mut(monster)
+        .insert(cdda_sim::creature::Creature {
+            name: "a zombie".to_owned(),
+            size: cdda_sim::CreatureSize::Medium,
+        });
     cdda_sim::PositionIndex::rebuild(&mut world);
     (world, person, monster)
 }
@@ -66,7 +68,10 @@ fn a_morale_spell_makes_a_person_feel_its_bonus_for_its_own_duration() {
         .expect("the point was added");
     assert_eq!(felt.0.len(), 1, "one point");
     let point = &felt.0[0];
-    assert_eq!(point.kind, "morale_feeling_good", "of the type the spell names");
+    assert_eq!(
+        point.kind, "morale_feeling_good",
+        "of the type the spell names"
+    );
     assert_eq!(point.bonus, 20, "worth the spell's damage");
     assert_eq!(point.duration, 30_000, "for the spell's duration in turns");
     assert_eq!(
@@ -99,7 +104,9 @@ fn only_people_feel_it_and_only_a_type_the_data_defines() {
         cdda_sim::spell_effects::Effective::NothingAffected,
         "a type the data does not define is refused whole"
     );
-    let felt = world.get::<cdda_sim::morale::Morale>(person).expect("the first point");
+    let felt = world
+        .get::<cdda_sim::morale::Morale>(person)
+        .expect("the first point");
     assert_eq!(
         felt.0.len(),
         1,

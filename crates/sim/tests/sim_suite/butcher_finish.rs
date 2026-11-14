@@ -5,8 +5,8 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 use cdda_sim::{
-    ButcherAction, ButcherFinish, CreatureSize, CorpseDamage, CorpseOf, GroundItem, HarvestEntry, HarvestSpec, HarvestTable,
-    ItemTypeId, MonsterKindId, butcher_finish, drop_item, items_at,
+    ButcherAction, ButcherFinish, CorpseDamage, CorpseOf, CreatureSize, GroundItem, HarvestEntry,
+    HarvestSpec, HarvestTable, ItemTypeId, MonsterKindId, butcher_finish, drop_item, items_at,
 };
 
 const CORPSE: ItemTypeId = ItemTypeId(3_000);
@@ -41,17 +41,17 @@ fn finish() -> ButcherFinish {
         action: ButcherAction::Full,
         size: CreatureSize::Medium,
         dex: 10,
-    tool_quality: 0,
-    butchery: 0,
+        tool_quality: 0,
+        butchery: 0,
         // Nothing extra: a share of a body is what the weight says, which keeps these gates about the count rule.
         skill_levels: Vec::new(),
-    yield_multiplier: 1.0,
+        yield_multiplier: 1.0,
         damage: CorpseDamage::Light,
         gibbed: false,
         skinned: false,
         field_dressed: false,
         quartered: false,
-    field_dress_failed: false,
+        field_dress_failed: false,
         // Nothing known, which is the survivor a fresh game starts as and the worst case the reference allows.
         butch_basic: 1.0,
         skin_basic: 1.0,
@@ -84,7 +84,7 @@ fn the_yields_land_on_the_square_the_body_was_on() {
             entries: &entries,
             ids: &["meat", "bone"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         finish(),
         ids,
@@ -109,7 +109,7 @@ fn the_counts_are_charges_on_the_stacks_that_were_dropped() {
             entries: &entries,
             ids: &["meat"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         finish(),
         ids,
@@ -140,7 +140,7 @@ fn a_body_that_gives_nothing_drops_nothing() {
             entries: &entries,
             ids: &["meat"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             damage: CorpseDamage::Mangled,
@@ -170,7 +170,7 @@ fn a_skinned_body_gives_no_hide() {
             entries: &entries,
             ids: &["skin"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             skinned: true,
@@ -196,7 +196,7 @@ fn the_body_is_used_up_and_gone_from_the_world() {
             entries: &[entry(HarvestEntry::Flesh, (1, 1))],
             ids: &["meat"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         finish(),
         ids,
@@ -223,11 +223,11 @@ fn the_same_seed_gives_the_same_harvest() {
                 entries: &entries,
                 ids: &["meat", "bone"],
                 leftovers: None,
-    weight: 0.0,
+                weight: 0.0,
             },
             finish(),
             ids,
-        |_| 1_000,
+            |_| 1_000,
             &mut rolls,
         )
     };
@@ -258,7 +258,7 @@ fn a_bulk_entry_uses_the_weight_it_was_given() {
             entries: &entries,
             ids: &["meat"],
             leftovers: None,
-    weight: 100.0,
+            weight: 100.0,
         },
         finish(),
         ids,
@@ -293,7 +293,7 @@ fn a_quick_butchery_takes_a_quarter_of_the_flesh_and_half_the_bone() {
             entries: &entries,
             ids: &["meat", "bone", "blood"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             action: ButcherAction::Quick,
@@ -330,7 +330,7 @@ fn skinning_takes_the_hide_and_nothing_else() {
             entries: &entries,
             ids: &["meat", "skin", "bone"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             action: ButcherAction::Skin,
@@ -340,7 +340,11 @@ fn skinning_takes_the_hide_and_nothing_else() {
         |_| 1_000,
         &mut rolls,
     );
-    assert_eq!(dropped, vec![(SKIN, 5)], "**only the hide**, and all five of it");
+    assert_eq!(
+        dropped,
+        vec![(SKIN, 5)],
+        "**only the hide**, and all five of it"
+    );
 }
 
 /// **Dissecting takes the body's dissection list, and a body with none falls back to its harvest.**
@@ -350,7 +354,10 @@ fn skinning_takes_the_hide_and_nothing_else() {
 #[test]
 fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
     let mut world = World::new();
-    let mut registry = cdda_sim::monster_registry::MonsterKind { id: "mon_probe", hp: 10 };
+    let mut registry = cdda_sim::monster_registry::MonsterKind {
+        id: "mon_probe",
+        hp: 10,
+    };
     registry.id = "mon_probe";
     cdda_sim::monster_registry::set_monster_types(&mut world, &[registry]);
     let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_probe").expect("the kind");
@@ -379,7 +386,8 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
         monster_volume_ml: 1_000,
     });
     // Which list the rule picks, and then the finish over it: the two halves of the reference's own line.
-    let (entries, names) = cdda_sim::monster_registry::list_for(&world, kind, ButcherAction::Dissect);
+    let (entries, names) =
+        cdda_sim::monster_registry::list_for(&world, kind, ButcherAction::Dissect);
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut rolls = Rolls::new(21);
     let dropped = butcher_finish(
@@ -389,7 +397,7 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
             entries: &entries,
             ids: &names,
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             action: ButcherAction::Dissect,
@@ -409,7 +417,10 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
     let mut plain = World::new();
     cdda_sim::monster_registry::set_monster_types(
         &mut plain,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_probe", hp: 10 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_probe",
+            hp: 10,
+        }],
     );
     let bare = cdda_sim::monster_registry::id_of(&mut plain, "mon_probe").expect("the kind");
     cdda_sim::monster_registry::set_harvests(
@@ -420,9 +431,14 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
             vec!["meat".to_owned()],
         )],
     );
-    let (fallback, names) = cdda_sim::monster_registry::list_for(&plain, bare, ButcherAction::Dissect);
+    let (fallback, names) =
+        cdda_sim::monster_registry::list_for(&plain, bare, ButcherAction::Dissect);
     assert_eq!(fallback.len(), 1, "one entry, the harvest's own");
-    assert_eq!(names, vec!["meat".to_owned()], "and its drop is the harvest's");
+    assert_eq!(
+        names,
+        vec!["meat".to_owned()],
+        "and its drop is the harvest's"
+    );
 }
 
 /// **A field-dressed body has given up its innards, and what is left of its bones is a roll.**
@@ -434,9 +450,9 @@ fn dissecting_takes_the_body_s_dissection_list_when_it_has_one() {
 fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
     let mut world = World::new();
     let corpse = body(&mut world);
-    world
-        .entity_mut(corpse)
-        .insert(cdda_sim::ItemFlags(["FIELD_DRESS".to_owned()].into_iter().collect()));
+    world.entity_mut(corpse).insert(cdda_sim::ItemFlags(
+        ["FIELD_DRESS".to_owned()].into_iter().collect(),
+    ));
     let entries = [
         entry(HarvestEntry::Bone, (20, 20)),
         entry(HarvestEntry::Offal, (5, 5)),
@@ -450,7 +466,7 @@ fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
             entries: &entries,
             ids: &["bone", "offal", "meat"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             field_dressed: true,
@@ -473,7 +489,9 @@ fn a_field_dressed_body_keeps_no_offal_and_rolls_its_bones() {
         "**and the innards are gone**, which a field dressing takes: {dropped:?}"
     );
     assert!(
-        dropped.iter().any(|(kind, count)| *kind == MEAT && *count == 40),
+        dropped
+            .iter()
+            .any(|(kind, count)| *kind == MEAT && *count == 40),
         "while the flesh is untouched - only a **botched** dressing rolls that: {dropped:?}"
     );
 }
@@ -508,7 +526,7 @@ fn a_butcher_without_the_proficiencies_loses_a_share_of_everything() {
                 entries: &entries,
                 ids: &["meat", "skin", "bone"],
                 leftovers: None,
-    weight: 0.0,
+                weight: 0.0,
             },
             ButcherFinish {
                 butch_basic,
@@ -524,7 +542,10 @@ fn a_butcher_without_the_proficiencies_loses_a_share_of_everything() {
 
     let nothing = harvest(0.0, 0.0, 0.0);
     let count = |dropped: &[(ItemTypeId, i32)], kind: ItemTypeId| {
-        dropped.iter().find(|(each, _)| *each == kind).map_or(0, |(_, count)| *count)
+        dropped
+            .iter()
+            .find(|(each, _)| *each == kind)
+            .map_or(0, |(_, count)| *count)
     };
     assert_eq!(
         count(&nothing, MEAT),
@@ -543,7 +564,11 @@ fn a_butcher_without_the_proficiencies_loses_a_share_of_everything() {
     );
 
     let everything = harvest(1.0, 1.0, 1.0);
-    assert_eq!(count(&everything, MEAT), 100, "**a survivor who knows it all loses nothing**");
+    assert_eq!(
+        count(&everything, MEAT),
+        100,
+        "**a survivor who knows it all loses nothing**"
+    );
     assert_eq!(count(&everything, SKIN), 100, "not even the hide");
 }
 
@@ -566,7 +591,7 @@ fn a_field_dressing_rolls_the_bones_between_none_and_half() {
                 entries: &entries,
                 ids: &["bone"],
                 leftovers: None,
-    weight: 0.0,
+                weight: 0.0,
             },
             ButcherFinish {
                 action: ButcherAction::FieldDress,
@@ -580,7 +605,11 @@ fn a_field_dressing_rolls_the_bones_between_none_and_half() {
         .map_or(0, |(_, count)| *count)
     };
     assert_eq!(dress(0.0), 0, "**a zero draw takes no bones at all**");
-    assert_eq!(dress(1.0), 10, "and a full draw takes the half, which is the ceiling of the range");
+    assert_eq!(
+        dress(1.0),
+        10,
+        "and a full draw takes the half, which is the ceiling of the range"
+    );
 }
 
 /// **The butchery roll is a spread around the skill, not the skill itself**, and it is that roll the entry's `scale_num` multiplies.
@@ -651,9 +680,9 @@ fn the_butchery_roll_spreads_around_the_skill_and_the_tool() {
 fn a_quartered_body_has_ruined_its_hide_and_lost_three_quarters_of_the_rest() {
     let mut world = World::new();
     let corpse = body(&mut world);
-    world
-        .entity_mut(corpse)
-        .insert(cdda_sim::ItemFlags(["QUARTERED".to_owned()].into_iter().collect()));
+    world.entity_mut(corpse).insert(cdda_sim::ItemFlags(
+        ["QUARTERED".to_owned()].into_iter().collect(),
+    ));
     let entries = [
         entry(HarvestEntry::Flesh, (40, 40)),
         entry(HarvestEntry::Bone, (20, 20)),
@@ -667,7 +696,7 @@ fn a_quartered_body_has_ruined_its_hide_and_lost_three_quarters_of_the_rest() {
             entries: &entries,
             ids: &["meat", "bone", "skin"],
             leftovers: None,
-    weight: 0.0,
+            weight: 0.0,
         },
         ButcherFinish {
             quartered: true,
@@ -846,14 +875,24 @@ fn a_dissection_s_skill_is_the_drop_type_s_own() {
         0,
         "**a bare-handed dissection of ordinary tissue has no skill at all**, whatever the survivor knows"
     );
-    assert_eq!(dissect_skill_level(&[], 3), 3, "and the blade is the whole of it");
     assert_eq!(
-        dissect_skill_level(&[("chemistry".to_owned(), 4), ("firstaid".to_owned(), 8)], 0),
+        dissect_skill_level(&[], 3),
+        3,
+        "and the blade is the whole of it"
+    );
+    assert_eq!(
+        dissect_skill_level(
+            &[("chemistry".to_owned(), 4), ("firstaid".to_owned(), 8)],
+            0
+        ),
         6,
         "**a mutagen's two skills average to six**, and the blade is added before the division"
     );
     assert_eq!(
-        dissect_skill_level(&[("chemistry".to_owned(), 4), ("firstaid".to_owned(), 8)], 4),
+        dissect_skill_level(
+            &[("chemistry".to_owned(), 4), ("firstaid".to_owned(), 8)],
+            4
+        ),
         8,
         "a blade of four raises the same body to eight, because it joins the sum ahead of the division"
     );
@@ -910,7 +949,8 @@ fn the_finish_judges_each_entry_at_its_own_drop_type_s_skill() {
     let mut table = std::collections::BTreeMap::new();
     table.insert("bone".to_owned(), vec!["firstaid".to_owned()]);
     cdda_sim::harvest_skills::set(&mut world, &table);
-    let named = cdda_sim::creature::butchery_skill_levels(&world, survivor, &[HarvestEntry::Bone], 0);
+    let named =
+        cdda_sim::creature::butchery_skill_levels(&world, survivor, &[HarvestEntry::Bone], 0);
     assert_eq!(
         named,
         vec![(HarvestEntry::Bone, 10)],

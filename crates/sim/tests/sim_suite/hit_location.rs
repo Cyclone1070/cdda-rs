@@ -27,8 +27,16 @@ fn torso_and_arm() -> Vec<BodyPart> {
 #[test]
 fn the_first_entry_whose_weight_reaches_the_draw_wins() {
     // Total fifteen: the draw is scaled to it, and `>=` means the torso takes everything up to its own weight.
-    assert_eq!(pick_by_weight(&[10.0, 5.0], 0.0), Some(0), "the very bottom is the first");
-    assert_eq!(pick_by_weight(&[10.0, 5.0], 0.5), Some(0), "half of fifteen is seven and a half");
+    assert_eq!(
+        pick_by_weight(&[10.0, 5.0], 0.0),
+        Some(0),
+        "the very bottom is the first"
+    );
+    assert_eq!(
+        pick_by_weight(&[10.0, 5.0], 0.5),
+        Some(0),
+        "half of fifteen is seven and a half"
+    );
     assert_eq!(
         pick_by_weight(&[10.0, 5.0], 2.0 / 3.0),
         Some(0),
@@ -43,8 +51,16 @@ fn the_first_entry_whose_weight_reaches_the_draw_wins() {
 
 #[test]
 fn a_list_of_zero_weights_picks_nothing() {
-    assert_eq!(pick_by_weight(&[0.0, 0.0], 0.5), None, "the reference returns null");
-    assert_eq!(pick_by_weight(&[], 0.5), None, "and an empty body is the same");
+    assert_eq!(
+        pick_by_weight(&[0.0, 0.0], 0.5),
+        None,
+        "the reference returns null"
+    );
+    assert_eq!(
+        pick_by_weight(&[], 0.5),
+        None,
+        "and an empty body is the same"
+    );
 }
 
 #[test]

@@ -36,7 +36,11 @@ impl Rules {
         for id in ["clear", "sunny", "fog"] {
             bounds.insert(id.to_string(), (300, 300));
         }
-        Rules { decisions: std::cell::RefCell::new(Vec::new()), sight, bounds }
+        Rules {
+            decisions: std::cell::RefCell::new(Vec::new()),
+            sight,
+            bounds,
+        }
     }
 }
 
@@ -57,7 +61,14 @@ impl WeatherRules for Rules {
 }
 
 fn point(temperature: f64) -> Point {
-    Point { turn: 0, temperature, humidity: 50.0, pressure: 1015.0, windpower: 3, winddirection: 202 }
+    Point {
+        turn: 0,
+        temperature,
+        humidity: 50.0,
+        pressure: 1015.0,
+        windpower: 3,
+        winddirection: 202,
+    }
 }
 
 #[test]
@@ -68,13 +79,25 @@ fn nothing_happens_until_the_weather_is_due() {
     rules.decisions.borrow_mut().extend(["sunny".to_string()]);
     let mut manager = Manager::default();
     let mut roll = |_low: i32, _high: i32| 300;
-    assert_eq!(manager.update(100, point(280.0), &rules, &mut roll), Change::Weather { sight_changed: true });
+    assert_eq!(
+        manager.update(100, point(280.0), &rules, &mut roll),
+        Change::Weather {
+            sight_changed: true
+        }
+    );
     assert_eq!(manager.weather.as_deref(), Some("sunny"));
     assert_eq!(manager.next_turn, 400);
     for turn in [101, 200, 399] {
-        assert_eq!(manager.update(turn, point(281.0), &rules, &mut roll), Change::None);
+        assert_eq!(
+            manager.update(turn, point(281.0), &rules, &mut roll),
+            Change::None
+        );
     }
-    assert_eq!(manager.point.expect("a point").temperature, 280.0, "an update that did not happen leaves the point alone");
+    assert_eq!(
+        manager.point.expect("a point").temperature,
+        280.0,
+        "an update that did not happen leaves the point alone"
+    );
 }
 
 #[test]
@@ -85,7 +108,12 @@ fn the_first_update_counts_as_a_change_and_flushes_every_level() {
     rules.decisions.borrow_mut().push("sunny".to_string());
     let mut manager = Manager::default();
     let mut roll = |_low: i32, _high: i32| 300;
-    assert_eq!(manager.update(0, point(280.0), &rules, &mut roll), Change::Weather { sight_changed: true });
+    assert_eq!(
+        manager.update(0, point(280.0), &rules, &mut roll),
+        Change::Weather {
+            sight_changed: true
+        }
+    );
 }
 
 #[test]
@@ -93,29 +121,58 @@ fn a_new_weather_with_the_same_sight_penalty_does_not_flush_the_caches() {
     // Reference: `if( weather_id->sight_penalty != old_weather->sight_penalty )`. `sunny` and `clear` both absorb 1.0, so the sky can change without the map being redrawn - and a
     // port that flushed on every change would be correct and slow, which is the kind of bug that never shows up in a test that only checks the answer.
     let rules = Rules::shipped();
-    rules.decisions.borrow_mut().extend(["sunny".to_string(), "clear".to_string()]);
+    rules
+        .decisions
+        .borrow_mut()
+        .extend(["sunny".to_string(), "clear".to_string()]);
     let mut manager = Manager::default();
     let mut roll = |_low: i32, _high: i32| 300;
-    assert!(matches!(manager.update(0, point(280.0), &rules, &mut roll), Change::Weather { sight_changed: true }));
-    assert_eq!(manager.update(400, point(280.0), &rules, &mut roll), Change::Weather { sight_changed: false });
+    assert!(matches!(
+        manager.update(0, point(280.0), &rules, &mut roll),
+        Change::Weather {
+            sight_changed: true
+        }
+    ));
+    assert_eq!(
+        manager.update(400, point(280.0), &rules, &mut roll),
+        Change::Weather {
+            sight_changed: false
+        }
+    );
     assert_eq!(manager.weather.as_deref(), Some("clear"));
 }
 
 #[test]
 fn a_new_weather_that_changes_the_sight_penalty_flushes_the_caches() {
     let rules = Rules::shipped();
-    rules.decisions.borrow_mut().extend(["sunny".to_string(), "fog".to_string()]);
+    rules
+        .decisions
+        .borrow_mut()
+        .extend(["sunny".to_string(), "fog".to_string()]);
     let mut manager = Manager::default();
     let mut roll = |_low: i32, _high: i32| 300;
-    assert!(matches!(manager.update(0, point(280.0), &rules, &mut roll), Change::Weather { sight_changed: true }));
-    assert_eq!(manager.update(400, point(280.0), &rules, &mut roll), Change::Weather { sight_changed: true });
+    assert!(matches!(
+        manager.update(0, point(280.0), &rules, &mut roll),
+        Change::Weather {
+            sight_changed: true
+        }
+    ));
+    assert_eq!(
+        manager.update(400, point(280.0), &rules, &mut roll),
+        Change::Weather {
+            sight_changed: true
+        }
+    );
 }
 
 #[test]
 fn the_manager_rolls_the_duration_from_the_type_it_chose() {
     // The bounds come from the weather that was just chosen, not from the one that was there before - the reference reads `weather_id->duration_min` *after* assigning the new id.
     let rules = Rules::shipped();
-    rules.decisions.borrow_mut().extend(["sunny".to_string(), "clear".to_string()]);
+    rules
+        .decisions
+        .borrow_mut()
+        .extend(["sunny".to_string(), "clear".to_string()]);
     let mut manager = Manager::default();
     let mut asked = Vec::new();
     let mut roll = |low: i32, high: i32| {
@@ -123,7 +180,11 @@ fn the_manager_rolls_the_duration_from_the_type_it_chose() {
         300
     };
     manager.update(0, point(280.0), &rules, &mut roll);
-    assert_eq!(asked, [(300, 300)], "the first update rolled once, between the chosen type's bounds");
+    assert_eq!(
+        asked,
+        [(300, 300)],
+        "the first update rolled once, between the chosen type's bounds"
+    );
 }
 
 #[test]
@@ -131,7 +192,10 @@ fn lightning_is_cleared_by_an_update_and_set_by_nothing_here() {
     // Reference: `lightning_active = false;` inside the update, and only the lightning effect sets it back. A port that forgot this line would leave a thunderstorm flashing after
     // the weather had passed.
     let rules = Rules::shipped();
-    rules.decisions.borrow_mut().extend(["sunny".to_string(), "sunny".to_string()]);
+    rules
+        .decisions
+        .borrow_mut()
+        .extend(["sunny".to_string(), "sunny".to_string()]);
     let mut manager = Manager::default();
     let mut roll = |_low: i32, _high: i32| 300;
     manager.update(0, point(280.0), &rules, &mut roll);
@@ -167,17 +231,26 @@ fn the_manager_walks_the_recorded_day_turn_for_turn() {
     // sight change on exactly the updates whose weather changed the sight penalty. The id is taken from the recording rather than decided, because the decision has its own gate -
     // what is being checked here is the *bookkeeping* around it.
     let prototypes = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/weather.json"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/prototypes/weather.json"),
     )
     .expect("the prototype dump");
-    let cdda_json::Value::Object(root) = cdda_json::parse(prototypes.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) =
+        cdda_json::parse(prototypes.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
-    let Some(cdda_json::Value::Array(kinds)) = root.get("prototypes") else { panic!("prototypes") };
+    let Some(cdda_json::Value::Array(kinds)) = root.get("prototypes") else {
+        panic!("prototypes")
+    };
     let mut sight = std::collections::BTreeMap::new();
     for kind in kinds {
-        let cdda_json::Value::Object(kind) = kind else { panic!("a kind") };
-        let Some(cdda_json::Value::Str(id)) = kind.get("id") else { panic!("an id") };
+        let cdda_json::Value::Object(kind) = kind else {
+            panic!("a kind")
+        };
+        let Some(cdda_json::Value::Str(id)) = kind.get("id") else {
+            panic!("an id")
+        };
         let penalty = match kind.get("sight_penalty") {
             Some(cdda_json::Value::Float(value)) => *value as f32,
             Some(cdda_json::Value::Int(value)) => *value as f32,
@@ -187,11 +260,17 @@ fn the_manager_walks_the_recorded_day_turn_for_turn() {
     }
 
     let series = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.json"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/weather/series-24h.json"),
     )
     .expect("the recorded series");
-    let cdda_json::Value::Object(root) = cdda_json::parse(series.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else { panic!("steps") };
+    let cdda_json::Value::Object(root) = cdda_json::parse(series.as_bytes()).expect("valid JSON")
+    else {
+        panic!("root")
+    };
+    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else {
+        panic!("steps")
+    };
     let field = |step: &cdda_json::Object, key: &str| -> f64 {
         match step.get(key) {
             Some(cdda_json::Value::Float(value)) => *value,
@@ -201,23 +280,34 @@ fn the_manager_walks_the_recorded_day_turn_for_turn() {
     };
     let mut ids = Vec::new();
     for step in steps {
-        let cdda_json::Value::Object(step) = step else { panic!("a step") };
+        let cdda_json::Value::Object(step) = step else {
+            panic!("a step")
+        };
         match step.get("weather") {
             Some(cdda_json::Value::Str(id)) => ids.push(id.clone()),
             other => panic!("a weather id: {other:?}"),
         }
     }
-    let rules = Recorded { ids: std::cell::RefCell::new(ids), sight };
+    let rules = Recorded {
+        ids: std::cell::RefCell::new(ids),
+        sight,
+    };
     let mut manager = Manager::default();
     let mut roll = |low: i32, high: i32| {
-        assert_eq!((low, high), (300, 300), "the shipped data's five-minute default");
+        assert_eq!(
+            (low, high),
+            (300, 300),
+            "the shipped data's five-minute default"
+        );
         300
     };
     let mut updates = 0;
     let mut flushes = 0;
     let mut previous_penalty: Option<f32> = None;
     for step in steps {
-        let cdda_json::Value::Object(step) = step else { panic!("a step") };
+        let cdda_json::Value::Object(step) = step else {
+            panic!("a step")
+        };
         let turn = field(step, "turn") as i64;
         let expected_next = field(step, "next_weather_turn") as i64;
         let id = match step.get("weather") {
@@ -242,12 +332,22 @@ fn the_manager_walks_the_recorded_day_turn_for_turn() {
             "turn {turn} was due: the reference recomputed every hour of the recording"
         );
         updates += 1;
-        assert_eq!(manager.weather.as_deref(), Some(id.as_str()), "turn {turn} chose the recorded weather");
-        assert_eq!(manager.next_turn, expected_next, "turn {turn} scheduled the recorded next turn");
+        assert_eq!(
+            manager.weather.as_deref(),
+            Some(id.as_str()),
+            "turn {turn} chose the recorded weather"
+        );
+        assert_eq!(
+            manager.next_turn, expected_next,
+            "turn {turn} scheduled the recorded next turn"
+        );
         let penalty = rules.sight_penalty(&id);
         let expected_sight = previous_penalty != Some(penalty);
         if let Change::Weather { sight_changed } = change {
-            assert_eq!(sight_changed, expected_sight, "turn {turn} sight change against the recorded penalty");
+            assert_eq!(
+                sight_changed, expected_sight,
+                "turn {turn} sight change against the recorded penalty"
+            );
             if sight_changed {
                 flushes += 1;
             }
@@ -255,5 +355,8 @@ fn the_manager_walks_the_recorded_day_turn_for_turn() {
         previous_penalty = Some(penalty);
     }
     assert_eq!(updates, 24, "every recorded hour was an update");
-    assert_eq!(flushes, 1, "only the first update changed the sight penalty, because sunny and clear absorb the same light");
+    assert_eq!(
+        flushes, 1,
+        "only the first update changed the sight penalty, because sunny and clear absorb the same light"
+    );
 }

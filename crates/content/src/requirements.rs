@@ -101,7 +101,12 @@ impl RequirementData {
                 .chain(other.components.iter())
                 .cloned()
                 .collect(),
-            tools: self.tools.iter().chain(other.tools.iter()).cloned().collect(),
+            tools: self
+                .tools
+                .iter()
+                .chain(other.tools.iter())
+                .cloned()
+                .collect(),
             qualities,
         }
     }
@@ -339,9 +344,7 @@ fn expand_one(
 ) {
     // **Only a name flagged as a requirement is a group.** `[ "surface_heat", 1, "LIST" ]` names a group; a bare `[ "autoclave", 1 ]` names an item that happens to
     // share its name with one, and the reference keeps the item.
-    if nested
-        && let Some(group) = groups.get(name)
-    {
+    if nested && let Some(group) = groups.get(name) {
         if seen.iter().any(|entry| entry == name) {
             add_alternative(out, name, count);
             return;
@@ -496,7 +499,11 @@ impl Kit {
     pub fn has_quality(&self, quality: &str, level: i32, count: i32) -> bool {
         let mut found = 0;
         for stack in self.stacks.values() {
-            if stack.qualities.get(quality).is_some_and(|held| *held >= level) {
+            if stack
+                .qualities
+                .get(quality)
+                .is_some_and(|held| *held >= level)
+            {
                 found += stack.count;
                 if found >= count {
                     return true;
@@ -569,7 +576,9 @@ impl RequirementData {
                 } else {
                     tool_count.unsigned_abs().cast_signed()
                 };
-                if !component_available(item, wanted + also, kit) && !tool_available(item, -(wanted + also), kit) {
+                if !component_available(item, wanted + also, kit)
+                    && !tool_available(item, -(wanted + also), kit)
+                {
                     return false;
                 }
             }
@@ -627,8 +636,7 @@ fn component_volume(item: &str, count: i32, kit: &Kit) -> i64 {
     let count = i64::from(count.unsigned_abs());
     // **A stack counted by charge is measured in whole items**, so its volume is `count / stack_size` of the type's (`src/requirements.cpp:1072-1074`).
     let items = if stack.by_charge {
-        f64::from(i32::try_from(count).unwrap_or(i32::MAX))
-            / f64::from(stack.stack_size.max(1))
+        f64::from(i32::try_from(count).unwrap_or(i32::MAX)) / f64::from(stack.stack_size.max(1))
     } else {
         i64_to_f64(count)
     };

@@ -62,7 +62,10 @@ fn a_spell_whose_numbers_are_expressions_says_so_rather_than_guessing() {
         .iter()
         .filter(|spell| spell.damage.start.is_some())
         .count();
-    assert!(plain > 0, "no spell has a plain damage number, so nothing here proves the reader works");
+    assert!(
+        plain > 0,
+        "no spell has a plain damage number, so nothing here proves the reader works"
+    );
 }
 
 #[test]
@@ -71,23 +74,37 @@ fn a_damage_number_climbs_with_the_level_and_stops_where_the_data_says() {
     let spell = all
         .iter()
         .find(|spell| {
-            spell.damage.start.is_some() && spell.damage.increment.is_some() && spell.damage.end.is_some()
+            spell.damage.start.is_some()
+                && spell.damage.increment.is_some()
+                && spell.damage.end.is_some()
         })
         .expect("some spell scales its damage by plain numbers");
     let start = spell.damage.start.expect("a start");
     let increment = spell.damage.increment.expect("an increment");
     let end = spell.damage.end.expect("an end");
 
-    assert_eq!(spell.damage.at(0), Some(start), "level zero is where it starts");
+    assert_eq!(
+        spell.damage.at(0),
+        Some(start),
+        "level zero is where it starts"
+    );
     if increment > 0.0 {
         assert_eq!(
             spell.damage.at(1),
             Some((start + increment).min(end)),
             "one level up is one increment, unless that passes the maximum"
         );
-        assert_eq!(spell.damage.at(10_000), Some(end), "and it stops at the maximum");
+        assert_eq!(
+            spell.damage.at(10_000),
+            Some(end),
+            "and it stops at the maximum"
+        );
     } else {
-        assert_eq!(spell.damage.at(10_000), Some(end), "or at the minimum when it climbs downwards");
+        assert_eq!(
+            spell.damage.at(10_000),
+            Some(end),
+            "or at the minimum when it climbs downwards"
+        );
     }
 }
 
@@ -101,10 +118,17 @@ fn a_known_spell_reads_as_the_reference_wrote_it() {
         taser.effect_name, "attack",
         "which is the effect the port dispatches on"
     );
-    assert_eq!(taser.damage_type, "electric", "and the damage type it deals");
+    assert_eq!(
+        taser.damage_type, "electric",
+        "and the damage type it deals"
+    );
     assert_eq!(taser.damage.start, Some(15.0), "fifteen at level zero");
     assert_eq!(taser.damage.increment, Some(0.0), "that never grows");
-    assert_eq!(taser.damage.at(9), Some(15.0), "so a level nine taser is a level zero taser");
+    assert_eq!(
+        taser.damage.at(9),
+        Some(15.0),
+        "so a level nine taser is a level zero taser"
+    );
     assert_eq!(taser.range.start, Some(1.0), "one square of range");
     assert_eq!(taser.shape, "blast", "and a blast shape");
     assert_eq!(taser.energy_source, "BIONIC", "paid for out of a bionic");

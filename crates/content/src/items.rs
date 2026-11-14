@@ -410,11 +410,21 @@ pub fn add_quality_usages(
 /// Reference: `Item_factory::finalize`'s pocket pass. A gun whose mods carry pockets gains them, and a mod that can hold an item gets a well for it, so the two
 /// halves of an installation agree about where the item lives.
 pub fn apply_mod_pockets(types: &mut [ItemType]) {
-    let by_id: BTreeMap<String, (Vec<crate::pockets::PocketSpec>, Vec<crate::pockets::PocketSpec>)> =
-        types
-            .iter()
-            .map(|item| (item.id.clone(), (item.added_pockets.clone(), item.pockets.clone())))
-            .collect();
+    let by_id: BTreeMap<
+        String,
+        (
+            Vec<crate::pockets::PocketSpec>,
+            Vec<crate::pockets::PocketSpec>,
+        ),
+    > = types
+        .iter()
+        .map(|item| {
+            (
+                item.id.clone(),
+                (item.added_pockets.clone(), item.pockets.clone()),
+            )
+        })
+        .collect();
     for item in types.iter_mut() {
         if item.gun_mods.is_empty() {
             continue;
@@ -514,7 +524,11 @@ impl ItemType {
         }
         let effective_volume = if self.counts_by_charge() {
             let stack = self.effective_stack_size();
-            if stack > 0 { self.volume / stack } else { self.volume }
+            if stack > 0 {
+                self.volume / stack
+            } else {
+                self.volume
+            }
         } else {
             self.volume
         };
@@ -565,7 +579,10 @@ impl ItemType {
         // quality named after the skill it fires with, taking the larger of what the data said and one (`src/item_factory.cpp:845-852`). That is why `is_gun` and a
         // `GUN` quality are the same fact told twice, and why anything that counts qualities without this rule undercounts guns by hundreds.
         if self.is_gun && !self.is_gunmod && !self.flags.contains("PRIMITIVE_RANGED_WEAPON") {
-            self.qualities.entry("GUN".to_owned()).and_modify(|level| *level = (*level).max(1)).or_insert(1);
+            self.qualities
+                .entry("GUN".to_owned())
+                .and_modify(|level| *level = (*level).max(1))
+                .or_insert(1);
             if let Some(skill) = &self.gun_skill {
                 let quality = skill.to_uppercase();
                 if known_qualities.contains(&quality) {
@@ -957,7 +974,9 @@ impl ItemType {
     pub fn phase(&self) -> &'static str {
         if self.phase.eq_ignore_ascii_case("LIQUID") {
             "liquid"
-        } else if self.phase.eq_ignore_ascii_case("GAS") || self.phase.eq_ignore_ascii_case("PLASMA") {
+        } else if self.phase.eq_ignore_ascii_case("GAS")
+            || self.phase.eq_ignore_ascii_case("PLASMA")
+        {
             "gas"
         } else {
             "solid"
@@ -1040,7 +1059,9 @@ pub fn load_paths(dirs: &[&std::path::Path]) -> Result<Vec<ItemType>, LoadError>
                 item.category = category_of(
                     &item.subtypes,
                     &item.melee,
-                    item.comestible.as_ref().map_or("", |slot| slot.comestible_type.as_str()),
+                    item.comestible
+                        .as_ref()
+                        .map_or("", |slot| slot.comestible_type.as_str()),
                 );
             }
             // Things that stack by charge cannot be repaired, and the reference
@@ -1439,7 +1460,8 @@ fn apply(
     }
     // **Qualities the item has only while charged**, written `[ [ "OVEN", 2 ] ]` like the others.
     if object.get("charged_qualities").is_some() {
-        item.charged_qualities = crate::qualities::item_qualities_keyed(object, "charged_qualities");
+        item.charged_qualities =
+            crate::qualities::item_qualities_keyed(object, "charged_qualities");
     }
     item.name.clear();
     item.name_plural.clear();
@@ -1686,15 +1708,22 @@ fn apply_armor_slots(item: &mut ItemType, object: &Object) {
                     .and_then(numeric)
                     .unwrap_or(100.0) as i32;
                 #[allow(clippy::cast_possible_truncation)]
-                let cover_vitals = entry.get("cover_vitals").and_then(numeric).unwrap_or(0.0) as i32;
+                let cover_vitals =
+                    entry.get("cover_vitals").and_then(numeric).unwrap_or(0.0) as i32;
                 // Reference: `optional( jo, false, "cover_melee", cover_melee, coverage )` (`item_factory.cpp:3159-3160`) - **a garment that states neither is met by its plain coverage**,
                 // so the fallback is the entry's `coverage` and a zero here would mean a coat stops nothing.
                 #[allow(clippy::cast_possible_truncation)]
                 let coverage = entry.get("coverage").and_then(numeric).unwrap_or(0.0) as i32;
                 #[allow(clippy::cast_possible_truncation)]
-                let cover_melee = entry.get("cover_melee").and_then(numeric).unwrap_or(f64::from(coverage)) as i32;
+                let cover_melee = entry
+                    .get("cover_melee")
+                    .and_then(numeric)
+                    .unwrap_or(f64::from(coverage)) as i32;
                 #[allow(clippy::cast_possible_truncation)]
-                let cover_ranged = entry.get("cover_ranged").and_then(numeric).unwrap_or(f64::from(coverage)) as i32;
+                let cover_ranged = entry
+                    .get("cover_ranged")
+                    .and_then(numeric)
+                    .unwrap_or(f64::from(coverage)) as i32;
                 item.armor_parts.push(ArmorPart {
                     material: name.clone(),
                     thickness,
@@ -1790,10 +1819,12 @@ fn apply_flat_slots(
     }
     // The slot **merges** with what the parent supplied: `load_slot` reuses the inherited object and reads into it (`item_factory.cpp:2859-2868`), so a child that
     // states only `calories` keeps its parent's `quench` and `spoils_in`. The calories multiply lives in `comestible::read`, once per prototype.
-    item.comestible = crate::comestible::read(object, item.comestible.as_ref(), registries.vitamins)
-        .map_err(|error| LoadError {
-            message: error.message,
-        })?;
+    item.comestible =
+        crate::comestible::read(object, item.comestible.as_ref(), registries.vitamins).map_err(
+            |error| LoadError {
+                message: error.message,
+            },
+        )?;
 
     Ok(())
 }
@@ -1850,13 +1881,30 @@ fn damage_amount(unit: &Object) -> Option<f64> {
 fn accuracy_from_qualities(qualities: &Object) -> i32 {
     let of = |member: &str, table: &[(&str, i32)], fallback: i32| -> i32 {
         string(qualities, member)
-            .and_then(|name| table.iter().find(|(key, _)| *key == name).map(|(_, value)| *value))
+            .and_then(|name| {
+                table
+                    .iter()
+                    .find(|(key, _)| *key == name)
+                    .map(|(_, value)| *value)
+            })
             .unwrap_or(fallback)
     };
-    let grip = of("grip", &[("bad", 0), ("none", 1), ("solid", 2), ("weapon", 3)], 3);
+    let grip = of(
+        "grip",
+        &[("bad", 0), ("none", 1), ("solid", 2), ("weapon", 3)],
+        3,
+    );
     let length = of("length", &[("hand", 0), ("short", 1), ("long", 2)], 0);
-    let surface = of("surface", &[("point", 0), ("line", 1), ("any", 2), ("every", 3)], 2);
-    let balance = of("balance", &[("clumsy", 0), ("uneven", 1), ("neutral", 2), ("good", 3)], 2);
+    let surface = of(
+        "surface",
+        &[("point", 0), ("line", 1), ("any", 2), ("every", 3)],
+        2,
+    );
+    let balance = of(
+        "balance",
+        &[("clumsy", 0), ("uneven", 1), ("neutral", 2), ("good", 3)],
+        2,
+    );
     -7 + grip + length + surface + balance
 }
 
@@ -2285,7 +2333,9 @@ pub fn chip_resistance(dump: &Value) -> BTreeMap<String, i32> {
         let Value::Object(object) = prototype else {
             continue;
         };
-        let (Some(Value::Str(id)), Some(Value::Int(resistance))) = (object.get("id"), object.get("chip_resistance")) else {
+        let (Some(Value::Str(id)), Some(Value::Int(resistance))) =
+            (object.get("id"), object.get("chip_resistance"))
+        else {
             continue;
         };
         #[allow(clippy::cast_possible_truncation)]
@@ -2311,7 +2361,9 @@ pub fn fault_weights(dump: &Value) -> BTreeMap<String, Vec<(String, i32)>> {
         let Value::Object(object) = prototype else {
             continue;
         };
-        let (Some(Value::Str(id)), Some(Value::Array(faults))) = (object.get("id"), object.get("faults")) else {
+        let (Some(Value::Str(id)), Some(Value::Array(faults))) =
+            (object.get("id"), object.get("faults"))
+        else {
             continue;
         };
         let mut weights = Vec::new();
@@ -2319,7 +2371,8 @@ pub fn fault_weights(dump: &Value) -> BTreeMap<String, Vec<(String, i32)>> {
             let Value::Array(pair) = fault else {
                 continue;
             };
-            let (Some(Value::Str(name)), Some(Value::Int(weight))) = (pair.first(), pair.get(1)) else {
+            let (Some(Value::Str(name)), Some(Value::Int(weight))) = (pair.first(), pair.get(1))
+            else {
                 continue;
             };
             #[allow(clippy::cast_possible_truncation)]
@@ -2362,22 +2415,66 @@ fn is_a_book(object: &Object) -> bool {
 ///
 /// **The merge is per field, not per slot**, which is the difference between a slot and an array: a child that states only `time` keeps every other field it inherited
 /// (`src/item_factory.cpp:2859-2868`).
-fn merge_book(inherited: Option<crate::books::Book>, read: crate::books::Book, object: &Object) -> crate::books::Book {
+fn merge_book(
+    inherited: Option<crate::books::Book>,
+    read: crate::books::Book,
+    object: &Object,
+) -> crate::books::Book {
     let Some(parent) = inherited else {
         return read;
     };
     let stated = |key: &str| object.get(key).is_some();
     crate::books::Book {
-        skill: if stated("read_skill") || stated("skill") { read.skill } else { parent.skill },
-        martial_art: if stated("martial_art") { read.martial_art } else { parent.martial_art },
-        level: if stated("max_level") { read.level } else { parent.level },
-        req: if stated("required_level") { read.req } else { parent.req },
-        fun: if stated("read_fun") { read.fun } else { parent.fun },
-        intel: if stated("intelligence") { read.intel } else { parent.intel },
-        time_turns: if stated("time") { read.time_turns } else { parent.time_turns },
-        chapters: if stated("chapters") { read.chapters } else { parent.chapters },
-        generic: if stated("generic") { read.generic } else { parent.generic },
-        proficiencies: if stated("proficiencies") { read.proficiencies } else { parent.proficiencies },
+        skill: if stated("read_skill") || stated("skill") {
+            read.skill
+        } else {
+            parent.skill
+        },
+        martial_art: if stated("martial_art") {
+            read.martial_art
+        } else {
+            parent.martial_art
+        },
+        level: if stated("max_level") {
+            read.level
+        } else {
+            parent.level
+        },
+        req: if stated("required_level") {
+            read.req
+        } else {
+            parent.req
+        },
+        fun: if stated("read_fun") {
+            read.fun
+        } else {
+            parent.fun
+        },
+        intel: if stated("intelligence") {
+            read.intel
+        } else {
+            parent.intel
+        },
+        time_turns: if stated("time") {
+            read.time_turns
+        } else {
+            parent.time_turns
+        },
+        chapters: if stated("chapters") {
+            read.chapters
+        } else {
+            parent.chapters
+        },
+        generic: if stated("generic") {
+            read.generic
+        } else {
+            parent.generic
+        },
+        proficiencies: if stated("proficiencies") {
+            read.proficiencies
+        } else {
+            parent.proficiencies
+        },
     }
 }
 

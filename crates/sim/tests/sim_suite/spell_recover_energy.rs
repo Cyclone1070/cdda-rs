@@ -4,7 +4,12 @@
 //! amount spends rather than restores** - four of the content's six spells are drains. The sign is also backwards for pain, which is the reference's own comment and not a
 //! slip here.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing, clippy::float_cmp)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp
+)]
 
 use bevy_ecs::prelude::*;
 
@@ -43,7 +48,10 @@ fn a_world() -> (World, Entity) {
     let person = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     world
         .entity_mut(person)
-        .insert(cdda_sim::creature::Stamina { cur: 5_000.0, max: 9_000.0 });
+        .insert(cdda_sim::creature::Stamina {
+            cur: 5_000.0,
+            max: 9_000.0,
+        });
     world.entity_mut(person).insert(cdda_sim::creature::Pain(0));
     world
         .entity_mut(person)
@@ -66,7 +74,9 @@ fn a_drain_spell_takes_the_pool_its_effect_str_names() {
         "the spell landed"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Stamina>(person).map(|held| held.cur),
+        world
+            .get::<cdda_sim::creature::Stamina>(person)
+            .map(|held| held.cur),
         Some(3_500.0),
         "**a negative amount spends**, so five thousand less fifteen hundred is thirty-five hundred"
     );
@@ -86,7 +96,9 @@ fn pain_is_backwards_and_never_goes_below_zero() {
         "the spell landed"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Pain>(person).map(|held| held.0),
+        world
+            .get::<cdda_sim::creature::Pain>(person)
+            .map(|held| held.0),
         Some(5),
         "**minus five damage is five pain**, because the reference negates it"
     );
@@ -97,7 +109,9 @@ fn pain_is_backwards_and_never_goes_below_zero() {
         "and a positive amount is a painkiller"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Pain>(person).map(|held| held.0),
+        world
+            .get::<cdda_sim::creature::Pain>(person)
+            .map(|held| held.0),
         Some(0),
         "which floors at zero rather than going negative"
     );
@@ -113,7 +127,9 @@ fn mana_fills_to_its_ceiling_and_a_monster_has_no_pool_to_move() {
         "the spell landed"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Mana>(person).map(|held| (held.cur, held.max)),
+        world
+            .get::<cdda_sim::creature::Mana>(person)
+            .map(|held| (held.cur, held.max)),
         Some((100, 100)),
         "**a thousand mana into a hundred-point pool fills it exactly**"
     );

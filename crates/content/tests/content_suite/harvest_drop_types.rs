@@ -59,7 +59,9 @@ fn a_definition_that_names_no_leftovers_leaves_ruined_chunks() {
         .into_owned();
     let value = cdda_content::read_json(std::path::Path::new(&path)).expect("the harvest file");
     let definitions = cdda_content::harvest::load_harvests(&value);
-    let humanoid = definitions.get("zombie_humanoid").expect("the commonest body");
+    let humanoid = definitions
+        .get("zombie_humanoid")
+        .expect("the commonest body");
     assert_eq!(
         humanoid.leftovers, "ruined_chunks",
         "**no definition in the shipped data names one**, and the reference's default is `ruined_chunks` (`harvest.h:102`) - so every body in the game leaves ruined chunks"
@@ -68,7 +70,10 @@ fn a_definition_that_names_no_leftovers_leaves_ruined_chunks() {
         .values()
         .filter(|definition| definition.leftovers != "ruined_chunks")
         .count();
-    assert_eq!(named, 0, "and the shipped data names none at all, which is what makes the default the whole rule");
+    assert_eq!(
+        named, 0,
+        "and the shipped data names none at all, which is what makes the default the whole rule"
+    );
 }
 
 #[test]
@@ -89,10 +94,7 @@ fn a_drop_type_says_whether_it_names_an_item_group() {
         "**exactly two drop types name an item group**, and neither can drop an item the way an itype entry does"
     );
     assert!(
-        !types
-            .get("flesh")
-            .expect("flesh")
-            .group,
+        !types.get("flesh").expect("flesh").group,
         "and flesh, which is what most of a body gives, is an item type"
     );
 }

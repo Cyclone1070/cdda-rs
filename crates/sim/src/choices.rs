@@ -24,7 +24,9 @@ pub const CANCELLED: i32 = -1;
 /// Queues the answers a menu will be given, oldest first, replacing whatever was queued.
 pub fn set_choices(world: &mut World, answers: impl IntoIterator<Item = i32>) {
     let holder = crate::singletons::singleton::<Choices, TheChoices>(world);
-    world.entity_mut(holder).insert(Choices(answers.into_iter().collect()));
+    world
+        .entity_mut(holder)
+        .insert(Choices(answers.into_iter().collect()));
 }
 
 /// Takes the next answer, or nothing when nobody queued one.

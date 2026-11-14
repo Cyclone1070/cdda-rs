@@ -4,7 +4,12 @@
 //! which answers **zero for a type the material does not name**. A coat of leather that states bash and cut but no stab therefore stops a club and a blade and nothing at all
 //! against a point.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing, clippy::float_cmp)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp
+)]
 
 use bevy_ecs::prelude::*;
 
@@ -43,8 +48,16 @@ fn a_garment_writes_a_figure_per_damage_type() {
         .get::<cdda_sim::creature::PartArmour>(wearer)
         .expect("the torso is covered");
     let torso = worn.0.get("torso").expect("and only the torso");
-    assert_eq!(torso.get("bash"), Some(&4), "**four of bash** is the figure the layer states");
-    assert_eq!(torso.get("cut"), Some(&1), "**one of cut** is its own, much smaller, figure");
+    assert_eq!(
+        torso.get("bash"),
+        Some(&4),
+        "**four of bash** is the figure the layer states"
+    );
+    assert_eq!(
+        torso.get("cut"),
+        Some(&1),
+        "**one of cut** is its own, much smaller, figure"
+    );
     assert_eq!(
         torso.get("stab"),
         None,
@@ -120,15 +133,17 @@ fn a_cut_blow_meets_the_garments_cut_figure() {
         let striker = cdda_sim::creature::spawn_creature(&mut world, "a knife", (0, 0, 0));
         cdda_sim::creature::set_health(&mut world, striker, 20);
         cdda_sim::creature::set_speed(&mut world, striker, 100, 0);
-        world.entity_mut(striker).insert(MeleeAttack(cdda_sim::melee::Attack {
-            accuracy_tenths: 400,
-            fixed: cdda_sim::melee::Damage {
-                cut: 10,
-                ..Default::default()
-            },
-            dice: 1,
-            sides: 1,
-        }));
+        world
+            .entity_mut(striker)
+            .insert(MeleeAttack(cdda_sim::melee::Attack {
+                accuracy_tenths: 400,
+                fixed: cdda_sim::melee::Damage {
+                    cut: 10,
+                    ..Default::default()
+                },
+                dice: 1,
+                sides: 1,
+            }));
         let wearer = cdda_sim::creature::spawn_creature(&mut world, "the wearer", (1, 0, 0));
         cdda_sim::creature::set_health(&mut world, wearer, 100);
         world.entity_mut(wearer).insert(cdda_sim::creature::Body {

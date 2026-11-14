@@ -56,7 +56,10 @@ fn dumps() -> (Vec<Measured>, BTreeMap<String, Facts>) {
                 integral_weight_mg: whole(entry, "integral_weight_mg"),
                 volume: whole(entry, "volume"),
                 integral_volume: whole(entry, "integral_volume"),
-                count_by_charges: matches!(entry.get("count_by_charges"), Some(cdda_json::Value::Bool(true))),
+                count_by_charges: matches!(
+                    entry.get("count_by_charges"),
+                    Some(cdda_json::Value::Bool(true))
+                ),
                 stack_size: whole(entry, "stack_size"),
                 no_drop: is_no_drop(entry),
             },
@@ -169,7 +172,11 @@ fn is_no_drop(entry: &cdda_json::Object) -> bool {
 #[test]
 fn every_type_weighs_and_measures_what_the_reference_s_rules_say() {
     let (measured, facts) = dumps();
-    assert_eq!(measured.len(), 9_912, "every type in the reference was measured");
+    assert_eq!(
+        measured.len(),
+        9_912,
+        "every type in the reference was measured"
+    );
     let (compared, disagreements) = measure_all(&measured, &facts);
     assert_eq!(compared, 9_912, "every type was measured by the port too");
     // **The rest agree**, which is the point of the gate: the rules reproduce the reference over the whole dataset and not just over the types a hand-written test
@@ -187,7 +194,11 @@ fn every_type_weighs_and_measures_what_the_reference_s_rules_say() {
         .iter()
         .map(|line| line.split(':').next().unwrap_or_default())
         .collect();
-    assert_eq!(ours.len(), 66, "sixty-six types disagree: {disagreements:#?}");
+    assert_eq!(
+        ours.len(),
+        66,
+        "sixty-six types disagree: {disagreements:#?}"
+    );
     let corpses: Vec<&&str> = ours.iter().filter(|id| id.starts_with("corpse")).collect();
     assert_eq!(corpses.len(), 18, "eighteen corpse types disagree");
     let not_a_corpse: Vec<&&str> = ours.iter().filter(|id| !id.starts_with("corpse")).collect();
@@ -246,4 +257,3 @@ fn every_type_weighs_and_measures_what_the_reference_s_rules_say() {
         "the declared non-corpse gaps, and nothing else"
     );
 }
-

@@ -8,9 +8,9 @@ use cdda_core_types::shadowcasting::Quadrant;
 use cdda_sim::field_table::FieldTable;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{
-    light,
- LightSource, Position, Prototypes, cast_lights_with, cast_sunlight,
-    cast_sunlight_with, clear_light, set_field_table};
+    LightSource, Position, Prototypes, cast_lights_with, cast_sunlight, cast_sunlight_with,
+    clear_light, light, set_field_table,
+};
 
 const NOON: f64 = 12.0 * 3600.0;
 const MIDNIGHT: f64 = 0.0;
@@ -34,10 +34,7 @@ fn world() -> World {
 fn open_sky_is_bright_at_noon_and_black_at_midnight() {
     let mut world = world();
     cast_sunlight(&mut world, NOON, 0.0, |_, _| true);
-    assert!(
-        light(&world).max_at(5, 5) > 50.0,
-        "noon overhead"
-    );
+    assert!(light(&world).max_at(5, 5) > 50.0, "noon overhead");
 
     clear_light(&mut world);
     cast_sunlight(&mut world, MIDNIGHT, 0.0, |_, _| true);
@@ -112,10 +109,13 @@ fn daylight_reaches_a_square_just_inside_a_doorway_and_stops_one_step_further_in
     table.insert_indoors(7, true);
 
     let mut world = world();
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain: table.clone(),
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain: table.clone(),
+            furniture: TerrainTable::new(),
+        },
+    );
     for y in 0..12 {
         for x in 0..12 {
             cdda_sim::square::set_terrain(&mut world, (x, y, 0), 1);
@@ -154,10 +154,13 @@ fn a_roofed_square_takes_the_indoors_light_and_an_open_one_takes_the_sun() {
     table.insert_indoors(7, true);
 
     let mut world = world();
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain: table.clone(),
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain: table.clone(),
+            furniture: TerrainTable::new(),
+        },
+    );
     // A roofed room with an interior square, so that nothing spills in from the open.
     for y in 3..=6 {
         for x in 3..=6 {

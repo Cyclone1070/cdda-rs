@@ -158,8 +158,11 @@ fn compare() -> Report {
             continue;
         };
         report.with_pockets += usize::from(!expected.is_empty());
-        let container_pockets: Vec<&cdda_content::pockets::PocketSpec> =
-            item.pockets.iter().filter(|pocket| pocket.kind == "CONTAINER").collect();
+        let container_pockets: Vec<&cdda_content::pockets::PocketSpec> = item
+            .pockets
+            .iter()
+            .filter(|pocket| pocket.kind == "CONTAINER")
+            .collect();
         for (index, pocket) in expected.iter().enumerate() {
             report.counts.count(pocket);
             if pocket.max_length != 0 || pocket.min_length != 0 || pocket.min_volume != 0 {

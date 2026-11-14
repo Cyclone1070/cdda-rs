@@ -9,9 +9,9 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::field::{FieldEntry, FieldId};
 use cdda_core_types::level::Level;
 use cdda_sim::field_table::FieldTable;
+use cdda_sim::light;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{Field, Position, Prototypes, cast_lights_with, clear_light, set_field_table};
-use cdda_sim::{light};
 
 const FLOOR: u32 = 1;
 const LAMP: u32 = 2;
@@ -36,10 +36,13 @@ fn world(marks: &[(i32, i32, u32)]) -> World {
     terrain.insert(LAMP, true);
     // A lamp terrain emits 120, which is what the data gives the lit carpet and the portal terrains (`terrain.json`).
     terrain.insert_light(LAMP, 120.0);
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain,
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
 
     let mut fields = FieldTable::new();
     // `fd_fire` emits 20, 60 and 160 at its three intensities, and smoke emits none (`fields.json`).

@@ -104,8 +104,10 @@ fn turns(object: &cdda_json::Object, key: &str) -> i64 {
 }
 
 fn recorded() -> (Vec<Profile>, Vec<(i32, i64)>, Vec<Run>) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-decay.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-decay.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -122,7 +124,8 @@ fn recorded() -> (Vec<Profile>, Vec<(i32, i64)>, Vec<Run>) {
                 panic!("a profile")
             };
             Profile {
-                max_intensity: i32::try_from(integer(profile, "max_intensity")).expect("an intensity"),
+                max_intensity: i32::try_from(integer(profile, "max_intensity"))
+                    .expect("an intensity"),
                 max_duration: turns(profile, "max_duration"),
                 int_decay_step: i32::try_from(integer(profile, "int_decay_step")).expect("a step"),
                 int_decay_tick: i32::try_from(integer(profile, "int_decay_tick")).expect("a tick"),
@@ -146,7 +149,9 @@ fn recorded() -> (Vec<Profile>, Vec<(i32, i64)>, Vec<Run>) {
     let runs = runs
         .iter()
         .map(|run| {
-            let Value::Object(run) = run else { panic!("a run") };
+            let Value::Object(run) = run else {
+                panic!("a run")
+            };
             let Some(Value::Array(steps)) = run.get("steps") else {
                 panic!("steps")
             };
@@ -156,10 +161,13 @@ fn recorded() -> (Vec<Profile>, Vec<(i32, i64)>, Vec<Run>) {
                 steps: steps
                     .iter()
                     .map(|step| {
-                        let Value::Object(step) = step else { panic!("a step") };
+                        let Value::Object(step) = step else {
+                            panic!("a step")
+                        };
                         Step {
                             turn: integer(step, "turn"),
-                            intensity: i32::try_from(integer(step, "intensity")).expect("an intensity"),
+                            intensity: i32::try_from(integer(step, "intensity"))
+                                .expect("an intensity"),
                             turns_left: integer(step, "turns_left"),
                             removed: boolean(step, "removed"),
                         }
@@ -190,7 +198,10 @@ fn every_turn_takes_off_what_the_reference_takes_off() {
         for step in &run.steps {
             let before = (worn.intensity, worn.duration);
             let removed_now = worn.decay(&kind, step.turn, false);
-            let label = format!("profile{} start{} turn{}", run.profile, run.start, step.turn);
+            let label = format!(
+                "profile{} start{} turn{}",
+                run.profile, run.start, step.turn
+            );
             if (worn.intensity, worn.duration, removed_now)
                 != (step.intensity, step.turns_left, step.removed)
             {
@@ -222,7 +233,10 @@ fn every_turn_takes_off_what_the_reference_takes_off() {
     assert!(removed > 0, "effects taken off: {removed}");
     // Declared: eight turns is too short for the ten-minute profile to cross a boundary, so the recompute is not in this grid — the `--dump-effect-merge` recording
     // is where `set_duration`'s recompute is pinned (1,260 turns against a 600-turn factor answers 3, not 2), and the unit test below pins the fall.
-    assert_eq!(derived, 0, "the grid does not reach a boundary crossing: {derived}");
+    assert_eq!(
+        derived, 0,
+        "the grid does not reach a boundary crossing: {derived}"
+    );
     assert!(duration_fell > 100, "durations that fell: {duration_fell}");
     assert!(
         differing.is_empty(),

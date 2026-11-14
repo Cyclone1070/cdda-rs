@@ -24,10 +24,7 @@ fn a_world(width: i32, height: i32, walls: &[(i32, i32)]) -> World {
         for x in 0..width {
             let code = if walls.contains(&(x, y)) { 2 } else { 1 };
             let entity = world
-                .spawn((
-                    Position { x, y, z: 0 },
-                    cdda_sim::square::Terrain { code },
-                ))
+                .spawn((Position { x, y, z: 0 }, cdda_sim::square::Terrain { code }))
                 .id();
             singletons::index_mut(&mut world).insert(entity, (x, y, 0));
         }
@@ -58,7 +55,10 @@ fn an_inpassable_square_is_refused_rather_than_charged_for() {
 
     let path = route(&world, (0, 0), (2, 0), (3, 1));
 
-    assert!(path.is_empty(), "a wall with no way round ends the search empty");
+    assert!(
+        path.is_empty(),
+        "a wall with no way round ends the search empty"
+    );
 }
 
 #[test]
@@ -102,7 +102,11 @@ fn the_reference_s_terrain_data_loads_and_keeps_its_move_costs() {
     let (table, codes) = cdda_sim::terrain_table::TerrainTable::from_map_data(terrain);
 
     let floor = codes.get("t_floor").copied().expect("the data has a floor");
-    assert_eq!(table.move_cost(floor), Some(2), "a floor costs two to stand on");
+    assert_eq!(
+        table.move_cost(floor),
+        Some(2),
+        "a floor costs two to stand on"
+    );
     let wall = codes.get("t_wall").copied().expect("the data has a wall");
     assert_eq!(
         table.move_cost(wall),
@@ -152,5 +156,9 @@ fn a_prototype_becomes_a_code_and_keeps_its_move_cost() {
     let floor = codes.get("t_floor").copied().expect("the floor got a code");
     assert_eq!(table.move_cost(floor), Some(2), "and kept its cost");
     let wall = codes.get("t_wall").copied().expect("the wall got a code");
-    assert_eq!(table.move_cost(wall), Some(0), "a wall costs nothing to stand on, which means never");
+    assert_eq!(
+        table.move_cost(wall),
+        Some(0),
+        "a wall costs nothing to stand on, which means never"
+    );
 }

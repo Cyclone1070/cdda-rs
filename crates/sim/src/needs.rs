@@ -24,7 +24,8 @@ pub type Point = (f32, f32);
 pub const STARVATION_THRESHOLDS: [Point; 3] = [(0.0, 6_000.0), (0.8, 300.0), (0.95, 100.0)];
 
 /// The metabolic multiplier curve: `( effective hunger, multiplier )` (`:775-780`).
-pub const METABOLIC_THRESHOLDS: [Point; 4] = [(300.0, 1.0), (2_000.0, 0.8), (5_000.0, 0.6), (8_000.0, 0.5)];
+pub const METABOLIC_THRESHOLDS: [Point; 4] =
+    [(300.0, 1.0), (2_000.0, 0.8), (5_000.0, 0.6), (8_000.0, 0.5)];
 
 /// An integer as a float for the curves, named so the cast is visible at every call.
 #[allow(clippy::cast_precision_loss)]
@@ -137,7 +138,12 @@ pub struct NeedsRates {
 /// tree-communion halving, `TRANSPIRATION`'s use of the local temperature, and the `HUNGER` / `THIRST` / `SLEEPINESS` enchantment modifiers.
 #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 #[must_use]
-pub fn needs_rates(bmr: i32, metabolic_rate: f32, thirst_option: f32, sleepiness_option: f32) -> NeedsRates {
+pub fn needs_rates(
+    bmr: i32,
+    metabolic_rate: f32,
+    thirst_option: f32,
+    sleepiness_option: f32,
+) -> NeedsRates {
     NeedsRates {
         kcal: bmr as f32,
         hunger: metabolic_rate,
@@ -168,7 +174,10 @@ pub const MAX_SLEEPINESS: i32 = 1050;
 /// Reference: `Character::set_sleepiness` (`character.cpp:4704-4712`): the total is clamped between `-1000` and `MAX_SLEEPINESS`, so a creature that sleeps can go
 /// well below zero and stay there for a while.
 pub fn mod_sleepiness(world: &mut World, creature: Entity, amount: i32) {
-    let mut held = world.get::<Sleepiness>(creature).copied().unwrap_or_default();
+    let mut held = world
+        .get::<Sleepiness>(creature)
+        .copied()
+        .unwrap_or_default();
     held.0 = (held.0 + amount).clamp(-1000, MAX_SLEEPINESS);
     world.entity_mut(creature).insert(held);
 }
@@ -264,7 +273,11 @@ pub fn sleep_off(
 ///
 /// A creature with no mutation table answers its stored rates unchanged - which is what the reference does with an empty cache.
 #[must_use]
-pub fn rates_with_enchantments(world: &World, creature: bevy_ecs::entity::Entity, rates: NeedsRates) -> NeedsRates {
+pub fn rates_with_enchantments(
+    world: &World,
+    creature: bevy_ecs::entity::Entity,
+    rates: NeedsRates,
+) -> NeedsRates {
     let Some(data) = crate::mutation_data::holder(world) else {
         return rates;
     };
@@ -303,7 +316,6 @@ pub fn thirst_speed_penalty(thirst: i32) -> i32 {
     let penalty = multi_lerp(&THRESHOLDS, as_float(thirst)) as i32;
     penalty
 }
-
 
 /// What being starved costs a character's speed, by **fat category** rather than by BMI.
 ///

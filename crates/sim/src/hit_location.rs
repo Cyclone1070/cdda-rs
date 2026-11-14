@@ -120,7 +120,9 @@ pub fn select_body_part(
             let smallest = min_hit as f32;
             #[allow(clippy::cast_precision_loss)]
             let largest = max_hit as f32;
-            !(weight < smallest || (max_hit > -1 && weight > largest) || (!can_attack_high && part.upper))
+            !(weight < smallest
+                || (max_hit > -1 && weight > largest)
+                || (!can_attack_high && part.upper))
         })
         .collect();
     pick_by_weight(&weights, fraction).and_then(|index| survivors.get(index).copied())

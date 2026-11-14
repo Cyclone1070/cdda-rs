@@ -8,7 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_sim::{
-    Container, GroundItem, ItemFacts, ItemTypeId, consume_items_held, contents, drop_item, insert_into,
+    Container, GroundItem, ItemFacts, ItemTypeId, consume_items_held, contents, drop_item,
+    insert_into,
 };
 
 const WATER: ItemTypeId = ItemTypeId(1);
@@ -67,7 +68,10 @@ fn an_emptied_pile_is_removed_from_its_container_and_the_container_is_left() {
         |_| true,
     );
     assert_eq!(taken.taken, 6);
-    assert!(contents(&mut world, canteen_entity).is_empty(), "the water is gone");
+    assert!(
+        contents(&mut world, canteen_entity).is_empty(),
+        "the water is gone"
+    );
     assert!(
         world.get::<GroundItem>(water_item).is_none(),
         "and the emptied pile went with it"
@@ -125,6 +129,10 @@ fn a_rock_beside_the_canteen_is_still_taken_first_if_it_lies_first() {
     );
     assert_eq!(taken.taken, 2, "the rock on the floor");
     assert!(world.get::<GroundItem>(rock).is_none());
-    assert_eq!(charges_of(&mut world, water_item), 6, "the water is untouched");
+    assert_eq!(
+        charges_of(&mut world, water_item),
+        6,
+        "the water is untouched"
+    );
     assert_eq!(contents(&mut world, canteen_entity), vec![water_item]);
 }

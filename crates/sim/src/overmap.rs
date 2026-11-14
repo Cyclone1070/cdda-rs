@@ -116,7 +116,18 @@ pub fn terrain_at(world: &World, tile: (i32, i32)) -> Option<&str> {
 #[must_use]
 pub fn base_terrain(id: &str) -> &str {
     const SUFFIXES: [&str; 12] = [
-        "_north", "_south", "_east", "_west", "_northeast", "_southeast", "_southwest", "_northwest", "_nesw", "_nsw", "_senw", "_ew",
+        "_north",
+        "_south",
+        "_east",
+        "_west",
+        "_northeast",
+        "_southeast",
+        "_southwest",
+        "_northwest",
+        "_nesw",
+        "_nsw",
+        "_senw",
+        "_ew",
     ];
     for suffix in SUFFIXES {
         if let Some(base) = id.strip_suffix(suffix) {

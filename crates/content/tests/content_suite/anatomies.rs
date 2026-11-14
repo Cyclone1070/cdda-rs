@@ -14,7 +14,9 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 fn read(name: &str) -> Value {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus").join(name);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus")
+        .join(name);
     let text = std::fs::read(path).unwrap_or_else(|_| panic!("{name} exists"));
     parse(&text).unwrap_or_else(|_| panic!("{name} is valid JSON"))
 }
@@ -45,8 +47,15 @@ fn a_person_has_two_of_each_limb_and_one_head() {
         .iter()
         .find(|anatomy| anatomy.id == "human_anatomy")
         .expect("a person's anatomy");
-    assert_eq!(human.parts.len(), 12, "twelve parts: {}", human.parts.join(", "));
-    for wanted in ["head", "torso", "arm_l", "arm_r", "leg_l", "leg_r", "eyes", "mouth"] {
+    assert_eq!(
+        human.parts.len(),
+        12,
+        "twelve parts: {}",
+        human.parts.join(", ")
+    );
+    for wanted in [
+        "head", "torso", "arm_l", "arm_r", "leg_l", "leg_r", "eyes", "mouth",
+    ] {
         assert!(
             human.parts.iter().any(|part| part == wanted),
             "a person has a {wanted}"

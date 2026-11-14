@@ -17,8 +17,8 @@ fn a_torso() -> Vec<cdda_sim::hit_location::BodyPart> {
         hit_difficulty: 1.0,
         upper: false,
         lower: false,
-                ..Default::default()
-            }]
+        ..Default::default()
+    }]
 }
 
 /// What the sweep found, so the counts can be asserted and printed.
@@ -39,7 +39,11 @@ fn sweep(world: &mut World, spells: &[cdda_content::spells::Spell]) -> Sweep {
     for spell in spells.iter().filter(|spell| spell.effect_name == "attack") {
         found.seen += 1;
         // **A filtered spell's monster stands one square off**, because the rule reads the creature on the square it is aimed at and the caster itself stands on (0,0,0).
-        let at = if spell.targeted_monster_ids.is_empty() { (0, 0, 0) } else { (1, 0, 0) };
+        let at = if spell.targeted_monster_ids.is_empty() {
+            (0, 0, 0)
+        } else {
+            (1, 0, 0)
+        };
         let target = cdda_sim::creature::spawn_creature(world, "the target", at);
         // A target with no body has nothing to hit, which is what the first version of this sweep measured: 77 refusals
         // that said more about the harness than about the rule.
@@ -65,7 +69,6 @@ fn sweep(world: &mut World, spells: &[cdda_content::spells::Spell]) -> Sweep {
                 found.hit += 1;
                 found.dealt += i64::from(dealt);
                 found.landed.push(spell.id.clone());
-
             }
             Cast::OutOfRange => found.out_of_range += 1,
             Cast::NothingToHit => found.nothing_to_hit += 1,
@@ -100,7 +103,10 @@ fn every_attack_spell_in_the_game_lands_something() {
         77,
         "every attack spell either landed its blow or was filtered by the monster it names"
     );
-    assert_eq!(found.out_of_range, 0, "a target on the caster's own square is never out of range");
+    assert_eq!(
+        found.out_of_range, 0,
+        "a target on the caster's own square is never out of range"
+    );
     // **One attack spell in the data may only be aimed at the ground** - `death_portal` - so a creature standing on the square it is aimed at is not something it touches. The
     // reference agrees, and that is the whole point of `spell::is_valid_target`: the effect name says `attack`, the targets say what the attack is for.
     assert_eq!(
@@ -248,7 +254,8 @@ fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
             #[allow(clippy::cast_possible_truncation)]
             let stated = told.round() as i64;
             assert_eq!(
-                i64::from(dealt), stated,
+                i64::from(dealt),
+                stated,
                 "{} at its ceiling of {ceiling} dealt {dealt} instead of {stated}",
                 spell.id
             );
@@ -261,7 +268,10 @@ fn at_its_ceiling_every_attack_spell_deals_the_damage_the_data_states() {
     // their monster where the rule would find it: it would have to share the caster's square, and the reference's own `creature_at` answers the caster there.
     assert_eq!(
         skipped,
-        vec!["death_kill_vines".to_owned(), "death_kill_breathers".to_owned()],
+        vec![
+            "death_kill_vines".to_owned(),
+            "death_kill_breathers".to_owned()
+        ],
         "the two short-range filtered spells are named rather than quietly dropped"
     );
     // The data's own ceiling for each spell, read straight from the dump rather than through the loader: this is the

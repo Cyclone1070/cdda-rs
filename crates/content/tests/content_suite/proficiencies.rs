@@ -28,7 +28,10 @@ fn the_proficiency_dump_reads_with_its_times_and_prerequisites() {
     assert_eq!(proficiencies.by_id.len(), count, "every one has an id");
 
     // Four hours for the first athletics proficiency, eight for the expert one that needs it.
-    assert_eq!(proficiencies.seconds_for("prof_athlete_basic"), Some(14_400));
+    assert_eq!(
+        proficiencies.seconds_for("prof_athlete_basic"),
+        Some(14_400)
+    );
     let Some(expert) = proficiencies.by_id.get("prof_athlete_expert") else {
         return;
     };

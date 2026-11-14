@@ -12,19 +12,23 @@ use std::path::Path;
 use bevy_ecs::prelude::*;
 use cdda_content::mapdata::{self, MapData};
 use cdda_core_types::field::{FieldEntry, FieldId};
-use cdda_json::{parse, Value};
-use cdda_sim::falling::{drop_everything, FieldRules, Floors};
+use cdda_json::{Value, parse};
+use cdda_sim::falling::{FieldRules, Floors, drop_everything};
 use cdda_sim::{Field, GroundItem, ItemTypeId, Position};
 
 fn read(name: &str) -> Value {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus").join(name);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus")
+        .join(name);
     let text = std::fs::read_to_string(path).expect("the corpus file exists");
     parse(text.as_bytes()).expect("the corpus file is valid JSON")
 }
 
 fn member<'a>(value: &'a Value, key: &str) -> &'a Value {
     match value {
-        Value::Object(object) => object.get(key).unwrap_or_else(|| panic!("{key} is a member")),
+        Value::Object(object) => object
+            .get(key)
+            .unwrap_or_else(|| panic!("{key} is a member")),
         other => panic!("an object: {other:?}"),
     }
 }
@@ -52,7 +56,8 @@ fn int(value: &Value) -> i32 {
 
 /// The prototypes the reference's own data defines, which is what the recorded terrain ids name.
 fn terrain() -> BTreeMap<String, MapData> {
-    let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
     mapdata::load_paths(&[&reference.join("core"), &reference.join("json")])
         .expect("the map data loads")
         .into_iter()
@@ -160,7 +165,11 @@ impl Column {
             .map(|part| {
                 let mut halves = part.split(':');
                 let name = halves.next().expect("a name");
-                let intensity = halves.next().expect("an intensity").parse().expect("a number");
+                let intensity = halves
+                    .next()
+                    .expect("an intensity")
+                    .parse()
+                    .expect("a number");
                 (name, intensity)
             })
             .collect()
@@ -202,7 +211,11 @@ fn recorded(column: &Column, data: &BTreeMap<String, MapData>) -> Recorded {
 fn furnish(world: &mut World, column: &Column) {
     for (order, _) in column.payload().iter().enumerate() {
         world.spawn((
-            Position { x: column.dx, y: 0, z: 0 },
+            Position {
+                x: column.dx,
+                y: 0,
+                z: 0,
+            },
             GroundItem {
                 kind: ItemTypeId(u32::try_from(order).expect("small")),
                 charges: 1,
@@ -217,7 +230,11 @@ fn furnish(world: &mut World, column: &Column) {
         let mut entry = FieldEntry::new(3, 100, true, false);
         entry.set_intensity(intensity);
         world.spawn((
-            Position { x: column.dx, y: 0, z: 0 },
+            Position {
+                x: column.dx,
+                y: 0,
+                z: 0,
+            },
             Field {
                 id: field_id(name),
                 entry,
@@ -229,7 +246,11 @@ fn furnish(world: &mut World, column: &Column) {
 
 /// Where the items on a column ended up, by level, in stack order, named the way the recording names them.
 fn landed_items(world: &mut World, column: &Column) -> BTreeMap<i32, Vec<String>> {
-    let payload: Vec<String> = column.payload().iter().map(|name| (*name).to_owned()).collect();
+    let payload: Vec<String> = column
+        .payload()
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect();
     let mut query = world.query::<(Entity, &Position, &GroundItem)>();
     let mut found: Vec<(i32, u32, i32)> = query
         .iter(world)
@@ -262,7 +283,10 @@ fn recorded_landings(column: &Column) -> BTreeMap<i32, Vec<String>> {
 fn a_square_with_a_floor_of_its_own_keeps_everything_on_it() {
     let data = terrain();
     let all = columns();
-    let column = all.iter().find(|column| column.dx == 10).expect("the floor column");
+    let column = all
+        .iter()
+        .find(|column| column.dx == 10)
+        .expect("the floor column");
     assert_eq!(column.before, "i:rock;", "it holds a rock before the turn");
     assert!(
         !data
@@ -297,12 +321,18 @@ fn an_item_falls_to_the_lowest_floor_under_it() {
         let payload_count = column.payload().len();
         let (items, _) = drop_everything(&mut world, &facts, &rules(), (column.dx, 0, 0));
         if items != payload_count {
-            wrong.push(format!("dx {}: {items} of {payload_count} items moved", column.dx));
+            wrong.push(format!(
+                "dx {}: {items} of {payload_count} items moved",
+                column.dx
+            ));
         }
         let mine = landed_items(&mut world, column);
         let theirs = recorded_landings(column);
         if mine != theirs {
-            wrong.push(format!("dx {}: landed at {mine:?}, recorded {theirs:?}", column.dx));
+            wrong.push(format!(
+                "dx {}: landed at {mine:?}, recorded {theirs:?}",
+                column.dx
+            ));
         }
         // **The whole point of the loop.** One column has its floor one level down and the other three, so a rule that subtracted one would pass one column and fail the other.
         let deepest = theirs.keys().min().copied().expect("a landing");
@@ -310,7 +340,12 @@ fn an_item_falls_to_the_lowest_floor_under_it() {
             wrong.push(format!("dx {}: the fixture has no fall at all", column.dx));
         }
     }
-    assert!(wrong.is_empty(), "{} wrong:\n{}", wrong.len(), wrong.join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
     // Non-vacuity: the two columns land at different depths, which is what makes the loop a rule rather than a constant.
     let depths: Vec<i32> = all
         .iter()
@@ -324,7 +359,10 @@ fn an_item_falls_to_the_lowest_floor_under_it() {
 fn a_cosmetic_field_falls_exactly_one_level() {
     let data = terrain();
     let all = columns();
-    let column = all.iter().find(|column| column.dx == 2).expect("the field column");
+    let column = all
+        .iter()
+        .find(|column| column.dx == 2)
+        .expect("the field column");
     assert_eq!(
         column.starting_fields(),
         vec![("fd_smoke", 3)],
@@ -346,7 +384,10 @@ fn a_cosmetic_field_falls_exactly_one_level() {
         .iter()
         .find(|level| !level.fields.is_empty())
         .expect("the recording has a landing");
-    assert_eq!((theirs.z, theirs.fields.clone()), (-1, vec![("fd_smoke".to_owned(), 3)]));
+    assert_eq!(
+        (theirs.z, theirs.fields.clone()),
+        (-1, vec![("fd_smoke".to_owned(), 3)])
+    );
 }
 
 /// The furniture column is **recorded and not ported**: a bench falls and bashes the floor it lands on, and bashing a floor kicks up dust.
@@ -356,15 +397,25 @@ fn a_cosmetic_field_falls_exactly_one_level() {
 #[test]
 fn a_falling_bench_bashes_where_it_lands_which_is_not_portable_yet() {
     let all = columns();
-    let column = all.iter().find(|column| column.dx == 6).expect("the furniture column");
-    assert_eq!(column.before, "u:f_bench;", "the fixture holds a bench on its top square");
+    let column = all
+        .iter()
+        .find(|column| column.dx == 6)
+        .expect("the furniture column");
+    assert_eq!(
+        column.before, "u:f_bench;",
+        "the fixture holds a bench on its top square"
+    );
     let with_furniture: Vec<(i32, &str)> = column
         .levels
         .iter()
         .filter(|level| level.furn != "f_null")
         .map(|level| (level.z, level.furn.as_str()))
         .collect();
-    assert_eq!(with_furniture, vec![(-2, "f_bench")], "the bench fell two levels");
+    assert_eq!(
+        with_furniture,
+        vec![(-2, "f_bench")],
+        "the bench fell two levels"
+    );
     let dust: Vec<(i32, &[(String, i32)])> = column
         .levels
         .iter()

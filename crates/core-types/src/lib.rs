@@ -25,9 +25,9 @@ pub mod level;
 pub mod light;
 pub mod line;
 pub mod map_cache;
-pub mod movement;
 pub mod map_cache_build;
 pub mod memory;
+pub mod movement;
 pub mod noise;
 pub mod options;
 pub mod outside_cache;
@@ -45,9 +45,9 @@ pub mod text;
 pub mod tiles;
 pub mod units;
 pub mod vision;
-pub mod zlight;
 pub mod weather;
 pub mod weighted;
+pub mod zlight;
 
 // Modules are added one at a time, test first. See docs/10-task-breakdown.md
 // (P0-T4 onward) for the order.

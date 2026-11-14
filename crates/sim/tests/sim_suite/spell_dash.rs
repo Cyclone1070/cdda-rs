@@ -75,12 +75,16 @@ fn a_dash_carries_its_caster_along_the_line_and_gives_the_moves_back() {
         "the caster moved"
     );
     assert_eq!(
-        world.get::<cdda_sim::Position>(caster).map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(caster)
+            .map(|at| (at.x, at.y, at.z)),
         Some((6, 0, 0)),
         "**six squares east, one per square of the line**"
     );
     assert_eq!(
-        world.get::<cdda_sim::creature::Moves>(caster).map(|moves| moves.left),
+        world
+            .get::<cdda_sim::creature::Moves>(caster)
+            .map(|moves| moves.left),
         Some(700),
         "**and every move the leap spent is handed back**, which is the reference's `set_moves( cur_moves )`"
     );
@@ -102,7 +106,9 @@ fn only_an_avatar_walks_and_a_creature_in_the_way_stops_it_short() {
         "**a monster's dash does nothing at all** - the reference's walk is the avatar's alone"
     );
     assert_eq!(
-        world.get::<cdda_sim::Position>(monster).map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(monster)
+            .map(|at| (at.x, at.y, at.z)),
         Some((0, 0, 0)),
         "and it is still standing where it was"
     );
@@ -119,7 +125,9 @@ fn only_an_avatar_walks_and_a_creature_in_the_way_stops_it_short() {
         "the avatar moved"
     );
     assert_eq!(
-        world.get::<cdda_sim::Position>(avatar).map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(avatar)
+            .map(|at| (at.x, at.y, at.z)),
         Some((2, 5, 0)),
         "**two squares east, stopping before the creature** - it does not share a square and does not pass through"
     );

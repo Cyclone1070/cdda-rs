@@ -186,7 +186,10 @@ pub struct WeakpointFactors {
 ///
 /// Reference: `weakpoint::apply_to( resistances & )` (`weakpoint.cpp:496-509`) - every damage type is multiplied by its `armor_mult` and then has its `armor_penalty` subtracted, **in that order**,
 /// which makes a flat penalty worth more against heavy armour. A type the weak point says nothing about is left alone.
-pub fn apply_to_armour(factors: &WeakpointFactors, armour: &mut std::collections::BTreeMap<String, f64>) {
+pub fn apply_to_armour(
+    factors: &WeakpointFactors,
+    armour: &mut std::collections::BTreeMap<String, f64>,
+) {
     for (damage_type, value) in armour.iter_mut() {
         if let Some(multiplier) = factors.armour_multiplier.get(damage_type) {
             *value *= multiplier;
@@ -203,8 +206,16 @@ pub fn apply_to_armour(factors: &WeakpointFactors, armour: &mut std::collections
 /// `damage_mult`, because the reference's branches are `if is_crit ... else if`. A port that applied both would make every weak point worth most on a crit and would double a critical hit that the
 /// data meant to triple.
 #[must_use]
-pub fn apply_to_damage(factors: &WeakpointFactors, damage: &[(String, f64)], is_crit: bool) -> Vec<(String, f64)> {
-    let table = if is_crit { &factors.crit_multiplier } else { &factors.damage_multiplier };
+pub fn apply_to_damage(
+    factors: &WeakpointFactors,
+    damage: &[(String, f64)],
+    is_crit: bool,
+) -> Vec<(String, f64)> {
+    let table = if is_crit {
+        &factors.crit_multiplier
+    } else {
+        &factors.damage_multiplier
+    };
     damage
         .iter()
         .map(|(damage_type, amount)| {
@@ -363,7 +374,11 @@ pub struct WeakPoints {
 ///
 /// A thin reading of [`apply_to_damage`] for a blow, which carries exactly bash, cut and stab: the map is the rule and this is the shape a caller has.
 #[must_use]
-pub fn apply_to_blow(factors: &WeakpointFactors, blow: (f64, f64, f64), is_crit: bool) -> (f64, f64, f64) {
+pub fn apply_to_blow(
+    factors: &WeakpointFactors,
+    blow: (f64, f64, f64),
+    is_crit: bool,
+) -> (f64, f64, f64) {
     let units = apply_to_damage(
         factors,
         &[
@@ -382,7 +397,10 @@ pub fn apply_to_blow(factors: &WeakpointFactors, blow: (f64, f64, f64), is_crit:
 
 /// The same armour rule, over the port's three physical types.
 #[must_use]
-pub fn apply_to_armour_triple(factors: &WeakpointFactors, armour: (f64, f64, f64)) -> (f64, f64, f64) {
+pub fn apply_to_armour_triple(
+    factors: &WeakpointFactors,
+    armour: (f64, f64, f64),
+) -> (f64, f64, f64) {
     let mut mapped = std::collections::BTreeMap::new();
     mapped.insert("bash".to_owned(), armour.0);
     mapped.insert("cut".to_owned(), armour.1);
@@ -523,7 +541,13 @@ pub struct WeakpointFamily {
 pub fn families_modifier(families: &[WeakpointFamily], knows: &dyn Fn(&str) -> bool) -> f64 {
     families
         .iter()
-        .map(|family| if knows(&family.proficiency) { family.bonus } else { family.penalty })
+        .map(|family| {
+            if knows(&family.proficiency) {
+                family.bonus
+            } else {
+                family.penalty
+            }
+        })
         .sum()
 }
 

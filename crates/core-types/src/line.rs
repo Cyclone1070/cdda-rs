@@ -34,7 +34,6 @@ const fn sign(value: i32) -> i32 {
     if value < 0 { -1 } else { 1 }
 }
 
-
 /// The cells a line passes through in **three** dimensions, from `from` towards `to`, excluding `from`.
 ///
 /// Reference: `line_to( const tripoint &loc1, const tripoint &loc2, int t, int t2 )` and the three-dimensional `bresenham` it calls (`src/line.cpp:73-215, 241-257`).
@@ -261,8 +260,6 @@ impl Walk {
         }
     }
 }
-
-
 
 /// The normalised direction of a line, as `slope_of` computes it (`src/line.cpp:343-352`).
 ///

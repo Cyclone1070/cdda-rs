@@ -37,21 +37,37 @@ fn world() -> World {
 fn only_a_sight_change_dirties_the_light() {
     let mut world = world();
     cdda_sim::cast_lights_with(&mut world);
-    assert!(!cdda_sim::light_is_stale(&world), "a fresh answer is not stale");
+    assert!(
+        !cdda_sim::light_is_stale(&world),
+        "a fresh answer is not stale"
+    );
     let builds = cdda_sim::light_rebuilds(&world);
     assert_eq!(builds, 1, "the answer was built once");
 
     // `sunny` to `clear`: a different sky with the same absorption. The reference does not touch the
     // light, and neither does the port.
     assert!(
-        !cdda_sim::apply_weather_change(&mut world, Change::Weather { sight_changed: false }),
+        !cdda_sim::apply_weather_change(
+            &mut world,
+            Change::Weather {
+                sight_changed: false
+            }
+        ),
         "nothing to flush"
     );
-    assert!(!cdda_sim::light_is_stale(&world), "the answer is still trusted");
+    assert!(
+        !cdda_sim::light_is_stale(&world),
+        "the answer is still trusted"
+    );
 
     // `clear` to `fog`: every ray is dimmed, so the light has to be rebuilt.
     assert!(
-        cdda_sim::apply_weather_change(&mut world, Change::Weather { sight_changed: true }),
+        cdda_sim::apply_weather_change(
+            &mut world,
+            Change::Weather {
+                sight_changed: true
+            }
+        ),
         "the flush happened"
     );
     assert!(
@@ -65,5 +81,8 @@ fn only_a_sight_change_dirties_the_light() {
         builds + 1,
         "exactly one rebuild"
     );
-    assert!(!cdda_sim::light_is_stale(&world), "and the answer is fresh again");
+    assert!(
+        !cdda_sim::light_is_stale(&world),
+        "and the answer is fresh again"
+    );
 }

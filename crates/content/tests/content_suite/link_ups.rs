@@ -85,8 +85,8 @@ fn dump() -> BTreeMap<String, LinkUp> {
 fn every_cable_is_read_the_way_the_reference_reads_it() {
     let recorded = dump();
     assert_eq!(recorded.len(), 108, "every cable was recorded");
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded: BTreeMap<String, ItemType> = load_paths(&paths)
@@ -105,12 +105,18 @@ fn every_cable_is_read_the_way_the_reference_reads_it() {
         .filter(|cable| is_default(cable.efficiency))
         .count();
     let stated_efficiency = recorded.len() - default_efficiency;
-    let extended = recorded.values().filter(|cable| !cable.can_extend.is_empty()).count();
+    let extended = recorded
+        .values()
+        .filter(|cable| !cable.can_extend.is_empty())
+        .count();
     let wide = recorded
         .values()
         .filter(|cable| cable.targets.len() > 2)
         .count();
-    let powered = recorded.values().filter(|cable| cable.charge_rate_watts > 0).count();
+    let powered = recorded
+        .values()
+        .filter(|cable| cable.charge_rate_watts > 0)
+        .count();
 
     let mut differing: Vec<String> = Vec::new();
     for (id, expected) in &recorded {
@@ -136,9 +142,15 @@ fn every_cable_is_read_the_way_the_reference_reads_it() {
         default_efficiency > 90,
         "the default efficiency has to be exercised: {default_efficiency}"
     );
-    assert!(stated_efficiency > 0, "and so does a cable that states its own");
+    assert!(
+        stated_efficiency > 0,
+        "and so does a cable that states its own"
+    );
     assert!(extended > 0, "and the chainable ones: {extended}");
-    assert!(wide > 0, "and a cable with more than the default two targets: {wide}");
+    assert!(
+        wide > 0,
+        "and a cable with more than the default two targets: {wide}"
+    );
     assert!(powered > 90, "and a real charge rate: {powered}");
     assert!(
         differing.is_empty(),

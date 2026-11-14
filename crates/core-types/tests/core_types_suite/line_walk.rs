@@ -10,8 +10,10 @@
 use cdda_core_types::line::line_to_3d;
 
 fn corpus() -> cdda_json::Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/line/walks.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/line/walks.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
 }
 
@@ -49,7 +51,11 @@ fn every_branch_of_the_three_dimensional_walk_matches_the_reference() {
     let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
         panic!("the recording has cases");
     };
-    assert_eq!(cases.len(), 20, "twenty walks: every branch, then repeats with error terms");
+    assert_eq!(
+        cases.len(),
+        20,
+        "twenty walks: every branch, then repeats with error terms"
+    );
     let mut branches = std::collections::BTreeSet::new();
     for case in cases {
         let cdda_json::Value::Object(entry) = case else {

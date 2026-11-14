@@ -29,8 +29,8 @@ fn recorded(name: &str) -> Vec<Value> {
 
 /// The loaded items, by id.
 fn loaded() -> BTreeMap<String, ItemType> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -138,7 +138,8 @@ fn every_trap_is_read_the_way_the_reference_reads_it() {
         if !expected.bury_question.is_empty() {
             buryable += 1;
         }
-        if expected.allow_underwater || expected.allow_under_player || expected.needs_solid_neighbor {
+        if expected.allow_underwater || expected.allow_under_player || expected.needs_solid_neighbor
+        {
             conditional += 1;
         }
         if expected.outer_layer_trap != "tr_null" || expected.needs_neighbor_terrain != "t_null" {
@@ -163,8 +164,14 @@ fn every_trap_is_read_the_way_the_reference_reads_it() {
         }
     }
     assert_eq!(buryable, 2, "the content has two buryable traps");
-    assert!(conditional > 0, "a condition on placement has to be exercised: {conditional}");
-    assert!(layered > 0, "and a trap that needs a neighbour or an outer layer: {layered}");
+    assert!(
+        conditional > 0,
+        "a condition on placement has to be exercised: {conditional}"
+    );
+    assert!(
+        layered > 0,
+        "and a trap that needs a neighbour or an outer layer: {layered}"
+    );
     assert!(
         differing.is_empty(),
         "{} of 28 traps disagree; they are {differing:#?}",

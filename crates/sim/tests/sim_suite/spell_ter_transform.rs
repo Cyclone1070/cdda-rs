@@ -15,7 +15,10 @@ fn a_world() -> World {
     let mut world = World::new();
     cdda_sim::terrain_types::set_types(
         &mut world,
-        [("t_dirt".to_owned(), 1_u32), ("t_rock_floor".to_owned(), 2_u32)],
+        [
+            ("t_dirt".to_owned(), 1_u32),
+            ("t_rock_floor".to_owned(), 2_u32),
+        ],
     );
     let mut table = cdda_sim::terrain_table::TerrainTable::default();
     table.insert(1, true);
@@ -69,7 +72,9 @@ fn a_spell(damage: f64, area: f64) -> cdda_content::spells::Spell {
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
-        valid_targets: ["hostile".to_owned(), "ground".to_owned()].into_iter().collect(),
+        valid_targets: ["hostile".to_owned(), "ground".to_owned()]
+            .into_iter()
+            .collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),

@@ -31,7 +31,8 @@ fn boolean(object: &cdda_json::Object, key: &str) -> bool {
 #[test]
 fn every_per_turn_change_matches_the_reference() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/per-turn.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -40,14 +41,19 @@ fn every_per_turn_change_matches_the_reference() {
         panic!("cases")
     };
     assert_eq!(cases.len(), 252, "every recorded case");
-    assert_eq!(integer(&root, "moved"), 99, "the reference moved a body on this many");
+    assert_eq!(
+        integer(&root, "moved"),
+        99,
+        "the reference moved a body on this many"
+    );
 
     // The seven shapes the harness synthesised, read by the port's own reader from the recording itself.
     let Some(Value::Array(profiles)) = root.get("profiles") else {
         panic!("profiles")
     };
     assert_eq!(profiles.len(), 7, "the shapes the reference ran");
-    let mut effects: std::collections::BTreeMap<String, EffectType> = std::collections::BTreeMap::new();
+    let mut effects: std::collections::BTreeMap<String, EffectType> =
+        std::collections::BTreeMap::new();
     for (index, profile) in profiles.iter().enumerate() {
         let Value::Object(inner) = profile else {
             panic!("a profile")
@@ -63,9 +69,12 @@ fn every_per_turn_change_matches_the_reference() {
 
     let mut differing: Vec<String> = Vec::new();
     let mut moved = 0;
-    let mut by_target: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut by_target: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
     for case in cases {
-        let Value::Object(case) = case else { panic!("a case") };
+        let Value::Object(case) = case else {
+            panic!("a case")
+        };
         let profile = integer(case, "profile");
         let id = format!("harness_turn_{profile}");
         let Some(kind) = effects.get(&id) else {
@@ -111,8 +120,16 @@ fn every_per_turn_change_matches_the_reference() {
     // **Non-vacuity**: the grid must move bodies, must move both statistics, and must reach both the arrival path (which skips the chance) and the per-turn path.
     assert_eq!(moved, 99, "cases the port moved: {moved}");
     // The measured split rather than a guess: only one of the seven shapes moves thirst, so it moves nine times against hunger's hundred and fourteen.
-    assert_eq!(by_target.get("hunger"), Some(&90), "hunger moves: {by_target:?}");
-    assert_eq!(by_target.get("thirst"), Some(&9), "thirst moves: {by_target:?}");
+    assert_eq!(
+        by_target.get("hunger"),
+        Some(&90),
+        "hunger moves: {by_target:?}"
+    );
+    assert_eq!(
+        by_target.get("thirst"),
+        Some(&9),
+        "thirst moves: {by_target:?}"
+    );
     assert!(
         differing.is_empty(),
         "{} disagreements over 252 cases; the first twelve are {:#?}",
@@ -129,7 +146,8 @@ fn every_per_turn_change_matches_the_reference() {
 #[test]
 fn the_per_turn_amount_rolls_only_when_a_maximum_is_stated() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/per-turn.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -138,7 +156,9 @@ fn the_per_turn_amount_rolls_only_when_a_maximum_is_stated() {
         panic!("profiles")
     };
     let read = |index: usize| {
-        let Value::Object(inner) = &profiles[index] else { panic!("a profile") };
+        let Value::Object(inner) = &profiles[index] else {
+            panic!("a profile")
+        };
         let mut object = cdda_json::Object::new();
         assert!(object.insert("base_mods".to_string(), Value::Object(inner.clone())));
         let id = format!("harness_turn_{index}");
@@ -154,8 +174,15 @@ fn the_per_turn_amount_rolls_only_when_a_maximum_is_stated() {
         permanent: false,
     };
     let mut rolls = Rolls::new(1);
-    assert_eq!(worn.per_turn_amount(&kind, "HUNGER", &mut rolls), 0, "no min and no max answers zero");
-    assert!((kind.mod_value("HUNGER", cdda_content::effects::ModAction::Amount, 0, 1) - 3.0).abs() < 1e-12);
+    assert_eq!(
+        worn.per_turn_amount(&kind, "HUNGER", &mut rolls),
+        0,
+        "no min and no max answers zero"
+    );
+    assert!(
+        (kind.mod_value("HUNGER", cdda_content::effects::ModAction::Amount, 0, 1) - 3.0).abs()
+            < 1e-12
+    );
 
     // The roll itself, on a die the test chooses: a range of two to nine answers whatever the die lands on, truncated.
     let mut object = cdda_json::Object::new();
@@ -175,8 +202,16 @@ fn the_per_turn_amount_rolls_only_when_a_maximum_is_stated() {
     };
     recording.position = 0;
     let mut rolls = Rolls::replaying(recording);
-    assert_eq!(worn.per_turn_amount(&rolling, "HUNGER", &mut rolls), 8, "8.75 truncates to eight");
-    assert_eq!(rolls.recording_remaining(), Some(0), "and it really spent the die");
+    assert_eq!(
+        worn.per_turn_amount(&rolling, "HUNGER", &mut rolls),
+        8,
+        "8.75 truncates to eight"
+    );
+    assert_eq!(
+        rolls.recording_remaining(),
+        Some(0),
+        "and it really spent the die"
+    );
 
     // No maximum, a minimum: the minimum answers and no die is spent.
     let mut object = cdda_json::Object::new();
@@ -185,5 +220,9 @@ fn the_per_turn_amount_rolls_only_when_a_maximum_is_stated() {
     assert!(object.insert("base_mods".to_string(), Value::Object(group)));
     let floored = cdda_content::effects::read_one("floored", &object);
     let mut rolls = Rolls::new(1);
-    assert_eq!(worn.per_turn_amount(&floored, "HUNGER", &mut rolls), 4, "the low end answers");
+    assert_eq!(
+        worn.per_turn_amount(&floored, "HUNGER", &mut rolls),
+        4,
+        "the low end answers"
+    );
 }

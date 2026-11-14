@@ -23,8 +23,8 @@ fn recorded(name: &str) -> Value {
 }
 
 fn loaded() -> BTreeMap<String, ItemType> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -95,10 +95,15 @@ fn every_type_has_the_use_methods_the_reference_has_in_the_order_it_has_them() {
             .map(|(name, action)| (name.clone(), action.kind().to_owned()))
             .collect();
         if ours != expected {
-            differing.push(format!("{id}: the port says {ours:?}, the reference says {expected:?}"));
+            differing.push(format!(
+                "{id}: the port says {ours:?}, the reference says {expected:?}"
+            ));
         }
     }
-    assert!(renamed > 0, "the `repair_item` rename has to be exercised: {renamed}");
+    assert!(
+        renamed > 0,
+        "the `repair_item` rename has to be exercised: {renamed}"
+    );
     assert!(
         sorted_differently > 100,
         "and the map's ordering has to be visible rather than coincidental: {sorted_differently}"
@@ -161,10 +166,17 @@ fn every_type_has_the_charge_scales_the_reference_has() {
             ));
         }
     }
-    assert!(from_arrays > 0, "a scale read from an array entry: {from_arrays}");
+    assert!(
+        from_arrays > 0,
+        "a scale read from an array entry: {from_arrays}"
+    );
     // **A zero is a real value, not "unset"**: every scale in this content is zero, which is exactly the case a port that treated zero as absent would blur into
     // "scale of one" and never notice.
-    assert_eq!(values, [0].into_iter().collect(), "every recorded scale is zero: {values:?}");
+    assert_eq!(
+        values,
+        [0].into_iter().collect(),
+        "every recorded scale is zero: {values:?}"
+    );
     assert!(
         differing.is_empty(),
         "{} of 1054 types disagree; the first ten are {:#?}",

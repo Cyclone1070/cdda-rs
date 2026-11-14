@@ -34,7 +34,10 @@ fn a_rejected_pile_is_skipped_and_the_next_one_gives_up_its_charges() {
     let mut world = world();
     // Only the second pile - the one holding six - may be touched.
     let taken = consume_items_with(&mut world, (3, 3), WATER, 5, |item| item.charges == 6);
-    assert_eq!(taken.taken, 5, "all five came from the pile that was allowed");
+    assert_eq!(
+        taken.taken, 5,
+        "all five came from the pile that was allowed"
+    );
     assert!(taken.satisfied);
     assert_eq!(
         charges(&mut world),

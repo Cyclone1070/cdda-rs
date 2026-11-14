@@ -33,7 +33,10 @@ fn the_reference_knows_thousands_of_mapgen_keys_and_the_port_must_not_invent_one
     // modded ones - would still pass a "more than zero" test, and the first missing key is a chunk the port cannot generate.
     let keys = keys();
     assert_eq!(keys.len(), 6306, "mapgen keys");
-    assert!(keys.contains("forest_thick"), "the chunk the map dump came from is one of them");
+    assert!(
+        keys.contains("forest_thick"),
+        "the chunk the map dump came from is one of them"
+    );
     assert!(
         keys.contains("2StoryModern03_1"),
         "and the list is not sorted by family, so a reader that assumed an order would be wrong"
@@ -76,7 +79,10 @@ fn the_keys_the_data_does_not_write_are_registered_in_code() {
     ];
     assert_eq!(in_code.len(), 26, "no more and no fewer");
     for key in in_code {
-        assert!(keys.contains(key), "{key} is registered in code, not in the data");
+        assert!(
+            keys.contains(key),
+            "{key} is registered in code, not in the data"
+        );
     }
 }
 
@@ -103,7 +109,10 @@ fn the_port_carries_the_code_keys_and_refuses_the_selectors_in_its_own_source() 
     assert_eq!(selectors.len(), 4);
     let reference = keys();
     for key in &code {
-        assert!(reference.contains(*key), "{key} is in the reference's registry");
+        assert!(
+            reference.contains(*key),
+            "{key} is in the reference's registry"
+        );
     }
     for key in selectors {
         assert!(!reference.contains(key), "{key} is not a chunk");
@@ -121,16 +130,23 @@ fn keys_in_the_data() -> BTreeSet<String> {
             let path = entry.path();
             if path.is_dir() {
                 walk(&path, into);
-            } else if path.extension().is_some_and(|extension| extension == "json") {
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
                 let Ok(text) = std::fs::read_to_string(&path) else {
                     continue;
                 };
                 let Ok(value) = parse(text.as_bytes()) else {
                     continue;
                 };
-                let Value::Array(entries) = value else { continue };
+                let Value::Array(entries) = value else {
+                    continue;
+                };
                 for entry in &entries {
-                    let Value::Object(object) = entry else { continue };
+                    let Value::Object(object) = entry else {
+                        continue;
+                    };
                     if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
                         continue;
                     }
@@ -150,7 +166,8 @@ fn keys_in_the_data() -> BTreeSet<String> {
     }
 
     let mut keys = BTreeSet::new();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     walk(&root, &mut keys);
     keys
 }
@@ -169,9 +186,23 @@ fn the_registry_from_the_data_plus_the_code_keys_is_exactly_the_reference_s_list
     let reference = keys();
     let missing: Vec<&String> = reference.difference(&registry).collect();
     let extra: Vec<&String> = registry.difference(&reference).collect();
-    assert!(missing.is_empty(), "the port would miss {} chunks: {:?}", missing.len(), &missing[..missing.len().min(8)]);
-    assert!(extra.is_empty(), "the port would offer {} chunks: {:?}", extra.len(), &extra[..extra.len().min(8)]);
-    assert_eq!(registry.len(), 6306, "and the answer is the reference's own count");
+    assert!(
+        missing.is_empty(),
+        "the port would miss {} chunks: {:?}",
+        missing.len(),
+        &missing[..missing.len().min(8)]
+    );
+    assert!(
+        extra.is_empty(),
+        "the port would offer {} chunks: {:?}",
+        extra.len(),
+        &extra[..extra.len().min(8)]
+    );
+    assert_eq!(
+        registry.len(),
+        6306,
+        "and the answer is the reference's own count"
+    );
 }
 
 #[test]
@@ -179,16 +210,27 @@ fn the_loader_s_own_extractor_agrees_with_the_registry_walk() {
     // Two pieces of code now read `om_terrain`: the test's walker, which builds the registry, and `mapgen::keys_of`, which a loader uses on one object at a time. If they disagree,
     // the registry gate passes while the loader that feeds the generator gets a different set - so they are compared over the whole data rather than trusted to match by inspection.
     fn walk(directory: &Path, into: &mut Vec<(String, String)>) {
-        let Ok(entries) = std::fs::read_dir(directory) else { return };
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 walk(&path, into);
-            } else if path.extension().is_some_and(|extension| extension == "json") {
-                let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                    continue;
+                };
                 for entry in entries {
-                    let Value::Object(object) = &entry else { continue };
+                    let Value::Object(object) = &entry else {
+                        continue;
+                    };
                     for key in cdda_content::mapgen::keys_of(object).terrains {
                         into.push((text.clone(), key));
                     }
@@ -199,14 +241,18 @@ fn the_loader_s_own_extractor_agrees_with_the_registry_walk() {
 
     let mut from_loader: BTreeSet<String> = BTreeSet::new();
     let mut pairs: Vec<(String, String)> = Vec::new();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     walk(&root, &mut pairs);
     for (_, key) in pairs {
         from_loader.insert(key);
     }
     let expected = keys_in_the_data();
     assert_eq!(from_loader.len(), expected.len(), "the same number of keys");
-    assert_eq!(from_loader, expected, "and the same keys, not just the same count");
+    assert_eq!(
+        from_loader, expected,
+        "and the same keys, not just the same count"
+    );
 }
 
 #[test]
@@ -222,7 +268,10 @@ fn the_chunk_the_map_dump_came_from_is_a_key_the_registry_has() {
     let Some(Value::Str(oter)) = root.get("oter") else {
         panic!("the map names no overmap terrain");
     };
-    assert!(keys().contains(oter), "{oter} is the chunk the map dump came from");
+    assert!(
+        keys().contains(oter),
+        "{oter} is the chunk the map dump came from"
+    );
     assert!(
         cdda_content::mapgen::CODE_REGISTERED.contains(&oter.as_str()),
         "and it is one of the keys the data does not write"
@@ -235,7 +284,11 @@ fn the_data_writes_four_keys_fewer_than_the_reference_registers() {
     // data's keys are selectors rather than chunks, and the reference ends with 6,306.
     let in_data = keys_in_the_data().len();
     assert_eq!(in_data, 6284, "keys written in the data");
-    assert_eq!(in_data + cdda_content::mapgen::CODE_REGISTERED.len() - cdda_content::mapgen::NOT_CHUNKS.len(), 6306);
+    assert_eq!(
+        in_data + cdda_content::mapgen::CODE_REGISTERED.len()
+            - cdda_content::mapgen::NOT_CHUNKS.len(),
+        6306
+    );
     assert_eq!(keys().len(), 6306, "and the reference agrees");
 }
 
@@ -245,16 +298,27 @@ fn a_mapgen_entry_keeps_its_map_under_object_and_never_at_the_top_level() {
     // lives inside `object` in all 6,216, and `object` itself varies - some carry only `place_liquids`, some a `rows` grid, some nested mapgen ids. A generator written against the obvious shape
     // would compile, run, and draw nothing.
     fn shapes(directory: &Path, counts: &mut std::collections::BTreeMap<&'static str, usize>) {
-        let Ok(entries) = std::fs::read_dir(directory) else { return };
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 shapes(&path, counts);
-            } else if path.extension().is_some_and(|extension| extension == "json") {
-                let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                    continue;
+                };
                 for entry in &entries {
-                    let Value::Object(object) = entry else { continue };
+                    let Value::Object(object) = entry else {
+                        continue;
+                    };
                     if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
                         continue;
                     }
@@ -274,12 +338,25 @@ fn a_mapgen_entry_keeps_its_map_under_object_and_never_at_the_top_level() {
     }
 
     let mut counts = std::collections::BTreeMap::new();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     shapes(&root, &mut counts);
     assert_eq!(counts.get("entries"), Some(&6216), "mapgen entries");
-    assert_eq!(counts.get("rows at the top"), None, "none writes rows at the top level");
-    assert_eq!(counts.get("palette at the top"), None, "none writes a palette there either");
-    assert_eq!(counts.get("under object"), Some(&6216), "and **every** entry keeps its map under object");
+    assert_eq!(
+        counts.get("rows at the top"),
+        None,
+        "none writes rows at the top level"
+    );
+    assert_eq!(
+        counts.get("palette at the top"),
+        None,
+        "none writes a palette there either"
+    );
+    assert_eq!(
+        counts.get("under object"),
+        Some(&6216),
+        "and **every** entry keeps its map under object"
+    );
 }
 
 #[test]
@@ -287,20 +364,33 @@ fn the_eight_ways_the_data_declares_a_chunk_s_terrain_are_stable() {
     // Every combination of "draws a grid", "declares terrain inline" and "names palettes", counted over the whole data. A generator has to satisfy all eight, and four of them are the
     // ones that are easy to get wrong: no grid at all, a palette lookup that reading `terrain` would skip, a grid with no terrain anywhere, and placement-only entries.
     fn count(directory: &Path, into: &mut std::collections::BTreeMap<(bool, bool, bool), usize>) {
-        let Ok(entries) = std::fs::read_dir(directory) else { return };
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 count(&path, into);
-            } else if path.extension().is_some_and(|extension| extension == "json") {
-                let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                    continue;
+                };
                 for entry in &entries {
-                    let Value::Object(object) = entry else { continue };
+                    let Value::Object(object) = entry else {
+                        continue;
+                    };
                     if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
                         continue;
                     }
-                    let Some(Value::Object(inner)) = object.get("object") else { continue };
+                    let Some(Value::Object(inner)) = object.get("object") else {
+                        continue;
+                    };
                     let shape = (
                         inner.get("rows").is_some(),
                         inner.get("terrain").is_some(),
@@ -313,7 +403,8 @@ fn the_eight_ways_the_data_declares_a_chunk_s_terrain_are_stable() {
     }
 
     let mut counts = std::collections::BTreeMap::new();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     count(&root, &mut counts);
     let expected = [
         ((true, false, true), 2411),
@@ -326,26 +417,47 @@ fn the_eight_ways_the_data_declares_a_chunk_s_terrain_are_stable() {
         ((false, true, true), 1),
     ];
     for (shape, number) in expected {
-        assert_eq!(counts.get(&shape).copied().unwrap_or(0), number, "shape {shape:?}");
+        assert_eq!(
+            counts.get(&shape).copied().unwrap_or(0),
+            number,
+            "shape {shape:?}"
+        );
     }
-    assert_eq!(counts.values().sum::<usize>(), 6216, "and the eight partition the data");
+    assert_eq!(
+        counts.values().sum::<usize>(),
+        6216,
+        "and the eight partition the data"
+    );
 }
 
 fn find_predecessors(path: &Path, seen: &mut Vec<(String, String)>) {
-    let Ok(entries) = std::fs::read_dir(path) else { return };
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
             find_predecessors(&path, seen);
-        } else if path.extension().is_some_and(|extension| extension == "json") {
-            let Ok(text) = std::fs::read_to_string(&path) else { continue };
-            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                continue;
+            };
             for entry in &entries {
-                let Value::Object(object) = entry else { continue };
+                let Value::Object(object) = entry else {
+                    continue;
+                };
                 if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
                     continue;
                 }
-                let Some(Value::Object(inner)) = object.get("object") else { continue };
+                let Some(Value::Object(inner)) = object.get("object") else {
+                    continue;
+                };
                 if let Some(Value::Str(predecessor)) = inner.get("predecessor_mapgen") {
                     seen.push((format!("{object:?}"), predecessor.clone()));
                 }
@@ -374,13 +486,15 @@ fn the_thick_forest_is_generated_in_code_and_some_chunks_are_drawn_over_another(
     );
 
     let mut over = Vec::new();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     find_predecessors(&root, &mut over);
     // The thick forest is the predecessor the data names, and it is the only one worth naming here: every entry found has to point at
     // something, and the count is reported rather than pinned, because a mod or a new island is data the port should follow rather
     // than a number it should fail on.
     assert!(
-        over.iter().any(|(_, predecessor)| predecessor == "forest_thick"),
+        over.iter()
+            .any(|(_, predecessor)| predecessor == "forest_thick"),
         "the thick forest is drawn over by the island: {over:?}"
     );
 }
@@ -390,30 +504,45 @@ fn the_palette_graph_is_complete_and_acyclic() {
     // A chunk's terrain often comes from a named palette rather than from the entry, and palettes name other palettes. Before a transitive resolver is written, the graph is measured:
     // 481 palettes, 5,304 references from mapgens over 278 distinct names, nothing dangling in either direction, and no cycle. A dangling name would be a chunk nobody can draw; a
     // cycle would hang a resolver exactly the way the map dump hung.
-    fn collect(path: &Path, palettes: &mut std::collections::BTreeMap<String, Vec<String>>, refs: &mut Vec<String>) {
-        let Ok(entries) = std::fs::read_dir(path) else { return };
+    fn collect(
+        path: &Path,
+        palettes: &mut std::collections::BTreeMap<String, Vec<String>>,
+        refs: &mut Vec<String>,
+    ) {
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 collect(&path, palettes, refs);
-            } else if path.extension().is_some_and(|extension| extension == "json") {
-                let Ok(text) = std::fs::read_to_string(&path) else { continue };
-                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                    continue;
+                };
                 for entry in &entries {
-                    let Value::Object(object) = entry else { continue };
+                    let Value::Object(object) = entry else {
+                        continue;
+                    };
                     if matches!(object.get("type"), Some(Value::Str(kind)) if kind == "palette")
                         && let Some(Value::Str(id)) = object.get("id")
                     {
-                            let inner = match object.get("palettes") {
-                                Some(Value::Array(items)) => items
-                                    .iter()
-                                    .filter_map(|item| match item {
-                                        Value::Str(name) => Some(name.clone()),
-                                        _ => None,
-                                    })
-                                    .collect(),
-                                _ => Vec::new(),
-                            };
+                        let inner = match object.get("palettes") {
+                            Some(Value::Array(items)) => items
+                                .iter()
+                                .filter_map(|item| match item {
+                                    Value::Str(name) => Some(name.clone()),
+                                    _ => None,
+                                })
+                                .collect(),
+                            _ => Vec::new(),
+                        };
                         palettes.insert(id.clone(), inner);
                     }
                     if let Some(Value::Object(mapgen)) = object.get("object")
@@ -430,19 +559,31 @@ fn the_palette_graph_is_complete_and_acyclic() {
         }
     }
 
-    let mut palettes: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    let mut palettes: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     let mut refs: Vec<String> = Vec::new();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     collect(&root, &mut palettes, &mut refs);
     assert_eq!(palettes.len(), 481, "palettes declared");
     assert_eq!(refs.len(), 5304, "references from mapgens");
-    assert_eq!(refs.iter().collect::<std::collections::BTreeSet<_>>().len(), 278, "distinct names");
+    assert_eq!(
+        refs.iter().collect::<std::collections::BTreeSet<_>>().len(),
+        278,
+        "distinct names"
+    );
     for name in &refs {
-        assert!(palettes.contains_key(name), "{name} is referenced and declared");
+        assert!(
+            palettes.contains_key(name),
+            "{name} is referenced and declared"
+        );
     }
     for (id, names) in &palettes {
         for name in names {
-            assert!(palettes.contains_key(name), "palette {id} names {name}, which exists");
+            assert!(
+                palettes.contains_key(name),
+                "palette {id} names {name}, which exists"
+            );
         }
     }
     // No cycle: every walking state is (node, path) and a name already on the path would close one.
@@ -460,17 +601,31 @@ fn the_palette_graph_is_complete_and_acyclic() {
     }
 }
 
-fn gather_palettes(path: &Path, palettes: &mut std::collections::BTreeMap<String, cdda_json::Object>) {
-    let Ok(entries) = std::fs::read_dir(path) else { return };
+fn gather_palettes(
+    path: &Path,
+    palettes: &mut std::collections::BTreeMap<String, cdda_json::Object>,
+) {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
             gather_palettes(&path, palettes);
-        } else if path.extension().is_some_and(|extension| extension == "json") {
-            let Ok(text) = std::fs::read_to_string(&path) else { continue };
-            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                continue;
+            };
             for entry in entries {
-                let Value::Object(object) = entry else { continue };
+                let Value::Object(object) = entry else {
+                    continue;
+                };
                 if matches!(object.get("type"), Some(Value::Str(kind)) if kind == "palette")
                     && let Some(Value::Str(id)) = object.get("id")
                 {
@@ -485,8 +640,10 @@ fn gather_palettes(path: &Path, palettes: &mut std::collections::BTreeMap<String
 fn a_chunk_s_symbols_gather_through_its_palettes_and_theirs() {
     // The second mechanism the generator needs. Every mapgen that names palettes is resolved here - through those palettes and whatever they name in turn - and the gathered symbols
     // are compared against the chunk's own rows where it has any: every character must be drawable, which is the same requirement `resolve_rows` enforces on inline terrain.
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
-    let mut palettes: std::collections::BTreeMap<String, cdda_json::Object> = std::collections::BTreeMap::new();
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let mut palettes: std::collections::BTreeMap<String, cdda_json::Object> =
+        std::collections::BTreeMap::new();
     gather_palettes(&root, &mut palettes);
 
     let names: Vec<String> = palettes.keys().cloned().collect();
@@ -494,11 +651,18 @@ fn a_chunk_s_symbols_gather_through_its_palettes_and_theirs() {
         &cdda_content::mapgen::palette_refs(&names),
         &|name| palettes.get(name).cloned(),
     );
-    assert!(gathered.len() > 50, "the palettes together draw with {} symbols", gathered.len());
+    assert!(
+        gathered.len() > 50,
+        "the palettes together draw with {} symbols",
+        gathered.len()
+    );
     // Every id the gathering produces has to be a terrain the game knows.
     let known = terrain_ids();
     for (symbol, id) in &gathered {
-        assert!(known.contains(id), "'{symbol}' draws {id}, which the terrain dump does not have");
+        assert!(
+            known.contains(id),
+            "'{symbol}' draws {id}, which the terrain dump does not have"
+        );
     }
 }
 
@@ -524,22 +688,41 @@ fn terrain_ids() -> BTreeSet<String> {
         .collect()
 }
 
-fn draw_all(path: &Path, palettes: &std::collections::BTreeMap<String, cdda_json::Object>, chunks: &mut usize, squares: &mut usize) {
-    let Ok(entries) = std::fs::read_dir(path) else { return };
+fn draw_all(
+    path: &Path,
+    palettes: &std::collections::BTreeMap<String, cdda_json::Object>,
+    chunks: &mut usize,
+    squares: &mut usize,
+) {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
             draw_all(&path, palettes, chunks, squares);
-        } else if path.extension().is_some_and(|extension| extension == "json") {
-            let Ok(text) = std::fs::read_to_string(&path) else { continue };
-            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                continue;
+            };
             for entry in &entries {
-                let Value::Object(object) = entry else { continue };
+                let Value::Object(object) = entry else {
+                    continue;
+                };
                 if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
                     continue;
                 }
-                let Some(Value::Object(inner)) = object.get("object") else { continue };
-                let (Some(Value::Array(rows)), Some(Value::Array(names))) = (inner.get("rows"), inner.get("palettes"))
+                let Some(Value::Object(inner)) = object.get("object") else {
+                    continue;
+                };
+                let (Some(Value::Array(rows)), Some(Value::Array(names))) =
+                    (inner.get("rows"), inner.get("palettes"))
                 else {
                     continue;
                 };
@@ -580,13 +763,14 @@ fn draw_all(path: &Path, palettes: &std::collections::BTreeMap<String, cdda_json
     }
 }
 
-
 #[test]
 fn a_chunk_that_names_palettes_draws_through_them_with_its_own_map_winning() {
     // The two mechanisms together: palettes supply the symbols, the entry's own terrain map wins where both define one, and spaces draw nothing. Run over every chunk in the data that
     // draws a grid and names at least one palette - the 2,411 that reading `object.terrain` alone would leave blank.
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
-    let mut palettes: std::collections::BTreeMap<String, cdda_json::Object> = std::collections::BTreeMap::new();
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let mut palettes: std::collections::BTreeMap<String, cdda_json::Object> =
+        std::collections::BTreeMap::new();
     gather_palettes(&root, &mut palettes);
 
     let mut chunks = 0;
@@ -606,40 +790,82 @@ fn a_furniture_symbol_picks_its_candidate_by_the_roll_it_is_given() {
         ("f_diesel_generator".to_string(), 5),
         ("f_12000_gasoline_generator".to_string(), 5),
     ];
-    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 0), Some("f_generator_broken"));
-    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 24), Some("f_generator_broken"));
-    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 25), Some("f_portable_generator"));
-    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 44), Some("f_portable_generator"));
-    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 45), Some("f_diesel_generator"));
-    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 49), Some("f_diesel_generator"));
-    assert_eq!(cdda_content::mapgen::pick_furniture(&choices, 50), Some("f_12000_gasoline_generator"));
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&choices, 0),
+        Some("f_generator_broken")
+    );
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&choices, 24),
+        Some("f_generator_broken")
+    );
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&choices, 25),
+        Some("f_portable_generator")
+    );
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&choices, 44),
+        Some("f_portable_generator")
+    );
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&choices, 45),
+        Some("f_diesel_generator")
+    );
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&choices, 49),
+        Some("f_diesel_generator")
+    );
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&choices, 50),
+        Some("f_12000_gasoline_generator")
+    );
     let single = [("f_crate_c".to_string(), 1)];
-    assert_eq!(cdda_content::mapgen::pick_furniture(&single, 0), Some("f_crate_c"));
+    assert_eq!(
+        cdda_content::mapgen::pick_furniture(&single, 0),
+        Some("f_crate_c")
+    );
 }
 
 fn gather_furniture(path: &Path, tables: &mut usize, candidates: &mut usize) {
-    let Ok(entries) = std::fs::read_dir(path) else { return };
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
             gather_furniture(&path, tables, candidates);
-        } else if path.extension().is_some_and(|extension| extension == "json") {
-            let Ok(text) = std::fs::read_to_string(&path) else { continue };
-            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else { continue };
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(Value::Array(entries)) = parse(text.as_bytes()) else {
+                continue;
+            };
             for entry in &entries {
-                let Value::Object(object) = entry else { continue };
+                let Value::Object(object) = entry else {
+                    continue;
+                };
                 if !matches!(object.get("type"), Some(Value::Str(kind)) if kind == "mapgen") {
                     continue;
                 }
-                let Some(Value::Object(inner)) = object.get("object") else { continue };
-                let Some(Value::Object(furniture)) = inner.get("furniture") else { continue };
+                let Some(Value::Object(inner)) = object.get("object") else {
+                    continue;
+                };
+                let Some(Value::Object(furniture)) = inner.get("furniture") else {
+                    continue;
+                };
                 let choices = cdda_content::mapgen::furniture_choices(furniture);
                 *tables += 1;
                 for (symbol, options) in &choices {
                     assert!(!options.is_empty(), "'{symbol}' has no candidate");
                     for (id, weight) in options {
                         assert!(!id.is_empty());
-                        assert!(*weight > 0, "'{symbol}' has a candidate that can never be picked");
+                        assert!(
+                            *weight > 0,
+                            "'{symbol}' has a candidate that can never be picked"
+                        );
                         *candidates += 1;
                     }
                 }
@@ -652,10 +878,14 @@ fn gather_furniture(path: &Path, tables: &mut usize, candidates: &mut usize) {
 fn every_furniture_symbol_in_the_data_is_a_map_a_chunk_could_place() {
     // The tables the data writes, read through the loader that will use them: every symbol one character, every candidate a non-empty id, every weight positive. A zero weight would be
     // a candidate that can never be picked, and a negative one would make the walk run backwards.
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json");
     let mut tables = 0;
     let mut candidates = 0;
     gather_furniture(&root, &mut tables, &mut candidates);
     assert_eq!(tables, 1257, "mapgens with a furniture map");
-    assert!(candidates > 1_000, "and candidates between them: {candidates}");
+    assert!(
+        candidates > 1_000,
+        "and candidates between them: {candidates}"
+    );
 }

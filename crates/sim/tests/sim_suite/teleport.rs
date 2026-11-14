@@ -48,7 +48,9 @@ fn a_teleport_draws_an_angle_and_a_distance_and_moves_the_creature_exactly_there
         "**an angle of zero sends the creature east by the distance drawn**, and the distance drawn is the minimum"
     );
     assert_eq!(
-        world.get::<cdda_sim::Position>(who).map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(who)
+            .map(|at| (at.x, at.y, at.z)),
         Some((3, 0, 0)),
         "and the store says so"
     );
@@ -69,11 +71,15 @@ fn landing_in_a_wall_refuses_if_safe_and_kills_if_not() {
         "**a safe teleport into solid rock does nothing at all**"
     );
     assert_eq!(
-        world.get::<cdda_sim::Position>(who).map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(who)
+            .map(|at| (at.x, at.y, at.z)),
         Some((0, 0, 0)),
         "and the creature has not moved"
     );
-    world.entity_mut(who).insert(cdda_sim::creature::Health { hp: 40, max_hp: 40 });
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Health { hp: 40, max_hp: 40 });
     assert_eq!(
         cdda_sim::teleport::to_point(&mut world, who, outside, false),
         cdda_sim::teleport::Teleport::Died,
@@ -144,7 +150,9 @@ fn a_short_range_teleport_spell_moves_its_caster() {
         "the spell moved its caster"
     );
     assert_eq!(
-        world.get::<cdda_sim::Position>(caster).map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(caster)
+            .map(|at| (at.x, at.y, at.z)),
         Some((4, 0, 0)),
         "**a range of four and no area is a jump of exactly four squares**"
     );

@@ -95,6 +95,10 @@ fn the_clock_reads_the_season_day_and_hour_the_reference_reads() {
     let at = TimePoint::from_turn(dump.turn);
 
     assert_eq!(season_of_year(at, &config) as i32, dump.season, "season");
-    assert_eq!(day_of_season(at, &config), dump.day_of_season, "day of season");
+    assert_eq!(
+        day_of_season(at, &config),
+        dump.day_of_season,
+        "day of season"
+    );
     assert_eq!(hour_of_day(at), dump.hour, "hour of day");
 }

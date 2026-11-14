@@ -95,7 +95,11 @@ impl System {
     /// A system with no weather yet.
     #[must_use]
     pub fn new(rules: cdda_content::weather::Rules) -> System {
-        System { manager: cdda_content::weather::Manager::default(), wind: crate::weather_gen::WindDirection::default(), rules }
+        System {
+            manager: cdda_content::weather::Manager::default(),
+            wind: crate::weather_gen::WindDirection::default(),
+            rules,
+        }
     }
 
     /// Runs one turn of the weather (`weather.cpp:901-947`).
@@ -115,13 +119,22 @@ impl System {
         if !self.manager.needs_update(turn) {
             return cdda_content::weather::Change::None;
         }
-        let temperature = crate::weather_gen::temperature_k(forecast.generator, &forecast.common, forecast.day_fraction);
+        let temperature = crate::weather_gen::temperature_k(
+            forecast.generator,
+            &forecast.common,
+            forecast.day_fraction,
+        );
         let humidity = crate::weather_gen::humidity(forecast.generator, &forecast.common);
         let pressure = crate::weather_gen::pressure(forecast.generator, &forecast.common);
-        let windpower = crate::weather_gen::wind_power(forecast.generator, &forecast.common, pressure, roll);
+        let windpower =
+            crate::weather_gen::wind_power(forecast.generator, &forecast.common, pressure, roll);
         // `one_in( W * 2160 )` is true without rolling when its chance is one or less, which is why a calm hour draws nothing here and the trace agrees.
         let chance = windpower.saturating_mul(2160);
-        let check = if chance <= 1 { None } else { Some(roll(0, chance - 1)) };
+        let check = if chance <= 1 {
+            None
+        } else {
+            Some(roll(0, chance - 1))
+        };
         if self.wind.needs_redraw(windpower, check) {
             self.wind.set_from_sector(sector(forecast.common.season));
         }
@@ -136,7 +149,6 @@ impl System {
         self.manager.update(turn, point, &self.rules, roll)
     }
 }
-
 
 /// The weather as the world holds it: the system, plus the two numbers a turn hands to everything else.
 ///
@@ -159,7 +171,12 @@ impl Climate {
     /// A climate with no weather yet: clear air, no wind, and the rules it will decide by.
     #[must_use]
     pub fn new(rules: cdda_content::weather::Rules) -> Climate {
-        Climate { system: System::new(rules), windpower: 0, weather: None, sight_penalty: 1.0 }
+        Climate {
+            system: System::new(rules),
+            windpower: 0,
+            weather: None,
+            sight_penalty: 1.0,
+        }
     }
 
     /// The wind the last update reported.
@@ -229,10 +246,8 @@ pub fn tick_climate(
         let named = climate.system.manager.weather.clone();
         climate.weather = named;
         if let Some(id) = climate.weather.clone() {
-            let penalty = cdda_content::weather::WeatherRules::sight_penalty(
-                &climate.system.rules,
-                &id,
-            );
+            let penalty =
+                cdda_content::weather::WeatherRules::sight_penalty(&climate.system.rules, &id);
             climate.sight_penalty = penalty;
         }
     }

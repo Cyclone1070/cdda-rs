@@ -163,7 +163,8 @@ pub fn resolve_harvests(all: &mut BTreeMap<String, HarvestDefinition>) {
                 continue;
             };
             // A parent that has not been resolved yet is waited for, unless it inherits in turn and the chain has run as far as it can.
-            if parent.copy_from.is_some() && parent.entries.is_empty() && !parent.extend.is_empty() {
+            if parent.copy_from.is_some() && parent.entries.is_empty() && !parent.extend.is_empty()
+            {
                 continue;
             }
             let mut entries = parent.entries.clone();

@@ -47,9 +47,13 @@ pub fn schedule_carrying(world: &mut World, key: &str, turns: i64, text: &str) {
     let due = now.saturating_add(turns);
     let element = crate::singletons::singleton::<TimedEvents, TheTimedEvents>(world);
     if let Some(mut events) = world.get_mut::<TimedEvents>(element) {
-        events
-            .0
-            .insert(key.to_owned(), TimedEvent { due, text: text.to_owned() });
+        events.0.insert(
+            key.to_owned(),
+            TimedEvent {
+                due,
+                text: text.to_owned(),
+            },
+        );
     }
 }
 

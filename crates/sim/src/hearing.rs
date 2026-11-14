@@ -28,7 +28,8 @@ pub struct HeardSound {
 /// and not the effect, which meant anything that deafened a monster changed nothing about what it heard.
 #[must_use]
 pub fn can_hear(world: &World, creature: Entity) -> bool {
-    crate::creature_flags::has_flag(world, creature, "HEARS") && !crate::applied_effects::has(world, creature, "deaf")
+    crate::creature_flags::has_flag(world, creature, "HEARS")
+        && !crate::applied_effects::has(world, creature, "deaf")
 }
 
 /// How loud a sound is to a creature `distance` squares away, or nothing when it is out of earshot.
@@ -117,9 +118,9 @@ pub fn hear_sounds(world: &mut World) -> usize {
             }
             // Reference: `provocative || volume >= normal_roll( 30, 5 )` (`monster.cpp:3939`) - the loudness half is drawn here, once per sound heard.
             let mut dice = crate::singletons::take_rolls(world);
-            let provocative = dice
-                .as_mut()
-                .is_some_and(|rolls| crate::sounds::heard_as_provocative(sound.category, volume, rolls));
+            let provocative = dice.as_mut().is_some_and(|rolls| {
+                crate::sounds::heard_as_provocative(sound.category, volume, rolls)
+            });
             if let Some(rolls) = dice {
                 crate::singletons::put_rolls(world, rolls);
             }
@@ -159,14 +160,22 @@ pub fn hear_sounds(world: &mut World) -> usize {
             // | `>= 0` | `< 10` | walks nowhere at all |
             //
             // **A frightened monster flees the noise and an uninterested one ignores it**, and a port that always walked towards the sound would have both wrong in the same line.
-            let morale = world.get::<crate::creature::Morale>(entity).map_or(0, |morale| morale.0);
-            let anger = world.get::<crate::creature::Anger>(entity).map_or(0, |anger| anger.0);
+            let morale = world
+                .get::<crate::creature::Morale>(entity)
+                .map_or(0, |morale| morale.0);
+            let anger = world
+                .get::<crate::creature::Anger>(entity)
+                .map_or(0, |anger| anger.0);
             let destination = if morale < 0 {
-                let here_at = world.get::<crate::Position>(entity).copied().unwrap_or(crate::Position {
-                    x: here.0,
-                    y: here.1,
-                    z: here.2,
-                });
+                let here_at =
+                    world
+                        .get::<crate::Position>(entity)
+                        .copied()
+                        .unwrap_or(crate::Position {
+                            x: here.0,
+                            y: here.1,
+                            z: here.2,
+                        });
                 (
                     here_at.x + (here_at.x - heard_at.at.0),
                     here_at.y + (here_at.y - heard_at.at.1),

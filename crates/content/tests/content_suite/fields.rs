@@ -171,12 +171,22 @@ fn the_dump_carries_what_the_radiation_and_wandering_processors_read() {
                 .levels
                 .iter()
                 .filter(|level| level.extra_radiation_max > 0)
-                .map(move |level| (field.id.as_str(), level.extra_radiation_min, level.extra_radiation_max))
+                .map(move |level| {
+                    (
+                        field.id.as_str(),
+                        level.extra_radiation_min,
+                        level.extra_radiation_max,
+                    )
+                })
         })
         .collect();
     assert_eq!(
         radiating,
-        vec![("fd_nuke_gas", 0, 1), ("fd_nuke_gas", 0, 2), ("fd_nuke_gas", 0, 3)],
+        vec![
+            ("fd_nuke_gas", 0, 1),
+            ("fd_nuke_gas", 0, 2),
+            ("fd_nuke_gas", 0, 3)
+        ],
         "one field radiates, and each of its three intensities radiates more than the last"
     );
 }
@@ -219,14 +229,20 @@ fn the_dump_carries_which_fields_fall_and_which_may_land() {
     );
     // Blood falls and still never lands on open air, because it is not a gas. Smoke is, which is why a smoke one level down is the case that can be seen in a world.
     let blood = fields::find(&all, "fd_blood").expect("blood exists");
-    assert_eq!(blood.phase, "liquid", "blood is a liquid, so it cannot land on a hole");
+    assert_eq!(
+        blood.phase, "liquid",
+        "blood is a liquid, so it cannot land on a hole"
+    );
     let smoke = fields::find(&all, "fd_smoke").expect("smoke exists");
     assert_eq!(smoke.phase, "gas", "smoke can");
     // The phases the data uses, so a loader that dropped the field would show up as an empty string here rather than as a wrong answer later.
-    let phases: std::collections::BTreeSet<&str> = all.iter().map(|field| field.phase.as_str()).collect();
+    let phases: std::collections::BTreeSet<&str> =
+        all.iter().map(|field| field.phase.as_str()).collect();
     assert_eq!(
         phases,
-        ["gas", "liquid", "null", "plasma", "solid"].into_iter().collect(),
+        ["gas", "liquid", "null", "plasma", "solid"]
+            .into_iter()
+            .collect(),
         "five phases"
     );
 }

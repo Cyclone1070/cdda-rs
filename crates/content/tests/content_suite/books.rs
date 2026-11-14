@@ -21,9 +21,16 @@ fn a_book_record_reads_into_its_slot() {
     assert_eq!(book.level, 7, "max_level is what it teaches to");
     assert_eq!(book.intel, 9);
     assert_eq!(book.fun, -2, "fun may be negative");
-    assert_eq!(book.time_turns, 35 * 60, "**35 m is 2100 turns**, a turn being a second");
+    assert_eq!(
+        book.time_turns,
+        35 * 60,
+        "**35 m is 2100 turns**, a turn being a second"
+    );
     assert_eq!(book.chapters, 6);
-    assert!(book.is_usable(), "and it is a book the reading rules can use");
+    assert!(
+        book.is_usable(),
+        "and it is a book the reading rules can use"
+    );
 }
 
 /// The corpus's own books read, and the durations among them are the units the data actually writes.
@@ -32,7 +39,8 @@ fn a_book_record_reads_into_its_slot() {
 /// fields - `copy-from` inheritance is the item loader's job, not this record reader's.
 #[test]
 fn the_corpus_books_read() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json/items/book");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../oracle/src/data/json/items/book");
     if !dir.is_dir() {
         return;
     }
@@ -69,8 +77,14 @@ fn the_corpus_books_read() {
         }
     }
     assert!(books > 500, "the corpus is large: {books} books");
-    assert!(usable > 100, "and many of them state a skill and a time: {usable}");
-    assert!(minutes > hours, "**most books are measured in minutes**: {minutes} against {hours} hours");
+    assert!(
+        usable > 100,
+        "and many of them state a skill and a time: {usable}"
+    );
+    assert!(
+        minutes > hours,
+        "**most books are measured in minutes**: {minutes} against {hours} hours"
+    );
 }
 
 /// The item loader fills the book slot, and a `copy-from` child keeps the fields it does not state.
@@ -79,16 +93,24 @@ fn the_corpus_books_read() {
 /// and intelligence**. That per-field keep-if-absent merge is the opposite of a stated array, which clears first - and it is the rule that makes a whole shelf of derived books readable.
 #[test]
 fn the_item_loader_fills_the_book_slot_and_inherits_field_by_field() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json/items/book");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../oracle/src/data/json/items/book");
     if !dir.is_dir() {
         return;
     }
     let types = cdda_content::items::load_paths(&[dir.as_path()]).expect("the book records load");
     let books: Vec<_> = types.iter().filter(|kind| kind.book.is_some()).collect();
-    assert!(books.len() > 100, "the loader keeps the slot for the books it reads: {}", books.len());
+    assert!(
+        books.len() > 100,
+        "the loader keeps the slot for the books it reads: {}",
+        books.len()
+    );
     // Every kept slot is usable, and at least one of them **inherited** its skill rather than stating it: a child with a `time` and no `read_skill` of its own.
     assert!(
-        books.iter().any(|kind| kind.book.as_ref().is_some_and(|book| book.time_turns > 0 && !book.skill.is_empty())),
+        books.iter().any(|kind| kind
+            .book
+            .as_ref()
+            .is_some_and(|book| book.time_turns > 0 && !book.skill.is_empty())),
         "at least one book states a skill and a time, so the slot is not an empty shell"
     );
     assert!(

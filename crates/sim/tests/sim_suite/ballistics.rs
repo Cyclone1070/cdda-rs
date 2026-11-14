@@ -100,7 +100,10 @@ fn a_wild_miss_walks_out_by_the_root_of_how_far_it_missed() {
     }
 
     // A shot aimed at its own square cannot happen, and the reference refuses it outright.
-    let at_self = Shot { target: (0, 0, 0), ..shot };
+    let at_self = Shot {
+        target: (0, 0, 0),
+        ..shot
+    };
     assert_eq!(
         landing(&at_self, &mut dice),
         (0, 0, 0),

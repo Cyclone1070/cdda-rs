@@ -22,7 +22,10 @@ fn a_math_statement_sets_a_dialogue_variable() {
     let statement = assignment("void_spider_killed = 1");
     assert_eq!(statement.op, AssignmentOp::Set);
     assert_eq!(statement.target.name(), "void_spider_killed");
-    assert_eq!(run_assignment(&mut world, survivor, None, &statement), Applied::Done);
+    assert_eq!(
+        run_assignment(&mut world, survivor, None, &statement),
+        Applied::Done
+    );
     assert_eq!(
         dialogue_values::number_of(&world, survivor, "void_spider_killed"),
         Some(1.0)
@@ -35,15 +38,30 @@ fn the_compound_operators_start_from_zero_when_the_variable_is_unset() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
 
     run_assignment(&mut world, survivor, None, &assignment("counter += 2"));
-    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(2.0));
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "counter"),
+        Some(2.0)
+    );
     run_assignment(&mut world, survivor, None, &assignment("counter += 3"));
-    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(5.0));
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "counter"),
+        Some(5.0)
+    );
     run_assignment(&mut world, survivor, None, &assignment("counter -= 4"));
-    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(1.0));
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "counter"),
+        Some(1.0)
+    );
     run_assignment(&mut world, survivor, None, &assignment("counter *= 6"));
-    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(6.0));
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "counter"),
+        Some(6.0)
+    );
     run_assignment(&mut world, survivor, None, &assignment("counter /= 3"));
-    assert_eq!(dialogue_values::number_of(&world, survivor, "counter"), Some(2.0));
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "counter"),
+        Some(2.0)
+    );
 }
 
 #[test]
@@ -60,7 +78,10 @@ fn a_statement_whose_value_cannot_be_worked_out_changes_nothing() {
         run_assignment(&mut world, survivor, None, &from_an_unset),
         Applied::Done
     );
-    assert_eq!(dialogue_values::number_of(&world, survivor, "kept"), Some(1.0));
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "kept"),
+        Some(1.0)
+    );
 
     dialogue_values::set(&mut world, survivor, "kept", Value::Number(7.0));
 
@@ -70,7 +91,10 @@ fn a_statement_whose_value_cannot_be_worked_out_changes_nothing() {
         run_assignment(&mut world, survivor, None, &divide_by_zero),
         Applied::CannotAnswer
     );
-    assert_eq!(dialogue_values::number_of(&world, survivor, "kept"), Some(7.0));
+    assert_eq!(
+        dialogue_values::number_of(&world, survivor, "kept"),
+        Some(7.0)
+    );
 }
 
 /// The key of the effect entry that refuses, following `if` branches to a leaf.
@@ -191,7 +215,10 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
         "eoc effects: {entries} entries, {runnable} runnable; most common refusals: {collapsed:?}"
     );
 
-    assert_eq!(entries, 1612, "the data's effect-on-conditions hold 1,612 effects");
+    assert_eq!(
+        entries, 1612,
+        "the data's effect-on-conditions hold 1,612 effects"
+    );
     // 179 of the 304 `math` entries. Reading both spellings of a destination (`"x = 1"` and `"u_val('x') = 1"`)
     // took it from 174 to 179, and the 125 still refused are of two shapes worth naming: 139 of the statements are pure
     // **expressions** with no assignment at all (`"u_val('stamina')"`, `"ps_str + 50"`), and 76 are bare operators that suggest a
@@ -227,7 +254,11 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     // 792 after location variables: the plain form stores the actor's square, and the searching forms are still refused.
     // 805 after `open_dialogue`: the branch rule runs exactly, and the conversation itself is not opened (no interface to open it).
     crate::numbers::NOW.accounts_for_every_program();
-    assert_eq!(runnable, crate::numbers::NOW.effects_runnable, "of which the port runs 1,590 entries");
+    assert_eq!(
+        runnable,
+        crate::numbers::NOW.effects_runnable,
+        "of which the port runs 1,590 entries"
+    );
 
     // And the ranking of what refuses, which is this census's real output: it says what to port next instead of what is used most.
     // `target_var` is the one entry the ranking cannot attribute on its own - a scan of the data shows 71 of those 98 are
@@ -239,9 +270,15 @@ fn the_port_can_run_the_math_effects_and_says_how_many_that_is() {
     println!("effect refusals, most common first: {ranking:?}");
     // The **ranking** moves whenever any leaf lands, so it is printed rather than pinned to a list: what is pinned is that the entries are real
     // effects with refusals behind them, and that the commonest refusal is named.
-    assert!(!ranking.is_empty(), "the effect census ranks its refusals: {ranking:?}");
+    assert!(
+        !ranking.is_empty(),
+        "the effect census ranks its refusals: {ranking:?}"
+    );
     for (member, count) in &ranking {
-        assert!(*count > 0, "{member} refuses {count} entries, so ranking it is a claim about the data");
+        assert!(
+            *count > 0,
+            "{member} refuses {count} entries, so ranking it is a claim about the data"
+        );
     }
 }
 
@@ -256,7 +293,10 @@ fn a_destination_can_be_named_the_way_the_expression_language_names_it() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let statement = assignment("u_val('sleepiness') = min(u_val('sleepiness') + 20, 1200)");
     assert_eq!(statement.target.scope(), Some("u_val"));
-    assert_eq!(run_assignment(&mut world, survivor, None, &statement), Applied::Done);
+    assert_eq!(
+        run_assignment(&mut world, survivor, None, &statement),
+        Applied::Done
+    );
     assert_eq!(
         dialogue_values::number_of(&world, survivor, "sleepiness"),
         Some(20.0),
@@ -276,7 +316,7 @@ fn a_destination_can_be_named_the_way_the_expression_language_names_it() {
 /// test can see what the game said.
 #[test]
 fn a_program_runs_its_effects_in_order_and_a_message_is_recorded() {
-    use cdda_sim::dialogue_effects::{run_effects, Applied};
+    use cdda_sim::dialogue_effects::{Applied, run_effects};
     use cdda_sim::messages;
 
     let mut world = World::new();
@@ -288,7 +328,8 @@ fn a_program_runs_its_effects_in_order_and_a_message_is_recorded() {
         )
         .expect("readable"),
         cdda_content::dialogue::read_effect(
-            &cdda_json::parse(br#"{"u_message": "The spiders are quiet."}"#.as_slice()).expect("json"),
+            &cdda_json::parse(br#"{"u_message": "The spiders are quiet."}"#.as_slice())
+                .expect("json"),
         )
         .expect("readable"),
         cdda_content::dialogue::read_effect(
@@ -296,13 +337,19 @@ fn a_program_runs_its_effects_in_order_and_a_message_is_recorded() {
         )
         .expect("readable"),
     ];
-    assert_eq!(run_effects(&mut world, survivor, None, &program), Applied::Done);
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &program),
+        Applied::Done
+    );
     assert_eq!(
         dialogue_values::number_of(&world, survivor, "visits"),
         Some(1.0),
         "the statements ran in order: set, message, increment"
     );
-    assert_eq!(messages::lines(&world), vec!["The spiders are quiet.".to_owned()]);
+    assert_eq!(
+        messages::lines(&world),
+        vec!["The spiders are quiet.".to_owned()]
+    );
 
     // The log is drained, not appended to forever.
     messages::clear(&mut world);
@@ -310,9 +357,11 @@ fn a_program_runs_its_effects_in_order_and_a_message_is_recorded() {
 
     // A message written as a translation object reads too, and a snippet reads as a snippet: the member names a category of text rather than the
     // text itself, which `a_snippet_message_picks_a_line_from_its_category_by_weight` covers.
-    let translated = cdda_json::parse(br#"{"npc_message": {"str": "Rough weather."}}"#.as_slice()).expect("json");
+    let translated = cdda_json::parse(br#"{"npc_message": {"str": "Rough weather."}}"#.as_slice())
+        .expect("json");
     assert!(cdda_content::dialogue::read_effect(&translated).is_some());
-    let snippet = cdda_json::parse(br#"{"u_message": "snippet_id", "snippet": true}"#.as_slice()).expect("json");
+    let snippet = cdda_json::parse(br#"{"u_message": "snippet_id", "snippet": true}"#.as_slice())
+        .expect("json");
     assert!(matches!(
         cdda_content::dialogue::read_effect(&snippet),
         Some(cdda_content::dialogue::Effect::Snippet { .. })
@@ -339,7 +388,12 @@ fn a_program_can_give_and_take_a_wound() {
     };
 
     let timed = entry(r#"{"u_add_effect": "effect_bleed", "duration": "30 m", "intensity": 2}"#);
-    let Effect::AddEffect { duration, intensity, .. } = timed.clone() else {
+    let Effect::AddEffect {
+        duration,
+        intensity,
+        ..
+    } = timed.clone()
+    else {
         panic!("read as an effect to add");
     };
     assert_eq!(
@@ -375,18 +429,23 @@ fn a_program_can_give_and_take_a_wound() {
     );
 
     let gone = entry(r#"{"u_remove_effect": "effect_bleed"}"#);
-    assert_eq!(run_effects(&mut world, survivor, None, &[gone]), Applied::Done);
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &[gone]),
+        Applied::Done
+    );
     assert!(!applied_effects::has(&world, survivor, "effect_bleed"));
 
     // A body part the port does not model is **ignored**, and the effect lands on the creature. The reference places it on the part named; the port
     // has no limbs, so the part is a name it cannot place and the creature is what is left. Refusing instead cost 14 effect entries and several
     // programs for a distinction the port cannot draw anyway.
-    let on_a_part = cdda_json::parse(
-        br#"{"u_add_effect": "effect_bleed", "target_part": "arm_l"}"#.as_slice(),
-    )
-    .expect("json");
+    let on_a_part =
+        cdda_json::parse(br#"{"u_add_effect": "effect_bleed", "target_part": "arm_l"}"#.as_slice())
+            .expect("json");
     let welcomed = cdda_content::dialogue::read_effect(&on_a_part).expect("readable");
-    assert_eq!(run_effects(&mut world, survivor, None, &[welcomed]), Applied::Done);
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &[welcomed]),
+        Applied::Done
+    );
     assert!(
         applied_effects::has(&world, survivor, "effect_bleed"),
         "the effect landed on the creature, which is where the port can put it"
@@ -423,7 +482,10 @@ fn a_conditional_effect_runs_the_branch_its_condition_chooses() {
 
     messages::clear(&mut world);
     dialogue_values::set(&mut world, survivor, "armed", Value::Number(1.0));
-    assert_eq!(run_effects(&mut world, survivor, None, &[guarded]), Applied::Done);
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &[guarded]),
+        Applied::Done
+    );
     assert_eq!(
         messages::lines(&world),
         vec!["the safety clicks off".to_owned()],
@@ -437,7 +499,10 @@ fn a_conditional_effect_runs_the_branch_its_condition_chooses() {
     // An absent `else` runs nothing rather than refusing the effect.
     let no_else = entry(r#"{"if": {"math": ["never", "==", 1]}, "then": [{"u_message": "no"}]}"#);
     messages::clear(&mut world);
-    assert_eq!(run_effects(&mut world, survivor, None, &[no_else]), Applied::Done);
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &[no_else]),
+        Applied::Done
+    );
     assert!(messages::lines(&world).is_empty());
 
     // A branch the port cannot read refuses the whole `if`, rather than running the readable half.
@@ -475,8 +540,8 @@ fn a_time_argument_answers_the_duration_in_turns() {
     );
 
     // The literal is text, so a function expecting a number still refuses it rather than reading it as zero.
-    let misleading = cdda_json::parse(br#"{"math": ["x = abs('1 minutes')"]}"#.as_slice())
-        .expect("json");
+    let misleading =
+        cdda_json::parse(br#"{"math": ["x = abs('1 minutes')"]}"#.as_slice()).expect("json");
     assert!(
         cdda_content::dialogue::read_effect(&misleading).is_some(),
         "it parses - `abs` takes one argument of any shape"
@@ -566,7 +631,7 @@ fn a_switch_runs_the_last_case_the_value_reaches() {
                     {"case": 1, "effect": [{"u_message": "first"}]},
                     {"case": 2, "effect": [{"u_message": "second"}]}
                 ]}"#
-                .as_slice(),
+            .as_slice(),
         )
         .expect("json"),
     )
@@ -588,13 +653,21 @@ fn a_switch_runs_the_last_case_the_value_reaches() {
         cdda_sim::messages::lines(world)
     };
 
-    assert_eq!(climb(&mut world, 0.0), vec!["ground".to_owned()], "exactly zero reaches the first case");
+    assert_eq!(
+        climb(&mut world, 0.0),
+        vec!["ground".to_owned()],
+        "exactly zero reaches the first case"
+    );
     assert_eq!(
         climb(&mut world, 1.0),
         vec!["first".to_owned()],
         "one reaches the first two, and the last of them runs"
     );
-    assert_eq!(climb(&mut world, 7.0), vec!["second".to_owned()], "seven reaches all three");
+    assert_eq!(
+        climb(&mut world, 7.0),
+        vec!["second".to_owned()],
+        "seven reaches all three"
+    );
     assert_eq!(
         climb(&mut world, -1.0),
         Vec::<String>::new(),
@@ -612,10 +685,8 @@ fn a_location_variable_holds_the_actors_square() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (7, 9, -1));
     let other = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (3, 4, 0));
 
-    let plain = cdda_json::parse(
-        br#"{"u_location_variable": {"u_val": "here"}}"#.as_slice(),
-    )
-    .expect("json");
+    let plain = cdda_json::parse(br#"{"u_location_variable": {"u_val": "here"}}"#.as_slice())
+        .expect("json");
     let effect = cdda_content::dialogue::read_effect(&plain).expect("readable");
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(other), &effect),
@@ -676,7 +747,7 @@ fn a_weighted_list_picks_by_weight_and_never_picks_nothing() {
                     [{"effect": [{"u_message": "two"}]}, 2],
                     [{"effect": [{"u_message": "never"}]}, 0]
                 ]}"#
-                .as_slice(),
+            .as_slice(),
         )
         .expect("json"),
     )
@@ -698,7 +769,11 @@ fn a_weighted_list_picks_by_weight_and_never_picks_nothing() {
     assert_eq!(seen.get("never"), None, "a weight of zero is never picked");
     let one = seen.get("one").copied().unwrap_or(0);
     let two = seen.get("two").copied().unwrap_or(0);
-    assert_eq!(one + two, 300, "and one of the two weighted entries always runs");
+    assert_eq!(
+        one + two,
+        300,
+        "and one of the two weighted entries always runs"
+    );
     assert!(
         two > one,
         "the heavier entry came up more often: {two} against {one}"
@@ -778,7 +853,10 @@ fn opening_a_conversation_runs_the_branch_that_says_whether_it_could() {
         cdda_sim::dialogue_effects::run_effect(&mut world, speaker, None, &effect),
         Applied::Done
     );
-    assert_eq!(cdda_sim::messages::lines(&world), vec!["refused".to_owned()]);
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        vec!["refused".to_owned()]
+    );
 
     // With the speaker as the avatar, the true branch runs instead.
     cdda_sim::messages::clear(&mut world);
@@ -849,7 +927,10 @@ fn an_added_effect_reads_its_duration_and_intensity_from_the_data() {
         .iter()
         .find(|effect| effect.id == "taint")
         .expect("the effect is worn");
-    assert_eq!(taint.intensity, 3, "the expression's value became the intensity");
+    assert_eq!(
+        taint.intensity, 3,
+        "the expression's value became the intensity"
+    );
 
     // A range is rolled between its ends, both of which are reachable.
     let ranged = add(r#"{"u_add_effect": "wet", "duration": [10, 20]}"#);
@@ -900,8 +981,20 @@ fn a_morale_point_keeps_its_bonus_then_fades_along_the_reference_curve() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
 
-    add_morale_point(&mut world, survivor, "morale_feeling_good", 20.0, 50.0, "6 hours", "3 hours");
-    assert_eq!(cdda_sim::morale::net_bonus_of(&world, survivor), 20, "the whole bonus at once");
+    add_morale_point(
+        &mut world,
+        survivor,
+        "morale_feeling_good",
+        20.0,
+        50.0,
+        "6 hours",
+        "3 hours",
+    );
+    assert_eq!(
+        cdda_sim::morale::net_bonus_of(&world, survivor),
+        20,
+        "the whole bonus at once"
+    );
 
     // Aged to exactly the decay start, it still gives everything.
     for _ in 0..3 * 3600 {
@@ -918,7 +1011,10 @@ fn a_morale_point_keeps_its_bonus_then_fades_along_the_reference_curve() {
         cdda_sim::morale::age_morale(&mut world);
     }
     let halfway = cdda_sim::morale::net_bonus_of(&world, survivor);
-    assert!(halfway < 20 && halfway > 0, "half faded, not gone: {halfway}");
+    assert!(
+        halfway < 20 && halfway > 0,
+        "half faded, not gone: {halfway}"
+    );
 
     // At its end it is gone, and the point is dropped.
     for _ in 0..3 * 3600 {
@@ -933,8 +1029,24 @@ fn a_morale_point_keeps_its_bonus_then_fades_along_the_reference_curve() {
     // Two of the same sign stack as the square root of the sum of squares: 3 and 4 feel like 5, not 7.
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    add_morale_point(&mut world, survivor, "morale_good", 3.0, 50.0, "6 hours", "3 hours");
-    add_morale_point(&mut world, survivor, "morale_good", 4.0, 50.0, "6 hours", "3 hours");
+    add_morale_point(
+        &mut world,
+        survivor,
+        "morale_good",
+        3.0,
+        50.0,
+        "6 hours",
+        "3 hours",
+    );
+    add_morale_point(
+        &mut world,
+        survivor,
+        "morale_good",
+        4.0,
+        50.0,
+        "6 hours",
+        "3 hours",
+    );
     assert_eq!(
         cdda_sim::morale::net_bonus_of(&world, survivor),
         5,
@@ -942,7 +1054,15 @@ fn a_morale_point_keeps_its_bonus_then_fades_along_the_reference_curve() {
     );
 
     // A cap holds the stack down.
-    add_morale_point(&mut world, survivor, "morale_good", 50.0, 6.0, "6 hours", "3 hours");
+    add_morale_point(
+        &mut world,
+        survivor,
+        "morale_good",
+        50.0,
+        6.0,
+        "6 hours",
+        "3 hours",
+    );
     assert_eq!(
         cdda_sim::morale::net_bonus_of(&world, survivor),
         6,
@@ -985,8 +1105,14 @@ fn a_snippet_message_picks_a_line_from_its_category_by_weight() {
     cdda_sim::snippets::set_snippets(
         &mut world,
         [
-            ("files".to_owned(), snippet_line("first", "The first line.", 1)),
-            ("files".to_owned(), snippet_line("second", "The second line.", 3)),
+            (
+                "files".to_owned(),
+                snippet_line("first", "The first line.", 1),
+            ),
+            (
+                "files".to_owned(),
+                snippet_line("second", "The second line.", 3),
+            ),
             ("files".to_owned(), snippet_line("never", "Never said.", 0)),
         ],
     );
@@ -1009,11 +1135,18 @@ fn a_snippet_message_picks_a_line_from_its_category_by_weight() {
         };
         *said.entry(line.clone()).or_insert(0) += 1;
     }
-    assert_eq!(said.get("Never said."), None, "a line of weight zero is never said");
+    assert_eq!(
+        said.get("Never said."),
+        None,
+        "a line of weight zero is never said"
+    );
     let first = said.get("The first line.").copied().unwrap_or(0);
     let second = said.get("The second line.").copied().unwrap_or(0);
     assert_eq!(first + second, 200);
-    assert!(second > first, "the heavier line came up more: {second} to {first}");
+    assert!(
+        second > first,
+        "the heavier line came up more: {second} to {first}"
+    );
 
     // `same_snippet` says the same line twice.
     let same = cdda_content::dialogue::read_effect(
@@ -1028,7 +1161,11 @@ fn a_snippet_message_picks_a_line_from_its_category_by_weight() {
     let once = cdda_sim::messages::lines(&world);
     cdda_sim::messages::clear(&mut world);
     cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &same);
-    assert_eq!(cdda_sim::messages::lines(&world), once, "the same line again");
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        once,
+        "the same line again"
+    );
 
     // An unknown category refuses rather than saying nothing quietly.
     let unknown = cdda_content::dialogue::read_effect(
@@ -1064,7 +1201,10 @@ fn a_branch_may_be_one_effect_or_a_list_of_them() {
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         let effect = cdda_content::dialogue::read_effect(&value)
             .unwrap_or_else(|| panic!("{text} must read"));
-        let cdda_content::dialogue::Effect::If { then, otherwise, .. } = effect else {
+        let cdda_content::dialogue::Effect::If {
+            then, otherwise, ..
+        } = effect
+        else {
             panic!("{text} must read as a branch");
         };
         assert_eq!(then.len(), 1, "one entry either way");
@@ -1148,10 +1288,9 @@ fn a_sound_is_made_where_its_maker_stands_and_speech_is_said() {
         loud,
         cdda_content::dialogue::Effect::MakeSound { .. }
     ));
-    let unknown = cdda_json::parse(
-        br#"{"u_make_sound": "x", "volume": 4, "type": "shouting"}"#.as_slice(),
-    )
-    .expect("json");
+    let unknown =
+        cdda_json::parse(br#"{"u_make_sound": "x", "volume": 4, "type": "shouting"}"#.as_slice())
+            .expect("json");
     assert!(
         cdda_content::dialogue::read_effect(&unknown).is_none(),
         "a type the port does not know is refused"
@@ -1189,11 +1328,18 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_wall_opens".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
         &mut world,
-        [("t_rock".to_owned(), 7u32), ("t_rock_floor".to_owned(), 8u32)]
-            .into_iter()
-            .collect(),
+        [
+            ("t_rock".to_owned(), 7u32),
+            ("t_rock_floor".to_owned(), 8u32),
+        ]
+        .into_iter()
+        .collect(),
     );
-    assert_eq!(cdda_sim::mapgen_update::census(&world), 1, "one mapgen installed");
+    assert_eq!(
+        cdda_sim::mapgen_update::census(&world),
+        1,
+        "one mapgen installed"
+    );
 
     let effect = cdda_content::dialogue::read_effect(
         &cdda_json::parse(br#"{"mapgen_update": "lab_wall_opens"}"#.as_slice()).expect("json"),
@@ -1203,9 +1349,21 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
         Applied::Done
     );
-    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 1, 0)), Some(7), "A became rock");
-    assert_eq!(cdda_sim::square::terrain_at(&world, (2, 1, 0)), Some(8), "B became rock floor");
-    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 2, 0)), Some(0), "the next row was left alone");
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 1, 0)),
+        Some(7),
+        "A became rock"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 1, 0)),
+        Some(8),
+        "B became rock floor"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 2, 0)),
+        Some(0),
+        "the next row was left alone"
+    );
 
     // A mapgen the world does not hold refuses rather than doing nothing quietly.
     let missing = cdda_content::dialogue::read_effect(
@@ -1220,9 +1378,11 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
     // An update aimed by a member the port has not built is refused rather than applied in the wrong place. This list keeps shrinking as the aiming
     // forms land - `target_var`, then `om_terrain` - and what is left is the whole mission target: search range, filters, reveal, and a create step the
     // port does not have.
-    let whole_target =
-        cdda_json::parse(br#"{"mapgen_update": "lab_wall_opens", "target_params": {"om_terrain": "field"}}"#.as_slice())
-            .expect("json");
+    let whole_target = cdda_json::parse(
+        br#"{"mapgen_update": "lab_wall_opens", "target_params": {"om_terrain": "field"}}"#
+            .as_slice(),
+    )
+    .expect("json");
     assert!(
         cdda_content::dialogue::read_effect(&whole_target).is_none(),
         "a whole mission target is refused rather than applied in the wrong place"
@@ -1279,7 +1439,7 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
     // Six patches landed on squares of the 4x4 rectangle the update named, each between one and three.
     let mut patches = 0;
     let mut strengths = std::collections::BTreeSet::new();
-    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::Field)>() ;
+    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::Field)>();
     for (position, field) in query.iter(&world) {
         assert!(
             (2..=5).contains(&position.x) && (2..=5).contains(&position.y),
@@ -1290,7 +1450,10 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
         patches += usize::try_from(field.entry.intensity()).unwrap_or(0);
         strengths.insert(field.entry.intensity());
     }
-    assert!(patches >= 6, "six patches were placed, got strength total {patches}");
+    assert!(
+        patches >= 6,
+        "six patches were placed, got strength total {patches}"
+    );
     assert!(
         strengths.iter().all(|strength| (1..=3).contains(strength)),
         "every patch is within the intensity range the data states: {strengths:?}"
@@ -1318,7 +1481,9 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
     let mapgen = cdda_content::mapgen::MapgenObject {
         om_terrain: "open_the_wall".to_owned(),
         rows: vec!["A".to_owned()],
-        terrain: [('A', "t_floor".to_owned())].into_iter().collect::<BTreeMap<char, String>>(),
+        terrain: [('A', "t_floor".to_owned())]
+            .into_iter()
+            .collect::<BTreeMap<char, String>>(),
         furniture: BTreeMap::new(),
         weight: 100,
         fields: Vec::new(),
@@ -1331,7 +1496,8 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
 
     // Store a square the way `u_location_variable` does, then aim at it.
     let store = cdda_content::dialogue::read_effect(
-        &cdda_json::parse(br#"{"u_location_variable": {"u_val": "here"}}"#.as_slice()).expect("json"),
+        &cdda_json::parse(br#"{"u_location_variable": {"u_val": "here"}}"#.as_slice())
+            .expect("json"),
     )
     .expect("readable");
     assert_eq!(
@@ -1411,8 +1577,10 @@ fn losing_effects_reads_the_name_the_data_writes_and_a_list_of_them() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     for name in ["drunk", "infected"] {
         let add = cdda_content::dialogue::read_effect(
-            &cdda_json::parse(format!(r#"{{"u_add_effect": "{name}", "duration": "PERMANENT"}}"#).as_bytes())
-                .expect("json"),
+            &cdda_json::parse(
+                format!(r#"{{"u_add_effect": "{name}", "duration": "PERMANENT"}}"#).as_bytes(),
+            )
+            .expect("json"),
         )
         .expect("readable");
         assert_eq!(
@@ -1420,8 +1588,14 @@ fn losing_effects_reads_the_name_the_data_writes_and_a_list_of_them() {
             Applied::Done
         );
     }
-    assert!(cdda_sim::applied_effects::has(&world, survivor, "drunk"), "two effects before");
-    assert!(cdda_sim::applied_effects::has(&world, survivor, "infected"), "two effects before");
+    assert!(
+        cdda_sim::applied_effects::has(&world, survivor, "drunk"),
+        "two effects before"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, survivor, "infected"),
+        "two effects before"
+    );
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &many),
         Applied::Done
@@ -1584,7 +1758,9 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
     let mapgen = cdda_content::mapgen::MapgenObject {
         om_terrain: "lab_finale".to_owned(),
         rows: vec!["A".to_owned()],
-        terrain: [('A', "t_rock".to_owned())].into_iter().collect::<BTreeMap<char, String>>(),
+        terrain: [('A', "t_rock".to_owned())]
+            .into_iter()
+            .collect::<BTreeMap<char, String>>(),
         furniture: BTreeMap::new(),
         weight: 100,
         fields: Vec::new(),
@@ -1596,8 +1772,10 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
     );
 
     let aimed = cdda_content::dialogue::read_effect(
-        &cdda_json::parse(br#"{"mapgen_update": "lab_finale", "om_terrain": "lab_finale"}"#.as_slice())
-            .expect("json"),
+        &cdda_json::parse(
+            br#"{"mapgen_update": "lab_finale", "om_terrain": "lab_finale"}"#.as_slice(),
+        )
+        .expect("json"),
     )
     .expect("an om_terrain aim is readable");
 
@@ -1668,7 +1846,11 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
     .expect("the variable holds a square");
     assert_eq!(
         stored,
-        (2 * cdda_sim::overmap::SQUARES_PER_OMT, cdda_sim::overmap::SQUARES_PER_OMT, 0),
+        (
+            2 * cdda_sim::overmap::SQUARES_PER_OMT,
+            cdda_sim::overmap::SQUARES_PER_OMT,
+            0
+        ),
         "the square is the tile's top-left, which is where a mapgen update lands"
     );
 
@@ -1775,8 +1957,16 @@ fn losing_a_variable_forgets_it_and_only_where_it_was_set() {
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, Some(talker), &mine),
         Applied::Done
     );
-    assert_eq!(gone(&world, survivor), None, "the speaker's variable is gone");
-    assert_eq!(gone(&world, talker), Some(7.0), "the listener's is not touched");
+    assert_eq!(
+        gone(&world, survivor),
+        None,
+        "the speaker's variable is gone"
+    );
+    assert_eq!(
+        gone(&world, talker),
+        Some(7.0),
+        "the listener's is not touched"
+    );
 
     // The listener's spelling forgets the other one.
     let theirs = cdda_content::dialogue::read_effect(
@@ -1834,12 +2024,16 @@ fn adding_a_variable_stores_a_value_the_clock_or_a_drawn_choice() {
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &timed),
         Applied::Done
     );
-    assert_eq!(text_of(&world, survivor, "seen_at").as_deref(), Some("4242"));
+    assert_eq!(
+        text_of(&world, survivor, "seen_at").as_deref(),
+        Some("4242")
+    );
 
     // A list of texts is drawn from, and it is the world's dice that choose.
     let drawn = cdda_content::dialogue::read_effect(
         &cdda_json::parse(
-            br#"{"u_add_var": "weather_said", "possible_values": ["rain", "sun", "snow"]}"#.as_slice(),
+            br#"{"u_add_var": "weather_said", "possible_values": ["rain", "sun", "snow"]}"#
+                .as_slice(),
         )
         .expect("json"),
     )
@@ -2078,7 +2272,8 @@ fn spawning_monsters_makes_the_real_ones_and_the_imagined_ones() {
 
     // A type the world does not know refuses rather than making something else.
     let unknown = cdda_content::dialogue::read_effect(
-        &cdda_json::parse(br#"{"u_spawn_monster": "mon_not_here", "real_count": 1}"#.as_slice()).expect("json"),
+        &cdda_json::parse(br#"{"u_spawn_monster": "mon_not_here", "real_count": 1}"#.as_slice())
+            .expect("json"),
     )
     .expect("readable");
     assert_eq!(
@@ -2088,8 +2283,10 @@ fn spawning_monsters_makes_the_real_ones_and_the_imagined_ones() {
 
     // The members the port cannot carry out are refused at read time rather than ignored. `spawn_message`, `outdoor_only`, `lifespan` and now `group` have left
     // this list as their rules landed; `mon_variables` has not, because it writes variables onto the spawned monster and no rule reads them yet.
-    let with_variables =
-        cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "mon_variables": {"x": "1"}}"#.as_slice()).expect("json");
+    let with_variables = cdda_json::parse(
+        br#"{"u_spawn_monster": "mon_test", "mon_variables": {"x": "1"}}"#.as_slice(),
+    )
+    .expect("json");
     assert!(cdda_content::dialogue::read_effect(&with_variables).is_none());
 }
 
@@ -2118,14 +2315,20 @@ fn a_summon_goes_when_its_lifespan_runs_out() {
     .expect("one type");
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_test", hp: 12 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_test",
+            hp: 12,
+        }],
     );
     cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
 
     cdda_sim::calendar::set_turn(&mut world, 1_000);
     let limited = cdda_content::dialogue::read_effect(
-        &cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "real_count": 1, "lifespan": "5 seconds"}"#.as_slice())
-            .expect("json"),
+        &cdda_json::parse(
+            br#"{"u_spawn_monster": "mon_test", "real_count": 1, "lifespan": "5 seconds"}"#
+                .as_slice(),
+        )
+        .expect("json"),
     )
     .expect("a lifespan is readable");
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(17));
@@ -2135,12 +2338,19 @@ fn a_summon_goes_when_its_lifespan_runs_out() {
     );
 
     // One turn before its time it is still there, and at its time it is gone: the boundary is the rule, not a round number.
-    assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 1_004), 0);
-    assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 1_005), 1);
+    assert_eq!(
+        cdda_sim::monster_spawning::expire_summonings(&mut world, 1_004),
+        0
+    );
+    assert_eq!(
+        cdda_sim::monster_spawning::expire_summonings(&mut world, 1_005),
+        1
+    );
 
     // A spawn with no lifespan stays, however long the clock runs.
     let lasting = cdda_content::dialogue::read_effect(
-        &cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "real_count": 1}"#.as_slice()).expect("json"),
+        &cdda_json::parse(br#"{"u_spawn_monster": "mon_test", "real_count": 1}"#.as_slice())
+            .expect("json"),
     )
     .expect("readable");
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(19));
@@ -2148,7 +2358,10 @@ fn a_summon_goes_when_its_lifespan_runs_out() {
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &lasting),
         Applied::Done
     );
-    assert_eq!(cdda_sim::monster_spawning::expire_summonings(&mut world, 999_999), 0);
+    assert_eq!(
+        cdda_sim::monster_spawning::expire_summonings(&mut world, 999_999),
+        0
+    );
 
     // A lifespan given as a range is drawn between its ends, both included - the data writes `[ "5 seconds", "10 seconds" ]`.
     let ranged = cdda_content::dialogue::read_effect(
@@ -2162,7 +2375,11 @@ fn a_summon_goes_when_its_lifespan_runs_out() {
         cdda_sim::calendar::set_turn(&mut world, 0);
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
         let drawn = cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &ranged);
-        assert_eq!(drawn, Applied::Done, "the draw must land inside the range, seed {seed}");
+        assert_eq!(
+            drawn,
+            Applied::Done,
+            "the draw must land inside the range, seed {seed}"
+        );
     }
 }
 
@@ -2191,13 +2408,19 @@ fn a_spawn_can_ask_for_the_sky_or_a_roof_and_say_a_line() {
     .expect("one type");
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_test", hp: 12 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_test",
+            hp: 12,
+        }],
     );
     cdda_sim::monster_catalog::set_types(&mut world, vec![kind]);
 
     // A square with nothing on it is under the sky.
     assert!(cdda_sim::outdoors::is_outside(&world, (5, 5, 0)));
-    assert!(!cdda_sim::outdoors::is_outside(&world, (900, 900, 0)), "a square the level does not hold is nowhere");
+    assert!(
+        !cdda_sim::outdoors::is_outside(&world, (900, 900, 0)),
+        "a square the level does not hold is nowhere"
+    );
 
     let outside_spawn = cdda_content::dialogue::read_effect(
         &cdda_json::parse(
@@ -2262,4 +2485,3 @@ fn the_global_message_member_says_a_line() {
     );
     assert_eq!(cdda_sim::messages::lines(&world).len(), 2);
 }
-

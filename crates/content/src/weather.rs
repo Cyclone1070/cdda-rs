@@ -209,10 +209,14 @@ fn string_of(value: Option<&Value>) -> String {
 /// The condition is passed in rather than evaluated here: each one is a dialogue expression, and the dialogue machine is a phase of its own. Taking it as a parameter
 /// keeps this loop honest - it can be gated on transcribed chains today, and it does not need rewriting when the conditions arrive.
 #[must_use]
-pub fn conditions(order: &[&WeatherType], satisfied: &mut dyn FnMut(&WeatherType) -> bool) -> String {
+pub fn conditions(
+    order: &[&WeatherType],
+    satisfied: &mut dyn FnMut(&WeatherType) -> bool,
+) -> String {
     let mut current = "clear".to_string();
     for kind in order {
-        let follows = kind.required_weathers.is_empty() || kind.required_weathers.contains(&current);
+        let follows =
+            kind.required_weathers.is_empty() || kind.required_weathers.contains(&current);
         if follows && satisfied(kind) {
             current.clone_from(&kind.id);
         }
@@ -365,7 +369,10 @@ impl Manager {
             None => true,
             Some(old) => rules.sight_penalty(old) != rules.sight_penalty(&chosen),
         };
-        debug_assert!(!sight_changed || changed, "a sight change without a weather change would be a bug in the rules");
+        debug_assert!(
+            !sight_changed || changed,
+            "a sight change without a weather change would be a bug in the rules"
+        );
         Change::Weather { sight_changed }
     }
 }
@@ -392,7 +399,11 @@ impl Rules {
         conditions: std::collections::BTreeMap<String, crate::condition::Condition>,
         functions: crate::jmath::Registry,
     ) -> Rules {
-        Rules { types, conditions, functions }
+        Rules {
+            types,
+            conditions,
+            functions,
+        }
     }
 
     /// The types in the order the game tests them.
@@ -412,15 +423,20 @@ impl WeatherRules for Rules {
     fn decide(&self, point: &Point) -> String {
         // The weather is decided from the conditions alone; the time-dependent ones answer through the point, which carries the turn.
         conditions(&self.order(), &mut |candidate| {
-            self.conditions
-                .get(&candidate.id)
-                .is_some_and(|condition| condition.holds(&PointContext { point, functions: &self.functions }))
+            self.conditions.get(&candidate.id).is_some_and(|condition| {
+                condition.holds(&PointContext {
+                    point,
+                    functions: &self.functions,
+                })
+            })
         })
     }
 
     fn duration_bounds(&self, weather: &str) -> (i32, i32) {
         self.get(weather)
-            .map_or((DEFAULT_DURATION_TURNS, DEFAULT_DURATION_TURNS), |kind| (kind.duration_min, kind.duration_max))
+            .map_or((DEFAULT_DURATION_TURNS, DEFAULT_DURATION_TURNS), |kind| {
+                (kind.duration_min, kind.duration_max)
+            })
     }
 
     fn sight_penalty(&self, weather: &str) -> f32 {
@@ -445,14 +461,26 @@ impl crate::math_expr::Context for PointContext<'_> {
         // is four hundred years of game time and not a case worth carrying.
         #[allow(clippy::cast_precision_loss)]
         match name {
-            "condition:is_day" => Some(if cdda_core_types::astronomy::is_day(self.point.turn as f64) { 1.0 } else { 0.0 }),
+            "condition:is_day" => Some(
+                if cdda_core_types::astronomy::is_day(self.point.turn as f64) {
+                    1.0
+                } else {
+                    0.0
+                },
+            ),
             _ => None,
         }
     }
 
-    fn call(&self, name: &str, arguments: &[crate::math_expr::Value]) -> Result<crate::math_expr::Value, crate::math_expr::MathError> {
+    fn call(
+        &self,
+        name: &str,
+        arguments: &[crate::math_expr::Value],
+    ) -> Result<crate::math_expr::Value, crate::math_expr::MathError> {
         use crate::math_expr::{MathError, Value};
-        let missing = || MathError::UnknownName { name: name.to_string() };
+        let missing = || MathError::UnknownName {
+            name: name.to_string(),
+        };
         match (name, arguments) {
             ("weather", [Value::Text(field)]) => match field.as_str() {
                 "temperature" => Ok(Value::Number(self.point.temperature)),
@@ -460,7 +488,9 @@ impl crate::math_expr::Context for PointContext<'_> {
                 "pressure" => Ok(Value::Number(self.point.pressure)),
                 "windpower" => Ok(Value::Number(f64::from(self.point.windpower))),
                 "winddirection" => Ok(Value::Number(f64::from(self.point.winddirection))),
-                other => Err(MathError::UnknownName { name: other.to_string() }),
+                other => Err(MathError::UnknownName {
+                    name: other.to_string(),
+                }),
             },
             // Reference: `units.h:413` - `celsius` subtracts 273.150 and both sides are float in the reference.
             ("celsius", [Value::Number(kelvin)]) => Ok(Value::Number(kelvin - 273.15)),
@@ -470,7 +500,9 @@ impl crate::math_expr::Context for PointContext<'_> {
             // The data's functions read the point - `dprhx` calls `weather('humidity')` - so **this** context is their outer one, not just the builtins. Passing the builtins
             // here made every one of them fail from the inside out, and the failure looked exactly like a sky that was not foggy.
             _ => crate::jmath::call(self.functions, self, name, arguments)
-                .or_else(|_| crate::math_expr::Context::call(&crate::math_expr::Builtins, name, arguments))
+                .or_else(|_| {
+                    crate::math_expr::Context::call(&crate::math_expr::Builtins, name, arguments)
+                })
                 .map_err(|_| missing()),
         }
     }
@@ -510,7 +542,10 @@ impl Rules {
             };
             types.push(WeatherType::from_object(object)?);
             if let Some(condition) = object.get("condition") {
-                conditions.insert(id.to_string(), crate::condition::Condition::from_value(condition)?);
+                conditions.insert(
+                    id.to_string(),
+                    crate::condition::Condition::from_value(condition)?,
+                );
             }
         }
         Ok(Rules::new(types, conditions, functions))

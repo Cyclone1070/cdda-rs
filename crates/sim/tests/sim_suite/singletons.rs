@@ -16,9 +16,8 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldId;
 use cdda_sim::falling::FieldRules;
 use cdda_sim::{
-    SupportLost, TheFallingQueue, TheFieldRules, TheMemory, adjust_radiation,
-    falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss,
-    set_field_rules, support_lost,
+    SupportLost, TheFallingQueue, TheFieldRules, TheMemory, adjust_radiation, falling_queue_entity,
+    field_rules, memory, memory_entity, queue_support_loss, set_field_rules, support_lost,
 };
 use std::collections::BTreeSet;
 
@@ -116,7 +115,10 @@ fn the_characters_memory_is_an_entity() {
     memory(&mut world);
     let second = memory_entity(&mut world);
 
-    assert_eq!(first, second, "asking for the memory twice finds one memory");
+    assert_eq!(
+        first, second,
+        "asking for the memory twice finds one memory"
+    );
     assert_eq!(
         world
             .query_filtered::<Entity, With<TheMemory>>()

@@ -3,7 +3,12 @@
 //! Reference: `butcher_time_to_cut` (`butchery.cpp:382-487`). **The rule was already ported** - `butcher_time_to_cut` in `lib.rs`, beside the activity that spends it - and this file exists because
 //! round 1376 wrote a second copy of it in a new module without finding the first. The duplicate is deleted; these are the numbers it should have brought to the rule that was already there.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing
+)]
 
 use cdda_sim::{ButcherAction, ButcherState, CreatureSize, butcher_time_to_cut};
 
@@ -31,10 +36,26 @@ fn state(size: CreatureSize, action: ButcherAction) -> ButcherState {
 #[test]
 fn a_bigger_body_takes_longer_to_cut() {
     let bleed = |size: CreatureSize| butcher_time_to_cut(state(size, ButcherAction::Bleed));
-    assert_eq!(bleed(CreatureSize::Tiny), 15_000, "a cat is a hundred and fifty turns, which is fifteen thousand moves");
-    assert_eq!(bleed(CreatureSize::Small), 30_000, "a dog is three hundred turns");
-    assert_eq!(bleed(CreatureSize::Medium), 45_000, "a person is four hundred and fifty turns");
-    assert_eq!(bleed(CreatureSize::Large), 60_000, "a cow is six hundred turns");
+    assert_eq!(
+        bleed(CreatureSize::Tiny),
+        15_000,
+        "a cat is a hundred and fifty turns, which is fifteen thousand moves"
+    );
+    assert_eq!(
+        bleed(CreatureSize::Small),
+        30_000,
+        "a dog is three hundred turns"
+    );
+    assert_eq!(
+        bleed(CreatureSize::Medium),
+        45_000,
+        "a person is four hundred and fifty turns"
+    );
+    assert_eq!(
+        bleed(CreatureSize::Large),
+        60_000,
+        "a cow is six hundred turns"
+    );
     assert_eq!(
         bleed(CreatureSize::Huge),
         180_000,
@@ -58,11 +79,27 @@ fn a_better_blade_cuts_faster_until_it_stops_mattering() {
         found.tool_factor = quality;
         butcher_time_to_cut(found)
     };
-    assert_eq!(medium(0), 45_000, "no blade gives the whole hundred times the table");
-    assert_eq!(medium(1), 44_550, "**one point of quality is one percent off the hundred**: 450 * 99");
+    assert_eq!(
+        medium(0),
+        45_000,
+        "no blade gives the whole hundred times the table"
+    );
+    assert_eq!(
+        medium(1),
+        44_550,
+        "**one point of quality is one percent off the hundred**: 450 * 99"
+    );
     assert_eq!(medium(50), 22_500, "half the time at quality fifty");
-    assert_eq!(medium(75), 11_250, "**the floor: a quarter of the time at quality seventy-five**");
-    assert_eq!(medium(90), 11_250, "and no quality past seventy-five buys anything");
+    assert_eq!(
+        medium(75),
+        11_250,
+        "**the floor: a quarter of the time at quality seventy-five**"
+    );
+    assert_eq!(
+        medium(90),
+        11_250,
+        "and no quality past seventy-five buys anything"
+    );
 }
 
 /// The action decides the multiplier, two actions have **floors** of their own, and the proficiency tail multiplies what is left.
@@ -72,18 +109,46 @@ fn a_better_blade_cuts_faster_until_it_stops_mattering() {
 #[test]
 fn the_action_decides_the_multiplier_and_the_floors_hold() {
     let medium = |action: ButcherAction| butcher_time_to_cut(state(CreatureSize::Medium, action));
-    assert_eq!(medium(ButcherAction::Bleed), 45_000, "a bleed reads no other rule at all");
-    assert_eq!(medium(ButcherAction::Quarter), 11_250, "a quartering is a quarter of the base when that is over the floor");
-    assert_eq!(medium(ButcherAction::Dismember), 4_500, "and a dismembering is a tenth");
-    assert_eq!(medium(ButcherAction::Dissect), 270_000, "a dissection is six times the base");
-    assert_eq!(medium(ButcherAction::Quick), 107_999, "**a quick cut is 45,000 * 2.4, truncated from 108,000 by the float**");
-    assert_eq!(medium(ButcherAction::FieldDress), 270_000, "a field dressing is twice the base, then times three");
+    assert_eq!(
+        medium(ButcherAction::Bleed),
+        45_000,
+        "a bleed reads no other rule at all"
+    );
+    assert_eq!(
+        medium(ButcherAction::Quarter),
+        11_250,
+        "a quartering is a quarter of the base when that is over the floor"
+    );
+    assert_eq!(
+        medium(ButcherAction::Dismember),
+        4_500,
+        "and a dismembering is a tenth"
+    );
+    assert_eq!(
+        medium(ButcherAction::Dissect),
+        270_000,
+        "a dissection is six times the base"
+    );
+    assert_eq!(
+        medium(ButcherAction::Quick),
+        107_999,
+        "**a quick cut is 45,000 * 2.4, truncated from 108,000 by the float**"
+    );
+    assert_eq!(
+        medium(ButcherAction::FieldDress),
+        270_000,
+        "a field dressing is twice the base, then times three"
+    );
     assert_eq!(
         medium(ButcherAction::Skin),
         90_000,
         "**a skinning is twice the base and then times one**, because the half-point skin penalty truncates to zero"
     );
-    assert_eq!(medium(ButcherAction::Full), 486_000, "**a full butchery of an undressed body is six times the base, then times 1.8**");
+    assert_eq!(
+        medium(ButcherAction::Full),
+        486_000,
+        "**a full butchery of an undressed body is six times the base, then times 1.8**"
+    );
 
     // The two floors: a body small enough that a tenth of its time is under 600 moves waits 600 anyway.
     let tiny = |action: ButcherAction, quality: i32| {
@@ -91,9 +156,21 @@ fn the_action_decides_the_multiplier_and_the_floors_hold() {
         found.tool_factor = quality;
         butcher_time_to_cut(found)
     };
-    assert_eq!(tiny(ButcherAction::Dismember, 0), 1_500, "a cat's tenth is fifteen hundred, over the floor");
-    assert_eq!(tiny(ButcherAction::Dismember, 75), 600, "**but a cat with a good blade is under the floor, so the floor answers**");
-    assert_eq!(tiny(ButcherAction::Quarter, 75), 1_200, "and a quartered cat would be under four hundred and fifty, so twelve hundred answers");
+    assert_eq!(
+        tiny(ButcherAction::Dismember, 0),
+        1_500,
+        "a cat's tenth is fifteen hundred, over the floor"
+    );
+    assert_eq!(
+        tiny(ButcherAction::Dismember, 75),
+        600,
+        "**but a cat with a good blade is under the floor, so the floor answers**"
+    );
+    assert_eq!(
+        tiny(ButcherAction::Quarter, 75),
+        1_200,
+        "and a quartered cat would be under four hundred and fifty, so twelve hundred answers"
+    );
 }
 
 /// A field-dressed corpse is quicker to finish, and a quartered one quicker again.
@@ -103,7 +180,11 @@ fn the_action_decides_the_multiplier_and_the_floors_hold() {
 fn dressing_and_quartering_both_shorten_the_work() {
     let mut dressed = state(CreatureSize::Medium, ButcherAction::Full);
     dressed.field_dressed = true;
-    assert_eq!(butcher_time_to_cut(dressed), 324_000, "**four times the base, then times 1.8**: 450 * 100 * 4 * 1.8");
+    assert_eq!(
+        butcher_time_to_cut(dressed),
+        324_000,
+        "**four times the base, then times 1.8**: 450 * 100 * 4 * 1.8"
+    );
 
     let mut failed = state(CreatureSize::Medium, ButcherAction::Full);
     failed.field_dressed = true;
@@ -117,7 +198,10 @@ fn dressing_and_quartering_both_shorten_the_work() {
     let whole = butcher_time_to_cut(state(CreatureSize::Medium, ButcherAction::Dissect));
     let mut quartered = state(CreatureSize::Medium, ButcherAction::Dissect);
     quartered.quartered = true;
-    assert_eq!(whole, 270_000, "a dissection of a whole body is six times the base");
+    assert_eq!(
+        whole, 270_000,
+        "a dissection of a whole body is six times the base"
+    );
     assert_eq!(
         butcher_time_to_cut(quartered),
         67_500,
@@ -141,7 +225,11 @@ fn helpers_shorten_the_work_and_an_instant_bleed_takes_a_move() {
 
     let mut bleeding = state(CreatureSize::Medium, ButcherAction::Bleed);
     bleeding.instant_bleed = true;
-    assert_eq!(butcher_time_to_cut(bleeding), 1, "a butcher who bleeds instantly needs a single move");
+    assert_eq!(
+        butcher_time_to_cut(bleeding),
+        1,
+        "a butcher who bleeds instantly needs a single move"
+    );
 }
 
 /// **Every recorded corpse takes the time the reference takes to cut it up**, over sizes, actions, corpse flags and quality factors.
@@ -150,7 +238,8 @@ fn helpers_shorten_the_work_and_an_instant_bleed_takes_a_move() {
 /// multiplications decides the number. `corpus/prototypes/butchery.json` is `--dump-butchery`: five bodies, one per size class, in four flag states, for all eight actions.
 #[test]
 fn every_recorded_corpse_takes_the_reference_s_time_to_cut() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/butchery.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/prototypes/butchery.json");
     let text = std::fs::read_to_string(path).expect("the butchery recording");
     let recorded = cdda_json::parse(text.as_bytes()).expect("the recording parses");
     let cdda_json::Value::Object(top) = &recorded else {
@@ -214,7 +303,10 @@ fn every_recorded_corpse_takes_the_reference_s_time_to_cut() {
         );
         seen += 1;
     }
-    assert_eq!(seen, 160, "**every recorded row is compared**, not a sample");
+    assert_eq!(
+        seen, 160,
+        "**every recorded row is compared**, not a sample"
+    );
 }
 
 /// **A finished butchery puts the harvest on the ground and takes the body away.** The activity is what spends the turns; this is what the last one leaves behind.
@@ -255,10 +347,14 @@ fn a_finished_butchery_leaves_the_harvest_on_the_ground() {
             },
         ],
     );
-    let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
+    let corpse_kind =
+        cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
-        &[cdda_sim::monster_registry::MonsterKind { id: "mon_butcherable", hp: 10 }],
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_butcherable",
+            hp: 10,
+        }],
     );
     let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_butcherable").expect("the kind");
     // One flesh entry: eight to twelve pieces, no scaling, no mass share, no ceiling.
@@ -272,7 +368,7 @@ fn a_finished_butchery_leaves_the_harvest_on_the_ground() {
                 scale_num: (0.0, 0.0),
                 mass_ratio: None,
                 max: None,
-        is_group: false,
+                is_group: false,
             }],
             vec!["meat".to_owned()],
         )],
@@ -280,7 +376,11 @@ fn a_finished_butchery_leaves_the_harvest_on_the_ground() {
 
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     // A survivor who **knows the job**, so the gate is about the harvest landing on the ground and not about how much of it a beginner loses; that has its own gate.
-    for proficiency in ["prof_butchering_basic", "prof_skinning_basic", "prof_skinning_adv"] {
+    for proficiency in [
+        "prof_butchering_basic",
+        "prof_skinning_basic",
+        "prof_skinning_adv",
+    ] {
         cdda_sim::proficiencies::learn(&mut world, survivor, proficiency);
     }
     let corpse = cdda_sim::drop_item(&mut world, (0, 0), corpse_kind, 1);
@@ -290,13 +390,15 @@ fn a_finished_butchery_leaves_the_harvest_on_the_ground() {
         revives: false,
         monster_volume_ml: 1_000,
     });
-    world.entity_mut(survivor).insert(cdda_sim::creature::Doing {
-        activity: "butcher".to_owned(),
-        moves_left: 0,
-        basis: cdda_sim::creature::Basis::Time,
-        moves_total: 0,
-        subject: Some(corpse),
-    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Doing {
+            activity: "butcher".to_owned(),
+            moves_left: 0,
+            basis: cdda_sim::creature::Basis::Time,
+            moves_total: 0,
+            subject: Some(corpse),
+        });
 
     cdda_sim::creature::finish_activity(&mut world, survivor, "butcher", Some(corpse));
 
@@ -357,7 +459,8 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
                 },
             ],
         );
-        let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
+        let corpse_kind =
+            cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
         cdda_sim::monster_registry::set_monster_types(
             &mut world,
             &[cdda_sim::monster_registry::MonsterKind {
@@ -378,7 +481,7 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
                     scale_num: (0.0, 0.0),
                     mass_ratio: Some(0.25),
                     max: None,
-        is_group: false,
+                    is_group: false,
                 }],
                 vec!["cut".to_owned()],
             )],
@@ -395,7 +498,11 @@ fn a_pulped_corpse_gives_half_the_flesh_of_a_fresh_one() {
             monster_volume_ml: 1_000,
         });
         // The multiplier is held at one and the proficiencies are known, so the gate is about the **damage** and not about the survivor's hands; both have their own gates.
-        for proficiency in ["prof_butchering_basic", "prof_skinning_basic", "prof_skinning_adv"] {
+        for proficiency in [
+            "prof_butchering_basic",
+            "prof_skinning_basic",
+            "prof_skinning_adv",
+        ] {
             cdda_sim::proficiencies::learn(&mut world, survivor, proficiency);
         }
         cdda_sim::creature::finish_butchering_with(&mut world, survivor, corpse, 1.0);
@@ -440,11 +547,23 @@ fn a_butcher_s_skill_and_blade_decide_how_much_bulk_comes_off() {
         "a hopeless butcher with a useless blade gets nothing extra"
     );
     // Skill alone, at its ceiling: half of one.
-    assert_eq!(cdda_sim::butchery_yield_multiplier(10, 0, -50), 0.5, "ten survival is half the multiplier");
+    assert_eq!(
+        cdda_sim::butchery_yield_multiplier(10, 0, -50),
+        0.5,
+        "ten survival is half the multiplier"
+    );
     // The tool alone at its ceiling: three tenths.
-    assert_eq!(cdda_sim::butchery_yield_multiplier(0, 0, 50), 0.3, "a fine blade is three tenths");
+    assert_eq!(
+        cdda_sim::butchery_yield_multiplier(0, 0, 50),
+        0.3,
+        "a fine blade is three tenths"
+    );
     // Dexterity alone at its ceiling: two tenths.
-    assert_eq!(cdda_sim::butchery_yield_multiplier(0, 20, -50), 0.2, "twenty dexterity is two tenths");
+    assert_eq!(
+        cdda_sim::butchery_yield_multiplier(0, 20, -50),
+        0.2,
+        "twenty dexterity is two tenths"
+    );
     // Everything at its ceiling: exactly one, and no more however far past it the numbers go.
     assert_eq!(
         cdda_sim::butchery_yield_multiplier(10, 20, 50),
@@ -502,10 +621,14 @@ fn a_weight_share_becomes_as_many_items_as_fit_in_it() {
                 },
             ],
         );
-        let corpse_kind = cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
+        let corpse_kind =
+            cdda_sim::item_registry::id_of(&mut world, "corpse").expect("the corpse type");
         cdda_sim::monster_registry::set_monster_types(
             &mut world,
-            &[cdda_sim::monster_registry::MonsterKind { id: "mon_bulk", hp: 10 }],
+            &[cdda_sim::monster_registry::MonsterKind {
+                id: "mon_bulk",
+                hp: 10,
+            }],
         );
         let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_bulk").expect("the kind");
         cdda_sim::monster_registry::set_weights(&mut world, &[(kind, 1_000)]);
@@ -519,7 +642,7 @@ fn a_weight_share_becomes_as_many_items_as_fit_in_it() {
                     scale_num: (0.0, 0.0),
                     mass_ratio: Some(0.25),
                     max: None,
-        is_group: false,
+                    is_group: false,
                 }],
                 vec!["cut".to_owned()],
             )],
@@ -547,8 +670,16 @@ fn a_weight_share_becomes_as_many_items_as_fit_in_it() {
         3,
         "**two hundred and fifty grams at a hundred grams a cut is two and a half, which rounds up to three**"
     );
-    assert_eq!(cuts(250, 1.0), 1, "at a quarter of a kilo a cut it is exactly one");
-    assert_eq!(cuts(100, 0.5), 2, "half the multiplier halves the weight before the division: 125 grams is two cuts");
+    assert_eq!(
+        cuts(250, 1.0),
+        1,
+        "at a quarter of a kilo a cut it is exactly one"
+    );
+    assert_eq!(
+        cuts(100, 0.5),
+        2,
+        "half the multiplier halves the weight before the division: 125 grams is two cuts"
+    );
     assert_eq!(
         cuts(1_000, 1.0),
         1,

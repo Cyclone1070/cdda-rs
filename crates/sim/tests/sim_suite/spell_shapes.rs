@@ -3,7 +3,12 @@
 //! Reference: `spell_effect::spell_effect_area` (`magic_spell_effect.cpp:229-296`) and `spell_effect_cone_range_override` (`:253-295`). The shape is not decoration - 15 of
 //! the content's 245 spells are cones, and a blast's square reaches ground a cone never covers, so a port that treats them alike over-reaches.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing, clippy::float_cmp)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp
+)]
 
 /// Ground that lets everything through, so a gate can isolate the shape's own arithmetic.
 fn open(_square: (i32, i32, i32)) -> bool {
@@ -18,7 +23,11 @@ fn walled(wall_x: i32) -> impl Fn((i32, i32, i32)) -> bool {
 #[test]
 fn a_blast_covers_a_square_and_a_cone_does_not() {
     let blast = cdda_sim::spell_area::cover("blast", (0, 0, 0), (5, 0, 0), 0, 5, &open, false);
-    assert_eq!(blast.len(), 1, "an area of zero is the square aimed at alone");
+    assert_eq!(
+        blast.len(),
+        1,
+        "an area of zero is the square aimed at alone"
+    );
 
     let cone = cdda_sim::spell_area::cover("cone", (0, 0, 0), (5, 0, 0), 0, 5, &open, false);
     assert!(

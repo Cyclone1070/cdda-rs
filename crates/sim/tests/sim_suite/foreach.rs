@@ -19,12 +19,21 @@ fn an_array_is_walked_and_each_element_is_named() {
         panic!("the port reads a foreach over an array");
     };
 
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the list runs");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the list runs"
+    );
     // The variable keeps the last element, which is what the reference's `write_var_value` leaves behind.
     assert!(
-        cdda_sim::dialogue_values::text_of(&world, speaker, "id").is_some_and(|value| value == "two"),
+        cdda_sim::dialogue_values::text_of(&world, speaker, "id")
+            .is_some_and(|value| value == "two"),
         "and the last element is what the variable holds afterwards"
     );
 }
@@ -43,9 +52,17 @@ fn a_flag_list_is_walked_from_the_data_s_own_list() {
     let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
         panic!("the port reads a foreach over flags");
     };
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the flag list runs");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the flag list runs"
+    );
     assert!(
         cdda_sim::dialogue_values::text_of(&world, speaker, "id")
             .is_some_and(|value| value == "WATERPROOF"),
@@ -62,8 +79,12 @@ fn a_list_the_port_does_not_know_refuses_rather_than_walking_nothing() {
     let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
         panic!("the reader does not judge the list's kind");
     };
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
     assert_eq!(
         applied,
         cdda_sim::dialogue_effects::Applied::CannotAnswer,
@@ -83,7 +104,10 @@ fn a_spell_id_may_be_a_variable() {
     let Some(effect) = cdda_content::dialogue::read_effect(&value) else {
         panic!("the port reads a spell whose id is a variable");
     };
-    let cdda_content::dialogue::Effect::CastSpell { spell, targeted, .. } = effect else {
+    let cdda_content::dialogue::Effect::CastSpell {
+        spell, targeted, ..
+    } = effect
+    else {
         panic!("it reads as the cast effect");
     };
     assert!(

@@ -9,7 +9,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use cdda_content::vehicles::PartSpec;
-use cdda_sim::vehicle_damage::{hit, Outcome};
+use cdda_sim::vehicle_damage::{Outcome, hit};
 
 fn part(durability: i32, bash_armour: f32) -> PartSpec {
     let mut spec = PartSpec {
@@ -32,7 +32,11 @@ fn a_blow_below_the_threshold_does_nothing_at_all() {
     );
     assert_eq!(
         hit(&seat, 300, 20, "bash", false),
-        Outcome::Applied { net: 15, hp_after: 285, broke: false },
+        Outcome::Applied {
+            net: 15,
+            hp_after: 285,
+            broke: false
+        },
         "at the threshold the armour comes off: 20 - 5 = 15, so 285 hit points remain"
     );
 }
@@ -44,7 +48,11 @@ fn a_thin_part_has_a_threshold_of_a_tenth_of_its_hit_points() {
     assert_eq!(hit(&thin, 40, 3, "bash", false), Outcome::Ignored);
     assert_eq!(
         hit(&thin, 40, 4, "bash", false),
-        Outcome::Applied { net: 0, hp_after: 40, broke: false },
+        Outcome::Applied {
+            net: 0,
+            hp_after: 40,
+            broke: false
+        },
         "**4 is at the threshold but the armour eats all of it**: nothing is lost and the blow is still not ignored"
     );
 }
@@ -54,12 +62,20 @@ fn pure_damage_both_ignores_the_threshold_and_passes_the_armour() {
     let seat = part(300, 5.0);
     assert_eq!(
         hit(&seat, 300, 19, "pure", true),
-        Outcome::Applied { net: 19, hp_after: 281, broke: false },
+        Outcome::Applied {
+            net: 19,
+            hp_after: 281,
+            broke: false
+        },
         "**19 pure damage is not a scratch**: `pure` is `no_resist`, and the threshold does not apply to it"
     );
     assert_eq!(
         hit(&seat, 10, 19, "pure", true),
-        Outcome::Applied { net: 19, hp_after: 0, broke: true },
+        Outcome::Applied {
+            net: 19,
+            hp_after: 0,
+            broke: true
+        },
         "and a part taken to zero hit points is broken rather than gone"
     );
 }

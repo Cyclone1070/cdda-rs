@@ -8,7 +8,12 @@
 use bevy_ecs::prelude::*;
 
 /// Three corpse kinds: a plain zombie, a dormant one, and a `NO_NECRO` sleeper.
-fn a_world() -> (World, cdda_sim::MonsterKindId, cdda_sim::MonsterKindId, cdda_sim::MonsterKindId) {
+fn a_world() -> (
+    World,
+    cdda_sim::MonsterKindId,
+    cdda_sim::MonsterKindId,
+    cdda_sim::MonsterKindId,
+) {
     let mut world = World::new();
     let mut table = cdda_sim::terrain_table::TerrainTable::default();
     table.insert(1, true);
@@ -30,9 +35,18 @@ fn a_world() -> (World, cdda_sim::MonsterKindId, cdda_sim::MonsterKindId, cdda_s
     cdda_sim::monster_registry::set_monster_types(
         &mut world,
         &[
-            cdda_sim::monster_registry::MonsterKind { id: "mon_zombie", hp: 40 },
-            cdda_sim::monster_registry::MonsterKind { id: "mon_sleeper", hp: 30 },
-            cdda_sim::monster_registry::MonsterKind { id: "mon_wretch", hp: 20 },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_zombie",
+                hp: 40,
+            },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_sleeper",
+                hp: 30,
+            },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_wretch",
+                hp: 20,
+            },
         ],
     );
     let zombie = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("zombie");
@@ -42,11 +56,7 @@ fn a_world() -> (World, cdda_sim::MonsterKindId, cdda_sim::MonsterKindId, cdda_s
         &mut world,
         &[
             (zombie, set(&["REVIVES"]), set(&["ZOMBIE"])),
-            (
-                sleeper,
-                set(&["REVIVES", "DORMANT"]),
-                set(&["ZOMBIE"]),
-            ),
+            (sleeper, set(&["REVIVES", "DORMANT"]), set(&["ZOMBIE"])),
             (
                 wretch,
                 set(&["REVIVES", "DORMANT", "NO_NECRO"]),
@@ -63,7 +73,12 @@ fn set(names: &[&str]) -> std::collections::BTreeSet<String> {
 }
 
 /// A corpse of a kind on a square, as the death path leaves one.
-fn a_corpse(world: &mut World, square: (i32, i32), kind: cdda_sim::MonsterKindId, revives: bool) -> Entity {
+fn a_corpse(
+    world: &mut World,
+    square: (i32, i32),
+    kind: cdda_sim::MonsterKindId,
+    revives: bool,
+) -> Entity {
     // A corpse is an ordinary item of the `corpse` type with the dead kind attached, which is exactly what `item::make_corpse` leaves behind.
     let corpse = cdda_sim::drop_item(world, square, cdda_sim::ItemTypeId(1), 1);
     world.entity_mut(corpse).insert(cdda_sim::CorpseOf {
@@ -97,7 +112,9 @@ fn a_spell(effect: &str, species: &str, area: f64) -> cdda_content::spells::Spel
         casting_time: cdda_content::spells::Scaling::default(),
         difficulty: None,
         max_level: None,
-        valid_targets: ["hostile".to_owned(), "ground".to_owned()].into_iter().collect(),
+        valid_targets: ["hostile".to_owned(), "ground".to_owned()]
+            .into_iter()
+            .collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),
@@ -112,7 +129,13 @@ fn a_revive_spell_stands_up_a_zombie_and_takes_the_corpse_with_it() {
     let caster = cdda_sim::spawn_monster(&mut world, (0, 0), zombie, 40);
     cdda_sim::PositionIndex::rebuild(&mut world);
     assert_eq!(
-        cdda_sim::spell_effects::apply(&mut world, caster, &a_spell("revive", "ZOMBIE", 2.0), 0, (2, 0, 0)),
+        cdda_sim::spell_effects::apply(
+            &mut world,
+            caster,
+            &a_spell("revive", "ZOMBIE", 2.0),
+            0,
+            (2, 0, 0)
+        ),
         cdda_sim::spell_effects::Effective::Done,
         "the body stood up"
     );
@@ -126,7 +149,11 @@ fn a_revive_spell_stands_up_a_zombie_and_takes_the_corpse_with_it() {
         .filter(|(entity, kind)| kind.0 == zombie && *entity != caster)
         .map(|(entity, _)| entity)
         .collect();
-    assert_eq!(standing.len(), 1, "**one zombie stands where the corpse was**");
+    assert_eq!(
+        standing.len(),
+        1,
+        "**one zombie stands where the corpse was**"
+    );
     assert_eq!(
         cdda_sim::creature::health_of(&world, standing[0]),
         Some(40),
@@ -144,7 +171,13 @@ fn a_dormant_body_is_only_woken_by_the_dormant_spell_and_no_necro_only_ignores_i
     cdda_sim::PositionIndex::rebuild(&mut world);
     // The plain revive will not touch a dormant body, nor a `NO_NECRO` one.
     assert_eq!(
-        cdda_sim::spell_effects::apply(&mut world, caster, &a_spell("revive", "ZOMBIE", 3.0), 0, (2, 0, 0)),
+        cdda_sim::spell_effects::apply(
+            &mut world,
+            caster,
+            &a_spell("revive", "ZOMBIE", 3.0),
+            0,
+            (2, 0, 0)
+        ),
         cdda_sim::spell_effects::Effective::NothingAffected,
         "**a dormant body does not stand up for the plain revive**"
     );
@@ -161,7 +194,10 @@ fn a_dormant_body_is_only_woken_by_the_dormant_spell_and_no_necro_only_ignores_i
         "the dormant spell woke what it found"
     );
     let raised: Vec<cdda_sim::MonsterKindId> = world
-        .query::<(&cdda_sim::creature::CreatureKind, &cdda_sim::creature::Creature)>()
+        .query::<(
+            &cdda_sim::creature::CreatureKind,
+            &cdda_sim::creature::Creature,
+        )>()
         .iter(&world)
         .map(|(kind, _)| kind.0)
         .collect();

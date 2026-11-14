@@ -79,7 +79,8 @@ pub fn digest_rates(metabolic: &MetabolicRates, is_stomach: bool, capacity_ml: i
             // A flat 250 mL: the guts are not a container, so the rate only has to be big enough to avoid overflow.
             solids_ml: 250,
             water_ml: 250,
-            min_calories: f64::from(metabolic.kcal / 24.0 * metabolic.hunger * 1000.0).floor() as i64,
+            min_calories: f64::from(metabolic.kcal / 24.0 * metabolic.hunger * 1000.0).floor()
+                as i64,
             percent_kcal: 0.05 * metabolic.hunger,
             min_vitamin: (100.0 / 24.0 * f64::from(metabolic.hunger)).round() as i32,
             percent_vitamin: 0.05 * metabolic.hunger,
@@ -135,7 +136,9 @@ impl StomachContents {
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     pub fn capacity_of(&self, add: f64, multiply: f64) -> i64 {
-        let scaled = crate::mutations::apply_enchantments(colorless(self.max_volume_ml), add, multiply) as i64;
+        let scaled =
+            crate::mutations::apply_enchantments(colorless(self.max_volume_ml), add, multiply)
+                as i64;
         scaled.max(250)
     }
 
@@ -199,15 +202,19 @@ impl StomachContents {
         // "Use min_kcal by default, but no more than what's in stomach, and no less than percentage_kcal of what's in stomach." The order of the two clamps matters
         // when the minimum is larger than what is left: the reference's `std::clamp` answers the upper bound, so the whole remainder leaves.
         let fraction = (self.kcal() as f32 * rates.percent_kcal).round() as i64;
-        digested.calories = half_hours * rates.min_calories.max(fraction * 1_000).min(self.calories);
+        digested.calories =
+            half_hours * rates.min_calories.max(fraction * 1_000).min(self.calories);
 
         for (id, units) in &self.vitamins {
-            let kind = vitamins.get(id).map_or("vitamin", |vitamin| vitamin.vit_type.as_str());
+            let kind = vitamins
+                .get(id)
+                .map_or("vitamin", |vitamin| vitamin.vit_type.as_str());
             if kind != "drug" {
                 let fraction = (*units as f32 * rates.percent_vitamin).round() as i32;
-                digested
-                    .vitamins
-                    .insert(id.clone(), (half_hours as i32) * rates.min_vitamin.max(fraction).min(*units));
+                digested.vitamins.insert(
+                    id.clone(),
+                    (half_hours as i32) * rates.min_vitamin.max(fraction).min(*units),
+                );
             } else if self.is_stomach {
                 // "Drug vitamins are absorbed to the blood instantly after the first stomach step."
                 digested.vitamins.insert(id.clone(), *units);

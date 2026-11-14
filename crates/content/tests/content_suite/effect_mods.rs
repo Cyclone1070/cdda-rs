@@ -57,8 +57,10 @@ fn text(object: &cdda_json::Object, key: &str) -> String {
 
 #[test]
 fn every_modifier_cell_and_value_matches_the_reference() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-mods.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-mods.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -69,7 +71,8 @@ fn every_modifier_cell_and_value_matches_the_reference() {
     assert_eq!(types.len(), 180, "every effect type with a modifier table");
     assert_eq!(integer(&root, "count"), 1_081, "every recorded cell");
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let effects = cdda_content::effects::load_paths(&paths).expect("the effects load");
@@ -99,7 +102,9 @@ fn every_modifier_cell_and_value_matches_the_reference() {
             "{id}: the same number of cells"
         );
         for cell in mods {
-            let Value::Object(cell) = cell else { panic!("a cell") };
+            let Value::Object(cell) = cell else {
+                panic!("a cell")
+            };
             let argument = text(cell, "arg");
             let action = action(integer(cell, "action"));
             let level = u8::try_from(integer(cell, "level")).expect("a level");
@@ -144,8 +149,15 @@ fn every_modifier_cell_and_value_matches_the_reference() {
     }
     // **Non-vacuity**: the grid has to hold more than one level, more than one action, and cells that scale rather than stand still.
     assert!(cells == 1_081, "cells compared: {cells}");
-    assert_eq!(levels.len(), 2, "reduction levels the data actually uses: {levels:?}");
-    assert!(actions.len() >= 6, "actions the data actually sets: {actions:?}");
+    assert_eq!(
+        levels.len(),
+        2,
+        "reduction levels the data actually uses: {levels:?}"
+    );
+    assert!(
+        actions.len() >= 6,
+        "actions the data actually sets: {actions:?}"
+    );
     assert!(scaled > 100, "cells with a scaling term: {scaled}");
     assert!(
         differing.is_empty(),

@@ -8,8 +8,8 @@
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_sim::FireMap as _;
-use cdda_sim::square::{Furniture, Ground, Square, Terrain, materialise, squares, terrain_at};
 use cdda_sim::Position;
+use cdda_sim::square::{Furniture, Ground, Square, Terrain, materialise, squares, terrain_at};
 
 const AIR: u32 = 1;
 const WALL: u32 = 2;
@@ -25,9 +25,9 @@ fn level(marks: &[(i32, i32, u32)]) -> Level {
     for y in 0..SIDE {
         for x in 0..SIDE {
             let (Ok(x), Ok(y)) = (i32::try_from(x), i32::try_from(y)) else {
-            continue;
-        };
-        level.set_terrain(x, y, AIR, 0);
+                continue;
+            };
+            level.set_terrain(x, y, AIR, 0);
         }
     }
     for (x, y, code) in marks {
@@ -47,7 +47,11 @@ fn every_square_of_the_level_is_an_entity() {
         SIDE * SIDE,
         "one submap is twelve squares on a side"
     );
-    assert_eq!(counts.ground, SIDE * SIDE, "and a piece of ground under each");
+    assert_eq!(
+        counts.ground,
+        SIDE * SIDE,
+        "and a piece of ground under each"
+    );
     assert_eq!(
         squares(&world).len(),
         expected,
@@ -237,13 +241,19 @@ fn the_turn_s_questions_about_fire_come_from_the_world() {
         facts.can_burn((5, 5, 0)),
         "the ground's own answer is in the sheet"
     );
-    assert!(!facts.can_burn((5, 6, 0)), "and the square beside it is bare");
+    assert!(
+        !facts.can_burn((5, 6, 0)),
+        "and the square beside it is bare"
+    );
     assert_eq!(
         facts.adjacent_fires((5, 5, 0)),
         1,
         "the fire standing beside it is counted"
     );
-    assert!(facts.neighbour((6, 5, 0)).has_fire, "and is found where it is");
+    assert!(
+        facts.neighbour((6, 5, 0)).has_fire,
+        "and is found where it is"
+    );
 }
 
 #[test]
@@ -278,7 +288,9 @@ fn a_turn_runs_on_a_world_that_is_only_entities() {
     cdda_sim::turn::set_scent_source(&mut world, (5, 5), 0);
     cdda_sim::turn::run_turn(&mut world);
 
-    let aged = world.get::<cdda_sim::Field>(fire).map(|field| field.entry.age());
+    let aged = world
+        .get::<cdda_sim::Field>(fire)
+        .map(|field| field.entry.age());
     assert!(
         aged.is_some_and(|age| age != 500),
         "the fire took its turn: the store supplied its fuel"

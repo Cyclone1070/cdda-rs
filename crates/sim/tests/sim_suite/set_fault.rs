@@ -27,17 +27,35 @@ fn a_fault_takes_away_the_faults_it_prevents() {
     // **The removal comes first**, before the new fault is inserted: `set_fault` walks the new fault's `block_faults` and removes each of them
     // (`src/item.cpp:7834-7839`). A staff that chipped and then broke is broken and not chipped, and the item lends itself to exactly one description.
     let mut faults = ItemFaults::default();
-    assert!(set_fault(&mut faults, "fault_handle_chipping", false, 100, blocks));
+    assert!(set_fault(
+        &mut faults,
+        "fault_handle_chipping",
+        false,
+        100,
+        blocks
+    ));
     assert_eq!(faults.0.len(), 1);
 
-    assert!(set_fault(&mut faults, "fault_handle_cracked", false, 50, blocks));
+    assert!(set_fault(
+        &mut faults,
+        "fault_handle_cracked",
+        false,
+        50,
+        blocks
+    ));
     assert_eq!(
         faults.0,
         ["fault_handle_cracked".to_owned()].into_iter().collect(),
         "cracking takes chipping away rather than joining it"
     );
 
-    assert!(set_fault(&mut faults, "fault_handle_broken", false, 5, blocks));
+    assert!(set_fault(
+        &mut faults,
+        "fault_handle_broken",
+        false,
+        5,
+        blocks
+    ));
     assert_eq!(
         faults.0,
         ["fault_handle_broken".to_owned()].into_iter().collect(),
@@ -45,7 +63,10 @@ fn a_fault_takes_away_the_faults_it_prevents() {
     );
 
     // **A refused fault changes nothing at all.** The check runs first, so even the removal of blocked faults does not happen.
-    assert!(!set_fault(&mut faults, "fault_handle_chipping", false, 100, blocks), "a broken handle cannot chip");
+    assert!(
+        !set_fault(&mut faults, "fault_handle_chipping", false, 100, blocks),
+        "a broken handle cannot chip"
+    );
     assert_eq!(
         faults.0,
         ["fault_handle_broken".to_owned()].into_iter().collect(),
@@ -53,12 +74,21 @@ fn a_fault_takes_away_the_faults_it_prevents() {
     );
 
     // **Unless it is forced**, which skips the check - and then the fault arrives even though the item's other fault blocks it.
-    assert!(set_fault(&mut faults, "fault_handle_chipping", true, 100, blocks));
+    assert!(set_fault(
+        &mut faults,
+        "fault_handle_chipping",
+        true,
+        100,
+        blocks
+    ));
     assert_eq!(
         faults.0,
-        ["fault_handle_broken".to_owned(), "fault_handle_chipping".to_owned()]
-            .into_iter()
-            .collect(),
+        [
+            "fault_handle_broken".to_owned(),
+            "fault_handle_chipping".to_owned()
+        ]
+        .into_iter()
+        .collect(),
         "a forced fault ignores the block, and does not remove the blocker either"
     );
     remove_fault(&mut faults, "fault_handle_chipping");

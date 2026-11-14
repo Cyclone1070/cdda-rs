@@ -173,8 +173,8 @@ fn dump() -> BTreeMap<String, ConsumeDrug> {
 fn every_drug_is_read_the_way_the_reference_reads_it() {
     let recorded = dump();
     assert_eq!(recorded.len(), 108, "every drug was recorded");
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded: BTreeMap<String, ItemType> = load_paths(&paths)
@@ -227,13 +227,22 @@ fn every_drug_is_read_the_way_the_reference_reads_it() {
             ));
         }
     }
-    assert!(graded_range > 10, "a vitamin range has to be exercised: {graded_range}");
-    assert!(free_tool > 5, "and a tool that costs nothing (a negative count): {free_tool}");
+    assert!(
+        graded_range > 10,
+        "a vitamin range has to be exercised: {graded_range}"
+    );
+    assert!(
+        free_tool > 5,
+        "and a tool that costs nothing (a negative count): {free_tool}"
+    );
     assert!(left_behind > 0, "and the item left behind: {left_behind}");
     // **Declared gap, asserted rather than assumed**: every effect in this content names `bp_null`, and none is permanent. Both branches exist in the actor and the
     // port reads them, but this corpus does not exercise them — so the counts are pinned at zero, and the day the content grows one the test says so instead of
     // quietly passing.
-    assert_eq!(real_body_part, 0, "no effect names a body part in this content");
+    assert_eq!(
+        real_body_part, 0,
+        "no effect names a body part in this content"
+    );
     assert_eq!(
         recorded
             .values()
@@ -257,8 +266,8 @@ fn every_drug_is_read_the_way_the_reference_reads_it() {
 fn the_ported_actor_types_are_the_ones_the_content_uses() {
     // A cheap cross-check that keeps the actor dispatch honest: every action the port recognises by **name only** must be a type the content really uses, and the
     // three ported ones must appear as their own variants rather than as `Other`.
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let items = load_paths(&paths).expect("the items load");
@@ -276,13 +285,23 @@ fn the_ported_actor_types_are_the_ones_the_content_uses() {
             }
         }
     }
-    assert!(ported.contains("transform"), "the port has the transform actor");
-    assert!(ported.contains("delayed_transform"), "and its delayed variant");
+    assert!(
+        ported.contains("transform"),
+        "the port has the transform actor"
+    );
+    assert!(
+        ported.contains("delayed_transform"),
+        "and its delayed variant"
+    );
     assert!(ported.contains("consume_drug"), "and the drug");
     // **`consume_drug` must never arrive as `Other`**: a regression there would silently drop every drug's consequences while the drug gate still passed.
     assert!(
         !others.contains_key("consume_drug"),
         "consume_drug is ported, so it cannot be an unported name"
     );
-    assert!(others.len() > 20, "the content still uses many actors: {}", others.len());
+    assert!(
+        others.len() > 20,
+        "the content still uses many actors: {}",
+        others.len()
+    );
 }

@@ -65,7 +65,8 @@ pub fn propagate(
         if front.is_empty() {
             continue;
         }
-        let mut index = usize::try_from(rolls.rng(0, i32::try_from(front.len()).unwrap_or(1) - 1)).unwrap_or(0);
+        let mut index =
+            usize::try_from(rolls.rng(0, i32::try_from(front.len()).unwrap_or(1) - 1)).unwrap_or(0);
         if index >= front.len() {
             index = 0;
         }

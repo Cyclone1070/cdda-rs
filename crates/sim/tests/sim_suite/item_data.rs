@@ -15,7 +15,8 @@ use std::sync::OnceLock;
 fn the_games_items() -> &'static Vec<items::ItemType> {
     static ONCE: OnceLock<Vec<items::ItemType>> = OnceLock::new();
     ONCE.get_or_init(|| {
-        let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+        let reference =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
         let dirs = [reference.join("core"), reference.join("json")];
         let args: Vec<PathBuf> = dirs.to_vec();
         let borrowed: Vec<&Path> = args.iter().map(PathBuf::as_path).collect();

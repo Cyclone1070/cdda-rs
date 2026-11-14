@@ -30,7 +30,9 @@ pub fn set_mapgens(
     mapgens: impl IntoIterator<Item = (String, cdda_content::mapgen::MapgenObject)>,
 ) {
     let holder = crate::singletons::singleton::<Mapgens, TheMapgens>(world);
-    world.entity_mut(holder).insert(Mapgens(mapgens.into_iter().collect()));
+    world
+        .entity_mut(holder)
+        .insert(Mapgens(mapgens.into_iter().collect()));
 }
 
 /// Installs the terrain codes, so a drawn terrain id can be written to a square.
@@ -102,7 +104,12 @@ pub fn place_fields(world: &mut World, update: &str, origin: (i32, i32, i32)) ->
             let Some((x, y, strength)) = drawn else {
                 return Some(placed);
             };
-            crate::add_field_strength(world, (origin.0 + x, origin.1 + y, origin.2), field, strength);
+            crate::add_field_strength(
+                world,
+                (origin.0 + x, origin.1 + y, origin.2),
+                field,
+                strength,
+            );
             placed += 1;
         }
     }

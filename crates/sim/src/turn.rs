@@ -8,7 +8,7 @@
 //! wind is the weather's, the dice are a thing like any other. A stage takes `&mut World` and
 //! nothing else.
 
-use crate::{singletons, Where};
+use crate::{Where, singletons};
 use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 
@@ -118,19 +118,17 @@ pub fn environment_schedule() -> Schedule {
         )
             .chain(),
     );
-    schedule.add_systems(
-        (
-            scheduled_stage.in_set(TurnStage::Scheduled),
-            scent_stage.in_set(TurnStage::Scent),
-            sounds_stage.in_set(TurnStage::Sounds),
-            needs_stage.in_set(TurnStage::Creatures),
-            digest_stage.in_set(TurnStage::Creatures),
-            falling_stage.in_set(TurnStage::Falling),
-            fields_stage.in_set(TurnStage::Fields),
-            creatures_stage.in_set(TurnStage::Creatures),
-            light_stage.in_set(TurnStage::Light),
-        ),
-    );
+    schedule.add_systems((
+        scheduled_stage.in_set(TurnStage::Scheduled),
+        scent_stage.in_set(TurnStage::Scent),
+        sounds_stage.in_set(TurnStage::Sounds),
+        needs_stage.in_set(TurnStage::Creatures),
+        digest_stage.in_set(TurnStage::Creatures),
+        falling_stage.in_set(TurnStage::Falling),
+        fields_stage.in_set(TurnStage::Fields),
+        creatures_stage.in_set(TurnStage::Creatures),
+        light_stage.in_set(TurnStage::Light),
+    ));
     schedule
 }
 
@@ -151,7 +149,9 @@ fn focus_stage(world: &mut World) {
         return;
     }
     let mut creatures: Vec<bevy_ecs::entity::Entity> = Vec::new();
-    let mut query = world.query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::prelude::With<crate::skills::Focus>>();
+    let mut query = world
+        .query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::prelude::With<crate::skills::Focus>>(
+        );
     for creature in query.iter(world) {
         creatures.push(creature);
     }
@@ -159,7 +159,9 @@ fn focus_stage(world: &mut World) {
         // Reference: `Character::calc_focus_equilibrium` (`character.cpp:3852-3920`) counts the creature's **perceived pain** against its morale, and a masochist minds it
         // only past twenty. The pain is the component's own number, the morale the points on the creature.
         let morale = crate::morale::net_bonus_of(world, creature);
-        let pain = world.get::<crate::creature::Pain>(creature).map_or(0, |pain| pain.0);
+        let pain = world
+            .get::<crate::creature::Pain>(creature)
+            .map_or(0, |pain| pain.0);
         let masochist = crate::mutations::has(world, creature, "MASOCHIST");
         let effective = crate::skills::effective_morale(morale, pain, masochist);
         // Reference: `Character::calc_focus_equilibrium` ends by capping the answer on the creature's own sleepiness
@@ -188,7 +190,8 @@ fn needs_stage(world: &mut World) {
     for (creature, rates) in query.iter(world) {
         creatures.push((creature, rates.0));
     }
-    let mut rolls = singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    let mut rolls =
+        singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     for (creature, rates) in creatures {
         // Reference: `calc_needs_rates` ends by passing hunger, sleepiness and thirst through the enchantment cache (`character.cpp:5313-5316`), so a mutation that changes
         // how fast a creature wears out changes the clock itself rather than describing it.
@@ -217,7 +220,11 @@ fn digest_stage(world: &mut World) {
     }
     let turn = calendar.turn;
     let effects = crate::effect_registry::types_of(world);
-    let mut creatures: Vec<(bevy_ecs::entity::Entity, crate::needs::NeedsRates, crate::body::BodyClock)> = Vec::new();
+    let mut creatures: Vec<(
+        bevy_ecs::entity::Entity,
+        crate::needs::NeedsRates,
+        crate::body::BodyClock,
+    )> = Vec::new();
     let mut query = world.query::<(
         bevy_ecs::entity::Entity,
         &crate::needs::NeedsRatesOf,
@@ -226,13 +233,19 @@ fn digest_stage(world: &mut World) {
     for (creature, rates, clock) in query.iter(world) {
         creatures.push((creature, rates.0, *clock));
     }
-    let mut rolls = singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    let mut rolls =
+        singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     for (creature, rates, clock) in creatures {
         let Some(mut body) = world.get::<crate::body::Body>(creature).cloned() else {
             continue;
         };
         let (add, multiply) = match crate::mutation_data::holder(world) {
-            Some(data) => crate::mutations::enchantment_values(world, creature, &data, "STOMACH_SIZE_MULTIPLIER"),
+            Some(data) => crate::mutations::enchantment_values(
+                world,
+                creature,
+                &data,
+                "STOMACH_SIZE_MULTIPLIER",
+            ),
             None => (0.0, 0.0),
         };
         let rates = crate::needs::rates_with_enchantments(world, creature, rates);
@@ -404,7 +417,11 @@ fn burn_whoever_stands_in_fire(world: &mut World, rolls: &mut Rolls) {
         if let Some(turns) = lit
             && let Some(kind) = crate::effect_registry::kind_of(world, "onfire")
         {
-            crate::applied_effects::add(world, creature, crate::effects::ActiveEffect::new(&kind, turns, 1));
+            crate::applied_effects::add(
+                world,
+                creature,
+                crate::effects::ActiveEffect::new(&kind, turns, 1),
+            );
         }
     }
 }

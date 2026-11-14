@@ -29,8 +29,8 @@ struct Case {
 
 /// Every material the reference defines, because whether a thing is soft is a question about its materials.
 fn materials() -> BTreeMap<String, cdda_content::materials::Material> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     cdda_content::materials::load_paths(&paths)
@@ -42,8 +42,8 @@ fn materials() -> BTreeMap<String, cdda_content::materials::Material> {
 
 /// Every item the reference defines, from the reference checkout's own data.
 fn items_loaded() -> Vec<ItemType> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     cdda_content::items::load_paths(&paths).expect("the items load")
@@ -160,8 +160,8 @@ fn measures() -> BTreeMap<String, Measured> {
 /// The weights the prototypes state, in the units the sim asks for.
 #[allow(dead_code)]
 fn weights() -> BTreeMap<String, TypeWeight> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus/prototypes/items.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
     let bytes = std::fs::read(&path).expect("the prototypes");
     let Value::Object(root) = cdda_json::parse(&bytes).expect("valid JSON") else {
         panic!("the dump is an object")
@@ -192,10 +192,7 @@ fn weights() -> BTreeMap<String, TypeWeight> {
             TypeWeight {
                 milligrams: whole("weight_mg"),
                 integral_milligrams: whole("integral_weight_mg"),
-                count_by_charges: matches!(
-                    entry.get("count_by_charges"),
-                    Some(Value::Bool(true))
-                ),
+                count_by_charges: matches!(entry.get("count_by_charges"), Some(Value::Bool(true))),
                 no_drop,
             },
         );
@@ -272,7 +269,11 @@ fn the_port_refuses_exactly_the_payloads_the_reference_refuses_for_their_lists()
                     case.payload,
                     case.container,
                     if port_refuses { "refused" } else { "accepted" },
-                    if reference_refuses { "refused" } else { "accepted" }
+                    if reference_refuses {
+                        "refused"
+                    } else {
+                        "accepted"
+                    }
                 ));
             }
         }

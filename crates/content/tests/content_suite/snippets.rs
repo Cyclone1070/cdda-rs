@@ -24,7 +24,10 @@ fn a_category_reads_all_three_shapes_the_data_writes() {
     let read = categories(&value);
     assert_eq!(read.len(), 3, "three categories: {read:?}");
 
-    let one_line = read.iter().find(|(name, _)| name == "one_line").expect("present");
+    let one_line = read
+        .iter()
+        .find(|(name, _)| name == "one_line")
+        .expect("present");
     assert_eq!(
         one_line.1.len(),
         2,
@@ -37,14 +40,28 @@ fn a_category_reads_all_three_shapes_the_data_writes() {
         "a line with no id is named after its category and position"
     );
 
-    let bare = read.iter().find(|(name, _)| name == "bare").expect("present");
+    let bare = read
+        .iter()
+        .find(|(name, _)| name == "bare")
+        .expect("present");
     assert_eq!(bare.1.len(), 2);
     assert_eq!(bare.1.get(1).expect("a line").text, "second");
-    assert_eq!(bare.1.get(1).expect("a line").weight, 100, "the default weight");
+    assert_eq!(
+        bare.1.get(1).expect("a line").weight,
+        100,
+        "the default weight"
+    );
 
-    let named = read.iter().find(|(name, _)| name == "named").expect("present");
+    let named = read
+        .iter()
+        .find(|(name, _)| name == "named")
+        .expect("present");
     assert_eq!(named.1.first().expect("a line").id, "named_a");
-    assert_eq!(named.1.first().expect("a line").weight, 50, "the weight the data wrote");
+    assert_eq!(
+        named.1.first().expect("a line").weight,
+        50,
+        "the weight the data wrote"
+    );
     assert_eq!(
         named.1.get(1).expect("a line").id,
         "named_1",

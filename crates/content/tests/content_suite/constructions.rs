@@ -169,10 +169,14 @@ fn every_construction_loads_with_the_time_result_tiles_and_skills_the_reference_
     let groups = cdda_content::requirements::load_paths(&args).expect("requirement groups load");
     // **Which items stand in for which.** The reference replaces every requirement's item with its subtypes (`src/requirements.cpp:732-747`), so a requirement that
     // names `fire` accepts anything that can be a fire.
-    let mut subtypes: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    let mut subtypes: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for kind in cdda_content::items::load_paths(&args).expect("items load") {
         for parent in &kind.subtypes {
-            subtypes.entry(parent.clone()).or_default().push(kind.id.clone());
+            subtypes
+                .entry(parent.clone())
+                .or_default()
+                .push(kind.id.clone());
         }
     }
     // **In the reference's own order**, which is the order the item files are read in - the same order this loader reads them, so no sorting here.
@@ -190,7 +194,10 @@ fn every_construction_loads_with_the_time_result_tiles_and_skills_the_reference_
         let Some((time, post_terrain, pre_terrain, skills, components, tools, qualities)) =
             recorded.get(&construction.id)
         else {
-            wrong.push(format!("{}: the reference has no such construction", construction.id));
+            wrong.push(format!(
+                "{}: the reference has no such construction",
+                construction.id
+            ));
             continue;
         };
         if construction.time != *time {
@@ -211,7 +218,7 @@ fn every_construction_loads_with_the_time_result_tiles_and_skills_the_reference_
                 construction.id, construction.pre_terrain
             ));
         }
-            let needs = constructions::needs_of(construction, &groups, &subtypes);
+        let needs = constructions::needs_of(construction, &groups, &subtypes);
         // **Within a group the order does not matter**: the alternatives are an "or", so `fire` before `torch_lit` and after are the same requirement. The order of
         // the groups does matter, and stays strict.
         let flattened = |groups: &[Vec<(String, i32, bool)>]| -> Vec<Vec<(String, i32)>> {
@@ -235,13 +242,15 @@ fn every_construction_loads_with_the_time_result_tiles_and_skills_the_reference_
         if flattened(&needs.components) != *components {
             wrong.push(format!(
                 "{}: takes {:?}, the reference says {components:?}",
-                construction.id, flattened(&needs.components)
+                construction.id,
+                flattened(&needs.components)
             ));
         }
         if flattened(&needs.tools) != *tools {
             wrong.push(format!(
                 "{}: needs {:?}, the reference says {tools:?}",
-                construction.id, flattened(&needs.tools)
+                construction.id,
+                flattened(&needs.tools)
             ));
         }
         if needs.qualities != *qualities {

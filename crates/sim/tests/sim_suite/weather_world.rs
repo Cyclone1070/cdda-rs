@@ -42,9 +42,16 @@ fn world(rules: Rules) -> World {
 
 fn fog_rules() -> Rules {
     // One type whose condition always holds, so the decision is `fog` on every update: the point is not what this gate is about.
-    let kinds = vec![WeatherType { id: "fog".to_string(), sight_penalty: 1.7, ..Default::default() }];
+    let kinds = vec![WeatherType {
+        id: "fog".to_string(),
+        sight_penalty: 1.7,
+        ..Default::default()
+    }];
     let mut conditions = std::collections::BTreeMap::new();
-    conditions.insert("fog".to_string(), cdda_content::condition::Condition::Always);
+    conditions.insert(
+        "fog".to_string(),
+        cdda_content::condition::Condition::Always,
+    );
     Rules::new(kinds, conditions, cdda_content::jmath::Registry::default())
 }
 
@@ -53,7 +60,14 @@ fn forecast(turn: i64) -> Forecast<'static> {
     static GENERATOR: std::sync::OnceLock<Generator> = std::sync::OnceLock::new();
     Forecast {
         generator: GENERATOR.get_or_init(Generator::default_region),
-        common: CommonData { x: 0.0, y: 0.0, z: 0.0, cyf: 0.6, mod_seed: 12_345, season: 0 },
+        common: CommonData {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            cyf: 0.6,
+            mod_seed: 12_345,
+            season: 0,
+        },
         day_fraction: 0.5,
         turn,
     }
@@ -71,7 +85,11 @@ fn a_sky_that_dims_the_light_reaches_the_world_s_weather_and_its_map() {
     assert_eq!(weather, 1.7, "the world is foggy");
     assert!(cdda_sim::light_is_stale(&world), "and the light knows it");
     let climate = climate_read(&world).expect("the climate");
-    assert_eq!(climate.weather(), Some("fog"), "the id is the world's, not the test's");
+    assert_eq!(
+        climate.weather(),
+        Some("fog"),
+        "the id is the world's, not the test's"
+    );
 }
 
 #[test]
@@ -83,7 +101,10 @@ fn a_sky_with_the_same_absorption_leaves_the_light_alone() {
     tick_climate(&mut world, &forecast(0), &mut roll, &mut sector);
     // Build the light so the staleness question has an answer that means something.
     cdda_sim::cast_lights_with(&mut world);
-    assert!(!cdda_sim::light_is_stale(&world), "the build cleared the mark");
+    assert!(
+        !cdda_sim::light_is_stale(&world),
+        "the build cleared the mark"
+    );
     tick_climate(&mut world, &forecast(400), &mut roll, &mut sector);
     assert!(
         !cdda_sim::light_is_stale(&world),
@@ -105,7 +126,11 @@ fn the_world_s_wind_comes_from_the_weather_and_not_from_the_caller() {
         cdda_sim::weather_gen::pressure(forecast(0).generator, &forecast(0).common),
         &mut |low, high| low.midpoint(high),
     );
-    assert_eq!(climate.windpower(), expected, "the world's wind is the generator's wind");
+    assert_eq!(
+        climate.windpower(),
+        expected,
+        "the world's wind is the generator's wind"
+    );
 }
 
 #[test]
@@ -116,10 +141,20 @@ fn the_world_s_wind_wins_over_the_one_a_caller_passes() {
     let mut roll = |low: i32, high: i32| low.midpoint(high);
     let mut sector = |_season: usize| 9;
     tick_climate(&mut with_climate, &forecast(0), &mut roll, &mut sector);
-    let from_climate = climate_read(&with_climate).expect("the climate").windpower();
-    assert_eq!(cdda_sim::wind_of(&with_climate, 99), from_climate, "the climate's wind");
+    let from_climate = climate_read(&with_climate)
+        .expect("the climate")
+        .windpower();
+    assert_eq!(
+        cdda_sim::wind_of(&with_climate, 99),
+        from_climate,
+        "the climate's wind"
+    );
     let without = World::new();
-    assert_eq!(cdda_sim::wind_of(&without, 99), 99, "and the caller's, where there is no climate");
+    assert_eq!(
+        cdda_sim::wind_of(&without, 99),
+        99,
+        "and the caller's, where there is no climate"
+    );
 }
 
 /// The weather rules the shipped data declares, through the loader a world would use.
@@ -131,10 +166,16 @@ fn shipped_rules() -> Rules {
 }
 
 fn recorded_hours() -> Vec<cdda_json::Object> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/manager-240h.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/weather/manager-240h.json");
     let text = std::fs::read_to_string(path).expect("the recorded manager");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else { panic!("steps") };
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
+        panic!("root")
+    };
+    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else {
+        panic!("steps")
+    };
     steps
         .iter()
         .map(|step| match step {
@@ -145,9 +186,11 @@ fn recorded_hours() -> Vec<cdda_json::Object> {
 }
 
 fn dice_by_hour() -> std::collections::BTreeMap<i64, Vec<(i32, i32, i32)>> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/manager-240h.rolls.txt");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/weather/manager-240h.rolls.txt");
     let text = std::fs::read_to_string(path).expect("the recorded dice");
-    let mut by_hour: std::collections::BTreeMap<i64, Vec<(i32, i32, i32)>> = std::collections::BTreeMap::new();
+    let mut by_hour: std::collections::BTreeMap<i64, Vec<(i32, i32, i32)>> =
+        std::collections::BTreeMap::new();
     let mut hour: Option<i64> = None;
     for line in text.lines() {
         if let Some(number) = line.strip_prefix("mark weather.manager.hour.") {
@@ -156,10 +199,16 @@ fn dice_by_hour() -> std::collections::BTreeMap<i64, Vec<(i32, i32, i32)>> {
             by_hour.entry(parsed).or_default();
         } else if let Some(rest) = line.strip_prefix("int ") {
             let mut parts = rest.split(' ');
-            let (Some(low), Some(high), Some(drawn)) = (parts.next(), parts.next(), parts.next()) else { continue };
-            if let (Ok(low), Ok(high), Ok(drawn), Some(hour)) =
-                (low.parse::<i32>(), high.parse::<i32>(), drawn.parse::<i32>(), hour)
-            {
+            let (Some(low), Some(high), Some(drawn)) = (parts.next(), parts.next(), parts.next())
+            else {
+                continue;
+            };
+            if let (Ok(low), Ok(high), Ok(drawn), Some(hour)) = (
+                low.parse::<i32>(),
+                high.parse::<i32>(),
+                drawn.parse::<i32>(),
+                hour,
+            ) {
                 by_hour.entry(hour).or_default().push((low, high, drawn));
             }
         }
@@ -195,7 +244,8 @@ fn ten_recorded_days_replay_through_the_world_hour_by_hour() {
         }
     };
     let rules = shipped_rules();
-    let penalty = |id: &str| -> f32 { cdda_content::weather::WeatherRules::sight_penalty(&rules, id) };
+    let penalty =
+        |id: &str| -> f32 { cdda_content::weather::WeatherRules::sight_penalty(&rules, id) };
     let first = &hours[0];
     {
         let mut climate = climate(&mut world).expect("the climate");
@@ -227,8 +277,14 @@ fn ten_recorded_days_replay_through_the_world_hour_by_hour() {
         let recorded = dice.get(&hour).expect("every hour after the first rolls");
         let mut supplied = recorded.iter();
         let mut roll = |low: i32, high: i32| {
-            let (want_low, want_high, drawn) = *supplied.next().expect("no more dice than the reference asked for");
-            assert_eq!((low, high), (want_low, want_high), "hour {hour} asks for the dice the reference asked for");
+            let (want_low, want_high, drawn) = *supplied
+                .next()
+                .expect("no more dice than the reference asked for");
+            assert_eq!(
+                (low, high),
+                (want_low, want_high),
+                "hour {hour} asks for the dice the reference asked for"
+            );
             drawn
         };
         let mut sector = |_season: usize| sectors.pop_front().expect("a sector for every redraw");
@@ -252,7 +308,10 @@ fn ten_recorded_days_replay_through_the_world_hour_by_hour() {
             &mut sector,
         );
         checked += 1;
-        if let cdda_content::weather::Change::Weather { sight_changed: true } = change {
+        if let cdda_content::weather::Change::Weather {
+            sight_changed: true,
+        } = change
+        {
             flushes += 1;
         }
         let climate = climate_read(&world).expect("the climate");
@@ -262,35 +321,92 @@ fn ten_recorded_days_replay_through_the_world_hour_by_hour() {
                 wrong.push((hour, what.to_string(), ours, theirs));
             }
         };
-        note("weather", climate.weather().unwrap_or("none").to_string(), id_of(step));
-        note("next", climate.system.manager.next_turn.to_string(), number(step, "next").to_string());
-        note("windpower", point.windpower.to_string(), number(step, "windpower").to_string());
-        note("winddirection", point.winddirection.to_string(), number(step, "winddirection").to_string());
+        note(
+            "weather",
+            climate.weather().unwrap_or("none").to_string(),
+            id_of(step),
+        );
+        note(
+            "next",
+            climate.system.manager.next_turn.to_string(),
+            number(step, "next").to_string(),
+        );
+        note(
+            "windpower",
+            point.windpower.to_string(),
+            number(step, "windpower").to_string(),
+        );
+        note(
+            "winddirection",
+            point.winddirection.to_string(),
+            number(step, "winddirection").to_string(),
+        );
         // Both sides of every comparison here are values the reference **stored**, so exactness is the right demand: the temperature is a `float` and the port narrows to one
         // too, which means the two are equal or one of them is wrong. The earlier one-ulp tolerance was hiding a fixture written to ten digits - the port was computing a cosine
         // of a rounded fraction.
-        let near = |what: &str, ours: f64, theirs: f64, wrong: &mut Vec<(i64, String, String, String)>| {
-            // Every number in the recording is written to seventeen significant digits, so nothing here is rounded by the file. What is left is the last bit of
-            // `cos`: the recording was made on macOS and these tests run on Linux, and the two C libraries' trigonometric functions differ by one unit in the last
-            // place on some angles. The temperature is compared exactly because it is stored as a `float`, which absorbs that bit; the humidity and the pressure are
-            // `double` in the reference, so one ulp is the tightest claim that survives two platforms.
-            let tolerance = if what == "temperature" { 0.0 } else { theirs.abs() * f64::EPSILON };
-            if (ours - theirs).abs() > tolerance && wrong.len() < 8 {
-                wrong.push((hour, what.to_string(), format!("{ours}"), format!("{theirs}")));
-            }
-        };
+        let near =
+            |what: &str, ours: f64, theirs: f64, wrong: &mut Vec<(i64, String, String, String)>| {
+                // Every number in the recording is written to seventeen significant digits, so nothing here is rounded by the file. What is left is the last bit of
+                // `cos`: the recording was made on macOS and these tests run on Linux, and the two C libraries' trigonometric functions differ by one unit in the last
+                // place on some angles. The temperature is compared exactly because it is stored as a `float`, which absorbs that bit; the humidity and the pressure are
+                // `double` in the reference, so one ulp is the tightest claim that survives two platforms.
+                let tolerance = if what == "temperature" {
+                    0.0
+                } else {
+                    theirs.abs() * f64::EPSILON
+                };
+                if (ours - theirs).abs() > tolerance && wrong.len() < 8 {
+                    wrong.push((
+                        hour,
+                        what.to_string(),
+                        format!("{ours}"),
+                        format!("{theirs}"),
+                    ));
+                }
+            };
         // The generator's numbers as well as the manager's bookkeeping: with the recording's own place, season and seed, the whole point has to match.
-        near("temperature", point.temperature, number(step, "temperature"), &mut wrong);
-        near("humidity", point.humidity, number(step, "humidity"), &mut wrong);
-        near("pressure", point.pressure, number(step, "pressure"), &mut wrong);
+        near(
+            "temperature",
+            point.temperature,
+            number(step, "temperature"),
+            &mut wrong,
+        );
+        near(
+            "humidity",
+            point.humidity,
+            number(step, "humidity"),
+            &mut wrong,
+        );
+        near(
+            "pressure",
+            point.pressure,
+            number(step, "pressure"),
+            &mut wrong,
+        );
     }
-    assert_eq!(sectors.len(), 0, "every sector the world asked for was a recorded change: {expected_sectors} of them");
-    assert!(checked >= 200, "the whole recording was replayed: {checked}");
-    assert!(wrong.is_empty(), "the world disagrees with the recording: {wrong:?}");
+    assert_eq!(
+        sectors.len(),
+        0,
+        "every sector the world asked for was a recorded change: {expected_sectors} of them"
+    );
+    assert!(
+        checked >= 200,
+        "the whole recording was replayed: {checked}"
+    );
+    assert!(
+        wrong.is_empty(),
+        "the world disagrees with the recording: {wrong:?}"
+    );
     let expected_flushes = hours
         .windows(2)
         .filter(|pair| penalty(&id_of(&pair[0])) != penalty(&id_of(&pair[1])))
         .count();
-    assert!(expected_flushes >= 10, "the recording contains real transitions: {expected_flushes}");
-    assert_eq!(flushes, expected_flushes, "a flush exactly where the absorption moved");
+    assert!(
+        expected_flushes >= 10,
+        "the recording contains real transitions: {expected_flushes}"
+    );
+    assert_eq!(
+        flushes, expected_flushes,
+        "a flush exactly where the absorption moved"
+    );
 }

@@ -8,8 +8,8 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::field::FieldEntry;
-use cdda_core_types::rng::{Recording, Rolls};
 use cdda_core_types::field::FieldId;
+use cdda_core_types::rng::{Recording, Rolls};
 use cdda_sim::{FIRE, Field, Position, TerrainFacts, process_incendiary};
 
 /// The incendiary field, as the registry numbers it.
@@ -74,11 +74,7 @@ fn a_flammable_neighbour_catches_fire_and_the_dice_come_first() {
     .expect("twelve dice");
     let mut rolls = Rolls::replaying(recording);
     let facts = |x: i32, y: i32, _z: i32| {
-        if (x, y) == (4, 6) {
-            grass()
-        } else {
-            dry()
-        }
+        if (x, y) == (4, 6) { grass() } else { dry() }
     };
     process_incendiary(&mut world, entity, facts, &mut rolls);
     assert_eq!(rolls.recording_remaining(), Some(0), "every die was spent");

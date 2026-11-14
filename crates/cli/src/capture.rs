@@ -147,7 +147,10 @@ mod tests {
 
         let capture = draw(&mut world, (5, 5), 2);
 
-        assert_eq!(capture.squares_across, 5, "a radius of two is five squares across");
+        assert_eq!(
+            capture.squares_across, 5,
+            "a radius of two is five squares across"
+        );
         assert_eq!(capture.image.width, 5 * CELL, "and each square is a cell");
         assert_eq!(capture.image.height, 5 * CELL);
     }
@@ -160,7 +163,11 @@ mod tests {
         let one = draw(&mut first, (5, 5), 3);
         let two = draw(&mut second, (5, 5), 3);
 
-        assert_eq!(one.image.png(), two.image.png(), "a capture is comparable byte for byte");
+        assert_eq!(
+            one.image.png(),
+            two.image.png(),
+            "a capture is comparable byte for byte"
+        );
     }
 }
 
@@ -223,4 +230,3 @@ mod picture_tests {
         );
     }
 }
-

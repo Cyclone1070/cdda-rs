@@ -30,7 +30,10 @@ fn the_blade_is_the_best_quality_carried_or_nearby() {
         }],
     );
     let knife = cdda_sim::item_registry::id_of(&mut world, "knife_butcher").expect("the kind");
-    cdda_sim::item_registry::set_item_qualities(&mut world, &[(knife, &[("BUTCHER".to_owned(), 2)])]);
+    cdda_sim::item_registry::set_item_qualities(
+        &mut world,
+        &[(knife, &[("BUTCHER".to_owned(), 2)])],
+    );
     let survivor = world.spawn(cdda_sim::Inventory::new()).id();
     assert_eq!(
         cdda_sim::creature::best_quality(&mut world, survivor, "BUTCHER"),
@@ -86,7 +89,10 @@ fn a_tool_on_the_floor_is_reachable_to_six_squares() {
         }],
     );
     let knife = cdda_sim::item_registry::id_of(&mut world, "knife_butcher").expect("the kind");
-    cdda_sim::item_registry::set_item_qualities(&mut world, &[(knife, &[("BUTCHER".to_owned(), 1)])]);
+    cdda_sim::item_registry::set_item_qualities(
+        &mut world,
+        &[(knife, &[("BUTCHER".to_owned(), 1)])],
+    );
     let survivor = world
         .spawn((
             cdda_sim::Inventory::new(),
@@ -110,7 +116,12 @@ fn a_tool_on_the_floor_is_reachable_to_six_squares() {
         assert_eq!(
             cdda_sim::creature::best_quality(&mut world, survivor, "BUTCHER"),
             expected,
-            "**a tool {x} squares away is {}**", if expected == 1 { "reachable" } else { "out of reach" }
+            "**a tool {x} squares away is {}**",
+            if expected == 1 {
+                "reachable"
+            } else {
+                "out of reach"
+            }
         );
         world.despawn(near);
     }

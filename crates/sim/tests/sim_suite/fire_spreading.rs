@@ -76,7 +76,10 @@ fn a_spreading_fire_leaves_a_weak_fuelled_fire_behind() {
     for attempt in 0..40 {
         let mut world = World::new();
         fire(&mut world, 5, 5, 3, -10_000);
-        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
+        let seed = u32::try_from(attempt)
+            .unwrap_or(u32::MAX)
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
@@ -120,7 +123,10 @@ fn a_contained_fire_leaves_no_new_fire() {
     // Spread seeds, not counted up: `uniform_int` maps a small engine value to a small answer and a small seed's first draw is small,
     // so `0, 1, 2, ...` samples one end of the distribution rather than the chance under test.
     for attempt in 0..20 {
-        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
+        let seed = u32::try_from(attempt)
+            .unwrap_or(u32::MAX)
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
@@ -152,7 +158,10 @@ fn the_spreading_fire_spends_a_minute_of_its_own_life() {
     for attempt in 0..40 {
         let mut world = World::new();
         let entity = fire(&mut world, 5, 5, 3, -10_000);
-        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
+        let seed = u32::try_from(attempt)
+            .unwrap_or(u32::MAX)
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,
@@ -193,7 +202,10 @@ fn each_new_fire_is_put_on_a_different_square() {
     for attempt in 0..60 {
         let mut world = World::new();
         fire(&mut world, 5, 5, 3, -10_000);
-        let seed = u32::try_from(attempt).unwrap_or(u32::MAX).wrapping_mul(2_654_435_761).wrapping_add(1);
+        let seed = u32::try_from(attempt)
+            .unwrap_or(u32::MAX)
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(1);
         let mut rolls = Rolls::new(seed);
         process_fires(
             &mut world,

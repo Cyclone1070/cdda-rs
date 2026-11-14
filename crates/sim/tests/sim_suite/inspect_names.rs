@@ -31,7 +31,8 @@ fn an_inhabited_world() -> (World, Entity, Entity) {
         },
     );
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let bytes = std::fs::read(path).expect("the monster dump exists");
     let root = parse(&bytes).expect("the dump is valid JSON");
     let Value::Object(root) = root else {
@@ -53,7 +54,8 @@ fn an_inhabited_world() -> (World, Entity, Entity) {
         }],
     );
     let kind = cdda_sim::monster_registry::id_of(&mut world, "mon_zombie").expect("a zombie");
-    let monster = cdda_sim::creature::spawn_monster_of_type(&mut world, kind, &zombie, (3, 3, 0), 100);
+    let monster =
+        cdda_sim::creature::spawn_monster_of_type(&mut world, kind, &zombie, (3, 3, 0), 100);
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     (world, monster, survivor)
 }
@@ -82,7 +84,10 @@ fn every_component_a_creature_carries_has_a_name() {
     // And the ground is named too, since that is the other half of every square report.
     let ground = cdda_sim::inspect::what_is_at(&world, (5, 5, 0));
     assert!(
-        ground.iter().flat_map(|(_, components)| components.iter()).all(|name| name.as_str() != "?"),
+        ground
+            .iter()
+            .flat_map(|(_, components)| components.iter())
+            .all(|name| name.as_str() != "?"),
         "the floor is named: {ground:?}"
     );
     let _ = (monster, survivor);

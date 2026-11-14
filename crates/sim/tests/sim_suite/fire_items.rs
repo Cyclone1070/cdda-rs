@@ -224,11 +224,12 @@ fn a_fireproof_item_sits_there_through_the_whole_thing() {
 fn a_container_that_burns_away_spills_what_was_inside_it() {
     let mut world = World::new();
     let wooden_box = drop_item(&mut world, (5, 5), ItemTypeId(7), 1);
-    world
-        .entity_mut(wooden_box)
-        .insert(Container::new(1000));
+    world.entity_mut(wooden_box).insert(Container::new(1000));
     let rock = drop_item(&mut world, (5, 5), ItemTypeId(3), 1);
-    insert_into(&mut world, wooden_box, rock, |_| cdda_sim::ItemFacts::solid(100)).expect("the rock fits");
+    insert_into(&mut world, wooden_box, rock, |_| {
+        cdda_sim::ItemFacts::solid(100)
+    })
+    .expect("the rock fits");
     let mut rolls = Rolls::new(1);
     // Only the box burns: the rock's plan is unknown, so it is left alone.
     let totals = burn_items_in_fire(
@@ -261,11 +262,12 @@ fn a_container_that_burns_away_spills_what_was_inside_it() {
 fn an_irremovable_item_stays_inside_a_container_that_burns_away() {
     let mut world = World::new();
     let box_entity = drop_item(&mut world, (5, 5), ItemTypeId(7), 1);
-    world
-        .entity_mut(box_entity)
-        .insert(Container::new(1000));
+    world.entity_mut(box_entity).insert(Container::new(1000));
     let tablet = drop_item(&mut world, (5, 5), ItemTypeId(8), 1);
-    insert_into(&mut world, box_entity, tablet, |_| cdda_sim::ItemFacts::solid(100)).expect("it fits");
+    insert_into(&mut world, box_entity, tablet, |_| {
+        cdda_sim::ItemFacts::solid(100)
+    })
+    .expect("it fits");
     let mut rolls = Rolls::new(1);
     let totals = burn_items_in_fire(
         &mut world,
@@ -336,11 +338,12 @@ fn something_that_goes_off_in_a_fire_never_burns() {
 fn a_detonation_spills_what_the_item_held() {
     let mut world = World::new();
     let bomb = drop_item(&mut world, (5, 5), ItemTypeId(11), 1);
-    world
-        .entity_mut(bomb)
-        .insert(Container::new(1000));
+    world.entity_mut(bomb).insert(Container::new(1000));
     let shrapnel = drop_item(&mut world, (5, 5), ItemTypeId(4), 1);
-    insert_into(&mut world, bomb, shrapnel, |_| cdda_sim::ItemFacts::solid(10)).expect("it fits");
+    insert_into(&mut world, bomb, shrapnel, |_| {
+        cdda_sim::ItemFacts::solid(10)
+    })
+    .expect("it fits");
     let mut rolls = Rolls::new(1);
     let totals = burn_items_in_fire(
         &mut world,

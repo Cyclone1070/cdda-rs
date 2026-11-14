@@ -7,7 +7,12 @@
 /// Puts an emission down at a square, scaled by a chance multiplier. Returns whether the emission was defined at all.
 ///
 /// A multiplier of zero places nothing, which is the reference's answer for `chance_mult: 0` rather than a special case.
-pub fn emit_field(world: &mut bevy_ecs::prelude::World, square: (i32, i32, i32), emit: &str, chance_mult: f64) -> Option<()> {
+pub fn emit_field(
+    world: &mut bevy_ecs::prelude::World,
+    square: (i32, i32, i32),
+    emit: &str,
+    chance_mult: f64,
+) -> Option<()> {
     let emissions = crate::emit_registry::emissions_of(world, emit)?;
     let mut rolls = crate::singletons::take_rolls(world)?;
     for emission in &emissions {

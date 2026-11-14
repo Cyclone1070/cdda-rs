@@ -186,16 +186,17 @@ fn every_recipe_states_how_long_it_takes_in_moves() {
     let text = std::fs::read_to_string(path).expect("the recipe dump");
     let value = cdda_json::parse(text.as_bytes()).expect("valid json");
     let recipes = recipes::from_dump(&value).expect("the dump loads").0;
-    let timed = recipes.iter().filter(|recipe| recipe.time_moves > 0).count();
+    let timed = recipes
+        .iter()
+        .filter(|recipe| recipe.time_moves > 0)
+        .count();
     assert!(
         timed > 5_000,
         "only {timed} of {} recipes state a time, which cannot be right",
         recipes.len()
     );
     assert!(
-        recipes
-            .iter()
-            .all(|recipe| recipe.time_moves % 100 == 0),
+        recipes.iter().all(|recipe| recipe.time_moves % 100 == 0),
         "a duration is a whole number of seconds, and a second is a hundred moves"
     );
 }

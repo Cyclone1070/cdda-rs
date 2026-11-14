@@ -50,11 +50,15 @@ pub fn flashbang(world: &mut World, centre: (i32, i32, i32), immune: bool) -> Fl
             .collect()
     };
     for creature in creatures {
-        let Some(at) = world.get::<crate::Position>(creature).map(|held| (held.x, held.y)) else {
+        let Some(at) = world
+            .get::<crate::Position>(creature)
+            .map(|held| (held.x, held.y))
+        else {
             continue;
         };
         let distance = (at.0 - centre.0).abs().max((at.1 - centre.1).abs());
-        let person = world.get::<crate::Player>(creature).is_some() || crate::npcs::is_npc(world, creature);
+        let person =
+            world.get::<crate::Player>(creature).is_some() || crate::npcs::is_npc(world, creature);
         if !person && crate::creature_flags::has_flag(world, creature, "ROBOT") {
             // Reference: `if( critter.type->in_species( species_ROBOT ) ) { continue; }` - a robot has no ears to hurt.
             continue;
@@ -82,7 +86,9 @@ pub fn flashbang(world: &mut World, centre: (i32, i32, i32), immune: bool) -> Fl
         // applies with the reductions it can read.
         let turns = if person {
             let flash_mod = flash_reduction(world, creature);
-            i64::from((12 - flash_mod - distance) / 2).max(0).min(i64::from(10 - distance).max(0))
+            i64::from((12 - flash_mod - distance) / 2)
+                .max(0)
+                .min(i64::from(10 - distance).max(0))
         } else {
             i64::from(18 - distance).max(0)
         };

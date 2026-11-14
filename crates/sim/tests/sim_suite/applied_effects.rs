@@ -27,7 +27,9 @@ fn an_effect_of_the_same_kind_replaces_rather_than_piles_up() {
     applied_effects::add(&mut world, creature, an_effect("effect_vomit", 6));
     applied_effects::add(&mut world, creature, an_effect("effect_vomit", 9));
 
-    let worn = world.get::<AppliedEffects>(creature).expect("the creature wears it");
+    let worn = world
+        .get::<AppliedEffects>(creature)
+        .expect("the creature wears it");
     assert_eq!(worn.0.len(), 1, "one effect of a kind, not two");
     assert_eq!(worn.0[0].duration, 9, "the newer one is what is worn");
     assert!(applied_effects::has(&world, creature, "effect_vomit"));
@@ -54,7 +56,11 @@ fn a_turn_takes_a_turn_off_every_effect_and_removes_the_ones_that_run_out() {
         1,
         "and the two-turn vomit on the second"
     );
-    assert!(applied_effects::has(&world, creature, "effect_permanent_thing"));
+    assert!(applied_effects::has(
+        &world,
+        creature,
+        "effect_permanent_thing"
+    ));
     assert_eq!(
         applied_effects::intensity_of(&world, creature, "effect_permanent_thing"),
         Some(1),
@@ -72,9 +78,21 @@ fn taking_off_an_effect_answers_whether_there_was_one() {
     let mut world = World::new();
     let creature = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     applied_effects::add(&mut world, creature, an_effect("effect_vomit", 4));
-    assert!(applied_effects::remove(&mut world, creature, "effect_vomit"));
-    assert!(!applied_effects::remove(&mut world, creature, "effect_vomit"));
-    assert!(world.get::<AppliedEffects>(creature).is_some_and(|worn| worn.0.is_empty()));
+    assert!(applied_effects::remove(
+        &mut world,
+        creature,
+        "effect_vomit"
+    ));
+    assert!(!applied_effects::remove(
+        &mut world,
+        creature,
+        "effect_vomit"
+    ));
+    assert!(
+        world
+            .get::<AppliedEffects>(creature)
+            .is_some_and(|worn| worn.0.is_empty())
+    );
 }
 
 /// Effects age in the turn loop, not only when a test ages them.
@@ -101,9 +119,15 @@ fn an_effect_runs_out_as_the_turns_pass() {
     );
 
     cdda_sim::turn::run_turn(&mut world);
-    assert!(applied_effects::has(&world, survivor, "effect_vomit"), "one turn of three spent");
+    assert!(
+        applied_effects::has(&world, survivor, "effect_vomit"),
+        "one turn of three spent"
+    );
     cdda_sim::turn::run_turn(&mut world);
-    assert!(applied_effects::has(&world, survivor, "effect_vomit"), "two of three");
+    assert!(
+        applied_effects::has(&world, survivor, "effect_vomit"),
+        "two of three"
+    );
     assert_eq!(
         world
             .get::<AppliedEffects>(survivor)
@@ -117,7 +141,9 @@ fn an_effect_runs_out_as_the_turns_pass() {
         !applied_effects::has(&world, survivor, "effect_vomit"),
         "gone after three turns, without anyone telling it to go"
     );
-    assert!(world
-        .get::<AppliedEffects>(survivor)
-        .is_some_and(|worn| worn.0.is_empty()));
+    assert!(
+        world
+            .get::<AppliedEffects>(survivor)
+            .is_some_and(|worn| worn.0.is_empty())
+    );
 }

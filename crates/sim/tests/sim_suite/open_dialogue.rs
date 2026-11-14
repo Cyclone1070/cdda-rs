@@ -9,13 +9,18 @@
 #[test]
 fn the_string_spelling_of_open_dialogue_is_the_effect_not_a_call() {
     let value = cdda_json::parse(br#""open_dialogue""#).expect("json");
-    let effect = cdda_content::dialogue::read_effect(&value).expect("**a bare string effect reads**");
+    let effect =
+        cdda_content::dialogue::read_effect(&value).expect("**a bare string effect reads**");
     assert_eq!(
         effect.kind(),
         "open_dialogue",
         "the string names the effect, which is the same rule `{{ \"open_dialogue\": … }}` writes"
     );
-    assert_ne!(effect.kind(), "run_eocs", "and it is not a call to a program called open_dialogue");
+    assert_ne!(
+        effect.kind(),
+        "run_eocs",
+        "and it is not a call to a program called open_dialogue"
+    );
 
     // A name that is not in the reference's string-effect table is an unknown effect, not a program call: `parse_string_effect` throws for one.
     let unknown = cdda_json::parse(br#""no_such_string_effect""#).expect("json");

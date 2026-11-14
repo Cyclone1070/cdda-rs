@@ -24,26 +24,48 @@ fn an_event_is_sent_with_its_arguments_evaluated() {
         cdda_sim::dialogue_values::Value::Number(7.0),
     );
     let value = cdda_json::parse(STORM.as_bytes()).expect("json");
-    let effect = cdda_content::dialogue::read_effect(&value).expect("**the port reads `trigger_event`**, which it never did");
+    let effect = cdda_content::dialogue::read_effect(&value)
+        .expect("**the port reads `trigger_event`**, which it never did");
 
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect runs");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect runs"
+    );
 
     let sent = cdda_sim::events::sent(&world);
     assert_eq!(sent.len(), 1, "one event was sent: {sent:?}");
-    assert_eq!(sent[0].kind, "u_var_changed", "the kind is the data's own name");
+    assert_eq!(
+        sent[0].kind, "u_var_changed",
+        "the kind is the data's own name"
+    );
     assert_eq!(
         sent[0].args,
         vec!["counter_portal_storm_counter".to_owned(), "7".to_owned()],
         "**and the arguments are positional, the variable already worked out**"
     );
-    assert!(cdda_sim::events::has_pending(&world), "it waits for the drain");
+    assert!(
+        cdda_sim::events::has_pending(&world),
+        "it waits for the drain"
+    );
 
     let drained = cdda_sim::events::drain(&mut world);
     assert_eq!(drained.len(), 1, "the drain takes what was waiting");
-    assert!(!cdda_sim::events::has_pending(&world), "and nothing is left waiting");
-    assert_eq!(cdda_sim::events::sent(&world).len(), 1, "what was sent is still on the record");
+    assert!(
+        !cdda_sim::events::has_pending(&world),
+        "and nothing is left waiting"
+    );
+    assert_eq!(
+        cdda_sim::events::sent(&world).len(),
+        1,
+        "what was sent is still on the record"
+    );
 }
 
 /// **An event program answers the event it names, and reads its arguments by the reference's own field names.**
@@ -55,7 +77,8 @@ fn an_event_program_answers_its_own_event_with_the_arguments_bound() {
     let mut world = World::new();
     let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let table = {
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../corpus/events.json");
+        let path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../corpus/events.json");
         let text = std::fs::read_to_string(path).expect("the event dump is in the corpus");
         let value = cdda_json::parse(text.as_bytes()).expect("json");
         cdda_content::events::EventTable::read(&value).expect("the table reads")
@@ -81,7 +104,10 @@ fn an_event_program_answers_its_own_event_with_the_arguments_bound() {
             let value = cdda_json::parse(text.as_bytes()).expect("json");
             let program = cdda_content::dialogue::read_program(&value)
                 .unwrap_or_else(|| panic!("**the port reads an event program**: {text}"));
-            assert!(program.event.is_some(), "an event program says which event it answers");
+            assert!(
+                program.event.is_some(),
+                "an event program says which event it answers"
+            );
             program
         })
         .collect();
@@ -89,10 +115,16 @@ fn an_event_program_answers_its_own_event_with_the_arguments_bound() {
 
     cdda_sim::events::send(
         &mut world,
-        cdda_sim::events::Event::new("avatar_enters_omt", vec!["(3,4,0)".to_owned(), "house".to_owned()]),
+        cdda_sim::events::Event::new(
+            "avatar_enters_omt",
+            vec!["(3,4,0)".to_owned(), "house".to_owned()],
+        ),
     );
     let ran = cdda_sim::events::dispatch(&mut world, avatar);
-    assert_eq!(ran, 1, "**one program answers, and it is the one that names this event**");
+    assert_eq!(
+        ran, 1,
+        "**one program answers, and it is the one that names this event**"
+    );
     assert!(
         cdda_sim::messages::lines(&world)
             .iter()
@@ -106,5 +138,8 @@ fn an_event_program_answers_its_own_event_with_the_arguments_bound() {
             .any(|line| line.contains("the game began")),
         "the program for another event never ran"
     );
-    assert!(!cdda_sim::events::has_pending(&world), "the queue is empty after a dispatch");
+    assert!(
+        !cdda_sim::events::has_pending(&world),
+        "the queue is empty after a dispatch"
+    );
 }

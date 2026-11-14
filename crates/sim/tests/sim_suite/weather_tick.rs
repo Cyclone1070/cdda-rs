@@ -46,11 +46,18 @@ fn number(object: &cdda_json::Object, key: &str) -> f64 {
 fn steps() -> Vec<Step> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.json");
     let text = std::fs::read_to_string(path).expect("the recorded series");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(cdda_json::Value::Array(list)) = root.get("steps") else { panic!("steps") };
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
+        panic!("root")
+    };
+    let Some(cdda_json::Value::Array(list)) = root.get("steps") else {
+        panic!("steps")
+    };
     list.iter()
         .map(|step| {
-            let cdda_json::Value::Object(step) = step else { panic!("a step") };
+            let cdda_json::Value::Object(step) = step else {
+                panic!("a step")
+            };
             Step {
                 hour: number(step, "hour") as i64,
                 turn: number(step, "turn") as i64,
@@ -80,7 +87,8 @@ fn steps() -> Vec<Step> {
 
 /// The dice the reference rolled, hour by hour.
 fn dice() -> BTreeMap<i64, Vec<(i32, i32, i32)>> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.rolls.txt");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.rolls.txt");
     let text = std::fs::read_to_string(path).expect("the recorded dice");
     let mut by_hour: BTreeMap<i64, Vec<(i32, i32, i32)>> = BTreeMap::new();
     let mut hour: Option<i64> = None;
@@ -91,10 +99,16 @@ fn dice() -> BTreeMap<i64, Vec<(i32, i32, i32)>> {
             by_hour.entry(parsed).or_default();
         } else if let Some(rest) = line.strip_prefix("int ") {
             let mut parts = rest.split(' ');
-            let (Some(low), Some(high), Some(drawn)) = (parts.next(), parts.next(), parts.next()) else { continue };
-            if let (Ok(low), Ok(high), Ok(drawn), Some(hour)) =
-                (low.parse::<i32>(), high.parse::<i32>(), drawn.parse::<i32>(), hour)
-            {
+            let (Some(low), Some(high), Some(drawn)) = (parts.next(), parts.next(), parts.next())
+            else {
+                continue;
+            };
+            if let (Ok(low), Ok(high), Ok(drawn), Some(hour)) = (
+                low.parse::<i32>(),
+                high.parse::<i32>(),
+                drawn.parse::<i32>(),
+                hour,
+            ) {
                 by_hour.entry(hour).or_default().push((low, high, drawn));
             }
         }
@@ -104,9 +118,13 @@ fn dice() -> BTreeMap<i64, Vec<(i32, i32, i32)>> {
 
 /// The weather types and conditions out of the reference's own data file.
 pub(crate) fn rules() -> Rules {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data/json/weather_type.json");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data/json/weather_type.json");
     let text = std::fs::read_to_string(path).expect("the weather data");
-    let cdda_json::Value::Array(entries) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else { panic!("array") };
+    let cdda_json::Value::Array(entries) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
+        panic!("array")
+    };
     let objects: Vec<cdda_json::Object> = entries
         .iter()
         .filter_map(|entry| match entry {
@@ -122,7 +140,9 @@ pub(crate) fn rules() -> Rules {
         if !is_weather {
             continue;
         }
-        let Some(cdda_json::Value::Str(id)) = object.get("id") else { continue };
+        let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+            continue;
+        };
         let priority = match object.get("priority") {
             Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
             _ => 0,
@@ -133,7 +153,10 @@ pub(crate) fn rules() -> Rules {
             ..Default::default()
         });
         if let Some(condition) = object.get("condition") {
-            conditions.insert(id.clone(), cdda_content::condition::Condition::from_value(condition).expect("a condition"));
+            conditions.insert(
+                id.clone(),
+                cdda_content::condition::Condition::from_value(condition).expect("a condition"),
+            );
         }
     }
     Rules::new(types, conditions, functions)
@@ -169,23 +192,47 @@ fn a_tick_of_the_whole_weather_reproduces_the_recorded_day() {
         let recorded = dice.get(&step.hour).expect("every hour rolls");
         let mut supplied = recorded.iter();
         let mut roll = |low: i32, high: i32| {
-            let (want_low, want_high, drawn) = *supplied.next().expect("the tick asks for no more dice than the reference did");
-            assert_eq!((low, high), (want_low, want_high), "hour {} asks for the dice the reference asked for", step.hour);
+            let (want_low, want_high, drawn) = *supplied
+                .next()
+                .expect("the tick asks for no more dice than the reference did");
+            assert_eq!(
+                (low, high),
+                (want_low, want_high),
+                "hour {} asks for the dice the reference asked for",
+                step.hour
+            );
             drawn
         };
-        let mut sector = |_season: usize| sectors.next().expect("a sector was drawn when the direction changed");
-        let change = system.tick(&cdda_sim::weather::Forecast {
-            generator: &generator,
-            common: step.common,
-            day_fraction: step.day_fraction,
-            turn: step.turn,
-        }, &mut roll, &mut sector);
-        assert!(matches!(change, cdda_content::weather::Change::Weather { .. }), "hour {} was due", step.hour);
+        let mut sector = |_season: usize| {
+            sectors
+                .next()
+                .expect("a sector was drawn when the direction changed")
+        };
+        let change = system.tick(
+            &cdda_sim::weather::Forecast {
+                generator: &generator,
+                common: step.common,
+                day_fraction: step.day_fraction,
+                turn: step.turn,
+            },
+            &mut roll,
+            &mut sector,
+        );
+        assert!(
+            matches!(change, cdda_content::weather::Change::Weather { .. }),
+            "hour {} was due",
+            step.hour
+        );
         let point: Point = system.manager.point.expect("a point");
         checked += 1;
         let mut note = |what: &str, ours: &str, theirs: &str| {
             if ours != theirs && wrong.len() < 8 {
-                wrong.push((step.hour, what.to_string(), ours.to_string(), theirs.to_string()));
+                wrong.push((
+                    step.hour,
+                    what.to_string(),
+                    ours.to_string(),
+                    theirs.to_string(),
+                ));
             }
         };
         note(
@@ -195,16 +242,37 @@ fn a_tick_of_the_whole_weather_reproduces_the_recorded_day() {
         );
         let mut near = |what: &str, ours: f64, theirs: f64, tolerance: f64| {
             if (ours - theirs).abs() > tolerance && wrong.len() < 8 {
-                wrong.push((step.hour, what.to_string(), format!("{ours}"), format!("{theirs}")));
+                wrong.push((
+                    step.hour,
+                    what.to_string(),
+                    format!("{ours}"),
+                    format!("{theirs}"),
+                ));
             }
         };
         near("temperature", point.temperature, step.temperature_k, 1e-6);
         near("humidity", point.humidity, step.humidity, 1e-6);
         near("pressure", point.pressure, step.pressure, 1e-6);
         near("windpower", f64::from(point.windpower), step.windpower, 0.0);
-        near("winddirection", f64::from(point.winddirection), step.winddirection, 0.0);
-        near("next turn", system.manager.next_turn as f64, step.next_weather_turn as f64, 0.0);
+        near(
+            "winddirection",
+            f64::from(point.winddirection),
+            step.winddirection,
+            0.0,
+        );
+        near(
+            "next turn",
+            system.manager.next_turn as f64,
+            step.next_weather_turn as f64,
+            0.0,
+        );
     }
-    assert!(checked >= 20, "every hour after the seeded one ticked: {checked}");
-    assert!(wrong.is_empty(), "the tick disagrees with the recording: {wrong:?}");
+    assert!(
+        checked >= 20,
+        "every hour after the seeded one ticked: {checked}"
+    );
+    assert!(
+        wrong.is_empty(),
+        "the tick disagrees with the recording: {wrong:?}"
+    );
 }

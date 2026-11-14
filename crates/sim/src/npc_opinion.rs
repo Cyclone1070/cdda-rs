@@ -52,12 +52,15 @@ pub fn set_opinion(world: &mut World, npc: Entity, opinion: Opinion) {
 /// an opinion of a listener that does not exist.
 #[must_use]
 pub fn feeling_of(world: &World, npc: Entity, feeling: Feeling) -> i32 {
-    world.get::<Opinion>(npc).copied().map_or(0, |opinion| match feeling {
-        Feeling::Value => opinion.value,
-        Feeling::Anger => opinion.anger,
-        Feeling::Trust => opinion.trust,
-        Feeling::Fear => opinion.fear,
-    })
+    world
+        .get::<Opinion>(npc)
+        .copied()
+        .map_or(0, |opinion| match feeling {
+            Feeling::Value => opinion.value,
+            Feeling::Anger => opinion.anger,
+            Feeling::Trust => opinion.trust,
+            Feeling::Fear => opinion.fear,
+        })
 }
 
 /// Raises one creature's debt by an amount, which is what handing goods over does.
@@ -72,5 +75,8 @@ pub fn add_debt(world: &mut World, npc: Entity, amount: i32) {
 /// What one creature is owed, answering zero when it has never traded.
 #[must_use]
 pub fn debt_of(world: &World, npc: Entity) -> i32 {
-    world.get::<Opinion>(npc).copied().map_or(0, |opinion| opinion.debt)
+    world
+        .get::<Opinion>(npc)
+        .copied()
+        .map_or(0, |opinion| opinion.debt)
 }

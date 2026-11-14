@@ -12,8 +12,8 @@ use bevy_ecs::prelude::*;
 pub use cdda_content::dialogue::Program;
 use std::collections::BTreeMap;
 
-use crate::singletons;
 use crate::dialogue_effects::Applied;
+use crate::singletons;
 
 /// How deep a program may run another program before the port refuses.
 pub const DEPTH_LIMIT: usize = 16;
@@ -50,7 +50,9 @@ fn inline_definitions(effects: &[cdda_content::dialogue::Effect]) -> Vec<Program
     let mut found = Vec::new();
     for effect in effects {
         match effect {
-            Effect::If { then, otherwise, .. } => {
+            Effect::If {
+                then, otherwise, ..
+            } => {
                 found.extend(inline_definitions(then));
                 found.extend(inline_definitions(otherwise));
             }
@@ -106,7 +108,10 @@ pub fn set_programs(world: &mut World, programs: &[Program]) {
         let mut index: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for program in by_id.values() {
             if let Some(kind) = &program.event {
-                index.entry(kind.clone()).or_default().push(program.id.clone());
+                index
+                    .entry(kind.clone())
+                    .or_default()
+                    .push(program.id.clone());
             }
         }
         index
@@ -131,7 +136,9 @@ pub fn program_of(world: &World, id: &str) -> Option<Program> {
 #[must_use]
 pub fn count(world: &mut World) -> usize {
     let holder = singletons::singleton::<Programs, ThePrograms>(world);
-    world.get::<Programs>(holder).map_or(0, |programs| programs.by_id.len())
+    world
+        .get::<Programs>(holder)
+        .map_or(0, |programs| programs.by_id.len())
 }
 
 /// Runs a program by id, and the programs it names, up to [`DEPTH_LIMIT`].
@@ -161,8 +168,14 @@ pub fn run_program(
             cdda_content::dialogue::Effect::Switch { on, cases } => {
                 // Reference: every case the value reaches replaces the chosen one, so the **last** match runs.
                 let mut dice = crate::singletons::take_rolls(world);
-                let switched =
-                    crate::conditions::value_drawing(world, speaker, listener, on, true, dice.as_mut());
+                let switched = crate::conditions::value_drawing(
+                    world,
+                    speaker,
+                    listener,
+                    on,
+                    true,
+                    dice.as_mut(),
+                );
                 if let Some(dice) = dice.take() {
                     crate::singletons::put_rolls(world, dice);
                 }
@@ -172,8 +185,14 @@ pub fn run_program(
                 let mut chosen: Option<&Vec<cdda_content::dialogue::Effect>> = None;
                 for (case, effects) in cases {
                     let mut dice = crate::singletons::take_rolls(world);
-                    let reached =
-                        crate::conditions::value_drawing(world, speaker, listener, case, true, dice.as_mut());
+                    let reached = crate::conditions::value_drawing(
+                        world,
+                        speaker,
+                        listener,
+                        case,
+                        true,
+                        dice.as_mut(),
+                    );
                     if let Some(dice) = dice.take() {
                         crate::singletons::put_rolls(world, dice);
                     }
@@ -197,8 +216,9 @@ pub fn run_program(
                 npc_range,
                 local,
             } => {
-                if run_on_people(world, speaker, programs, unique_ids, *npc_range, *local, depth)
-                    == Applied::CannotAnswer
+                if run_on_people(
+                    world, speaker, programs, unique_ids, *npc_range, *local, depth,
+                ) == Applied::CannotAnswer
                 {
                     return Applied::CannotAnswer;
                 }
@@ -318,7 +338,8 @@ fn run_on_people(
         .collect();
     for person in people {
         for reference in programs {
-            if run_ref(world, speaker, Some(person), reference, depth + 1) == Applied::CannotAnswer {
+            if run_ref(world, speaker, Some(person), reference, depth + 1) == Applied::CannotAnswer
+            {
                 return Applied::CannotAnswer;
             }
         }
@@ -351,10 +372,13 @@ fn run_on_monsters(
     let kinds = crate::singletons::holder::<crate::monster_registry::TheMonsterTypes>(world)
         .and_then(|holder| world.get::<crate::monster_registry::MonsterTypes>(holder));
     let mut found: Vec<Entity> = Vec::new();
-    if let Some(mut query) = world.try_query::<(Entity, &crate::creature::CreatureKind, &crate::Position)>() {
+    if let Some(mut query) =
+        world.try_query::<(Entity, &crate::creature::CreatureKind, &crate::Position)>()
+    {
         for (entity, kind, square) in query.iter(world) {
             let named = kinds.and_then(|known| known.name_of(kind.0).map(str::to_owned));
-            let type_matches = wanted.is_empty() || named.is_some_and(|named| wanted.contains(&named));
+            let type_matches =
+                wanted.is_empty() || named.is_some_and(|named| wanted.contains(&named));
             let same_level = square.z == at.z;
             let near_matches = match monster_range {
                 Some(range) => (square.x - at.x).abs().max((square.y - at.y).abs()) <= range,
@@ -367,7 +391,8 @@ fn run_on_monsters(
     }
     for monster in found {
         for reference in programs {
-            if run_ref(world, speaker, Some(monster), reference, depth + 1) == Applied::CannotAnswer {
+            if run_ref(world, speaker, Some(monster), reference, depth + 1) == Applied::CannotAnswer
+            {
                 return Applied::CannotAnswer;
             }
         }
@@ -387,7 +412,9 @@ pub fn run_ref(
     depth: usize,
 ) -> Applied {
     let (variables, id) = match reference {
-        cdda_content::dialogue::ProgramRef::Named { id, variables } => (variables, Some(id.clone())),
+        cdda_content::dialogue::ProgramRef::Named { id, variables } => {
+            (variables, Some(id.clone()))
+        }
         // Reference: `f_run_eocs` evaluates each entry's `str_or_var` when the effects run (`npctalk.cpp:5100-5115`), so a program named by a variable is looked up now
         // rather than when the data was read.
         cdda_content::dialogue::ProgramRef::NamedByVariable {
@@ -395,7 +422,8 @@ pub fn run_ref(
             name,
             variables,
         } => {
-            let named = crate::conditions::value_of_variable_text(world, speaker, listener, scope, name);
+            let named =
+                crate::conditions::value_of_variable_text(world, speaker, listener, scope, name);
             (variables, named)
         }
         cdda_content::dialogue::ProgramRef::Inline { variables, .. } => (variables, None),

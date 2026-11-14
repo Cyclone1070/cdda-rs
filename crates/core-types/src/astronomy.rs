@@ -99,7 +99,11 @@ pub fn light_at(altitude: f64) -> f32 {
 #[must_use]
 pub fn normalize(angle: f64) -> f64 {
     let reduced = angle % TAU;
-    if reduced < 0.0 { reduced + TAU } else { reduced }
+    if reduced < 0.0 {
+        reduced + TAU
+    } else {
+        reduced
+    }
 }
 
 /// The altitude the sun has to reach before any light falls, and the three dawns after it.

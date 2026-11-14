@@ -52,9 +52,11 @@ fn number(object: &cdda_json::Object, key: &str) -> f64 {
 
 /// Every square the reference dumped, and the square the character stood on.
 pub fn squares() -> (Vec<Square>, (i32, i32, i32)) {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vision/start-location.json");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vision/start-location.json");
     let text = std::fs::read_to_string(&path).expect("the visibility dump");
-    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Object(root) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("root")
     };
     let Some(cdda_json::Value::Array(list)) = root.get("squares") else {
@@ -92,7 +94,11 @@ fn the_dump_covers_three_levels_and_every_square_of_each() {
     // Seventeen by seventeen squares on three levels: the dump's shape is the first thing a comparison depends on, because a missing level would compare as
     // "nothing is visible there" and pass.
     let (squares, (cx, cy, cz)) = squares();
-    assert_eq!(squares.len(), 17 * 17 * 3, "three levels of seventeen by seventeen");
+    assert_eq!(
+        squares.len(),
+        17 * 17 * 3,
+        "three levels of seventeen by seventeen"
+    );
     let mut per_level: BTreeMap<i32, usize> = BTreeMap::new();
     for square in &squares {
         *per_level.entry(square.z).or_default() += 1;

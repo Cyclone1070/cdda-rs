@@ -44,8 +44,10 @@ fn number(object: &cdda_json::Object, key: &str) -> f64 {
 
 #[test]
 fn every_chance_matches_the_percentage_the_reference_answers() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-chances.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-chances.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -56,7 +58,8 @@ fn every_chance_matches_the_percentage_the_reference_answers() {
     assert_eq!(types.len(), 112, "every effect type that states a chance");
     assert_eq!(integer(&root, "count"), 2_152, "every recorded percentage");
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let effects: std::collections::BTreeMap<String, EffectType> =
@@ -83,7 +86,9 @@ fn every_chance_matches_the_percentage_the_reference_answers() {
             panic!("chances")
         };
         for chance in chances {
-            let Value::Object(chance) = chance else { panic!("a chance") };
+            let Value::Object(chance) = chance else {
+                panic!("a chance")
+            };
             let argument = text(chance, "arg");
             let intensity = i32::try_from(integer(chance, "intensity")).expect("an intensity");
             let val = i32::try_from(integer(chance, "val")).expect("a value");
@@ -127,7 +132,10 @@ fn every_chance_matches_the_percentage_the_reference_answers() {
     // stated below zero and nothing clamps the answer.
     assert_eq!(zero_valued, 820, "cases whose value is zero");
     assert_eq!(zero_percent, 233, "percentages that came out zero");
-    assert_eq!(exactly_hundred, 27, "percentages of exactly a hundred: {exactly_hundred}");
+    assert_eq!(
+        exactly_hundred, 27,
+        "percentages of exactly a hundred: {exactly_hundred}"
+    );
     assert_eq!(divided, 1_734, "percentages between 0 and 100: {divided}");
     assert_eq!(negative, 158, "negative percentages: {negative}");
     assert_eq!(values.len(), 3, "the values the grid uses: {values:?}");
@@ -142,7 +150,7 @@ fn every_chance_matches_the_percentage_the_reference_answers() {
 /// The tick's two special cases, which a flat formula gets wrong: a tick of zero means **one** rather than no chance, and a tick above one divides the chance.
 #[test]
 fn the_tick_zero_means_one_and_two_halves() {
-    use cdda_content::effects::{ModAction, ModValues, ModTable};
+    use cdda_content::effects::{ModAction, ModTable, ModValues};
     use cdda_sim::effects::ActiveEffect;
 
     let mut kind = EffectType {
@@ -180,18 +188,29 @@ fn the_tick_zero_means_one_and_two_halves() {
         permanent: false,
     };
     let mut cells = std::collections::BTreeMap::new();
-    cells.insert((ModAction::ChanceTop, 0), ModValues { base: 10.0, scaling: 0.0 });
+    cells.insert(
+        (ModAction::ChanceTop, 0),
+        ModValues {
+            base: 10.0,
+            scaling: 0.0,
+        },
+    );
     kind.mods.insert("X".to_owned(), cells);
 
     // A tick of zero is one turn: one in ten, every turn.
-    assert!((worn.percentage(&kind, "X", 1, false) - 10.0).abs() < 1e-9, "one in ten");
+    assert!(
+        (worn.percentage(&kind, "X", 1, false) - 10.0).abs() < 1e-9,
+        "one in ten"
+    );
     // A tick of two halves it.
     let mut with_tick = kind.clone();
-    with_tick
-        .mods
-        .get_mut("X")
-        .expect("the group")
-        .insert((ModAction::Tick, 0), ModValues { base: 2.0, scaling: 0.0 });
+    with_tick.mods.get_mut("X").expect("the group").insert(
+        (ModAction::Tick, 0),
+        ModValues {
+            base: 2.0,
+            scaling: 0.0,
+        },
+    );
     assert!(
         (worn.percentage(&with_tick, "X", 1, false) - 5.0).abs() < 1e-9,
         "one in twenty"
@@ -200,7 +219,14 @@ fn the_tick_zero_means_one_and_two_halves() {
     assert!((worn.percentage(&kind, "X", 0, false) - 10.0).abs() < 1e-9);
     // And a missing chance with a **nonzero** value is not zero at all: the guard only covers the zero value, so the formula divides a hundred by a top of zero and
     // answers an infinity. The reference does that too — it is the caller's job to state a chance before passing a value.
-    assert_eq!(worn.percentage(&kind, "nothing", 0, false), 0.0, "no chance and no value is zero");
+    assert_eq!(
+        worn.percentage(&kind, "nothing", 0, false),
+        0.0,
+        "no chance and no value is zero"
+    );
     let no_chance = worn.percentage(&kind, "nothing", 1, false);
-    assert!(no_chance.is_infinite() && no_chance > 0.0, "no chance with a value is {no_chance}");
+    assert!(
+        no_chance.is_infinite() && no_chance > 0.0,
+        "no chance with a value is {no_chance}"
+    );
 }

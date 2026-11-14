@@ -43,8 +43,16 @@ fn a_world() -> (World, Entity, Entity) {
     cdda_sim::monster_registry::set_flags_and_species(
         &mut world,
         &[
-            (cdda_sim::MonsterKindId(1), BTreeSet::new(), ["ZOMBIE".to_owned()].into_iter().collect()),
-            (cdda_sim::MonsterKindId(2), BTreeSet::new(), ["MAMMAL".to_owned()].into_iter().collect()),
+            (
+                cdda_sim::MonsterKindId(1),
+                BTreeSet::new(),
+                ["ZOMBIE".to_owned()].into_iter().collect(),
+            ),
+            (
+                cdda_sim::MonsterKindId(2),
+                BTreeSet::new(),
+                ["MAMMAL".to_owned()].into_iter().collect(),
+            ),
         ],
     );
     // A body for the zombie kind, because a blow needs a part to land on and the cast gate at the end of this file hits one.
@@ -71,7 +79,12 @@ fn a_world() -> (World, Entity, Entity) {
     (world, caster, zombie)
 }
 
-fn a_spell(targets: &[&str], monsters: &[&str], species: &[&str], ignored: &[&str]) -> cdda_content::spells::Spell {
+fn a_spell(
+    targets: &[&str],
+    monsters: &[&str],
+    species: &[&str],
+    ignored: &[&str],
+) -> cdda_content::spells::Spell {
     let scaling = |value: f64| cdda_content::spells::Scaling {
         start: Some(value),
         increment: Some(0.0),
@@ -107,23 +120,48 @@ fn a_spell_may_be_aimed_at_a_creature_or_at_the_ground() {
     use cdda_sim::spell_targets::allows;
     let (world, _caster, zombie) = a_world();
     assert!(
-        allows(&world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &[]), (3, 0, 0)),
+        allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &[], &[], &[]),
+            (3, 0, 0)
+        ),
         "**a spell that names hostile creatures may be aimed at a monster**"
     );
     assert!(
-        !allows(&world, (0, 0, 0), &a_spell(&["ground"], &[], &[], &[]), (3, 0, 0)),
+        !allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["ground"], &[], &[], &[]),
+            (3, 0, 0)
+        ),
         "**and one that names only the ground may not**, however empty the square would be"
     );
     assert!(
-        allows(&world, (0, 0, 0), &a_spell(&["ground"], &[], &[], &[]), (5, 5, 0)),
+        allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["ground"], &[], &[], &[]),
+            (5, 5, 0)
+        ),
         "while a square with nothing on it is exactly what `ground` means"
     );
     assert!(
-        allows(&world, (0, 0, 0), &a_spell(&["self"], &[], &[], &[]), (0, 0, 0)),
+        allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["self"], &[], &[], &[]),
+            (0, 0, 0)
+        ),
         "**`self` is the caster's own square**"
     );
     assert!(
-        !allows(&world, (0, 0, 0), &a_spell(&["self"], &[], &[], &[]), (3, 0, 0)),
+        !allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["self"], &[], &[], &[]),
+            (3, 0, 0)
+        ),
         "and not somebody else's"
     );
     let _ = zombie;
@@ -136,15 +174,30 @@ fn a_charmed_monster_is_an_ally_and_never_the_self() {
     let (mut world, _caster, zombie) = a_world();
     cdda_sim::friendly::make_friendly(&mut world, zombie, 10);
     assert!(
-        !allows(&world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &[]), (3, 0, 0)),
+        !allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &[], &[], &[]),
+            (3, 0, 0)
+        ),
         "**a charmed monster is nobody's hostile target**"
     );
     assert!(
-        allows(&world, (0, 0, 0), &a_spell(&["ally"], &[], &[], &[]), (3, 0, 0)),
+        allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["ally"], &[], &[], &[]),
+            (3, 0, 0)
+        ),
         "it is an ally's"
     );
     assert!(
-        !allows(&world, (0, 0, 0), &a_spell(&["ally"], &[], &[], &[]), (0, 0, 0)),
+        !allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["ally"], &[], &[], &[]),
+            (0, 0, 0)
+        ),
         "**and the caster's own square is not an ally**, which the reference says with `p != caster.pos()`"
     );
 }
@@ -155,27 +208,57 @@ fn a_named_monster_and_a_named_species_narrow_the_rule() {
     use cdda_sim::spell_targets::allows;
     let (world, _caster, _zombie) = a_world();
     assert!(
-        allows(&world, (0, 0, 0), &a_spell(&["hostile"], &["mon_zombie"], &[], &[]), (3, 0, 0)),
+        allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &["mon_zombie"], &[], &[]),
+            (3, 0, 0)
+        ),
         "a spell naming the zombie may hit the zombie"
     );
     assert!(
-        !allows(&world, (0, 0, 0), &a_spell(&["hostile"], &["mon_dog"], &[], &[]), (3, 0, 0)),
+        !allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &["mon_dog"], &[], &[]),
+            (3, 0, 0)
+        ),
         "**and one naming the dog may not**, even though the square holds a hostile creature"
     );
     assert!(
-        allows(&world, (0, 0, 0), &a_spell(&["hostile"], &[], &["ZOMBIE"], &[]), (3, 0, 0)),
+        allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &[], &["ZOMBIE"], &[]),
+            (3, 0, 0)
+        ),
         "a species the creature is in is accepted"
     );
     assert!(
-        !allows(&world, (0, 0, 0), &a_spell(&["hostile"], &[], &["MAMMAL"], &[]), (3, 0, 0)),
+        !allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &[], &["MAMMAL"], &[]),
+            (3, 0, 0)
+        ),
         "and one it is not in is refused"
     );
     assert!(
-        !allows(&world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &["ZOMBIE"]), (3, 0, 0)),
+        !allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &[], &[], &["ZOMBIE"]),
+            (3, 0, 0)
+        ),
         "**an ignored species is left alone**"
     );
     assert!(
-        allows(&world, (0, 0, 0), &a_spell(&["hostile"], &[], &[], &["MAMMAL"]), (3, 0, 0)),
+        allows(
+            &world,
+            (0, 0, 0),
+            &a_spell(&["hostile"], &[], &[], &["MAMMAL"]),
+            (3, 0, 0)
+        ),
         "while some other ignored species leaves it a target"
     );
 }

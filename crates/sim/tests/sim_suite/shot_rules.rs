@@ -14,15 +14,35 @@ fn a_gun_s_attack_time_is_its_skill_s_line_floored() {
     use cdda_sim::shot::time_to_attack;
 
     // Archery: 50 - 3 a level, floor 20.
-    assert_eq!(time_to_attack(50, 3, 20, 0), 50, "a beginner pays the base time");
-    assert_eq!(time_to_attack(50, 3, 20, 5), 35, "five levels is fifteen moves off");
-    assert_eq!(time_to_attack(50, 3, 20, 10), 20, "and ten levels is exactly the floor");
-    assert_eq!(time_to_attack(50, 3, 20, 15), 20, "which no amount of skill goes below");
+    assert_eq!(
+        time_to_attack(50, 3, 20, 0),
+        50,
+        "a beginner pays the base time"
+    );
+    assert_eq!(
+        time_to_attack(50, 3, 20, 5),
+        35,
+        "five levels is fifteen moves off"
+    );
+    assert_eq!(
+        time_to_attack(50, 3, 20, 10),
+        20,
+        "and ten levels is exactly the floor"
+    );
+    assert_eq!(
+        time_to_attack(50, 3, 20, 15),
+        20,
+        "which no amount of skill goes below"
+    );
     // Rifle: 30 - 1 a level, floor 20 - a slower line that reaches its floor at ten.
     assert_eq!(time_to_attack(30, 1, 20, 10), 20, "a rifle's floor at ten");
     assert_eq!(time_to_attack(30, 1, 20, 5), 25, "and 30 - 5 halfway");
     // Marksmanship: 220 - 25 a level, floor 50 - the default block, and four times a rifle.
-    assert_eq!(time_to_attack(220, 25, 50, 0), 220, "an unskilled shot with no marksmanship");
+    assert_eq!(
+        time_to_attack(220, 25, 50, 0),
+        220,
+        "an unskilled shot with no marksmanship"
+    );
     assert_eq!(time_to_attack(220, 25, 50, 10), 50, "and its floor at ten");
 }
 
@@ -36,12 +56,20 @@ fn a_winded_shooter_is_slower_to_fire_but_only_below_a_quarter_wind() {
 
     assert_eq!(winded_cost(100), 0, "full wind costs nothing extra");
     assert_eq!(winded_cost(25), 0, "and a quarter is still free");
-    assert_eq!(winded_cost(24), 2, "one percent below the cliff costs two moves");
+    assert_eq!(
+        winded_cost(24),
+        2,
+        "one percent below the cliff costs two moves"
+    );
     assert_eq!(winded_cost(10), 30, "ten percent costs thirty");
     assert_eq!(winded_cost(0), 50, "and no wind costs fifty");
 
     // The whole shot: archery at skill five with a full wind and a round fetched at no cost.
-    assert_eq!(cost_of_a_shot(50, 3, 20, 5, 100, 0), 35, "the skill's line alone");
+    assert_eq!(
+        cost_of_a_shot(50, 3, 20, 5, 100, 0),
+        35,
+        "the skill's line alone"
+    );
     // The same shot out of wind, with the round taking twenty moves to reach the chamber.
     assert_eq!(
         cost_of_a_shot(50, 3, 20, 5, 0, 20),
@@ -59,7 +87,8 @@ fn a_gun_is_priced_by_the_line_of_the_skill_its_own_data_names() {
     use cdda_sim::shot::{cost_of_firing, unknown_skill_line};
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
@@ -67,14 +96,28 @@ fn a_gun_is_priced_by_the_line_of_the_skill_its_own_data_names() {
     let skills = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
 
     let naive = |id: &str| {
-        guns.iter().find(|gun| gun.id == id).expect("the corpus has it").clone()
+        guns.iter()
+            .find(|gun| gun.id == id)
+            .expect("the corpus has it")
+            .clone()
     };
     let rifle = naive("ruger_mini");
-    assert_eq!(rifle.skill, "rifle", "the corpus says what a Mini-14 is fired with");
+    assert_eq!(
+        rifle.skill, "rifle",
+        "the corpus says what a Mini-14 is fired with"
+    );
     // Rifle's line is 30 - 1 a level, floor 20: at skill four the shot costs 26 moves.
-    assert_eq!(cost_of_firing(&rifle, &skills, 4, 100, 0), 26, "a rifle shot at skill four");
+    assert_eq!(
+        cost_of_firing(&rifle, &skills, 4, 100, 0),
+        26,
+        "a rifle shot at skill four"
+    );
     // Out of wind it costs thirty more, because the wind term is added after the line.
-    assert_eq!(cost_of_firing(&rifle, &skills, 4, 10, 0), 56, "and thirty more with no wind");
+    assert_eq!(
+        cost_of_firing(&rifle, &skills, 4, 10, 0),
+        56,
+        "and thirty more with no wind"
+    );
 
     // A bow names archery, whose line is 50 - 3 a level: at skill four that is 38, not 26.
     let bow = naive("longbow");
@@ -93,18 +136,18 @@ fn a_gun_is_priced_by_the_line_of_the_skill_its_own_data_names() {
     let mut stranger = rifle.clone();
     stranger.skill = "a-skill-nobody-dumped".to_owned();
     let (base, reduction, min) = unknown_skill_line();
-    assert_eq!(cost_of_firing(&stranger, &skills, 0, 100, 0), base, "the fallback is the default base time");
+    assert_eq!(
+        cost_of_firing(&stranger, &skills, 0, 100, 0),
+        base,
+        "the fallback is the default base time"
+    );
     assert_eq!(
         cost_of_firing(&stranger, &skills, 10, 100, 0),
         min,
         "and its floor"
     );
     // The line reaches its floor at seven (220 - 175 = 45, floored to 50), which is why the fallback is a slow line and not a rifle's.
-    assert_eq!(
-        base - reduction * 7,
-        45,
-        "the raw line at seven levels"
-    );
+    assert_eq!(base - reduction * 7, 45, "the raw line at seven levels");
     assert!(
         base - reduction * 7 < min,
         "which is already under the floor, so the floor is what the shooter pays"
@@ -121,13 +164,18 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     use bevy_ecs::prelude::*;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the corpus has the Mini-14").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the corpus has the Mini-14")
+        .clone();
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(4_242));
@@ -140,16 +188,36 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
 
     // A small thing four squares away, and the same gun fired at it: the moves fall by the price the corpus's own tables give.
     let beast = cdda_sim::creature::spawn_creature(&mut world, "a small thing", (4, 0, 0));
-    world.entity_mut(beast).insert(cdda_sim::creature::Creature {
-        name: "a small thing".to_owned(),
-        size: cdda_sim::CreatureSize::Tiny,
-    });
-    world.entity_mut(beast).insert(cdda_sim::creature::Health { hp: 10, max_hp: 10 });
+    world
+        .entity_mut(beast)
+        .insert(cdda_sim::creature::Creature {
+            name: "a small thing".to_owned(),
+            size: cdda_sim::CreatureSize::Tiny,
+        });
+    world
+        .entity_mut(beast)
+        .insert(cdda_sim::creature::Health { hp: 10, max_hp: 10 });
 
     let before = cdda_sim::creature::moves_left(&world, shooter);
-    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, None, 0.0, false);
+    let fired = cdda_sim::shot::fire_at(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (4, 0, 0),
+        18.0,
+        None,
+        None,
+        0.0,
+        false,
+    );
     let after = cdda_sim::creature::moves_left(&world, shooter);
-    assert_eq!(before - after, fired.cost, "the shot cost what the shot table says: {}", fired.cost);
+    assert_eq!(
+        before - after,
+        fired.cost,
+        "the shot cost what the shot table says: {}",
+        fired.cost
+    );
     assert_eq!(
         fired.cost,
         cdda_sim::shot::cost_of_firing(&gun, &lines, 0, 100, 0),
@@ -158,7 +226,18 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
     assert!(fired.cost > 0, "and a shot is never free");
 
     // The same shot at bare ground uses a whole tile, so a small target is judged more harshly than nothing at all.
-    let at_nothing = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 4, 0), 18.0, None, None, 0.0, false);
+    let at_nothing = cdda_sim::shot::fire_at(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (4, 4, 0),
+        18.0,
+        None,
+        None,
+        0.0,
+        false,
+    );
     assert!(
         fired.aim.missed_by >= at_nothing.aim.missed_by,
         "the small thing is at least as hard to hit as empty ground: {} against {}",
@@ -172,15 +251,43 @@ fn firing_a_gun_spends_moves_and_judges_the_shot_by_what_stands_there() {
 
     // Now the blow itself: a target **on the shooter's own square**, which is zero range and therefore a certain hit whatever the dice say. The round is the corpus's .223.
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let round = rounds.iter().find(|round| round.id == "223").expect("the corpus has a .223").clone();
+    let round = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the corpus has a .223")
+        .clone();
     let standing = cdda_sim::creature::spawn_creature(&mut world, "a thing in the way", (0, 0, 0));
     world
         .entity_mut(standing)
-        .insert(cdda_sim::creature::Creature { name: "a thing in the way".to_owned(), size: cdda_sim::CreatureSize::Medium })
-        .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
-    let point_blank = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (0, 0, 0), 18.0, Some(&round), None, 0.0, false);
-    assert_eq!(point_blank.hit, Some(standing), "at zero range the shot reaches what is there");
-    assert_eq!(point_blank.hurt, 39, "and does the cartridge's thirty-nine, with no armour to stop it");
+        .insert(cdda_sim::creature::Creature {
+            name: "a thing in the way".to_owned(),
+            size: cdda_sim::CreatureSize::Medium,
+        })
+        .insert(cdda_sim::creature::Health {
+            hp: 100,
+            max_hp: 100,
+        });
+    let point_blank = cdda_sim::shot::fire_at(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (0, 0, 0),
+        18.0,
+        Some(&round),
+        None,
+        0.0,
+        false,
+    );
+    assert_eq!(
+        point_blank.hit,
+        Some(standing),
+        "at zero range the shot reaches what is there"
+    );
+    assert_eq!(
+        point_blank.hurt, 39,
+        "and does the cartridge's thirty-nine, with no armour to stop it"
+    );
     assert_eq!(
         cdda_sim::creature::health_of(&world, standing),
         Some(61),
@@ -198,19 +305,37 @@ fn a_shot_s_blow_is_its_gun_s_plus_its_round_s_and_armour_takes_it_off() {
     use cdda_sim::shot::blow_of;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").clone();
-    let round = |id: &str| rounds.iter().find(|round| round.id == id).expect("the round is in the dump").clone();
+    let gun = |id: &str| {
+        guns.iter()
+            .find(|gun| gun.id == id)
+            .expect("the gun is in the dump")
+            .clone()
+    };
+    let round = |id: &str| {
+        rounds
+            .iter()
+            .find(|round| round.id == id)
+            .expect("the round is in the dump")
+            .clone()
+    };
 
     // A rifle carries no blow of its own; its cartridge carries all of it.
     let rifle = blow_of(&gun("ruger_mini"), Some(&round("223")));
-    assert_eq!(rifle.stab, 39, "the .223's thirty-nine, and nothing from the gun");
-    assert_eq!(rifle.bash, 0, "and no bash, because a cartridge is not a rock");
+    assert_eq!(
+        rifle.stab, 39,
+        "the .223's thirty-nine, and nothing from the gun"
+    );
+    assert_eq!(
+        rifle.bash, 0,
+        "and no bash, because a cartridge is not a rock"
+    );
     assert_eq!(
         blow_of(&gun("ruger_mini"), None).stab,
         0,
@@ -241,25 +366,45 @@ fn a_shot_s_blow_is_its_gun_s_plus_its_round_s_and_armour_takes_it_off() {
 #[test]
 fn a_gun_that_cannot_pay_for_a_round_does_not_fire() {
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
 
     let mut world = bevy_ecs::prelude::World::new();
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(99));
     let shooter = cdda_sim::creature::spawn_creature(&mut world, "the shooter", (0, 0, 0));
-    world.entity_mut(shooter).insert(cdda_sim::creature::Moves { left: 500 });
+    world
+        .entity_mut(shooter)
+        .insert(cdda_sim::creature::Moves { left: 500 });
     // The gun is an item entity with two rounds in it, which is where the port keeps "how many of this thing are here".
     let held = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(0), 2);
-    world.entity_mut(held).insert(cdda_sim::creature::WieldedBy(shooter));
+    world
+        .entity_mut(held)
+        .insert(cdda_sim::creature::WieldedBy(shooter));
 
     let mut fired = 0;
     for _ in 0..3 {
-        let shot = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (4, 0, 0), 18.0, None, Some(held), 0.0, false);
+        let shot = cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (4, 0, 0),
+            18.0,
+            None,
+            Some(held),
+            0.0,
+            false,
+        );
         if shot.loaded {
             fired += 1;
         } else {
@@ -269,7 +414,9 @@ fn a_gun_that_cannot_pay_for_a_round_does_not_fire() {
     }
     assert_eq!(fired, 2, "two rounds in the gun is two shots");
     assert_eq!(
-        world.get::<cdda_sim::GroundItem>(held).map(|item| item.charges),
+        world
+            .get::<cdda_sim::GroundItem>(held)
+            .map(|item| item.charges),
         Some(0),
         "and the gun is empty"
     );
@@ -288,7 +435,11 @@ fn a_shot_s_kick_is_the_round_s_less_what_handling_and_weight_take_off() {
     let factor = 2.0_f64.powf(1.2);
     #[allow(clippy::cast_possible_truncation)]
     let expected = (1500.0 / factor) as i32;
-    assert_eq!(gun_recoil(0, 1500, 20, 333.0, 8), expected, "1500 over the handling factor");
+    assert_eq!(
+        gun_recoil(0, 1500, 20, 333.0, 8),
+        expected,
+        "1500 over the handling factor"
+    );
     assert!(
         (gun_recoil(0, 1500, 20, 333.0, 8) - 652).abs() <= 1,
         "which is about 652 of the round's 1500"
@@ -296,17 +447,30 @@ fn a_shot_s_kick_is_the_round_s_less_what_handling_and_weight_take_off() {
 
     // Poor handling (10, so 1.0 in the reference's units) does not reach the reference's divide branch at all: factor 1.0 takes the **multiply** branch, and a gun that handles at unit
     // weight *doubles* its round's kick - which is the asymmetry the reference's `handling > 1.0` test builds.
-    assert_eq!(gun_recoil(0, 1500, 10, 333.0, 8), 3000, "handling 10 is factor 1.0, which multiplies by two");
+    assert_eq!(
+        gun_recoil(0, 1500, 10, 333.0, 8),
+        3000,
+        "handling 10 is factor 1.0, which multiplies by two"
+    );
     // Weight enters the **factor** the kick is divided by, so at equal handling a heavier gun kicks **less** - which is the reference's own bias, spelled in its comment ("heavier weapons
     // benefit more from improved handling") and easy to get backwards if the weight is read as a penalty.
     let heavy = gun_recoil(0, 1500, 20, 20_000.0, 8);
     let light = gun_recoil(0, 1500, 20, 333.0, 8);
-    assert!(heavy < light, "the heavier gun is steadier: {heavy} against {light}");
+    assert!(
+        heavy < light,
+        "the heavier gun is steadier: {heavy} against {light}"
+    );
     // And the arm's strength **caps** how much weight counts, at 333 g a point: a stronger arm on the same heavy gun is steadier still.
     let strong = gun_recoil(0, 1500, 20, 20_000.0, 40);
-    assert!(strong < heavy, "a stronger arm tames it further: {strong} against {heavy}");
+    assert!(
+        strong < heavy,
+        "a stronger arm tames it further: {strong} against {heavy}"
+    );
     // A gun's own recoil adds to the round's rather than replacing it.
-    assert!(gun_recoil(500, 1500, 20, 333.0, 8) > gun_recoil(0, 1500, 20, 333.0, 8), "the gun's own kick adds");
+    assert!(
+        gun_recoil(500, 1500, 20, 333.0, 8) > gun_recoil(0, 1500, 20, 333.0, 8),
+        "the gun's own kick adds"
+    );
 }
 
 /// Recoil accumulates with each shot and makes the next one worse.
@@ -320,20 +484,37 @@ fn recoil_accumulates_with_each_shot_and_widens_the_next() {
     use cdda_sim::shot::{MAX_RECOIL, Recoil, recoil_after_a_shot};
 
     // The cap, and the fivefold scale that makes it matter.
-    assert_eq!(recoil_after_a_shot(0, 100), 500, "a hundred-point kick adds five hundred");
-    assert_eq!(recoil_after_a_shot(2_900, 100), MAX_RECOIL, "and the total stops at three thousand");
+    assert_eq!(
+        recoil_after_a_shot(0, 100),
+        500,
+        "a hundred-point kick adds five hundred"
+    );
+    assert_eq!(
+        recoil_after_a_shot(2_900, 100),
+        MAX_RECOIL,
+        "and the total stops at three thousand"
+    );
     assert_eq!(recoil_after_a_shot(0, 0), 0, "a kickless shot adds nothing");
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let round = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let round = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(777));
@@ -346,8 +527,21 @@ fn recoil_accumulates_with_each_shot_and_widens_the_next() {
         .insert(cdda_sim::creature::Moves { left: 1_000 });
 
     // One shot at bare ground, then a second: the first leaves recoil behind, and the second is aimed with it.
-    let first = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0, false);
-    let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
+    let first = cdda_sim::shot::fire_at(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (5, 0, 0),
+        18.0,
+        Some(&round),
+        None,
+        3180.0,
+        false,
+    );
+    let carried = world
+        .get::<Recoil>(shooter)
+        .map_or(0, |recoil| recoil.points);
     assert!(carried > 0, "the shot left recoil behind: {carried}");
     assert_eq!(
         carried,
@@ -355,9 +549,23 @@ fn recoil_accumulates_with_each_shot_and_widens_the_next() {
         "and it is five times the kick a Mini-14 with a .223 makes: **123**, because its 3,180 g is capped at the arm's 8 * 333 g"
     );
 
-    let second = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&round), None, 3180.0, false);
+    let second = cdda_sim::shot::fire_at(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (5, 0, 0),
+        18.0,
+        Some(&round),
+        None,
+        3180.0,
+        false,
+    );
     assert!(
-        world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points) > carried,
+        world
+            .get::<Recoil>(shooter)
+            .map_or(0, |recoil| recoil.points)
+            > carried,
         "and the second shot adds to it"
     );
     assert!(
@@ -376,10 +584,26 @@ fn recoil_accumulates_with_each_shot_and_widens_the_next() {
 fn a_bow_starts_its_aim_over_and_a_rifle_carries_its_recoil() {
     use cdda_sim::shot::{MAX_RECOIL, recoil_after_firing};
 
-    assert_eq!(recoil_after_firing(0, 123, true), MAX_RECOIL, "a bow resets to the cap whatever its kick");
-    assert_eq!(recoil_after_firing(2_000, 123, true), MAX_RECOIL, "even from a shooter who was already shaking");
-    assert_eq!(recoil_after_firing(0, 123, false), 615, "a gun adds five times its kick");
-    assert_eq!(recoil_after_firing(2_990, 123, false), MAX_RECOIL, "and never passes the cap");
+    assert_eq!(
+        recoil_after_firing(0, 123, true),
+        MAX_RECOIL,
+        "a bow resets to the cap whatever its kick"
+    );
+    assert_eq!(
+        recoil_after_firing(2_000, 123, true),
+        MAX_RECOIL,
+        "even from a shooter who was already shaking"
+    );
+    assert_eq!(
+        recoil_after_firing(0, 123, false),
+        615,
+        "a gun adds five times its kick"
+    );
+    assert_eq!(
+        recoil_after_firing(2_990, 123, false),
+        MAX_RECOIL,
+        "and never passes the cap"
+    );
     // The two rules disagree for every input, which is why the flag has to be read rather than assumed.
     assert_ne!(
         recoil_after_firing(0, 123, true),
@@ -404,20 +628,39 @@ fn a_round_s_spread_is_absolute_capped_and_only_moves_the_aim_across_tiles() {
     for _ in 0..200 {
         let drawn = shot_spread_arcmin(300, &mut dice);
         assert!(drawn >= 0.0, "an absolute draw: {drawn}");
-        assert!(drawn <= 300.0 || (drawn - 1800.0).abs() < f64::EPSILON, "within the round's own spread, or at the cap: {drawn}");
+        assert!(
+            drawn <= 300.0 || (drawn - 1800.0).abs() < f64::EPSILON,
+            "within the round's own spread, or at the cap: {drawn}"
+        );
         if drawn > 100.0 {
             seen_wide = true;
         }
     }
-    assert!(seen_wide, "and two hundred draws from three hundred arcmin reach past a hundred");
-    assert!(shot_spread_arcmin(0, &mut dice).abs() < f64::EPSILON, "a round with no spread draws nothing");
+    assert!(
+        seen_wide,
+        "and two hundred draws from three hundred arcmin reach past a hundred"
+    );
+    assert!(
+        shot_spread_arcmin(0, &mut dice).abs() < f64::EPSILON,
+        "a round with no spread draws nothing"
+    );
 
     // One tile: no displacement at all, however wide. Two hundred arcmin across two tiles: 0.058 - under one, so still no displacement.
-    assert!(spread_across_tiles(1800.0, 1).abs() < f64::EPSILON, "one tile never scatters");
+    assert!(
+        spread_across_tiles(1800.0, 1).abs() < f64::EPSILON,
+        "one tile never scatters"
+    );
     let two = spread_across_tiles(200.0, 2);
-    assert!(two > 0.0 && two < 1.0, "two tiles and two hundred arcmin is a tenth of a square: {two}");
+    assert!(
+        two > 0.0 && two < 1.0,
+        "two tiles and two hundred arcmin is a tenth of a square: {two}"
+    );
     // Enough tiles at a wide enough arc does pass one, which is the only case the reference moves the target square.
-    assert!(spread_across_tiles(1800.0, 10) >= 1.0, "ten tiles at the cap is more than a square: {}", spread_across_tiles(1800.0, 10));
+    assert!(
+        spread_across_tiles(1800.0, 10) >= 1.0,
+        "ten tiles at the cap is more than a square: {}",
+        spread_across_tiles(1800.0, 10)
+    );
 }
 
 /// A wide round scatters off a distant square and never off a near one, and the shot reports it as a miss.
@@ -430,7 +673,8 @@ fn a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
@@ -439,10 +683,24 @@ fn a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one() {
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
     // The gun names the **ammunition type** it takes (`shot`), not the round (`shot_bird`); the test passes the round to `fire_at` directly, which is what the port's loader does with
     // `gun.ammo` when the two ids happen to agree.
-    let gun = guns.iter().find(|gun| gun.id == "pipe_shotgun").expect("a shotgun").clone();
-    assert_eq!(gun.ammo, "shot", "the pipe shotgun takes the `shot` ammunition type");
-    let bird = rounds.iter().find(|round| round.id == "shot_bird").expect("birdshot").clone();
-    assert_eq!(bird.shot_spread, 300, "birdshot is three hundred arcmin wide");
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "pipe_shotgun")
+        .expect("a shotgun")
+        .clone();
+    assert_eq!(
+        gun.ammo, "shot",
+        "the pipe shotgun takes the `shot` ammunition type"
+    );
+    let bird = rounds
+        .iter()
+        .find(|round| round.id == "shot_bird")
+        .expect("birdshot")
+        .clone();
+    assert_eq!(
+        bird.shot_spread, 300,
+        "birdshot is three hundred arcmin wide"
+    );
 
     // One shooter, one world: only the range changes, which is what makes the two runs a differential.
     let fire = |range: i32, seed: u32| {
@@ -456,10 +714,28 @@ fn a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one() {
             .insert(cdda_sim::creature::Perception { base: 20 })
             .insert(cdda_sim::creature::Moves { left: 1_000 });
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (range, 0, 0));
-        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 });
+        world
+            .entity_mut(target)
+            .insert(cdda_sim::creature::Health { hp: 80, max_hp: 80 });
         // A `NEVER_JAMS` gun, so the misfire roll round 1172 added does not eat one of the four seeds' draws.
-        let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 0, y: 0, z: 0 })).id();
-        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (range, 0, 0), 18.0, Some(&bird), Some(held), 3_000.0, false)
+        let held = world
+            .spawn((
+                cdda_sim::shot::NeverJams,
+                cdda_sim::Position { x: 0, y: 0, z: 0 },
+            ))
+            .id();
+        cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (range, 0, 0),
+            18.0,
+            Some(&bird),
+            Some(held),
+            3_000.0,
+            false,
+        )
     };
 
     // Four seeds: at twenty squares at least one pellet wanders a whole square, and at two squares none ever can - `spread * (2 - 1)` is under one for any draw within 300 arcmin.
@@ -473,8 +749,14 @@ fn a_birdshot_scatters_off_a_distant_square_and_not_off_a_near_one() {
             scattered_near += 1;
         }
     }
-    assert!(scattered_far > 0, "a birdshot at twenty squares scatters at least once in four seeds: {scattered_far}");
-    assert!(scattered_near < 4, "and at two squares it is not the scatter doing the missing: {scattered_near}");
+    assert!(
+        scattered_far > 0,
+        "a birdshot at twenty squares scatters at least once in four seeds: {scattered_far}"
+    );
+    assert!(
+        scattered_near < 4,
+        "and at two squares it is not the scatter doing the missing: {scattered_near}"
+    );
 }
 
 /// A round with a count fires that many pellets, and a cartridge's count of one fires one.
@@ -487,15 +769,27 @@ fn a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let round = |id: &str| rounds.iter().find(|round| round.id == id).expect("the round is in the dump").clone();
-    let gun = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").clone();
+    let round = |id: &str| {
+        rounds
+            .iter()
+            .find(|round| round.id == id)
+            .expect("the round is in the dump")
+            .clone()
+    };
+    let gun = |id: &str| {
+        guns.iter()
+            .find(|gun| gun.id == id)
+            .expect("the gun is in the dump")
+            .clone()
+    };
     assert_eq!(round("shot_bird").count, 20, "birdshot is twenty pellets");
     assert_eq!(round("223").count, 1, "a cartridge is one");
 
@@ -511,16 +805,38 @@ fn a_shotgun_fires_its_round_s_whole_count_and_a_rifle_fires_one() {
             .insert(cdda_sim::creature::Perception { base: 20 })
             .insert(cdda_sim::creature::Moves { left: 1_000 });
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
-        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 500, max_hp: 500 });
+        world.entity_mut(target).insert(cdda_sim::creature::Health {
+            hp: 500,
+            max_hp: 500,
+        });
         // `NEVER_JAMS`, because round 1172 put a misfire roll ahead of every shot and this gate is about the pellet count rather than the dice.
-        let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 0, y: 0, z: 0 })).id();
-        let fired = cdda_sim::shot::fire_at(&mut world, shooter, gun, &lines, (1, 0, 0), 18.0, Some(round), Some(held), 3_000.0, false);
+        let held = world
+            .spawn((
+                cdda_sim::shot::NeverJams,
+                cdda_sim::Position { x: 0, y: 0, z: 0 },
+            ))
+            .id();
+        let fired = cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            gun,
+            &lines,
+            (1, 0, 0),
+            18.0,
+            Some(round),
+            Some(held),
+            3_000.0,
+            false,
+        );
         fired.hurt
     };
 
     let shotgun_hurt = fire(&gun("pipe_shotgun"), &round("shot_bird"));
     let rifle_hurt = fire(&gun("ruger_mini"), &round("223"));
-    assert!(rifle_hurt > 0, "the rifle's single pellet lands at one square: {rifle_hurt}");
+    assert!(
+        rifle_hurt > 0,
+        "the rifle's single pellet lands at one square: {rifle_hurt}"
+    );
     assert_eq!(rifle_hurt, 39, "and does the .223's whole blow");
     assert!(
         shotgun_hurt > rifle_hurt,
@@ -541,19 +857,38 @@ fn a_shot_s_noise_comes_from_the_round_and_not_from_the_gun() {
     use cdda_sim::shot::gun_noise;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").clone();
-    let round = |id: &str| rounds.iter().find(|round| round.id == id).expect("the round is in the dump").clone();
+    let gun = |id: &str| {
+        guns.iter()
+            .find(|gun| gun.id == id)
+            .expect("the gun is in the dump")
+            .clone()
+    };
+    let round = |id: &str| {
+        rounds
+            .iter()
+            .find(|round| round.id == id)
+            .expect("the round is in the dump")
+            .clone()
+    };
 
     let rifle = gun("ruger_mini");
     let cartridge = round("223");
-    assert_eq!(rifle.loudness, 0, "the rifle itself states no loudness at all");
-    assert!(cartridge.loudness > 100, "while the .223 is loud: {}", cartridge.loudness);
+    assert_eq!(
+        rifle.loudness, 0,
+        "the rifle itself states no loudness at all"
+    );
+    assert!(
+        cartridge.loudness > 100,
+        "while the .223 is loud: {}",
+        cartridge.loudness
+    );
     assert_eq!(
         gun_noise(rifle.loudness, cartridge.loudness),
         cartridge.loudness,
@@ -561,12 +896,24 @@ fn a_shot_s_noise_comes_from_the_round_and_not_from_the_gun() {
     );
 
     let bird = round("shot_bird");
-    assert!(bird.loudness > 0, "and birdshot states its own: {}", bird.loudness);
-    assert_eq!(gun_noise(0, bird.loudness), bird.loudness, "the same rule, another round");
+    assert!(
+        bird.loudness > 0,
+        "and birdshot states its own: {}",
+        bird.loudness
+    );
+    assert_eq!(
+        gun_noise(0, bird.loudness),
+        bird.loudness,
+        "the same rule, another round"
+    );
 
     // The floor, which is the one branch: a round that somehow stated negative loudness cannot make a shot quieter than nothing.
     assert_eq!(gun_noise(0, -50), 0, "a negative round is floored at zero");
-    assert_eq!(gun_noise(10, 5), 15, "and the two add when both state a figure");
+    assert_eq!(
+        gun_noise(10, 5),
+        15,
+        "and the two add when both state a figure"
+    );
 }
 
 /// A shot is a sound the world hears, placed where the shooter stands and as loud as its round.
@@ -579,15 +926,24 @@ fn a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let cartridge = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(7));
@@ -599,11 +955,30 @@ fn a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square() {
         .insert(cdda_sim::creature::Perception { base: 8 })
         .insert(cdda_sim::creature::Moves { left: 1_000 });
 
-    assert!(cdda_sim::sounds::heard_this_turn(&mut world).is_empty(), "nothing has been heard yet");
+    assert!(
+        cdda_sim::sounds::heard_this_turn(&mut world).is_empty(),
+        "nothing has been heard yet"
+    );
     // The gun is given `NEVER_JAMS` **because round 1172 added a misfire roll ahead of every shot**: a durability-8 gun jams once in 1,536 tries, and this gate is about the sound rather than
     // about the dice. A scenario that wants a specific shot has to say the gun cannot jam.
-    let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 3, y: 4, z: 0 })).id();
-    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (6, 4, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
+    let held = world
+        .spawn((
+            cdda_sim::shot::NeverJams,
+            cdda_sim::Position { x: 3, y: 4, z: 0 },
+        ))
+        .id();
+    let fired = cdda_sim::shot::fire_at(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (6, 4, 0),
+        18.0,
+        Some(&cartridge),
+        Some(held),
+        3_180.0,
+        false,
+    );
     assert!(fired.loaded, "the shot fired");
 
     let heard = cdda_sim::sounds::heard_this_turn(&mut world);
@@ -611,9 +986,20 @@ fn a_shot_puts_a_sound_in_the_world_at_the_shooter_s_square() {
     let Some(sound) = heard.first() else {
         return;
     };
-    assert_eq!(sound.volume, cartridge.loudness, "as loud as the round: {}", cartridge.loudness);
-    assert_eq!(sound.position, (3, 4, 0), "and at the shooter's own square, not the target's");
-    assert_eq!(fired.noise, cartridge.loudness, "and the report says the same number the world heard");
+    assert_eq!(
+        sound.volume, cartridge.loudness,
+        "as loud as the round: {}",
+        cartridge.loudness
+    );
+    assert_eq!(
+        sound.position,
+        (3, 4, 0),
+        "and at the shooter's own square, not the target's"
+    );
+    assert_eq!(
+        fired.noise, cartridge.loudness,
+        "and the report says the same number the world heard"
+    );
 }
 
 /// A burst fires until the gun runs dry, and each shot is worse aimed than the one before it.
@@ -626,15 +1012,24 @@ fn a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let cartridge = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4242));
@@ -660,24 +1055,82 @@ fn a_burst_fires_until_the_gun_runs_dry_and_gets_worse_as_it_goes() {
         ))
         .id();
 
-    let burst = cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false, 3, false);
-    assert_eq!(burst.len(), 2, "two rounds in the gun, three asked for: two shots and a stop");
-    assert!(burst.iter().all(|shot| shot.loaded), "and both of them fired");
+    let burst = cdda_sim::shot::fire_burst(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (8, 0, 0),
+        18.0,
+        Some(&cartridge),
+        Some(held),
+        3_180.0,
+        false,
+        3,
+        false,
+    );
     assert_eq!(
-        world.get::<cdda_sim::GroundItem>(held).map(|item| item.charges),
+        burst.len(),
+        2,
+        "two rounds in the gun, three asked for: two shots and a stop"
+    );
+    assert!(
+        burst.iter().all(|shot| shot.loaded),
+        "and both of them fired"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::GroundItem>(held)
+            .map(|item| item.charges),
         Some(0),
         "the gun is empty afterwards"
     );
     // The recoil the first shot left is in the second shot's dispersion.
     assert!(
-        burst.last().map(|shot| shot.aim.dispersion) > burst.first().map(|shot| shot.aim.dispersion),
+        burst.last().map(|shot| shot.aim.dispersion)
+            > burst.first().map(|shot| shot.aim.dispersion),
         "the second shot is aimed worse than the first: {:?} against {:?}",
         burst.last().map(|shot| shot.aim.dispersion),
         burst.first().map(|shot| shot.aim.dispersion)
     );
     // A burst of one is one shot, and a burst of none is none.
-    assert_eq!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 1, false).len(), 1, "one shot asked for");
-    assert!(cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (8, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 0, false).is_empty(), "and none for none");
+    assert_eq!(
+        cdda_sim::shot::fire_burst(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (8, 0, 0),
+            18.0,
+            Some(&cartridge),
+            None,
+            3_180.0,
+            false,
+            1,
+            false
+        )
+        .len(),
+        1,
+        "one shot asked for"
+    );
+    assert!(
+        cdda_sim::shot::fire_burst(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (8, 0, 0),
+            18.0,
+            Some(&cartridge),
+            None,
+            3_180.0,
+            false,
+            0,
+            false
+        )
+        .is_empty(),
+        "and none for none"
+    );
 }
 
 /// A burst trains the shooter's skills, and a weapon that says it will not train marksmanship trains neither.
@@ -690,15 +1143,24 @@ fn a_burst_trains_the_skills_it_should_and_a_flagged_weapon_trains_none() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let cartridge = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let exercise_of = |wont_train: bool| {
         let mut world = World::new();
@@ -711,22 +1173,60 @@ fn a_burst_trains_the_skills_it_should_and_a_flagged_weapon_trains_none() {
             .insert(cdda_sim::creature::Perception { base: 20 })
             .insert(cdda_sim::creature::Moves { left: 1_000 });
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
-        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 500, max_hp: 500 });
-        let made = cdda_sim::shot::fire_burst(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&cartridge), None, 3_180.0, false, 2, wont_train);
-        assert_eq!(made.len(), 2, "two shots were asked for and the gun was loaded");
-        let banked = world.get::<cdda_sim::creature::Exercise>(shooter).cloned().unwrap_or_default();
-        (banked.0.get("gun").copied().unwrap_or(0), banked.0.get("rifle").copied().unwrap_or(0))
+        world.entity_mut(target).insert(cdda_sim::creature::Health {
+            hp: 500,
+            max_hp: 500,
+        });
+        let made = cdda_sim::shot::fire_burst(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (1, 0, 0),
+            18.0,
+            Some(&cartridge),
+            None,
+            3_180.0,
+            false,
+            2,
+            wont_train,
+        );
+        assert_eq!(
+            made.len(),
+            2,
+            "two shots were asked for and the gun was loaded"
+        );
+        let banked = world
+            .get::<cdda_sim::creature::Exercise>(shooter)
+            .cloned()
+            .unwrap_or_default();
+        (
+            banked.0.get("gun").copied().unwrap_or(0),
+            banked.0.get("rifle").copied().unwrap_or(0),
+        )
     };
 
     let (gun_skill, rifle_skill) = exercise_of(false);
     assert!(gun_skill > 0, "the base gun skill was trained: {gun_skill}");
-    assert!(rifle_skill > 0, "and the rifle skill with it: {rifle_skill}");
+    assert!(
+        rifle_skill > 0,
+        "and the rifle skill with it: {rifle_skill}"
+    );
     // At least five a burst for the base skill, because `( hits + 1 ) * 5` counts the shot even when it misses.
-    assert!(gun_skill >= 5, "the base skill gains at least five a burst: {gun_skill}");
+    assert!(
+        gun_skill >= 5,
+        "the base skill gains at least five a burst: {gun_skill}"
+    );
 
     let (flagged_gun, flagged_rifle) = exercise_of(true);
-    assert_eq!(flagged_gun, 0, "a weapon flagged WONT_TRAIN_MARKSMANSHIP trains no gun skill");
-    assert!(flagged_rifle > 0, "but its own weapon skill still trains, because that rule is not the flagged one: {flagged_rifle}");
+    assert_eq!(
+        flagged_gun, 0,
+        "a weapon flagged WONT_TRAIN_MARKSMANSHIP trains no gun skill"
+    );
+    assert!(
+        flagged_rifle > 0,
+        "but its own weapon skill still trains, because that rule is not the flagged one: {flagged_rifle}"
+    );
 }
 
 /// A filthy gun misfires and a badly made one can too, and a `NEVER_JAMS` gun never does.
@@ -740,7 +1240,10 @@ fn a_filthy_gun_misfires_and_a_never_jams_gun_never_does() {
 
     // Dirt at the reference's maximum of ten thousand is a **certainty**: 10,000^3 over 10^12 is one.
     let mut dice = Rolls::new(5);
-    assert!(misfires(10_000, 8, false, &mut dice), "dirt at the cap misfires every time");
+    assert!(
+        misfires(10_000, 8, false, &mut dice),
+        "dirt at the cap misfires every time"
+    );
     // No dirt at all leaves only the mechanical dice, and a durable gun rarely rolls it: count a thousand.
     let mut dice = Rolls::new(5);
     let mut jams = 0;
@@ -749,8 +1252,14 @@ fn a_filthy_gun_misfires_and_a_never_jams_gun_never_does() {
             jams += 1;
         }
     }
-    assert!(jams > 0, "a durability-8 gun still misfires sometimes in a thousand shots: {jams}");
-    assert!(jams < 50, "but rarely: {jams} in a thousand, against the one in 1,536 the shift says");
+    assert!(
+        jams > 0,
+        "a durability-8 gun still misfires sometimes in a thousand shots: {jams}"
+    );
+    assert!(
+        jams < 50,
+        "but rarely: {jams} in a thousand, against the one in 1,536 the shift says"
+    );
     // A worse made gun jams more often, and the two runs differ only in durability.
     let mut dice = Rolls::new(5);
     let mut rough = 0;
@@ -759,10 +1268,16 @@ fn a_filthy_gun_misfires_and_a_never_jams_gun_never_does() {
             rough += 1;
         }
     }
-    assert!(rough > jams, "a durability-3 gun is worse: {rough} against {jams}");
+    assert!(
+        rough > jams,
+        "a durability-3 gun is worse: {rough} against {jams}"
+    );
     // And the flag skips both branches, even at maximum dirt.
     let mut dice = Rolls::new(5);
-    assert!(!misfires(10_000, 8, true, &mut dice), "NEVER_JAMS ignores the dirt entirely");
+    assert!(
+        !misfires(10_000, 8, true, &mut dice),
+        "NEVER_JAMS ignores the dirt entirely"
+    );
 }
 
 /// A filthy gun does not fire at all, and the round it would have used is still in it.
@@ -775,15 +1290,24 @@ fn a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let cartridge = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let fire = |dirt: i32, never_jams: bool| {
         let mut world = World::new();
@@ -796,7 +1320,10 @@ fn a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round() {
             .insert(cdda_sim::creature::Perception { base: 20 })
             .insert(cdda_sim::creature::Moves { left: 1_000 });
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
-        world.entity_mut(target).insert(cdda_sim::creature::Health { hp: 500, max_hp: 500 });
+        world.entity_mut(target).insert(cdda_sim::creature::Health {
+            hp: 500,
+            max_hp: 500,
+        });
         let held = world
             .spawn((
                 cdda_sim::GroundItem {
@@ -814,14 +1341,31 @@ fn a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round() {
         if never_jams {
             world.entity_mut(held).insert(cdda_sim::shot::NeverJams);
         }
-        let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
-        let left = world.get::<cdda_sim::GroundItem>(held).map(|item| item.charges);
+        let fired = cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (1, 0, 0),
+            18.0,
+            Some(&cartridge),
+            Some(held),
+            3_180.0,
+            false,
+        );
+        let left = world
+            .get::<cdda_sim::GroundItem>(held)
+            .map(|item| item.charges);
         (fired, left)
     };
 
     let (fired, left) = fire(cdda_sim::shot::MAX_DIRT, false);
     assert!(fired.misfired, "a gun at maximum dirt misfires");
-    assert!(!fired.loaded || fired.hurt == 0, "and nothing was hurt: {}", fired.hurt);
+    assert!(
+        !fired.loaded || fired.hurt == 0,
+        "and nothing was hurt: {}",
+        fired.hurt
+    );
     assert_eq!(left, Some(5), "and the round is still in the gun: {left:?}");
     assert_eq!(fired.cost, 0, "and no moves were spent: {}", fired.cost);
     assert!(fired.hit.is_none(), "and nothing was hit");
@@ -829,9 +1373,16 @@ fn a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round() {
     // The clean case carries `NEVER_JAMS`, **so the gate does not depend on the dice**: a durability-8 gun misfires once in 1,536 shots, and a seed that happened to roll it would make this
     // assertion flake rather than fail. The claim being tested is that a gun which *can* misfire does so at maximum dirt and a gun which cannot never does.
     let (clean, left) = fire(0, true);
-    assert!(!clean.misfired, "a gun that cannot jam fires even with a seed that would jam another");
+    assert!(
+        !clean.misfired,
+        "a gun that cannot jam fires even with a seed that would jam another"
+    );
     assert_eq!(left, Some(4), "and spends its round: {left:?}");
-    assert!(clean.hurt > 0, "and lands on the target it was aimed at: {}", clean.hurt);
+    assert!(
+        clean.hurt > 0,
+        "and lands on the target it was aimed at: {}",
+        clean.hurt
+    );
 }
 
 /// Every ordinary shot adds one point of dirt, and ordinary ammunition stops fouling at 7,150 while black powder goes to the maximum.
@@ -842,21 +1393,65 @@ fn a_filthy_gun_misfires_instead_of_firing_and_keeps_its_round() {
 fn a_shot_dirties_the_gun_by_one_until_ordinary_ammunition_stops_at_7150() {
     use cdda_sim::shot::{MAX_DIRT, dirt_after_a_shot};
 
-    assert_eq!(dirt_after_a_shot(0, false, 0, false), 1, "a clean gun takes one point");
-    assert_eq!(dirt_after_a_shot(100, false, 0, false), 101, "and one more with every shot");
-    assert_eq!(dirt_after_a_shot(7_149, false, 0, false), 7_150, "until the ordinary cap");
-    assert_eq!(dirt_after_a_shot(7_150, false, 0, false), 7_150, "where it stops, well short of the maximum");
-    assert_eq!(dirt_after_a_shot(MAX_DIRT, false, 0, false), MAX_DIRT, "and nothing goes past the maximum");
+    assert_eq!(
+        dirt_after_a_shot(0, false, 0, false),
+        1,
+        "a clean gun takes one point"
+    );
+    assert_eq!(
+        dirt_after_a_shot(100, false, 0, false),
+        101,
+        "and one more with every shot"
+    );
+    assert_eq!(
+        dirt_after_a_shot(7_149, false, 0, false),
+        7_150,
+        "until the ordinary cap"
+    );
+    assert_eq!(
+        dirt_after_a_shot(7_150, false, 0, false),
+        7_150,
+        "where it stops, well short of the maximum"
+    );
+    assert_eq!(
+        dirt_after_a_shot(MAX_DIRT, false, 0, false),
+        MAX_DIRT,
+        "and nothing goes past the maximum"
+    );
 
     // Black powder jumps by `200 - tolerance * 2` and is allowed to the top.
-    assert_eq!(dirt_after_a_shot(0, true, 0, false), 201, "black powder adds two hundred and one");
-    assert_eq!(dirt_after_a_shot(0, true, 5, false), 191, "less the weapon's tolerance, two a point");
-    assert_eq!(dirt_after_a_shot(9_950, true, 0, false), MAX_DIRT, "and reaches the maximum, where cartridges cannot");
-    assert!(dirt_after_a_shot(0, true, 200, false) >= 1, "a tolerance past the additive still leaves one point: {}", dirt_after_a_shot(0, true, 200, false));
+    assert_eq!(
+        dirt_after_a_shot(0, true, 0, false),
+        201,
+        "black powder adds two hundred and one"
+    );
+    assert_eq!(
+        dirt_after_a_shot(0, true, 5, false),
+        191,
+        "less the weapon's tolerance, two a point"
+    );
+    assert_eq!(
+        dirt_after_a_shot(9_950, true, 0, false),
+        MAX_DIRT,
+        "and reaches the maximum, where cartridges cannot"
+    );
+    assert!(
+        dirt_after_a_shot(0, true, 200, false) >= 1,
+        "a tolerance past the additive still leaves one point: {}",
+        dirt_after_a_shot(0, true, 200, false)
+    );
 
     // A non-fouling round leaves the gun exactly as it was, which is the branch the flag exists for.
-    assert_eq!(dirt_after_a_shot(500, false, 0, true), 500, "NON_FOULING adds nothing");
-    assert_eq!(dirt_after_a_shot(0, true, 0, true), 0, "not even black powder");
+    assert_eq!(
+        dirt_after_a_shot(500, false, 0, true),
+        500,
+        "NON_FOULING adds nothing"
+    );
+    assert_eq!(
+        dirt_after_a_shot(0, true, 0, true),
+        0,
+        "not even black powder"
+    );
 }
 
 /// Every shot leaves the gun dirtier, so a gun that keeps firing tends towards a misfire.
@@ -869,15 +1464,24 @@ fn every_shot_leaves_the_gun_dirtier() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let cartridge = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(91));
@@ -902,13 +1506,32 @@ fn every_shot_leaves_the_gun_dirtier() {
             cdda_sim::shot::NeverJams,
         ))
         .id();
-    assert_eq!(world.get::<cdda_sim::shot::Dirt>(held).map(|dirt| dirt.points), None, "a new gun carries no dirt component at all");
+    assert_eq!(
+        world
+            .get::<cdda_sim::shot::Dirt>(held)
+            .map(|dirt| dirt.points),
+        None,
+        "a new gun carries no dirt component at all"
+    );
 
     for expected in 1..=3 {
-        let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
+        let fired = cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (5, 0, 0),
+            18.0,
+            Some(&cartridge),
+            Some(held),
+            3_180.0,
+            false,
+        );
         assert!(!fired.misfired, "the gun cannot jam, so the shot fired");
         assert_eq!(
-            world.get::<cdda_sim::shot::Dirt>(held).map(|dirt| dirt.points),
+            world
+                .get::<cdda_sim::shot::Dirt>(held)
+                .map(|dirt| dirt.points),
             Some(expected),
             "and after shot {expected} the gun is that much dirtier"
         );
@@ -925,15 +1548,24 @@ fn a_blackpowder_round_dirties_the_gun_faster_than_a_cartridge() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let plain = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let plain = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
     let powder = rounds
         .iter()
         .find(|round| round.has_effect("BLACKPOWDER"))
@@ -964,17 +1596,43 @@ fn a_blackpowder_round_dirties_the_gun_faster_than_a_cartridge() {
                 cdda_sim::shot::NeverJams,
             ))
             .id();
-        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (5, 0, 0), 18.0, Some(round), Some(held), 3_180.0, false);
-        world.get::<cdda_sim::shot::Dirt>(held).map_or(0, |dirt| dirt.points)
+        cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (5, 0, 0),
+            18.0,
+            Some(round),
+            Some(held),
+            3_180.0,
+            false,
+        );
+        world
+            .get::<cdda_sim::shot::Dirt>(held)
+            .map_or(0, |dirt| dirt.points)
     };
 
-    assert!(!plain.has_effect("BLACKPOWDER"), "the .223 is ordinary ammunition");
-    assert!(powder.has_effect("BLACKPOWDER"), "and `{}` is not", powder.id);
+    assert!(
+        !plain.has_effect("BLACKPOWDER"),
+        "the .223 is ordinary ammunition"
+    );
+    assert!(
+        powder.has_effect("BLACKPOWDER"),
+        "and `{}` is not",
+        powder.id
+    );
     let plain_dirt = dirt_after(&plain);
     let powder_dirt = dirt_after(&powder);
     assert_eq!(plain_dirt, 1, "an ordinary round leaves one point behind");
-    assert!(powder_dirt > plain_dirt, "and black powder leaves far more: {powder_dirt} against {plain_dirt}");
-    assert!(powder_dirt >= 100, "which is the two hundred less the weapon's tolerance and plus one: {powder_dirt}");
+    assert!(
+        powder_dirt > plain_dirt,
+        "and black powder leaves far more: {powder_dirt} against {plain_dirt}"
+    );
+    assert!(
+        powder_dirt >= 100,
+        "which is the two hundred less the weapon's tolerance and plus one: {powder_dirt}"
+    );
 }
 
 /// An incendiary round sets a vegetable or a tinder target alight, burns flesh far less often, and does nothing to stone.
@@ -994,9 +1652,19 @@ fn an_incendiary_round_burns_tinder_and_rarely_burns_flesh() {
             burns.push(turns);
         }
     }
-    assert!(!burns.is_empty(), "a vegetable target does catch fire sometimes");
-    assert!(burns.iter().all(|turns| (12..=36).contains(turns)), "and burns for two-to-six times six: {burns:?}");
-    assert!(burns.len() < 200, "but not every round: {} of 200", burns.len());
+    assert!(
+        !burns.is_empty(),
+        "a vegetable target does catch fire sometimes"
+    );
+    assert!(
+        burns.iter().all(|turns| (12..=36).contains(turns)),
+        "and burns for two-to-six times six: {burns:?}"
+    );
+    assert!(
+        burns.len() < 200,
+        "but not every round: {} of 200",
+        burns.len()
+    );
     assert!(burns.len() > 5, "and more than a handful: {}", burns.len());
 
     // Flesh needs a second one-in-four and burns half as long, so it catches less often over the same number of tries.
@@ -1007,13 +1675,20 @@ fn an_incendiary_round_burns_tinder_and_rarely_burns_flesh() {
             flesh_burns += 1;
         }
     }
-    assert!(flesh_burns < burns.len(), "flesh catches fire less often than tinder: {flesh_burns} against {}", burns.len());
+    assert!(
+        flesh_burns < burns.len(),
+        "flesh catches fire less often than tinder: {flesh_burns} against {}",
+        burns.len()
+    );
     assert!(flesh_burns > 0, "but it does catch: {flesh_burns}");
 
     // Stone catches nothing at all, however hard it is hit.
     let mut dice = Rolls::new(2024);
     for _ in 0..200 {
-        assert!(incendiary_turns(100, false, false, false, &mut dice).is_none(), "a target that is none of the three never burns");
+        assert!(
+            incendiary_turns(100, false, false, false, &mut dice).is_none(),
+            "a target that is none of the three never burns"
+        );
     }
     // And a round that does almost no damage ignites only on a coin: `dam > 2` fails, so `amount` is one or nothing.
     let mut dice = Rolls::new(77);
@@ -1023,7 +1698,10 @@ fn an_incendiary_round_burns_tinder_and_rarely_burns_flesh() {
             lit += 1;
         }
     }
-    assert!(lit > 0 && lit < 60, "a scratch ignites rarely: {lit} of 200");
+    assert!(
+        lit > 0 && lit < 60,
+        "a scratch ignites rarely: {lit} of 200"
+    );
 }
 
 /// An incendiary round that lands sets the target alight when the target's own materials say it should, and a plain round never does.
@@ -1037,25 +1715,35 @@ fn an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
     let incendiary = rounds
         .iter()
         .find(|round| round.has_effect("INCENDIARY"))
         .expect("an incendiary round is in the dump")
         .clone();
-    let plain = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let plain = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let burn_after = |round: &cdda_content::ammo::AmmoType, material: &str| {
         let mut world = World::new();
         cdda_sim::singletons::put_rolls(&mut world, Rolls::new(404));
-        let entry = cdda_json::parse(br#"{"id":"onfire","max_duration":"1 hours"}"#).expect("valid json");
+        let entry =
+            cdda_json::parse(br#"{"id":"onfire","max_duration":"1 hours"}"#).expect("valid json");
         let cdda_json::Value::Object(entry) = entry else {
             panic!("an effect type is an object")
         };
@@ -1072,8 +1760,13 @@ fn an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one() {
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
         world
             .entity_mut(target)
-            .insert(cdda_sim::creature::Health { hp: 5_000, max_hp: 5_000 })
-            .insert(cdda_sim::creature::Materials([(material.to_owned(), 1)].into_iter().collect()));
+            .insert(cdda_sim::creature::Health {
+                hp: 5_000,
+                max_hp: 5_000,
+            })
+            .insert(cdda_sim::creature::Materials(
+                [(material.to_owned(), 1)].into_iter().collect(),
+            ));
         let held = world
             .spawn((
                 cdda_sim::GroundItem {
@@ -1090,7 +1783,18 @@ fn an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one() {
             .id();
         // Fire until a pellet lands: a single shot can miss, and the claim is about what a landing incendiary round does.
         for _ in 0..20 {
-            cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(round), Some(held), 3_180.0, false);
+            cdda_sim::shot::fire_at(
+                &mut world,
+                shooter,
+                &gun,
+                &lines,
+                (1, 0, 0),
+                18.0,
+                Some(round),
+                Some(held),
+                3_180.0,
+                false,
+            );
             if !cdda_sim::applied_effects::worn(&world, target).is_empty() {
                 break;
             }
@@ -1102,11 +1806,24 @@ fn an_incendiary_round_sets_a_veggy_target_alight_and_not_a_stony_one() {
     };
 
     let veggy_plain = burn_after(&plain, "veggy");
-    assert_eq!(veggy_plain, None, "a plain round never sets anything alight: {veggy_plain:?}");
+    assert_eq!(
+        veggy_plain, None,
+        "a plain round never sets anything alight: {veggy_plain:?}"
+    );
     let veggy = burn_after(&incendiary, "veggy");
-    assert!(veggy.is_some(), "an incendiary round does set a veggy target alight over twenty shots");
-    assert!(veggy.is_some_and(|turns| turns >= 1), "for at least a turn: {veggy:?}");
-    assert_eq!(burn_after(&incendiary, "stone"), None, "and a stone target never catches, however many rounds land");
+    assert!(
+        veggy.is_some(),
+        "an incendiary round does set a veggy target alight over twenty shots"
+    );
+    assert!(
+        veggy.is_some_and(|turns| turns >= 1),
+        "for at least a turn: {veggy:?}"
+    );
+    assert_eq!(
+        burn_after(&incendiary, "stone"),
+        None,
+        "and a stone target never catches, however many rounds land"
+    );
 }
 
 /// An `IGNITE` round burns for ten times the amount, or six on flesh, and ignites on a flat coin rather than by weight.
@@ -1130,25 +1847,48 @@ fn an_ignite_round_burns_for_ten_times_the_amount_and_six_on_flesh() {
             flesh.push(turns);
         }
     }
-    assert!(veggy.len() > 20 && veggy.len() < 180, "a coin, not a certainty: {} of 200", veggy.len());
-    assert!(veggy.iter().all(|turns| *turns == 60), "and always ten times six: {veggy:?}");
+    assert!(
+        veggy.len() > 20 && veggy.len() < 180,
+        "a coin, not a certainty: {} of 200",
+        veggy.len()
+    );
+    assert!(
+        veggy.iter().all(|turns| *turns == 60),
+        "and always ten times six: {veggy:?}"
+    );
     assert!(!flesh.is_empty(), "flesh burns too: {}", flesh.len());
-    assert!(flesh.iter().all(|turns| *turns == 36), "for six times six: {flesh:?}");
+    assert!(
+        flesh.iter().all(|turns| *turns == 36),
+        "for six times six: {flesh:?}"
+    );
 
     // Stone catches nothing, and a light round halves to one rather than needing a big amount.
     let mut dice = Rolls::new(31);
     for _ in 0..100 {
-        assert!(ignite_turns(100, false, false, false, &mut dice).is_none(), "stone never burns");
+        assert!(
+            ignite_turns(100, false, false, false, &mut dice).is_none(),
+            "stone never burns"
+        );
     }
     let mut dice = Rolls::new(31);
-    let light: Vec<i32> = (0..100).filter_map(|_| ignite_turns(2, true, false, false, &mut dice)).collect();
-    assert!(!light.is_empty() && light.iter().all(|turns| *turns <= 10), "a two-damage round burns for ten at most: {light:?}");
+    let light: Vec<i32> = (0..100)
+        .filter_map(|_| ignite_turns(2, true, false, false, &mut dice))
+        .collect();
+    assert!(
+        !light.is_empty() && light.iter().all(|turns| *turns <= 10),
+        "a two-damage round burns for ten at most: {light:?}"
+    );
 
     // And the two rules are not one rule: at the same damage the incendiary burn varies, while the ignite burn does not.
     let mut dice = Rolls::new(31);
-    let incendiary: Vec<i32> = (0..200).filter_map(|_| incendiary_turns(12, true, false, false, &mut dice)).collect();
+    let incendiary: Vec<i32> = (0..200)
+        .filter_map(|_| incendiary_turns(12, true, false, false, &mut dice))
+        .collect();
     let first = incendiary.first().copied().unwrap_or_default();
-    assert!(incendiary.iter().any(|turns| *turns != first), "an incendiary burn is drawn: {incendiary:?}");
+    assert!(
+        incendiary.iter().any(|turns| *turns != first),
+        "an incendiary burn is drawn: {incendiary:?}"
+    );
 }
 
 /// An `IGNITE` round that lands also sets a burnable target alight, by its own rule rather than the incendiary one.
@@ -1161,14 +1901,19 @@ fn an_ignite_round_also_sets_a_burnable_target_alight() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
     let igniting = rounds
         .iter()
         .find(|round| round.has_effect("IGNITE") && !round.has_effect("INCENDIARY"))
@@ -1177,7 +1922,8 @@ fn an_ignite_round_also_sets_a_burnable_target_alight() {
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(8080));
-    let entry = cdda_json::parse(br#"{"id":"onfire","max_duration":"1 hours"}"#).expect("valid json");
+    let entry =
+        cdda_json::parse(br#"{"id":"onfire","max_duration":"1 hours"}"#).expect("valid json");
     let cdda_json::Value::Object(entry) = entry else {
         panic!("an effect type is an object")
     };
@@ -1194,8 +1940,13 @@ fn an_ignite_round_also_sets_a_burnable_target_alight() {
     let target = cdda_sim::creature::spawn_creature(&mut world, "the target", (1, 0, 0));
     world
         .entity_mut(target)
-        .insert(cdda_sim::creature::Health { hp: 50_000, max_hp: 50_000 })
-        .insert(cdda_sim::creature::Materials([("veggy".to_owned(), 1)].into_iter().collect()));
+        .insert(cdda_sim::creature::Health {
+            hp: 50_000,
+            max_hp: 50_000,
+        })
+        .insert(cdda_sim::creature::Materials(
+            [("veggy".to_owned(), 1)].into_iter().collect(),
+        ));
     let held = world
         .spawn((
             cdda_sim::GroundItem {
@@ -1213,15 +1964,32 @@ fn an_ignite_round_also_sets_a_burnable_target_alight() {
 
     let mut burned = None;
     for _ in 0..40 {
-        cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (1, 0, 0), 18.0, Some(&igniting), Some(held), 3_180.0, false);
-        if let Some(effect) = cdda_sim::applied_effects::worn(&world, target).into_iter().find(|effect| effect.id == "onfire") {
+        cdda_sim::shot::fire_at(
+            &mut world,
+            shooter,
+            &gun,
+            &lines,
+            (1, 0, 0),
+            18.0,
+            Some(&igniting),
+            Some(held),
+            3_180.0,
+            false,
+        );
+        if let Some(effect) = cdda_sim::applied_effects::worn(&world, target)
+            .into_iter()
+            .find(|effect| effect.id == "onfire")
+        {
             burned = Some(effect.duration);
             break;
         }
     }
     let turns = burned.expect("an igniting round sets a veggy target alight within forty shots");
     assert!(turns > 0, "for a positive number of turns: {turns}");
-    assert!(turns % 10 == 0 || turns % 6 == 0, "and by the ignite rule's own arithmetic, a multiple of ten or six: {turns}");
+    assert!(
+        turns % 10 == 0 || turns % 6 == 0,
+        "and by the ignite rule's own arithmetic, a multiple of ten or six: {turns}"
+    );
 }
 
 /// Heat damage sets a creature alight with a chance equal to the damage itself, out of a hundred and one.
@@ -1239,27 +2007,55 @@ fn heat_sets_a_creature_alight_with_a_chance_equal_to_its_damage() {
     let mut turns = Vec::new();
     for _ in 0..100 {
         let lit = heat_sets_alight(101, &mut dice);
-        assert!(lit.is_some(), "a hundred and one points of heat always lights");
+        assert!(
+            lit.is_some(),
+            "a hundred and one points of heat always lights"
+        );
         turns.push(lit.unwrap_or(0));
     }
-    assert!(turns.iter().all(|turns| (1..=3).contains(turns)), "and burns for one to three turns: {turns:?}");
+    assert!(
+        turns.iter().all(|turns| (1..=3).contains(turns)),
+        "and burns for one to three turns: {turns:?}"
+    );
     let first = turns.first().copied().unwrap_or_default();
-    assert!(turns.iter().any(|turns| *turns != first), "the burn is drawn: {turns:?}");
+    assert!(
+        turns.iter().any(|turns| *turns != first),
+        "the burn is drawn: {turns:?}"
+    );
 
     // A hundred lights almost always but not quite: over two thousand draws a handful are missed.
     let mut dice = Rolls::new(4);
-    let missed = (0..2_000).filter(|_| heat_sets_alight(100, &mut dice).is_none()).count();
-    assert!(missed > 0, "a hundred still misses sometimes: {missed} of 2000");
-    assert!(missed < 60, "but rarely - about one in a hundred and one: {missed} of 2000");
+    let missed = (0..2_000)
+        .filter(|_| heat_sets_alight(100, &mut dice).is_none())
+        .count();
+    assert!(
+        missed > 0,
+        "a hundred still misses sometimes: {missed} of 2000"
+    );
+    assert!(
+        missed < 60,
+        "but rarely - about one in a hundred and one: {missed} of 2000"
+    );
 
     // Half the damage lights about half the time, and nothing lights nothing.
     let mut dice = Rolls::new(4);
-    let lit = (0..2_000).filter(|_| heat_sets_alight(50, &mut dice).is_some()).count();
-    assert!((800..=1_150).contains(&lit), "fifty points light about half the time: {lit} of 2000");
+    let lit = (0..2_000)
+        .filter(|_| heat_sets_alight(50, &mut dice).is_some())
+        .count();
+    assert!(
+        (800..=1_150).contains(&lit),
+        "fifty points light about half the time: {lit} of 2000"
+    );
     let mut dice = Rolls::new(4);
     for _ in 0..500 {
-        assert!(heat_sets_alight(0, &mut dice).is_none(), "no heat never lights");
-        assert!(heat_sets_alight(-5, &mut dice).is_none(), "and neither does negative heat");
+        assert!(
+            heat_sets_alight(0, &mut dice).is_none(),
+            "no heat never lights"
+        );
+        assert!(
+            heat_sets_alight(-5, &mut dice).is_none(),
+            "and neither does negative heat"
+        );
     }
 }
 
@@ -1273,32 +2069,67 @@ fn a_fire_burns_the_parts_its_intensity_reaches_and_every_part_on_the_ground() {
     use cdda_sim::burning::{burn_span, fire_burn, parts_burned};
 
     assert_eq!(burn_span(1), (1, 6), "intensity one burns for one to six");
-    assert_eq!(burn_span(3), (3, 12), "and three for three to twelve, which is three times and three");
+    assert_eq!(
+        burn_span(3),
+        (3, 12),
+        "and three for three to twelve, which is three times and three"
+    );
 
     // The ladder: feet and legs, then the torso, then hands and arms - and never the other way round.
     let legs = parts_burned(1, false, &[]);
-    assert_eq!(legs, vec!["foot_l", "foot_r", "leg_l", "leg_r"], "intensity one reaches the feet and legs");
+    assert_eq!(
+        legs,
+        vec!["foot_l", "foot_r", "leg_l", "leg_r"],
+        "intensity one reaches the feet and legs"
+    );
     let torso = parts_burned(2, false, &[]);
     assert_eq!(torso.len(), 5, "two adds the torso: {torso:?}");
     // The switch **falls through downward**, so the parts of the higher intensity are pushed **first**: a two-intensity fire's list starts at the torso and ends at the legs.
-    assert_eq!(torso.first(), Some(&"torso"), "and puts it first, because the switch falls through from two into one: {torso:?}");
-    assert_eq!(torso.iter().skip(1).copied().collect::<Vec<_>>(), vec!["foot_l", "foot_r", "leg_l", "leg_r"], "with the feet and legs after it: {torso:?}");
+    assert_eq!(
+        torso.first(),
+        Some(&"torso"),
+        "and puts it first, because the switch falls through from two into one: {torso:?}"
+    );
+    assert_eq!(
+        torso.iter().skip(1).copied().collect::<Vec<_>>(),
+        vec!["foot_l", "foot_r", "leg_l", "leg_r"],
+        "with the feet and legs after it: {torso:?}"
+    );
     let all = parts_burned(3, false, &[]);
     assert_eq!(all.len(), 9, "and three adds the hands and arms: {all:?}");
-    assert_eq!(all.iter().take(4).copied().collect::<Vec<_>>(), vec!["hand_l", "hand_r", "arm_l", "arm_r"], "which come first, because the switch falls through into them: {all:?}");
+    assert_eq!(
+        all.iter().take(4).copied().collect::<Vec<_>>(),
+        vec!["hand_l", "hand_r", "arm_l", "arm_r"],
+        "which come first, because the switch falls through into them: {all:?}"
+    );
     assert_eq!(all.get(4), Some(&"torso"), "then the torso: {all:?}");
 
     // A creature on the ground burns everywhere, whatever the fire's strength.
     let every = ["head", "torso", "foot_l"];
-    assert_eq!(parts_burned(1, true, &every), every.to_vec(), "lying down burns every part");
+    assert_eq!(
+        parts_burned(1, true, &every),
+        every.to_vec(),
+        "lying down burns every part"
+    );
 
     // One draw per part, each inside the span.
     let mut dice = Rolls::new(64);
     let burns = fire_burn(3, false, &[], &mut dice);
-    assert_eq!(burns.len(), 9, "nine parts for a three-intensity fire: {}", burns.len());
-    assert!(burns.iter().all(|(_, damage)| (3..=12).contains(damage)), "each inside three to twelve: {burns:?}");
+    assert_eq!(
+        burns.len(),
+        9,
+        "nine parts for a three-intensity fire: {}",
+        burns.len()
+    );
+    assert!(
+        burns.iter().all(|(_, damage)| (3..=12).contains(damage)),
+        "each inside three to twelve: {burns:?}"
+    );
     let mut dice = Rolls::new(64);
-    assert!(fire_burn(0, false, &every, &mut dice).is_empty(), "a fire that is out burns nothing");
+    assert!(
+        fire_burn(0, false, &every, &mut dice).is_empty(),
+        "a fire that is out burns nothing"
+    );
 }
 
 /// A creature standing in fire is burnt every turn, and the burn can set it further alight.
@@ -1313,26 +2144,47 @@ fn a_creature_standing_in_fire_is_burnt_every_turn() {
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(4242));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (3, 3, 0));
-    world.entity_mut(zombie).insert(cdda_sim::creature::Health { hp: 5_000, max_hp: 5_000 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Health {
+        hp: 5_000,
+        max_hp: 5_000,
+    });
     // A fire of intensity three: nine body parts, each for three to twelve, so a turn takes twenty-seven to a hundred and eight.
-    cdda_sim::add_field_strength(&mut world, (3, 3, 0), cdda_core_types::field::FieldId(14), 3);
+    cdda_sim::add_field_strength(
+        &mut world,
+        (3, 3, 0),
+        cdda_core_types::field::FieldId(14),
+        3,
+    );
 
     let before = cdda_sim::creature::health_of(&world, zombie).expect("the zombie has hit points");
     cdda_sim::turn::run_turn(&mut world);
     let after_one = cdda_sim::creature::health_of(&world, zombie).expect("still there");
     let taken = before - after_one;
-    assert!((27..=108).contains(&taken), "one turn in a three-intensity fire takes twenty-seven to a hundred and eight: {taken}");
+    assert!(
+        (27..=108).contains(&taken),
+        "one turn in a three-intensity fire takes twenty-seven to a hundred and eight: {taken}"
+    );
 
     // And it keeps happening: a second turn takes more, which is what "every turn" means.
     cdda_sim::turn::run_turn(&mut world);
     let after_two = cdda_sim::creature::health_of(&world, zombie).expect("still there");
-    assert!(after_two < after_one, "a second turn burns it again: {after_one} then {after_two}");
+    assert!(
+        after_two < after_one,
+        "a second turn burns it again: {after_one} then {after_two}"
+    );
 
     // A creature with no fire on its square is untouched, which is the other half of the claim.
     let safe = cdda_sim::creature::spawn_creature(&mut world, "the bystander", (9, 9, 0));
-    world.entity_mut(safe).insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
+    world.entity_mut(safe).insert(cdda_sim::creature::Health {
+        hp: 100,
+        max_hp: 100,
+    });
     cdda_sim::turn::run_turn(&mut world);
-    assert_eq!(cdda_sim::creature::health_of(&world, safe), Some(100), "nothing burnt a creature with no fire under it");
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, safe),
+        Some(100),
+        "nothing burnt a creature with no fire under it"
+    );
 }
 
 /// A gunshot's own word and volume, and the special rounds that ignore the gun's loudness.
@@ -1345,11 +2197,31 @@ fn a_gunshot_says_its_own_word_and_a_grenade_launcher_is_quiet() {
 
     let none: Vec<String> = Vec::new();
     // The special rounds, whose volumes are the reference's own numbers and not the gun's loudness.
-    assert_eq!(gun_noise_word(154, "40x46mm", &none, false), (8, "Thunk!"), "a grenade launcher is quiet");
-    assert_eq!(gun_noise_word(154, "12mm", &none, false), (24, "tz-CRACKck!"), "a railgun is not");
-    assert_eq!(gun_noise_word(154, "RPG_7", &none, false), (4, "Fwoosh!"), "and a rocket is quieter still");
-    assert_eq!(gun_noise_word(154, "arrow", &none, false), (154, "whizz!"), "an arrow keeps the gun's own noise");
-    assert_eq!(gun_noise_word(154, "bolt", &none, false), (154, "thonk!"), "and so does a bolt");
+    assert_eq!(
+        gun_noise_word(154, "40x46mm", &none, false),
+        (8, "Thunk!"),
+        "a grenade launcher is quiet"
+    );
+    assert_eq!(
+        gun_noise_word(154, "12mm", &none, false),
+        (24, "tz-CRACKck!"),
+        "a railgun is not"
+    );
+    assert_eq!(
+        gun_noise_word(154, "RPG_7", &none, false),
+        (4, "Fwoosh!"),
+        "and a rocket is quieter still"
+    );
+    assert_eq!(
+        gun_noise_word(154, "arrow", &none, false),
+        (154, "whizz!"),
+        "an arrow keeps the gun's own noise"
+    );
+    assert_eq!(
+        gun_noise_word(154, "bolt", &none, false),
+        (154, "thonk!"),
+        "and so does a bolt"
+    );
 
     // The laser ladder, on the round's effects rather than its ammunition type.
     let laser = vec!["LASER".to_owned()];
@@ -1358,17 +2230,33 @@ fn a_gunshot_says_its_own_word_and_a_grenade_launcher_is_quiet() {
     assert_eq!(gun_noise_word(45, "223", &laser, false).1, "Tsewww!");
     assert_eq!(gun_noise_word(65, "223", &laser, false).1, "Kra-kow!");
     let lightning = vec!["LIGHTNING".to_owned()];
-    assert_eq!(gun_noise_word(65, "223", &lightning, false).1, "Kra-koom!", "lightning has its own words");
+    assert_eq!(
+        gun_noise_word(65, "223", &lightning, false).1,
+        "Kra-koom!",
+        "lightning has its own words"
+    );
 
     // The ordinary ladder, and the burst that says something else at the same volume.
     assert_eq!(gun_noise_word(5, "223", &none, false), (5, "plink!"));
-    assert_eq!(gun_noise_word(5, "223", &none, true), (5, "Brrrip!"), "a burst says a different word for the same noise");
+    assert_eq!(
+        gun_noise_word(5, "223", &none, true),
+        (5, "Brrrip!"),
+        "a burst says a different word for the same noise"
+    );
     assert_eq!(gun_noise_word(100, "223", &none, false).1, "bang!");
     assert_eq!(gun_noise_word(160, "223", &none, false).1, "blam!");
     assert_eq!(gun_noise_word(200, "223", &none, false).1, "kerblam!");
-    assert_eq!(gun_noise_word(200, "223", &none, true).1, "Kaboom!", "and the burst ladder runs all the way up");
+    assert_eq!(
+        gun_noise_word(200, "223", &none, true).1,
+        "Kaboom!",
+        "and the burst ladder runs all the way up"
+    );
     // A silent weapon says nothing at all, which is the branch that returns zero.
-    assert_eq!(gun_noise_word(0, "223", &none, false), (0, ""), "a silent weapon");
+    assert_eq!(
+        gun_noise_word(0, "223", &none, false),
+        (0, ""),
+        "a silent weapon"
+    );
 }
 
 /// A shot's sound says what it sounded like, in the store rather than in the caller's head.
@@ -1381,15 +2269,24 @@ fn a_shot_s_sound_says_what_it_sounded_like() {
     use cdda_core_types::rng::Rolls;
 
     let read = |name: &str| {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(path).expect("the corpus file exists");
         cdda_json::parse(&bytes).expect("valid JSON")
     };
     let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
     let lines = cdda_content::skills::load_dump(&read("skills.json")).expect("the skills load");
     let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
-    let gun = guns.iter().find(|gun| gun.id == "ruger_mini").expect("the Mini-14").clone();
-    let cartridge = rounds.iter().find(|round| round.id == "223").expect("the .223").clone();
+    let gun = guns
+        .iter()
+        .find(|gun| gun.id == "ruger_mini")
+        .expect("the Mini-14")
+        .clone();
+    let cartridge = rounds
+        .iter()
+        .find(|round| round.id == "223")
+        .expect("the .223")
+        .clone();
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(19));
@@ -1401,13 +2298,35 @@ fn a_shot_s_sound_says_what_it_sounded_like() {
         .insert(cdda_sim::creature::Perception { base: 20 })
         .insert(cdda_sim::creature::Moves { left: 1_000 });
     // A `NEVER_JAMS` gun, so the sound cannot be missing because the shot misfired.
-    let held = world.spawn((cdda_sim::shot::NeverJams, cdda_sim::Position { x: 0, y: 0, z: 0 })).id();
-    let fired = cdda_sim::shot::fire_at(&mut world, shooter, &gun, &lines, (6, 0, 0), 18.0, Some(&cartridge), Some(held), 3_180.0, false);
+    let held = world
+        .spawn((
+            cdda_sim::shot::NeverJams,
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+    let fired = cdda_sim::shot::fire_at(
+        &mut world,
+        shooter,
+        &gun,
+        &lines,
+        (6, 0, 0),
+        18.0,
+        Some(&cartridge),
+        Some(held),
+        3_180.0,
+        false,
+    );
     assert!(!fired.misfired, "the shot fired");
 
     let heard = cdda_sim::sounds::heard_this_turn(&mut world);
     assert_eq!(heard.len(), 1, "one shot, one sound: {}", heard.len());
     let sound = heard.first().expect("the sound is there");
-    assert_eq!(sound.volume, 154, "a .223 carries a hundred and fifty-four squares");
-    assert_eq!(sound.description, "blam!", "and says what it sounded like - a hundred and fifty-four is in the `blam!` band");
+    assert_eq!(
+        sound.volume, 154,
+        "a .223 carries a hundred and fifty-four squares"
+    );
+    assert_eq!(
+        sound.description, "blam!",
+        "and says what it sounded like - a hundred and fifty-four is in the `blam!` band"
+    );
 }

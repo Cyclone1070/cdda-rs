@@ -17,30 +17,40 @@ pub struct Friendly {
 }
 
 /// Makes a creature friendly for a number of turns, replacing anything it had before.
-pub fn make_friendly(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, turns: i32) {
-    world
-        .entity_mut(creature)
-        .insert(Friendly { turns: turns.max(0) });
+pub fn make_friendly(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    turns: i32,
+) {
+    world.entity_mut(creature).insert(Friendly {
+        turns: turns.max(0),
+    });
 }
 
 /// Adds to how long a creature stays friendly, which is what a charm spell does.
 ///
 /// Reference: `mon->friendly += sp.duration( caster ) / 100` (`magic_spell_effect.cpp:1546`) - an **addition**, so charming an already-charmed monster extends it
 /// rather than resetting it.
-pub fn charm(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, turns: i32) {
+pub fn charm(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    turns: i32,
+) {
     let current = world
         .get::<Friendly>(creature)
         .copied()
         .unwrap_or(Friendly { turns: 0 });
-    world
-        .entity_mut(creature)
-        .insert(Friendly { turns: current.turns.saturating_add(turns) });
+    world.entity_mut(creature).insert(Friendly {
+        turns: current.turns.saturating_add(turns),
+    });
 }
 
 /// Whether a creature is on the player's side.
 #[must_use]
 pub fn is_friendly(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity) -> bool {
-    world.get::<Friendly>(creature).is_some_and(|held| held.turns != 0)
+    world
+        .get::<Friendly>(creature)
+        .is_some_and(|held| held.turns != 0)
 }
 
 /// How long a creature will stay friendly, which is zero for one that never was.

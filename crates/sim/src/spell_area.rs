@@ -27,9 +27,21 @@ pub fn cover(
         // A line runs from the caster towards the aim point, as wide as the spell's area, and stops at anything impassable unless the spell ignores walls.
         "line" => {
             if ignore_walls {
-                crate::spell_line::line((source.0, source.1), (target.0, target.1), area, &|_| true, target.2)
+                crate::spell_line::line(
+                    (source.0, source.1),
+                    (target.0, target.1),
+                    area,
+                    &|_| true,
+                    target.2,
+                )
             } else {
-                crate::spell_line::line((source.0, source.1), (target.0, target.1), area, passable, target.2)
+                crate::spell_line::line(
+                    (source.0, source.1),
+                    (target.0, target.1),
+                    area,
+                    passable,
+                    target.2,
+                )
             }
         }
         _ => blast(target, area),

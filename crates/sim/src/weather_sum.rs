@@ -116,14 +116,26 @@ pub fn rain_per_turn(precipitation: Precipitation, rains: bool) -> i32 {
 /// Reference: `proc_weather_sum` (`weather.cpp:174-180`), which adds `incident_sunlight( w, t ) * to_turns( tick )` to the light and `incident_sun_irradiance( w, t ) * to_seconds( tick )` to
 /// the exposure. The clear-sky values are handed in because they come from the calendar, which this rule has no business reading.
 #[must_use]
-pub fn step_of(weather: &WeatherType, step: MovesPerTick, clear_sky_light: f32, clear_sky_irradiance: f32) -> Step {
+pub fn step_of(
+    weather: &WeatherType,
+    step: MovesPerTick,
+    clear_sky_light: f32,
+    clear_sky_irradiance: f32,
+) -> Step {
     #[allow(clippy::cast_precision_loss)]
     let turns = step.turns() as f32;
     #[allow(clippy::cast_precision_loss)]
     let seconds = step.seconds() as f32;
     Step {
         rain: rain_per_turn(weather.precip, weather.rains) * step.turns(),
-        sunlight: crate::creature::incident_sunlight(clear_sky_light, weather.light_multiplier, weather.light_modifier) * turns,
-        radiant_exposure: crate::creature::incident_sun_irradiance(clear_sky_irradiance, weather.sun_multiplier) * seconds,
+        sunlight: crate::creature::incident_sunlight(
+            clear_sky_light,
+            weather.light_multiplier,
+            weather.light_modifier,
+        ) * turns,
+        radiant_exposure: crate::creature::incident_sun_irradiance(
+            clear_sky_irradiance,
+            weather.sun_multiplier,
+        ) * seconds,
     }
 }

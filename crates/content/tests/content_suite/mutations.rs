@@ -16,7 +16,10 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
     };
     // Every branch is in the dump: **959** of them, of which **514** are valid. The 445 that are not include every threshold, and a dump that dropped them would leave
     // the `threshreq` lists pointing at nothing.
-    assert_eq!(read, 959, "the dump carries every mutation branch, and it read {read}");
+    assert_eq!(
+        read, 959,
+        "the dump carries every mutation branch, and it read {read}"
+    );
     assert_eq!(
         table.len(),
         959,
@@ -28,7 +31,13 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
     let mut with_prereqs = 0;
     let mut with_cancels = 0;
     let mut unpurifiable = 0;
-    for id in ["BIOLUM1", "HUMAN_ARMS", "ARM_FEATHERS", "ECHOLOCATION", "BEAUTIFUL"] {
+    for id in [
+        "BIOLUM1",
+        "HUMAN_ARMS",
+        "ARM_FEATHERS",
+        "ECHOLOCATION",
+        "BEAUTIFUL",
+    ] {
         let Some(one) = table.get(id) else {
             continue;
         };
@@ -42,9 +51,18 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
             unpurifiable += 1;
         }
     }
-    assert!(with_prereqs > 0, "a mutation with prerequisites came through");
-    assert!(with_cancels > 0, "a mutation that cancels something came through");
-    assert!(unpurifiable > 0, "a mutation no purifier can remove came through");
+    assert!(
+        with_prereqs > 0,
+        "a mutation with prerequisites came through"
+    );
+    assert!(
+        with_cancels > 0,
+        "a mutation that cancels something came through"
+    );
+    assert!(
+        unpurifiable > 0,
+        "a mutation no purifier can remove came through"
+    );
     assert!(
         table.get("ECHOLOCATION").is_some_and(|one| !one.purifiable),
         "and that one is ECHOLOCATION, which the dump marks unpurifiable"
@@ -69,7 +87,9 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
     // 85 of the 514 are traits a character may **start** with, and BEAUTIFUL is not one of them while NIGHTVISION is - which is what decides whose removal is a roll.
 
     assert!(
-        table.get("NIGHTVISION").is_some_and(|one| one.startingtrait),
+        table
+            .get("NIGHTVISION")
+            .is_some_and(|one| one.startingtrait),
         "NIGHTVISION is a starting trait"
     );
     assert!(
@@ -80,7 +100,11 @@ fn the_mutation_dump_reads_with_its_prerequisites_and_conflicts() {
     // A mutation's stat change is an **enchantment** in this baseline, and the dump follows it to the values: 257 of the 959 carry at least one.
     let with_values = ["STR_UP", "FASTHEALER", "DEX_UP", "LIGHTEATER"]
         .into_iter()
-        .filter(|id| table.get(id).is_some_and(|one| !one.enchant_values.is_empty()))
+        .filter(|id| {
+            table
+                .get(id)
+                .is_some_and(|one| !one.enchant_values.is_empty())
+        })
         .count();
     assert!(with_values > 0, "an enchantment's values came through");
     assert_eq!(

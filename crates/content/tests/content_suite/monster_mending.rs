@@ -4,14 +4,14 @@
 //! none. The dump carries it as a float because the data writes fractions of a hit point.
 
 #![allow(clippy::expect_used, clippy::panic)]
-
 // The rates are the data's own and compared exactly: a rate that arrives a hair off is a loader that rounded, which is the thing this gate is for.
 #![allow(clippy::float_cmp)]
 
 use cdda_json::{Value, parse};
 
 fn monsters() -> Vec<cdda_content::monsters::MonsterType> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let bytes = std::fs::read(path).expect("the monster dump exists");
     let root = parse(&bytes).expect("the dump is valid JSON");
     let Value::Object(root) = root else {
@@ -39,7 +39,10 @@ fn a_monster_that_states_its_mending_carries_the_number_the_data_gives_it() {
         .iter()
         .find(|one| one.id == "mon_zombie")
         .expect("the corpus has a zombie");
-    assert_eq!(zombie.regenerates, 0.0, "a zombie states no rate of its own");
+    assert_eq!(
+        zombie.regenerates, 0.0,
+        "a zombie states no rate of its own"
+    );
     assert!(
         zombie.materials.keys().any(|material| material == "flesh"),
         "and it is made of flesh, which is what its fallback reads"
@@ -53,5 +56,9 @@ fn a_monster_that_states_its_mending_carries_the_number_the_data_gives_it() {
             .map_or_else(|| panic!("the dump has {id}"), |one| one.regenerates)
     };
     assert_eq!(rate_of("mon_shoggoth"), 50.0, "a shoggoth's own rate");
-    assert_eq!(rate_of("mon_mutant_alpha"), 1.0, "a mutant's single hit point an hour");
+    assert_eq!(
+        rate_of("mon_mutant_alpha"),
+        1.0,
+        "a mutant's single hit point an hour"
+    );
 }

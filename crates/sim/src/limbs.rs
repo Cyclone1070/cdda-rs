@@ -28,7 +28,12 @@ pub fn wound_adjusted_limb_value(value: f32, health: i32, health_max: i32) -> f3
 /// starts at one, is a **twentieth** down at three points over, and **never reaches zero** - which is exactly why the reference needs the over-limit flag beside it.
 #[must_use]
 #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-pub fn encumb_adjusted_limb_value(value: f32, load: i32, threshold: i32, over_the_limit: bool) -> f32 {
+pub fn encumb_adjusted_limb_value(
+    value: f32,
+    load: i32,
+    threshold: i32,
+    over_the_limit: bool,
+) -> f32 {
     if over_the_limit {
         return 0.0;
     }
@@ -70,10 +75,7 @@ pub fn part_limb_score(scores: &[(String, f32, f32)], score: &str) -> f32 {
 /// here, which is the order the reference applies them in.
 #[must_use]
 pub fn limb_score_total(parts: &[(f32, f32)]) -> f32 {
-    let total: f32 = parts
-        .iter()
-        .map(|(figure, weight)| figure * weight)
-        .sum();
+    let total: f32 = parts.iter().map(|(figure, weight)| figure * weight).sum();
     total.max(0.0)
 }
 

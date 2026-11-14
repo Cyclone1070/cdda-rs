@@ -56,7 +56,12 @@ pub fn highest_level(world: &World, creature: bevy_ecs::entity::Entity) -> i32 {
 }
 
 /// Sets a spell's level, answering whether the creature can hold spells at all.
-pub fn set_level(world: &mut World, creature: bevy_ecs::entity::Entity, spell: &str, level: i32) -> bool {
+pub fn set_level(
+    world: &mut World,
+    creature: bevy_ecs::entity::Entity,
+    spell: &str,
+    level: i32,
+) -> bool {
     change(world, creature, spell, |learned| learned.level = level)
 }
 

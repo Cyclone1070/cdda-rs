@@ -126,7 +126,8 @@ fn hits() -> Vec<Hit> {
 
 /// The reference checkout's data, which is the copy the remote test machine has.
 fn data() -> BTreeMap<String, MapData> {
-    let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let args: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
     load_paths(&args)
@@ -191,22 +192,40 @@ fn every_recorded_hit_lands_where_the_reference_lands_it() {
             hit.terrain, hit.furniture, hit.strength, hit.roll, hit.step
         );
         if outcome.terrain != hit.terrain_after {
-            wrong.push(format!("{where_}: terrain {} against {}", outcome.terrain, hit.terrain_after));
+            wrong.push(format!(
+                "{where_}: terrain {} against {}",
+                outcome.terrain, hit.terrain_after
+            ));
         }
         if outcome.furniture != hit.furniture_after {
-            wrong.push(format!("{where_}: furniture {} against {}", outcome.furniture, hit.furniture_after));
+            wrong.push(format!(
+                "{where_}: furniture {} against {}",
+                outcome.furniture, hit.furniture_after
+            ));
         }
         if outcome.damage != hit.damage {
-            wrong.push(format!("{where_}: damage {} against {}", outcome.damage, hit.damage));
+            wrong.push(format!(
+                "{where_}: damage {} against {}",
+                outcome.damage, hit.damage
+            ));
         }
         if outcome.did_bash != hit.did_bash {
-            wrong.push(format!("{where_}: did_bash {} against {}", outcome.did_bash, hit.did_bash));
+            wrong.push(format!(
+                "{where_}: did_bash {} against {}",
+                outcome.did_bash, hit.did_bash
+            ));
         }
         if outcome.success != hit.success {
-            wrong.push(format!("{where_}: success {} against {}", outcome.success, hit.success));
+            wrong.push(format!(
+                "{where_}: success {} against {}",
+                outcome.success, hit.success
+            ));
         }
         if outcome.bashed_solid != hit.bashed_solid {
-            wrong.push(format!("{where_}: bashed_solid {} against {}", outcome.bashed_solid, hit.bashed_solid));
+            wrong.push(format!(
+                "{where_}: bashed_solid {} against {}",
+                outcome.bashed_solid, hit.bashed_solid
+            ));
         }
         assert_eq!(
             hit.below_before, "t_rock_floor",
@@ -217,5 +236,15 @@ fn every_recorded_hit_lands_where_the_reference_lands_it() {
     // Six of the 97 end as a roof: the two destroyed floors and the four terrain fixtures bashed to nothing, which the reference turns back into `t_rock_roof` from the
     // terrain below. The count is pinned so that a change in the fixtures moves it rather than quietly dropping the roof path out of the gate.
     assert_eq!(open_air, 6, "the dump exercises the roof-regeneration path");
-    assert!(wrong.is_empty(), "{} wrong of 97:\n{}", wrong.len(), wrong.iter().take(14).cloned().collect::<Vec<_>>().join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} wrong of 97:\n{}",
+        wrong.len(),
+        wrong
+            .iter()
+            .take(14)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
 }

@@ -17,12 +17,12 @@ use bevy_ecs::prelude::*;
 
 use crate::SupportLost;
 use crate::falling::FieldRules;
-use crate::memory::Memory;
 use crate::field_table::FieldTable;
-use crate::weather::Weather;
-use crate::{Light, PositionIndex, Prototypes};
+use crate::memory::Memory;
 use crate::scent_table::ScentTable;
 use crate::weather::Climate;
+use crate::weather::Weather;
+use crate::{Light, PositionIndex, Prototypes};
 
 /// Marks the one entity that carries the falling queue.
 #[derive(Debug, Default, Component)]
@@ -133,7 +133,9 @@ pub struct ThePrototypes;
 /// The prototypes, if the world loaded them.
 #[must_use]
 pub fn prototypes(world: &World) -> Option<&Prototypes> {
-    world.iter_entities().find_map(|entity| entity.get::<Prototypes>())
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<Prototypes>())
 }
 
 /// Replaces the prototypes, which is what a loaded content set does once.
@@ -151,7 +153,9 @@ pub struct TheIndex;
 /// The square index, if it has been built.
 #[must_use]
 pub fn index(world: &World) -> Option<&PositionIndex> {
-    world.iter_entities().find_map(|entity| entity.get::<PositionIndex>())
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<PositionIndex>())
 }
 
 /// The square index, made empty if nothing has built it yet.
@@ -266,7 +270,10 @@ pub struct TheWeather;
 /// The sky, if the world has one.
 #[must_use]
 pub fn weather(world: &World) -> Option<Weather> {
-    world.iter_entities().find_map(|entity| entity.get::<Weather>()).copied()
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<Weather>())
+        .copied()
 }
 
 /// Replaces the sky, which is what a weather change does.
@@ -288,7 +295,9 @@ pub struct TheClimate;
 /// The climate, if the world has one.
 #[must_use]
 pub fn climate_read(world: &World) -> Option<&Climate> {
-    world.iter_entities().find_map(|entity| entity.get::<Climate>())
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<Climate>())
 }
 
 /// The climate, if the world has one, ready to be changed.
@@ -315,7 +324,9 @@ pub struct TheFieldTable;
 /// The field light table, if the world loaded one.
 #[must_use]
 pub fn field_table(world: &World) -> Option<&FieldTable> {
-    world.iter_entities().find_map(|entity| entity.get::<FieldTable>())
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<FieldTable>())
 }
 
 /// Replaces the field light table, which is what a loaded content set does once.
@@ -333,7 +344,9 @@ pub struct TheScentTable;
 /// The scent flags, if the world loaded them.
 #[must_use]
 pub fn scent_table(world: &World) -> Option<&ScentTable> {
-    world.iter_entities().find_map(|entity| entity.get::<ScentTable>())
+    world
+        .iter_entities()
+        .find_map(|entity| entity.get::<ScentTable>())
 }
 
 /// Replaces the scent flags, which is what a loaded content set does once.
@@ -382,9 +395,9 @@ pub fn put_rolls(world: &mut World, rolls: cdda_core_types::rng::Rolls) {
     }
     // A world that had no dice gets them. This is the same shape of bug `set_weather` had: the setter wrote only to a component that
     // already existed, so on a fresh store the draw the store was handed went nowhere and every `take_rolls` answered nothing.
-    world.entity_mut(entity).insert(crate::turn::Random {
-        rolls: Some(rolls),
-    });
+    world
+        .entity_mut(entity)
+        .insert(crate::turn::Random { rolls: Some(rolls) });
 }
 
 /// The turn's receipt, spawned on first use.

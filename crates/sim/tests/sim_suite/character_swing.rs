@@ -17,7 +17,12 @@ use bevy_ecs::prelude::*;
 use cdda_sim::item_registry::{Kind, set_item_types};
 
 /// A world with three kinds in it: empty hands' `null`, a rock, and a combat knife.
-fn world_with_kinds() -> (World, cdda_sim::ItemTypeId, cdda_sim::ItemTypeId, cdda_sim::ItemTypeId) {
+fn world_with_kinds() -> (
+    World,
+    cdda_sim::ItemTypeId,
+    cdda_sim::ItemTypeId,
+    cdda_sim::ItemTypeId,
+) {
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
     let kinds = [
@@ -75,7 +80,11 @@ fn empty_hands_swing_for_nothing_and_aim_worst() {
         .insert(cdda_sim::creature::Dexterity { base: 8 });
 
     let blow = cdda_sim::creature::blow_from_what_the_character_holds(&world, survivor);
-    assert_eq!(blow.accuracy_tenths, 20 - 20, "two points of dexterity and the null item's -2 balance");
+    assert_eq!(
+        blow.accuracy_tenths,
+        20 - 20,
+        "two points of dexterity and the null item's -2 balance"
+    );
     assert_eq!(blow.fixed.bash, 0, "empty hands carry no bash");
     assert_eq!(blow.fixed.stab, 0, "and no stabbing");
     assert_eq!(blow.dice, 0, "and no dice at all");
@@ -110,9 +119,11 @@ fn a_knife_draws_blood_and_empty_hands_do_not() {
         .insert(cdda_sim::creature::Dexterity { base: 8 });
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "the zombie", (1, 0, 0));
     cdda_sim::creature::set_health(&mut world, zombie, 80);
-    world
-        .entity_mut(zombie)
-        .insert(cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 });
+    world.entity_mut(zombie).insert(cdda_sim::creature::Armour {
+        bash: 0,
+        cut: 0,
+        stab: 0,
+    });
 
     let bare = cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     assert_eq!(bare, Some(0), "empty hands swing and do nothing");
@@ -162,9 +173,12 @@ fn a_practised_hand_aims_better_by_the_weapons_own_skill() {
     );
 
     // Bashing three and melee four: three tenths a level of bashing and five a level of melee.
-    world.entity_mut(survivor).insert(cdda_sim::creature::Skills(
-        BTreeMap::from([("bashing".to_owned(), 3), ("melee".to_owned(), 4)]),
-    ));
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Skills(BTreeMap::from([
+            ("bashing".to_owned(), 3),
+            ("melee".to_owned(), 4),
+        ])));
     assert_eq!(
         cdda_sim::creature::blow_from_what_the_character_holds(&world, survivor).accuracy_tenths,
         10 + 10 + 20,
@@ -186,11 +200,31 @@ fn a_practised_hand_aims_better_by_the_weapons_own_skill() {
 #[test]
 fn a_weapons_skill_is_the_one_its_biggest_damage_trains() {
     use cdda_sim::melee::weapon_skill;
-    assert_eq!(weapon_skill(19.0, 1.0, 0.0), Some("bashing"), "a crowbar is a club");
-    assert_eq!(weapon_skill(0.0, 0.0, 21.0), Some("stabbing"), "a knife is a point");
-    assert_eq!(weapon_skill(0.0, 12.0, 3.0), Some("cutting"), "a blade is an edge");
-    assert_eq!(weapon_skill(0.0, 3.0, 12.0), Some("stabbing"), "and the point wins when it does more");
-    assert_eq!(weapon_skill(0.0, 0.0, 0.0), None, "a thing that does no damage trains nothing");
+    assert_eq!(
+        weapon_skill(19.0, 1.0, 0.0),
+        Some("bashing"),
+        "a crowbar is a club"
+    );
+    assert_eq!(
+        weapon_skill(0.0, 0.0, 21.0),
+        Some("stabbing"),
+        "a knife is a point"
+    );
+    assert_eq!(
+        weapon_skill(0.0, 12.0, 3.0),
+        Some("cutting"),
+        "a blade is an edge"
+    );
+    assert_eq!(
+        weapon_skill(0.0, 3.0, 12.0),
+        Some("stabbing"),
+        "and the point wins when it does more"
+    );
+    assert_eq!(
+        weapon_skill(0.0, 0.0, 0.0),
+        None,
+        "a thing that does no damage trains nothing"
+    );
 }
 
 /// A survivor's swing costs moves, taken from the weapon it holds.
@@ -232,9 +266,10 @@ fn a_landed_blow_teaches_the_skill_it_used() {
         .insert(cdda_sim::creature::Wielding(knife));
     // A knife's damage is all stab, so the skill it teaches is stabbing.
     let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
-    world
-        .entity_mut(victim)
-        .insert(cdda_sim::creature::Health { hp: 10_000, max_hp: 10_000 });
+    world.entity_mut(victim).insert(cdda_sim::creature::Health {
+        hp: 10_000,
+        max_hp: 10_000,
+    });
     cdda_sim::creature::set_moves(&mut world, survivor, 100_000);
 
     assert_eq!(
@@ -276,7 +311,10 @@ fn a_blow_that_misses_still_teaches_the_skill_it_swung_with() {
     world
         .entity_mut(victim)
         .insert(cdda_sim::creature::Dodge { points: 1_000 })
-        .insert(cdda_sim::creature::Health { hp: 10_000, max_hp: 10_000 });
+        .insert(cdda_sim::creature::Health {
+            hp: 10_000,
+            max_hp: 10_000,
+        });
     cdda_sim::creature::set_moves(&mut world, survivor, 100_000);
 
     for _ in 0..20 {
@@ -306,7 +344,8 @@ fn a_blow_that_misses_still_teaches_the_skill_it_swung_with() {
 #[test]
 fn a_swing_flags_who_it_hit_and_who_it_swung_at() {
     let (mut world, _null, _rock, knife) = world_with_kinds();
-    let flag = cdda_json::parse(br#"{"id":"hit_by_player","max_duration":"1 hours"}"#).expect("valid json");
+    let flag = cdda_json::parse(br#"{"id":"hit_by_player","max_duration":"1 hours"}"#)
+        .expect("valid json");
     let cdda_json::Value::Object(entry) = flag else {
         panic!("an effect type is an object")
     };
@@ -320,7 +359,10 @@ fn a_swing_flags_who_it_hit_and_who_it_swung_at() {
     let monster = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
     world
         .entity_mut(monster)
-        .insert(cdda_sim::creature::Health { hp: 10_000, max_hp: 10_000 });
+        .insert(cdda_sim::creature::Health {
+            hp: 10_000,
+            max_hp: 10_000,
+        });
     cdda_sim::creature::set_moves(&mut world, survivor, 1_000);
 
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, monster);
@@ -332,11 +374,15 @@ fn a_swing_flags_who_it_hit_and_who_it_swung_at() {
         .into_iter()
         .find(|worn| worn.id == "hit_by_player")
         .map_or(0, |worn| worn.duration);
-    assert_eq!(ten_minutes, 600, "for ten minutes, which is six hundred turns");
+    assert_eq!(
+        ten_minutes, 600,
+        "for ten minutes, which is six hundred turns"
+    );
 
     // And the other direction: a monster swinging at the avatar flags itself, for three turns.
     let mut monster_type = {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/monsters/monsters.json");
         let text = std::fs::read(path).expect("the monster dump exists");
         let value = cdda_json::parse(&text).expect("the dump is valid JSON");
         let cdda_json::Value::Object(root) = value else {
@@ -352,7 +398,13 @@ fn a_swing_flags_who_it_hit_and_who_it_swung_at() {
             .expect("the corpus has a zombie")
     };
     monster_type.melee_dice = 1;
-    let zombie = cdda_sim::creature::spawn_monster_of_type(&mut world, cdda_sim::MonsterKindId(1), &monster_type, (0, 1, 0), 100);
+    let zombie = cdda_sim::creature::spawn_monster_of_type(
+        &mut world,
+        cdda_sim::MonsterKindId(1),
+        &monster_type,
+        (0, 1, 0),
+        100,
+    );
     let mut flagged = false;
     for _ in 0..12 {
         cdda_sim::creature::strike_at(&mut world, zombie, survivor);
@@ -360,7 +412,10 @@ fn a_swing_flags_who_it_hit_and_who_it_swung_at() {
             flagged = true;
         }
     }
-    assert!(flagged, "a monster that attacks the avatar is flagged for three turns");
+    assert!(
+        flagged,
+        "a monster that attacks the avatar is flagged for three turns"
+    );
 }
 
 /// Swinging spends wind, and running out of it makes the next swing slower.
@@ -375,11 +430,15 @@ fn swinging_spends_wind_and_a_spent_survivor_swings_slower() {
     world
         .entity_mut(survivor)
         .insert(cdda_sim::creature::Wielding(knife))
-        .insert(cdda_sim::creature::Stamina { cur: 3_500.0, max: 3_500.0 });
+        .insert(cdda_sim::creature::Stamina {
+            cur: 3_500.0,
+            max: 3_500.0,
+        });
     let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
-    world
-        .entity_mut(victim)
-        .insert(cdda_sim::creature::Health { hp: 100_000, max_hp: 100_000 });
+    world.entity_mut(victim).insert(cdda_sim::creature::Health {
+        hp: 100_000,
+        max_hp: 100_000,
+    });
     cdda_sim::creature::set_moves(&mut world, survivor, 100_000);
 
     let before = cdda_sim::creature::moves_left(&world, survivor);
@@ -426,7 +485,8 @@ fn swinging_past_empty_makes_a_survivor_winded_and_slows_what_comes_back() {
         }
     }
     cdda_sim::load_level(&mut world, &level);
-    let winded = cdda_json::parse(br#"{"id":"winded","max_duration":"1 hours"}"#).expect("valid json");
+    let winded =
+        cdda_json::parse(br#"{"id":"winded","max_duration":"1 hours"}"#).expect("valid json");
     let cdda_json::Value::Object(entry) = winded else {
         panic!("an effect type is an object")
     };
@@ -436,7 +496,10 @@ fn swinging_past_empty_makes_a_survivor_winded_and_slows_what_comes_back() {
     let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
     world
         .entity_mut(survivor)
-        .insert(cdda_sim::creature::Stamina { cur: 50.0, max: 3_500.0 });
+        .insert(cdda_sim::creature::Stamina {
+            cur: 50.0,
+            max: 3_500.0,
+        });
     assert!(
         !cdda_sim::applied_effects::has(&world, survivor, "winded"),
         "nothing has winded the survivor yet"
@@ -475,7 +538,8 @@ fn a_swing_from_the_floor_costs_more_stamina() {
     let mut spent = Vec::new();
     for downed in [false, true] {
         let (mut world, _null, _rock, knife) = world_with_kinds();
-        let downed_kind = cdda_json::parse(br#"{"id":"downed","max_duration":"1 hours"}"#).expect("valid json");
+        let downed_kind =
+            cdda_json::parse(br#"{"id":"downed","max_duration":"1 hours"}"#).expect("valid json");
         let cdda_json::Value::Object(entry) = downed_kind else {
             panic!("an effect type is an object")
         };
@@ -486,13 +550,18 @@ fn a_swing_from_the_floor_costs_more_stamina() {
             .entity_mut(survivor)
             .insert(cdda_sim::creature::Wielding(knife))
             .insert(cdda_sim::creature::Dexterity { base: 8 })
-            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+            .insert(cdda_sim::creature::Stamina {
+                cur: 7_000.0,
+                max: 7_000.0,
+            });
         let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
         cdda_sim::creature::set_moves(&mut world, survivor, 400);
-        if downed
-            && let Some(kind) = cdda_sim::effect_registry::kind_of(&mut world, "downed")
-        {
-            cdda_sim::applied_effects::add(&mut world, survivor, cdda_sim::effects::ActiveEffect::new(&kind, 10, 1));
+        if downed && let Some(kind) = cdda_sim::effect_registry::kind_of(&mut world, "downed") {
+            cdda_sim::applied_effects::add(
+                &mut world,
+                survivor,
+                cdda_sim::effects::ActiveEffect::new(&kind, 10, 1),
+            );
         }
         let before = cdda_sim::creature::stamina_ratio(&world, survivor);
         cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, victim);
@@ -540,7 +609,8 @@ fn knowing_a_weapons_proficiencies_makes_it_cheaper() {
             },
         ],
     );
-    let sword = cdda_sim::item_registry::id_of(&mut world, "sword_short").expect("the sword is registered");
+    let sword =
+        cdda_sim::item_registry::id_of(&mut world, "sword_short").expect("the sword is registered");
     let axe = cdda_sim::item_registry::id_of(&mut world, "axe").expect("the axe is registered");
     // The three tables, installed the way the loader would: the item's category, the category's proficiencies, and the proficiency's own bonus.
     cdda_sim::item_registry::set_item_weapon_categories(
@@ -553,8 +623,14 @@ fn knowing_a_weapons_proficiencies_makes_it_cheaper() {
     cdda_sim::proficiencies::set_weapon_categories(
         &mut world,
         &[
-            ("SHORT_SWORDS".to_owned(), vec!["prof_short_swords_master".to_owned()]),
-            ("HAND_AXES".to_owned(), vec!["prof_hand_axes_master".to_owned()]),
+            (
+                "SHORT_SWORDS".to_owned(),
+                vec!["prof_short_swords_master".to_owned()],
+            ),
+            (
+                "HAND_AXES".to_owned(),
+                vec!["prof_hand_axes_master".to_owned()],
+            ),
         ],
     );
     let dump = cdda_content::proficiencies::Proficiencies {
@@ -565,7 +641,10 @@ fn knowing_a_weapons_proficiencies_makes_it_cheaper() {
                 seconds: 57_600,
                 can_learn: true,
                 required: Vec::new(),
-                bonuses: vec![("melee_attack".to_owned(), vec![("stamina".to_owned(), 0.05)])],
+                bonuses: vec![(
+                    "melee_attack".to_owned(),
+                    vec![("stamina".to_owned(), 0.05)],
+                )],
             },
         )]
         .into_iter()
@@ -583,7 +662,8 @@ fn knowing_a_weapons_proficiencies_makes_it_cheaper() {
         "a novice gets nothing"
     );
     assert!(
-        (cdda_sim::proficiencies::stamina_multiplier(&mut world, master, sword) - 0.95).abs() < 1e-6,
+        (cdda_sim::proficiencies::stamina_multiplier(&mut world, master, sword) - 0.95).abs()
+            < 1e-6,
         "**and a master of the short sword gets five percent off**"
     );
     assert_eq!(
@@ -602,7 +682,10 @@ fn a_mastered_weapon_costs_less_stamina_to_swing() {
     let mut spent = Vec::new();
     for knows in [false, true] {
         let (mut world, _null, _rock, knife) = world_with_kinds();
-        cdda_sim::item_registry::set_item_weapon_categories(&mut world, &[(knife, vec!["KNIVES".to_owned()])]);
+        cdda_sim::item_registry::set_item_weapon_categories(
+            &mut world,
+            &[(knife, vec!["KNIVES".to_owned()])],
+        );
         cdda_sim::proficiencies::set_weapon_categories(
             &mut world,
             &[("KNIVES".to_owned(), vec!["prof_knives_master".to_owned()])],
@@ -615,7 +698,10 @@ fn a_mastered_weapon_costs_less_stamina_to_swing() {
                     seconds: 57_600,
                     can_learn: true,
                     required: Vec::new(),
-                    bonuses: vec![("melee_attack".to_owned(), vec![("stamina".to_owned(), 0.05)])],
+                    bonuses: vec![(
+                        "melee_attack".to_owned(),
+                        vec![("stamina".to_owned(), 0.05)],
+                    )],
                 },
             )]
             .into_iter()
@@ -627,7 +713,10 @@ fn a_mastered_weapon_costs_less_stamina_to_swing() {
         world
             .entity_mut(survivor)
             .insert(cdda_sim::creature::Wielding(knife))
-            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+            .insert(cdda_sim::creature::Stamina {
+                cur: 7_000.0,
+                max: 7_000.0,
+            });
         if knows {
             cdda_sim::proficiencies::learn(&mut world, survivor, "prof_knives_master");
         }
@@ -681,7 +770,10 @@ fn an_empty_hand_is_its_own_kind_of_weapon() {
                 seconds: 57_600,
                 can_learn: true,
                 required: Vec::new(),
-                bonuses: vec![("melee_attack".to_owned(), vec![("stamina".to_owned(), 0.05)])],
+                bonuses: vec![(
+                    "melee_attack".to_owned(),
+                    vec![("stamina".to_owned(), 0.05)],
+                )],
             },
         )]
         .into_iter()
@@ -716,20 +808,29 @@ fn a_critical_swing_hurts_more() {
         // **The crit skill the reference reads is the one the weapon's biggest damage type trains**: this sword stabs, so it is `stabbing`, and a stab critical's bonus is the one that grows
         // with skill (`melee.cpp:1360-1362`).
         world.entity_mut(swinger).insert(cdda_sim::creature::Skills(
-            [("melee".to_owned(), 10), ("stabbing".to_owned(), 10)].into_iter().collect(),
+            [("melee".to_owned(), 10), ("stabbing".to_owned(), 10)]
+                .into_iter()
+                .collect(),
         ));
         world
             .entity_mut(swinger)
             .insert(cdda_sim::creature::Wielding(sword))
-            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+            .insert(cdda_sim::creature::Stamina {
+                cur: 7_000.0,
+                max: 7_000.0,
+            });
         let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
         cdda_sim::creature::set_health(&mut world, victim, 5_000);
         cdda_sim::creature::set_moves(&mut world, swinger, 400);
         // **The one difference**: the first draw of the rolls decides the critical, and the two worlds are told a different answer for it.
-        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(if critical { 0.02 } else { 0.99 }));
+        cdda_sim::singletons::put_rolls(
+            &mut world,
+            cdda_core_types::rng::Rolls::fixed(if critical { 0.02 } else { 0.99 }),
+        );
         let before = cdda_sim::creature::health_of(&world, victim).expect("the victim has health");
         cdda_sim::creature::swing_what_the_character_holds(&mut world, swinger, victim);
-        let after = cdda_sim::creature::health_of(&world, victim).expect("the victim still has health");
+        let after =
+            cdda_sim::creature::health_of(&world, victim).expect("the victim still has health");
         dealt.push(before - after);
     }
     assert!(
@@ -751,12 +852,17 @@ fn an_armoured_victim_feels_a_critical_more() {
         let (mut world, _null, _rock, sword) = world_with_kinds();
         let swinger = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
         world.entity_mut(swinger).insert(cdda_sim::creature::Skills(
-            [("melee".to_owned(), 10), ("stabbing".to_owned(), 10)].into_iter().collect(),
+            [("melee".to_owned(), 10), ("stabbing".to_owned(), 10)]
+                .into_iter()
+                .collect(),
         ));
         world
             .entity_mut(swinger)
             .insert(cdda_sim::creature::Wielding(sword))
-            .insert(cdda_sim::creature::Stamina { cur: 7_000.0, max: 7_000.0 });
+            .insert(cdda_sim::creature::Stamina {
+                cur: 7_000.0,
+                max: 7_000.0,
+            });
         let victim = cdda_sim::creature::spawn_creature(&mut world, "a rat", (1, 0, 0));
         cdda_sim::creature::set_health(&mut world, victim, 5_000);
         // Twenty points of stabbing armour: more than half of the blow, so the plain hit survives only just and the crit's quarter-off shows.
@@ -766,10 +872,14 @@ fn an_armoured_victim_feels_a_critical_more() {
             stab: 20,
         });
         cdda_sim::creature::set_moves(&mut world, swinger, 400);
-        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(if critical { 0.02 } else { 0.99 }));
+        cdda_sim::singletons::put_rolls(
+            &mut world,
+            cdda_core_types::rng::Rolls::fixed(if critical { 0.02 } else { 0.99 }),
+        );
         let before = cdda_sim::creature::health_of(&world, victim).expect("the victim has health");
         cdda_sim::creature::swing_what_the_character_holds(&mut world, swinger, victim);
-        let after = cdda_sim::creature::health_of(&world, victim).expect("the victim still has health");
+        let after =
+            cdda_sim::creature::health_of(&world, victim).expect("the victim still has health");
         dealt.push(before - after);
     }
     assert!(
@@ -778,5 +888,8 @@ fn an_armoured_victim_feels_a_critical_more() {
         dealt[0],
         dealt[1]
     );
-    assert_eq!(dealt[0], 1, "and the plain hit is stopped down to almost nothing");
+    assert_eq!(
+        dealt[0], 1,
+        "and the plain hit is stopped down to almost nothing"
+    );
 }

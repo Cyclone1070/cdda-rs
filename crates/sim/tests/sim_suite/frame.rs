@@ -9,9 +9,9 @@ use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
 use cdda_core_types::light::LitLevel;
 use cdda_sim::frame::frame;
+use cdda_sim::light;
 use cdda_sim::terrain_table::TerrainTable;
 use cdda_sim::{Prototypes, cast_lights_with};
-use cdda_sim::{light};
 
 const FLOOR: u32 = 1;
 const WALL: u32 = 2;
@@ -40,10 +40,13 @@ fn world() -> World {
     terrain.insert_symbol(FLOOR, '.');
     terrain.insert_symbol(WALL, '#');
     terrain.insert_symbol(LAMP, 'o');
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain,
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
     world
 }
 

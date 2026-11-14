@@ -40,13 +40,10 @@ fn a_thrower_with_a_rock(world: &mut World) -> (Entity, Entity) {
         .entity_mut(thrower)
         .insert(cdda_sim::creature::Strength { base: 8 });
     let names = cdda_sim::item_registry::snapshot(world);
-    let rock = cdda_sim::drop_item(
-        world,
-        (0, 0),
-        names.id_of("rock").expect("a rock"),
-        1,
-    );
-    world.entity_mut(rock).insert(cdda_sim::creature::Carried(thrower));
+    let rock = cdda_sim::drop_item(world, (0, 0), names.id_of("rock").expect("a rock"), 1);
+    world
+        .entity_mut(rock)
+        .insert(cdda_sim::creature::Carried(thrower));
     (thrower, rock)
 }
 
@@ -158,14 +155,18 @@ fn a_rock_that_lands_on_a_creature_hurts_it() {
     let (thrower, rock) = a_thrower_with_a_rock(&mut world);
     cdda_sim::skills_of::set_level(&mut world, thrower, "throw", 10);
     let target = cdda_sim::creature::spawn_creature(&mut world, "the target", first);
-    world
-        .entity_mut(target)
-        .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
+    world.entity_mut(target).insert(cdda_sim::creature::Health {
+        hp: 100,
+        max_hp: 100,
+    });
     let landed = cdda_sim::throwing::throw_at(&mut world, thrower, rock, (10, 0, 0));
     let cdda_sim::throwing::Toss::Landed { at, hit, .. } = landed else {
         panic!("the rock is thrown: {landed:?}");
     };
-    assert_eq!(at, first, "the same seed lands the same rock on the same square");
+    assert_eq!(
+        at, first,
+        "the same seed lands the same rock on the same square"
+    );
     assert_eq!(
         hit,
         Some((target, 4)),
@@ -201,8 +202,15 @@ fn armour_takes_the_edge_off_a_thrown_blow_and_never_heals() {
         let target = cdda_sim::creature::spawn_creature(&mut world, "the target", at);
         world
             .entity_mut(target)
-            .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 })
-            .insert(cdda_sim::creature::Armour { bash: armour, cut: 0, stab: 0 });
+            .insert(cdda_sim::creature::Health {
+                hp: 100,
+                max_hp: 100,
+            })
+            .insert(cdda_sim::creature::Armour {
+                bash: armour,
+                cut: 0,
+                stab: 0,
+            });
         let cdda_sim::throwing::Toss::Landed { hit, .. } =
             cdda_sim::throwing::throw_at(&mut world, thrower, rock, (10, 0, 0))
         else {
@@ -311,11 +319,27 @@ fn a_heavy_landing_in_water_is_louder_than_one_on_the_floor() {
         "and its type carries the flag"
     );
     // Five kilograms on the floor is the thud, and on water the splash.
-    assert_eq!(landing_noise(&world, (0, 0, 0), 5_000), Some(8), "a thud on the floor");
-    assert_eq!(landing_noise(&world, (1, 0, 0), 5_000), Some(10), "a splash in the water");
+    assert_eq!(
+        landing_noise(&world, (0, 0, 0), 5_000),
+        Some(8),
+        "a thud on the floor"
+    );
+    assert_eq!(
+        landing_noise(&world, (1, 0, 0), 5_000),
+        Some(10),
+        "a splash in the water"
+    );
     // Exactly five hundred grams is not heavy, on either.
-    assert_eq!(landing_noise(&world, (0, 0, 0), 500), None, "five hundred grams on the floor");
-    assert_eq!(landing_noise(&world, (1, 0, 0), 500), None, "five hundred grams in the water");
+    assert_eq!(
+        landing_noise(&world, (0, 0, 0), 500),
+        None,
+        "five hundred grams on the floor"
+    );
+    assert_eq!(
+        landing_noise(&world, (1, 0, 0), 500),
+        None,
+        "five hundred grams in the water"
+    );
 }
 
 /// A rock thrown at a creature is judged against **that creature's** size, not against a whole tile.
@@ -328,10 +352,12 @@ fn a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature() {
     let (thrower, rock) = a_thrower_with_a_rock(&mut world);
     // A small thing standing on the square the rock is aimed at, with a size the port's own table can price.
     let beast = cdda_sim::creature::spawn_creature(&mut world, "a small thing", (3, 0, 0));
-    world.entity_mut(beast).insert(cdda_sim::creature::Creature {
-        name: "a small thing".to_owned(),
-        size: cdda_sim::CreatureSize::Tiny,
-    });
+    world
+        .entity_mut(beast)
+        .insert(cdda_sim::creature::Creature {
+            name: "a small thing".to_owned(),
+            size: cdda_sim::CreatureSize::Tiny,
+        });
     assert!(
         !cdda_sim::creature::creature_at(&world, (3, 0, 0)).is_empty(),
         "the small thing is on the square the rock is aimed at, which is what makes this the creature case"
@@ -345,7 +371,11 @@ fn a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature() {
 
     // The differential is the proof: the **same throw**, from the same hand, on the same dice, at the same range - once at a creature and once at bare ground. Only the size the miss is
     // measured against differs, so a port that still passed a whole tile for every throw would report the same number twice.
-    let cdda_sim::throwing::Toss::Landed { missed_by: at_creature, .. } = tossed else {
+    let cdda_sim::throwing::Toss::Landed {
+        missed_by: at_creature,
+        ..
+    } = tossed
+    else {
         panic!("the rock landed");
     };
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1_234));
@@ -354,9 +384,15 @@ fn a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature() {
         names.id_of("rock").expect("a rock")
     };
     let second = cdda_sim::drop_item(&mut world, (0, 0), rock_kind, 1);
-    world.entity_mut(second).insert(cdda_sim::creature::Carried(thrower));
+    world
+        .entity_mut(second)
+        .insert(cdda_sim::creature::Carried(thrower));
     let at_ground = cdda_sim::throwing::throw_at(&mut world, thrower, second, (3, 1, 0));
-    let cdda_sim::throwing::Toss::Landed { missed_by: at_nothing, .. } = at_ground else {
+    let cdda_sim::throwing::Toss::Landed {
+        missed_by: at_nothing,
+        ..
+    } = at_ground
+    else {
         panic!("the second rock landed");
     };
     assert!(
@@ -373,18 +409,38 @@ fn a_rock_thrown_at_a_creature_is_judged_against_the_size_of_that_creature() {
 fn a_throw_costs_action_points_and_mastery_makes_it_cheaper() {
     use cdda_sim::throwing::throw_cost;
 
-    assert_eq!(throw_cost(100, 0, 8, 1.0), 92, "half the base, half again for no skill, less the dexterity");
-    assert_eq!(throw_cost(100, 10, 8, 1.0), 67, "mastery takes the skill term down to a quarter of the base");
-    assert_eq!(throw_cost(100, 10, 20, 1.0), 55, "and twenty dexterity takes twenty more off");
+    assert_eq!(
+        throw_cost(100, 0, 8, 1.0),
+        92,
+        "half the base, half again for no skill, less the dexterity"
+    );
+    assert_eq!(
+        throw_cost(100, 10, 8, 1.0),
+        67,
+        "mastery takes the skill term down to a quarter of the base"
+    );
+    assert_eq!(
+        throw_cost(100, 10, 20, 1.0),
+        55,
+        "and twenty dexterity takes twenty more off"
+    );
     assert_eq!(
         throw_cost(100, 0, 8, 0.0),
         142,
         "at no stamina the base is multiplied by two (a 2.0 penalty at zero stamina) while the skill term is not: 100 + 50 - 8"
     );
     // The floor itself, on a throw that would otherwise be free: a light thing, a master, and a quick hand.
-    assert_eq!(throw_cost(10, 10, 20, 1.0), 25, "the reference never charges less than twenty-five moves");
+    assert_eq!(
+        throw_cost(10, 10, 20, 1.0),
+        25,
+        "the reference never charges less than twenty-five moves"
+    );
     // Skill above ten is clamped rather than rewarded, which is what `std::min( MAX_SKILL, ... )` says.
-    assert_eq!(throw_cost(100, 15, 8, 1.0), 67, "skill above ten is clamped to ten, not compounded");
+    assert_eq!(
+        throw_cost(100, 15, 8, 1.0),
+        67,
+        "skill above ten is clamped to ten, not compounded"
+    );
 }
 
 /// Throwing spends the arm's action points, so a thrower with no moves left cannot throw twice in a turn's worth of moves.
@@ -395,23 +451,41 @@ fn a_throw_costs_action_points_and_mastery_makes_it_cheaper() {
 fn throwing_spends_the_arm_s_action_points() {
     let mut world = World::new();
     let (thrower, rock) = a_thrower_with_a_rock(&mut world);
-    world.entity_mut(thrower).insert(cdda_sim::creature::Moves { left: 100 });
+    world
+        .entity_mut(thrower)
+        .insert(cdda_sim::creature::Moves { left: 100 });
     // The arm's rule reads **effective** dexterity, so the fixture has to say what the thrower's is: eight, the reference's starting figure.
-    world.entity_mut(thrower).insert(cdda_sim::creature::Dexterity { base: 8 });
+    world
+        .entity_mut(thrower)
+        .insert(cdda_sim::creature::Dexterity { base: 8 });
     let cost = {
         let names = cdda_sim::item_registry::snapshot(&mut world);
         let kind = names.id_of("rock").expect("a rock");
         let volume = i64::from(names.volume_of(kind));
         let weight = names.weight_of(kind);
         let base = cdda_sim::melee::attack_time(volume, weight, 1);
-        let stamina = world.get::<cdda_sim::creature::Stamina>(thrower).copied().unwrap_or_default();
+        let stamina = world
+            .get::<cdda_sim::creature::Stamina>(thrower)
+            .copied()
+            .unwrap_or_default();
         let ratio = stamina.cur / stamina.max.max(1.0);
         cdda_sim::throwing::throw_cost(base, 0, 8, ratio)
     };
     assert!(cost >= 25, "a rock costs at least the floor: {cost}");
-    let before = world.get::<cdda_sim::creature::Moves>(thrower).map_or(0, |moves| moves.left);
+    let before = world
+        .get::<cdda_sim::creature::Moves>(thrower)
+        .map_or(0, |moves| moves.left);
     let tossed = cdda_sim::throwing::throw_at(&mut world, thrower, rock, (3, 0, 0));
-    assert!(matches!(tossed, cdda_sim::throwing::Toss::Landed { .. }), "the rock is thrown: {tossed:?}");
-    let after = world.get::<cdda_sim::creature::Moves>(thrower).map_or(0, |moves| moves.left);
-    assert_eq!(before - after, cost, "the throw cost exactly what the arm's rule says");
+    assert!(
+        matches!(tossed, cdda_sim::throwing::Toss::Landed { .. }),
+        "the rock is thrown: {tossed:?}"
+    );
+    let after = world
+        .get::<cdda_sim::creature::Moves>(thrower)
+        .map_or(0, |moves| moves.left);
+    assert_eq!(
+        before - after,
+        cost,
+        "the throw cost exactly what the arm's rule says"
+    );
 }

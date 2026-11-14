@@ -48,8 +48,17 @@ pub struct Conditions {
 /// **The winter branch is an `else if`**, so a winter sun strong enough for either takes the **snow** effect and never both - and the winter threshold is **573, not 707**, which is what
 /// makes the same sun glare in winter and not in summer. The thresholds are **exclusive**: a square at exactly 707 is not glared.
 #[must_use]
-pub fn glare_of(winter: bool, irradiance: f32, conditions: Conditions) -> Option<(&'static str, i32)> {
-    if conditions.sheltered || conditions.asleep || conditions.sun_glasses || conditions.glare_resist || conditions.blind {
+pub fn glare_of(
+    winter: bool,
+    irradiance: f32,
+    conditions: Conditions,
+) -> Option<(&'static str, i32)> {
+    if conditions.sheltered
+        || conditions.asleep
+        || conditions.sun_glasses
+        || conditions.glare_resist
+        || conditions.blind
+    {
         return None;
     }
     let effect = if winter && irradiance > MODERATE {

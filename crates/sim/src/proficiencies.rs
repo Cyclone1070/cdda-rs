@@ -38,7 +38,10 @@ pub fn practiced_seconds(world: &World, creature: Entity, proficiency: &str) -> 
 
 /// Teaches a creature a proficiency outright, which is what the data's `prof_*` grants do.
 pub fn learn(world: &mut World, creature: Entity, proficiency: &str) {
-    let mut set = world.get::<Proficiencies>(creature).cloned().unwrap_or_default();
+    let mut set = world
+        .get::<Proficiencies>(creature)
+        .cloned()
+        .unwrap_or_default();
     set.known.insert(proficiency.to_owned());
     set.learning.remove(proficiency);
     world.entity_mut(creature).insert(set);
@@ -117,7 +120,10 @@ pub fn practice(
     if knows(world, creature, proficiency) {
         return false;
     }
-    let mut set = world.get::<Proficiencies>(creature).cloned().unwrap_or_default();
+    let mut set = world
+        .get::<Proficiencies>(creature)
+        .cloned()
+        .unwrap_or_default();
     let practiced = set.learning.entry(proficiency.to_owned()).or_insert(0);
     *practiced = practiced.saturating_add(seconds.max(0));
     let learned = time_to_learn > 0 && *practiced >= time_to_learn;
@@ -191,9 +197,9 @@ pub fn install(world: &mut World, dump: &cdda_content::proficiencies::Proficienc
         .collect();
     set_times(world, seconds);
     let holder = crate::singletons::singleton::<ProficiencyRules, TheProficiencyRules>(world);
-    world.entity_mut(holder).insert(ProficiencyRules {
-        dump: dump.clone(),
-    });
+    world
+        .entity_mut(holder)
+        .insert(ProficiencyRules { dump: dump.clone() });
 }
 
 /// The data's proficiency table, kept where the rules can read it.
@@ -239,7 +245,9 @@ pub struct TheProficiencyTimes;
 /// Sets how long every proficiency takes to learn.
 pub fn set_times(world: &mut World, seconds: BTreeMap<String, i64>) {
     let holder = crate::singletons::singleton::<ProficiencyTimes, TheProficiencyTimes>(world);
-    world.entity_mut(holder).insert(ProficiencyTimes { seconds });
+    world
+        .entity_mut(holder)
+        .insert(ProficiencyTimes { seconds });
 }
 
 /// How long one proficiency takes to learn, when the data says.
@@ -260,9 +268,14 @@ pub struct TheWeaponCategoryProficiencies;
 
 /// Installs which proficiencies each kind of weapon may use.
 pub fn set_weapon_categories(world: &mut World, categories: &[(String, Vec<String>)]) {
-    let entity = crate::singletons::singleton::<WeaponCategoryProficiencies, TheWeaponCategoryProficiencies>(world);
+    let entity = crate::singletons::singleton::<
+        WeaponCategoryProficiencies,
+        TheWeaponCategoryProficiencies,
+    >(world);
     let table: BTreeMap<String, Vec<String>> = categories.iter().cloned().collect();
-    world.entity_mut(entity).insert(WeaponCategoryProficiencies(table));
+    world
+        .entity_mut(entity)
+        .insert(WeaponCategoryProficiencies(table));
 }
 
 /// What a weapon's own categories and the creature's own proficiencies multiply a swing's stamina cost by.
@@ -286,7 +299,11 @@ pub fn stamina_multiplier(world: &mut World, creature: Entity, weapon: crate::It
 /// Reference: `wielded_weapon_categories` (`melee.cpp:570-578`): a character wielding nothing is read as the **`UNARMED`** category, so its proficiencies apply like any other weapon's.
 /// [`Self::stamina_multiplier`] answers the wielded case; this answers the question the swing actually asks.
 #[must_use]
-pub fn swing_multiplier(world: &mut World, creature: Entity, wielded: Option<crate::ItemTypeId>) -> f32 {
+pub fn swing_multiplier(
+    world: &mut World,
+    creature: Entity,
+    wielded: Option<crate::ItemTypeId>,
+) -> f32 {
     match wielded {
         Some(weapon) => stamina_multiplier(world, creature, weapon),
         None => multiplier_for_categories(world, creature, &["UNARMED".to_owned()]),
@@ -295,17 +312,26 @@ pub fn swing_multiplier(world: &mut World, creature: Entity, wielded: Option<cra
 
 /// The multiplier a set of weapon categories earns, given the creature's proficiencies.
 #[must_use]
-pub fn multiplier_for_categories(world: &mut World, creature: Entity, categories: &[String]) -> f32 {
+pub fn multiplier_for_categories(
+    world: &mut World,
+    creature: Entity,
+    categories: &[String],
+) -> f32 {
     if categories.is_empty() {
         return 1.0;
     }
-    let holder = crate::singletons::singleton::<WeaponCategoryProficiencies, TheWeaponCategoryProficiencies>(world);
+    let holder = crate::singletons::singleton::<
+        WeaponCategoryProficiencies,
+        TheWeaponCategoryProficiencies,
+    >(world);
     let table = world
         .get::<WeaponCategoryProficiencies>(holder)
         .map(|table| table.0.clone())
         .unwrap_or_default();
     let dump = crate::singletons::singleton::<ProficiencyRules, TheProficiencyRules>(world);
-    let bonuses = world.get::<ProficiencyRules>(dump).map(|rules| rules.dump.clone());
+    let bonuses = world
+        .get::<ProficiencyRules>(dump)
+        .map(|rules| rules.dump.clone());
     let mut losses = Vec::new();
     for category in categories {
         let Some(proficiencies) = table.get(category) else {
@@ -346,10 +372,16 @@ pub fn multiplier_for_categories(world: &mut World, creature: Entity, categories
 #[must_use]
 pub fn bonus(world: &mut World, creature: Entity, category: &str, kind: &str) -> f32 {
     let holder = crate::singletons::singleton::<ProficiencyRules, TheProficiencyRules>(world);
-    let Some(rules) = world.get::<ProficiencyRules>(holder).map(|rules| rules.dump.clone()) else {
+    let Some(rules) = world
+        .get::<ProficiencyRules>(holder)
+        .map(|rules| rules.dump.clone())
+    else {
         return 0.0;
     };
-    let Some(learned) = world.get::<Proficiencies>(creature).map(|set| set.known.clone()) else {
+    let Some(learned) = world
+        .get::<Proficiencies>(creature)
+        .map(|set| set.known.clone())
+    else {
         return 0.0;
     };
     let mut total = 0.0f32;

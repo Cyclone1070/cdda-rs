@@ -16,15 +16,16 @@ use cdda_json::Value;
 use std::collections::BTreeMap;
 
 fn recorded() -> Value {
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/maps/examine-actions.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/maps/examine-actions.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
 }
 
 fn loaded() -> BTreeMap<(MapDataKind, String), MapData> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -49,7 +50,11 @@ fn every_square_with_an_examine_action_has_the_one_the_reference_has() {
     let Some(Value::Array(tiles)) = root.get("tiles") else {
         panic!("the dump holds tiles")
     };
-    assert_eq!(tiles.len(), 1769, "every terrain and furniture prototype with a function");
+    assert_eq!(
+        tiles.len(),
+        1769,
+        "every terrain and furniture prototype with a function"
+    );
     let map = loaded();
 
     let mut differing: Vec<String> = Vec::new();
@@ -79,7 +84,9 @@ fn every_square_with_an_examine_action_has_the_one_the_reference_has() {
             continue;
         };
         let Some(ours) = &tile.examine else {
-            differing.push(format!("{id}: the port has no examine action, the reference says {action}"));
+            differing.push(format!(
+                "{id}: the port has no examine action, the reference says {action}"
+            ));
             continue;
         };
         // The four object actors are counted separately from the 73 names, because the two halves fail for different reasons.
@@ -96,13 +103,26 @@ fn every_square_with_an_examine_action_has_the_one_the_reference_has() {
             *named.entry(action.clone()).or_default() += 1;
         }
         if ours.kind() != action {
-            differing.push(format!("{id}: the port says {:?}, the reference says {action:?}", ours.kind()));
+            differing.push(format!(
+                "{id}: the port says {:?}, the reference says {action:?}",
+                ours.kind()
+            ));
         }
     }
     // **Non-vacuity, on both halves.** A loader that only kept names would pass a corpus of names, and one that only kept actors would pass on four tiles.
-    assert_eq!(default_none, 1208, "the tiles that fall back to `iexamine::none`");
-    assert!(named.len() > 60, "most examine actions are bare names: {}", named.len());
-    assert!(objects > 70, "and the four object actors cover this many tiles: {objects}");
+    assert_eq!(
+        default_none, 1208,
+        "the tiles that fall back to `iexamine::none`"
+    );
+    assert!(
+        named.len() > 60,
+        "most examine actions are bare names: {}",
+        named.len()
+    );
+    assert!(
+        objects > 70,
+        "and the four object actors cover this many tiles: {objects}"
+    );
     assert!(
         differing.is_empty(),
         "{} of {} tiles disagree; the first ten are {:#?}",
@@ -122,11 +142,16 @@ fn a_card_reader_that_states_nothing_gets_the_reference_s_defaults() {
     let Value::Object(object) = value else {
         panic!("the fixture is an object")
     };
-    let Some(ExamineAction::CardReader(reader)) = cdda_content::examine::read(&object).expect("it reads")
+    let Some(ExamineAction::CardReader(reader)) =
+        cdda_content::examine::read(&object).expect("it reads")
     else {
         panic!("a card reader")
     };
-    assert_eq!(reader.flags, ["SCIENCE_CARD"], "the flags are mandatory and kept in order");
+    assert_eq!(
+        reader.flags,
+        ["SCIENCE_CARD"],
+        "the flags are mandatory and kept in order"
+    );
     assert!(reader.consume_card, "consume_card defaults to true");
     assert!(reader.allow_hacking, "allow_hacking defaults to true");
     assert!(reader.despawn_monsters, "despawn_monsters defaults to true");
@@ -146,7 +171,8 @@ fn a_card_reader_with_a_mapgen_does_not_read_the_radius() {
     let Value::Object(object) = value else {
         panic!("the fixture is an object")
     };
-    let Some(ExamineAction::CardReader(reader)) = cdda_content::examine::read(&object).expect("it reads")
+    let Some(ExamineAction::CardReader(reader)) =
+        cdda_content::examine::read(&object).expect("it reads")
     else {
         panic!("a card reader")
     };

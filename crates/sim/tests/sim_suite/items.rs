@@ -4,7 +4,6 @@
 
 use bevy_ecs::prelude::*;
 
-
 /// A thing inside another thing has no square, and the container weighs what it holds.
 ///
 /// Reference: `item::contents` and `item::weight( include_contents )` (`item.cpp:7229-7305`): the inner item is part of the container rather than standing
@@ -46,7 +45,10 @@ fn a_thing_inside_a_thing_has_no_square_and_adds_its_weight() {
         100,
         "an empty can weighs its own hundred grams"
     );
-    assert!(cdda_sim::containment::put_inside(&mut world, rag, can), "a can holds a rag");
+    assert!(
+        cdda_sim::containment::put_inside(&mut world, rag, can),
+        "a can holds a rag"
+    );
     assert!(
         world.get::<cdda_sim::Position>(rag).is_none(),
         "what is inside a can is not standing on the square"

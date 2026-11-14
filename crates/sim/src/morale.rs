@@ -100,10 +100,7 @@ pub fn logarithmic_range(min: i64, max: i64, position: i64) -> f64 {
 /// adds, and two of the same sign stack as the square root of the sum of squares - the reason three snacks do not feel three times as good.
 pub fn add(world: &mut World, creature: Entity, mut point: MoralePoint) {
     let mut points = world.get::<Morale>(creature).cloned().unwrap_or_default();
-    let existing = points
-        .0
-        .iter_mut()
-        .find(|held| held.kind == point.kind);
+    let existing = points.0.iter_mut().find(|held| held.kind == point.kind);
     let Some(held) = existing else {
         point.bonus = normalize(point.bonus, point.max_bonus, point.capped);
         points.0.push(point);
@@ -153,7 +150,11 @@ pub fn normalize(bonus: i32, max_bonus: i32, capped: bool) -> i32 {
 #[must_use]
 pub fn pick_time(current: i64, age: i64, new: i64, same_sign: bool) -> i64 {
     let remaining = current - age;
-    if remaining <= new && same_sign { new } else { remaining }
+    if remaining <= new && same_sign {
+        new
+    } else {
+        remaining
+    }
 }
 
 /// Every morale point a creature carries.

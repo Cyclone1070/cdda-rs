@@ -7,7 +7,12 @@
 //! The rule is `effect::activated` (`src/effect.cpp:1360-1394`): a zero value with no stated chance never fires, a negative tick never fires, only the turns the tick
 //! divides can fire, and then one uniform float is compared against `mod / top` or `top * mod / bot`.
 
-#![allow(clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::float_cmp)]
+#![allow(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::float_cmp
+)]
 
 use cdda_content::effects::EffectType;
 use cdda_core_types::rng::{Draw, Recording, Rolls};
@@ -66,8 +71,10 @@ fn replay(roll: f64) -> (Rolls, Recording) {
 
 #[test]
 fn every_activation_matches_the_reference_with_the_same_die() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-activated.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-activated.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -76,10 +83,19 @@ fn every_activation_matches_the_reference_with_the_same_die() {
         panic!("cases")
     };
     assert_eq!(cases.len(), 14_760, "every recorded case");
-    assert_eq!(integer(&root, "fired"), 1_797, "the reference fired on this many");
-    assert_eq!(integer(&root, "rolled"), 9_124, "and rolled a die on this many");
+    assert_eq!(
+        integer(&root, "fired"),
+        1_797,
+        "the reference fired on this many"
+    );
+    assert_eq!(
+        integer(&root, "rolled"),
+        9_124,
+        "and rolled a die on this many"
+    );
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let effects: std::collections::BTreeMap<String, EffectType> =
@@ -91,7 +107,9 @@ fn every_activation_matches_the_reference_with_the_same_die() {
     let mut turns = BTreeSet::new();
     let mut modifiers = BTreeSet::new();
     for case in cases {
-        let Value::Object(case) = case else { panic!("a case") };
+        let Value::Object(case) = case else {
+            panic!("a case")
+        };
         let id = text(case, "id");
         let Some(kind) = effects.get(&id) else {
             differing.push(format!("{id}: the port does not load it"));

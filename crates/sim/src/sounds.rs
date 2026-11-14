@@ -53,7 +53,10 @@ pub enum SoundCategory {
 pub fn is_provocative(category: SoundCategory) -> bool {
     matches!(
         category,
-        SoundCategory::Speech | SoundCategory::ElectronicSpeech | SoundCategory::Alert | SoundCategory::Order
+        SoundCategory::Speech
+            | SoundCategory::ElectronicSpeech
+            | SoundCategory::Alert
+            | SoundCategory::Order
     )
 }
 
@@ -83,8 +86,19 @@ pub fn make_sound(world: &mut World, position: (i32, i32, i32), volume: i32) -> 
 ///
 /// Reference: `sounds::sound( p, vol, category, description )` (`sounds.cpp:317-337`). The reference treats an **empty** description as a bug and complains, but still makes the sound -
 /// so the port keeps the sound and the empty string, which is what a caller with nothing to say passes.
-pub fn make_sound_saying(world: &mut World, position: (i32, i32, i32), volume: i32, description: &str) -> Option<Entity> {
-    make_a_sound_of_kind(world, position, volume, description, SoundCategory::Background)
+pub fn make_sound_saying(
+    world: &mut World,
+    position: (i32, i32, i32),
+    volume: i32,
+    description: &str,
+) -> Option<Entity> {
+    make_a_sound_of_kind(
+        world,
+        position,
+        volume,
+        description,
+        SoundCategory::Background,
+    )
 }
 
 /// Makes a sound of a stated kind, which is what a caller that wants to be heard as combat, speech or an order says.
@@ -149,7 +163,11 @@ pub fn clear(world: &mut World) {
 /// fifty-four** beats a roll of `normal( 30, 5 )` every time. **The category is the quiet half of the rule; the loudness is the other half**, and a port with only the first would have monsters
 /// ignoring exactly the sounds the game is famous for.
 #[must_use]
-pub fn heard_as_provocative(category: SoundCategory, volume: i32, dice: &mut cdda_core_types::rng::Rolls) -> bool {
+pub fn heard_as_provocative(
+    category: SoundCategory,
+    volume: i32,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> bool {
     let loud_enough = f64::from(volume) >= dice.normal_roll(30.0, 5.0);
     is_provocative(category) || loud_enough
 }

@@ -111,9 +111,12 @@ pub fn scaled(scale: f64, scaling: &Scaling) -> f64 {
 /// Reference: `bonus_container::get_flat` (`bonuses.cpp:221-240`): the bonuses for the stat **add**, and a stat with none answers zero.
 #[must_use]
 pub fn flat_of(bonuses: &std::collections::BTreeMap<String, Vec<Bonus>>, stat: &str) -> f64 {
-    bonuses
-        .get(stat)
-        .map_or(0.0, |found| found.iter().map(|bonus| scaled(bonus.scale, &bonus.scaling)).sum())
+    bonuses.get(stat).map_or(0.0, |found| {
+        found
+            .iter()
+            .map(|bonus| scaled(bonus.scale, &bonus.scaling))
+            .sum()
+    })
 }
 
 /// The multipliers for one stat, multiplied and then clamped at nothing.
@@ -123,7 +126,10 @@ pub fn flat_of(bonuses: &std::collections::BTreeMap<String, Vec<Bonus>>, stat: &
 #[must_use]
 pub fn mult_of(bonuses: &std::collections::BTreeMap<String, Vec<Bonus>>, stat: &str) -> f64 {
     bonuses.get(stat).map_or(1.0, |found| {
-        let product: f64 = found.iter().map(|bonus| scaled(bonus.scale, &bonus.scaling)).product();
+        let product: f64 = found
+            .iter()
+            .map(|bonus| scaled(bonus.scale, &bonus.scaling))
+            .product();
         product.max(0.0)
     })
 }
@@ -142,7 +148,11 @@ pub struct Candidate {
 /// Reference: `Character::pick_technique` (`melee.cpp:1406-1440`): every qualified technique is pushed once, then `weighting - 1` more times, and `random_entry` picks one uniformly - **so a
 /// weighting of nothing still gets one entry**, because the first push happens whatever the weighting says. An empty list answers nothing, which the reference spells `tec_none`.
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
 pub fn pick(candidates: &[Candidate], roll: f64) -> Option<String> {
     if candidates.is_empty() {
         return None;
@@ -228,7 +238,10 @@ pub fn offers(flags: &TechniqueFlags, moment: &Moment, roll: f64) -> bool {
     if flags.dummy {
         return false;
     }
-    if flags.defensive && !(moment.dodge_counter && flags.dodge_counter || moment.block_counter && flags.block_counter) {
+    if flags.defensive
+        && !(moment.dodge_counter && flags.dodge_counter
+            || moment.block_counter && flags.block_counter)
+    {
         return false;
     }
     if moment.dodge_counter != flags.dodge_counter || moment.block_counter != flags.block_counter {
@@ -340,10 +353,18 @@ pub fn pick_for(
 ) -> Option<String> {
     let style = world.get::<Practising>(striker)?.style.clone();
     // **What is in each hand, read from the store**: a `Wielding` link says the striker carries a weapon, and the weapon's own categories decide which moves allow it.
-    let held = world.get::<crate::creature::Wielding>(striker).map(|wielded| wielded.0);
-    let categories = held.map_or_else(Vec::new, |kind| crate::item_registry::weapon_categories_of(world, kind));
+    let held = world
+        .get::<crate::creature::Wielding>(striker)
+        .map(|wielded| wielded.0);
+    let categories = held.map_or_else(Vec::new, |kind| {
+        crate::item_registry::weapon_categories_of(world, kind)
+    });
     let borrowed: Vec<&str> = categories.iter().map(String::as_str).collect();
-    let hands = if held.is_some() { Hands::Weapon("a weapon") } else { Hands::Empty };
+    let hands = if held.is_some() {
+        Hands::Weapon("a weapon")
+    } else {
+        Hands::Empty
+    };
     let moment = Moment {
         self_armed: held.is_some(),
         target_armed: world.get::<crate::creature::Wielding>(target).is_some(),
@@ -550,7 +571,10 @@ pub fn apply_move(
             landed.push(effect.id.clone());
         }
     }
-    for (duration_turns, id) in [(movement.stun_dur, "stunned"), (movement.down_dur, "downed")] {
+    for (duration_turns, id) in [
+        (movement.stun_dur, "stunned"),
+        (movement.down_dur, "downed"),
+    ] {
         if duration_turns <= 0 {
             continue;
         }

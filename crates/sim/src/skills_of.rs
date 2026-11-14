@@ -60,7 +60,13 @@ pub fn set_level(world: &mut World, creature: Entity, skill: &str, level: i32) {
 /// averages are the honest place to stand: the day the stats arrive, this is the one function that changes.
 ///
 /// Answers how much practice was actually laid on, which is what a test can see.
-pub fn practice(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, skill: &str, amount: i32, cap: i32) -> i32 {
+pub fn practice(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    skill: &str,
+    amount: i32,
+    cap: i32,
+) -> i32 {
     // The reference's average of eight for each stat (`character.cpp:2818-2822`), named so the sum is not an equal-operand division.
     const AVERAGE_INT: f32 = 8.0;
     const AVERAGE_PER: f32 = 8.0;
@@ -95,4 +101,3 @@ pub fn practice(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelud
     }
     scaled
 }
-

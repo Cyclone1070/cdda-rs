@@ -12,14 +12,16 @@ use cdda_json::Value;
 use std::collections::BTreeMap;
 
 fn recorded() -> Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo-effects.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/ammo-effects.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
 }
 
 fn loaded() -> BTreeMap<String, ItemType> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -75,7 +77,10 @@ fn every_ammunition_has_the_effects_the_reference_has() {
             ));
         }
     }
-    assert!(with_effects > 200, "most rounds do something when they land: {with_effects}");
+    assert!(
+        with_effects > 200,
+        "most rounds do something when they land: {with_effects}"
+    );
     assert!(seen.len() > 10, "and they do a variety of things: {seen:?}");
     assert!(
         differing.is_empty(),
@@ -115,7 +120,9 @@ fn a_child_that_states_only_an_extend_still_reads_the_effects_it_inherits() {
         .expect("the child loaded");
     assert_eq!(
         round.ammo_effects,
-        ["COOKOFF".to_owned(), "RECYCLED".to_owned()].into_iter().collect(),
+        ["COOKOFF".to_owned(), "RECYCLED".to_owned()]
+            .into_iter()
+            .collect(),
         "the child keeps what it inherited and adds what it extended"
     );
 }

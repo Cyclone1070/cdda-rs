@@ -48,7 +48,8 @@ fn whole(entry: &Value, key: &str) -> i64 {
 fn dump() -> Value {
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/measures.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
 }
 

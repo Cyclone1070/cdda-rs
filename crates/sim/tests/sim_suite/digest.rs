@@ -61,7 +61,9 @@ fn vitamin_map(value: Option<&Value>) -> BTreeMap<String, i32> {
 }
 
 fn trace(value: &Value) -> Trace {
-    let Value::Object(object) = value else { panic!("a trace") };
+    let Value::Object(object) = value else {
+        panic!("a trace")
+    };
     let Some(Value::Array(steps)) = object.get("steps") else {
         panic!("steps")
     };
@@ -70,10 +72,14 @@ fn trace(value: &Value) -> Trace {
         steps: steps
             .iter()
             .map(|step| {
-                let Value::Array(numbers) = step else { panic!("a step") };
+                let Value::Array(numbers) = step else {
+                    panic!("a step")
+                };
                 let mut row = [0_i64; 6];
                 for (slot, number) in row.iter_mut().zip(numbers) {
-                    let Value::Int(number) = number else { panic!("a number") };
+                    let Value::Int(number) = number else {
+                        panic!("a number")
+                    };
                     *slot = *number;
                 }
                 row
@@ -85,8 +91,10 @@ fn trace(value: &Value) -> Trace {
 }
 
 fn recorded() -> (MetabolicRates, Vec<Recorded>) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/digest.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/digest.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -111,7 +119,9 @@ fn recorded() -> (MetabolicRates, Vec<Recorded>) {
     let foods = foods
         .iter()
         .map(|food| {
-            let Value::Object(food) = food else { panic!("a food") };
+            let Value::Object(food) = food else {
+                panic!("a food")
+            };
             let id = match food.get("id") {
                 Some(Value::Str(id)) => id.clone(),
                 other => panic!("{other:?}"),
@@ -210,10 +220,12 @@ fn every_comestible_empties_itself_the_way_the_reference_says() {
     assert_eq!(rows.len(), 1686, "every comestible");
 
     // The vitamins, so a drug one can skip the trickle. The recording's own foods are enough: none of them holds a vitamin the registry lacks.
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
-    let vitamins: BTreeMap<String, Vitamin> = cdda_content::vitamins::load_paths(&paths).expect("vitamins");
+    let vitamins: BTreeMap<String, Vitamin> =
+        cdda_content::vitamins::load_paths(&paths).expect("vitamins");
 
     let stomach_rates = digest_rates(&metabolic, true, 1_500);
     let guts_rates = digest_rates(&metabolic, false, 1_500);
@@ -222,7 +234,10 @@ fn every_comestible_empties_itself_the_way_the_reference_says() {
     assert_eq!(stomach_rates.solids_ml, 250, "a sixth of 1,500 mL");
     assert_eq!(guts_rates.solids_ml, 250, "a flat 250 mL");
     assert_eq!(stomach_rates.min_calories, 5_000);
-    assert_eq!(guts_rates.min_calories, 104_166, "2,500 kcal / 24 * 1 * 1000, floored");
+    assert_eq!(
+        guts_rates.min_calories, 104_166,
+        "2,500 kcal / 24 * 1 * 1000, floored"
+    );
 
     let mut differing: Vec<String> = Vec::new();
     let mut calories_left_the_guts = 0;
@@ -230,23 +245,54 @@ fn every_comestible_empties_itself_the_way_the_reference_says() {
     let mut drug_vitamins = 0;
     let mut drying_foods = 0;
     let mut at_the_minimum = 0;
-    let drug = ["vit_betablocker", "vit_bloodthinner", "vit_ibuprofen", "vit_mme"];
+    let drug = [
+        "vit_betablocker",
+        "vit_bloodthinner",
+        "vit_ibuprofen",
+        "vit_mme",
+    ];
     for row in &rows {
-        compare(row, &row.stomach, &stomach_rates, true, &vitamins, "stomach", &mut differing);
-        compare(row, &row.guts, &guts_rates, false, &vitamins, "guts", &mut differing);
+        compare(
+            row,
+            &row.stomach,
+            &stomach_rates,
+            true,
+            &vitamins,
+            "stomach",
+            &mut differing,
+        );
+        compare(
+            row,
+            &row.guts,
+            &guts_rates,
+            false,
+            &vitamins,
+            "guts",
+            &mut differing,
+        );
         if row.guts.steps.iter().any(|step| step[2] > 0) {
             calories_left_the_guts += 1;
         }
         if !row.stomach.vitamins_total.is_empty() {
             with_vitamins += 1;
         }
-        if row.ingested.vitamins.keys().any(|id| drug.contains(&id.as_str())) {
+        if row
+            .ingested
+            .vitamins
+            .keys()
+            .any(|id| drug.contains(&id.as_str()))
+        {
             drug_vitamins += 1;
         }
         if row.ingested.water_ml < 0 {
             drying_foods += 1;
         }
-        if row.stomach.steps.iter().any(|step| step[2] == stomach_rates.min_calories) {
+        if row
+            .stomach
+            .steps
+            .iter()
+            .any(|step| step[2] == stomach_rates.min_calories)
+        {
             at_the_minimum += 1;
         }
     }
@@ -255,11 +301,23 @@ fn every_comestible_empties_itself_the_way_the_reference_says() {
         calories_left_the_guts > 1_000,
         "foods that gave the guts calories: {calories_left_the_guts}"
     );
-    assert!(with_vitamins > 1_300, "foods that released vitamins: {with_vitamins}");
+    assert!(
+        with_vitamins > 1_300,
+        "foods that released vitamins: {with_vitamins}"
+    );
     // The three branches a happy-path comparison would never reach.
-    assert_eq!(drug_vitamins, 12, "foods carrying a drug vitamin, which skips the trickle");
-    assert!(drying_foods > 300, "foods that take water back out: {drying_foods}");
-    assert!(at_the_minimum > 400, "steps that released the flat minimum: {at_the_minimum}");
+    assert_eq!(
+        drug_vitamins, 12,
+        "foods carrying a drug vitamin, which skips the trickle"
+    );
+    assert!(
+        drying_foods > 300,
+        "foods that take water back out: {drying_foods}"
+    );
+    assert!(
+        at_the_minimum > 400,
+        "steps that released the flat minimum: {at_the_minimum}"
+    );
     assert!(
         differing.is_empty(),
         "{} disagreements over {} comestibles; the first twelve are {:#?}",
@@ -307,8 +365,14 @@ fn water_moves_in_five_minute_steps_and_a_water_only_tick_touches_nothing_else()
     assert_eq!(digested.water_ml, 250);
     assert_eq!(digested.solids_ml, 0, "no half hour has gone by");
     assert_eq!(digested.calories, 0, "no half hour has gone by");
-    assert_eq!(contents.calories, 300_000, "the calories have not been touched");
-    assert_eq!(contents.contents_ml, 400, "the solids have not been touched");
+    assert_eq!(
+        contents.calories, 300_000,
+        "the calories have not been touched"
+    );
+    assert_eq!(
+        contents.contents_ml, 400,
+        "the solids have not been touched"
+    );
 }
 
 /// A body that can hold more holds what it is given for longer, and never holds less than a quarter of a litre.
@@ -318,7 +382,11 @@ fn water_moves_in_five_minute_steps_and_a_water_only_tick_touches_nothing_else()
 #[test]
 fn a_larger_stomach_comes_from_an_enchantment() {
     let plain = cdda_sim::digest::StomachContents::new(1_000, true);
-    assert_eq!(plain.capacity_of(0.0, 0.0), 1_000, "with no enchantment it holds a litre");
+    assert_eq!(
+        plain.capacity_of(0.0, 0.0),
+        1_000,
+        "with no enchantment it holds a litre"
+    );
     assert_eq!(
         plain.capacity_of(0.0, 0.25),
         1_250,

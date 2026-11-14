@@ -9,7 +9,13 @@
 use bevy_ecs::prelude::*;
 
 /// An item kind with the three facts `ammo_sufficient` reads.
-fn a_kind(world: &mut World, id: &str, charges: i32, count_by_charges: bool, comestible: bool) -> Entity {
+fn a_kind(
+    world: &mut World,
+    id: &str,
+    charges: i32,
+    count_by_charges: bool,
+    comestible: bool,
+) -> Entity {
     cdda_sim::item_registry::set_item_types(
         world,
         &[cdda_sim::item_registry::Kind {
@@ -45,8 +51,11 @@ fn has_ammo_answers_from_the_item_the_dialogue_holds() {
     let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     // The data writes it bare, beside the `if` it guards: `{ "if": "has_ammo", "then": .. }`.
     let value = cdda_json::parse(br#""has_ammo""#).expect("json");
-    let condition = cdda_content::dialogue::read_condition(&value).expect("**the port reads `has_ammo`**");
-    let check = |world: &World, item: Entity| cdda_sim::conditions::holds_with(world, speaker, Some(item), &condition);
+    let condition =
+        cdda_content::dialogue::read_condition(&value).expect("**the port reads `has_ammo`**");
+    let check = |world: &World, item: Entity| {
+        cdda_sim::conditions::holds_with(world, speaker, Some(item), &condition)
+    };
 
     // A charge-counted stack with charges answers yes; with none, no.
     let loaded = a_kind(&mut world, "nails", 12, true, false);
@@ -56,7 +65,10 @@ fn has_ammo_answers_from_the_item_the_dialogue_holds() {
 
     // A comestible always has enough: eating it spends a charge, so "no ammo" is not a question it fails.
     let food = a_kind(&mut world, "sandwich", 0, false, true);
-    assert!(check(&world, food), "**a comestible always has enough**, even with no charges");
+    assert!(
+        check(&world, food),
+        "**a comestible always has enough**, even with no charges"
+    );
 
     // Anything else answers from the charges it holds, which is what a tool is.
     let tool = a_kind(&mut world, "flashlight", 3, false, false);

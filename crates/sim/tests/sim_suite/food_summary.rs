@@ -39,8 +39,10 @@ struct Recorded {
 }
 
 fn recorded() -> Vec<Recorded> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/food-summary.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/food-summary.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -56,7 +58,9 @@ fn recorded() -> Vec<Recorded> {
     types
         .iter()
         .map(|entry| {
-            let Value::Object(entry) = entry else { panic!("a type") };
+            let Value::Object(entry) = entry else {
+                panic!("a type")
+            };
             let id = match entry.get("id") {
                 Some(Value::Str(id)) => id.clone(),
                 other => panic!("{other:?}"),
@@ -99,7 +103,8 @@ fn every_comestible_puts_in_the_stomach_what_the_reference_says() {
     let rows = recorded();
     assert_eq!(rows.len(), 1686, "every comestible");
 
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [data.join("core"), data.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let items: BTreeMap<String, ItemType> = cdda_content::items::load_paths(&paths)
@@ -115,7 +120,9 @@ fn every_comestible_puts_in_the_stomach_what_the_reference_says() {
     let mut with_vitamins = 0;
     let mut scaled_by_ratio = 0;
     for row in &rows {
-        let item = items.get(&row.id).unwrap_or_else(|| panic!("{} is in the corpus", row.id));
+        let item = items
+            .get(&row.id)
+            .unwrap_or_else(|| panic!("{} is in the corpus", row.id));
         let slot = item
             .comestible
             .as_ref()
@@ -125,7 +132,12 @@ fn every_comestible_puts_in_the_stomach_what_the_reference_says() {
         let facts = ItemFacts {
             weight_g: item.item_weight(1) / 1_000,
             // A bite is one item, and a charge-counted item's volume is its type's divided between its stack size.
-            volume_ml: bite_volume(item.volume, 1, item.effective_stack_size(), item.counts_by_charge()),
+            volume_ml: bite_volume(
+                item.volume,
+                1,
+                item.effective_stack_size(),
+                item.counts_by_charge(),
+            ),
             count: 1,
             quench: slot.quench,
             stated_kcal: slot.kcal,
@@ -202,7 +214,10 @@ fn every_comestible_puts_in_the_stomach_what_the_reference_says() {
     // **Non-vacuity**: the four calculations each have to move a real share of the corpus, or the comparison proves nothing about that step.
     assert!(with_water > 300, "water-carrying foods: {with_water}");
     assert!(with_vitamins > 400, "foods with vitamins: {with_vitamins}");
-    assert!(scaled_by_ratio > 100, "foods whose bulk the ratio moved: {scaled_by_ratio}");
+    assert!(
+        scaled_by_ratio > 100,
+        "foods whose bulk the ratio moved: {scaled_by_ratio}"
+    );
     assert!(
         differing.is_empty(),
         "{} of {} comestibles disagree; the first twelve are {:#?}",

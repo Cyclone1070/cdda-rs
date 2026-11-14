@@ -78,7 +78,11 @@ fn samples() -> Vec<Sample> {
 #[test]
 fn every_accuracy_roll_matches_the_reference_to_a_thousandth() {
     let samples = samples();
-    assert!(samples.len() >= 9, "the dump holds {} samples", samples.len());
+    assert!(
+        samples.len() >= 9,
+        "the dump holds {} samples",
+        samples.len()
+    );
     let mut compared = 0;
     let mut disagreements = Vec::new();
     for sample in &samples {

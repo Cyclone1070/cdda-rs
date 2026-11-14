@@ -10,10 +10,10 @@
 
 use bevy_ecs::prelude::*;
 use cdda_core_types::level::Level;
+use cdda_sim::Prototypes;
 use cdda_sim::creature::{creature_at, give_moves, moves_left, spawn_creature};
 use cdda_sim::routing::{Walk, walk_towards};
 use cdda_sim::terrain_table::TerrainTable;
-use cdda_sim::Prototypes;
 
 const FLOOR: u32 = 1;
 const WALL: u32 = 2;
@@ -51,13 +51,29 @@ fn a_creature_walks_a_corridor_one_square_per_step() {
 
     let first = walk_towards(&mut world, you, (2, 0, 0), (3, 1));
     assert_eq!(first, Walk::Stepped, "it took the first step");
-    assert_eq!(creature_at(&world, (1, 0, 0)), vec![you], "and stands one square on");
-    assert_eq!(moves_left(&world, you), 100, "having paid for one floor step");
+    assert_eq!(
+        creature_at(&world, (1, 0, 0)),
+        vec![you],
+        "and stands one square on"
+    );
+    assert_eq!(
+        moves_left(&world, you),
+        100,
+        "having paid for one floor step"
+    );
 
     let second = walk_towards(&mut world, you, (2, 0, 0), (3, 1));
     assert_eq!(second, Walk::Arrived, "the second step reaches the target");
-    assert_eq!(creature_at(&world, (2, 0, 0)), vec![you], "where it meant to be");
-    assert_eq!(moves_left(&world, you), 0, "and it spent exactly what it had");
+    assert_eq!(
+        creature_at(&world, (2, 0, 0)),
+        vec![you],
+        "where it meant to be"
+    );
+    assert_eq!(
+        moves_left(&world, you),
+        0,
+        "and it spent exactly what it had"
+    );
 }
 
 #[test]
@@ -67,14 +83,22 @@ fn a_creature_will_not_step_where_it_cannot_afford_or_cannot_go() {
     give_moves(&mut world, you, 50);
 
     let too_poor = walk_towards(&mut world, you, (2, 0, 0), (3, 1));
-    assert_eq!(too_poor, Walk::TooSlow, "fifty points cannot pay for a hundred-move step");
+    assert_eq!(
+        too_poor,
+        Walk::TooSlow,
+        "fifty points cannot pay for a hundred-move step"
+    );
     assert_eq!(creature_at(&world, (0, 0, 0)), vec![you], "so it stays put");
 
     let mut walled = corridor(3, &[1]);
     let stuck = spawn_creature(&mut walled, "the survivor", (0, 0, 0));
     give_moves(&mut walled, stuck, 500);
     let no_way = walk_towards(&mut walled, stuck, (2, 0, 0), (3, 1));
-    assert_eq!(no_way, Walk::NoRoute, "a wall across the corridor is not a detour");
+    assert_eq!(
+        no_way,
+        Walk::NoRoute,
+        "a wall across the corridor is not a detour"
+    );
 }
 
 /// The creature turn is a stage in the schedule, in a declared place, and it acts inside `run_turn`.
@@ -118,7 +142,11 @@ fn creature_turns_run_in_the_declared_stage_of_a_real_turn() {
     );
 
     cdda_sim::turn::run_turn(&mut world);
-    assert_eq!(creature_at(&world, (2, 0, 0)), vec![you], "and the next turn arrives");
+    assert_eq!(
+        creature_at(&world, (2, 0, 0)),
+        vec![you],
+        "and the next turn arrives"
+    );
 }
 
 /// A creature at zero life comes off the field, and the index does not keep its ghost.
@@ -146,7 +174,11 @@ fn the_dead_come_off_the_field_and_leave_no_ghost() {
         world.get_entity(doomed).is_err(),
         "and the entity itself is gone rather than merely hidden"
     );
-    assert_eq!(creature_at(&world, (0, 0, 0)), vec![alive], "the living stay");
+    assert_eq!(
+        creature_at(&world, (0, 0, 0)),
+        vec![alive],
+        "the living stay"
+    );
     assert_eq!(
         cdda_sim::creature::reap_dead_creatures(&mut world),
         0,
@@ -185,7 +217,8 @@ fn a_creature_with_a_kind_leaves_a_corpse_behind() {
     cdda_sim::creature::set_health(&mut world, survivor, 0);
 
     let corpse_kind = cdda_sim::ItemTypeId(7);
-    let cleared = cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
+    let cleared =
+        cdda_sim::creature::reap_dead_creatures_as_corpses(&mut world, corpse_kind, |_| 62_500);
 
     assert_eq!(cleared, 2, "both bodies were cleared");
     assert_eq!(
@@ -203,5 +236,8 @@ fn a_creature_with_a_kind_leaves_a_corpse_behind() {
         0,
         "the survivor had no kind, so there is nothing to name a body with"
     );
-    assert!(creature_at(&world, (1, 0, 0)).is_empty(), "no creature remains");
+    assert!(
+        creature_at(&world, (1, 0, 0)).is_empty(),
+        "no creature remains"
+    );
 }

@@ -22,7 +22,10 @@ pub struct PartOf {
 /// Makes `part` a part of `whole`, at the end of the whole's list.
 pub fn add_part(world: &mut World, whole: Entity, part: Entity) {
     let order = u32::try_from(parts_of(world, whole).len()).unwrap_or(u32::MAX);
-    world.entity_mut(part).insert(PartOf { parent: whole, order });
+    world.entity_mut(part).insert(PartOf {
+        parent: whole,
+        order,
+    });
 }
 
 /// Every part of `whole`, in the order the data installed them.

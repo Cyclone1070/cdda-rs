@@ -77,7 +77,9 @@ pub fn set_speed(world: &mut World, entity: Entity, base: i32, bonus: i32) {
 /// What a creature's speed is now.
 #[must_use]
 pub fn speed_of(world: &World, entity: Entity) -> i32 {
-    world.get::<Speed>(entity).map_or(0, |speed| speed_now(*speed))
+    world
+        .get::<Speed>(entity)
+        .map_or(0, |speed| speed_now(*speed))
 }
 
 /// The speed a [`Speed`] adds up to: base plus bonus, in one place so the two callers cannot drift.
@@ -240,9 +242,7 @@ pub fn set_health(world: &mut World, entity: Entity, hp: i32) {
         health.hp = hp;
         health.max_hp = hp;
     } else {
-        world
-            .entity_mut(entity)
-            .insert(Health { hp, max_hp: hp });
+        world.entity_mut(entity).insert(Health { hp, max_hp: hp });
     }
 }
 
@@ -320,7 +320,8 @@ pub fn hurt_by(world: &mut World, entity: Entity, damage: f32, attacker: Option<
             world.entity_mut(entity).insert(KilledBy(who));
             // Reference: `kill_tracker::add_kill( mtype_id )` is called when a monster dies with the player as its killer (`game.cpp`), and `spell_effect::guilt` reads that
             // count. The port records it where the death is decided, and only for a **character** striker - a monster killing a monster is not the player's conscience.
-            let striker_is_person = world.get::<crate::Player>(who).is_some() || crate::npcs::is_npc(world, who);
+            let striker_is_person =
+                world.get::<crate::Player>(who).is_some() || crate::npcs::is_npc(world, who);
             if striker_is_person
                 && let Some(kind) = world.get::<CreatureKind>(entity).map(|held| held.0)
             {
@@ -449,7 +450,9 @@ pub fn body_named(
 /// state `electric`, `acid` or `heat` as easily as bash - the data does - so a part's answer is a figure **by type name**, and a type with no figure is zero, which is what
 /// `resistances::type_resist` answers.
 #[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
-pub struct PartArmour(pub std::collections::BTreeMap<String, std::collections::BTreeMap<String, i32>>);
+pub struct PartArmour(
+    pub std::collections::BTreeMap<String, std::collections::BTreeMap<String, i32>>,
+);
 
 /// How big a creature is next to a human, as `anatomy::get_size_ratio` answers it.
 ///
@@ -550,7 +553,13 @@ pub fn vitals_cover_of(world: &World, creature: Entity, part: &str) -> i32 {
         .filter(|(worn, _)| worn.0 == creature)
         .flat_map(|(_, garment)| {
             // One entry per garment, so a garment that states the same part twice still counts once - which is what the reference's per-item sum does.
-            garment.vitals.iter().filter(|(covered, _)| covered == part).map(|(_, cover)| (true, *cover)).take(1).collect::<Vec<_>>()
+            garment
+                .vitals
+                .iter()
+                .filter(|(covered, _)| covered == part)
+                .map(|(_, cover)| (true, *cover))
+                .take(1)
+                .collect::<Vec<_>>()
         })
         .collect();
     crate::melee::worn_vitals_cover(&pieces)
@@ -598,10 +607,16 @@ pub fn begin_pick_up(world: &mut World, creature: Entity, item: Entity, volume_m
     if world.get::<Carried>(item).is_some() {
         return Began::AlreadyCarried;
     }
-    let Some(here) = world.get::<Position>(creature).map(|place| (place.x, place.y, place.z)) else {
+    let Some(here) = world
+        .get::<Position>(creature)
+        .map(|place| (place.x, place.y, place.z))
+    else {
         return Began::NotHere;
     };
-    let Some(there) = world.get::<Position>(item).map(|place| (place.x, place.y, place.z)) else {
+    let Some(there) = world
+        .get::<Position>(item)
+        .map(|place| (place.x, place.y, place.z))
+    else {
         return Began::NotHere;
     };
     if here != there {
@@ -681,11 +696,18 @@ fn finish_butchering(world: &mut World, creature: Entity, subject: Option<Entity
 /// The split is the port's own seam, not the reference's: `butchery.cpp` computes the multiplier from the character each time it draws an entry, and a test that wants to see the division on its own has
 /// no way to say "with this multiplier" through a survivor's stats - three numbers that only multiply to the wanted value by accident.
 #[allow(clippy::too_many_lines)]
-pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entity, multiplier: f64) {
+pub fn finish_butchering_with(
+    world: &mut World,
+    creature: Entity,
+    corpse: Entity,
+    multiplier: f64,
+) {
     let Some(corpse_of) = world.get::<crate::CorpseOf>(corpse).copied() else {
         return;
     };
-    let action = world.get::<crate::Butchery>(corpse).map_or(crate::ButcherAction::Full, |work| work.action);
+    let action = world
+        .get::<crate::Butchery>(corpse)
+        .map_or(crate::ButcherAction::Full, |work| work.action);
     let (entries, ids) = crate::monster_registry::list_for(world, corpse_of.kind, action);
     if entries.is_empty() {
         return;
@@ -693,7 +715,10 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
     let Some(mut rolls) = crate::singletons::take_rolls(world) else {
         return;
     };
-    let flags = world.get::<crate::ItemFlags>(corpse).cloned().unwrap_or_default();
+    let flags = world
+        .get::<crate::ItemFlags>(corpse)
+        .cloned()
+        .unwrap_or_default();
     // What the body leaves behind that nobody asked for: the definition's `leftovers` - `ruined_chunks` when it names none, which is every definition in the shipped data - weighed against one of them.
     let leftover_id = crate::monster_registry::leftovers_of(world, corpse_of.kind);
     let leftover_grams = crate::item_registry::id_of(world, &leftover_id)
@@ -721,7 +746,10 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
         skill_levels: butchery_skill_levels(
             world,
             creature,
-            &entries.iter().filter_map(|entry| entry.part).collect::<Vec<_>>(),
+            &entries
+                .iter()
+                .filter_map(|entry| entry.part)
+                .collect::<Vec<_>>(),
             0,
         ),
         yield_multiplier: multiplier,
@@ -744,7 +772,12 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
     }
     let resolved: Vec<(String, crate::ItemTypeId)> = every_id
         .iter()
-        .map(|id| (id.clone(), crate::item_registry::id_of(world, id).unwrap_or_default()))
+        .map(|id| {
+            (
+                id.clone(),
+                crate::item_registry::id_of(world, id).unwrap_or_default(),
+            )
+        })
         .collect();
     // A drop's weight is the divisor a bulk entry needs, and it is asked the same way the ids are: before the finish runs, because the rule takes the world mutably.
     let weights: Vec<(String, i64)> = every_id
@@ -789,11 +822,20 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
     let training = crate::ButcheryTraining {
         action,
         moves,
-        has_flesh_or_offal: entries
+        has_flesh_or_offal: entries.iter().any(|entry| {
+            matches!(
+                entry.part,
+                Some(crate::HarvestEntry::Flesh | crate::HarvestEntry::Offal)
+            )
+        }),
+        has_skin: entries
             .iter()
-            .any(|entry| matches!(entry.part, Some(crate::HarvestEntry::Flesh | crate::HarvestEntry::Offal))),
-        has_skin: entries.iter().any(|entry| entry.part == Some(crate::HarvestEntry::Skin)),
-        knows_butchering_basic: crate::proficiencies::knows(world, creature, "prof_butchering_basic"),
+            .any(|entry| entry.part == Some(crate::HarvestEntry::Skin)),
+        knows_butchering_basic: crate::proficiencies::knows(
+            world,
+            creature,
+            "prof_butchering_basic",
+        ),
         knows_skinning_basic: crate::proficiencies::knows(world, creature, "prof_skinning_basic"),
     };
     // Reference: the butchery is practice for a skill as well (`butchery.cpp:952-957`), and the figure is the one this job rolled.
@@ -819,8 +861,14 @@ pub fn finish_butchering_with(world: &mut World, creature: Entity, corpse: Entit
 /// Reference: `corpse_damage_effect` reads `corpse_item.damage_level()`, which `item::damage_level` works out from `damage_ / max_damage` over five levels. The port reads the corpse item's own
 /// [`crate::GroundItem::damage`] and divides by the same maximum the worn-armour side uses, because a corpse is not counted by charges.
 fn corpse_damage_of(world: &World, corpse: Entity) -> crate::CorpseDamage {
-    let damage = world.get::<crate::GroundItem>(corpse).map_or(0, |item| item.damage);
-    crate::CorpseDamage::at_level(crate::damage_level(damage, cdda_content::armour::DAMAGE_MAX, false))
+    let damage = world
+        .get::<crate::GroundItem>(corpse)
+        .map_or(0, |item| item.damage);
+    crate::CorpseDamage::at_level(crate::damage_level(
+        damage,
+        cdda_content::armour::DAMAGE_MAX,
+        false,
+    ))
 }
 
 /// Reference: `activity_handlers::pickup_finish`, which puts the item in the character's hands.
@@ -870,7 +918,9 @@ fn cancel_butchering(world: &mut World, _creature: Entity, subject: Option<Entit
 /// drops [`crate::crafting::Making`]; the ingredients are carried items and nothing consumed them until the finish, so
 /// there is nothing to hand back - which is a property of when the port consumes, not a shortcut.
 fn cancel_crafting(world: &mut World, creature: Entity, _subject: Option<Entity>) {
-    world.entity_mut(creature).remove::<crate::crafting::Making>();
+    world
+        .entity_mut(creature)
+        .remove::<crate::crafting::Making>();
 }
 
 /// An activity that has not changed anything yet has nothing to undo.
@@ -927,7 +977,10 @@ pub fn heeds(activity: &str, distraction: Distraction) -> bool {
 ///
 /// Answers whether the interruption took.
 pub fn disturb(world: &mut World, creature: Entity, distraction: Distraction) -> bool {
-    let Some(activity) = world.get::<Doing>(creature).map(|doing| doing.activity.clone()) else {
+    let Some(activity) = world
+        .get::<Doing>(creature)
+        .map(|doing| doing.activity.clone())
+    else {
         return false;
     };
     if !heeds(&activity, distraction) {
@@ -1012,7 +1065,12 @@ pub fn resume_backlog(world: &mut World, creature: Entity) -> bool {
 ///
 /// Reference: `activity_handlers::finish`, which looks the activity up in its table and calls what it finds. An activity
 /// the port does not know simply ends, which is the reference's own answer to an unhandled activity.
-pub fn finish_activity(world: &mut World, creature: Entity, activity: &str, subject: Option<Entity>) {
+pub fn finish_activity(
+    world: &mut World,
+    creature: Entity,
+    activity: &str,
+    subject: Option<Entity>,
+) {
     let Some((_, finish)) = FINISHERS.iter().find(|(id, _)| *id == activity) else {
         return;
     };
@@ -1207,7 +1265,8 @@ pub fn can_stash(
     for (entity, kind) in worn {
         for (index, pocket) in names.pockets_of(kind).iter().enumerate() {
             let held = filled.get(&(entity, index)).copied().unwrap_or_default();
-            if crate::pockets::fits(*pocket, held, volume_ml, weight_g) == crate::pockets::Fits::Yes {
+            if crate::pockets::fits(*pocket, held, volume_ml, weight_g) == crate::pockets::Fits::Yes
+            {
                 return Some((entity, index));
             }
         }
@@ -1225,7 +1284,8 @@ pub fn effective_strength(world: &World, entity: Entity) -> i32 {
         return 0;
     };
     let base = crate::mutation_data::holder(world).map_or(strength.base, |data| {
-        let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "STRENGTH");
+        let (add, multiply) =
+            crate::mutations::enchantment_values(world, entity, &data, "STRENGTH");
         #[allow(clippy::cast_possible_truncation)]
         let value =
             crate::mutations::apply_enchantments(f64::from(strength.base), add, multiply) as i32;
@@ -1278,7 +1338,8 @@ pub fn effective_dexterity(world: &World, entity: Entity) -> i32 {
         return 0;
     };
     let base = crate::mutation_data::holder(world).map_or(dexterity.base, |data| {
-        let (add, multiply) = crate::mutations::enchantment_values(world, entity, &data, "DEXTERITY");
+        let (add, multiply) =
+            crate::mutations::enchantment_values(world, entity, &data, "DEXTERITY");
         #[allow(clippy::cast_possible_truncation)]
         let value =
             crate::mutations::apply_enchantments(f64::from(dexterity.base), add, multiply) as i32;
@@ -1304,13 +1365,14 @@ pub fn butchery_skill_levels(
         if levels.iter().any(|(each, _)| each == part) {
             continue;
         }
-        let named: Vec<(String, i32)> = crate::harvest_skills::skills_for(world, part.drop_type_name())
-            .into_iter()
-            .map(|skill| {
-                let level = crate::skills_of::level_of(world, creature, &skill);
-                (skill, level)
-            })
-            .collect();
+        let named: Vec<(String, i32)> =
+            crate::harvest_skills::skills_for(world, part.drop_type_name())
+                .into_iter()
+                .map(|skill| {
+                    let level = crate::skills_of::level_of(world, creature, &skill);
+                    (skill, level)
+                })
+                .collect();
         levels.push((*part, crate::dissect_skill_level(&named, tool_quality)));
     }
     levels
@@ -1348,7 +1410,12 @@ pub fn effect_stat_bonus(world: &World, entity: Entity, argument: &str) -> i32 {
         let Some(kind) = crate::effect_registry::kind_named(world, &effect.id) else {
             continue;
         };
-        total += kind.mod_value(argument, cdda_content::effects::ModAction::Min, 0, effect.intensity);
+        total += kind.mod_value(
+            argument,
+            cdda_content::effects::ModAction::Min,
+            0,
+            effect.intensity,
+        );
     }
     #[allow(clippy::cast_possible_truncation)]
     let total = total as i32;
@@ -1380,7 +1447,11 @@ pub fn pick_up_in_store(world: &mut World, creature: Entity, item: Entity) -> Pi
     let names = crate::item_registry::snapshot(world);
     let held = crate::inventory::weight_carried(world, creature, &names);
     let this = names.weight_of(kind)
-        * i64::from(world.get::<crate::GroundItem>(item).map_or(1, |held| held.charges.max(1)));
+        * i64::from(
+            world
+                .get::<crate::GroundItem>(item)
+                .map_or(1, |held| held.charges.max(1)),
+        );
     if held + this > carrying_capacity(world, creature) {
         return Picked::TooHeavy;
     }
@@ -1392,9 +1463,7 @@ pub fn pick_up_in_store(world: &mut World, creature: Entity, item: Entity) -> Pi
     };
     let picked = pick_up(world, creature, item, volume);
     if picked == Picked::Taken {
-        world
-            .entity_mut(item)
-            .insert(InPocket { worn, index });
+        world.entity_mut(item).insert(InPocket { worn, index });
     }
     picked
 }
@@ -1427,10 +1496,16 @@ pub fn pick_up(world: &mut World, creature: Entity, item: Entity, volume_ml: i32
     if world.get::<Carried>(item).is_some() {
         return Picked::AlreadyCarried;
     }
-    let Some(here) = world.get::<Position>(creature).map(|place| (place.x, place.y, place.z)) else {
+    let Some(here) = world
+        .get::<Position>(creature)
+        .map(|place| (place.x, place.y, place.z))
+    else {
         return Picked::NotHere;
     };
-    let Some(there) = world.get::<Position>(item).map(|place| (place.x, place.y, place.z)) else {
+    let Some(there) = world
+        .get::<Position>(item)
+        .map(|place| (place.x, place.y, place.z))
+    else {
         return Picked::NotHere;
     };
     if here != there {
@@ -1541,13 +1616,21 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
             if crossed > 0 && left > 0 {
                 let names = crate::item_registry::snapshot(world);
                 let crossed = i32::try_from(crossed).unwrap_or(0);
-                crate::crafting::spend_craft_charges(world, creature, &making.recipe, making.batch, &names, crossed);
+                crate::crafting::spend_craft_charges(
+                    world,
+                    creature,
+                    &making.recipe,
+                    making.batch,
+                    &names,
+                    crossed,
+                );
             }
             // Reference: `craft_activity_actor::do_turn` (`activity_actor.cpp:4299-4320`) - when the work passes the point the crafter's own roll picked, the craft
             // is checked: components can be destroyed, progress lost, and a craft that loses every component **ends**. The check runs on the same turn as the work,
             // because a failure is something that happens while making the thing rather than after it.
             if !making.recipe.skill.is_empty() || !making.recipe.components.is_empty() {
-                let counter = i64::from(done_now) * 10_000_000 / i64::from(doing.moves_total.max(1));
+                let counter =
+                    i64::from(done_now) * 10_000_000 / i64::from(doing.moves_total.max(1));
                 // A point of zero is **a check that was never placed**: a world with no dice rolls nothing, so the craft could not pick where its next check falls. It
                 // is not "check immediately" - treating it that way made every craft in a diceless test fail on its first turn.
                 if making.next_failure_point > 0
@@ -1555,15 +1638,24 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
                     && counter >= making.next_failure_point
                 {
                     let names = crate::item_registry::snapshot(world);
-                    let failure = crate::craft_roll::handle_failure(world, creature, &making.recipe, counter, &names);
+                    let failure = crate::craft_roll::handle_failure(
+                        world,
+                        creature,
+                        &making.recipe,
+                        counter,
+                        &names,
+                    );
                     if failure.catastrophic {
                         // Reference: a catastrophic failure ends the craft (`:4324-4340`), so the activity and the making both go.
-                        world.entity_mut(creature).remove::<crate::crafting::Making>();
+                        world
+                            .entity_mut(creature)
+                            .remove::<crate::crafting::Making>();
                         world.entity_mut(creature).remove::<Doing>();
                         return true;
                     }
                     #[allow(clippy::cast_possible_truncation)]
-                    let lost = (failure.progress_lost * i64::from(doing.moves_total) / 10_000_000) as i32;
+                    let lost =
+                        (failure.progress_lost * i64::from(doing.moves_total) / 10_000_000) as i32;
                     lost_moves = lost.max(0);
                     // The next check is placed from the progress the craft fell back to, which is what stops a failure from being re-checked every turn.
                     let after = i64::from(doing.moves_total - lost_moves.max(0)) * 10_000_000
@@ -1574,7 +1666,8 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
                     );
                     let roll = crate::craft_roll::success_roll(world, data);
                     if let Some(mut making) = world.get_mut::<crate::crafting::Making>(creature) {
-                        making.next_failure_point = crate::craft_roll::next_failure_point(after, roll);
+                        making.next_failure_point =
+                            crate::craft_roll::next_failure_point(after, roll);
                     }
                 }
             }
@@ -1584,7 +1677,13 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
                     // **The recipe answers its own cap**: a practice recipe stops at its `skill_limit - 1`, an ordinary one at `difficulty * 1.25`
                     // (`recipe.cpp:70-77`). Asking the difficulty directly would let a practice recipe train past the limit its own data sets.
                     let cap = making.recipe.teaching_cap();
-                    let _ = crate::skills_of::practice(world, creature, &making.recipe.skill, ticks, cap);
+                    let _ = crate::skills_of::practice(
+                        world,
+                        creature,
+                        &making.recipe.skill,
+                        ticks,
+                        cap,
+                    );
                 }
             }
         }
@@ -1696,8 +1795,8 @@ pub fn damage_worn(world: &mut World, item: Entity, blow: &GarmentBlow) -> Struc
     if blow.fraction >= chance {
         return Struck::Untouched;
     }
-    let damage = world.get::<Wear>(item).map_or(0, |wear| wear.damage)
-        + cdda_content::armour::DAMAGE_SCALE;
+    let damage =
+        world.get::<Wear>(item).map_or(0, |wear| wear.damage) + cdda_content::armour::DAMAGE_SCALE;
     if damage > cdda_content::armour::DAMAGE_MAX {
         world.despawn(item);
         dress(world);
@@ -1785,10 +1884,7 @@ pub fn settle_armour(
             .map(|(covered, _)| covered.clone())
             .collect::<std::collections::BTreeSet<_>>()
             .len();
-        let toughness = world
-            .get::<Toughness>(item)
-            .copied()
-            .unwrap_or_default();
+        let toughness = world.get::<Toughness>(item).copied().unwrap_or_default();
         if toughness.unbreakable {
             continue;
         }
@@ -1991,7 +2087,8 @@ pub fn dress(world: &mut World) {
     };
     for wearer in wearers {
         // **A tenths table per part and per damage type**, because a garment's figure for bash and its figure for cut are different numbers (`material_type::resist`).
-        let mut tenths_of: std::collections::BTreeMap<(String, String), i32> = std::collections::BTreeMap::new();
+        let mut tenths_of: std::collections::BTreeMap<(String, String), i32> =
+            std::collections::BTreeMap::new();
         for (owner, layers, level) in &worn {
             if *owner != wearer {
                 continue;
@@ -2003,7 +2100,9 @@ pub fn dress(world: &mut World) {
                 // layer as it is added would throw away the difference between one shirt and three.
                 #[allow(clippy::cast_possible_truncation)]
                 let tenths =
-                    (cdda_content::armour::resist_as_worn(std::slice::from_ref(layer), 0, *level) * 10.0).round() as i32;
+                    (cdda_content::armour::resist_as_worn(std::slice::from_ref(layer), 0, *level)
+                        * 10.0)
+                        .round() as i32;
                 *tenths_of
                     .entry((part.clone(), layer.damage_type.clone()))
                     .or_insert(0) += tenths;
@@ -2019,7 +2118,10 @@ pub fn dress(world: &mut World) {
                 std::collections::BTreeMap<String, i32>,
             > = std::collections::BTreeMap::new();
             for ((part, damage_type), tenths) in tenths_of {
-                armour.entry(part).or_default().insert(damage_type, tenths / 10);
+                armour
+                    .entry(part)
+                    .or_default()
+                    .insert(damage_type, tenths / 10);
             }
             world.entity_mut(wearer).insert(PartArmour(armour));
         }
@@ -2090,8 +2192,13 @@ pub struct Materials(pub std::collections::BTreeMap<String, i32>);
 
 /// What a creature is made of, or nothing if it carries no materials.
 #[must_use]
-pub fn materials_of(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity) -> std::collections::BTreeMap<String, i32> {
-    world.get::<Materials>(creature).map_or_else(std::collections::BTreeMap::new, |made| made.0.clone())
+pub fn materials_of(
+    world: &bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+) -> std::collections::BTreeMap<String, i32> {
+    world
+        .get::<Materials>(creature)
+        .map_or_else(std::collections::BTreeMap::new, |made| made.0.clone())
 }
 
 /// Spawns a monster of a data type, carrying what it is made of.
@@ -2112,7 +2219,9 @@ pub fn spawn_monster_of_type(
             .insert(Species(monster_type.species.clone()));
     }
     if !monster_type.materials.is_empty() {
-        world.entity_mut(entity).insert(Materials(monster_type.materials.clone()));
+        world
+            .entity_mut(entity)
+            .insert(Materials(monster_type.materials.clone()));
     }
     set_kind(world, entity, kind);
     set_health(world, entity, monster_type.hp);
@@ -2163,11 +2272,7 @@ pub fn spawn_monster_of_type(
         ));
     // Reference: `monster::regenerate` reads the type's flags, hit points and materials every turn (`monster.cpp:4094-4103`); the port decides the rate once, here, because
     // none of those three can change under a monster that has already been placed.
-    let materials: Vec<&str> = monster_type
-        .materials
-        .keys()
-        .map(String::as_str)
-        .collect();
+    let materials: Vec<&str> = monster_type.materials.keys().map(String::as_str).collect();
     let rate = crate::regeneration::mending_per_hour(
         monster_type.hp,
         monster_type.flags.contains("REVIVES"),
@@ -2181,7 +2286,7 @@ pub fn spawn_monster_of_type(
             per_hour: rate,
             type_speed: monster_type.speed,
             type_hp: monster_type.hp,
-        in_dark: false,
+            in_dark: false,
         });
     if let Some(size) = size_named(&monster_type.size)
         && let Some(mut creature) = world.get_mut::<Creature>(entity)
@@ -2283,7 +2388,17 @@ pub fn reap_dead_creatures_as_corpses(
     corpse_kind: crate::ItemTypeId,
     volume_of: impl Fn(crate::MonsterKindId) -> i64,
 ) -> usize {
-    type Dead = (Entity, (i32, i32, i32), Option<crate::MonsterKindId>, bool, i32, i32, bool, bool, bool);
+    type Dead = (
+        Entity,
+        (i32, i32, i32),
+        Option<crate::MonsterKindId>,
+        bool,
+        i32,
+        i32,
+        bool,
+        bool,
+        bool,
+    );
     let dead: Vec<Dead> = world
         .query::<(
             Entity,
@@ -2296,21 +2411,24 @@ pub fn reap_dead_creatures_as_corpses(
         )>()
         .iter(world)
         .filter(|(_, health, _, _, _, _, _)| health.hp <= 0)
-        .map(|(entity, health, position, kind, flags, phantom, quiet_corpse)| {
-            (
-                entity,
-                (position.x, position.y, position.z),
-                kind.map(|kind| kind.0),
-                flags.is_some_and(|carried| carried.0.contains("REVIVES")),
-                health.hp,
-                health.max_hp,
-                phantom.is_some(),
-                flags.is_some_and(|carried| carried.0.contains("QUIETDEATH")),
-                quiet_corpse.is_some(),
-            )
-        })
+        .map(
+            |(entity, health, position, kind, flags, phantom, quiet_corpse)| {
+                (
+                    entity,
+                    (position.x, position.y, position.z),
+                    kind.map(|kind| kind.0),
+                    flags.is_some_and(|carried| carried.0.contains("REVIVES")),
+                    health.hp,
+                    health.max_hp,
+                    phantom.is_some(),
+                    flags.is_some_and(|carried| carried.0.contains("QUIETDEATH")),
+                    quiet_corpse.is_some(),
+                )
+            },
+        )
         .collect();
-    for (entity, square, kind, revives, hp, max_hp, phantom, quiet_death, no_corpse_quiet) in &dead {
+    for (entity, square, kind, revives, hp, max_hp, phantom, quiet_death, no_corpse_quiet) in &dead
+    {
         // Reference: `if( death_drops && !no_extra_death_drops )` (`monster.cpp:3126`) - a body told to leave no extra loot leaves none, and still leaves its corpse. Read here,
         // at the top of the body's turn, so that everything the death goes on to do cannot change the answer halfway.
         let leave_loot = world.get::<NoExtraDeathDrops>(*entity).is_none();
@@ -2322,7 +2440,12 @@ pub fn reap_dead_creatures_as_corpses(
             let families = crate::monster_registry::families_of(world, *kind);
             if !families.is_empty() {
                 // The port has no proficiency table, so no proficiency can be **learned** by a kill yet: the practice accrues and the learning waits for the data. Named in `docs/parity.md`.
-                drop(crate::proficiencies::practise_a_kill(world, killer, &families, &|_| 0));
+                drop(crate::proficiencies::practise_a_kill(
+                    world,
+                    killer,
+                    &families,
+                    &|_| 0,
+                ));
             }
         }
         crate::singletons::index_mut(world).remove(*entity, *square);
@@ -2408,11 +2531,17 @@ pub fn reap_dead_creatures_as_corpses(
             // leaves nothing at all, because a colour it does not know is not one it may invent.
             let blood = crate::monster_registry::blood_of(world, *kind);
             let gibs = crate::monster_registry::gibs_of(world, *kind);
-            if let Some(field) = blood.as_deref().and_then(|name| crate::field_registry::id_of(world, name)) {
+            if let Some(field) = blood
+                .as_deref()
+                .and_then(|name| crate::field_registry::id_of(world, name))
+            {
                 crate::add_field_strength(world, *square, field, 1);
             }
             if matches!(remains, DeathRemains::Pulverized) {
-                if let Some(field) = gibs.as_deref().and_then(|name| crate::field_registry::id_of(world, name)) {
+                if let Some(field) = gibs
+                    .as_deref()
+                    .and_then(|name| crate::field_registry::id_of(world, name))
+                {
                     let scattered = gib_count(corpse_damage(*hp, *max_hp), *max_hp).max(1);
                     for _ in 0..scattered {
                         crate::add_field_strength(world, *square, field, 1);
@@ -2456,17 +2585,25 @@ pub struct CorpseKind {
 pub struct TheCorpseKind;
 
 /// Installs what a corpse is, replacing whatever was there.
-pub fn set_corpse_kind(world: &mut World, item: crate::ItemTypeId, volumes_ml: std::collections::BTreeMap<crate::MonsterKindId, i64>) {
+pub fn set_corpse_kind(
+    world: &mut World,
+    item: crate::ItemTypeId,
+    volumes_ml: std::collections::BTreeMap<crate::MonsterKindId, i64>,
+) {
     let entity = crate::singletons::singleton::<CorpseKind, TheCorpseKind>(world);
-    world.entity_mut(entity).insert(CorpseKind {
-        item,
-        volumes_ml,
-    });
+    world
+        .entity_mut(entity)
+        .insert(CorpseKind { item, volumes_ml });
 }
 
 /// What a corpse is in this world, if the content has said.
 #[must_use]
-pub fn corpse_kind(world: &World) -> Option<(crate::ItemTypeId, std::collections::BTreeMap<crate::MonsterKindId, i64>)> {
+pub fn corpse_kind(
+    world: &World,
+) -> Option<(
+    crate::ItemTypeId,
+    std::collections::BTreeMap<crate::MonsterKindId, i64>,
+)> {
     crate::singletons::holder::<TheCorpseKind>(world)
         .and_then(|holder| world.get::<CorpseKind>(holder))
         .map(|kind| (kind.item, kind.volumes_ml.clone()))
@@ -2502,7 +2639,9 @@ pub fn revive_corpses(
         .collect();
     let mut risen = 0;
     for (corpse, kind, square, died_on) in candidates {
-        let Ok(hours) = i32::try_from((now - died_on) / i64::from(crate::regeneration::TURNS_PER_HOUR)) else {
+        let Ok(hours) =
+            i32::try_from((now - died_on) / i64::from(crate::regeneration::TURNS_PER_HOUR))
+        else {
             continue;
         };
         let Some(mut rolls) = crate::singletons::take_rolls(world) else {
@@ -2591,7 +2730,10 @@ pub fn take_turns(world: &mut World) {
     // yet expired this turn. Reference: `Character::process_turn` processes effects at the start of the character's turn
     // (`character.cpp:3930-3960`), and `Creature::process_effects` is what does it.
     let wearing: Vec<Entity> = world
-        .query_filtered::<Entity, (With<crate::creature::Creature>, With<crate::applied_effects::AppliedEffects>)>()
+        .query_filtered::<Entity, (
+            With<crate::creature::Creature>,
+            With<crate::applied_effects::AppliedEffects>,
+        )>()
         .iter(world)
         .collect();
     for creature in wearing {
@@ -2651,7 +2793,10 @@ pub fn take_turns(world: &mut World) {
         // farthest from the survivor. `Goal` is left in place, because a monster that recovers its nerve should carry on where it was headed.
         let goal = fleeing_from_a_scared_monster(world, entity).unwrap_or(goal);
         let outcome = crate::routing::walk_towards(world, entity, goal, bounds);
-        if matches!(outcome, crate::routing::Walk::Arrived | crate::routing::Walk::NoRoute) {
+        if matches!(
+            outcome,
+            crate::routing::Walk::Arrived | crate::routing::Walk::NoRoute
+        ) {
             if is_goal {
                 world.entity_mut(entity).remove::<Goal>();
             } else {
@@ -2684,19 +2829,31 @@ pub fn cornered_fighters_lose_their_nerve(world: &mut World) {
     // 1128's bug), and `With<Creature>` alone finds the survivor as well - which made every cornered fighter within two squares of the player spooked whatever it thought of them (round
     // 1130's). The survivor has its own branch, further down, with an attitude test of its own.
     let neighbours: Vec<(Entity, (i32, i32, i32))> = world
-        .query_filtered::<(Entity, &Position), (bevy_ecs::prelude::With<Creature>, bevy_ecs::prelude::Without<crate::Player>)>()
+        .query_filtered::<(Entity, &Position), (
+            bevy_ecs::prelude::With<Creature>,
+            bevy_ecs::prelude::Without<crate::Player>,
+        )>()
         .iter(world)
         .map(|(entity, place)| (entity, (place.x, place.y, place.z)))
         .collect();
     let cornered: Vec<(Entity, (i32, i32, i32))> = world
-        .query::<(Entity, &Position, &Morale, &crate::creature_flags::CreatureFlags)>()
+        .query::<(
+            Entity,
+            &Position,
+            &Morale,
+            &crate::creature_flags::CreatureFlags,
+        )>()
         .iter(world)
         .filter(|(_, _, morale, flags)| morale.0 <= 0 && flags.0.contains("CORNERED_FIGHTER"))
         .map(|(entity, place, _, _)| (entity, (place.x, place.y, place.z)))
         .collect();
     let survivor = {
-        let mut query = world.query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
-        query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
+        let mut query =
+            world.query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
+        query
+            .iter(world)
+            .next()
+            .map(|(_, place)| (place.x, place.y, place.z))
     };
     for (entity, here) in cornered {
         // `points_in_radius( pos, 2 )` is a square radius, so both axes are compared the same way.
@@ -2744,7 +2901,11 @@ pub fn cornered_fighters_lose_their_nerve(world: &mut World) {
             }
             continue;
         }
-        crate::applied_effects::add(world, entity, crate::effects::ActiveEffect::new(&spooked, 3, 1));
+        crate::applied_effects::add(
+            world,
+            entity,
+            crate::effects::ActiveEffect::new(&spooked, 3, 1),
+        );
         crate::applied_effects::add(
             world,
             entity,
@@ -2759,8 +2920,12 @@ pub fn cornered_fighters_lose_their_nerve(world: &mut World) {
 /// decides whether anything happens. The survivor's position is asked for once here rather than per creature, because `is_fleeing` is the only thing that needs it.
 pub fn regen_everyones_nerve(world: &mut World) {
     let survivor = {
-        let mut query = world.query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
-        query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
+        let mut query =
+            world.query_filtered::<(Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
+        query
+            .iter(world)
+            .next()
+            .map(|(_, place)| (place.x, place.y, place.z))
     };
     let ready: Vec<Nerves> = world
         .query::<(Entity, &Morale, &Anger, &Nerve, &Health, &Position)>()
@@ -2799,9 +2964,16 @@ pub fn regen_everyones_nerve(world: &mut World) {
             continue;
         };
         let (drifted, drift_anger) = {
-            let morale = world.get::<Morale>(entity).map_or(next_morale, |morale| morale.0);
-            let anger = world.get::<Anger>(entity).map_or(next_anger, |anger| anger.0);
-            (drift_morale(morale, nerve.morale, &mut rolls), drift_morale(anger, nerve.anger, &mut rolls))
+            let morale = world
+                .get::<Morale>(entity)
+                .map_or(next_morale, |morale| morale.0);
+            let anger = world
+                .get::<Anger>(entity)
+                .map_or(next_anger, |anger| anger.0);
+            (
+                drift_morale(morale, nerve.morale, &mut rolls),
+                drift_morale(anger, nerve.anger, &mut rolls),
+            )
         };
         crate::singletons::put_rolls(world, rolls);
         if drifted != next_morale
@@ -2824,12 +2996,17 @@ pub fn regen_everyones_nerve(world: &mut World) {
 #[must_use]
 pub fn fleeing_creatures(world: &mut World) -> Vec<(Entity, (i32, i32, i32))> {
     let candidates: Vec<Entity> = world
-        .query_filtered::<Entity, (bevy_ecs::prelude::With<Morale>, bevy_ecs::prelude::With<Anger>)>()
+        .query_filtered::<Entity, (
+            bevy_ecs::prelude::With<Morale>,
+            bevy_ecs::prelude::With<Anger>,
+        )>()
         .iter(world)
         .collect();
     candidates
         .into_iter()
-        .filter_map(|entity| fleeing_from_a_scared_monster(world, entity).map(|square| (entity, square)))
+        .filter_map(|entity| {
+            fleeing_from_a_scared_monster(world, entity).map(|square| (entity, square))
+        })
         .collect()
 }
 
@@ -2850,13 +3027,17 @@ fn fleeing_from_a_scared_monster(world: &mut World, entity: Entity) -> Option<(i
     };
     let survivor = {
         let mut query = world.query_filtered::<(bevy_ecs::prelude::Entity, &Position), bevy_ecs::prelude::With<crate::Player>>();
-        query.iter(world).next().map(|(_, place)| (place.x, place.y, place.z))
+        query
+            .iter(world)
+            .next()
+            .map(|(_, place)| (place.x, place.y, place.z))
     }?;
     // Reference: `monster::is_fleeing`'s first line answers from the effect cache (`monster.cpp:1610`), which is what `spooked` sets - so a spooked monster runs whatever its morale says.
     if crate::applied_effects::has(world, entity, "spooked") {
         return Some(flee_goal(here, survivor));
     }
-    let distance = (here.0 - survivor.0).abs() + (here.1 - survivor.1).abs() + (here.2 - survivor.2).abs();
+    let distance =
+        (here.0 - survivor.0).abs() + (here.1 - survivor.1).abs() + (here.2 - survivor.2).abs();
     if !is_fleeing(hp, max_hp, morale, anger, distance) {
         return None;
     }
@@ -2868,7 +3049,9 @@ fn fleeing_from_a_scared_monster(world: &mut World, entity: Entity) -> Option<(i
 /// Returns whether a blow was swung, which is what decides between attacking and walking. The defence comes
 /// from the target's own components - its size, its armour, and the fact that nothing here is immobile.
 fn strike_what_the_goal_holds(world: &mut World, attacker: Entity, goal: (i32, i32, i32)) -> bool {
-    let Some(place) = world.get::<Position>(attacker).map(|place| (place.x, place.y, place.z))
+    let Some(place) = world
+        .get::<Position>(attacker)
+        .map(|place| (place.x, place.y, place.z))
     else {
         return false;
     };
@@ -2892,7 +3075,9 @@ pub fn strike_at(world: &mut World, attacker: Entity, victim: Entity) -> Option<
     let attack = world.get::<MeleeAttack>(attacker).copied()?;
     // Reference: a blow is charged to the attacker **before** it is thrown, hit or miss (`monster::melee_attack`, `monster.cpp:2108`), which is what stops a fast monster
     // swinging for ever and what makes walking and swinging cost the same purse.
-    let cost = world.get::<AttackCost>(attacker).map_or(0, |carried| carried.0);
+    let cost = world
+        .get::<AttackCost>(attacker)
+        .map_or(0, |carried| carried.0);
     spend_moves(world, attacker, f64::from(cost));
     // Reference: `monster::melee_attack` returns as soon as it has been charged if the type states no dice - `if( type->melee_dice == 0 ) { return true; }`
     // (`monster.cpp:2128-2131`). **The dice count is the type's permission to hurt anyone at all**: a type with a flat part and no dice does nothing, which is true of five
@@ -3100,7 +3285,11 @@ pub fn attitude(hp: i32, max_hp: i32, morale: i32, anger: i32) -> Attitude {
     if anger <= 0 {
         #[allow(clippy::cast_precision_loss)]
         let hurt = f64::from(hp) <= 0.6 * f64::from(max_hp);
-        return if hurt { Attitude::Flee } else { Attitude::Ignore };
+        return if hurt {
+            Attitude::Flee
+        } else {
+            Attitude::Ignore
+        };
     }
     if anger < 10 {
         return Attitude::Follow;
@@ -3180,9 +3369,7 @@ pub fn spend_stamina(world: &mut World, entity: Entity, amount: i32) {
     if let Some(mut stamina) = world.get_mut::<Stamina>(entity) {
         stamina.cur = raw.clamp(0.0, stamina.max);
     }
-    if winded
-        && let Some(kind) = crate::effect_registry::kind_of(world, "winded")
-    {
+    if winded && let Some(kind) = crate::effect_registry::kind_of(world, "winded") {
         crate::applied_effects::add(
             world,
             entity,
@@ -3262,7 +3449,9 @@ pub struct WieldedDamage(pub i32);
 /// How damaged the thing in the hand is, in thousandths.
 #[must_use]
 pub fn wielded_damage(world: &World, holder: Entity) -> i32 {
-    world.get::<WieldedDamage>(holder).map_or(0, |damage| damage.0)
+    world
+        .get::<WieldedDamage>(holder)
+        .map_or(0, |damage| damage.0)
 }
 
 /// What a character swings with, worked out from what it holds.
@@ -3312,7 +3501,11 @@ pub fn blow_from_what_the_character_holds(world: &World, holder: Entity) -> crat
 ///
 /// This is the avatar's half of the fight: the same `strike_with` a monster's blow goes through, fed by `blow_from_what_the_character_holds` instead of a `MeleeAttack` component.
 #[allow(clippy::too_many_lines)]
-pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim: Entity) -> Option<i32> {
+pub fn swing_what_the_character_holds(
+    world: &mut World,
+    holder: Entity,
+    victim: Entity,
+) -> Option<i32> {
     let attack = blow_from_what_the_character_holds(world, holder);
     // Reference: `Character::melee_attack` works out `move_cost = attack_speed( cur_weap )` and charges it whatever the outcome (`melee.cpp:628`), which is why a fast weapon is
     // worth carrying and why swinging while exhausted costs twice as much. The port reads the same three inputs it can: the weapon's own time, the melee skill, and dexterity.
@@ -3355,11 +3548,17 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     // Reference: the multiplier comes from the weapon's own categories and the proficiencies the swinger knows (`melee.cpp:979-995`), which is the last of the cost's three inputs.
     let wielded_kind = world.get::<Wielding>(holder).map(|carried| carried.0);
     // Reference: an empty hand is the `UNARMED` weapon category (`melee.cpp:571-572`), so the swing asks with `None` rather than skipping the rule.
-    let proficiency_multiplier = crate::proficiencies::swing_multiplier(world, holder, wielded_kind);
+    let proficiency_multiplier =
+        crate::proficiencies::swing_multiplier(world, holder, wielded_kind);
     spend_stamina(
         world,
         holder,
-        crate::melee::stamina_cost(weight, skill, crate::melee::stance_malus(stance), proficiency_multiplier),
+        crate::melee::stamina_cost(
+            weight,
+            skill,
+            crate::melee::stance_malus(stance),
+            proficiency_multiplier,
+        ),
     );
     let stamina = stamina_ratio(world, holder);
     // The stance the swing is made in: the same one the stamina rule reads, so a blow from the floor costs more moves **and** more wind.
@@ -3370,7 +3569,10 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
     {
         // **A fighter with no style draws nothing**, which is the reference's own `random_entry` over an empty list: it answers the default without touching the dice. Drawing anyway would
         // shift every later roll for a blow that could not have made a move.
-        let chosen = if world.get::<crate::martial_arts::Practising>(holder).is_some() {
+        let chosen = if world
+            .get::<crate::martial_arts::Practising>(holder)
+            .is_some()
+        {
             let moment = crate::martial_arts::Moment::ordinary();
             let roll = match crate::singletons::take_rolls(world) {
                 Some(mut dice) => {
@@ -3406,21 +3608,22 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
         } else {
             crate::martial_arts_vectors::aim_with_roll(world, holder, &vectors)
         };
-        world
-            .entity_mut(holder)
-            .insert((crate::martial_arts::LastMove(chosen), crate::martial_arts_vectors::LastAim(aim)));
+        world.entity_mut(holder).insert((
+            crate::martial_arts::LastMove(chosen),
+            crate::martial_arts_vectors::LastAim(aim),
+        ));
     }
     let crit_inputs = crit_inputs_of(world, holder);
     // Reference: the attacker's half of a weak point is `generic_weakpoint_skill` - the weapon's skill and melee averaged, the stat bonus, and the vision and reaction figures as a multiplier
     // (`weakpoint.cpp:82-90`) - which a monster answers with its melee skill alone (`monster.cpp:76-79`).
     let weak_point_skill = crate::weakpoints::skill_with_families(
         crate::weakpoints::attacker_skill(
-        f64::from(weapon_skill_level(world, holder)),
-        f64::from(skill),
-        effective_dexterity(world, holder),
-        effective_perception(world, holder),
-        limb_score(world, holder, "vision"),
-        limb_score(world, holder, "reaction"),
+            f64::from(weapon_skill_level(world, holder)),
+            f64::from(skill),
+            effective_dexterity(world, holder),
+            effective_perception(world, holder),
+            limb_score(world, holder, "vision"),
+            limb_score(world, holder, "reaction"),
         ),
         // Reference: the **target's** families are the last term of the attacker's skill (`weakpoint.cpp:401-409`).
         world
@@ -3428,7 +3631,14 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
             .map_or(&[][..], |weak| weak.families.as_slice()),
         &|proficiency| crate::proficiencies::knows(world, holder, proficiency),
     );
-    let dealt = strike_with(world, victim, attack, crit_inputs.as_ref(), weak_point_skill, Some(holder));
+    let dealt = strike_with(
+        world,
+        victim,
+        attack,
+        crit_inputs.as_ref(),
+        weak_point_skill,
+        Some(holder),
+    );
     // Reference: the technique's own effects run **after** the damage (`melee.cpp:1759-1785`), because `on_damage` asks whether the blow drew blood. The move was picked before the strike; this is
     // the other half of that choice, and it lands nothing when the move was never made.
     if let (Some(move_id), Some(damage)) = (
@@ -3448,7 +3658,9 @@ pub fn swing_what_the_character_holds(world: &mut World, holder: Entity, victim:
                     .map(|technique| technique.movement.clone())
             });
         if let Some(movement) = movement {
-            drop(crate::martial_arts::apply_move(world, victim, &movement, damage));
+            drop(crate::martial_arts::apply_move(
+                world, victim, &movement, damage,
+            ));
         }
     }
     // Reference: `monster::deal_damage`'s last line before the enchantments - `type->families.practice_hit( *attacker )` (`monster.cpp:3888-3892`) - which teaches the attacker what the body it
@@ -3521,11 +3733,14 @@ fn strike_with(
         weak_point_skill,
         &mut rolls,
     );
-    let landed_on = world.get::<Body>(victim).map(|body| body.parts.clone()).and_then(|parts| {
-        let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
-        crate::hit_location::struck_part(&parts, spread, false, fraction)
-            .map(|part| part.name.clone())
-    });
+    let landed_on = world
+        .get::<Body>(victim)
+        .map(|body| body.parts.clone())
+        .and_then(|parts| {
+            let fraction = f64::from(rolls.rng_bits()) / f64::from(u32::MAX);
+            crate::hit_location::struck_part(&parts, spread, false, fraction)
+                .map(|part| part.name.clone())
+        });
     // **Each damage type meets its own figure.** Reference: `Creature::deal_melee_hit` hands the whole blow to `absorb_hit`, which walks its `damage_units` and asks
     // `get_armor_type( dt, bp )` for each unit's own type (`character_armor.cpp:70-86`) - so a coat's five against a blade is worth five to the cut and none of it to the bash. The
     // port asked one figure for all three types until round 1480, which made a stated cut figure decide nothing.
@@ -3548,7 +3763,8 @@ fn strike_with(
         stab_resist,
         ..defence
     };
-    let rolled = crate::melee::monster_melee_damage(&mut rolls, attack.fixed, attack.dice, attack.sides);
+    let rolled =
+        crate::melee::monster_melee_damage(&mut rolls, attack.fixed, attack.dice, attack.sides);
     // Reference: `Character::melee_attack` asks `scored_crit( dodge, weap )` - one real against the chance `crit_chance` works out (`melee.cpp:1103-1106`) - and hands the answer to
     // `roll_all_damage( crit, ... )`, which sharpens each damage type by its own figure (`melee.cpp:1356-1373`). **The crit is rolled only for a blow that lands**; a miss has nothing to
     // sharpen, which is why the frame comes after the spread.
@@ -3561,13 +3777,19 @@ fn strike_with(
     // Reference: `crit_roll &= ret.wp->is_good && !ret.wp->id.empty()` (`creature.cpp:1147`) - **a weak point that hurts the monster takes the critical away**, however well the blow was struck.
     && found.as_ref().is_none_or(|weak| weak.helps_attacker && !weak.id.is_empty());
     // Reference: `roll_all_damage` reads `crit_mod = target->get_crit_factor( bp )` (`melee.cpp:467-470`), which is how much of the vitals the struck part's armour covers.
-    let crit_mod = landed_on
-        .as_deref()
-        .map_or(1.0, |part| crate::melee::crit_factor(vitals_cover_of(world, victim, part)));
+    let crit_mod = landed_on.as_deref().map_or(1.0, |part| {
+        crate::melee::crit_factor(vitals_cover_of(world, victim, part))
+    });
     let sharpened = if crit {
         crate::melee::Damage {
-            bash: sharpen(rolled.bash, crate::melee::crit_bonus(crate::melee::Kind::Bash, 0, crit_mod)),
-            cut: sharpen(rolled.cut, crate::melee::crit_bonus(crate::melee::Kind::Cut, 0, crit_mod)),
+            bash: sharpen(
+                rolled.bash,
+                crate::melee::crit_bonus(crate::melee::Kind::Bash, 0, crit_mod),
+            ),
+            cut: sharpen(
+                rolled.cut,
+                crate::melee::crit_bonus(crate::melee::Kind::Cut, 0, crit_mod),
+            ),
             stab: sharpen(
                 rolled.stab,
                 crate::melee::crit_bonus(
@@ -3585,7 +3807,11 @@ fn strike_with(
     // critical that ignores armour meets less of it. The port's `Defence` carries one figure per type, which is where the three bonuses land.
     let defence = if crit {
         let dull = |resist: f32, kind: crate::melee::Kind| {
-            let bonus = crate::melee::crit_bonus(kind, crit_for.map_or(0, |inputs| inputs.weapon_skill), crit_mod);
+            let bonus = crate::melee::crit_bonus(
+                kind,
+                crit_for.map_or(0, |inputs| inputs.weapon_skill),
+                crit_mod,
+            );
             crate::melee::armour_dulled(resist, bonus.arpen, bonus.armour)
         };
         crate::melee::Defence {
@@ -3603,7 +3829,11 @@ fn strike_with(
         Some(weak) => {
             let (bash, cut, stab) = crate::weakpoints::apply_to_blow(
                 &weak.factors,
-                (f64::from(sharpened.bash), f64::from(sharpened.cut), f64::from(sharpened.stab)),
+                (
+                    f64::from(sharpened.bash),
+                    f64::from(sharpened.cut),
+                    f64::from(sharpened.stab),
+                ),
                 crit,
             );
             #[allow(clippy::cast_possible_truncation)]
@@ -3615,7 +3845,11 @@ fn strike_with(
             };
             let (resist, cut_resist, stab_resist) = crate::weakpoints::apply_to_armour_triple(
                 &weak.factors,
-                (f64::from(defence.resist), f64::from(defence.cut_resist), f64::from(defence.stab_resist)),
+                (
+                    f64::from(defence.resist),
+                    f64::from(defence.cut_resist),
+                    f64::from(defence.stab_resist),
+                ),
             );
             #[allow(clippy::cast_possible_truncation)]
             let defence = crate::melee::Defence {
@@ -3737,7 +3971,9 @@ pub fn triggered_effects(
     weak: &crate::weakpoints::WeakPoint,
     damage: f32,
 ) {
-    let maximum = world.get::<Health>(victim).map_or(0, |health| health.max_hp);
+    let maximum = world
+        .get::<Health>(victim)
+        .map_or(0, |health| health.max_hp);
     #[allow(clippy::cast_possible_truncation)]
     let dealt = damage as i32;
     for effect in &weak.effects {
@@ -3835,7 +4071,11 @@ pub fn limb_score(world: &World, entity: Entity, name: &str) -> f64 {
                 .find(|(score, _, _)| score == name)
                 .map_or(0.0, |(_, value, _)| *value);
             let wound = wound_on(world, entity, &part.name);
-            crate::limbs::wound_adjusted_limb_value(figure, (part.base_hp - wound).max(0), part.base_hp)
+            crate::limbs::wound_adjusted_limb_value(
+                figure,
+                (part.base_hp - wound).max(0),
+                part.base_hp,
+            )
         })
         .sum();
     f64::from(total)
@@ -3868,7 +4108,10 @@ pub fn defence_of(world: &World, entity: Entity) -> crate::melee::Defence {
         if crate::creature_flags::has_flag(world, entity, "CANNOT_MOVE") {
             conditions.push("cannot_move");
         }
-        let base = crate::melee::monster_dodge(world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points), &conditions);
+        let base = crate::melee::monster_dodge(
+            world.get::<Dodge>(entity).map_or(0, |dodge| dodge.points),
+            &conditions,
+        );
         // Reference: the skates come **before** the speed penalty (`melee.cpp:1209-1214`), so a survivor on skates and slowed is worse than either. The flags are the three rollers the reference
         // names, and the trait is asked of the creature's own traits.
         // Reference: the dodge is multiplied by the **reaction** limb score (`melee.cpp:1229-1231`), which is the sum of the parts' own figures after the wound adjustment - a whole human's
@@ -4094,8 +4337,12 @@ pub fn has_wield_conflicts(world: &mut World, creature: Entity, item: Entity) ->
     let Some(held) = held else {
         return false;
     };
-    let held_kind = world.get::<crate::GroundItem>(held).map(|ground| ground.kind);
-    let item_kind = world.get::<crate::GroundItem>(item).map(|ground| ground.kind);
+    let held_kind = world
+        .get::<crate::GroundItem>(held)
+        .map(|ground| ground.kind);
+    let item_kind = world
+        .get::<crate::GroundItem>(item)
+        .map(|ground| ground.kind);
     held_kind != item_kind
 }
 
@@ -4115,9 +4362,17 @@ pub fn has_wield_conflicts(world: &mut World, creature: Entity, item: Entity) ->
 /// **The two messages are alternatives, not a sequence**: a fragile weapon that comes apart is never also reported as destroyed by the blow, which is the whole point of the branch. Survivors
 /// **stop being parts** - the port detaches them instead of dropping them on the map, and dropping them where the player stands is named as unported.
 #[must_use]
-pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, holder: Entity, name: &str) -> bool {
-    let kind = world.get::<crate::GroundItem>(weapon).map(|ground| ground.kind);
-    let fragile = kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "FRAGILE_MELEE"));
+pub fn break_apart_the_weapon(
+    world: &mut World,
+    weapon: Entity,
+    holder: Entity,
+    name: &str,
+) -> bool {
+    let kind = world
+        .get::<crate::GroundItem>(weapon)
+        .map(|ground| ground.kind);
+    let fragile = kind
+        .is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "FRAGILE_MELEE"));
     let parts = crate::item_parts::parts_of(world, weapon);
     if !fragile || parts.is_empty() {
         return false;
@@ -4125,16 +4380,28 @@ pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, holder: Entity,
     crate::messages::push(world, &format!("Your {name} breaks apart!"));
     let mut facts: Vec<(Entity, String, i32, i32)> = Vec::with_capacity(parts.len());
     for part in parts {
-        let Some(part_kind) = world.get::<crate::GroundItem>(part).map(|ground| ground.kind) else {
+        let Some(part_kind) = world
+            .get::<crate::GroundItem>(part)
+            .map(|ground| ground.kind)
+        else {
             continue;
         };
         let chip = crate::item_registry::chip_resistance_of(world, part_kind);
         let volume = crate::item_registry::volume_of(world, part_kind);
-        facts.push((part, crate::item_registry::name_of(world, part_kind).unwrap_or_default(), chip, volume));
+        facts.push((
+            part,
+            crate::item_registry::name_of(world, part_kind).unwrap_or_default(),
+            chip,
+            volume,
+        ));
     }
     let borrowed: Vec<crate::melee::PartFacts<'_>> = facts
         .iter()
-        .map(|(_, id, chip, volume)| crate::melee::PartFacts { kind: id.as_str(), chip_resistance: *chip, volume_ml: *volume })
+        .map(|(_, id, chip, volume)| crate::melee::PartFacts {
+            kind: id.as_str(),
+            chip_resistance: *chip,
+            volume_ml: *volume,
+        })
         .collect();
     let (weak, big) = crate::melee::weak_and_big_parts(&borrowed);
     let weak = weak.map(str::to_owned);
@@ -4144,7 +4411,11 @@ pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, holder: Entity,
     };
     let mut lost = Vec::new();
     for (part, id, _, _) in &facts {
-        let chance = if weak.as_deref() == Some(id.as_str()) { 2 } else { 8 };
+        let chance = if weak.as_deref() == Some(id.as_str()) {
+            2
+        } else {
+            8
+        };
         if rolls.one_in(chance) {
             lost.push(*part);
         }
@@ -4156,16 +4427,22 @@ pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, holder: Entity,
             world.entity_mut(*part).despawn();
         } else {
             // A survivor is nobody's part any more: the plainest honest port of "drop it", with the map placement named as unported.
-            world.entity_mut(*part).remove::<crate::item_parts::PartOf>();
+            world
+                .entity_mut(*part)
+                .remove::<crate::item_parts::PartOf>();
         }
     }
     world.entity_mut(weapon).despawn();
     // Reference: **the biggest survivor goes into the hand** when the hand takes it (`melee.cpp:327-330`). The hand is free by now - the weapon that held the part has just been destroyed - so the
     // only thing that can refuse is the item itself, which is what `has_wield_conflicts` answers.
     if let Some(big_kind) = big
-        && let Some((survivor, _, _, _)) = facts.iter().find(|(part, id, _, _)| world.get_entity(*part).is_ok() && big_kind == *id)
+        && let Some((survivor, _, _, _)) = facts
+            .iter()
+            .find(|(part, id, _, _)| world.get_entity(*part).is_ok() && big_kind == *id)
         && !has_wield_conflicts(world, holder, *survivor)
-        && let Some(survivor_kind) = world.get::<crate::GroundItem>(*survivor).map(|ground| ground.kind)
+        && let Some(survivor_kind) = world
+            .get::<crate::GroundItem>(*survivor)
+            .map(|ground| ground.kind)
     {
         let volume_ml = crate::item_registry::volume_of(world, survivor_kind);
         world.entity_mut(*survivor).insert(Carried(holder));
@@ -4180,7 +4457,10 @@ pub fn break_apart_the_weapon(world: &mut World, weapon: Entity, holder: Entity,
 /// list read and every other weapon does not - so the function says which of the two it answered.
 #[must_use]
 pub fn weapon_material_factor(world: &mut World, weapon: Entity) -> f64 {
-    let Some(kind) = world.get::<crate::GroundItem>(weapon).map(|ground| ground.kind) else {
+    let Some(kind) = world
+        .get::<crate::GroundItem>(weapon)
+        .map(|ground| ground.kind)
+    else {
         return f64::from(2);
     };
     let own = f64::from(crate::item_registry::chip_resistance_of(world, kind));
@@ -4190,16 +4470,27 @@ pub fn weapon_material_factor(world: &mut World, weapon: Entity) -> f64 {
     let parts = crate::item_parts::parts_of(world, weapon);
     let mut owned: Vec<(String, i32, i32)> = Vec::with_capacity(parts.len());
     for part in parts {
-        let Some(part_kind) = world.get::<crate::GroundItem>(part).map(|ground| ground.kind) else {
+        let Some(part_kind) = world
+            .get::<crate::GroundItem>(part)
+            .map(|ground| ground.kind)
+        else {
             continue;
         };
         let chip = crate::item_registry::chip_resistance_of(world, part_kind);
         let volume = crate::item_registry::volume_of(world, part_kind);
-        owned.push((crate::item_registry::name_of(world, part_kind).unwrap_or_default(), chip, volume));
+        owned.push((
+            crate::item_registry::name_of(world, part_kind).unwrap_or_default(),
+            chip,
+            volume,
+        ));
     }
     let borrowed: Vec<crate::melee::PartFacts<'_>> = owned
         .iter()
-        .map(|(name, chip, volume)| crate::melee::PartFacts { kind: name.as_str(), chip_resistance: *chip, volume_ml: *volume })
+        .map(|(name, chip, volume)| crate::melee::PartFacts {
+            kind: name.as_str(),
+            chip_resistance: *chip,
+            volume_ml: *volume,
+        })
         .collect();
     crate::melee::fragile_material_factor(&borrowed, own)
 }
@@ -4209,18 +4500,25 @@ pub fn weapon_material_factor(world: &mut World, weapon: Entity) -> f64 {
 /// Reference: `Character::on_hit` / `item::handle_potential_break` (`melee.cpp:246-274`): a `FRAGILE_MELEE` weapon that is not `DURABLE_MELEE` takes a wear check on every hit, and a weapon whose
 /// material is fragile (cotton, leather, fur) pays a factor from its weakest part. The wear is **applied through the item's own damage path** (`crate::item_damage`), so the message the player sees is the
 /// one that path prints - "damaged by the force of the blow!" or "destroyed by the blow!".
-pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i32, dexterity: i32) {
+pub fn wear_the_wielded_weapon(
+    world: &mut World,
+    holder: Entity,
+    melee_skill: i32,
+    dexterity: i32,
+) {
     // **The thing in the hand is an entity**, and its damage is that entity's own `ItemDamage` - which is where the reference keeps it too (`item::damage_`). A character with empty hands
     // wears nothing, which is the reference's own first check (`if( !shield ) return false;`).
     let Some(held) = wielding(world, holder) else {
         return;
     };
-    let kind = world
-        .get::<crate::GroundItem>(held)
-        .map_or_else(|| world.get::<Wielding>(holder).map(|carried| carried.0), |ground| Some(ground.kind));
+    let kind = world.get::<crate::GroundItem>(held).map_or_else(
+        || world.get::<Wielding>(holder).map(|carried| carried.0),
+        |ground| Some(ground.kind),
+    );
     // **A fragile weapon wears at its weakest part**, which is the only reason the part list exists on this path (`melee.cpp:246-274`).
     let material_factor = weapon_material_factor(world, held);
-    let durable_melee = kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "DURABLE_MELEE"));
+    let durable_melee = kind
+        .is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "DURABLE_MELEE"));
     let arm_strength = f64::from(effective_strength(world, holder));
     let chance = crate::melee::melee_wear_chance(
         f64::from(dexterity),
@@ -4247,7 +4545,8 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
         degrade_increments: 0,
         stack_size: 1,
         count_by_charges: false,
-        unbreakable: kind.is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "UNBREAKABLE")),
+        unbreakable: kind
+            .is_some_and(|kind| crate::item_registry::kind_has_flag(&*world, kind, "UNBREAKABLE")),
     };
     let Some(current) = world.get::<crate::ItemDamage>(held).copied() else {
         return;
@@ -4260,7 +4559,10 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     if destroyed {
         // Reference: **the contents spill before anything else happens to the item** (`melee.cpp:305-312`), so what was inside survives the weapon that held it. Spilling after the despawn would have
         // nothing left to read the contents from.
-        if let Some(square) = world.get::<crate::Position>(holder).map(|at| (at.x, at.y, at.z)) {
+        if let Some(square) = world
+            .get::<crate::Position>(holder)
+            .map(|at| (at.x, at.y, at.z))
+        {
             let _spilled = crate::containment::spill_contents(world, held, square);
         }
         // Reference: **a fragile weapon with parts does not merely break - it comes apart** (`melee.cpp:313-340`), and the branch is taken before the ordinary destruction line.
@@ -4276,7 +4578,10 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     }
     world.entity_mut(held).insert(after);
     // Reference: the same function's other message, for a weapon that survived the blow (`melee.cpp:295-297`).
-    crate::messages::push(world, &format!("Your {name} is damaged by the force of the blow!"));
+    crate::messages::push(
+        world,
+        &format!("Your {name} is damaged by the force of the blow!"),
+    );
     // A thing that has taken a blow can now carry faults, which is where the reference's `set_random_fault_of_type( "mechanical_damage" )` writes (`item.cpp:9458-9461`). **The step that picks
     // one is not ported to the swing yet** - it needs the kind's weighted fault list in the registry, which round 1205 added and nothing installs - so what happens here is only that the item gains
     // the place a fault would live. **An empty `ItemFaults` is not an invented value: it is the reference's own starting state for an undamaged item.**
@@ -4285,7 +4590,9 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
     }
     // Reference: `item::mod_damage`'s last act for a surviving item is `set_random_fault_of_type( "mechanical_damage" )` (`item.cpp:9458-9461`) - **a damaged weapon may catch a fault, and the
     // type asked for is mechanical damage**. Every input is now in the store: the kind's weighted list, the catalogue's type per fault id, and the faults the item already has.
-    let candidates = kind.map_or_else(Vec::new, |kind| crate::item_registry::fault_weights_of(world, kind));
+    let candidates = kind.map_or_else(Vec::new, |kind| {
+        crate::item_registry::fault_weights_of(world, kind)
+    });
     if !candidates.is_empty() {
         // The types are read before the pick because the pick borrows the dice and the world; a closure that asked the world mid-pick would need both at once.
         let mut types = std::collections::BTreeMap::new();
@@ -4294,7 +4601,9 @@ pub fn wear_the_wielded_weapon(world: &mut World, holder: Entity, melee_skill: i
                 types.insert(fault.clone(), fault_type);
             }
         }
-        let existing = world.get::<crate::ItemFaults>(held).map_or_else(std::collections::BTreeSet::new, |faults| faults.0.clone());
+        let existing = world
+            .get::<crate::ItemFaults>(held)
+            .map_or_else(std::collections::BTreeSet::new, |faults| faults.0.clone());
         // What the item's own faults prevent, read before the pick for the same reason the types are.
         // **Keyed by the faults the item already has**, because that is what `can_have_fault` asks: "what does this fault of mine prevent?"
         let mut blocked = std::collections::BTreeMap::new();
@@ -4602,7 +4911,12 @@ pub fn best_quality(world: &mut World, creature: Entity, quality: &str) -> i32 {
     // inventory list is only the reference's container view of the same thing.
     {
         let mut query = world.query::<(Entity, &crate::creature::Carried)>();
-        held.extend(query.iter(world).filter(|(_, carried)| carried.0 == creature).map(|(entity, _)| entity));
+        held.extend(
+            query
+                .iter(world)
+                .filter(|(_, carried)| carried.0 == creature)
+                .map(|(entity, _)| entity),
+        );
     }
     let mut best = 0;
     for item in held {

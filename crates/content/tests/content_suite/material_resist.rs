@@ -29,13 +29,22 @@ fn a_metal_resists_more_than_flesh() {
     );
 
     let steel = find(&materials, "steel");
-    assert_eq!(steel.bash_resist, 6.0, "steel resists six per millimetre of bash");
+    assert_eq!(
+        steel.bash_resist, 6.0,
+        "steel resists six per millimetre of bash"
+    );
     assert_eq!(steel.cut_resist, 6.0, "and six of cut");
 
     let flesh = find(&materials, "flesh");
-    assert_eq!(flesh.bash_resist, 1.0, "flesh resists one per millimetre of bash");
+    assert_eq!(
+        flesh.bash_resist, 1.0,
+        "flesh resists one per millimetre of bash"
+    );
     assert_eq!(flesh.cut_resist, 1.0, "and one of cut");
-    assert!(flesh.bash_resist < steel.bash_resist, "which is a sixth of steel");
+    assert!(
+        flesh.bash_resist < steel.bash_resist,
+        "which is a sixth of steel"
+    );
 }
 
 #[test]

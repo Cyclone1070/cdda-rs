@@ -269,7 +269,9 @@ pub fn parse_duration(text: &str) -> i64 {
         }
         let (count, unit) = match word.chars().next() {
             Some(first) if first.is_ascii_digit() => {
-                let split = word.find(|character: char| !character.is_ascii_digit()).unwrap_or(word.len());
+                let split = word
+                    .find(|character: char| !character.is_ascii_digit())
+                    .unwrap_or(word.len());
                 let head = word.get(..split).unwrap_or_default();
                 let unit = word.get(split..).unwrap_or_default();
                 (number.take().or_else(|| head.parse().ok()), unit)

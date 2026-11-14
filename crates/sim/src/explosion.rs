@@ -116,7 +116,8 @@ fn blast_damages(
     let armour = world
         .get::<crate::creature::Armour>(creature)
         .map_or(0, |held| held.bash);
-    let person = world.get::<crate::Player>(creature).is_some() || crate::npcs::is_npc(world, creature);
+    let person =
+        world.get::<crate::Player>(creature).is_some() || crate::npcs::is_npc(world, creature);
     if !person {
         // Reference: `dmg = max( force - armour / 2.0, 0.0 )`, then `rng_float( dmg * 2, dmg * 3 )` (`explosion.cpp:415-419`).
         let reduced = (f64::from(force) - f64::from(armour) / 2.0).max(0.0);

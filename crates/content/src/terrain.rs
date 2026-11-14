@@ -124,7 +124,10 @@ pub fn from_dump_by_kind(value: &Value, kind: &str) -> Result<Vec<Terrain>, Stri
                         _ => None,
                     })
                     .collect();
-                String::from_utf8_lossy(&decoded).chars().next().unwrap_or(' ')
+                String::from_utf8_lossy(&decoded)
+                    .chars()
+                    .next()
+                    .unwrap_or(' ')
             }
             _ => ' ',
         };

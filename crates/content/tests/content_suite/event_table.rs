@@ -17,7 +17,11 @@ fn the_table() -> cdda_content::events::EventTable {
 #[test]
 fn every_event_type_has_its_argument_names_in_order() {
     let table = the_table();
-    assert_eq!(table.len(), 107, "the reference declares a hundred and seven event types");
+    assert_eq!(
+        table.len(),
+        107,
+        "the reference declares a hundred and seven event types"
+    );
 
     // The two the data's own programs use, whose order is what a `trigger_event` argument list fills.
     assert_eq!(
@@ -27,14 +31,16 @@ fn every_event_type_has_its_argument_names_in_order() {
     );
     assert_eq!(
         table.fields_of("avatar_enters_omt"),
-        Some(
-            ["pos".to_owned(), "oter_id".to_owned()].as_slice()
-        ),
+        Some(["pos".to_owned(), "oter_id".to_owned()].as_slice()),
         "and an overmap entry names where, then what terrain"
     );
 
     // A type the reference has and a name it does not are different answers, and the port must not confuse them.
-    assert_eq!(table.fields_of("no_such_event"), None, "an unknown type is not answered");
+    assert_eq!(
+        table.fields_of("no_such_event"),
+        None,
+        "an unknown type is not answered"
+    );
     assert_eq!(
         table.fields_of("game_begin"),
         Some(["cdda_version".to_owned()].as_slice()),

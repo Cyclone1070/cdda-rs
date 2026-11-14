@@ -39,10 +39,7 @@ pub fn layer_resist(layer: &Layer, roll: i32) -> f64 {
 /// What a stack of layers takes off a blow.
 #[must_use]
 pub fn resist_of(layers: &[Layer], roll: i32) -> f64 {
-    layers
-        .iter()
-        .map(|layer| layer_resist(layer, roll))
-        .sum()
+    layers.iter().map(|layer| layer_resist(layer, roll)).sum()
 }
 
 /// What a garment still takes off a blow, once its own damage is accounted for.

@@ -138,7 +138,11 @@ fn a_morale_type_is_removed_whole() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::morale::add(&mut world, survivor, point("morale_food_good", 5));
     cdda_sim::morale::add(&mut world, survivor, point("morale_pain", -3));
-    assert!(cdda_sim::morale::remove_kind(&mut world, survivor, "morale_pain"));
+    assert!(cdda_sim::morale::remove_kind(
+        &mut world,
+        survivor,
+        "morale_pain"
+    ));
     assert_eq!(cdda_sim::morale::net_bonus_of(&world, survivor), 5);
     assert!(
         !cdda_sim::morale::remove_kind(&mut world, survivor, "morale_pain"),
@@ -154,7 +158,10 @@ fn the_fade_curve_runs_from_one_to_zero() {
     assert!((cdda_sim::morale::logarithmic_range(0, 100, 0) - 1.0).abs() < 1e-9);
     assert!(cdda_sim::morale::logarithmic_range(0, 100, 100).abs() < 1e-9);
     let middle = cdda_sim::morale::logarithmic_range(0, 100, 50);
-    assert!(middle > 0.0 && middle < 1.0, "halfway is neither end: {middle}");
+    assert!(
+        middle > 0.0 && middle < 1.0,
+        "halfway is neither end: {middle}"
+    );
     // Past the end it stays at zero rather than going negative.
     assert!(cdda_sim::morale::logarithmic_range(0, 100, 150).abs() < 1e-9);
 }

@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 /// A chain fence standing on a floor, with rock floor below it - the square `corpus/bash/hits.json` bashes.
 fn a_world() -> (World, Entity) {
     let mut world = World::new();
-    let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let args: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
     let loaded = load_paths(&args).expect("the map data loads");
@@ -124,7 +125,8 @@ fn a_bash_spell_hits_every_square_of_its_blast_with_its_damage() {
 fn a_square_keeps_the_damage_a_failed_hit_left_and_the_next_hit_uses_it() {
     let (mut world, _caster) = a_world();
     for expected in 1..=4 {
-        let outcome = cdda_sim::bash::bash_square(&mut world, (2, 0, 0), 11, true).expect("the data is installed");
+        let outcome = cdda_sim::bash::bash_square(&mut world, (2, 0, 0), 11, true)
+            .expect("the data is installed");
         assert!(outcome.did_bash, "**the hit landed on something solid**");
         assert_eq!(
             cdda_sim::square::bash_damage_at(&world, (2, 0, 0)),

@@ -126,14 +126,30 @@ fn an_unfinished_craft_is_as_big_and_as_heavy_as_the_parts_it_holds() {
     // The parts are charge-counted so that the two the craft took are two charges of one entity, which is how the port carries a stack: the reference holds two
     // items and adds both, and a charge-counted type makes those the same number.
     let volume_of = |kind: ItemTypeId| TypeVolume {
-        millilitres: if kind == UNFINISHED_CRAFT { 999_999 } else { 100 },
-        integral_millilitres: if kind == UNFINISHED_CRAFT { 999_999 } else { 100 },
+        millilitres: if kind == UNFINISHED_CRAFT {
+            999_999
+        } else {
+            100
+        },
+        integral_millilitres: if kind == UNFINISHED_CRAFT {
+            999_999
+        } else {
+            100
+        },
         count_by_charges: true,
         stack_size: 1,
     };
     let weight_of = |kind: ItemTypeId| TypeWeight {
-        milligrams: if kind == UNFINISHED_CRAFT { 999_999_000 } else { 50_000 },
-        integral_milligrams: if kind == UNFINISHED_CRAFT { 999_999_000 } else { 50_000 },
+        milligrams: if kind == UNFINISHED_CRAFT {
+            999_999_000
+        } else {
+            50_000
+        },
+        integral_milligrams: if kind == UNFINISHED_CRAFT {
+            999_999_000
+        } else {
+            50_000
+        },
         count_by_charges: true,
         no_drop: false,
     };

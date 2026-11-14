@@ -12,8 +12,8 @@ use std::collections::BTreeMap;
 
 /// Reads the recorded transforms, keyed by the item type that declares them.
 fn dump() -> BTreeMap<String, Transform> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus/items/transforms.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/transforms.json");
     let bytes =
         std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let Value::Object(root) = cdda_json::parse(&bytes).expect("valid json") else {
@@ -71,9 +71,10 @@ fn dump() -> BTreeMap<String, Transform> {
                         .members()
                         .iter()
                         .map(|(quality, level)| match level {
-                            Value::Int(level) => {
-                                (quality.clone(), i32::try_from(*level).expect("a small level"))
-                            }
+                            Value::Int(level) => (
+                                quality.clone(),
+                                i32::try_from(*level).expect("a small level"),
+                            ),
                             other => panic!("a quality level: {other:?}"),
                         })
                         .collect(),
@@ -95,8 +96,8 @@ fn dump() -> BTreeMap<String, Transform> {
 fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
     let recorded = dump();
     assert_eq!(recorded.len(), 459, "every transform was recorded");
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded: BTreeMap<String, ItemType> = load_paths(&paths)
@@ -159,7 +160,10 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
             with_fire_msg += 1;
         }
     }
-    assert!(delayed > 20, "delayed_transform has to be exercised: {delayed}");
+    assert!(
+        delayed > 20,
+        "delayed_transform has to be exercised: {delayed}"
+    );
     assert!(with_timer > 20, "and so does the timer: {with_timer}");
     assert!(with_container >= 4, "and the container: {with_container}");
     assert!(
@@ -167,8 +171,14 @@ fn every_transform_an_item_declares_is_read_the_way_the_reference_reads_it() {
         "and the conditions that gate a transformation: {with_conditions}"
     );
     // **`delayed_transform`'s own two fields**, which a reader that treated it as a plain `transform` would drop without a word: 28 actions have both.
-    assert!(with_age > 20, "the age that a delayed transform waits for: {with_age}");
-    assert!(with_message > 20, "and its not-ready message: {with_message}");
+    assert!(
+        with_age > 20,
+        "the age that a delayed transform waits for: {with_age}"
+    );
+    assert!(
+        with_message > 20,
+        "and its not-ready message: {with_message}"
+    );
     assert_eq!(
         with_age, with_message,
         "every delayed transform has both an age and a message, so the two counts have to agree"
@@ -192,15 +202,17 @@ fn three_clamps_and_two_default_sentences() {
     // The actor's loader does three things to numbers and two to text that the data does not have to say (`src/iuse_actor.cpp:246-268`):
     // a **negative `moves` is an error**, while `need_fire` and `need_charges` are **lifted to zero**; and the two "you cannot do this yet" sentences come from the
     // **actor**, not the data. No entry in this content states a negative number, so the clamps are pinned here rather than through the corpus.
-    let object = cdda_json::parse(
-        br#"{"type":"transform","target":"t","need_charges":-5,"need_fire":-2}"#,
-    )
-    .expect("valid json");
+    let object =
+        cdda_json::parse(br#"{"type":"transform","target":"t","need_charges":-5,"need_fire":-2}"#)
+            .expect("valid json");
     let Value::Object(object) = object else {
         panic!("an object")
     };
     let transform = Transform::read("transform", &object).expect("a transform");
-    assert_eq!(transform.need_charges, 0, "lifted to zero, not kept negative");
+    assert_eq!(
+        transform.need_charges, 0,
+        "lifted to zero, not kept negative"
+    );
     assert_eq!(transform.need_fire, 0);
     assert_eq!(
         transform.need_charges_msg, "The %s is empty!",
@@ -223,7 +235,8 @@ fn three_clamps_and_two_default_sentences() {
     );
 
     // A negative `moves` is refused rather than clamped, so the port says so instead of inventing a number.
-    let object = cdda_json::parse(br#"{"type":"transform","target":"t","moves":-5}"#).expect("valid json");
+    let object =
+        cdda_json::parse(br#"{"type":"transform","target":"t","moves":-5}"#).expect("valid json");
     let Value::Object(object) = object else {
         panic!("an object")
     };

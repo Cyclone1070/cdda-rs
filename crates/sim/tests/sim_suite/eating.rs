@@ -19,14 +19,14 @@ fn a_creature_who_eats(world: &mut World) -> Entity {
         .insert(cdda_sim::body::BodyClock::default());
     // A living body's rates: the guts release vitamins at `5% * hunger` with a floor of `100/24 * hunger`, so **a zero rate releases nothing at all** - which is what
     // an unconfigured creature would answer and what a test must not accidentally model.
-    world.entity_mut(creature).insert(cdda_sim::needs::NeedsRatesOf(
-        cdda_sim::needs::NeedsRates {
+    world
+        .entity_mut(creature)
+        .insert(cdda_sim::needs::NeedsRatesOf(cdda_sim::needs::NeedsRates {
             kcal: 2_000.0,
             hunger: 1.0,
             thirst: 1.0,
             sleepiness: 1.0,
-        },
-    ));
+        }));
     creature
 }
 

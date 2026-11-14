@@ -17,7 +17,10 @@ fn the_never_learn_flag_survives_the_dump() {
     assert_eq!(recipes.len(), count, "the dump agrees with its own count");
 
     let never = recipes.iter().filter(|recipe| recipe.never_learn).count();
-    assert_eq!(never, 1114, "**1,114 recipes can never be learned** - the reference's own number");
+    assert_eq!(
+        never, 1114,
+        "**1,114 recipes can never be learned** - the reference's own number"
+    );
     assert!(
         recipes.iter().any(|recipe| !recipe.never_learn),
         "and most can be, so the flag is not simply true everywhere"
@@ -37,12 +40,27 @@ fn practice_recipes_carry_their_range() {
     let value = cdda_json::parse(text.as_bytes()).expect("the recipe dump parses");
     let (recipes, _) = cdda_content::recipes::from_dump(&value).expect("the recipe dump loads");
 
-    let practice: Vec<_> = recipes.iter().filter(|recipe| recipe.practice.is_some()).collect();
-    assert_eq!(practice.len(), 124, "**exactly 124 practice recipes**, the reference's own number");
-    let first = practice.first().and_then(|recipe| recipe.practice).expect("one of them is first");
-    assert!(first.min_difficulty <= first.max_difficulty, "the range is a range: {first:?}");
+    let practice: Vec<_> = recipes
+        .iter()
+        .filter(|recipe| recipe.practice.is_some())
+        .collect();
+    assert_eq!(
+        practice.len(),
+        124,
+        "**exactly 124 practice recipes**, the reference's own number"
+    );
+    let first = practice
+        .first()
+        .and_then(|recipe| recipe.practice)
+        .expect("one of them is first");
     assert!(
-        practice.iter().any(|recipe| recipe.practice.is_some_and(|block| block.skill_limit < 20)),
+        first.min_difficulty <= first.max_difficulty,
+        "the range is a range: {first:?}"
+    );
+    assert!(
+        practice
+            .iter()
+            .any(|recipe| recipe.practice.is_some_and(|block| block.skill_limit < 20)),
         "and at least one of them states a real skill limit rather than the maximum"
     );
     assert!(
@@ -69,15 +87,31 @@ fn a_recipe_answers_its_own_difficulty_and_cap() {
         .find(|recipe| recipe.practice.is_some())
         .expect("a practice recipe exists");
     let block = practice.practice.expect("just found");
-    assert_eq!(practice.difficulty_for(0), block.min_difficulty, "**below the range, the minimum**");
-    assert_eq!(practice.difficulty_for(99), block.max_difficulty, "and above it, the maximum");
-    assert_eq!(practice.teaching_cap(), block.skill_limit - 1, "the cap is the limit minus one");
+    assert_eq!(
+        practice.difficulty_for(0),
+        block.min_difficulty,
+        "**below the range, the minimum**"
+    );
+    assert_eq!(
+        practice.difficulty_for(99),
+        block.max_difficulty,
+        "and above it, the maximum"
+    );
+    assert_eq!(
+        practice.teaching_cap(),
+        block.skill_limit - 1,
+        "the cap is the limit minus one"
+    );
 
     let ordinary = recipes
         .iter()
         .find(|recipe| recipe.practice.is_none() && recipe.difficulty > 0)
         .expect("an ordinary recipe exists");
-    assert_eq!(ordinary.difficulty_for(0), ordinary.difficulty, "an ordinary recipe ignores the crafter");
+    assert_eq!(
+        ordinary.difficulty_for(0),
+        ordinary.difficulty,
+        "an ordinary recipe ignores the crafter"
+    );
     assert_eq!(
         ordinary.teaching_cap(),
         {
@@ -123,7 +157,8 @@ fn the_monster_corpus_walks_both_ladders() {
             Some("fd_blood") => blood += 1,
             _ => falls_through += 1,
         }
-        if cdda_content::blood::gib_field(&materials, monster.species.contains("MOLLUSK")).is_some() {
+        if cdda_content::blood::gib_field(&materials, monster.species.contains("MOLLUSK")).is_some()
+        {
             gibbed += 1;
         }
     }
@@ -131,13 +166,22 @@ fn the_monster_corpus_walks_both_ladders() {
     assert_eq!(acid, 20, "twenty acid-blooded prototypes");
     assert_eq!(bile, 8, "eight bile-blooded");
     assert_eq!(arthropod, 24, "twenty-four with an arthropod's blood");
-    assert!(veggy > 0 && insect > 0, "and plants and insects are both represented: {veggy} and {insect}");
-    assert!(blood > 500, "while the ordinary warm fleshy thing is the common case: {blood}");
+    assert!(
+        veggy > 0 && insect > 0,
+        "and plants and insects are both represented: {veggy} and {insect}"
+    );
+    assert!(
+        blood > 500,
+        "while the ordinary warm fleshy thing is the common case: {blood}"
+    );
     assert!(
         falls_through > 0,
         "**and some fall through to a bleed type the port does not load yet**: {falls_through}"
     );
-    assert!(gibbed > 1000, "most of the corpus gibs into something: {gibbed}");
+    assert!(
+        gibbed > 1000,
+        "most of the corpus gibs into something: {gibbed}"
+    );
 }
 
 /// A monster with no blood of its own falls through to its species', and a rate of zero stops it dead.
@@ -147,7 +191,8 @@ fn the_monster_corpus_walks_both_ladders() {
 #[test]
 fn a_monster_falls_through_to_its_species_blood() {
     // The **dump**, not the game's own files: it is the shape these loaders speak, and it carries the species table the reference's generator keeps beside the prototypes.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let Ok(text) = std::fs::read_to_string(&path) else {
         return;
     };
@@ -158,13 +203,18 @@ fn a_monster_falls_through_to_its_species_blood() {
     let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
         return;
     };
-    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+    let monsters =
+        cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
     let species: std::collections::BTreeMap<String, cdda_content::monsters::SpeciesType> =
         cdda_content::monsters::species_from_dump(&value)
             .into_iter()
             .map(|entry| (entry.id.clone(), entry))
             .collect();
-    assert_eq!(species.len(), 31, "**every species the monsters name** is in the dump");
+    assert_eq!(
+        species.len(),
+        31,
+        "**every species the monsters name** is in the dump"
+    );
 
     let mut falls_through = 0;
     let mut answered_by_species = 0;
@@ -193,12 +243,18 @@ fn a_monster_falls_through_to_its_species_blood() {
         }
     }
 
-    assert!(falls_through > 0, "some prototypes have no blood of their own: {falls_through}");
+    assert!(
+        falls_through > 0,
+        "some prototypes have no blood of their own: {falls_through}"
+    );
     assert!(
         answered_by_species > 0,
         "**and some of those are answered by their species**, which is what the fall-through is for: {answered_by_species}"
     );
-    assert!(rate_zero > 0, "while a bleed rate of zero stops the fall-through: {rate_zero}");
+    assert!(
+        rate_zero > 0,
+        "while a bleed rate of zero stops the fall-through: {rate_zero}"
+    );
 }
 
 /// The monster dump carries each type's own death sentence and what it leaves, and most types state neither.
@@ -207,7 +263,8 @@ fn a_monster_falls_through_to_its_species_blood() {
 /// give every monster the same death - which is the sort of flattening a corpus count catches and a fixture does not.
 #[test]
 fn the_monster_dump_carries_its_death_data() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let Ok(text) = std::fs::read_to_string(&path) else {
         return;
     };
@@ -218,18 +275,32 @@ fn the_monster_dump_carries_its_death_data() {
     let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
         return;
     };
-    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+    let monsters =
+        cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
 
-    let with_message = monsters.iter().filter(|monster| !monster.death_message.is_empty()).count();
-    assert_eq!(with_message, 321, "**321 types state their own death sentence**");
+    let with_message = monsters
+        .iter()
+        .filter(|monster| !monster.death_message.is_empty())
+        .count();
+    assert_eq!(
+        with_message, 321,
+        "**321 types state their own death sentence**"
+    );
     assert!(
-        monsters.iter().any(|monster| monster.death_message.contains("%s")),
+        monsters
+            .iter()
+            .any(|monster| monster.death_message.contains("%s")),
         "and at least one of them has a placeholder for the name"
     );
-    let nothing = monsters.iter().filter(|monster| monster.corpse_type == "none").count();
+    let nothing = monsters
+        .iter()
+        .filter(|monster| monster.corpse_type == "none")
+        .count();
     assert_eq!(nothing, 199, "while 199 say they leave nothing at all");
     assert!(
-        monsters.iter().any(|monster| monster.corpse_type == "normal"),
+        monsters
+            .iter()
+            .any(|monster| monster.corpse_type == "normal"),
         "and the ordinary type still leaves a corpse"
     );
 }
@@ -240,7 +311,8 @@ fn the_monster_dump_carries_its_death_data() {
 /// (`mon_manhack` -> `broken_manhack`) is the whole rule for this corpus, and **339 name a death-drop group** while the rest leave their loot to an inline group the dump cannot name.
 #[test]
 fn the_monster_dump_carries_its_broken_item_and_drops() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let Ok(text) = std::fs::read_to_string(&path) else {
         return;
     };
@@ -251,22 +323,37 @@ fn the_monster_dump_carries_its_broken_item_and_drops() {
     let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
         return;
     };
-    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+    let monsters =
+        cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
 
     assert_eq!(
-        monsters.iter().filter(|monster| !monster.broken_itype.is_empty()).count(),
+        monsters
+            .iter()
+            .filter(|monster| !monster.broken_itype.is_empty())
+            .count(),
         0,
         "**no type names its own broken item**, which is what makes the string rule the whole rule"
     );
-    let droppers = monsters.iter().filter(|monster| !monster.death_drops.is_empty()).count();
-    assert_eq!(droppers, 339, "339 types name the group their loot comes from");
+    let droppers = monsters
+        .iter()
+        .filter(|monster| !monster.death_drops.is_empty())
+        .count();
+    assert_eq!(
+        droppers, 339,
+        "339 types name the group their loot comes from"
+    );
     assert!(
-        monsters.iter().any(|monster| monster.death_drops == "default_zombie_death_drops"),
+        monsters
+            .iter()
+            .any(|monster| monster.death_drops == "default_zombie_death_drops"),
         "and the ordinary zombie is one of them"
     );
     assert!(
         monsters.iter().all(|monster| monster.death_drops.is_empty()
-            || monster.death_drops.chars().all(|letter| letter.is_ascii_graphic() || letter == '_')),
+            || monster
+                .death_drops
+                .chars()
+                .all(|letter| letter.is_ascii_graphic() || letter == '_')),
         "with every id a name the data wrote, not a number the loader generated"
     );
 }
@@ -277,7 +364,8 @@ fn the_monster_dump_carries_its_broken_item_and_drops() {
 /// number, or a dump that dropped it, would give every monster the same answer and every count would still look plausible.
 #[test]
 fn three_monster_types_mend_in_the_dark() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let Ok(text) = std::fs::read_to_string(&path) else {
         return;
     };
@@ -288,7 +376,8 @@ fn three_monster_types_mend_in_the_dark() {
     let Some(cdda_json::Value::Array(prototypes)) = root.get("prototypes") else {
         return;
     };
-    let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
+    let monsters =
+        cdda_content::monsters::load_objects(prototypes).expect("the monster dump loads");
     let dark: Vec<&str> = monsters
         .iter()
         .filter(|monster| monster.regenerates_in_dark)
@@ -296,7 +385,11 @@ fn three_monster_types_mend_in_the_dark() {
         .collect();
     assert_eq!(dark.len(), 3, "**three types mend by the dark**: {dark:?}");
     // The loader pushes the null monster after the data's own, so the count is the corpus plus that one.
-    assert_eq!(monsters.len(), 1155, "out of the whole corpus, plus the null monster the reference keeps at zero");
+    assert_eq!(
+        monsters.len(),
+        1155,
+        "out of the whole corpus, plus the null monster the reference keeps at zero"
+    );
 }
 
 /// Eighty-one proficiencies are good for something, and seventy-five of them make a melee swing cheaper.
@@ -305,28 +398,42 @@ fn three_monster_types_mend_in_the_dark() {
 /// own**: a loader that dropped the field, or read `0.025` as `0`, would leave every count plausible and every swing paying full stamina.
 #[test]
 fn proficiencies_carry_their_bonuses() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json");
     let Ok(text) = std::fs::read_to_string(&path) else {
         return;
     };
     let value = cdda_json::parse(text.as_bytes()).expect("the proficiency dump parses");
-    let (proficiencies, count) = cdda_content::proficiencies::from_dump(&value).expect("the proficiency dump loads");
+    let (proficiencies, count) =
+        cdda_content::proficiencies::from_dump(&value).expect("the proficiency dump loads");
 
     assert_eq!(count, 235, "the dump's own count");
-    let with_bonuses = proficiencies.by_id.values().filter(|prof| !prof.bonuses.is_empty()).count();
+    let with_bonuses = proficiencies
+        .by_id
+        .values()
+        .filter(|prof| !prof.bonuses.is_empty())
+        .count();
     assert_eq!(with_bonuses, 81, "**eighty-one are good for something**");
     let stamina: Vec<&cdda_content::proficiencies::Proficiency> = proficiencies
         .by_id
         .values()
         .filter(|prof| prof.bonus_for("melee_attack", "stamina").is_some())
         .collect();
-    assert_eq!(stamina.len(), 75, "and seventy-five of those make a swing cheaper");
+    assert_eq!(
+        stamina.len(),
+        75,
+        "and seventy-five of those make a swing cheaper"
+    );
     assert!(
-        stamina.iter().any(|prof| prof.bonus_for("melee_attack", "stamina") == Some(0.05)),
+        stamina
+            .iter()
+            .any(|prof| prof.bonus_for("melee_attack", "stamina") == Some(0.05)),
         "a master's bonus is a twentieth of the cost"
     );
     assert!(
-        stamina.iter().all(|prof| prof.bonus_for("melee_attack", "strength").is_none()),
+        stamina
+            .iter()
+            .all(|prof| prof.bonus_for("melee_attack", "strength").is_none()),
         "and none of them claims to be a strength bonus"
     );
 }

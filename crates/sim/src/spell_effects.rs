@@ -91,7 +91,9 @@ fn attack(
     let targets: Vec<Entity> = creatures_in_reach(world, caster, spell, level, centre)
         .into_iter()
         .filter(|target| {
-            let at = world.get::<crate::Position>(*target).map(|seen| (seen.x, seen.y, seen.z));
+            let at = world
+                .get::<crate::Position>(*target)
+                .map(|seen| (seen.x, seen.y, seen.z));
             match (from, at) {
                 (Some(from), Some(at)) => crate::spell_targets::allows(world, from, spell, at),
                 _ => true,
@@ -228,7 +230,10 @@ pub fn squares_in_area(
     level: i32,
     centre: (i32, i32, i32),
 ) -> Vec<(i32, i32, i32)> {
-    let Some(source) = world.get::<crate::Position>(caster).map(|at| (at.x, at.y, at.z)) else {
+    let Some(source) = world
+        .get::<crate::Position>(caster)
+        .map(|at| (at.x, at.y, at.z))
+    else {
         return crate::spell_area::blast(centre, area_of(spell, level));
     };
     #[allow(clippy::cast_possible_truncation)]
@@ -417,7 +422,9 @@ fn bash(
     let force = force as i32;
     let mut hits = 0;
     for square in squares_in_area(world, caster, spell, level, centre) {
-        let Some(outcome) = crate::bash::bash_square(world, square, force, spell.has_flag("SILENT")) else {
+        let Some(outcome) =
+            crate::bash::bash_square(world, square, force, spell.has_flag("SILENT"))
+        else {
             return Effective::NotPorted;
         };
         if outcome.did_bash {
@@ -450,7 +457,10 @@ fn guilt(
     level: i32,
     centre: (i32, i32, i32),
 ) -> Effective {
-    let Some(kind) = world.get::<crate::creature::CreatureKind>(caster).map(|held| held.0) else {
+    let Some(kind) = world
+        .get::<crate::creature::CreatureKind>(caster)
+        .map(|held| held.0)
+    else {
         // Reference: `if( !caster.is_monster() ) { return; }` - a character casting this feels nothing.
         return Effective::NothingAffected;
     };
@@ -469,7 +479,8 @@ fn guilt(
     let mut felt = 0;
     for square in squares_in_area(world, caster, spell, level, centre) {
         for held in crate::creature::creature_at(world, square) {
-            let person = world.get::<crate::Player>(held).is_some() || crate::npcs::is_npc(world, held);
+            let person =
+                world.get::<crate::Player>(held).is_some() || crate::npcs::is_npc(world, held);
             if !person {
                 continue;
             }
@@ -499,8 +510,11 @@ fn guilt(
                 malus /= 5.0;
             }
             // Reference: killing your own kind hurts more, asked either of the victim's species or of the species the spell names.
-            let shared = crate::creature_flags::has_flag(world, caster, &format!("SPECIES_{}", spell.effect_str))
-                || spell.effect_str.is_empty();
+            let shared = crate::creature_flags::has_flag(
+                world,
+                caster,
+                &format!("SPECIES_{}", spell.effect_str),
+            ) || spell.effect_str.is_empty();
             if shared {
                 malus *= 2.0;
             }
@@ -689,7 +703,10 @@ fn map(
         // Reference: `if( !you ) { return; }` - a monster's map spell reveals nothing, because a monster has no map.
         return Effective::NothingAffected;
     }
-    let Some(at) = world.get::<crate::Position>(caster).map(|held| (held.x, held.y)) else {
+    let Some(at) = world
+        .get::<crate::Position>(caster)
+        .map(|held| (held.x, held.y))
+    else {
         return Effective::NotPorted;
     };
     let Some(area) = spell.area.at(level) else {
@@ -811,7 +828,10 @@ fn dash(
     level: i32,
     centre: (i32, i32, i32),
 ) -> Effective {
-    let Some(source) = world.get::<crate::Position>(caster).map(|at| (at.x, at.y, at.z)) else {
+    let Some(source) = world
+        .get::<crate::Position>(caster)
+        .map(|at| (at.x, at.y, at.z))
+    else {
         return Effective::NotPorted;
     };
     let Some(area) = spell.area.at(level) else {
@@ -856,7 +876,8 @@ fn dash(
         moves.left = saved;
     }
     // Reference: `calc_ray_end( coord_to_angle( source, target ), sp.aoe( caster ), *walk_point, far_target )`, then a cone of `params.range = sp.aoe( caster )`.
-    let far = crate::spell_area::ray_end(crate::spell_area::angle_of(source, centre), area, reached);
+    let far =
+        crate::spell_area::ray_end(crate::spell_area::angle_of(source, centre), area, reached);
     let hit = crate::spell_area::cone(source, far, area, area, false, &|square| {
         crate::routing::square_cost(world, square).is_some()
     });
@@ -951,8 +972,8 @@ fn morale(
     for square in squares_in_area(world, caster, spell, level, centre) {
         for held in crate::creature::creature_at(world, square) {
             // Reference: `creatures.creature_at<Character>` - a monster has no morale.
-            let person = world.get::<crate::Player>(held).is_some()
-                || crate::npcs::is_npc(world, held);
+            let person =
+                world.get::<crate::Player>(held).is_some() || crate::npcs::is_npc(world, held);
             if !person {
                 continue;
             }
@@ -1109,12 +1130,16 @@ fn summon(
         // Reference: `spawned_mon.no_extra_death_drops = !sp.has_flag( spell_flag::SPAWN_WITH_DEATH_DROPS );` (`:1343`) - a summoned body leaves its corpse and none of the loot its
         // type names, unless the spell says otherwise. **Nine spells in this content keep the loot.**
         if !spell.has_flag("SPAWN_WITH_DEATH_DROPS") {
-            world.entity_mut(spawned).insert(crate::creature::NoExtraDeathDrops);
+            world
+                .entity_mut(spawned)
+                .insert(crate::creature::NoExtraDeathDrops);
         }
         // Reference: `spawned_mon.no_corpse_quiet = sp.has_flag( spell_flag::NO_CORPSE_QUIET );` (`:1344`) - the other half of the same block, and a **different** promise: this one
         // leaves no corpse and still leaves the loot. No spell in this content carries it, so the sum path is gated by a hand-built spell and the data is named as silent.
         if spell.has_flag("NO_CORPSE_QUIET") {
-            world.entity_mut(spawned).insert(crate::creature::NoCorpseQuiet);
+            world
+                .entity_mut(spawned)
+                .insert(crate::creature::NoCorpseQuiet);
         }
         // Reference: `is_summon_friendly` (`:1306-1314`) - a summon is on the caster's side unless the spell says `HOSTILE_SUMMON`, and `HOSTILE_50` halves that with a draw.
         if friendly_summon(world, spell) {

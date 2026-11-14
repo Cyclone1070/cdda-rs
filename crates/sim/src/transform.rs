@@ -198,7 +198,12 @@ pub enum Unsupported {
 /// # Errors
 ///
 /// If the actor asks for something the port does not do yet.
-pub fn apply(actor: &Transform, before: &Before, target: &Target, now: i64) -> Result<After, Unsupported> {
+pub fn apply(
+    actor: &Transform,
+    before: &Before,
+    target: &Target,
+    now: i64,
+) -> Result<After, Unsupported> {
     if !actor.target_group.is_empty() {
         return Err(Unsupported::TargetGroup);
     }
@@ -265,7 +270,14 @@ mod tests {
             "You need tools with A 1 and B 2."
         );
         assert_eq!(
-            quality_message(&[("A".to_owned(), 1), ("B".to_owned(), 2), ("C".to_owned(), 3)], name),
+            quality_message(
+                &[
+                    ("A".to_owned(), 1),
+                    ("B".to_owned(), 2),
+                    ("C".to_owned(), 3)
+                ],
+                name
+            ),
             "You need tools with A 1, B 2, and C 3."
         );
     }
@@ -300,7 +312,12 @@ mod tests {
             transform_age: 0,
             not_ready_msg: String::new(),
         };
-        let bare = Standing { worn: false, wielded: false, empty: true, charges: 0 };
+        let bare = Standing {
+            worn: false,
+            wielded: false,
+            empty: true,
+            charges: 0,
+        };
         assert_eq!(can_use(&actor, &bare, |_, _| false), Err(Refusal::NotWorn));
     }
 }

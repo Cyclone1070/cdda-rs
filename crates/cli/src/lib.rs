@@ -17,8 +17,8 @@
 //! lines is worse than one that refuses to run.
 
 pub mod capture;
-pub mod qa;
 pub mod png;
+pub mod qa;
 
 use bevy_ecs::prelude::*;
 
@@ -356,7 +356,10 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
                 quick: true,
                 dissect: false,
             },
-            ["butcher", "dissect"] => Step::Butcher { dissect: true, quick: false },
+            ["butcher", "dissect"] => Step::Butcher {
+                dissect: true,
+                quick: false,
+            },
             ["wield", item] => Step::Wield {
                 item: (*item).to_owned(),
             },
@@ -381,7 +384,7 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             ["expect", "hurt", points] => Step::ExpectHurt(number_of(points, number, "points")?),
             ["expect", "monster", "within", squares] => {
                 Step::ExpectMonsterNear(number_of(squares, number, "squares")?)
-            },
+            }
             ["expect", "monsters", count, "with", "effect", id] => Step::ExpectMonstersWithEffect {
                 count: number_of(count, number, "monsters")?,
                 id: (*id).to_owned(),
@@ -415,7 +418,12 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
             },
             // The rest of the `expect` family lives in one helper. This arm comes last, after the ones that need more than a square or a count.
             ["expect", rest @ ..] => expect_step(rest, number)?,
-            _ => return Err(format!("line {}: `{line}` is not a step I know", number + 1)),
+            _ => {
+                return Err(format!(
+                    "line {}: `{line}` is not a step I know",
+                    number + 1
+                ));
+            }
         };
         steps.push(step);
     }
@@ -461,7 +469,9 @@ pub fn run(text: &str) -> Result<Outcome, String> {
             }
             Step::Date(turn) => {
                 cdda_sim::calendar::set_turn(&mut world, turn);
-                outcome.lines.push(format!("date: the clock is at turn {turn}"));
+                outcome
+                    .lines
+                    .push(format!("date: the clock is at turn {turn}"));
             }
             Step::ExpectMonstersWithEffect { count, id } => {
                 let wearing = cdda_sim::creature::creatures(&mut world)
@@ -483,16 +493,19 @@ pub fn run(text: &str) -> Result<Outcome, String> {
                     .into_iter()
                     .find(|entity| cdda_sim::applied_effects::has(&world, *entity, id.as_str()));
                 if standing.is_some() {
-                    outcome.lines.push(format!("effect: something at ({x}, {y}) is {id}"));
-                } else {
                     outcome
-                        .failures
-                        .push(format!("expected something at ({x}, {y}) to be {id}, and nothing is"));
+                        .lines
+                        .push(format!("effect: something at ({x}, {y}) is {id}"));
+                } else {
+                    outcome.failures.push(format!(
+                        "expected something at ({x}, {y}) to be {id}, and nothing is"
+                    ));
                 }
             }
             Step::ExpectEffect(id) => {
-                let wearing = survivor(&mut world)
-                    .is_some_and(|survivor| cdda_sim::applied_effects::has(&world, survivor, id.as_str()));
+                let wearing = survivor(&mut world).is_some_and(|survivor| {
+                    cdda_sim::applied_effects::has(&world, survivor, id.as_str())
+                });
                 if wearing {
                     outcome.lines.push(format!("effect: the survivor is {id}"));
                 } else {
@@ -518,12 +531,16 @@ pub fn run(text: &str) -> Result<Outcome, String> {
             }
             Step::ExpectFireAt(x, y) => {
                 if cdda_sim::fire_facts::fire_at(&world, (x, y, 0)).is_none() {
-                    outcome.failures.push(format!("expected a fire at ({x}, {y})"));
+                    outcome
+                        .failures
+                        .push(format!("expected a fire at ({x}, {y})"));
                 }
             }
             Step::ExpectNoFireAt(x, y) => {
                 if cdda_sim::fire_facts::fire_at(&world, (x, y, 0)).is_some() {
-                    outcome.failures.push(format!("expected no fire at ({x}, {y})"));
+                    outcome
+                        .failures
+                        .push(format!("expected no fire at ({x}, {y})"));
                 }
             }
             other => {
@@ -545,44 +562,43 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
     match step {
         Step::Data => install_the_tables(world, outcome),
         Step::Survivor { x, y } => {
-                let survivor = cdda_sim::spawn_player(world, (*x, *y), 80, 0);
-                cdda_sim::creature::set_speed(world, survivor, 100, 0);
-                // The reference's new character starts at eight in every stat (`newcharacter.cpp:5128-5131`), and a creature with no `Strength` component reads as **zero** - which
-                // would make every kick weightless and every hand perfect. The three components are set here, in the scenario's own spawn, rather than defaulted in the sim.
-                world
-                    .entity_mut(survivor)
-                    .insert(cdda_sim::creature::Strength { base: 8 })
-                    .insert(cdda_sim::creature::Dexterity { base: 8 })
-                    .insert(cdda_sim::creature::Perception { base: 8 });
-                outcome.lines.push(format!("survivor: at ({x}, {y})"));
-            }
+            let survivor = cdda_sim::spawn_player(world, (*x, *y), 80, 0);
+            cdda_sim::creature::set_speed(world, survivor, 100, 0);
+            // The reference's new character starts at eight in every stat (`newcharacter.cpp:5128-5131`), and a creature with no `Strength` component reads as **zero** - which
+            // would make every kick weightless and every hand perfect. The three components are set here, in the scenario's own spawn, rather than defaulted in the sim.
+            world
+                .entity_mut(survivor)
+                .insert(cdda_sim::creature::Strength { base: 8 })
+                .insert(cdda_sim::creature::Dexterity { base: 8 })
+                .insert(cdda_sim::creature::Perception { base: 8 });
+            outcome.lines.push(format!("survivor: at ({x}, {y})"));
+        }
         Step::PlaceOverride(name) => take_place_step(world, name, outcome),
         Step::ExpectPlace(name) => check_place_step(world, name, outcome),
-        Step::Items => {
-                match install_item_data(world) {
-                    Some(kinds) => outcome.lines.push(format!("items: {kinds} kinds")),
-                    None => outcome.failures
-                        .push("the game's item data is not where the scenario expects it".to_owned()),
-                }
-            }
+        Step::Items => match install_item_data(world) {
+            Some(kinds) => outcome.lines.push(format!("items: {kinds} kinds")),
+            None => outcome
+                .failures
+                .push("the game's item data is not where the scenario expects it".to_owned()),
+        },
         Step::Give { item, count } => {
-                let names = cdda_sim::item_registry::snapshot(world);
-                let Some(kind) = names.id_of(item) else {
-                    outcome.failures.push(format!("no item called {item}"));
-                    return true;
-                };
-                let Some(survivor) = survivor(world) else {
-                    outcome.failures.push("there is no survivor".to_owned());
-                    return true;
-                };
-                for _ in 0..*count {
-                    let spawned = cdda_sim::drop_item(world, (0, 0), kind, 1);
-                    world.entity_mut(spawned).remove::<cdda_sim::Position>();
-                    world
-                        .entity_mut(spawned)
-                        .insert(cdda_sim::creature::Carried(survivor));
-                }
+            let names = cdda_sim::item_registry::snapshot(world);
+            let Some(kind) = names.id_of(item) else {
+                outcome.failures.push(format!("no item called {item}"));
+                return true;
+            };
+            let Some(survivor) = survivor(world) else {
+                outcome.failures.push("there is no survivor".to_owned());
+                return true;
+            };
+            for _ in 0..*count {
+                let spawned = cdda_sim::drop_item(world, (0, 0), kind, 1);
+                world.entity_mut(spawned).remove::<cdda_sim::Position>();
+                world
+                    .entity_mut(spawned)
+                    .insert(cdda_sim::creature::Carried(survivor));
             }
+        }
         Step::Butcher { quick, dissect } => butcher_a_step(world, outcome, *quick, *dissect),
         Step::ExpectWork(moves) => match outcome.last_work {
             Some(booked) if booked == *moves => outcome
@@ -591,15 +607,29 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
             Some(booked) => outcome.failures.push(format!(
                 "the work is {booked} moves, not the {moves} the scenario expects"
             )),
-            None => outcome.failures.push("no butchery has been started".to_owned()),
+            None => outcome
+                .failures
+                .push("no butchery has been started".to_owned()),
         },
         Step::Wield { .. } | Step::Attack { .. } => take_a_swing(world, step, outcome),
         Step::Goal { x, y } => send_the_monsters_to(outcome, world, *x, *y),
         Step::Throw { item, x, y } => throw_a_step(world, outcome, item, *x, *y),
         Step::Shot(path) => take_a_shot(world, outcome, path),
-        Step::Shoot { gun, round, x, y, rounds } => fire_a_step(world, outcome, gun, round.as_deref(), *x, *y, *rounds),
+        Step::Shoot {
+            gun,
+            round,
+            x,
+            y,
+            rounds,
+        } => fire_a_step(world, outcome, gun, round.as_deref(), *x, *y, *rounds),
         Step::Aim { gun, moves } => aim_a_step(world, outcome, gun, *moves),
-        Step::Burst { gun, x, y, shots, rounds } => burst_a_step(world, outcome, gun, *x, *y, *shots, *rounds),
+        Step::Burst {
+            gun,
+            x,
+            y,
+            shots,
+            rounds,
+        } => burst_a_step(world, outcome, gun, *x, *y, *shots, *rounds),
         Step::Monsters => match install_monster_data(world) {
             Some(kinds) => outcome.lines.push(format!("monsters: {kinds} kinds")),
             None => outcome
@@ -609,42 +639,42 @@ fn take_item_step(world: &mut World, step: &Step, outcome: &mut Outcome) -> bool
         Step::Monster { id, x, y } => put_a_monster(world, outcome, id, *x, *y),
         Step::ExpectHurt(points) => expect_a_wound(world, outcome, *points),
         Step::ExpectMonsterNear(squares) => expect_a_monster_close(world, outcome, *squares),
-        Step::ExpectMonsterHealth { points, x, y } => expect_monster_health(world, outcome, *points, *x, *y),
+        Step::ExpectMonsterHealth { points, x, y } => {
+            expect_monster_health(world, outcome, *points, *x, *y)
+        }
         Step::ExpectNoMonsterAt { x, y } => expect_no_monster_at(world, outcome, *x, *y),
         Step::ExpectItemAt { item, x, y } => expect_one_on(world, outcome, item, *x, *y),
         Step::Craft { recipe, turns } => {
-                let Some(survivor) = survivor(world) else {
-                    outcome.failures.push("there is no survivor".to_owned());
-                    return true;
-                };
-                let allowance = i32::try_from(*turns).unwrap_or(i32::MAX);
-                match craft_a_recipe(world, survivor, recipe, allowance) {
-                    Some(line) => outcome.lines.push(format!("craft: {line}")),
-                    None => outcome
-                        .failures
-                        .push(format!("no recipe named {recipe}")),
-                }
+            let Some(survivor) = survivor(world) else {
+                outcome.failures.push("there is no survivor".to_owned());
+                return true;
+            };
+            let allowance = i32::try_from(*turns).unwrap_or(i32::MAX);
+            match craft_a_recipe(world, survivor, recipe, allowance) {
+                Some(line) => outcome.lines.push(format!("craft: {line}")),
+                None => outcome.failures.push(format!("no recipe named {recipe}")),
             }
+        }
         Step::ExpectFloor { item, count } => {
-                let names = cdda_sim::item_registry::snapshot(world);
-                let lying = ground_of(world, item, &names);
-                if lying != *count {
-                    outcome
-                        .failures
-                        .push(format!("expected {count} {item} on the floor, found {lying}"));
-                }
+            let names = cdda_sim::item_registry::snapshot(world);
+            let lying = ground_of(world, item, &names);
+            if lying != *count {
+                outcome.failures.push(format!(
+                    "expected {count} {item} on the floor, found {lying}"
+                ));
             }
+        }
         Step::ExpectCarried { item, count } => {
             let names = cdda_sim::item_registry::snapshot(world);
-                let held = survivor(world).map_or(0, |survivor| {
-                    cdda_sim::inventory::how_many(world, survivor, item, |kind| names.name_of(kind))
-                });
-                if held != *count {
-                    outcome
-                        .failures
-                        .push(format!("expected {count} {item} carried, found {held}"));
-                }
+            let held = survivor(world).map_or(0, |survivor| {
+                cdda_sim::inventory::how_many(world, survivor, item, |kind| names.name_of(kind))
+            });
+            if held != *count {
+                outcome
+                    .failures
+                    .push(format!("expected {count} {item} carried, found {held}"));
             }
+        }
         _ => return false,
     }
     true
@@ -738,9 +768,10 @@ pub fn take_turn(world: &mut World) -> usize {
     // The spawn is a closure because a monster type is content: this module loads it, the simulation owns the rule.
     let types = monster_types().unwrap_or_default();
     let _risen = cdda_sim::creature::revive_corpses(world, |world, kind, square| {
-        let Some(monster_type) = types.iter().find(|each| {
-            cdda_sim::monster_registry::id_of(world, &each.id) == Some(kind)
-        }) else {
+        let Some(monster_type) = types
+            .iter()
+            .find(|each| cdda_sim::monster_registry::id_of(world, &each.id) == Some(kind))
+        else {
             return false;
         };
         cdda_sim::creature::spawn_monster_of_type(world, kind, monster_type, square, 100);
@@ -773,11 +804,14 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
     let items = cdda_content::items::load_paths(&[&data]).ok()?;
     // The chip figures come from the prototypes dump, not from the type records: the figure is `item::chip_resistance()`, which weighs a type's materials by their portions, and the
     // dump computed it once with the reference's own code (round 1191). Joined here by id, against the same records the numbering came from.
-    let chip = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let chip =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
     let chip_resistance = std::fs::read(chip)
         .ok()
         .and_then(|bytes| cdda_json::parse(&bytes).ok())
-        .map_or_else(std::collections::BTreeMap::new, |value| cdda_content::items::chip_resistance(&value));
+        .map_or_else(std::collections::BTreeMap::new, |value| {
+            cdda_content::items::chip_resistance(&value)
+        });
     cdda_sim::item_data::install(world, &items, &chip_resistance);
     // **What kind of weapon each item is**, joined by the name the registry just numbered: `wielded_weapon_categories` (`melee.cpp:570-578`) reads it before every swing charges
     // stamina. A type that names no category is in the list with an empty one, which is the reference's own answer for a thing that is not a weapon.
@@ -785,7 +819,8 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
         .iter()
         .filter(|item| !item.weapon_category.is_empty())
         .filter_map(|item| {
-            cdda_sim::item_registry::id_of(world, &item.id).map(|kind| (kind, item.weapon_category.clone()))
+            cdda_sim::item_registry::id_of(world, &item.id)
+                .map(|kind| (kind, item.weapon_category.clone()))
         })
         .collect();
     cdda_sim::item_registry::set_item_weapon_categories(world, &categories);
@@ -798,13 +833,18 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
             cdda_sim::item_registry::id_of(world, &item.id).map(|kind| {
                 (
                     kind,
-                    item.qualities.iter().map(|(name, level)| (name.clone(), *level)).collect(),
+                    item.qualities
+                        .iter()
+                        .map(|(name, level)| (name.clone(), *level))
+                        .collect(),
                 )
             })
         })
         .collect();
-    let rows: Vec<(cdda_sim::ItemTypeId, &[(String, i32)])> =
-        qualities.iter().map(|(kind, held)| (*kind, held.as_slice())).collect();
+    let rows: Vec<(cdda_sim::ItemTypeId, &[(String, i32)])> = qualities
+        .iter()
+        .map(|(kind, held)| (*kind, held.as_slice()))
+        .collect();
     cdda_sim::item_registry::set_item_qualities(world, &rows);
     // The category table and the proficiency bonuses, from the same data directory and the corpus: the swing's third input is what the swinger knows, and the second is these two tables.
     if let Ok(text) = std::fs::read_to_string(data.join("weapon_categories.json"))
@@ -816,7 +856,8 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
             .collect();
         cdda_sim::proficiencies::set_weapon_categories(world, &table);
     }
-    let proficiencies = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json");
+    let proficiencies =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json");
     if let Ok(bytes) = std::fs::read(proficiencies)
         && let Ok(value) = cdda_json::parse(&bytes)
         && let Some((dump, _count)) = cdda_content::proficiencies::from_dump(&value)
@@ -825,12 +866,20 @@ pub fn install_item_data(world: &mut World) -> Option<usize> {
     }
     // The fault catalogue's types, from the same data directory: `set_random_fault_of_type` filters a kind's faults by this, and without it every fault is ineligible.
     if let Ok(faults) = cdda_content::faults::load_paths(&[&data]) {
-        let typed: Vec<(String, String)> = faults.iter().map(|fault| (fault.id.clone(), fault.fault_type.clone())).collect();
+        let typed: Vec<(String, String)> = faults
+            .iter()
+            .map(|fault| (fault.id.clone(), fault.fault_type.clone()))
+            .collect();
         cdda_sim::item_registry::set_fault_types(world, &typed);
-        let blocks: Vec<(String, std::collections::BTreeSet<String>)> =
-            faults.iter().map(|fault| (fault.id.clone(), fault.block_faults.clone())).collect();
+        let blocks: Vec<(String, std::collections::BTreeSet<String>)> = faults
+            .iter()
+            .map(|fault| (fault.id.clone(), fault.block_faults.clone()))
+            .collect();
         cdda_sim::item_registry::set_fault_blocks(world, &blocks);
-        let spoken: Vec<(String, String)> = faults.into_iter().map(|fault| (fault.id, fault.message)).collect();
+        let spoken: Vec<(String, String)> = faults
+            .into_iter()
+            .map(|fault| (fault.id, fault.message))
+            .collect();
         cdda_sim::item_registry::set_fault_messages(world, &spoken);
     }
     Some(items.len())
@@ -852,10 +901,12 @@ pub fn body_corpus() -> Option<(
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
     let anatomies_text = std::fs::read_to_string(root.join("anatomy-parts.json")).ok()?;
     let parts_text = std::fs::read_to_string(root.join("anatomy.json")).ok()?;
-    let cdda_json::Value::Array(anatomies) = cdda_json::parse(anatomies_text.as_bytes()).ok()? else {
+    let cdda_json::Value::Array(anatomies) = cdda_json::parse(anatomies_text.as_bytes()).ok()?
+    else {
         return None;
     };
-    let cdda_json::Value::Object(root_object) = cdda_json::parse(parts_text.as_bytes()).ok()? else {
+    let cdda_json::Value::Object(root_object) = cdda_json::parse(parts_text.as_bytes()).ok()?
+    else {
         return None;
     };
     let Some(cdda_json::Value::Array(parts)) = root_object.get("parts") else {
@@ -965,7 +1016,9 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
     }
     // **The morale types**, which a spell's `effect_str` is checked against before a character is made to feel anything (`magic_spell_effect.cpp:1511-1515`). Installed
     // from the data for the same reason the harvest tables are: the list is the game's, not the port's.
-    if let Ok(kinds) = cdda_content::morale_types::load(&["../../oracle/src/data/json/morale_types.json"]) {
+    if let Ok(kinds) =
+        cdda_content::morale_types::load(&["../../oracle/src/data/json/morale_types.json"])
+    {
         let named: Vec<String> = kinds.into_iter().collect();
         cdda_sim::morale::set_types(world, &named);
     }
@@ -983,7 +1036,11 @@ pub fn install_monster_data(world: &mut World) -> Option<usize> {
 /// Reference: `mtype::harvest` names a `harvest_definition`, whose entries `butchery.cpp`'s finish loop walks; `mtype::weight` is what a bulk entry's `mass_ratio` is a share of. Both are read from the
 /// reference's data tree the same way the tests read it, because the harvest definitions are their own prototype list rather than a field of the monster.
 #[allow(clippy::too_many_lines)]
-fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::MonsterType], data: &std::path::Path) {
+fn install_harvests(
+    world: &mut World,
+    monsters: &[cdda_content::monsters::MonsterType],
+    data: &std::path::Path,
+) {
     let mut definitions = std::collections::BTreeMap::new();
     if let Ok(files) = cdda_content::json_files_in_load_order(data) {
         for path in files {
@@ -1001,8 +1058,9 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
     cdda_content::harvest::resolve_harvests(&mut definitions);
     // **The drop types first**, because an entry's own `is_group` is the drop type's flag (`harvest.h:36-42`) and the loop below needs it: loading them afterwards would
     // have left every entry reading as an item type.
-    let drop_types = cdda_content::harvest_drops::load(&["../../oracle/src/data/json/harvest_drop_type.json"])
-        .unwrap_or_default();
+    let drop_types =
+        cdda_content::harvest_drops::load(&["../../oracle/src/data/json/harvest_drop_type.json"])
+            .unwrap_or_default();
     let mut weights = Vec::new();
     let mut sizes = Vec::new();
     let mut speeds = Vec::new();
@@ -1021,11 +1079,7 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
         speeds.push((kind, monster.speed));
         // The kind's flags and species, which the revive spells ask **of a kind** rather than of a creature: a corpse's `REVIVES`, `DORMANT` and `NO_NECRO`, and whether it
         // belongs to the species a spell names. `mtype::has_flag` and `mtype::in_species` are the two questions, and both are answered from the data the dump carries.
-        traits.push((
-            kind,
-            monster.flags.clone(),
-            monster.species.clone(),
-        ));
+        traits.push((kind, monster.flags.clone(), monster.species.clone()));
         // The size class is the data's own word for how big the body is, and a word the port does not know is left out rather than guessed at: the registry's default is a person's body.
         let size = match monster.size.as_str() {
             "TINY" => Some(cdda_sim::CreatureSize::Tiny),
@@ -1050,7 +1104,9 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
                 Some(cdda_content::harvest::Part::Skin) => Some(cdda_sim::HarvestEntry::Skin),
                 Some(cdda_content::harvest::Part::Bone) => Some(cdda_sim::HarvestEntry::Bone),
                 Some(cdda_content::harvest::Part::Blood) => Some(cdda_sim::HarvestEntry::Blood),
-                Some(cdda_content::harvest::Part::Other) | None => Some(cdda_sim::HarvestEntry::Other),
+                Some(cdda_content::harvest::Part::Other) | None => {
+                    Some(cdda_sim::HarvestEntry::Other)
+                }
             };
             specs.push(cdda_sim::HarvestSpec {
                 part,
@@ -1080,7 +1136,9 @@ fn install_harvests(world: &mut World, monsters: &[cdda_content::monsters::Monst
                 Some(cdda_content::harvest::Part::Skin) => Some(cdda_sim::HarvestEntry::Skin),
                 Some(cdda_content::harvest::Part::Bone) => Some(cdda_sim::HarvestEntry::Bone),
                 Some(cdda_content::harvest::Part::Blood) => Some(cdda_sim::HarvestEntry::Blood),
-                Some(cdda_content::harvest::Part::Other) | None => Some(cdda_sim::HarvestEntry::Other),
+                Some(cdda_content::harvest::Part::Other) | None => {
+                    Some(cdda_sim::HarvestEntry::Other)
+                }
             };
             specs.push(cdda_sim::HarvestSpec {
                 part,
@@ -1118,7 +1176,8 @@ fn monster_types() -> Option<Vec<cdda_content::monsters::MonsterType>> {
     // The monster loader reads the **reference's dump**, not the game's own JSON: the dump states one number per damage type (`armor_bash`, `armor_cut`, `armor_stab`) where the
     // game nests an `armor` object, and it names `melee_sides` where the game's JSON calls it `melee_dice_sides` (`monstergenerator.cpp:813`). Feeding the loader the game's own
     // files therefore gave every monster zero stab armour, zero sides and - once - a `2d0` blow. The dump is the shape this loader speaks, so the dump is what it is fed.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let bytes = std::fs::read(path).ok()?;
     let root = cdda_json::parse(&bytes).ok()?;
     let cdda_json::Value::Object(root) = root else {
@@ -1132,7 +1191,8 @@ fn monster_types() -> Option<Vec<cdda_content::monsters::MonsterType>> {
 
 /// Every monster species the reference's dump names, with the field each bleeds.
 fn monster_species() -> Vec<cdda_content::monsters::SpeciesType> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/monsters/monsters.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/monsters/monsters.json");
     let Ok(bytes) = std::fs::read(path) else {
         return Vec::new();
     };
@@ -1172,9 +1232,9 @@ fn check_place_step(world: &World, name: &str, outcome: &mut Outcome) {
     if named.as_deref() == Some(name) {
         outcome.lines.push(format!("place: {name}"));
     } else {
-        outcome
-            .failures
-            .push(format!("expected the place to be called {name}, and it is {named:?}"));
+        outcome.failures.push(format!(
+            "expected the place to be called {name}, and it is {named:?}"
+        ));
     }
 }
 
@@ -1218,7 +1278,8 @@ pub fn install_effect_data(world: &mut World) -> Option<usize> {
 /// `int_id` - so the store's idea of "which number is `fd_fire`" is the reference's answer rather than a constant someone
 /// transcribed. Returns how many fields were installed.
 pub fn install_field_data(world: &mut World) -> Option<usize> {
-    let dump = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/field_types.json");
+    let dump =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/field_types.json");
     let text = std::fs::read_to_string(dump).ok()?;
     let value = cdda_json::parse(text.as_bytes()).ok()?;
     let cdda_json::Value::Object(root) = &value else {
@@ -1274,7 +1335,10 @@ pub fn craft_a_recipe(
     let text = std::fs::read_to_string(dump).ok()?;
     let value = cdda_json::parse(text.as_bytes()).ok()?;
     let (recipes, _) = cdda_content::recipes::from_dump(&value)?;
-    let recipe = recipes.iter().find(|recipe| recipe.id == recipe_id)?.clone();
+    let recipe = recipes
+        .iter()
+        .find(|recipe| recipe.id == recipe_id)?
+        .clone();
 
     // The QA surface teaches the recipe it is asked to make: `Character::can_make` refuses a recipe the crafter never learned (`crafting.cpp:602-616`), and a
     // scenario that hands over the components without the knowledge would be asking about bookkeeping rather than about making things. It passes the recipe's own
@@ -1299,7 +1363,8 @@ pub fn craft_a_recipe(
     }
 
     if !already_making {
-        let started = cdda_sim::crafting::begin_craft_from_carried(world, avatar, &recipe, 1, &names);
+        let started =
+            cdda_sim::crafting::begin_craft_from_carried(world, avatar, &recipe, 1, &names);
         if started != cdda_sim::crafting::Craft::Started {
             return Some(format!("{recipe_id} could not be started: {started:?}"));
         }
@@ -1337,13 +1402,7 @@ fn ground_of(world: &mut World, name: &str, names: &cdda_sim::item_registry::Ite
 }
 
 /// Plays one `throw` step: hands what the survivor carries to the throwing rules and reports where it stopped.
-fn throw_a_step(
-    world: &mut World,
-    outcome: &mut Outcome,
-    item: &str,
-    x: i32,
-    y: i32,
-) {
+fn throw_a_step(world: &mut World, outcome: &mut Outcome, item: &str, x: i32, y: i32) {
     let Some(survivor) = survivor(world) else {
         outcome.failures.push("there is no survivor".to_owned());
         return;
@@ -1418,7 +1477,9 @@ fn take_up(world: &mut World, outcome: &mut Outcome, item: &str) {
         return;
     };
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to hold anything".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to hold anything".to_owned());
         return;
     };
     world
@@ -1449,7 +1510,9 @@ fn send_the_monsters_to(outcome: &mut Outcome, world: &mut World, x: i32, y: i32
 /// no-op: a playtest that swung at air and passed would be a playtest that never fought.
 fn swing_at(world: &mut World, outcome: &mut Outcome, x: i32, y: i32) {
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to swing".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to swing".to_owned());
         return;
     };
     let victim = cdda_sim::creature::creature_at(world, (x, y, 0))
@@ -1500,7 +1563,8 @@ fn put_a_monster(world: &mut World, outcome: &mut Outcome, id: &str, x: i32, y: 
             .push(format!("the data has no monster called `{id}`"));
         return;
     };
-    let monster = cdda_sim::creature::spawn_monster_of_type(world, kind, monster_type, (x, y, 0), 100);
+    let monster =
+        cdda_sim::creature::spawn_monster_of_type(world, kind, monster_type, (x, y, 0), 100);
     // A monster a scenario places is one the world will give a turn to, so it is woken the same way a type-spawned one is.
     cdda_sim::creature::set_moves(world, monster, 100);
     let flags = world
@@ -1508,7 +1572,9 @@ fn put_a_monster(world: &mut World, outcome: &mut Outcome, id: &str, x: i32, y: 
         .map_or(0, |carried| carried.0.len());
     let dice = world
         .get::<cdda_sim::creature::MeleeAttack>(monster)
-        .map_or((0, 0, 0), |attack| (attack.0.dice, attack.0.sides, attack.0.accuracy_tenths));
+        .map_or((0, 0, 0), |attack| {
+            (attack.0.dice, attack.0.sides, attack.0.accuracy_tenths)
+        });
     outcome.lines.push(format!(
         "monster: {id} at ({x}, {y}) with {} hit points, {}d{} at {} tenths and {flags} flags{}",
         monster_type.hp,
@@ -1526,11 +1592,15 @@ fn put_a_monster(world: &mut World, outcome: &mut Outcome, id: &str, x: i32, y: 
 /// Plays one `expect hurt` step: the survivor must have lost at least this many hit points.
 fn expect_a_wound(world: &mut World, outcome: &mut Outcome, points: i32) {
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to be hurt".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to be hurt".to_owned());
         return;
     };
     let Some(health) = world.get::<cdda_sim::creature::Health>(survivor).copied() else {
-        outcome.failures.push("the survivor has no hit points".to_owned());
+        outcome
+            .failures
+            .push("the survivor has no hit points".to_owned());
         return;
     };
     let (hp, most) = (health.hp, health.max_hp);
@@ -1551,10 +1621,15 @@ fn expect_a_wound(world: &mut World, outcome: &mut Outcome, points: i32) {
 /// not there before. It counts Chebyshev squares, which is the distance a sound and a walk both use.
 fn expect_a_monster_close(world: &mut World, outcome: &mut Outcome, squares: i32) {
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to stand near".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to stand near".to_owned());
         return;
     };
-    let Some(here) = world.get::<cdda_sim::Position>(survivor).map(|place| (place.x, place.y)) else {
+    let Some(here) = world
+        .get::<cdda_sim::Position>(survivor)
+        .map(|place| (place.x, place.y))
+    else {
         outcome.failures.push("the survivor is nowhere".to_owned());
         return;
     };
@@ -1608,13 +1683,13 @@ fn expect_monster_health(world: &mut World, outcome: &mut Outcome, points: i32, 
     };
     let health = cdda_sim::creature::health_of(world, monster).unwrap_or(0);
     if health == points {
-        outcome
-            .lines
-            .push(format!("health: the monster at ({x}, {y}) has {health} hit points"));
+        outcome.lines.push(format!(
+            "health: the monster at ({x}, {y}) has {health} hit points"
+        ));
     } else {
-        outcome
-            .failures
-            .push(format!("the monster at ({x}, {y}) has {health} hit points, not {points}"));
+        outcome.failures.push(format!(
+            "the monster at ({x}, {y}) has {health} hit points, not {points}"
+        ));
     }
 }
 
@@ -1640,7 +1715,9 @@ fn expect_no_monster_at(world: &mut World, outcome: &mut Outcome, x: i32, y: i32
 /// always produces the same bytes, so a recorded picture is a gate on everything the view reads.
 fn take_a_shot(world: &mut World, outcome: &mut Outcome, path: &str) {
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to draw around".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to draw around".to_owned());
         return;
     };
     let at = world
@@ -1731,14 +1808,21 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
     let covering = |item: &cdda_content::items::ItemType| -> std::collections::BTreeSet<String> {
         item.armor_parts
             .iter()
-            .filter(|entry| !cdda_content::armour::layers_on(item, &materials, "torso", "bash").is_empty()
-                || entry.thickness > 0.0)
+            .filter(|entry| {
+                !cdda_content::armour::layers_on(item, &materials, "torso", "bash").is_empty()
+                    || entry.thickness > 0.0
+            })
             .flat_map(|entry| entry.covers.clone())
             .collect()
     };
-    let candidates: Vec<(std::collections::BTreeSet<String>, &cdda_content::items::ItemType)> = items
+    let candidates: Vec<(
+        std::collections::BTreeSet<String>,
+        &cdda_content::items::ItemType,
+    )> = items
         .iter()
-        .filter(|item| !cdda_content::armour::layers_on(item, &materials, "torso", "bash").is_empty())
+        .filter(|item| {
+            !cdda_content::armour::layers_on(item, &materials, "torso", "bash").is_empty()
+        })
         .map(|item| (covering(item), item))
         .collect();
     // Among the garments that cover a torso **and** an arm - which rules out a canteen on a strap - take the least
@@ -1752,7 +1836,9 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
     };
     let mut shirts: Vec<&cdda_content::items::ItemType> = candidates
         .into_iter()
-        .filter(|(parts, _)| parts.contains("torso") && (parts.contains("arm_l") || parts.contains("arm_r")))
+        .filter(|(parts, _)| {
+            parts.contains("torso") && (parts.contains("arm_l") || parts.contains("arm_r"))
+        })
         .map(|(_, item)| item)
         // A garment whose materials add up to nothing protects nothing, whatever its data claims it covers;
         // wearing it would make the avatar look dressed and be bare.
@@ -1806,7 +1892,12 @@ pub fn dress_the_avatar(world: &mut World, avatar: bevy_ecs::entity::Entity) -> 
     cdda_sim::creature::dress(world);
     let torso = world
         .get::<cdda_sim::creature::PartArmour>(avatar)
-        .and_then(|armour| armour.0.get("torso").and_then(|figure| figure.get("bash").copied()))
+        .and_then(|armour| {
+            armour
+                .0
+                .get("torso")
+                .and_then(|figure| figure.get("bash").copied())
+        })
         .unwrap_or(0);
     Some(format!("{} — {torso} point(s) on the torso", shirt.id))
 }
@@ -1941,7 +2032,8 @@ mod tests {
                 hp: 30,
             }],
         );
-        let named = cdda_sim::monster_registry::id_of(&mut world, "mon_yrax_delta").expect("just registered");
+        let named = cdda_sim::monster_registry::id_of(&mut world, "mon_yrax_delta")
+            .expect("just registered");
         let zombie = cdda_sim::spawn_monster(&mut world, (7, 6), named, 30);
         let torso = cdda_sim::hit_location::BodyPart {
             name: "torso".to_owned(),
@@ -1957,7 +2049,8 @@ mod tests {
         cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(1));
         // `overcharge_yrax` is a hundred mana and an attack, so a pool of ninety-nine is one short.
         world.entity_mut(avatar).insert(Mana { cur: 99, max: 200 });
-        let refused = cast_at_nearest(&mut world, avatar, "overcharge_yrax", 0).expect("the spell exists");
+        let refused =
+            cast_at_nearest(&mut world, avatar, "overcharge_yrax", 0).expect("the spell exists");
         assert!(
             refused.contains("99") && refused.contains("100"),
             "**the refusal names the price and what the caster had**: {refused}"
@@ -1968,7 +2061,8 @@ mod tests {
             "and a cast that did not happen spends nothing"
         );
         world.entity_mut(avatar).insert(Mana { cur: 100, max: 200 });
-        let cast = cast_at_nearest(&mut world, avatar, "overcharge_yrax", 0).expect("the spell exists");
+        let cast =
+            cast_at_nearest(&mut world, avatar, "overcharge_yrax", 0).expect("the spell exists");
         assert!(cast.contains("hits the torso"), "the cast lands: {cast}");
         assert_eq!(
             world.get::<Mana>(avatar).map(|mana| mana.cur),
@@ -1987,23 +2081,50 @@ mod tests {
             "world 12 bare\nsurvivor 0 0\nitems\nmonsters\ndata\nseed 31\nmonster mon_zombie 6 0\nwield ruger_mini\nburst ruger_mini at 6 0 3 3\n",
         )
         .expect("the scenario parses and runs");
-        assert!(outcome.failures.is_empty(), "the scenario's own claims held: {:?}", outcome.failures);
-        let fired: Vec<&String> = outcome.lines.iter().filter(|line| line.starts_with("burst:")).collect();
+        assert!(
+            outcome.failures.is_empty(),
+            "the scenario's own claims held: {:?}",
+            outcome.failures
+        );
+        let fired: Vec<&String> = outcome
+            .lines
+            .iter()
+            .filter(|line| line.starts_with("burst:"))
+            .collect();
         assert_eq!(fired.len(), 1, "one burst report: {fired:?}");
-        assert!(fired.first().is_some_and(|line| line.contains("fired 3 of 3")), "and it fired three: {fired:?}");
-        let shots: Vec<&String> = outcome.lines.iter().filter(|line| line.trim_start().starts_with("shot:")).collect();
+        assert!(
+            fired
+                .first()
+                .is_some_and(|line| line.contains("fired 3 of 3")),
+            "and it fired three: {fired:?}"
+        );
+        let shots: Vec<&String> = outcome
+            .lines
+            .iter()
+            .filter(|line| line.trim_start().starts_with("shot:"))
+            .collect();
         assert_eq!(shots.len(), 3, "with three shot lines under it: {shots:?}");
         // The dispersion climbs with the recoil, so the misses are not all the same number.
         let misses: Vec<f64> = shots
             .iter()
-            .filter_map(|line| line.split("missed by ").nth(1).and_then(|rest| rest.split(',').next()).and_then(|text| text.parse().ok()))
+            .filter_map(|line| {
+                line.split("missed by ")
+                    .nth(1)
+                    .and_then(|rest| rest.split(',').next())
+                    .and_then(|text| text.parse().ok())
+            })
             .collect();
         assert_eq!(misses.len(), 3, "three parsed misses: {misses:?}");
         // **The `seed` line is what puts dice in the world**: without it `take_rolls` answers `None` and every roll is zero, so three shots would report the same 0.000 miss. The
         // first version of this gate did exactly that and the identical misses were the evidence.
-        assert!(misses.iter().any(|missed| *missed > 0.0), "the seed line put dice in the world: {misses:?}");
         assert!(
-            misses.windows(2).any(|pair| matches!(pair, [a, b] if (a - b).abs() > f64::EPSILON)),
+            misses.iter().any(|missed| *missed > 0.0),
+            "the seed line put dice in the world: {misses:?}"
+        );
+        assert!(
+            misses
+                .windows(2)
+                .any(|pair| matches!(pair, [a, b] if (a - b).abs() > f64::EPSILON)),
             "and the shots are not identical: {misses:?}"
         );
     }
@@ -2015,20 +2136,36 @@ mod tests {
     #[test]
     fn a_gun_that_names_an_ammunition_type_finds_a_round_of_that_type() {
         let read = |name: &str| {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("../../corpus/{name}"));
             let bytes = std::fs::read(path).expect("the corpus file exists");
             cdda_json::parse(&bytes).expect("valid JSON")
         };
-        let rounds = cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
+        let rounds =
+            cdda_content::ammo::load_dump(&read("items/ammo.json")).expect("the ammo loads");
         let guns = cdda_content::guns::load_dump(&read("items/guns.json")).expect("the guns load");
 
-        let gun = |id: &str| guns.iter().find(|gun| gun.id == id).expect("the gun is in the dump").clone();
+        let gun = |id: &str| {
+            guns.iter()
+                .find(|gun| gun.id == id)
+                .expect("the gun is in the dump")
+                .clone()
+        };
         let by_id = gun("ruger_mini").ammo;
-        assert_eq!(by_id, "223", "a rifle names a type that is also a round's id");
-        assert!(rounds.iter().any(|round| round.id == by_id), "so the id lookup finds it");
+        assert_eq!(
+            by_id, "223",
+            "a rifle names a type that is also a round's id"
+        );
+        assert!(
+            rounds.iter().any(|round| round.id == by_id),
+            "so the id lookup finds it"
+        );
 
         let by_type = gun("pipe_shotgun").ammo;
-        assert_eq!(by_type, "shot", "and a shotgun names a type that is no round's id");
+        assert_eq!(
+            by_type, "shot",
+            "and a shotgun names a type that is no round's id"
+        );
         assert!(
             !rounds.iter().any(|round| round.id == by_type),
             "which is what makes the second lookup necessary rather than decorative"
@@ -2038,8 +2175,14 @@ mod tests {
             .filter(|round| round.ammo_type == by_type)
             .map(|round| round.id.as_str())
             .collect();
-        assert!(found.len() > 1, "and there are several rounds of it: {found:?}");
-        assert!(found.contains(&"shot_bird"), "birdshot among them: {found:?}");
+        assert!(
+            found.len() > 1,
+            "and there are several rounds of it: {found:?}"
+        );
+        assert!(
+            found.contains(&"shot_bird"),
+            "birdshot among them: {found:?}"
+        );
         assert!(
             round_of_type(&rounds, &by_type).is_some_and(|round| round.ammo_type == by_type),
             "and the resolver the step uses finds one"
@@ -2057,7 +2200,8 @@ mod tests {
         let items = install_item_data(&mut world).expect("the item data is in the repository");
         assert!(items > 9_000, "every item type: {items}");
 
-        let monsters = install_monster_data(&mut world).expect("the monster data is in the repository");
+        let monsters =
+            install_monster_data(&mut world).expect("the monster data is in the repository");
         assert!(monsters > 1_000, "every monster prototype: {monsters}");
 
         let Some(types) = monster_types() else {
@@ -2084,10 +2228,17 @@ mod tests {
     fn the_avatar_can_be_dressed_from_the_game_s_data() {
         let mut world = World::new();
         let avatar = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
-        let worn = dress_the_avatar(&mut world, avatar).expect("the game data is in the repository");
-        assert!(worn.contains("point"), "the line says what it is worth: {worn}");
+        let worn =
+            dress_the_avatar(&mut world, avatar).expect("the game data is in the repository");
+        assert!(
+            worn.contains("point"),
+            "the line says what it is worth: {worn}"
+        );
         let torso = cdda_sim::creature::armour_on(&world, avatar, "torso", None);
-        assert!(torso >= 1, "a garment that protects nothing is not a garment: {worn}");
+        assert!(
+            torso >= 1,
+            "a garment that protects nothing is not a garment: {worn}"
+        );
         assert_eq!(
             cdda_sim::creature::armour_on(&world, avatar, "foot_l", None),
             0,
@@ -2098,7 +2249,8 @@ mod tests {
         let worn_any_flag = {
             let mut flags = world.get::<cdda_sim::creature::WornFlags>(avatar);
             let _ = &mut flags;
-            let mut query = world.query::<(&cdda_sim::creature::WornBy, &cdda_sim::creature::WornFlags)>();
+            let mut query =
+                world.query::<(&cdda_sim::creature::WornBy, &cdda_sim::creature::WornFlags)>();
             let mut carried = 0;
             for (worn_by, flags) in query.iter(&world) {
                 if worn_by.0 == avatar {
@@ -2131,8 +2283,8 @@ mod tests {
             hit_difficulty: 1.0,
             upper: false,
             lower: false,
-                ..Default::default()
-            };
+            ..Default::default()
+        };
         let zombie = cdda_sim::spawn_monster(&mut world, (1, 0), cdda_sim::MonsterKindId(0), 30);
         world
             .entity_mut(zombie)
@@ -2141,7 +2293,10 @@ mod tests {
         let said = cast_at_nearest(&mut world, avatar, "bio_taser_spell", 0)
             .expect("the dump has the taser and the zombie is next to the avatar");
 
-        assert!(said.contains("torso"), "the line names where it landed: {said}");
+        assert!(
+            said.contains("torso"),
+            "the line names where it landed: {said}"
+        );
         assert_eq!(
             cdda_sim::creature::health_of(&world, zombie),
             Some(15),
@@ -2151,19 +2306,24 @@ mod tests {
 
     #[test]
     fn a_scenario_that_says_what_it_means_runs_and_passes() {
-        let outcome = run(
-            "world 12 flammable\n\
+        let outcome = run("world 12 flammable\n\
              seed 7\n\
              fire 6 6 2 500\n\
              turn 3\n\
              expect changed 1\n\
-             expect fire 6 6\n",
-        )
+             expect fire 6 6\n")
         .expect("the scenario parses");
 
-        assert!(outcome.passed(), "the assertions held: {:?}", outcome.failures);
         assert!(
-            outcome.lines.iter().any(|line| line.contains("1 square(s) changed")),
+            outcome.passed(),
+            "the assertions held: {:?}",
+            outcome.failures
+        );
+        assert!(
+            outcome
+                .lines
+                .iter()
+                .any(|line| line.contains("1 square(s) changed")),
             "the run reports what happened: {:?}",
             outcome.lines
         );
@@ -2203,8 +2363,15 @@ mod tests {
                 Err(error) => failures.push(format!("{}: {error}", path.display())),
             }
         }
-        assert!(ran >= 2, "the gate ran {ran} scenario(s), which is not enough to say anything");
-        assert!(failures.is_empty(), "scenarios failed:\n{}", failures.join("\n"));
+        assert!(
+            ran >= 2,
+            "the gate ran {ran} scenario(s), which is not enough to say anything"
+        );
+        assert!(
+            failures.is_empty(),
+            "scenarios failed:\n{}",
+            failures.join("\n")
+        );
     }
 
     #[test]
@@ -2230,7 +2397,8 @@ mod item_data_tests {
     #[test]
     fn the_binary_s_world_knows_the_game_s_items() {
         let mut world = World::new();
-        let kinds = super::install_item_data(&mut world).expect("the game data is in the repository");
+        let kinds =
+            super::install_item_data(&mut world).expect("the game data is in the repository");
         assert!(kinds > 9_000, "installed {kinds} kinds, which is too few");
         assert_eq!(
             cdda_sim::item_registry::count(&mut world),
@@ -2238,8 +2406,8 @@ mod item_data_tests {
             "and the store knows every one of them"
         );
         // A known item, by the name the data uses, weighs something and takes room - which is the whole point.
-        let two_by_four = cdda_sim::item_registry::id_of(&mut world, "2x4")
-            .expect("the data has a two by four");
+        let two_by_four =
+            cdda_sim::item_registry::id_of(&mut world, "2x4").expect("the data has a two by four");
         assert!(
             cdda_sim::item_registry::weight_of(&mut world, two_by_four) > 0,
             "a two by four weighs something"
@@ -2268,7 +2436,8 @@ mod item_data_tests {
         // A creature that knows the master's proficiency gets the discount, which needs all three tables to agree.
         let dump = cdda_content::proficiencies::from_dump(&{
             let text = std::fs::read_to_string(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/proficiencies.json"),
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../corpus/proficiencies.json"),
             )
             .expect("the proficiency dump is in the corpus");
             cdda_json::parse(text.as_bytes()).expect("the proficiency dump parses")
@@ -2278,7 +2447,8 @@ mod item_data_tests {
         cdda_sim::proficiencies::install(&mut world, &dump);
         let survivor = cdda_sim::spawn_player(&mut world, (0, 0), 80, 0);
         assert!(
-            (cdda_sim::proficiencies::stamina_multiplier(&mut world, survivor, sword) - 1.0).abs() < 1e-6,
+            (cdda_sim::proficiencies::stamina_multiplier(&mut world, survivor, sword) - 1.0).abs()
+                < 1e-6,
             "a survivor who knows nothing gets no discount"
         );
         cdda_sim::proficiencies::learn(&mut world, survivor, "prof_medium_swords_master");
@@ -2335,7 +2505,8 @@ mod craft_tests {
 /// The same shape as [`install_field_data`] and the same reason: an effect that reads a table the tests build by hand is right
 /// in the tests and empty in the game, which is a difference no behaviour test can see.
 pub fn install_emit_data(world: &mut World) -> Option<usize> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/data/json/emit.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../oracle/src/data/json/emit.json");
     let text = std::fs::read_to_string(path).ok()?;
     let value = cdda_json::parse(text.as_bytes()).ok()?;
     let cdda_json::Value::Array(rows) = &value else {
@@ -2382,7 +2553,10 @@ mod field_data_tests {
         // The data defines 61 emission ids, and 48 of them are emissions of **things** - they carry a `qty`, which the port
         // refuses rather than placing one of something where the data says three. So the field emissions the port can run are
         // 13, and the number is the honest size of the `emit` machine as ported.
-        assert_eq!(count, 61, "the data defines 61 emission ids, all of them installed");
+        assert_eq!(
+            count, 61,
+            "the data defines 61 emission ids, all of them installed"
+        );
         let Some(gas) = cdda_sim::emit_registry::emissions_of(&world, "emit_toxic_leak") else {
             panic!("the toxic leak emission is defined");
         };
@@ -2418,7 +2592,8 @@ mod field_data_tests {
 
         // The level counts come from the dump, not from a constant: `fd_electricity` carries ten intensity levels, so its maximum
         // intensity is ten. Before this round every field clamped at three - right for `fd_blood`, wrong for this one.
-        let Some(electricity) = cdda_sim::field_registry::id_of(&mut world, "fd_electricity") else {
+        let Some(electricity) = cdda_sim::field_registry::id_of(&mut world, "fd_electricity")
+        else {
             panic!("the field is installed");
         };
         assert_eq!(
@@ -2493,7 +2668,8 @@ mod field_data_tests {
     /// throw with nothing in hand is a failure with a sentence, not a panic.
     #[test]
     fn a_throw_with_nothing_in_hand_says_so() {
-        let outcome = crate::run("world 4 bare\nsurvivor 0 0\nthrow rock at 3 0\n").expect("the scenario parses");
+        let outcome = crate::run("world 4 bare\nsurvivor 0 0\nthrow rock at 3 0\n")
+            .expect("the scenario parses");
         assert!(
             outcome
                 .failures
@@ -2508,8 +2684,8 @@ mod field_data_tests {
     #[allow(clippy::expect_used)]
     #[test]
     fn expecting_an_item_on_an_empty_square_fails() {
-        let outcome =
-            crate::run("world 4 bare\nsurvivor 0 0\nexpect item rock at 2 2\n").expect("the scenario parses");
+        let outcome = crate::run("world 4 bare\nsurvivor 0 0\nexpect item rock at 2 2\n")
+            .expect("the scenario parses");
         assert!(
             outcome
                 .failures
@@ -2553,14 +2729,20 @@ mod field_data_tests {
     fn the_binary_s_world_knows_what_a_vitamin_and_an_effect_are() {
         let mut world = World::new();
         let vitamins = super::install_vitamin_data(&mut world).unwrap_or(0);
-        assert!(vitamins > 40, "installed {vitamins} vitamins, which is too few");
+        assert!(
+            vitamins > 40,
+            "installed {vitamins} vitamins, which is too few"
+        );
         assert_eq!(
             cdda_sim::vitamin_registry::count(&world),
             vitamins,
             "and the store knows every one"
         );
         let effects = super::install_effect_data(&mut world).unwrap_or(0);
-        assert!(effects > 100, "installed {effects} effect types, which is too few");
+        assert!(
+            effects > 100,
+            "installed {effects} effect types, which is too few"
+        );
         // A known effect, by the name the data uses, is one the store can answer with its own caps.
         let poison = cdda_sim::effect_registry::kind_of(&mut world, "poison");
         assert!(poison.is_some(), "the data has a poison effect");
@@ -2589,26 +2771,54 @@ mod grammar_tests {
     #[test]
     fn every_line_of_the_documented_grammar_parses() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/cli-steps.md");
-        let text = std::fs::read_to_string(path).expect("the grammar document is in the repository");
+        let text =
+            std::fs::read_to_string(path).expect("the grammar document is in the repository");
         let mut checked = 0;
         for line in text.lines() {
             let line = line.trim();
-            if line.is_empty() || line.starts_with('#') || line.starts_with("```") || line.contains(" is one of these") {
+            if line.is_empty()
+                || line.starts_with('#')
+                || line.starts_with("```")
+                || line.contains(" is one of these")
+            {
                 continue;
             }
             // Prose lines in the document are skipped; grammar lines all begin with a lowercase keyword followed by a space or nothing.
             let first = line.split_whitespace().next().unwrap_or("");
             if !matches!(
                 first,
-                "world" | "seed" | "scent" | "fire" | "turn" | "date" | "data" | "survivor" | "items" | "monsters"
-                    | "place" | "give" | "wield" | "attack" | "throw" | "shot" | "goal" | "monster" | "craft" | "expect"
+                "world"
+                    | "seed"
+                    | "scent"
+                    | "fire"
+                    | "turn"
+                    | "date"
+                    | "data"
+                    | "survivor"
+                    | "items"
+                    | "monsters"
+                    | "place"
+                    | "give"
+                    | "wield"
+                    | "attack"
+                    | "throw"
+                    | "shot"
+                    | "goal"
+                    | "monster"
+                    | "craft"
+                    | "expect"
             ) {
                 continue;
             }
-            parse(line).unwrap_or_else(|error| panic!("the document says `{line}`, and the parser says: {error}"));
+            parse(line).unwrap_or_else(|error| {
+                panic!("the document says `{line}`, and the parser says: {error}")
+            });
             checked += 1;
         }
-        assert!(checked >= 30, "the grammar document has the whole grammar: {checked} lines");
+        assert!(
+            checked >= 30,
+            "the grammar document has the whole grammar: {checked} lines"
+        );
     }
 }
 
@@ -2618,9 +2828,19 @@ mod grammar_tests {
 /// **the shot's price is the skill's figure and its accuracy is the gun's**, and a scenario that invented either would be testing the scenario.
 ///
 /// The gun is an item entity the survivor wields, with `rounds` in it: the port keeps "how many of these are here" in the item's own charges, so firing is a component write on that entity.
-fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, round_id: Option<&str>, x: i32, y: i32, rounds: i32) {
+fn fire_a_step(
+    world: &mut World,
+    outcome: &mut Outcome,
+    gun_id: &str,
+    round_id: Option<&str>,
+    x: i32,
+    y: i32,
+    rounds: i32,
+) {
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to fire".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to fire".to_owned());
         return;
     };
     let Some((gun, lines, mut round)) = fire_tables(gun_id, outcome) else {
@@ -2638,7 +2858,9 @@ fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, round_id:
     // The gun is carried: a weapon in the survivor's own hands, which is what `wield` puts there.
     let Some(held) = carried_item_of(world, survivor, gun_id, &names).or_else(|| {
         let kind = cdda_sim::drop_item(world, (0, 0), cdda_sim::ItemTypeId(0), rounds);
-        world.entity_mut(kind).insert(cdda_sim::creature::WieldedBy(survivor));
+        world
+            .entity_mut(kind)
+            .insert(cdda_sim::creature::WieldedBy(survivor));
         Some(kind)
     }) else {
         outcome
@@ -2657,11 +2879,26 @@ fn fire_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, round_id:
         world.entity_mut(held).insert(cdda_sim::shot::NeverJams);
     }
     let before = cdda_sim::creature::moves_left(world, survivor);
-    let shot = cdda_sim::shot::fire_at(world, survivor, &gun, &lines, (x, y, 0), 18.0, round.as_ref(), Some(held), gun_weight(gun_id), reloads_and_shoots(gun_id), );
+    let shot = cdda_sim::shot::fire_at(
+        world,
+        survivor,
+        &gun,
+        &lines,
+        (x, y, 0),
+        18.0,
+        round.as_ref(),
+        Some(held),
+        gun_weight(gun_id),
+        reloads_and_shoots(gun_id),
+    );
     let spent = before - cdda_sim::creature::moves_left(world, survivor);
     outcome.lines.push(format!(
         "fire: {gun_id} {} the shot, {spent} moves, missed by {:.3}, hurt {} {:?}, noise {}",
-        if shot.loaded { "made" } else { "could not make" },
+        if shot.loaded {
+            "made"
+        } else {
+            "could not make"
+        },
         shot.aim.missed_by,
         shot.hurt,
         shot.hit,
@@ -2682,23 +2919,35 @@ fn fire_tables(
     Option<cdda_content::ammo::AmmoType>,
 )> {
     let read = |name: &str| -> Option<cdda_json::Value> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../corpus/{name}"));
         let bytes = std::fs::read(&path).ok()?;
         cdda_json::parse(&bytes).ok()
     };
-    let Some(guns) = read("items/guns.json").and_then(|value| cdda_content::guns::load_dump(&value).ok()) else {
-        outcome.failures.push("the guns dump is not where the scenario expects it".to_owned());
+    let Some(guns) =
+        read("items/guns.json").and_then(|value| cdda_content::guns::load_dump(&value).ok())
+    else {
+        outcome
+            .failures
+            .push("the guns dump is not where the scenario expects it".to_owned());
         return None;
     };
-    let Some(lines) = read("skills.json").and_then(|value| cdda_content::skills::load_dump(&value).ok()) else {
-        outcome.failures.push("the skills dump is not where the scenario expects it".to_owned());
+    let Some(lines) =
+        read("skills.json").and_then(|value| cdda_content::skills::load_dump(&value).ok())
+    else {
+        outcome
+            .failures
+            .push("the skills dump is not where the scenario expects it".to_owned());
         return None;
     };
     // The round is the gun's own `ammo` field, looked up in the ammo table: **a firearm's blow lives there, not in the gun** (rounds 1146 and 1147), so a shot fired without it does
     // nothing at all - which is what the first run of the shooting scenario showed.
-    let rounds = read("items/ammo.json").and_then(|value| cdda_content::ammo::load_dump(&value).ok());
+    let rounds =
+        read("items/ammo.json").and_then(|value| cdda_content::ammo::load_dump(&value).ok());
     let Some(gun) = guns.into_iter().find(|gun| gun.id == gun_id) else {
-        outcome.failures.push(format!("`{gun_id}` is not a gun in the corpus"));
+        outcome
+            .failures
+            .push(format!("`{gun_id}` is not a gun in the corpus"));
         return None;
     };
     // Two namespaces, and the port tries both: the round's **id** (which is what `223` is) and, failing that, the **ammunition type** the gun names (which is what `shot` is).
@@ -2718,23 +2967,23 @@ fn fire_tables(
 ///
 /// When the line is not that shape, or a coordinate is not a number.
 fn shoot_step(words: &[&str]) -> Result<Step, String> {
-        // Two shapes: the round is named, or the gun's own ammunition type decides.
-        let (gun, round, rest) = match words {
-            ["shoot", gun, "at", rest @ ..] => (*gun, None, rest),
-            ["shoot", gun, round, "at", rest @ ..] => (*gun, Some((*round).to_owned()), rest),
-            _ => return Err(format!("`{}` is not a shoot step", words.join(" "))),
-        };
-        let [x, y, rounds] = rest else {
-            return Err(format!("`{}` is not a shoot step", words.join(" ")));
-        };
-        let number = words.len();
-        Ok(Step::Shoot {
-            gun: gun.to_owned(),
-            round,
-            x: number_of(x, number, "x")?,
-            y: number_of(y, number, "y")?,
-            rounds: number_of(rounds, number, "rounds")?,
-        })
+    // Two shapes: the round is named, or the gun's own ammunition type decides.
+    let (gun, round, rest) = match words {
+        ["shoot", gun, "at", rest @ ..] => (*gun, None, rest),
+        ["shoot", gun, round, "at", rest @ ..] => (*gun, Some((*round).to_owned()), rest),
+        _ => return Err(format!("`{}` is not a shoot step", words.join(" "))),
+    };
+    let [x, y, rounds] = rest else {
+        return Err(format!("`{}` is not a shoot step", words.join(" ")));
+    };
+    let number = words.len();
+    Ok(Step::Shoot {
+        gun: gun.to_owned(),
+        round,
+        x: number_of(x, number, "x")?,
+        y: number_of(y, number, "y")?,
+        rounds: number_of(rounds, number, "rounds")?,
+    })
 }
 
 /// What a gun weighs, in grams, from the reference's own item dump.
@@ -2742,7 +2991,8 @@ fn shoot_step(words: &[&str]) -> Result<Step, String> {
 /// Reference: `item::weight()` (`item.cpp:7256-7261`), which the recoil rule divides by 333 g. The prototypes dump writes `weight_mg` in **milligrams**, and a gun it does not know
 /// weighs nothing - which prices its kick as if the weapon were weightless rather than inventing a figure.
 fn gun_weight(id: &str) -> f64 {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
     let Ok(bytes) = std::fs::read(&path) else {
         return 0.0;
     };
@@ -2785,7 +3035,10 @@ fn reloads_and_shoots(id: &str) -> bool {
 /// When the line is not `throw <item> at <x> <y>`, or a coordinate is not a number.
 fn throw_step(words: &[&str], number: usize) -> Result<Step, String> {
     let ["throw", item, "at", x, y] = words else {
-        return Err(format!("line {}: expected `throw <item> at <x> <y>`", number + 1));
+        return Err(format!(
+            "line {}: expected `throw <item> at <x> <y>`",
+            number + 1
+        ));
     };
     Ok(Step::Throw {
         item: (*item).to_owned(),
@@ -2821,7 +3074,9 @@ fn aim_step(words: &[&str], number: usize) -> Result<Step, String> {
 #[allow(clippy::cast_possible_truncation)]
 fn aim_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, moves: i32) {
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to aim".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to aim".to_owned());
         return;
     };
     let Some((gun, lines, _)) = fire_tables(gun_id, outcome) else {
@@ -2830,11 +3085,15 @@ fn aim_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, moves: i32
     let skill = lines
         .iter()
         .find(|line| line.id == gun.skill)
-        .map_or(0, |line| cdda_sim::creature::skill_level(world, survivor, &line.id));
+        .map_or(0, |line| {
+            cdda_sim::creature::skill_level(world, survivor, &line.id)
+        });
     let perception = cdda_sim::creature::effective_perception(world, survivor);
     let archery = gun.skill == "archery";
     let limit = f64::from(cdda_sim::aim::point_shooting_limit(skill, archery));
-    let recoil = world.get::<cdda_sim::shot::Recoil>(survivor).map_or(0.0, |recoil| f64::from(recoil.points));
+    let recoil = world
+        .get::<cdda_sim::shot::Recoil>(survivor)
+        .map_or(0.0, |recoil| f64::from(recoil.points));
     let (_, sight_speed) = cdda_sim::aim::sight_report(&gun, perception, recoil as i32, false);
     let (after, spent) = cdda_sim::aim::spend_aim(recoil, limit, skill, sight_speed, moves);
     cdda_sim::creature::spend_moves(world, survivor, f64::from(spent));
@@ -2854,7 +3113,10 @@ fn aim_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, moves: i32
 /// Reference: a gun states an **ammunition type** (`gun_type::ammo`, `"shot"`), and the rounds that fit it are separate items keyed by their own ids (`shot_bird`, `shot_00`). The reference
 /// picks between them by what is **loaded** (`item::ammo_current`); the port has no magazine entity yet, so it takes the **first round of that type in the table's order** and says so - a
 /// deterministic choice from the data rather than an invented favourite. When no round carries the type, the answer is `None` and the step fails rather than firing nothing.
-fn round_of_type<'a>(rounds: &'a [cdda_content::ammo::AmmoType], kind: &str) -> Option<&'a cdda_content::ammo::AmmoType> {
+fn round_of_type<'a>(
+    rounds: &'a [cdda_content::ammo::AmmoType],
+    kind: &str,
+) -> Option<&'a cdda_content::ammo::AmmoType> {
     rounds.iter().find(|round| round.ammo_type == kind)
 }
 
@@ -2880,9 +3142,19 @@ fn burst_step(words: &[&str]) -> Result<Step, String> {
 /// Fires a burst, and reports each shot the gun actually made.
 ///
 /// Reference: `ranged.cpp:1130-1240` - the loop that spends a round, charges a shot and adds recoil per shot, and stops when the gun will not load.
-fn burst_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, y: i32, shots: i32, rounds: i32) {
+fn burst_a_step(
+    world: &mut World,
+    outcome: &mut Outcome,
+    gun_id: &str,
+    x: i32,
+    y: i32,
+    shots: i32,
+    rounds: i32,
+) {
     let Some(survivor) = survivor(world) else {
-        outcome.failures.push("there is no survivor to fire".to_owned());
+        outcome
+            .failures
+            .push("there is no survivor to fire".to_owned());
         return;
     };
     let Some((gun, lines, round)) = fire_tables(gun_id, outcome) else {
@@ -2892,10 +3164,14 @@ fn burst_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, 
     // The same rule the single shot uses: a gun in hand, or one put into it by the step itself.
     let Some(held) = carried_item_of(world, survivor, gun_id, &names).or_else(|| {
         let kind = cdda_sim::drop_item(world, (0, 0), cdda_sim::ItemTypeId(0), rounds);
-        world.entity_mut(kind).insert(cdda_sim::creature::WieldedBy(survivor));
+        world
+            .entity_mut(kind)
+            .insert(cdda_sim::creature::WieldedBy(survivor));
         Some(kind)
     }) else {
-        outcome.lines.push(format!("nothing called {gun_id} is in hand to fire"));
+        outcome
+            .lines
+            .push(format!("nothing called {gun_id} is in hand to fire"));
         return;
     };
     if let Some(mut item) = world.get_mut::<cdda_sim::GroundItem>(held)
@@ -2921,7 +3197,10 @@ fn burst_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, 
         has_item_flag(gun_id, "WONT_TRAIN_MARKSMANSHIP"),
     );
     let spent = before - cdda_sim::creature::moves_left(world, survivor);
-    outcome.lines.push(format!("burst: {gun_id} fired {} of {shots} shots for {spent} moves", made.len()));
+    outcome.lines.push(format!(
+        "burst: {gun_id} fired {} of {shots} shots for {spent} moves",
+        made.len()
+    ));
     for shot in &made {
         outcome.lines.push(format!(
             "  shot: missed by {:.3}, hurt {}, noise {}",
@@ -2929,7 +3208,9 @@ fn burst_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, 
         ));
     }
     if made.is_empty() {
-        outcome.failures.push(format!("{gun_id} fired no shot at all"));
+        outcome
+            .failures
+            .push(format!("{gun_id} fired no shot at all"));
     }
 }
 
@@ -2937,7 +3218,8 @@ fn burst_a_step(world: &mut World, outcome: &mut Outcome, gun_id: &str, x: i32, 
 ///
 /// Reference: `item::has_flag` over `itype::flags`. The port reads the dump directly because the item registry's snapshot is keyed by kind, not by id, and a scenario names an id.
 fn has_item_flag(id: &str, flag: &str) -> bool {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/prototypes/items.json");
     let Ok(bytes) = std::fs::read(&path) else {
         return false;
     };
@@ -2966,7 +3248,8 @@ fn has_item_flag(id: &str, flag: &str) -> bool {
 /// **ammunition type** (`"223"`), and the round it fires is an id in the ammo table (`556_incendiary`), so a scenario that wants a particular load has to name the round.
 #[must_use]
 fn round_of_id(id: &str) -> Option<cdda_content::ammo::AmmoType> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo.json");
     let bytes = std::fs::read(&path).ok()?;
     let value = cdda_json::parse(&bytes).ok()?;
     cdda_content::ammo::load_dump(&value)
@@ -2990,10 +3273,19 @@ mod round_naming_tests {
             steps.pop().expect("one step")
         };
         let without = one("shoot ruger_mini at 4 0 1");
-        assert!(matches!(without, super::Step::Shoot { round: None, .. }), "no round named: {without:?}");
+        assert!(
+            matches!(without, super::Step::Shoot { round: None, .. }),
+            "no round named: {without:?}"
+        );
         let with = one("shoot ruger_mini 556_incendiary at 4 0 1");
         match with {
-            super::Step::Shoot { round: Some(round), x, y, rounds, gun } => {
+            super::Step::Shoot {
+                round: Some(round),
+                x,
+                y,
+                rounds,
+                gun,
+            } => {
                 assert_eq!(round, "556_incendiary");
                 assert_eq!((gun.as_str(), x, y, rounds), ("ruger_mini", 4, 0, 1));
             }
@@ -3001,9 +3293,18 @@ mod round_naming_tests {
         }
         // And the round is in the dump with the effect the fire rules read.
         let round = super::round_of_id("556_incendiary").expect("the round is in the corpus");
-        assert_eq!(round.ammo_type, "223", "it fits a .223 chamber, which the Mini-14 has");
-        assert!(round.has_effect("INCENDIARY"), "and it is an incendiary round");
-        assert!(super::round_of_id("no_such_round").is_none(), "an unknown round is nothing rather than a guess");
+        assert_eq!(
+            round.ammo_type, "223",
+            "it fits a .223 chamber, which the Mini-14 has"
+        );
+        assert!(
+            round.has_effect("INCENDIARY"),
+            "and it is an incendiary round"
+        );
+        assert!(
+            super::round_of_id("no_such_round").is_none(),
+            "an unknown round is nothing rather than a guess"
+        );
     }
 }
 
@@ -3016,22 +3317,34 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool, dissect
         outcome.failures.push("there is no survivor".to_owned());
         return;
     };
-    let Some(at) = world.get::<cdda_sim::Position>(survivor).map(|position| (position.x, position.y)) else {
-        outcome.failures.push("the survivor has no square".to_owned());
+    let Some(at) = world
+        .get::<cdda_sim::Position>(survivor)
+        .map(|position| (position.x, position.y))
+    else {
+        outcome
+            .failures
+            .push("the survivor has no square".to_owned());
         return;
     };
     // The body the survivor can reach: one on their own square, or on one of the eight beside it. The reference picks a corpse from the squares within `PICKUP_RANGE` and walks to it; the port models
     // no walk for an activity yet, so a body out of arm's reach is a step that fails rather than one that cuts something across the room.
     let reachable = |x: i32, y: i32| (x - at.0).abs() <= 1 && (y - at.1).abs() <= 1;
     let corpse = {
-        let mut query = world.query::<(bevy_ecs::entity::Entity, &cdda_sim::Position, &cdda_sim::CorpseOf)>();
+        let mut query = world.query::<(
+            bevy_ecs::entity::Entity,
+            &cdda_sim::Position,
+            &cdda_sim::CorpseOf,
+        )>();
         query
             .iter(world)
             .find(|(_, position, _)| reachable(position.x, position.y))
             .map(|(entity, _, _)| entity)
     };
     let Some(corpse) = corpse else {
-        outcome.failures.push(format!("there is no corpse within reach of {} {} to cut up", at.0, at.1));
+        outcome.failures.push(format!(
+            "there is no corpse within reach of {} {} to cut up",
+            at.0, at.1
+        ));
         return;
     };
     let Some(corpse_of) = world.get::<cdda_sim::CorpseOf>(corpse).copied() else {
@@ -3041,7 +3354,10 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool, dissect
     let size = monster_types()
         .and_then(|types| {
             let name = cdda_sim::monster_registry::name_of(world, corpse_of.kind)?;
-            types.into_iter().find(|monster| monster.id == name).map(|monster| monster.size)
+            types
+                .into_iter()
+                .find(|monster| monster.id == name)
+                .map(|monster| monster.size)
         })
         .map_or(cdda_sim::CreatureSize::Medium, |size| match size.as_str() {
             "TINY" => cdda_sim::CreatureSize::Tiny,
@@ -3079,16 +3395,20 @@ fn butcher_a_step(world: &mut World, outcome: &mut Outcome, quick: bool, dissect
     // The work goes on the **body** (`Butchery`) as well as on the creature's turn, which is what the reference does: the activity is the character's clock and the corpse is what the finish reads its action
     // from. `start_butchery` refuses a thing that is not a corpse, and its refusals are the reference's own.
     let Some(moves) = cdda_sim::start_butchery(world, corpse, state) else {
-        outcome.failures.push("that thing is not a body to cut up".to_owned());
+        outcome
+            .failures
+            .push("that thing is not a body to cut up".to_owned());
         return;
     };
-    world.entity_mut(survivor).insert(cdda_sim::creature::Doing {
-        activity: "butcher".to_owned(),
-        moves_left: moves,
-        basis: cdda_sim::creature::Basis::Time,
-        moves_total: moves,
-        subject: Some(corpse),
-    });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Doing {
+            activity: "butcher".to_owned(),
+            moves_left: moves,
+            basis: cdda_sim::creature::Basis::Time,
+            moves_total: moves,
+            subject: Some(corpse),
+        });
     // What the body is worth, printed as the step starts: the weight is what a `mass_ratio` entry is a share of, so a body weighed in the wrong unit is visible here before the meat is counted.
     let weight = cdda_sim::monster_registry::weight_of(world, corpse_of.kind);
     outcome.lines.push(format!(

@@ -17,20 +17,20 @@ const NOTHING: Around = Around {
     below: false,
     beside: [false; 8],
     above: false,
-            sheltered: true,
-            windpower: 0,
-            wind_direction: 0,
-        };
+    sheltered: true,
+    windpower: 0,
+    wind_direction: 0,
+};
 
 fn sides(takes: [bool; 8]) -> Around {
     Around {
         below: false,
         beside: takes,
         above: false,
-            sheltered: true,
-            windpower: 0,
-            wind_direction: 0,
-        }
+        sheltered: true,
+        windpower: 0,
+        wind_direction: 0,
+    }
 }
 
 #[test]
@@ -51,7 +51,10 @@ fn a_failed_gate_stops_before_looking_at_any_neighbour() {
     // Wind zero, ten percent spread: a gate of eleven fails, and nothing else is drawn.
     let mut rolls = replay(&["int 1 100 11"]);
     let can_take = [true; 8];
-    let movement = spread_gas(2, 60, 10,
+    let movement = spread_gas(
+        2,
+        60,
+        10,
         &Around {
             below: false,
             beside: can_take,
@@ -71,7 +74,10 @@ fn a_square_below_takes_the_gas_for_free_before_anything_sideways() {
     // Step three of the reference: falling is tried first and costs no die, so a gas over a hole never rolls for a neighbour at all.
     let mut rolls = replay(&["int 1 100 1"]);
     let can_take = [true; 8];
-    let movement = spread_gas(2, 60, 10,
+    let movement = spread_gas(
+        2,
+        60,
+        10,
         &Around {
             below: true,
             beside: can_take,
@@ -120,7 +126,10 @@ fn sideways_is_chosen_from_a_random_neighbour_and_then_wraps() {
 fn up_is_the_last_resort_and_costs_no_die_of_its_own() {
     // Nothing sideways qualifies, so the turn ends by trying the square above - after the two dice the lateral scan already spent.
     let mut rolls = replay(&["int 1 100 1", "int 0 7 0"]);
-    let movement = spread_gas(2, 60, 10,
+    let movement = spread_gas(
+        2,
+        60,
+        10,
         &Around {
             below: false,
             beside: [false; 8],

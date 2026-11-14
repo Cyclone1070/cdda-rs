@@ -29,7 +29,8 @@ fn zombie_type() -> cdda_content::monsters::MonsterType {
 
 fn holds(world: &World, speaker: Entity, listener: Option<Entity>, text: &str) -> bool {
     let value = parse(text.as_bytes()).expect("json");
-    let condition = cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
+    let condition =
+        cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
     cdda_sim::conditions::holds_with(world, speaker, listener, &condition)
 }
 

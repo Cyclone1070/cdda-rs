@@ -20,7 +20,11 @@ fn a_rename_lasts_until_its_event_comes_due() {
         key: None,
     };
     let applied = cdda_sim::dialogue_effects::run_effects(&mut world, survivor, None, &[effect]);
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect is answered");
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect is answered"
+    );
     assert_eq!(
         cdda_sim::timed_events::text_of(&world, "OVERRIDE_PLACE").as_deref(),
         Some("Safe House"),

@@ -53,7 +53,9 @@ fn every_singleton_setter_installs_what_it_claims_to() {
 
     cdda_sim::eoc_registry::set_programs(&mut world, &[]);
     assert!(
-        carries::<cdda_sim::eoc_registry::Programs, cdda_sim::eoc_registry::ThePrograms>(&mut world),
+        carries::<cdda_sim::eoc_registry::Programs, cdda_sim::eoc_registry::ThePrograms>(
+            &mut world
+        ),
         "programs survive a fresh store"
     );
 
@@ -75,14 +77,20 @@ fn every_singleton_setter_installs_what_it_claims_to() {
 
     cdda_sim::monster_registry::set_monster_types(&mut world, &[]);
     assert!(
-        carries::<cdda_sim::monster_registry::MonsterTypes, cdda_sim::monster_registry::TheMonsterTypes>(
-            &mut world
-        ),
+        carries::<
+            cdda_sim::monster_registry::MonsterTypes,
+            cdda_sim::monster_registry::TheMonsterTypes,
+        >(&mut world),
         "monster types survive a fresh store"
     );
 
     let anyone = cdda_sim::creature::spawn_creature(&mut world, "anyone", (0, 0, 0));
-    cdda_sim::dialogue_values::set(&mut world, anyone, "x", cdda_sim::dialogue_values::Value::Number(1.0));
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        anyone,
+        "x",
+        cdda_sim::dialogue_values::Value::Number(1.0),
+    );
     assert_eq!(
         cdda_sim::dialogue_values::number_of(&world, anyone, "x"),
         Some(1.0),
@@ -138,7 +146,12 @@ fn every_square_and_creature_setter_reads_back() {
         "a world with no level has no grid to hold scent, and says so by answering zero"
     );
 
-    cdda_sim::add_field_strength(&mut world, (3, 0, 0), cdda_core_types::field::FieldId(13), 2);
+    cdda_sim::add_field_strength(
+        &mut world,
+        (3, 0, 0),
+        cdda_core_types::field::FieldId(13),
+        2,
+    );
     assert_eq!(
         cdda_sim::field_strength_at(&world, (3, 0, 0), cdda_core_types::field::FieldId(13)),
         2,
@@ -194,7 +207,11 @@ fn every_square_and_creature_setter_reads_back() {
     );
 
     cdda_sim::traits::set_traits(&mut world, survivor, &["HALLUCINATION"]);
-    assert!(cdda_sim::traits::has_trait(&world, survivor, "HALLUCINATION"));
+    assert!(cdda_sim::traits::has_trait(
+        &world,
+        survivor,
+        "HALLUCINATION"
+    ));
 
     cdda_sim::missions::accept(&mut world, survivor, "MISSION_REACH_REFUGEE_CENTER");
     assert!(cdda_sim::missions::has_mission(
@@ -213,7 +230,11 @@ fn every_square_and_creature_setter_reads_back() {
             permanent: false,
         },
     );
-    assert!(cdda_sim::applied_effects::has(&world, survivor, "effect_bleed"));
+    assert!(cdda_sim::applied_effects::has(
+        &world,
+        survivor,
+        "effect_bleed"
+    ));
 
     cdda_sim::weather::set_id(&mut world, "rain");
     assert_eq!(cdda_sim::weather::id_of(&world), Some("rain".to_owned()));

@@ -4,7 +4,12 @@
 //! `--dump-spell-costs` from `spell::energy_cost` itself. The rule is not `Scaling::at`'s clamp: the reference branches on where
 //! the base sits against the final value, rounds `base + increment * level`, and then adds a somatic term for encumbered hands.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing
+)]
 
 use cdda_sim::spellcasting::{Somatic, energy_cost};
 
@@ -12,7 +17,8 @@ fn corpus(file: &str) -> cdda_json::Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus")
         .join(file);
-    let text = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
     cdda_json::parse(text.as_bytes()).expect("the corpus is json")
 }
 
@@ -66,16 +72,17 @@ fn list<'a>(value: &'a cdda_json::Value, key: &str) -> &'a [cdda_json::Value] {
 fn every_recorded_spell_cost_is_reproduced() {
     let spells = corpus("spells.json");
     let costs = corpus("spells-costs.json");
-    let by_id: std::collections::BTreeMap<String, cdda_content::spells::Spell> = list(&spells, "spells")
-        .iter()
-        .map(|entry| {
-            let cdda_json::Value::Object(object) = entry else {
-                panic!("a spell is an object");
-            };
-            let spell = cdda_content::spells::read_spell(object).expect("a spell");
-            (spell.id.clone(), spell)
-        })
-        .collect();
+    let by_id: std::collections::BTreeMap<String, cdda_content::spells::Spell> =
+        list(&spells, "spells")
+            .iter()
+            .map(|entry| {
+                let cdda_json::Value::Object(object) = entry else {
+                    panic!("a spell is an object");
+                };
+                let spell = cdda_content::spells::read_spell(object).expect("a spell");
+                (spell.id.clone(), spell)
+            })
+            .collect();
     let mut compared = 0;
     let mut clamped_to_the_ceiling = 0;
     let mut differed = Vec::new();
@@ -117,7 +124,10 @@ fn every_recorded_spell_cost_is_reproduced() {
         "{} of {compared} recorded prices disagree: {differed:?}",
         differed.len()
     );
-    assert_eq!(compared, 1_225, "the recording holds five levels for each of 245 spells");
+    assert_eq!(
+        compared, 1_225,
+        "the recording holds five levels for each of 245 spells"
+    );
     assert!(
         clamped_to_the_ceiling >= 500,
         "and {clamped_to_the_ceiling} of the requests were past the spell's ceiling, so `set_level`'s clamp is exercised rather than assumed"
@@ -136,7 +146,9 @@ fn every_recorded_spell_cost_is_reproduced() {
         divergent, 0,
         "**no spell in the content states a base different from its final value** - {divergent} would change that, and this gate would need a new recording"
     );
-    println!("spell costs: {compared} compared, {clamped_to_the_ceiling} clamped to a ceiling, {divergent} spells across the branch");
+    println!(
+        "spell costs: {compared} compared, {clamped_to_the_ceiling} clamped to a ceiling, {divergent} spells across the branch"
+    );
 }
 
 /// **The climb between base and final**, which the content never states.
@@ -175,15 +187,27 @@ fn the_price_climbs_to_its_final_value_from_either_side() {
     let bare = Somatic::default();
     let rising = spell(10.0, 5.0, 100.0);
     assert_eq!(energy_cost(&rising, 0, bare), Some(10), "ten at level zero");
-    assert_eq!(energy_cost(&rising, 3, bare), Some(25), "five a level, so twenty-five at three");
+    assert_eq!(
+        energy_cost(&rising, 3, bare),
+        Some(25),
+        "five a level, so twenty-five at three"
+    );
     assert_eq!(
         energy_cost(&rising, 20, bare),
         Some(100),
         "**and the final value is a ceiling: the climb would be 110**"
     );
     let falling = spell(100.0, -5.0, 10.0);
-    assert_eq!(energy_cost(&falling, 0, bare), Some(100), "a hundred at level zero");
-    assert_eq!(energy_cost(&falling, 3, bare), Some(85), "five cheaper a level");
+    assert_eq!(
+        energy_cost(&falling, 0, bare),
+        Some(100),
+        "a hundred at level zero"
+    );
+    assert_eq!(
+        energy_cost(&falling, 3, bare),
+        Some(85),
+        "five cheaper a level"
+    );
     assert_eq!(
         energy_cost(&falling, 30, bare),
         Some(10),
@@ -325,7 +349,15 @@ fn the_energy_a_cast_needs_is_asked_for_per_source_and_is_spent_by_source() {
         Afford::Yes,
         "and exactly five is: the comparison is `>=`"
     );
-    assert!(spend(&mut world, caster, &five, 0, Somatic::default(), true, 0.2));
+    assert!(spend(
+        &mut world,
+        caster,
+        &five,
+        0,
+        Somatic::default(),
+        true,
+        0.2
+    ));
     assert_eq!(
         world.get::<Mana>(caster).map(|mana| mana.cur),
         Some(0),
@@ -333,13 +365,24 @@ fn the_energy_a_cast_needs_is_asked_for_per_source_and_is_spent_by_source() {
     );
 
     let stamina = spell_of("STAMINA", 1_000.0);
-    world.entity_mut(caster).insert(Stamina { cur: 1_000.0, max: 3_500.0 });
+    world.entity_mut(caster).insert(Stamina {
+        cur: 1_000.0,
+        max: 3_500.0,
+    });
     assert_eq!(
         can_afford(&world, caster, &stamina, 0, Somatic::default()),
         Afford::Yes,
         "a thousand of three thousand five hundred is enough for a thousand"
     );
-    assert!(spend(&mut world, caster, &stamina, 0, Somatic::default(), true, 0.2));
+    assert!(spend(
+        &mut world,
+        caster,
+        &stamina,
+        0,
+        Somatic::default(),
+        true,
+        0.2
+    ));
     assert_eq!(
         world.get::<Stamina>(caster).map(|held| held.cur),
         Some(0.0),
@@ -347,19 +390,31 @@ fn the_energy_a_cast_needs_is_asked_for_per_source_and_is_spent_by_source() {
     );
 
     let bionic = spell_of("BIONIC", 2.0);
-    world.entity_mut(caster).insert(BionicPower { joules: 1_999 });
+    world
+        .entity_mut(caster)
+        .insert(BionicPower { joules: 1_999 });
     assert_eq!(
         can_afford(&world, caster, &bionic, 0, Somatic::default()),
         Afford::No { available: 1 },
         "**a price of two kilojoules is two thousand joules**, so 1,999 is one short"
     );
-    world.entity_mut(caster).insert(BionicPower { joules: 2_000 });
+    world
+        .entity_mut(caster)
+        .insert(BionicPower { joules: 2_000 });
     assert_eq!(
         can_afford(&world, caster, &bionic, 0, Somatic::default()),
         Afford::Yes,
         "and exactly two thousand pays it"
     );
-    assert!(spend(&mut world, caster, &bionic, 0, Somatic::default(), true, 0.2));
+    assert!(spend(
+        &mut world,
+        caster,
+        &bionic,
+        0,
+        Somatic::default(),
+        true,
+        0.2
+    ));
     assert_eq!(
         world.get::<BionicPower>(caster).map(|power| power.joules),
         Some(0),

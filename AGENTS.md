@@ -53,6 +53,58 @@ All builds run on `cyc@elitedesk`; nothing heavy runs on this machine.
 
 Green means: suite passes, clippy quiet, docs consistent, oracle patches verified.
 
+## The cycle
+
+Every cycle is the same shape, and it ends when CI is green — not when the commit exists.
+
+1. **Red.** A failing test first, from an oracle dump or a transcribed upstream case
+   ([14-test-porting.md](docs/14-test-porting.md)). In the reference's order: dump, gate, port.
+2. **Green.** The smallest change that passes it.
+3. **Refactor**, then **mutation-check**: break the rule on purpose, watch the focused test fail,
+   restore. A test that cannot fail proves nothing.
+4. **Gate locally**: `python3 tools/remote_test.py --clippy` on `cyc@elitedesk` — tests, docs,
+   source ledgers, clippy and the oracle patch in one run. Read the exit status; a piped gate is not
+   a gate.
+5. **Commit** with the receipt in the message: suite counts, clippy, docs citations, QA results.
+6. **Push, then poll CI until green.** A red run is the next cycle's work; nothing advances on it.
+7. **Update the record**: [parity.md](docs/parity.md), [13-test-inventory.md](docs/13-test-inventory.md)
+   and `docs/HANDOFF.md` (untracked, refreshed at the end of every round).
+
+**Prerequisite, currently missing:** this checkout has no git remote, so step 6 cannot run yet. Set
+the remote and credentials before the first CI-polled cycle.
+
+## What CI must run
+
+`.github/workflows/foundation.yml`, on every push and pull request:
+
+| Step | Command |
+|---|---|
+| formatting | `cargo fmt --all -- --check` |
+| lints | `cargo clippy --workspace --all-targets -- -D warnings` |
+| tests | `cargo test --workspace` |
+| documents | `python3 tools/check_docs.py`, plus the generated inventory diff |
+
+`.github/workflows/port-validation.yml` holds the oracle replays, fuzzing and visual diffs; every job
+is skipped until the repository variable `PORT_CI=on` is set.
+
+The audit lints live in `plan-audit.md` and belong in `Cargo.toml`, so CI enforces them on every push
+instead of relying on a remembered flag.
+
+## Lints: where the rules actually live
+
+- `clippy::all` and `clippy::pedantic` are `warn` workspace-wide and the gate runs `-D warnings`, so
+  every pedantic lint that fires is an error.
+- **`restriction` and `nursery` lints are off by default** — that is where most of the code-quality
+  antipatterns hide (`as_conversions`, `wildcard_enum_match_arm`, `print_stdout`, `redundant_clone`).
+  Enable them per name, never as a group: `restriction` wholesale is thousands of hits, most of them
+  deliberate.
+- Use `#[expect(lint, reason = "...")]` rather than `#[allow]`: an expectation that stops being
+  needed fails `unfulfilled_lint_expectations` under `-D warnings`, so stale suppressions delete
+  themselves.
+- Some classes have no lint and never will — an authoritative global, a second source of truth,
+  absence read as zero, clone cost, file size, TDD order. Those are enforced by the source ledgers in
+  `architecture.rs`, by behaviour tests, or not at all; do not pretend a lint covers them.
+
 ## Working rules
 
 - **Test first, one or two at a time.** Red, then the smallest green, then refactor, then the next

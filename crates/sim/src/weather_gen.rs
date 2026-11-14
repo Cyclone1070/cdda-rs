@@ -119,7 +119,11 @@ pub struct TemperatureTerms {
 /// The temperature at a moment, in Celsius (`weather_gen.cpp:99-108`), with every term that produced it.
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 #[must_use]
-pub fn temperature_terms(generator: &Generator, common: &CommonData, day_fraction: f64) -> TemperatureTerms {
+pub fn temperature_terms(
+    generator: &Generator,
+    common: &CommonData,
+    day_fraction: f64,
+) -> TemperatureTerms {
     let seasonality = -common.cyf;
     let day = day_cosine(day_fraction);
     let seasonal = generator

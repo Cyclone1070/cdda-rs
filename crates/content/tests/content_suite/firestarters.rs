@@ -51,8 +51,8 @@ fn dump() -> BTreeMap<String, Firestarter> {
 fn every_firestarter_is_read_the_way_the_reference_reads_it() {
     let recorded = dump();
     assert_eq!(recorded.len(), 42, "every firestarter was recorded");
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     let loaded: BTreeMap<String, ItemType> = load_paths(&paths)
@@ -93,8 +93,14 @@ fn every_firestarter_is_read_the_way_the_reference_reads_it() {
             ));
         }
     }
-    assert!(derived > 20, "the derived default has to be exercised: {derived}");
-    assert!(stated > 5, "and so does an actor that states its own slow cost: {stated}");
+    assert!(
+        derived > 20,
+        "the derived default has to be exercised: {derived}"
+    );
+    assert!(
+        stated > 5,
+        "and so does an actor that states its own slow cost: {stated}"
+    );
     assert!(sunlight > 5, "and the sunlight-only ones: {sunlight}");
     assert!(
         differing.is_empty(),
@@ -116,7 +122,10 @@ fn a_missing_slow_cost_is_ten_times_the_fast_one_and_not_the_members_thousand() 
     };
     let fire = Firestarter::read("firestarter", &object).expect("a firestarter");
     assert_eq!(fire.moves, 50);
-    assert_eq!(fire.moves_slow, 500, "ten times the fast cost, not the member's 1,000");
+    assert_eq!(
+        fire.moves_slow, 500,
+        "ten times the fast cost, not the member's 1,000"
+    );
 
     let object = cdda_json::parse(br#"{"type":"firestarter"}"#).expect("valid json");
     let Value::Object(object) = object else {
@@ -127,8 +136,8 @@ fn a_missing_slow_cost_is_ten_times_the_fast_one_and_not_the_members_thousand() 
     assert_eq!(fire.moves_slow, 1_000, "and the same by luck");
 
     // And a stated slow cost wins, even when it is *less* than ten times the fast one: two matches-like tools say 40 and 1,000.
-    let object =
-        cdda_json::parse(br#"{"type":"firestarter","moves":40,"moves_slow":1000}"#).expect("valid json");
+    let object = cdda_json::parse(br#"{"type":"firestarter","moves":40,"moves_slow":1000}"#)
+        .expect("valid json");
     let Value::Object(object) = object else {
         panic!("an object")
     };

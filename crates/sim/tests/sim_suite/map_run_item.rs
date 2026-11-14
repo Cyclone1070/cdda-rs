@@ -45,10 +45,19 @@ fn a_radius_says_which_items_the_program_runs_on() {
         "false_eocs": [ { "id": "EOC_NONE", "effect": [ { "u_message": "none" } ] } ]
     }"#;
     let value = cdda_json::parse(text.as_bytes()).expect("json");
-    let effect = cdda_content::dialogue::read_effect(&value).expect("**the port reads `u_map_run_item_eocs`**");
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect runs");
+    let effect = cdda_content::dialogue::read_effect(&value)
+        .expect("**the port reads `u_map_run_item_eocs`**");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect runs"
+    );
 
     let lines = cdda_sim::messages::lines(&world);
     let touched = lines.iter().filter(|line| line.contains("touched")).count();
@@ -74,16 +83,23 @@ fn a_menu_option_refuses_because_the_port_has_no_chooser() {
         "true_eocs": [ { "id": "EOC_MOVED", "effect": [ { "u_message": "moved" } ] } ]
     }"#;
     let value = cdda_json::parse(text.as_bytes()).expect("json");
-    let effect = cdda_content::dialogue::read_effect(&value).expect("the reader does not judge the mode");
-    let applied =
-        cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+    let effect =
+        cdda_content::dialogue::read_effect(&value).expect("the reader does not judge the mode");
+    let applied = cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
     assert_eq!(
         applied,
         cdda_sim::dialogue_effects::Applied::CannotAnswer,
         "**a menu the port cannot show is a refusal, not a guess**"
     );
     assert!(
-        !cdda_sim::messages::lines(&world).iter().any(|line| line.contains("moved")),
+        !cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("moved")),
         "and nothing ran"
     );
 }
@@ -103,7 +119,12 @@ fn the_inner_radius_excludes_the_square_the_actor_stands_on() {
     }"#;
     let value = cdda_json::parse(text.as_bytes()).expect("json");
     let effect = cdda_content::dialogue::read_effect(&value).expect("the effect reads");
-    cdda_sim::dialogue_effects::run_effects(&mut world, speaker, None, std::slice::from_ref(&effect));
+    cdda_sim::dialogue_effects::run_effects(
+        &mut world,
+        speaker,
+        None,
+        std::slice::from_ref(&effect),
+    );
 
     let lines = cdda_sim::messages::lines(&world);
     assert_eq!(

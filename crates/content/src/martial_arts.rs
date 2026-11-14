@@ -285,10 +285,9 @@ pub fn read_style(object: &Object) -> Option<Style> {
                 down_dur: number(technique, "down_dur", 0),
                 stun_dur: number(technique, "stun_dur", 0),
                 attack_vectors: match technique.get("attack_vectors") {
-                    Some(Value::Array(entries)) => entries
-                        .iter()
-                        .filter_map(read_attack_vector)
-                        .collect(),
+                    Some(Value::Array(entries)) => {
+                        entries.iter().filter_map(read_attack_vector).collect()
+                    }
                     _ => Vec::new(),
                 },
                 effects: match technique.get("effects") {

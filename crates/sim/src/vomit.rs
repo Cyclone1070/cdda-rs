@@ -38,9 +38,9 @@ pub fn vomit(world: &mut World, character: Entity) -> Option<Vomit> {
     // Reference: `if( stomach_contents_before_vomit != 0_ml )` - bile on the ground, a message, and the character wakes up.
     if before != 0 {
         let at = world
-        .get::<crate::Position>(character)
-        .map(|held| (held.x, held.y, held.z));
-    if let Some(at) = at
+            .get::<crate::Position>(character)
+            .map(|held| (held.x, held.y, held.z));
+        if let Some(at) = at
             && let Some(spot) = adjacent_tile(world, at)
             && let Some(bile) = crate::field_registry::id_of(world, "fd_bile")
         {

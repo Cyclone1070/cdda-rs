@@ -21,7 +21,10 @@ fn json_files(root: &std::path::Path) -> Vec<PathBuf> {
             let path = entry.path();
             if path.is_dir() {
                 stack.push(path);
-            } else if path.extension().is_some_and(|extension| extension == "json") {
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
                 found.push(path);
             }
         }
@@ -114,7 +117,8 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
             let cdda_json::Value::Object(object) = &entry else {
                 continue;
             };
-            if object.get("type") != Some(&cdda_json::Value::Str("effect_on_condition".to_owned())) {
+            if object.get("type") != Some(&cdda_json::Value::Str("effect_on_condition".to_owned()))
+            {
                 continue;
             }
             let Some(cdda_json::Value::Array(effects)) = object.get("effect") else {
@@ -131,7 +135,9 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
                         _ => None,
                     })
                     .unwrap_or_else(|| format!("{path:?}"));
-                let counted = examples.entry(member.clone()).or_insert((0, format!("{id}: {example}")));
+                let counted = examples
+                    .entry(member.clone())
+                    .or_insert((0, format!("{id}: {example}")));
                 counted.0 += 1;
                 refused_programs.insert(id);
                 break;
@@ -148,7 +154,10 @@ fn the_first_entry_that_refuses_says_which_rule_is_missing() {
         .take(12)
         .map(|(member, count, example)| format!("{member} x{count}: {example}"))
         .collect();
-    println!("{} programs refuse at their first unreadable entry", refused_programs.len());
+    println!(
+        "{} programs refuse at their first unreadable entry",
+        refused_programs.len()
+    );
     for line in &shown {
         println!("  {line}");
     }

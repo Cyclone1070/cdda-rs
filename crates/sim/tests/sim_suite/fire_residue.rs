@@ -114,7 +114,10 @@ fn strong_fires_make_smoke_more_often_than_weak_ones() {
     );
     // With the first gate forced open, the second is `rng(3, 35) < intensity * 10`: a fifth for a weak fire (`< 10`), six sevenths for a strong one (`< 30`). The
     // measured rates over eighty spread seeds are in the assertion, so a change in either constant shows up as a number rather than as a pass.
-    assert_eq!(weak, 17, "a weak fire smokes when the range's low end comes up: {weak} of 80");
+    assert_eq!(
+        weak, 17,
+        "a weak fire smokes when the range's low end comes up: {weak} of 80"
+    );
     assert!(
         strong > 60,
         "and a strong one most of the time: {strong} of 80"

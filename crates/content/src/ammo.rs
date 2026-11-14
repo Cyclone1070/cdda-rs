@@ -63,7 +63,11 @@ pub fn read_one(id: &str, object: &Object) -> Result<AmmoType, String> {
         recoil: number(object, "recoil")?,
         loudness: number(object, "loudness")?,
         effects: match object.get("effects") {
-            Some(Value::Str(joined)) => joined.split(',').filter(|name| !name.is_empty()).map(str::to_owned).collect(),
+            Some(Value::Str(joined)) => joined
+                .split(',')
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned)
+                .collect(),
             _ => Vec::new(),
         },
         ammo_type: match object.get("ammo_types") {
@@ -105,7 +109,9 @@ pub fn load_dump(value: &Value) -> Result<Vec<AmmoType>, String> {
 /// When the member is missing or not an integer.
 fn number(object: &Object, key: &str) -> Result<i32, String> {
     match object.get(key) {
-        Some(Value::Int(value)) => i32::try_from(*value).map_err(|_| format!("`{key}` is too large")),
+        Some(Value::Int(value)) => {
+            i32::try_from(*value).map_err(|_| format!("`{key}` is too large"))
+        }
         Some(Value::Float(value)) => {
             #[allow(clippy::cast_possible_truncation)]
             let value = *value as i32;

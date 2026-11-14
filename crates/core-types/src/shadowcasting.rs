@@ -631,14 +631,7 @@ pub fn cast_light_quadrants(
     numerator: f32,
     circular: bool,
 ) -> Vec<FourQuadrants> {
-    cast_light_octants(
-        grid,
-        origin,
-        radius,
-        numerator,
-        circular,
-        [true; OCTANTS],
-    )
+    cast_light_octants(grid, origin, radius, numerator, circular, [true; OCTANTS])
 }
 
 /// How many octants a quadrant cast runs, one pair per direction.

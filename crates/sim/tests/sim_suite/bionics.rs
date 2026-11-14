@@ -29,7 +29,10 @@ fn a_bionic_installed_twice_is_still_one_bionic() {
         vec!["bio_power_storage".to_owned(), "bio_adrenaline".to_owned()],
         "**two installs of the same id are one entry**, and the order is the install order"
     );
-    assert!(cdda_sim::bionics::has(&world, creature, "bio_adrenaline"), "the second one is there");
+    assert!(
+        cdda_sim::bionics::has(&world, creature, "bio_adrenaline"),
+        "the second one is there"
+    );
 }
 
 /// `ANY` asks whether there is a bionic at all, and an unknown name never answers for another.
@@ -40,11 +43,26 @@ fn a_bionic_installed_twice_is_still_one_bionic() {
 fn any_asks_whether_there_is_a_bionic_and_a_name_asks_for_that_one() {
     let mut world = World::new();
     let bare = cdda_sim::creature::spawn_creature(&mut world, "the untouched", (0, 0, 0));
-    assert!(!cdda_sim::bionics::has(&world, bare, "ANY"), "a creature with no bionics answers no");
-    assert!(cdda_sim::bionics::bionics_of(&world, bare).is_empty(), "and its list is empty");
+    assert!(
+        !cdda_sim::bionics::has(&world, bare, "ANY"),
+        "a creature with no bionics answers no"
+    );
+    assert!(
+        cdda_sim::bionics::bionics_of(&world, bare).is_empty(),
+        "and its list is empty"
+    );
 
     let wired = with_bionic(&mut world, "bio_power_storage");
-    assert!(cdda_sim::bionics::has(&world, wired, "ANY"), "one bionic is enough for ANY");
-    assert!(cdda_sim::bionics::has(&world, wired, "bio_power_storage"), "and the name is found");
-    assert!(!cdda_sim::bionics::has(&world, wired, "bio_adrenaline"), "**a different name is not**: the list is not a keyword match");
+    assert!(
+        cdda_sim::bionics::has(&world, wired, "ANY"),
+        "one bionic is enough for ANY"
+    );
+    assert!(
+        cdda_sim::bionics::has(&world, wired, "bio_power_storage"),
+        "and the name is found"
+    );
+    assert!(
+        !cdda_sim::bionics::has(&world, wired, "bio_adrenaline"),
+        "**a different name is not**: the list is not a keyword match"
+    );
 }

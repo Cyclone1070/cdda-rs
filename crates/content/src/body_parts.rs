@@ -74,9 +74,8 @@ pub fn read_prototype(
     // The two flags are read as the dump states them - `upper` and `lower` booleans - rather than as the
     // `LIMB_UPPER`/`LIMB_LOWER` entries the game's own JSON carries. The dump writes the answer the reference
     // computed from those flags, which is the fact the rule needs and the one the port can be held to.
-    let flag = |member: &str| -> bool {
-        matches!(object.get(member), Some(cdda_json::Value::Bool(true)))
-    };
+    let flag =
+        |member: &str| -> bool { matches!(object.get(member), Some(cdda_json::Value::Bool(true))) };
     // Reference: `limb_scores` is `[ id, score, max? ]` with the max defaulting to the score (`bodypart.cpp:424-434`). The dump the port reads states the same shape, so the loader keeps
     // the three figures rather than reducing them to one.
     let mut limb_scores = Vec::new();

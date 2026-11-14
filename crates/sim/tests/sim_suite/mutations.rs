@@ -99,7 +99,13 @@ fn a_mutation_needs_one_of_its_prerequisites() {
         cdda_sim::mutations::Gain::MissingPrerequisite,
         "with neither prerequisite held, the gain waits"
     );
-    cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "BEAUTIFUL");
+    cdda_sim::mutations::gain(
+        &mut world,
+        survivor,
+        &data,
+        &cdda_content::mutations::Categories::default(),
+        "BEAUTIFUL",
+    );
     assert_eq!(
         cdda_sim::mutations::can_gain(&world, survivor, &data, "PRETTY"),
         cdda_sim::mutations::Gain::Yes,
@@ -123,13 +129,25 @@ fn gaining_a_mutation_replaces_what_it_cancels() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     assert_eq!(
-        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "UGLY"),
+        cdda_sim::mutations::gain(
+            &mut world,
+            survivor,
+            &data,
+            &cdda_content::mutations::Categories::default(),
+            "UGLY"
+        ),
         cdda_sim::mutations::Gain::Yes
     );
     assert!(cdda_sim::mutations::has(&world, survivor, "UGLY"));
 
     assert_eq!(
-        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "BEAUTIFUL"),
+        cdda_sim::mutations::gain(
+            &mut world,
+            survivor,
+            &data,
+            &cdda_content::mutations::Categories::default(),
+            "BEAUTIFUL"
+        ),
         cdda_sim::mutations::Gain::Yes
     );
     assert!(
@@ -154,19 +172,37 @@ fn gaining_a_mutation_replaces_what_it_cancels() {
 fn a_conflict_that_cannot_be_removed_stops_the_gain() {
     let mut stuck = trait_of(&[], &[]);
     stuck.purifiable = false;
-    let data = table(&[("GLASSJAW", stuck), ("PRETTY", trait_of(&[], &["GLASSJAW"]))]);
+    let data = table(&[
+        ("GLASSJAW", stuck),
+        ("PRETTY", trait_of(&[], &["GLASSJAW"])),
+    ]);
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "GLASSJAW");
+    cdda_sim::mutations::gain(
+        &mut world,
+        survivor,
+        &data,
+        &cdda_content::mutations::Categories::default(),
+        "GLASSJAW",
+    );
     assert_eq!(
         cdda_sim::mutations::can_gain(&world, survivor, &data, "PRETTY"),
         cdda_sim::mutations::Gain::Conflicting
     );
     assert_eq!(
-        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "PRETTY"),
+        cdda_sim::mutations::gain(
+            &mut world,
+            survivor,
+            &data,
+            &cdda_content::mutations::Categories::default(),
+            "PRETTY"
+        ),
         cdda_sim::mutations::Gain::Conflicting
     );
-    assert!(cdda_sim::mutations::has(&world, survivor, "GLASSJAW"), "and nothing was taken away");
+    assert!(
+        cdda_sim::mutations::has(&world, survivor, "GLASSJAW"),
+        "and nothing was taken away"
+    );
 }
 
 /// A mutation prunes the other traits of its category, but never the ones it grew out of.
@@ -197,7 +233,13 @@ fn a_mutation_prunes_its_own_category_and_spares_its_prerequisites() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     for id in ["CHITIN", "ANTENNAE", "TAIL"] {
-        cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), id);
+        cdda_sim::mutations::gain(
+            &mut world,
+            survivor,
+            &data,
+            &cdda_content::mutations::Categories::default(),
+            id,
+        );
     }
     assert_eq!(
         cdda_sim::mutations::mutations_of(&world, survivor).len(),
@@ -206,12 +248,30 @@ fn a_mutation_prunes_its_own_category_and_spares_its_prerequisites() {
     );
 
     // Gaining CARAPACE prunes the insect trait that is not its prerequisite, spares the one that is, and leaves another category alone.
-    cdda_sim::mutations::gain(&mut world, survivor, &data, &cdda_content::mutations::Categories::default(), "CARAPACE");
+    cdda_sim::mutations::gain(
+        &mut world,
+        survivor,
+        &data,
+        &cdda_content::mutations::Categories::default(),
+        "CARAPACE",
+    );
     let held = cdda_sim::mutations::mutations_of(&world, survivor);
-    assert!(held.contains(&"CARAPACE".to_owned()), "the new trait is held");
-    assert!(held.contains(&"CHITIN".to_owned()), "the trait it grew out of is spared");
-    assert!(!held.contains(&"ANTENNAE".to_owned()), "another trait of the same category is pruned");
-    assert!(held.contains(&"TAIL".to_owned()), "and a trait of another category is untouched");
+    assert!(
+        held.contains(&"CARAPACE".to_owned()),
+        "the new trait is held"
+    );
+    assert!(
+        held.contains(&"CHITIN".to_owned()),
+        "the trait it grew out of is spared"
+    );
+    assert!(
+        !held.contains(&"ANTENNAE".to_owned()),
+        "another trait of the same category is pruned"
+    );
+    assert!(
+        held.contains(&"TAIL".to_owned()),
+        "and a trait of another category is untouched"
+    );
 }
 
 /// A starting trait is only taken away when its category's chance succeeds, and a category of a hundred always takes it.
@@ -390,13 +450,7 @@ fn the_mutate_effect_gives_a_mutation_from_the_strongest_category() {
     // The creature is already a beast, so the beast category is the one it has gone furthest into.
     let mut root = trait_of(&[], &[]);
     root.categories = vec!["BEAST".to_owned()];
-    cdda_sim::mutations::gain(
-        &mut world,
-        survivor,
-        &data,
-        &categories,
-        "WORM",
-    );
+    cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "WORM");
 
     let effect = cdda_content::dialogue::Effect::Mutation {
         highest_category: cdda_content::dialogue::Expression::Number(1.0),
@@ -442,7 +496,9 @@ fn a_strength_enchantment_reaches_the_carrying_capacity() {
 
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    world.entity_mut(survivor).insert(cdda_sim::creature::Strength { base: 8 });
+    world
+        .entity_mut(survivor)
+        .insert(cdda_sim::creature::Strength { base: 8 });
     cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
 
     assert_eq!(
@@ -479,12 +535,20 @@ fn a_first_mutation_is_never_bad() {
     let data = table(&[("GOOD_ONE", good), ("BAD_ONE", bad)]);
 
     assert_eq!(
-        cdda_sim::mutations::total_in_category(&data, "BEAST", cdda_sim::mutations::Count::Positive),
+        cdda_sim::mutations::total_in_category(
+            &data,
+            "BEAST",
+            cdda_sim::mutations::Count::Positive
+        ),
         1,
         "the category holds one good mutation"
     );
     assert_eq!(
-        cdda_sim::mutations::total_in_category(&data, "BEAST", cdda_sim::mutations::Count::Negative),
+        cdda_sim::mutations::total_in_category(
+            &data,
+            "BEAST",
+            cdda_sim::mutations::Count::Negative
+        ),
         1,
         "and one bad"
     );
@@ -577,7 +641,8 @@ fn a_mutation_costs_mutagen() {
         let mut world = World::new();
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
         let mut body = cdda_sim::body::Body::default();
-        body.vitamins.insert("mutagen_beast".to_owned(), vitamin_level);
+        body.vitamins
+            .insert("mutagen_beast".to_owned(), vitamin_level);
         world.entity_mut(survivor).insert(body);
         cdda_sim::mutation_data::install(&mut world, data.clone(), categories.clone());
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(23));
@@ -588,13 +653,7 @@ fn a_mutation_costs_mutagen() {
             use_vitamins: true,
             true_random: false,
         };
-        cdda_sim::mutations::gain(
-            &mut world,
-            survivor,
-            &data,
-            &categories,
-            "FREE_TRAIT",
-        );
+        cdda_sim::mutations::gain(&mut world, survivor, &data, &categories, "FREE_TRAIT");
         cdda_sim::dialogue_effects::run_effects(&mut world, survivor, None, &[effect]);
         cdda_sim::mutations::mutations_of(&world, survivor)
             .iter()

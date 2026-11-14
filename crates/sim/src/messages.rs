@@ -106,10 +106,9 @@ pub fn lines(world: &World) -> Vec<String> {
     let Some(mut query) = world.try_query_filtered::<&MessageLog, With<TheMessageLog>>() else {
         return Vec::new();
     };
-    query
-        .iter(world)
-        .next()
-        .map_or_else(Vec::new, |log| log.entries.iter().map(|entry| entry.text.clone()).collect())
+    query.iter(world).next().map_or_else(Vec::new, |log| {
+        log.entries.iter().map(|entry| entry.text.clone()).collect()
+    })
 }
 
 /// Every message with its severity, oldest first.
@@ -118,7 +117,10 @@ pub fn entries(world: &World) -> Vec<Message> {
     let Some(mut query) = world.try_query_filtered::<&MessageLog, With<TheMessageLog>>() else {
         return Vec::new();
     };
-    query.iter(world).next().map_or_else(Vec::new, |log| log.entries.clone())
+    query
+        .iter(world)
+        .next()
+        .map_or_else(Vec::new, |log| log.entries.clone())
 }
 
 /// Empties the log, which is what the interface does once it has drawn a turn.

@@ -45,9 +45,10 @@ pub struct Vitamin {
 pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, Vitamin>, crate::mapdata::LoadError> {
     let mut out = BTreeMap::new();
     for dir in dirs {
-        let files = crate::json_files_in_load_order(dir).map_err(|error| crate::mapdata::LoadError {
-            message: format!("{}: {error}", dir.display()),
-        })?;
+        let files =
+            crate::json_files_in_load_order(dir).map_err(|error| crate::mapdata::LoadError {
+                message: format!("{}: {error}", dir.display()),
+            })?;
         for path in files {
             let Some(value) = crate::read_json(&path) else {
                 continue;
@@ -78,13 +79,15 @@ pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, Vitamin>, crate::ma
                     _ => 0,
                 };
                 let weight_per_unit = match object.get("weight_per_unit") {
-                    Some(Value::Str(text)) => {
-                        Some(cdda_core_types::units::read_vitamin_mass(text).map_err(|error| {
+                    Some(Value::Str(text)) => Some(
+                        cdda_core_types::units::read_vitamin_mass(text).map_err(|error| {
                             crate::mapdata::LoadError {
-                                message: format!("vitamin {id}: weight_per_unit {text:?}: {error:?}"),
+                                message: format!(
+                                    "vitamin {id}: weight_per_unit {text:?}: {error:?}"
+                                ),
                             }
-                        })?)
-                    }
+                        })?,
+                    ),
                     Some(Value::Int(grams)) => Some(*grams),
                     _ => None,
                 };
@@ -92,7 +95,8 @@ pub fn load_paths(dirs: &[&Path]) -> Result<BTreeMap<String, Vitamin>, crate::ma
                     id.clone(),
                     Vitamin {
                         id,
-                        vit_type: crate::items::string(object, "vit_type").unwrap_or_else(|| "vitamin".to_owned()),
+                        vit_type: crate::items::string(object, "vit_type")
+                            .unwrap_or_else(|| "vitamin".to_owned()),
                         min,
                         max,
                         weight_per_unit,
@@ -164,8 +168,8 @@ pub fn derived_from_materials(
             let Some(known) = registry.get(material) else {
                 continue;
             };
-            let amount = known.vitamins.get(id).copied().unwrap_or(0.0) * f64::from(scale)
-                / count as f64;
+            let amount =
+                known.vitamins.get(id).copied().unwrap_or(0.0) * f64::from(scale) / count as f64;
             // `std::ceil` on each addition, then an integer add.
             let units = amount.ceil() as i32;
             total += units;
@@ -203,11 +207,12 @@ pub fn read_list(
             Value::Int(units) => i32::try_from(*units).unwrap_or(0),
             Value::Float(units) => *units as i32,
             Value::Str(mass) => {
-                let micrograms = cdda_core_types::units::read_vitamin_mass(mass).map_err(|error| {
-                    crate::mapdata::LoadError {
-                        message: format!("vitamin {id}: {mass:?}: {error:?}"),
-                    }
-                })?;
+                let micrograms =
+                    cdda_core_types::units::read_vitamin_mass(mass).map_err(|error| {
+                        crate::mapdata::LoadError {
+                            message: format!("vitamin {id}: {mass:?}: {error:?}"),
+                        }
+                    })?;
                 let vitamin = vitamins.get(id).ok_or_else(|| crate::mapdata::LoadError {
                     message: format!("vitamin {id} is not registered"),
                 })?;

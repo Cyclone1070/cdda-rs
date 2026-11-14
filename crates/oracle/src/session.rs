@@ -353,8 +353,8 @@ impl Comparison {
 /// The fixtures under `corpus/fields/replayable.txt`, in the order the list gives them.
 #[must_use]
 pub fn replayable() -> Vec<String> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus/fields/replayable.txt");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/fields/replayable.txt");
     let Ok(text) = std::fs::read_to_string(path) else {
         return Vec::new();
     };

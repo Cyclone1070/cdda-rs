@@ -72,7 +72,11 @@ fn reference() -> Vec<Row> {
 #[test]
 fn every_zone_type_the_data_defines_loads_as_the_reference_holds_it() {
     let reference = reference();
-    assert_eq!(reference.len(), 64, "the dump holds every zone type of the dda set");
+    assert_eq!(
+        reference.len(),
+        64,
+        "the dump holds every zone type of the dda set"
+    );
     let dirs = dirs();
     let args: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
     let loaded = load_paths(&args).expect("the data loads");
@@ -96,7 +100,10 @@ fn every_zone_type_the_data_defines_loads_as_the_reference_holds_it() {
             hidden: row.hidden,
         };
         if *zone != expected {
-            wrong.push(format!("{}: the port has {zone:?}, the reference has {expected:?}", row.id));
+            wrong.push(format!(
+                "{}: the port has {zone:?}, the reference has {expected:?}",
+                row.id
+            ));
         }
     }
     for id in loaded.keys() {
@@ -104,7 +111,12 @@ fn every_zone_type_the_data_defines_loads_as_the_reference_holds_it() {
             wrong.push(format!("{id}: the port invents a zone type"));
         }
     }
-    assert!(wrong.is_empty(), "{} wrong of 64:\n{}", wrong.len(), wrong.join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} wrong of 64:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }
 
 /// The flags a zone carries decide whether a character may own it and whether the UI offers it, so they are asserted on both sides rather than trusted to the count.
@@ -126,7 +138,10 @@ fn personal_and_hidden_zone_types_are_the_reference_s() {
         .collect();
     personal.sort_unstable();
     hidden.sort_unstable();
-    assert!(!personal.is_empty() && !hidden.is_empty(), "both flags are exercised");
+    assert!(
+        !personal.is_empty() && !hidden.is_empty(),
+        "both flags are exercised"
+    );
     for id in &personal {
         assert!(loaded[*id].can_be_personal, "{id} may be owned");
     }

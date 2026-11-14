@@ -56,7 +56,8 @@ fn integer(object: &cdda_json::Object, key: &str) -> i64 {
 fn recorded() -> (i32, i32, Vec<Case>) {
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/characters/needs.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
@@ -69,7 +70,9 @@ fn recorded() -> (i32, i32, Vec<Case>) {
     let cases = cases
         .iter()
         .map(|case| {
-            let Value::Object(case) = case else { panic!("a case") };
+            let Value::Object(case) = case else {
+                panic!("a case")
+            };
             let rates = match case.get("rates") {
                 Some(Value::Object(rates)) => rates,
                 other => panic!("rates: {other:?}"),
@@ -123,24 +126,14 @@ fn the_metabolic_rates_follow_the_reference_arithmetic() {
             ));
         }
         // The metabolic multiplier is computed from the port's own starvation figure, so a wrong curve shows up here as well as above.
-        let ours_rate = metabolic_rate(
-            hunger,
-            ours_starvation,
-            case.speed,
-            case.metabolism_base,
-        );
+        let ours_rate = metabolic_rate(hunger, ours_starvation, case.speed, case.metabolism_base);
         if (ours_rate - case.reference_metabolic_rate).abs() > 1e-6 {
             differing.push(format!(
                 "{label}.metabolic_rate: the port says {ours_rate:.9}, the reference says {:.9}",
                 case.reference_metabolic_rate
             ));
         }
-        let ours_base = base_bmr(
-            case.bodyweight_grams,
-            height,
-            age,
-            case.metabolism_base,
-        );
+        let ours_base = base_bmr(case.bodyweight_grams, height, age, case.metabolism_base);
         if ours_base != case.reference_base_bmr {
             differing.push(format!(
                 "{label}.base_bmr: the port says {ours_base}, the reference says {}",
@@ -162,12 +155,7 @@ fn the_metabolic_rates_follow_the_reference_arithmetic() {
                 case.rate_thirst, case.rate_sleepiness, case.rate_recovery
             ));
         }
-        let ours_rates = needs_rates(
-            ours_bmr,
-            ours_rate,
-            case.rate_thirst,
-            case.rate_sleepiness,
-        );
+        let ours_rates = needs_rates(ours_bmr, ours_rate, case.rate_thirst, case.rate_sleepiness);
         if ours_rates.kcal != case.rate_kcal || ours_rates.hunger != case.rate_hunger {
             differing.push(format!(
                 "{label}.rates: the port says kcal {} hunger {}, the reference says kcal {} hunger {}",
@@ -187,8 +175,14 @@ fn the_metabolic_rates_follow_the_reference_arithmetic() {
     }
     // **Non-vacuity**: a grid where nothing moves would pass while proving nothing.
     assert!(starved > 20, "states that were starving: {starved}");
-    assert!(hungry_multiplier > 20, "states whose multiplier moved: {hungry_multiplier}");
-    assert!(activity_ceilings > 50, "states whose activity rounded up: {activity_ceilings}");
+    assert!(
+        hungry_multiplier > 20,
+        "states whose multiplier moved: {hungry_multiplier}"
+    );
+    assert!(
+        activity_ceilings > 50,
+        "states whose activity rounded up: {activity_ceilings}"
+    );
     assert!(
         differing.is_empty(),
         "{} disagreements over {} states; the first twelve are {:#?}",

@@ -40,13 +40,18 @@ pub enum Craft {
 ///
 /// Answers the item id that was made, or [`None`] when nothing could be made - in which case nothing is consumed
 /// either, because a craft that ate its components and produced nothing is worse than one that refused.
-pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_registry::ItemNames) -> Option<String> {
+pub fn finish_craft(
+    world: &mut World,
+    crafter: Entity,
+    names: &crate::item_registry::ItemNames,
+) -> Option<String> {
     let making = world.get::<Making>(crafter).cloned()?;
     world.entity_mut(crafter).remove::<Making>();
     let on_hand = crate::inventory::carried_by_id(world, crafter, |kind| names.name_of(kind));
-    if !making.recipe.components_available(making.batch, |item| {
-        on_hand.get(item).copied().unwrap_or(0)
-    }) {
+    if !making
+        .recipe
+        .components_available(making.batch, |item| on_hand.get(item).copied().unwrap_or(0))
+    {
         return None;
     }
     // Which entity satisfies which group, decided before anything is removed: consuming while searching would let an
@@ -60,9 +65,12 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
             }
             let mut stacks: Vec<(Entity, i32)> = Vec::new();
             {
-                let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
+                let mut query =
+                    world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
                 for (entity, carried, item) in query.iter(world) {
-                    if carried.0 == crafter && names.name_of(item.kind).as_deref() == Some(component.item.as_str()) {
+                    if carried.0 == crafter
+                        && names.name_of(item.kind).as_deref() == Some(component.item.as_str())
+                    {
                         stacks.push((entity, item.charges.max(1)));
                     }
                 }
@@ -96,7 +104,14 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     // costs nothing in the port and some charges in the reference, which is recorded in `docs/parity.md` rather than papered over.
     // Reference: the step that completes the craft is not charged (`activity_actor.cpp:4250-4253`), so the last twentieth is owed here - which is exactly what the
     // start's `% 20` remainder was holding.
-    spend_tool_charges(world, crafter, &making.recipe, making.batch, names, ChargeShare::Rest);
+    spend_tool_charges(
+        world,
+        crafter,
+        &making.recipe,
+        making.batch,
+        names,
+        ChargeShare::Rest,
+    );
     // The craft's **practice** and its **proficiencies** are both laid on by the turn hook (`crate::creature::spend_a_turn_on`), which is the reference's own timing
     // (`activity_actor.cpp:4232-4245`): a craft that finishes without running its turns - a test that jumps straight to the end - teaches nothing, on purpose.
     // Reference: `create_result` (`recipe.cpp:768-771`) - a `contained` recipe makes **the container**, with the result inside it, so a canned good's product is the can
@@ -109,8 +124,16 @@ pub fn finish_craft(world: &mut World, crafter: Entity, names: &crate::item_regi
     };
     // Reference: `recipe::create_results` (`recipe.cpp:790-825`): one batch makes `made_per_batch` things, which the reference's own dump reports as the product of
     // `result_mult` and `charges`. The port holds a count as a stack's charges, so the batch multiplies it.
-    let charges = making.batch.max(1).saturating_mul(making.recipe.made_per_batch.max(1));
-    if let Some(container) = making.recipe.container.as_deref().and_then(|id| names.id_of(id)) {
+    let charges = making
+        .batch
+        .max(1)
+        .saturating_mul(making.recipe.made_per_batch.max(1));
+    if let Some(container) = making
+        .recipe
+        .container
+        .as_deref()
+        .and_then(|id| names.id_of(id))
+    {
         fill_container(world, crafter, container, kind, charges);
         return Some(result);
     }
@@ -191,7 +214,14 @@ pub fn spend_craft_charges(
     names: &crate::item_registry::ItemNames,
     steps: i32,
 ) {
-    spend_tool_charges(world, crafter, recipe, batch, names, ChargeShare::Steps(steps));
+    spend_tool_charges(
+        world,
+        crafter,
+        recipe,
+        batch,
+        names,
+        ChargeShare::Steps(steps),
+    );
 }
 
 /// Spends a share of the tool charges a craft needs.
@@ -226,9 +256,12 @@ fn spend_tool_charges(
             }
             let mut stacks: Vec<(Entity, i32)> = Vec::new();
             {
-                let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
+                let mut query =
+                    world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
                 for (entity, carried, stack) in query.iter(world) {
-                    if carried.0 == crafter && names.name_of(stack.kind).as_deref() == Some(item.as_str()) {
+                    if carried.0 == crafter
+                        && names.name_of(stack.kind).as_deref() == Some(item.as_str())
+                    {
                         stacks.push((entity, stack.charges.max(1)));
                     }
                 }
@@ -469,7 +502,13 @@ pub struct Supplies<'a> {
 ///
 /// `on_hand` says how many of an item id the crafter has. It is a closure rather than a lookup because the port has no
 /// inventory yet: the caller - eventually the inventory, today a test or a playtest - is the only thing that knows.
-pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i32, supplies: &Supplies<'_>) -> Craft {
+pub fn begin_craft(
+    world: &mut World,
+    crafter: Entity,
+    recipe: &Recipe,
+    batch: i32,
+    supplies: &Supplies<'_>,
+) -> Craft {
     // Reference: `Character::can_make` refuses when `!has_recipe( r )` (`crafting.cpp:602-616`), and `has_recipe` is `knows_recipe || group_available`
     // (`character_crafting.cpp:23-27`) - a recipe the crafter never learned is not makeable, whatever is on hand.
     if !(supplies.known)(&recipe.id) {
@@ -518,7 +557,8 @@ pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i
     });
     // Reference: `item::set_next_failure_point` (`crafting.cpp:1328-1344`) - the first check is placed from the crafter's **own** success roll, so someone who
     // outclasses the recipe is rarely checked at all and someone who does not is checked almost at once.
-    let data = crate::craft_roll::success_data(recipe.difficulty, skill_for(world, crafter, recipe));
+    let data =
+        crate::craft_roll::success_data(recipe.difficulty, skill_for(world, crafter, recipe));
     let first_roll = crate::craft_roll::success_roll(world, data);
     world.entity_mut(crafter).insert(Making {
         recipe: recipe.clone(),
@@ -547,7 +587,12 @@ pub fn begin_craft(world: &mut World, crafter: Entity, recipe: &Recipe, batch: i
 ///
 /// `required_skills` is the recipe's other skills as **(difficulty, the crafter's level)** pairs, in the data's order - the products do not care which is which, but the caller does.
 #[must_use]
-pub fn morale_speed_multiplier(morale: i32, difficulty: i32, skill_level: i32, required_skills: &[(i32, i32)]) -> f32 {
+pub fn morale_speed_multiplier(
+    morale: i32,
+    difficulty: i32,
+    skill_level: i32,
+    required_skills: &[(i32, i32)],
+) -> f32 {
     /// The reference's `-50.0f`: the drop that halves the speed at a multiplier of one.
     const HALVING_MORALE: f32 = -50.0;
     if morale >= 0 {
@@ -720,7 +765,11 @@ pub fn lerped_multiplier(value: f32, low: f32, high: f32) -> f32 {
 ///
 /// `main_skill` is `None` when the recipe uses no skill; `required` is `(the crafter's level, the required level)` per extra skill.
 #[must_use]
-pub fn exceeds_recipe_requirements(main_skill: Option<i32>, difficulty: i32, required: &[(i32, i32)]) -> i32 {
+pub fn exceeds_recipe_requirements(
+    main_skill: Option<i32>,
+    difficulty: i32,
+    required: &[(i32, i32)],
+) -> i32 {
     let mut over = main_skill.map_or(0, |level| level - difficulty);
     for &(level, needed) in required {
         let difference = level - needed;
@@ -736,7 +785,11 @@ pub fn exceeds_recipe_requirements(main_skill: Option<i32>, difficulty: i32, req
 /// Reference: `SkillLevelMap::theoretical_recipe_requirements` (`skill.cpp:615-626`): every skill - the main one **and** each required one - is asked about its **knowledge level**, not its practical
 /// level. A recipe with no main skill only asks about the required ones.
 #[must_use]
-pub fn theoretical_recipe_requirements(main_knowledge: Option<i32>, difficulty: i32, required: &[(i32, i32)]) -> bool {
+pub fn theoretical_recipe_requirements(
+    main_knowledge: Option<i32>,
+    difficulty: i32,
+    required: &[(i32, i32)],
+) -> bool {
     if main_knowledge.is_some_and(|level| level < difficulty) {
         return false;
     }
@@ -780,7 +833,11 @@ pub use cdda_content::recipes::{practice_difficulty, skill_cap};
 /// **The factor of five between the two is the whole reward for understanding the work**, and `roll_remainder` (`rng.cpp:222-233`) keeps the fraction as a **chance** rather than rounding it away - which is
 /// why the answer is a draw and not a division. The crafter's own share is the full `num_practice_ticks` and is applied without this function.
 #[must_use]
-pub fn helper_practice_ticks(ticks: i32, understands: bool, rolls: &mut cdda_core_types::rng::Rolls) -> i32 {
+pub fn helper_practice_ticks(
+    ticks: i32,
+    understands: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> i32 {
     let share = if understands {
         f64::from(ticks) / 2.0
     } else {
@@ -845,7 +902,12 @@ pub fn practice_ticks(time_moves: i64, old_counter: i64, new_counter: i64) -> i3
 /// **The helper bonus is a flat doubling, not a count**: the loop only ever assigns 2, so two knowledgeable assistants are worth exactly as much as one. That is the sort of "obviously additive" rule a port
 /// would improve on - and improving it is inventing behaviour.
 #[must_use]
-pub fn proficiency_share(seconds: i64, subject_count: usize, time_multiplier: f32, helper_knows_it: bool) -> i64 {
+pub fn proficiency_share(
+    seconds: i64,
+    subject_count: usize,
+    time_multiplier: f32,
+    helper_knows_it: bool,
+) -> i64 {
     if subject_count == 0 {
         return 0;
     }

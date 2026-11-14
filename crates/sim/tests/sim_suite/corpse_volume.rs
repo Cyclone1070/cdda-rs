@@ -11,7 +11,10 @@
 
 use bevy_ecs::prelude::*;
 use cdda_json::Value;
-use cdda_sim::{CorpseOf, ItemFlags, ItemTypeId, MonsterKindId, TypeVolume, corpse_volume, drop_item, item_volume};
+use cdda_sim::{
+    CorpseOf, ItemFlags, ItemTypeId, MonsterKindId, TypeVolume, corpse_volume, drop_item,
+    item_volume,
+};
 use std::collections::BTreeSet;
 
 /// One recorded creature: its own volume and the seven corpse volumes.

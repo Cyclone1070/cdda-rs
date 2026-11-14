@@ -392,9 +392,8 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     }
     // **The body's weak points, when the type states any.** The dump writes the set's list and its default under one object, and a type with nothing to say has an empty list and the
     // reference's default - which is the same shape, so the reader decides by the list rather than by the key's presence.
-    if let Some(cdda_json::Value::Array(families)) = object
-        .get("weakpoints")
-        .and_then(|set| match set {
+    if let Some(cdda_json::Value::Array(families)) =
+        object.get("weakpoints").and_then(|set| match set {
             cdda_json::Value::Object(inner) => inner.get("families"),
             _ => None,
         })
@@ -407,11 +406,11 @@ fn apply(monster: &mut MonsterType, object: &Object, inherited: bool) -> Result<
     {
         let mut weakpoints = Vec::new();
         for entry in entries {
-            weakpoints.push(
-                crate::weakpoints::read_weakpoint(entry).map_err(|error| LoadError {
+            weakpoints.push(crate::weakpoints::read_weakpoint(entry).map_err(|error| {
+                LoadError {
                     message: error.message,
-                })?,
-            );
+                }
+            })?);
         }
         let default = match set.get("default") {
             Some(entry) => crate::weakpoints::read_weakpoint(entry).map_err(|error| LoadError {

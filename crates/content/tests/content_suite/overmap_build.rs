@@ -293,7 +293,10 @@ fn a_town_built_from_the_reference_s_own_specials_places_real_buildings() {
     // Measured: five of eight spread seeds build, and each builds **one** building — the specials the data offers are mostly unique, so once one is placed the rest
     // are refused by `still_allowed` and the ten retries run out. The assertion is what the rule promises (a town gets built, from the reference's own ids), not a
     // count the rule never claimed.
-    assert!(towns >= 1, "the reference's own data builds a town: {towns} of 8");
+    assert!(
+        towns >= 1,
+        "the reference's own data builds a town: {towns} of 8"
+    );
     assert!(
         built_total >= towns,
         "every successful town built at least one building: {built_total} over {towns} attempts"

@@ -10,7 +10,8 @@ use bevy_ecs::prelude::*;
 
 fn holds(world: &World, speaker: Entity, listener: Option<Entity>, text: &str) -> bool {
     let value = cdda_json::parse(text.as_bytes()).expect("json");
-    let condition = cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
+    let condition =
+        cdda_content::dialogue::read_condition(&value).expect("the port reads the condition");
     cdda_sim::conditions::holds_with(world, speaker, listener, &condition)
 }
 
@@ -22,8 +23,14 @@ fn a_person_is_a_character_and_the_player_is_the_avatar() {
     let trader = cdda_sim::creature::spawn_creature(&mut world, "the trader", (1, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, trader, "trader");
 
-    assert!(holds(&world, survivor, None, r#""u_is_character""#), "**the player is a character**");
-    assert!(holds(&world, survivor, None, r#""u_is_avatar""#), "and the avatar");
+    assert!(
+        holds(&world, survivor, None, r#""u_is_character""#),
+        "**the player is a character**"
+    );
+    assert!(
+        holds(&world, survivor, None, r#""u_is_avatar""#),
+        "and the avatar"
+    );
     assert!(
         holds(&world, survivor, Some(trader), r#""npc_is_character""#),
         "**an NPC is a character too**, which is the whole point of the condition: the player is one and so is the trader"

@@ -23,7 +23,10 @@ fn a_person_is_a_component_not_a_kind() {
         cdda_sim::npcs::unique_id_of(&world, shopkeeper),
         Some("SHOPKEEPER")
     );
-    assert!(!cdda_sim::npcs::is_npc(&world, zombie), "a monster is not a person");
+    assert!(
+        !cdda_sim::npcs::is_npc(&world, zombie),
+        "a monster is not a person"
+    );
     assert_eq!(cdda_sim::npcs::unique_id_of(&world, zombie), None);
 
     // The list holds every person with the square they stand on, and nobody else.

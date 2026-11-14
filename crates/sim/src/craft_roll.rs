@@ -86,7 +86,9 @@ pub fn failure_roll(world: &mut World, data: RollData) -> f64 {
 /// Draws a normal roll from the world's dice, giving them back.
 fn draw(world: &mut World, center: f64, stddev: f64) -> f64 {
     let mut held = crate::singletons::take_rolls(world);
-    let drawn = held.as_mut().map_or(0.0, |dice| dice.normal_roll(center, stddev));
+    let drawn = held
+        .as_mut()
+        .map_or(0.0, |dice| dice.normal_roll(center, stddev));
     if let Some(dice) = held.take() {
         crate::singletons::put_rolls(world, dice);
     }
@@ -133,7 +135,13 @@ pub fn handle_failure(
     progress: i64,
     names: &crate::item_registry::ItemNames,
 ) -> Failure {
-    let roll = failure_roll(world, failure_data(recipe.difficulty, crate::skills_of::level_of(world, crafter, &recipe.skill)));
+    let roll = failure_roll(
+        world,
+        failure_data(
+            recipe.difficulty,
+            crate::skills_of::level_of(world, crafter, &recipe.skill),
+        ),
+    );
     let mut components: Vec<Entity> = Vec::new();
     {
         let mut query = world.query::<(Entity, &crate::creature::Carried, &crate::GroundItem)>();
@@ -144,7 +152,12 @@ pub fn handle_failure(
             let Some(name) = names.name_of(stack.kind) else {
                 continue;
             };
-            if recipe.components.iter().flatten().any(|component| component.item == name) {
+            if recipe
+                .components
+                .iter()
+                .flatten()
+                .any(|component| component.item == name)
+            {
                 components.push(entity);
             }
         }
@@ -183,7 +196,9 @@ pub fn handle_failure(
 /// Whether a component is skipped, which is the failure roll as a chance.
 fn skip_one(world: &mut World, roll: f64) -> bool {
     let mut held = crate::singletons::take_rolls(world);
-    let skipped = held.as_mut().is_some_and(|dice| dice.x_in_y(roll.max(0.0), 1.0));
+    let skipped = held
+        .as_mut()
+        .is_some_and(|dice| dice.x_in_y(roll.max(0.0), 1.0));
     if let Some(dice) = held.take() {
         crate::singletons::put_rolls(world, dice);
     }
@@ -196,7 +211,9 @@ fn skip_one(world: &mut World, roll: f64) -> bool {
 /// well the crafter rolled.
 fn lost_fraction(world: &mut World, roll: f64) -> f64 {
     let mut held = crate::singletons::take_rolls(world);
-    let drawn = held.as_mut().map_or(0.0, |dice| dice.rng_exponential(0.25, 0.35));
+    let drawn = held
+        .as_mut()
+        .map_or(0.0, |dice| dice.rng_exponential(0.25, 0.35));
     if let Some(dice) = held.take() {
         crate::singletons::put_rolls(world, dice);
     }

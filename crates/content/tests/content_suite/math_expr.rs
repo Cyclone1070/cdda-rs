@@ -38,21 +38,31 @@ impl Context for TestContext {
         self.numbers.get(name).copied()
     }
     fn call(&self, name: &str, args: &[Value]) -> Result<Value, MathError> {
-        self.calls.borrow_mut().push(format!("{name}/{}", args.len()));
-        let missing = || MathError::UnknownName { name: name.to_string() };
+        self.calls
+            .borrow_mut()
+            .push(format!("{name}/{}", args.len()));
+        let missing = || MathError::UnknownName {
+            name: name.to_string(),
+        };
         match name {
             "weather" => {
-                let Some(Value::Text(field)) = args.first() else { return Err(missing()) };
+                let Some(Value::Text(field)) = args.first() else {
+                    return Err(missing());
+                };
                 self.number(field).map(Value::Number).ok_or_else(missing)
             }
             "from_fahrenheit" => {
-                let Some(Value::Number(fahrenheit)) = args.first() else { return Err(missing()) };
+                let Some(Value::Number(fahrenheit)) = args.first() else {
+                    return Err(missing());
+                };
                 Ok(Value::Number((fahrenheit - 32.0) * 5.0 / 9.0))
             }
             "celsius" => {
                 // The reference's `celsius` converts a temperature *unit* to a plain number of degrees (`units.h:413`, and the conversion is a float), which for a
                 // reading already in kelvin is a subtraction.
-                let Some(Value::Number(kelvin)) = args.first() else { return Err(missing()) };
+                let Some(Value::Number(kelvin)) = args.first() else {
+                    return Err(missing());
+                };
                 Ok(Value::Number(kelvin - 273.15))
             }
             "abs" => match args.first() {
@@ -95,12 +105,17 @@ fn arithmetic_follows_the_usual_precedence_and_associativity() {
 #[test]
 fn a_weather_field_is_a_number_fetched_by_a_quoted_name() {
     // Transcribed from the data: `{ "math": [ "weather('pressure') >= 1020" ] }`.
-    let context = TestContext::default().with("pressure", 1025.0).with("humidity", 51.0);
+    let context = TestContext::default()
+        .with("pressure", 1025.0)
+        .with("humidity", 51.0);
     assert_eq!(number("weather('pressure')", &context), 1025.0);
     assert!(truth("weather('pressure') >= 1020", &context));
     assert!(!truth("weather('pressure') < 1020", &context));
     assert!(truth("weather('humidity') < 70", &context));
-    assert_eq!(context.calls.borrow().first().map(String::as_str), Some("weather/1"));
+    assert_eq!(
+        context.calls.borrow().first().map(String::as_str),
+        Some("weather/1")
+    );
 }
 
 #[test]
@@ -120,7 +135,10 @@ fn a_temperature_can_be_written_in_fahrenheit() {
     // difference between that and one degree matters: it is the snow line.
     let context = TestContext::default();
     let freezing = number("from_fahrenheit(33)", &context);
-    assert!((freezing - 0.555_555_555_555_555_6).abs() < 1e-12, "33 F is {freezing} C");
+    assert!(
+        (freezing - 0.555_555_555_555_555_6).abs() < 1e-12,
+        "33 F is {freezing} C"
+    );
     assert!(truth("1 >= from_fahrenheit(33)", &context));
     assert!(!truth("0.5 >= from_fahrenheit(33)", &context));
 }
@@ -129,7 +147,9 @@ fn a_temperature_can_be_written_in_fahrenheit() {
 fn the_fog_condition_evaluates_end_to_end() {
     // Transcribed whole, from `weather_type.json`: `month` and the three `and` members. This is the longest condition in the data and the only one that nests
     // arithmetic inside a function call, so it is the one worth reproducing literally.
-    let context = TestContext::default().with("windpower", 3.0).with("temperature", 279.15);
+    let context = TestContext::default()
+        .with("windpower", 3.0)
+        .with("temperature", 279.15);
     let fog = "weather('windpower') < 12 && weather('windpower') > 0";
     let _ = fog;
     let wind_low = truth("weather('windpower') < 12", &context);
@@ -145,15 +165,24 @@ fn a_malformed_expression_is_an_error_and_not_a_zero() {
     // A parser that answered zero on failure would make every condition false and every sky clear, which is the sort of silence a weather system should not have.
     let context = TestContext::default();
     for broken in ["", "1 +", "(1", "weather(", "1 2", "@"] {
-        assert!(matches!(evaluate(broken, &context), Err(MathError::Syntax { .. })), "{broken:?} is an error");
+        assert!(
+            matches!(evaluate(broken, &context), Err(MathError::Syntax { .. })),
+            "{broken:?} is an error"
+        );
     }
 }
 
 #[test]
 fn an_unknown_name_is_an_error_rather_than_a_silent_zero() {
     let context = TestContext::default();
-    assert!(matches!(evaluate("missing_name + 1", &context), Err(MathError::UnknownName { .. })));
-    assert!(matches!(evaluate("missing_function(1)", &context), Err(MathError::UnknownName { .. })));
+    assert!(matches!(
+        evaluate("missing_name + 1", &context),
+        Err(MathError::UnknownName { .. })
+    ));
+    assert!(matches!(
+        evaluate("missing_function(1)", &context),
+        Err(MathError::UnknownName { .. })
+    ));
 }
 
 #[test]
@@ -180,7 +209,10 @@ fn a_data_defined_function_is_evaluated_with_its_arguments_bound() {
         Ok(Value::Number(value)) => value,
         other => panic!("a number, got {other:?}"),
     };
-    assert!((factor - 5.2).abs() < 0.15, "eleven degrees against a dew point near six: {factor}");
+    assert!(
+        (factor - 5.2).abs() < 0.15,
+        "eleven degrees against a dew point near six: {factor}"
+    );
     // And at thirty per cent the air is much drier, so the gap is much wider - which is what makes the function worth following.
     let dry = TestContext::default().with("humidity", 30.0);
     let context = cdda_content::jmath::Bound::new(&dry, &functions, &[]);
@@ -188,7 +220,10 @@ fn a_data_defined_function_is_evaluated_with_its_arguments_bound() {
         Ok(Value::Number(value)) => value,
         other => panic!("a number, got {other:?}"),
     };
-    assert!(factor > 10.0, "dry air puts the dew point far below: {factor}");
+    assert!(
+        factor > 10.0,
+        "dry air puts the dew point far below: {factor}"
+    );
 }
 
 #[test]
@@ -200,10 +235,12 @@ fn a_condition_is_a_small_tree_of_and_or_not_and_math() {
         .with("humidity", 51.0)
         .with("condition:is_day", 1.0);
     let sunny = br#"{"and": ["is_day", {"math": ["weather('pressure') >= 1020"]}, {"math": ["weather('humidity') < 70"]}]}"#;
-    let condition = cdda_content::condition::Condition::from_json_bytes(sunny).expect("a condition");
+    let condition =
+        cdda_content::condition::Condition::from_json_bytes(sunny).expect("a condition");
     assert!(condition.holds(&context), "a clear cold day is sunny");
     let rainy = br#"{"or": [{"math": ["weather('humidity') >= 98"]}, {"math": ["weather('pressure') < 993"]}]}"#;
-    let condition = cdda_content::condition::Condition::from_json_bytes(rainy).expect("a condition");
+    let condition =
+        cdda_content::condition::Condition::from_json_bytes(rainy).expect("a condition");
     assert!(!condition.holds(&context), "and it is not raining");
 }
 
@@ -228,25 +265,35 @@ impl Context for WeatherPoint {
         match name {
             "weather" => {
                 let Some(Value::Text(field)) = args.first() else {
-                    return Err(MathError::UnknownName { name: name.to_string() });
+                    return Err(MathError::UnknownName {
+                        name: name.to_string(),
+                    });
                 };
                 let value = match field.as_str() {
                     "temperature" => self.temperature,
                     "humidity" => self.humidity,
                     "pressure" => self.pressure,
                     "windpower" => self.windpower,
-                    other => return Err(MathError::UnknownName { name: other.to_string() }),
+                    other => {
+                        return Err(MathError::UnknownName {
+                            name: other.to_string(),
+                        });
+                    }
                 };
                 Ok(Value::Number(value))
             }
             // Reference: `units.h:413` - `celsius( v )` subtracts `from_kelvin( 273.150f )`, and both sides are float in the reference.
             "celsius" => match args.first() {
                 Some(Value::Number(kelvin)) => Ok(Value::Number(kelvin - 273.15)),
-                _ => Err(MathError::UnknownName { name: name.to_string() }),
+                _ => Err(MathError::UnknownName {
+                    name: name.to_string(),
+                }),
             },
             other => {
                 // Anything else - `abs`, `log`, `dew_point_factor` - comes from the data's own definitions or the shared maths.
-                if let Ok(value) = cdda_content::jmath::call(&self.functions, &Builtins, other, args) {
+                if let Ok(value) =
+                    cdda_content::jmath::call(&self.functions, &Builtins, other, args)
+                {
                     return Ok(value);
                 }
                 Builtins.call(other, args)
@@ -263,7 +310,9 @@ impl Context for Builtins {
         None
     }
     fn call(&self, name: &str, args: &[Value]) -> Result<Value, MathError> {
-        let missing = || MathError::UnknownName { name: name.to_string() };
+        let missing = || MathError::UnknownName {
+            name: name.to_string(),
+        };
         match (name, args) {
             ("abs", [Value::Number(value)]) => Ok(Value::Number(value.abs())),
             ("log", [Value::Number(value)]) => Ok(Value::Number(value.ln())),
@@ -273,11 +322,15 @@ impl Context for Builtins {
 }
 
 /// The conditions the reference's own data file writes, by weather id.
-fn data_conditions() -> (Vec<(String, cdda_content::condition::Condition)>, cdda_content::jmath::Registry) {
+fn data_conditions() -> (
+    Vec<(String, cdda_content::condition::Condition)>,
+    cdda_content::jmath::Registry,
+) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../references/Cataclysm-DDA/data/json/weather_type.json");
     let text = std::fs::read_to_string(path).expect("the weather data");
-    let cdda_json::Value::Array(entries) = cdda_json::parse(text.as_bytes()).expect("valid JSON") else {
+    let cdda_json::Value::Array(entries) = cdda_json::parse(text.as_bytes()).expect("valid JSON")
+    else {
         panic!("the file is an array")
     };
     let objects: Vec<cdda_json::Object> = entries
@@ -297,9 +350,14 @@ fn data_conditions() -> (Vec<(String, cdda_content::condition::Condition)>, cdda
         {
             continue;
         }
-        let Some(cdda_json::Value::Str(id)) = object.get("id") else { continue };
-        let Some(condition) = object.get("condition") else { continue };
-        let condition = cdda_content::condition::Condition::from_value(condition).expect("a condition");
+        let Some(cdda_json::Value::Str(id)) = object.get("id") else {
+            continue;
+        };
+        let Some(condition) = object.get("condition") else {
+            continue;
+        };
+        let condition =
+            cdda_content::condition::Condition::from_value(condition).expect("a condition");
         conditions.push((id.clone(), condition));
     }
     (conditions, functions)
@@ -313,16 +371,28 @@ fn the_data_s_own_conditions_agree_with_the_recorded_day() {
     let (conditions, functions) = data_conditions();
     // Seventeen types are declared in this file and every one of them carries a condition. The registry's other three are not here: `clear` and `null` are made by code and
     // `moonlit_scenario_weather` lives with the scenario that defines it.
-    assert_eq!(conditions.len(), 17, "every weather type in this file carries a condition");
+    assert_eq!(
+        conditions.len(),
+        17,
+        "every weather type in this file carries a condition"
+    );
     let series = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weather/series-24h.json"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../corpus/weather/series-24h.json"),
     )
     .expect("the recorded series");
-    let cdda_json::Value::Object(root) = cdda_json::parse(series.as_bytes()).expect("valid JSON") else { panic!("root") };
-    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else { panic!("steps") };
+    let cdda_json::Value::Object(root) = cdda_json::parse(series.as_bytes()).expect("valid JSON")
+    else {
+        panic!("root")
+    };
+    let Some(cdda_json::Value::Array(steps)) = root.get("steps") else {
+        panic!("steps")
+    };
     let mut sunny_hours = Vec::new();
     for step in steps {
-        let cdda_json::Value::Object(step) = step else { panic!("a step") };
+        let cdda_json::Value::Object(step) = step else {
+            panic!("a step")
+        };
         let field = |key: &str| match step.get(key) {
             Some(cdda_json::Value::Float(value)) => *value,
             Some(cdda_json::Value::Int(value)) => *value as f64,
@@ -344,7 +414,18 @@ fn the_data_s_own_conditions_agree_with_the_recorded_day() {
                 .expect("a known weather type")
         };
         // No precipitation condition can hold on a day of high pressure and low humidity, and the recording agrees: the sky is sunny or clear all day.
-        for wet in ["light_drizzle", "drizzle", "rain", "rainstorm", "thunder", "lightning", "flurries", "snowing", "snowstorm", "cloudy"] {
+        for wet in [
+            "light_drizzle",
+            "drizzle",
+            "rain",
+            "rainstorm",
+            "thunder",
+            "lightning",
+            "flurries",
+            "snowing",
+            "snowstorm",
+            "cloudy",
+        ] {
             assert!(!holds(wet), "hour {hour} should not be {wet}");
         }
         // Fog and mist need still air and a dew point close to the temperature; the day has neither, and the hour whose air is dead calm fails the second half of
@@ -357,5 +438,9 @@ fn the_data_s_own_conditions_agree_with_the_recorded_day() {
     }
     // Sunny is the condition the day actually exercises, and its boundary is a humidity of seventy per cent: the recording crosses it between the twelfth and
     // thirteenth hours, and the port crosses it in exactly the same place.
-    assert_eq!(sunny_hours, (0..=12).collect::<Vec<i64>>(), "sunny holds until the humidity reaches seventy");
+    assert_eq!(
+        sunny_hours,
+        (0..=12).collect::<Vec<i64>>(),
+        "sunny holds until the humidity reaches seventy"
+    );
 }

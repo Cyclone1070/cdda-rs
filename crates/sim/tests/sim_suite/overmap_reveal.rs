@@ -46,9 +46,7 @@ fn the_reveal_effect_marks_the_tiles_around_its_variable() {
     use cdda_content::dialogue::{AssignmentTarget, Effect};
 
     let mut world = World::new();
-    let actor = world
-        .spawn(cdda_sim::Position { x: 0, y: 0, z: 0 })
-        .id();
+    let actor = world.spawn(cdda_sim::Position { x: 0, y: 0, z: 0 }).id();
     // An overmap tile is twenty-four squares across, so a square at 30, 30 is overmap tile (1, 1).
     cdda_sim::dialogue_values::set(
         &mut world,

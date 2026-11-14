@@ -320,9 +320,7 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
                 Value::Float(value) => *value,
                 _ => continue,
             };
-            material
-                .vitamins
-                .insert(id.clone(), amount);
+            material.vitamins.insert(id.clone(), amount);
         }
     }
     Ok(())

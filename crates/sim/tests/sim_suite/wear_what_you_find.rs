@@ -60,7 +60,11 @@ fn a_vest_on_the_floor_can_be_picked_up_worn_and_can_take_a_blow() {
     let survivor = spawn_creature(&mut world, "the survivor", (1, 0, 0));
     give_moves(&mut world, survivor, 500);
     let vest = a_vest_on_the_floor(&mut world);
-    assert_eq!(armour_on(&world, survivor, "torso", None), 0, "nothing on yet");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        0,
+        "nothing on yet"
+    );
 
     // Wearing it where it lies is not a thing: it has to be in hand first, which is the order a player does it in,
     // and the order `Character::wear` assumes - it takes an inventory item, not a map one.
@@ -69,8 +73,15 @@ fn a_vest_on_the_floor_can_be_picked_up_worn_and_can_take_a_blow() {
         Wore::NotInHand,
         "a vest on the floor is not a vest you are wearing"
     );
-    assert_eq!(armour_on(&world, survivor, "torso", None), 0, "so nothing protects the torso yet");
-    assert!(world.get::<Position>(vest).is_some(), "and it is still on the floor");
+    assert_eq!(
+        armour_on(&world, survivor, "torso", None),
+        0,
+        "so nothing protects the torso yet"
+    );
+    assert!(
+        world.get::<Position>(vest).is_some(),
+        "and it is still on the floor"
+    );
 
     assert_eq!(pick_up(&mut world, survivor, vest, 250), Picked::Taken);
     assert_eq!(wear(&mut world, survivor, vest), Wore::Worn);

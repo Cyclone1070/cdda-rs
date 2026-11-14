@@ -100,7 +100,14 @@ fn a_monsters_armour_answers_for_the_type_the_blow_deals() {
     let zombie = cdda_sim::spawn_monster(&mut world, (3, 0), cdda_sim::MonsterKindId(1), 40);
     cdda_sim::PositionIndex::rebuild(&mut world);
     assert_eq!(
-        cdda_sim::spellcasting::cast_attack(&mut world, (0, 0, 0), &an_attack("bash"), 0, zombie, 0.5),
+        cdda_sim::spellcasting::cast_attack(
+            &mut world,
+            (0, 0, 0),
+            &an_attack("bash"),
+            0,
+            zombie,
+            0.5
+        ),
         cdda_sim::spellcasting::Cast::Hit {
             part: "torso".to_owned(),
             dealt: 5
@@ -108,7 +115,14 @@ fn a_monsters_armour_answers_for_the_type_the_blow_deals() {
         "**nine of blunt against four of armour is five**, which is the data's `armor_bash`"
     );
     assert_eq!(
-        cdda_sim::spellcasting::cast_attack(&mut world, (0, 0, 0), &an_attack("cut"), 0, zombie, 0.5),
+        cdda_sim::spellcasting::cast_attack(
+            &mut world,
+            (0, 0, 0),
+            &an_attack("cut"),
+            0,
+            zombie,
+            0.5
+        ),
         cdda_sim::spellcasting::Cast::Hit {
             part: "torso".to_owned(),
             dealt: 9

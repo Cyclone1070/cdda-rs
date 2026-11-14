@@ -20,7 +20,11 @@ fn level() -> Level {
     level
 }
 
-fn light_of(level: &mut Level, recorded: &[(i32, i32, f32)], applied: &[(i32, i32, f32)]) -> BTreeMap<(i32, i32), FourQuadrants> {
+fn light_of(
+    level: &mut Level,
+    recorded: &[(i32, i32, f32)],
+    applied: &[(i32, i32, f32)],
+) -> BTreeMap<(i32, i32), FourQuadrants> {
     let clear = |_x: i32, _y: i32| cdda_core_types::transparency::SquareFacts {
         terrain_transparent: true,
         furniture_transparent: true,
@@ -52,7 +56,10 @@ fn a_buffered_source_waits_to_be_applied() {
     level.add_light_source((5, 5), 20.0);
     let mut light = BTreeMap::new();
     level.apply_buffered_sources(1.0, clear, &mut light);
-    assert!(light.contains_key(&(5, 5)), "the source lights once applied");
+    assert!(
+        light.contains_key(&(5, 5)),
+        "the source lights once applied"
+    );
     assert!(light.contains_key(&(8, 5)), "and casts into the room");
 }
 
@@ -67,8 +74,16 @@ fn a_neighbour_at_least_as_bright_covers_the_direction_so_the_rays_are_not_cast(
     let far_only = light_of(&mut alone, &[(6, 5, 20.0)], &[]);
 
     assert_eq!(
-        together.get(&(9, 5)).copied().unwrap_or_else(|| FourQuadrants::uniform(0.0)).max(),
-        far_only.get(&(9, 5)).copied().unwrap_or_else(|| FourQuadrants::uniform(0.0)).max(),
+        together
+            .get(&(9, 5))
+            .copied()
+            .unwrap_or_else(|| FourQuadrants::uniform(0.0))
+            .max(),
+        far_only
+            .get(&(9, 5))
+            .copied()
+            .unwrap_or_else(|| FourQuadrants::uniform(0.0))
+            .max(),
         "the eastern source alone reaches the square, and the western one adds nothing east of it"
     );
     assert!(
@@ -91,10 +106,18 @@ fn an_unbuffered_source_casts_every_direction_and_is_not_recorded() {
     level.add_light_source((6, 5), 20.0);
     let mut light = BTreeMap::new();
     level.apply_buffered_sources(1.0, clear, &mut light);
-    let after_buffered = light.get(&(9, 5)).copied().unwrap_or_else(|| FourQuadrants::uniform(0.0)).max();
+    let after_buffered = light
+        .get(&(9, 5))
+        .copied()
+        .unwrap_or_else(|| FourQuadrants::uniform(0.0))
+        .max();
 
     level.apply_light_source_with((8, 5), 20.0, 1.0, clear, &mut light);
-    let after_unbuffered = light.get(&(10, 5)).copied().unwrap_or_else(|| FourQuadrants::uniform(0.0)).max();
+    let after_unbuffered = light
+        .get(&(10, 5))
+        .copied()
+        .unwrap_or_else(|| FourQuadrants::uniform(0.0))
+        .max();
 
     assert!(after_buffered > 0.0);
     assert!(

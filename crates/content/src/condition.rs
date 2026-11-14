@@ -81,11 +81,15 @@ impl Condition {
             Condition::Not(member) => Ok(!member.evaluate(context)?),
             Condition::Named(name) => match context.number(&format!("condition:{name}")) {
                 Some(value) => Ok(value != 0.0),
-                None => Err(MathError::UnknownName { name: format!("condition:{name}") }),
+                None => Err(MathError::UnknownName {
+                    name: format!("condition:{name}"),
+                }),
             },
             Condition::Math(expression) => match evaluate(expression, context)? {
                 Value::Number(value) => Ok(value != 0.0),
-                Value::Text(text) => Err(MathError::Type { message: format!("{text:?} is not a truth value") }),
+                Value::Text(text) => Err(MathError::Type {
+                    message: format!("{text:?} is not a truth value"),
+                }),
             },
         }
     }
@@ -96,7 +100,9 @@ fn read(value: &Json) -> Result<Condition, String> {
         Json::Bool(true) => Ok(Condition::Always),
         Json::Bool(false) => Ok(Condition::Never),
         Json::Str(name) => Ok(Condition::Named(name.clone())),
-        Json::Array(members) => Ok(Condition::All(members.iter().map(read).collect::<Result<_, _>>()?)),
+        Json::Array(members) => Ok(Condition::All(
+            members.iter().map(read).collect::<Result<_, _>>()?,
+        )),
         Json::Object(object) => read_object(object),
         other => Err(format!("{other:?} is not a condition")),
     }
@@ -139,9 +145,15 @@ fn read_math(value: &Json) -> Result<Condition, String> {
             }
             // Several strings are a formula with statements, which the weather data never uses; one string is the whole expression.
             if parts.len() == 1 {
-                parts.pop().map_or_else(|| Err("an empty formula".to_string()), |only| Ok(Condition::Math(only)))
+                parts.pop().map_or_else(
+                    || Err("an empty formula".to_string()),
+                    |only| Ok(Condition::Math(only)),
+                )
             } else {
-                Err(format!("a formula of {} statements is not ported", parts.len()))
+                Err(format!(
+                    "a formula of {} statements is not ported",
+                    parts.len()
+                ))
             }
         }
         other => Err(format!("{other:?} is not a formula")),

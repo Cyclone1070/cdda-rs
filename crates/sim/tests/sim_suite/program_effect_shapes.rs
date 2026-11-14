@@ -15,7 +15,8 @@ fn a_program_reads_whether_its_effect_is_one_object_or_a_list() {
         "effect": { "run_eocs": [ "EOC_B" ] }
     }"#;
     let value = cdda_json::parse(object.as_bytes()).expect("json");
-    let program = cdda_content::dialogue::read_program(&value).expect("**a single effect object reads**");
+    let program =
+        cdda_content::dialogue::read_program(&value).expect("**a single effect object reads**");
     assert_eq!(
         program.effects.len(),
         1,

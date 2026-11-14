@@ -105,7 +105,11 @@ impl SkillLevel {
     /// **always** allows crossing several levels, because that is what the reference passes (`on_exercise_change( true )`); the spending path is `train`'s.
     pub fn set_exercise(&mut self, value: i32, raw: bool) {
         let level = self.level() + 1;
-        self.exercise = if raw { value } else { value * (100 * level * level) };
+        self.exercise = if raw {
+            value
+        } else {
+            value * (100 * level * level)
+        };
         self.on_exercise_change(true);
     }
 
@@ -141,7 +145,9 @@ impl SkillLevel {
         if self.level() == self.knowledge_level() && self.exercise > self.knowledge_experience {
             self.knowledge_experience = self.exercise;
         }
-        if self.knowledge_experience >= 100 * 100 * (self.knowledge_level + 1) * (self.knowledge_level + 1) {
+        if self.knowledge_experience
+            >= 100 * 100 * (self.knowledge_level + 1) * (self.knowledge_level + 1)
+        {
             self.knowledge_experience = 0;
             self.knowledge_level += 1;
         }
@@ -176,7 +182,9 @@ impl SkillLevel {
         let mut knowledge = amount_real * knowledge_modifier;
         if self.knowledge_level() > self.level() {
             catchup *= gap;
-        } else if self.knowledge_level() == self.level() && self.knowledge_experience > self.exercise {
+        } else if self.knowledge_level() == self.level()
+            && self.knowledge_experience > self.exercise
+        {
             let share = self.exercise as f32 / self.knowledge_experience as f32;
             catchup = amount_real * (catchup_modifier - share).max(1.0);
             knowledge = amount_real * (knowledge_modifier - 0.1 * share).max(1.0);
@@ -230,7 +238,9 @@ impl SkillLevel {
             amount = scaled as i32;
         }
         self.knowledge_experience += amount;
-        if self.knowledge_experience >= 100 * 100 * (self.knowledge_level + 1) * (self.knowledge_level + 1) {
+        if self.knowledge_experience
+            >= 100 * 100 * (self.knowledge_level + 1) * (self.knowledge_level + 1)
+        {
             self.knowledge_experience = 0;
             self.knowledge_level += 1;
         }
@@ -272,7 +282,11 @@ impl Default for Focus {
 /// Reference: `Character::adjust_for_focus` (`character.cpp:10172-10175`): `amount * ( get_effective_focus() / 100.0f )`. The port reads the focus component and
 /// leaves the trait modifiers for the day traits exist here; a creature with no focus component is at the hundred a fresh survivor starts with.
 #[must_use]
-pub fn adjust_for_focus(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, amount: f32) -> f32 {
+pub fn adjust_for_focus(
+    world: &bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    amount: f32,
+) -> f32 {
     let focus = world
         .get::<Focus>(creature)
         .map_or(Focus::default(), |focus| *focus);
@@ -359,7 +373,11 @@ pub fn sleepiness_cap(equilibrium: i32, sleepiness: i32) -> i32 {
 /// Reference: `Character::update_mental_focus` (`character.cpp:3929-3934`), called from `reset_stats` on `once_every( 1_minutes )`, which adds ten times the gap
 /// to the focus pool. The pool is kept in **hundredths** of a focus point, so the change is a tenth of the gap each minute, and the pool's own truncation is what
 /// makes the arithmetic exact rather than approximately right.
-pub fn update_mental_focus(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, morale: i32) {
+pub fn update_mental_focus(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    morale: i32,
+) {
     update_focus_towards(world, creature, focus_equilibrium(morale));
 }
 
@@ -367,11 +385,18 @@ pub fn update_mental_focus(world: &mut bevy_ecs::prelude::World, creature: bevy_
 ///
 /// The arithmetic is `update_mental_focus`'s own: the pool is kept in hundredths, so the change per minute is `10 * ( equilibrium - focus ) / 100`. The stage that has
 /// already read the creature's pain, morale and sleepiness hands the answer in rather than making this function ask the same three questions again.
-pub fn update_focus_towards(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity, equilibrium: i32) {
+pub fn update_focus_towards(
+    world: &mut bevy_ecs::prelude::World,
+    creature: bevy_ecs::prelude::Entity,
+    equilibrium: i32,
+) {
     let Some(mut focus) = world.get_mut::<Focus>(creature) else {
         return;
     };
-    let pool = focus.0.saturating_mul(100).saturating_add(10 * (equilibrium - focus.0));
+    let pool = focus
+        .0
+        .saturating_mul(100)
+        .saturating_add(10 * (equilibrium - focus.0));
     focus.0 = pool / 100;
 }
 

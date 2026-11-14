@@ -11,14 +11,16 @@ use cdda_json::Value;
 use std::collections::BTreeMap;
 
 fn recorded() -> Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/thrown-damage.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/items/thrown-damage.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     cdda_json::parse(&bytes).expect("valid json")
 }
 
 fn loaded() -> BTreeMap<String, ItemType> {
-    let reference =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/data");
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
     let dirs = [reference.join("core"), reference.join("json")];
     let paths: Vec<&std::path::Path> = dirs.iter().map(std::path::PathBuf::as_path).collect();
     load_paths(&paths)
@@ -58,7 +60,10 @@ fn every_item_throws_for_what_the_reference_says() {
         };
         compared += 1;
         if (item.thrown_damage - recorded).abs() > 1e-6 {
-            wrong.push(format!("{id}: port {} versus reference {recorded}", item.thrown_damage));
+            wrong.push(format!(
+                "{id}: port {} versus reference {recorded}",
+                item.thrown_damage
+            ));
         }
     }
     // Every one of the 9,912 types now throws for exactly what the reference says. Three rules got it there, and the corpus named each one:

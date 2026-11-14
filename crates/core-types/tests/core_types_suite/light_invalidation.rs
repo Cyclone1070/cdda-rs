@@ -37,9 +37,17 @@ fn a_weather_change_dirties_the_light_so_it_is_rebuilt_once() {
     assert!(level.light_is_stale(), "the flush says the light is stale");
     let cached = level.cached_visibility((5, 5), 4, solid);
     assert_eq!(cached.len(), 9, "a radius of four gives nine rows");
-    assert_eq!(level.light_rebuilds(), builds + 1, "and the read rebuilt it exactly once");
+    assert_eq!(
+        level.light_rebuilds(),
+        builds + 1,
+        "and the read rebuilt it exactly once"
+    );
     level.cached_visibility((5, 5), 4, solid);
-    assert_eq!(level.light_rebuilds(), builds + 1, "a second read of unchanged light rebuilds nothing");
+    assert_eq!(
+        level.light_rebuilds(),
+        builds + 1,
+        "a second read of unchanged light rebuilds nothing"
+    );
 }
 
 #[test]
@@ -47,7 +55,10 @@ fn a_flush_on_an_unbuilt_level_costs_nothing_and_still_reports_stale() {
     // At the start of a game the weather is set before any light is built. The flush still has to mark, because the first build must use the new weather's penalty - a flush that
     // skipped an empty cache would leave the first frame of a foggy morning as bright as noon.
     let mut level = level();
-    assert!(level.light_is_stale(), "a level with no light must build one, whether or not anything dirtied it");
+    assert!(
+        level.light_is_stale(),
+        "a level with no light must build one, whether or not anything dirtied it"
+    );
     level.mark_weather_changed();
     assert!(level.light_is_stale());
     // The point is that the mark is **not lost**: a flush written as `if let Some( cache ) = self.light` would drop this one, and the first frame of a foggy morning would be drawn
@@ -55,7 +66,10 @@ fn a_flush_on_an_unbuilt_level_costs_nothing_and_still_reports_stale() {
     level.cached_visibility((5, 5), 2, solid);
     assert!(!level.light_is_stale(), "and building clears the mark");
     level.mark_weather_changed();
-    assert!(level.light_is_stale(), "a flush after a build is remembered too");
+    assert!(
+        level.light_is_stale(),
+        "a flush after a build is remembered too"
+    );
 }
 
 #[test]
@@ -66,5 +80,9 @@ fn a_terrain_change_still_dirties_the_light_without_a_weather_change() {
     let builds = level.light_rebuilds();
     level.set_terrain(5, 5, 0, 1);
     level.cached_visibility((5, 5), 4, solid);
-    assert_eq!(level.light_rebuilds(), builds + 1, "the wall rebuilt the light");
+    assert_eq!(
+        level.light_rebuilds(),
+        builds + 1,
+        "the wall rebuilt the light"
+    );
 }

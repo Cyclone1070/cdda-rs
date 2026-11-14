@@ -41,7 +41,9 @@ fn dump() -> (Vec<Recorded>, Vec<(String, String, bool)>) {
         let stacks = items
             .iter()
             .map(|pair| {
-                let Value::Array(pair) = pair else { panic!("a stack") };
+                let Value::Array(pair) = pair else {
+                    panic!("a stack")
+                };
                 let Some(Value::Str(id)) = pair.first() else {
                     panic!("an id")
                 };
@@ -65,11 +67,7 @@ fn dump() -> (Vec<Recorded>, Vec<(String, String, bool)>) {
             Some(Value::Bool(ok)) => *ok,
             other => panic!("an answer: {other:?}"),
         };
-        rows.push((
-            text(entry, "construction"),
-            text(entry, "inventory"),
-            ok,
-        ));
+        rows.push((text(entry, "construction"), text(entry, "inventory"), ok));
     }
     (kits, rows)
 }
@@ -86,7 +84,10 @@ fn every_construction_answers_the_same_way_for_four_kits_as_the_reference_does()
         .into_iter()
         .map(|kind| {
             for parent in &kind.subtypes {
-                subtypes.entry(parent.clone()).or_default().push(kind.id.clone());
+                subtypes
+                    .entry(parent.clone())
+                    .or_default()
+                    .push(kind.id.clone());
             }
             (kind.id.clone(), kind)
         })

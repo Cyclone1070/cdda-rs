@@ -70,7 +70,9 @@ pub fn load_dump(value: &Value) -> Result<Vec<SkillTime>, String> {
 /// When the member is missing or not an integer.
 fn number(object: &Object, key: &str) -> Result<i32, String> {
     match object.get(key) {
-        Some(Value::Int(value)) => i32::try_from(*value).map_err(|_| format!("`{key}` is too large")),
+        Some(Value::Int(value)) => {
+            i32::try_from(*value).map_err(|_| format!("`{key}` is too large"))
+        }
         Some(_) => Err(format!("`{key}` is not an integer")),
         None => Err(format!("`{key}` is missing")),
     }

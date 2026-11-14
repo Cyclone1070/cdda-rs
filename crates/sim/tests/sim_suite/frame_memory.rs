@@ -45,10 +45,13 @@ fn world() -> World {
     terrain.insert_symbol(FLOOR, '.');
     terrain.insert_symbol(LAMP, 'o');
     terrain.insert_symbol(GRASS, ',');
-    cdda_sim::set_prototypes(&mut world, Prototypes {
-        terrain,
-        furniture: TerrainTable::new(),
-    });
+    cdda_sim::set_prototypes(
+        &mut world,
+        Prototypes {
+            terrain,
+            furniture: TerrainTable::new(),
+        },
+    );
     memory(&mut world);
     world
 }

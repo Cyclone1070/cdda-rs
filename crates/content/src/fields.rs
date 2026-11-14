@@ -240,10 +240,14 @@ pub fn from_dump(value: &Value) -> Result<Vec<FieldType>, String> {
                 spawn_radius: i32::try_from(int_of(level, "spawn_radius").unwrap_or(0))
                     .unwrap_or(0),
                 spawn_group: str_of(level, "spawn_group").unwrap_or_default(),
-                extra_radiation_min: i32::try_from(int_of(level, "extra_radiation_min").unwrap_or(0))
-                    .unwrap_or(0),
-                extra_radiation_max: i32::try_from(int_of(level, "extra_radiation_max").unwrap_or(0))
-                    .unwrap_or(0),
+                extra_radiation_min: i32::try_from(
+                    int_of(level, "extra_radiation_min").unwrap_or(0),
+                )
+                .unwrap_or(0),
+                extra_radiation_max: i32::try_from(
+                    int_of(level, "extra_radiation_max").unwrap_or(0),
+                )
+                .unwrap_or(0),
             });
         }
         fields.push(FieldType {

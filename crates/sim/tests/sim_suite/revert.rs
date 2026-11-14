@@ -22,16 +22,27 @@ fn a_remembered_square_is_put_back_the_way_it_was() {
     let mut world = World::new();
     cdda_sim::load_level(&mut world, &level());
     cdda_sim::square::set_furniture(&mut world, (1, 1, 0), 7);
-    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 1, 0)), Some(1), "the floor is a floor");
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 1, 0)),
+        Some(1),
+        "the floor is a floor"
+    );
 
     let total = cdda_sim::square::squares(&world).len();
     let remembered = cdda_sim::revert::take(&mut world, (0, 0, 0));
-    assert_eq!(remembered, total, "every square of the level is within one revert's reach");
+    assert_eq!(
+        remembered, total,
+        "every square of the level is within one revert's reach"
+    );
 
     // A mapgen update changes the house: the floor becomes rubble and the counter is taken away.
     cdda_sim::square::set_terrain(&mut world, (1, 1, 0), 2);
     cdda_sim::square::set_furniture(&mut world, (1, 1, 0), 0);
-    assert_eq!(cdda_sim::square::terrain_at(&world, (1, 1, 0)), Some(2), "the change landed");
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 1, 0)),
+        Some(2),
+        "the change landed"
+    );
 
     let restored = cdda_sim::revert::restore(&mut world);
     assert_eq!(restored, total, "and every square is put back");
@@ -102,7 +113,11 @@ fn the_data_can_revert_a_place() {
         None,
         std::slice::from_ref(&effect),
     );
-    assert_eq!(applied, cdda_sim::dialogue_effects::Applied::Done, "the effect runs");
+    assert_eq!(
+        applied,
+        cdda_sim::dialogue_effects::Applied::Done,
+        "the effect runs"
+    );
     assert!(
         cdda_sim::revert::has_snapshot(&world),
         "and the place is remembered"
@@ -114,7 +129,11 @@ fn the_data_can_revert_a_place() {
 
     // The house changes before the event comes due.
     cdda_sim::square::set_terrain(&mut world, (6, 6, 0), 2);
-    assert_eq!(cdda_sim::square::terrain_at(&world, (6, 6, 0)), Some(2), "the change landed");
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (6, 6, 0)),
+        Some(2),
+        "the change landed"
+    );
 
     cdda_sim::revert::restore(&mut world);
     assert_eq!(

@@ -179,7 +179,8 @@ fn give_the_avatar_a_body(world: &mut World) -> Option<usize> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus");
     let anatomies_text = std::fs::read_to_string(root.join("anatomy-parts.json")).ok()?;
     let parts_text = std::fs::read_to_string(root.join("anatomy.json")).ok()?;
-    let cdda_json::Value::Array(anatomies) = cdda_json::parse(anatomies_text.as_bytes()).ok()? else {
+    let cdda_json::Value::Array(anatomies) = cdda_json::parse(anatomies_text.as_bytes()).ok()?
+    else {
         return None;
     };
     let parts_document = cdda_json::parse(parts_text.as_bytes()).ok()?;
@@ -214,7 +215,9 @@ fn cast(args: &[String]) {
     let avatar = cdda_sim::spawn_player(&mut world, (6, 6), 80, 0);
     // **The pools are stated, not earned.** What fills a character's mana or its stored power - intelligence, level, the enchantments
     // and the bionics that generate it - is not ported, so a QA world says what it starts with rather than pretending a spell is free.
-    world.entity_mut(avatar).insert(cdda_sim::creature::Mana { cur: 200, max: 200 });
+    world
+        .entity_mut(avatar)
+        .insert(cdda_sim::creature::Mana { cur: 200, max: 200 });
     world
         .entity_mut(avatar)
         .insert(cdda_sim::creature::BionicPower { joules: 200_000 });
@@ -224,8 +227,8 @@ fn cast(args: &[String]) {
         hit_difficulty: 1.0,
         upper: false,
         lower: false,
-                ..Default::default()
-            };
+        ..Default::default()
+    };
     cdda_sim::turn::set_random(&mut world, cdda_core_types::rng::Rolls::new(1));
     let zombie = cdda_sim::spawn_monster(&mut world, (7, 6), cdda_sim::MonsterKindId(0), 30);
     world
@@ -333,16 +336,14 @@ fn shot(args: &[String]) {
     }
     println!(
         "wrote {path}: {} by {} pixels, {} squares across, {} of them lit",
-        capture.image.width,
-        capture.image.height,
-        capture.squares_across,
-        capture.lit_squares
+        capture.image.width, capture.image.height, capture.squares_across, capture.lit_squares
     );
 }
 
 fn square(args: &[String]) {
     let mut numbers = args.iter().filter_map(|arg| arg.parse::<i32>().ok());
-    let (Some(x), Some(y), z) = (numbers.next(), numbers.next(), numbers.next().unwrap_or(0)) else {
+    let (Some(x), Some(y), z) = (numbers.next(), numbers.next(), numbers.next().unwrap_or(0))
+    else {
         eprintln!("square needs X and Y, and takes Z");
         std::process::exit(2);
     };
@@ -361,9 +362,11 @@ fn index() {
         .collect();
     let mut missing = 0;
     for (entity, square) in &positioned {
-        if !cdda_sim::singletons::index(&world)
-            .is_some_and(|index| index.at_level(square.0, square.1, square.2).contains(entity))
-        {
+        if !cdda_sim::singletons::index(&world).is_some_and(|index| {
+            index
+                .at_level(square.0, square.1, square.2)
+                .contains(entity)
+        }) {
             missing += 1;
         }
     }

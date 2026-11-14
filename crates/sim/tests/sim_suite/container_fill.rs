@@ -30,7 +30,9 @@ fn facts(_item: Entity) -> ItemFacts {
 
 fn make_box(world: &mut World, capacity_ml: i64) -> Entity {
     let box_entity = drop_item(world, (5, 5), BOX, 1);
-    world.entity_mut(box_entity).insert(Container::new(capacity_ml));
+    world
+        .entity_mut(box_entity)
+        .insert(Container::new(capacity_ml));
     box_entity
 }
 
@@ -38,7 +40,9 @@ fn loose(world: &mut World) -> usize {
     let mut query = world.query::<(&Position, &GroundItem, Option<&cdda_sim::Inside>)>();
     query
         .iter(world)
-        .filter(|(at, item, inside)| (at.x, at.y) == (5, 5) && inside.is_none() && item.kind == ROCK)
+        .filter(|(at, item, inside)| {
+            (at.x, at.y) == (5, 5) && inside.is_none() && item.kind == ROCK
+        })
         .count()
 }
 
@@ -47,7 +51,17 @@ fn everything_fits_and_nothing_is_left_over() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 500);
     let rocks = vec![ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::Spill, container_is_corpse: false }, facts, &mut Rolls::new(5));
+    let filled = fill_container(
+        &mut world,
+        box_entity,
+        &rocks,
+        cdda_sim::Fill {
+            overflow: Overflow::Spill,
+            container_is_corpse: false,
+        },
+        facts,
+        &mut Rolls::new(5),
+    );
     assert_eq!(filled.inside, 2, "both rocks went in");
     assert_eq!(filled.left_over, 0);
     assert_eq!(loose(&mut world), 0);
@@ -58,10 +72,24 @@ fn spill_leaves_the_leftovers_on_the_ground() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::Spill, container_is_corpse: false }, facts, &mut Rolls::new(5));
+    let filled = fill_container(
+        &mut world,
+        box_entity,
+        &rocks,
+        cdda_sim::Fill {
+            overflow: Overflow::Spill,
+            container_is_corpse: false,
+        },
+        facts,
+        &mut Rolls::new(5),
+    );
     assert_eq!(filled.inside, 1, "one rock fits");
     assert_eq!(filled.left_over, 2);
-    assert_eq!(loose(&mut world), 2, "and the two that did not are on the square");
+    assert_eq!(
+        loose(&mut world),
+        2,
+        "and the two that did not are on the square"
+    );
 }
 
 #[test]
@@ -69,7 +97,17 @@ fn discard_loses_the_leftovers_on_purpose() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::Discard, container_is_corpse: false }, facts, &mut Rolls::new(5));
+    let filled = fill_container(
+        &mut world,
+        box_entity,
+        &rocks,
+        cdda_sim::Fill {
+            overflow: Overflow::Discard,
+            container_is_corpse: false,
+        },
+        facts,
+        &mut Rolls::new(5),
+    );
     assert_eq!(filled.inside, 1);
     assert_eq!(filled.left_over, 2, "the player is told what it cost");
     assert_eq!(loose(&mut world), 0, "and nothing is left on the ground");
@@ -81,10 +119,24 @@ fn none_loses_the_leftovers_too_because_the_data_was_wrong() {
     let mut world = World::new();
     let box_entity = make_box(&mut world, 150);
     let rocks = vec![ROCK, ROCK, ROCK];
-    let filled = fill_container(&mut world, box_entity, &rocks, cdda_sim::Fill { overflow: Overflow::None, container_is_corpse: false }, facts, &mut Rolls::new(5));
+    let filled = fill_container(
+        &mut world,
+        box_entity,
+        &rocks,
+        cdda_sim::Fill {
+            overflow: Overflow::None,
+            container_is_corpse: false,
+        },
+        facts,
+        &mut Rolls::new(5),
+    );
     assert_eq!(filled.inside, 1);
     assert_eq!(filled.left_over, 2);
-    assert_eq!(loose(&mut world), 0, "the same outcome as a discard, and a diagnostic");
+    assert_eq!(
+        loose(&mut world),
+        0,
+        "the same outcome as a discard, and a diagnostic"
+    );
 }
 
 /// The run is shuffled before anything is offered, so it is not always the last drawn items that are rejected.
@@ -103,7 +155,17 @@ fn which_items_land_inside_depends_on_the_seed() {
         let seed = crate::spread_seed(u32::try_from(attempt).unwrap_or(u32::MAX));
         let mut world = World::new();
         let box_entity = make_box(&mut world, 150);
-        fill_container(&mut world, box_entity, &run, cdda_sim::Fill { overflow: Overflow::Spill, container_is_corpse: false }, facts, &mut Rolls::new(seed));
+        fill_container(
+            &mut world,
+            box_entity,
+            &run,
+            cdda_sim::Fill {
+                overflow: Overflow::Spill,
+                container_is_corpse: false,
+            },
+            facts,
+            &mut Rolls::new(seed),
+        );
         let boxed = cdda_sim::contents(&mut world, box_entity)
             .into_iter()
             .filter_map(|entity| world.get::<GroundItem>(entity).map(|item| item.kind))

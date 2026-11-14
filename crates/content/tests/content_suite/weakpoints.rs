@@ -3,14 +3,20 @@
 //! Source: `corpus/weakpoints/weakpoint-sets.json` is `--dump-weakpoint-sets`, which walks `weakpoints::get_all()` and writes every entry's coverage, direction, four multiplier maps and
 //! per-attack-type difficulty. **A weak-point set is data rather than code**: the reference has 48 of them, and a rule that wrote one down by hand would be wrong the day the data changed.
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing
+)]
 
 use cdda_content::weakpoints::{WeakpointSet, load_objects};
 use cdda_json::{Value, parse};
 use std::path::Path;
 
 fn loaded() -> Vec<WeakpointSet> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weakpoints/weakpoint-sets.json");
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/weakpoints/weakpoint-sets.json");
     let text = std::fs::read(path).expect("the weakpoint dump exists");
     let value = parse(&text).expect("the dump is valid JSON");
     let Value::Object(root) = value else {
@@ -29,7 +35,11 @@ fn loaded() -> Vec<WeakpointSet> {
 #[test]
 fn every_weakpoint_set_loads() {
     let sets = loaded();
-    assert_eq!(sets.len(), 48, "**the reference defines forty-eight weak-point sets**");
+    assert_eq!(
+        sets.len(),
+        48,
+        "**the reference defines forty-eight weak-point sets**"
+    );
     assert!(
         sets.iter().all(|set| !set.id.is_empty()),
         "every set states an id a monster can name"
@@ -38,7 +48,10 @@ fn every_weakpoint_set_loads() {
     // "the roll found no weak point" a plain hit rather than a miss. The assertion is written from the dump for that reason.
     let default = &sets[0].default;
     assert!(default.id.is_empty(), "the default weak point has no id");
-    assert_eq!(default.coverage, 100.0, "**a default weak point covers the whole body**");
+    assert_eq!(
+        default.coverage, 100.0,
+        "**a default weak point covers the whole body**"
+    );
     assert!(
         default.armour_multiplier.is_empty() && default.damage_multiplier.is_empty(),
         "and it changes nothing about the blow"
@@ -72,7 +85,11 @@ fn every_weakpoint_set_loads() {
         .flat_map(|set| set.weakpoints.iter())
         .find(|entry| entry.difficulty.len() == 5)
         .expect("a weak point states a difficulty for every attack type");
-    assert_eq!(with_difficulty.difficulty.len(), 5, "none, bash, cut, stab and projectile");
+    assert_eq!(
+        with_difficulty.difficulty.len(),
+        5,
+        "none, bash, cut, stab and projectile"
+    );
 }
 
 /// A multiplier stated as `all` reaches every damage type, and a stated type still wins.
@@ -86,15 +103,31 @@ fn an_all_multiplier_reaches_every_damage_type() {
 
     let all = std::collections::BTreeMap::from([("all".to_owned(), 0.5)]);
     let expanded = expand_all(&all, 1.0);
-    assert_eq!(expanded.get("bash").copied(), Some(0.5), "**the all entry is every type's default**");
+    assert_eq!(
+        expanded.get("bash").copied(),
+        Some(0.5),
+        "**the all entry is every type's default**"
+    );
     assert_eq!(expanded.get("cut").copied(), Some(0.5));
     assert_eq!(expanded.get("stab").copied(), Some(0.5));
-    assert!(!expanded.contains_key("all"), "and the keyword itself is gone once it has been spent");
+    assert!(
+        !expanded.contains_key("all"),
+        "and the keyword itself is gone once it has been spent"
+    );
 
-    let mixed = std::collections::BTreeMap::from([("all".to_owned(), 0.5), ("bash".to_owned(), 2.0)]);
+    let mixed =
+        std::collections::BTreeMap::from([("all".to_owned(), 0.5), ("bash".to_owned(), 2.0)]);
     let expanded = expand_all(&mixed, 1.0);
-    assert_eq!(expanded.get("bash").copied(), Some(2.0), "**a type named outright keeps its own figure**");
-    assert_eq!(expanded.get("cut").copied(), Some(0.5), "and the rest take the default");
+    assert_eq!(
+        expanded.get("bash").copied(),
+        Some(2.0),
+        "**a type named outright keeps its own figure**"
+    );
+    assert_eq!(
+        expanded.get("cut").copied(),
+        Some(0.5),
+        "and the rest take the default"
+    );
 
     let empty = std::collections::BTreeMap::new();
     let expanded = expand_all(&empty, 0.0);
@@ -121,9 +154,13 @@ fn a_monster_states_the_weak_points_its_body_has() {
         panic!("the dump has prototypes");
     };
     let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monsters load");
-    let with_weakpoints = monsters.iter().filter(|monster| monster.weakpoints.is_some()).count();
+    let with_weakpoints = monsters
+        .iter()
+        .filter(|monster| monster.weakpoints.is_some())
+        .count();
     assert_eq!(
-        with_weakpoints, 744,
+        with_weakpoints,
+        744,
         "**seven hundred and forty-four of the {count} types state weak points**",
         count = monsters.len()
     );
@@ -141,14 +178,26 @@ fn a_monster_states_the_weak_points_its_body_has() {
         .iter()
         .find(|entry| entry.id == "head")
         .expect("a zombie has a head");
-    assert!((head.coverage - 5.0).abs() < 1e-9, "**its head is five percent coverage**: {}", head.coverage);
+    assert!(
+        (head.coverage - 5.0).abs() < 1e-9,
+        "**its head is five percent coverage**: {}",
+        head.coverage
+    );
     assert!(
         (head.armour_multiplier.get("bash").copied().unwrap_or(1.0) - 0.75).abs() < 1e-9,
         "and a blow to it meets three quarters of the armour"
     );
-    assert_eq!(head.difficulty.len(), 5, "with a difficulty for every attack type");
+    assert_eq!(
+        head.difficulty.len(),
+        5,
+        "with a difficulty for every attack type"
+    );
     // A blow to a zombie's head is **easier** than one to its body: its bash difficulty is two against the default's minus a hundred.
-    assert!((head.difficulty[1] - 2.0).abs() < 1e-9, "melee bash difficulty two: {:?}", head.difficulty);
+    assert!(
+        (head.difficulty[1] - 2.0).abs() < 1e-9,
+        "melee bash difficulty two: {:?}",
+        head.difficulty
+    );
 }
 
 /// What a struck weak point triggers is data too.
@@ -163,7 +212,10 @@ fn a_weak_point_states_what_it_triggers() {
         .flat_map(|set| set.weakpoints.iter())
         .flat_map(|entry| entry.effects.iter())
         .count();
-    assert_eq!(effects, 258, "**the reference defines two hundred and fifty-eight weak-point effects**");
+    assert_eq!(
+        effects, 258,
+        "**the reference defines two hundred and fifty-eight weak-point effects**"
+    );
 
     let blind = sets
         .iter()
@@ -171,9 +223,14 @@ fn a_weak_point_states_what_it_triggers() {
         .flat_map(|entry| entry.effects.iter())
         .find(|effect| effect.effect == "blind")
         .expect("some weak point blinds");
-    assert!(blind.chance > 0.0 && blind.chance <= 100.0, "a chance is a percentage: {}", blind.chance);
     assert!(
-        (blind.damage_required.0 - 35.0).abs() < 1e-9 && (blind.damage_required.1 - 100.0).abs() < 1e-9,
+        blind.chance > 0.0 && blind.chance <= 100.0,
+        "a chance is a percentage: {}",
+        blind.chance
+    );
+    assert!(
+        (blind.damage_required.0 - 35.0).abs() < 1e-9
+            && (blind.damage_required.1 - 100.0).abs() < 1e-9,
         "**an eye struck for a third of the body's hit points blinds**: {:?}",
         blind.damage_required
     );
@@ -207,7 +264,10 @@ fn a_monster_states_the_proficiencies_its_weak_points_reward() {
     };
     let monsters = cdda_content::monsters::load_objects(prototypes).expect("the monsters load");
     let families: usize = monsters.iter().map(|monster| monster.families.len()).sum();
-    assert_eq!(families, 4_082, "**the corpus states four thousand and eighty-two families**");
+    assert_eq!(
+        families, 4_082,
+        "**the corpus states four thousand and eighty-two families**"
+    );
 
     let chicken = monsters
         .iter()
@@ -223,12 +283,18 @@ fn a_monster_states_the_proficiencies_its_weak_points_reward() {
         "**the data's own default is two points**: {}",
         physiology.bonus
     );
-    assert!((physiology.penalty - 0.0).abs() < 1e-9, "and not knowing it costs nothing here");
+    assert!(
+        (physiology.penalty - 0.0).abs() < 1e-9,
+        "and not knowing it costs nothing here"
+    );
 
     // **The families are the ordinary case and the absence is the exception**: 1,038 of the 1,154 dumped types reward at least one proficiency, so a port that skipped this column skipped the
     // norm. The count is 117 rather than 116 because the loader appends the reference's own `null` monster, which rewards nothing.
     assert_eq!(
-        monsters.iter().filter(|monster| monster.families.is_empty()).count(),
+        monsters
+            .iter()
+            .filter(|monster| monster.families.is_empty())
+            .count(),
         117,
         "a hundred and sixteen dumped types reward no proficiency, and the null monster is the hundred and seventeenth"
     );

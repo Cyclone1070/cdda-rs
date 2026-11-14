@@ -7,9 +7,9 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::indexing_slicing)]
 
 use bevy_ecs::prelude::*;
-use cdda_sim::eoc_registry::{self, DEPTH_LIMIT};
 use cdda_sim::dialogue_effects::Applied;
 use cdda_sim::dialogue_values;
+use cdda_sim::eoc_registry::{self, DEPTH_LIMIT};
 use cdda_sim::messages;
 
 fn program(text: &str) -> cdda_content::dialogue::Program {
@@ -43,7 +43,11 @@ fn a_program_runs_the_programs_it_names() {
              "effect": [{"u_message": "inner"}, {"math": ["depth = 1"]}]}
         ]"#,
     );
-    assert_eq!(eoc_registry::count(&mut world), 2, "both programs are installed");
+    assert_eq!(
+        eoc_registry::count(&mut world),
+        2,
+        "both programs are installed"
+    );
     assert_eq!(
         eoc_registry::run_program(&mut world, survivor, None, "EOC_OUTER", 0),
         Applied::Done
@@ -174,24 +178,24 @@ fn collect(
                     *whole += 1;
                     programs.push(program);
                 } else {
-                        // Say **which** half refused, so the census chooses the next round's work: a condition nobody can
-                        // answer and an effect nobody can run are different problems.
-                        let condition_ok = match object.get("condition") {
-                            None => true,
-                            Some(condition) => {
-                                cdda_content::dialogue::read_condition(condition).is_some()
-                            }
-                        };
-                        let blocked = if condition_ok {
-                            // Reference: a program's effects are the `effect` array, and the census names the first entry the reader refuses.
-                            let (entry, example) = blame_effect(object.get("effect"));
-                            let slot = effect_frontier.entry(entry).or_insert((0, example));
-                            slot.0 += 1;
-                            "effect".to_owned()
-                        } else {
-                            blame(object.get("condition"))
-                        };
-                        *refused.entry(blocked).or_insert(0) += 1;
+                    // Say **which** half refused, so the census chooses the next round's work: a condition nobody can
+                    // answer and an effect nobody can run are different problems.
+                    let condition_ok = match object.get("condition") {
+                        None => true,
+                        Some(condition) => {
+                            cdda_content::dialogue::read_condition(condition).is_some()
+                        }
+                    };
+                    let blocked = if condition_ok {
+                        // Reference: a program's effects are the `effect` array, and the census names the first entry the reader refuses.
+                        let (entry, example) = blame_effect(object.get("effect"));
+                        let slot = effect_frontier.entry(entry).or_insert((0, example));
+                        slot.0 += 1;
+                        "effect".to_owned()
+                    } else {
+                        blame(object.get("condition"))
+                    };
+                    *refused.entry(blocked).or_insert(0) += 1;
                 }
             }
             for (_, member) in object.members() {
@@ -296,7 +300,8 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
     // `math` guards (42 -> 45). A refusal that moves house is not the same as a program that starts running, and only one of the
     // thirty-six turned out to be otherwise complete.
     assert_eq!(
-        whole, crate::numbers::NOW.readable,
+        whole,
+        crate::numbers::NOW.readable,
         "six hundred and ninety-two run whole - every one the data defines"
     );
     // **Nothing refuses any more.** `effect_blamed` is zero, so the map has no entry to compare against - reading it as `Some(&0)` would be a claim the census cannot make,
@@ -305,14 +310,26 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
         refused.is_empty(),
         "**the refusal map is empty**: every program the data defines reads whole, so there is no member left to blame"
     );
-    assert_eq!(refused.len(), crate::numbers::NOW.effect_blamed, "and the counted blame agrees");
-    assert_eq!(refused.get("u_has_trait"), None, "traits are no longer blamed for anything");
+    assert_eq!(
+        refused.len(),
+        crate::numbers::NOW.effect_blamed,
+        "and the counted blame agrees"
+    );
+    assert_eq!(
+        refused.get("u_has_trait"),
+        None,
+        "traits are no longer blamed for anything"
+    );
     assert_eq!(
         refused.get("math"),
         None,
         "`math` guards block nothing now: an unknown function name parses and refuses where it is answered, which is where the data's own functions are found"
     );
-    assert_eq!(refused.get("u_has_item"), None, "carrying an item is no longer blamed for anything");
+    assert_eq!(
+        refused.get("u_has_item"),
+        None,
+        "carrying an item is no longer blamed for anything"
+    );
     // The chance guards now roll, so what is left of them is one program apiece - and the eight programs they freed are blamed on
     // what refused them next, which is the "moves house" pattern for the fifth time.
     assert_eq!(
@@ -320,16 +337,44 @@ fn the_port_installs_the_programs_it_can_run_whole_and_says_how_many() {
         None,
         "the chance guard blocks nothing now: the object form of an expression was what it was waiting for"
     );
-    assert_eq!(refused.get("test_eoc"), None, "and `test_eoc` no longer blocks anything");
-    assert_eq!(refused.get("is_season"), None, "the season is answered now that the world has a clock");
-    assert_eq!(refused.get("expects_vars"), None, "and context values are handed over now");
-    assert_eq!(refused.get("x_in_y_chance"), None, "the chance guards answer now that a variable can be written as an object");
-    assert_eq!(refused.get("u_at_om_location"), None, "the overmap terrain answers now");
+    assert_eq!(
+        refused.get("test_eoc"),
+        None,
+        "and `test_eoc` no longer blocks anything"
+    );
+    assert_eq!(
+        refused.get("is_season"),
+        None,
+        "the season is answered now that the world has a clock"
+    );
+    assert_eq!(
+        refused.get("expects_vars"),
+        None,
+        "and context values are handed over now"
+    );
+    assert_eq!(
+        refused.get("x_in_y_chance"),
+        None,
+        "the chance guards answer now that a variable can be written as an object"
+    );
+    assert_eq!(
+        refused.get("u_at_om_location"),
+        None,
+        "the overmap terrain answers now"
+    );
     // 692, not the 712 effect-on-condition objects in the data: twenty carry no `id`, so nothing can name them and the port does
     // not install them. The count of definitions was itself worth learning - the 712 in the earlier census counted objects, the
     // machine composes by name.
-    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(whole, crate::numbers::NOW.readable, "and the port can run that many of them whole");
+    assert_eq!(
+        defined,
+        crate::numbers::NOW.defined,
+        "the data defines 692 nameable effect-on-conditions"
+    );
+    assert_eq!(
+        whole,
+        crate::numbers::NOW.readable,
+        "and the port can run that many of them whole"
+    );
 }
 
 /// A `run_eocs` entry can be a program written where it is used.
@@ -489,10 +534,13 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
     if std::env::var("CDDA_SHOW_MAPGEN").is_ok() {
         for program in &readable {
             let mut world = World::new();
-            let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+            let survivor =
+                cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
             cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
             census.install(&mut world);
-            if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0) == Applied::Done {
+            if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0)
+                == Applied::Done
+            {
                 continue;
             }
             // The bucket this prints is **a census world with no overmap**, not an update the loader dropped: every one of these effects names an `om_terrain`
@@ -515,17 +563,41 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         readable.len()
     );
 
-    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 598 of them");
-    assert_eq!(ran, crate::numbers::NOW.ran, "a hundred and thirty-two of the readable programs also ran");
+    assert_eq!(
+        defined,
+        crate::numbers::NOW.defined,
+        "the data defines 692 nameable effect-on-conditions"
+    );
+    assert_eq!(
+        readable.len(),
+        crate::numbers::NOW.readable,
+        "the port reads 598 of them"
+    );
+    assert_eq!(
+        ran,
+        crate::numbers::NOW.ran,
+        "a hundred and thirty-two of the readable programs also ran"
+    );
     assert_eq!(
         empty_programs,
         crate::numbers::NOW.empty_programs,
         "twenty-one of the silent programs are stubs the data gives no effects"
     );
-    assert_eq!(silent, crate::numbers::NOW.silent, "most programs that answer do nothing measurable, and the census now says so");
-    assert_eq!(refused, crate::numbers::NOW.refused_at_run, "and a hundred and seven refused at run time");
-    assert_eq!(ran + refused, readable.len(), "every readable program did one or the other");
+    assert_eq!(
+        silent,
+        crate::numbers::NOW.silent,
+        "most programs that answer do nothing measurable, and the census now says so"
+    );
+    assert_eq!(
+        refused,
+        crate::numbers::NOW.refused_at_run,
+        "and a hundred and seven refused at run time"
+    );
+    assert_eq!(
+        ran + refused,
+        readable.len(),
+        "every readable program did one or the other"
+    );
     crate::numbers::NOW.accounts_for_every_program();
 }
 
@@ -565,7 +637,10 @@ impl Census {
         // programs call, and a census world without them refuses every one of those calls.
         // A sky to ask about: `weather('temperature')` refuses with no climate, and 33 of the data's math statements ask the weather something. The point is a
         // plain spring day rather than a simulation, because the census asks whether a guard **can be answered**, not whether the sky is right.
-        let holder = cdda_sim::singletons::singleton::<cdda_sim::weather::Climate, cdda_sim::singletons::TheClimate>(world);
+        let holder = cdda_sim::singletons::singleton::<
+            cdda_sim::weather::Climate,
+            cdda_sim::singletons::TheClimate,
+        >(world);
         if let Some(mut climate) = world.get_mut::<cdda_sim::weather::Climate>(holder) {
             climate.set_point_for_reading(cdda_content::weather::Point {
                 turn: 0,
@@ -576,7 +651,8 @@ impl Census {
                 ..cdda_content::weather::Point::default()
             });
         }
-        let installed = cdda_sim::math_functions::install_from_values(world, &self.files).unwrap_or_default();
+        let installed =
+            cdda_sim::math_functions::install_from_values(world, &self.files).unwrap_or_default();
         if std::env::var("CDDA_SHOW_MATH").is_ok() {
             println!("math functions installed: {installed}");
         }
@@ -691,15 +767,23 @@ fn install_monsters(
     Vec<cdda_content::monster_groups::MonsterGroup>,
 ) {
     let monsters = cdda_content::monsters::load_paths(&[data]).unwrap_or_else(|error| {
-        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("monsters refused: {}", error.message); }
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+            println!("monsters refused: {}", error.message);
+        }
         Vec::new()
     });
     let groups = cdda_content::monster_groups::load_paths(&[data]).unwrap_or_else(|error| {
-        if std::env::var("CDDA_SHOW_SPAWN").is_ok() { println!("groups refused: {}", error.message); }
+        if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
+            println!("groups refused: {}", error.message);
+        }
         Vec::new()
     });
     if std::env::var("CDDA_SHOW_SPAWN").is_ok() {
-        println!("catalogue: {} monsters, {} groups", monsters.len(), groups.len());
+        println!(
+            "catalogue: {} monsters, {} groups",
+            monsters.len(),
+            groups.len()
+        );
     }
     (monsters, groups)
 }
@@ -823,7 +907,11 @@ fn first_refusing_effect(
 }
 
 /// What refuses inside one effect, or nothing when the effect runs.
-fn refusal_of(effect: &cdda_content::dialogue::Effect, census: &Census, depth: usize) -> Option<String> {
+fn refusal_of(
+    effect: &cdda_content::dialogue::Effect,
+    census: &Census,
+    depth: usize,
+) -> Option<String> {
     if depth >= 8 {
         return Some(effect.kind().to_owned());
     }
@@ -831,7 +919,9 @@ fn refusal_of(effect: &cdda_content::dialogue::Effect, census: &Census, depth: u
     let survivor = cdda_sim::creature::spawn_creature(&mut alone, "the survivor", (0, 0, 0));
     cdda_sim::singletons::put_rolls(&mut alone, cdda_core_types::rng::Rolls::new(1));
     census.install(&mut alone);
-    if cdda_sim::dialogue_effects::run_effect(&mut alone, survivor, None, effect) != Applied::CannotAnswer {
+    if cdda_sim::dialogue_effects::run_effect(&mut alone, survivor, None, effect)
+        != Applied::CannotAnswer
+    {
         return None;
     }
     match effect {
@@ -844,8 +934,9 @@ fn refusal_of(effect: &cdda_content::dialogue::Effect, census: &Census, depth: u
                 cdda_content::dialogue::ProgramRef::Named { id, .. } => {
                     match census.programs.iter().find(|program| program.id == *id) {
                         Some(program) => Some(
-                            first_refusing_effect(program, census, depth + 1)
-                                .unwrap_or_else(|| format!("run_eocs({id} refuses without naming an effect)")),
+                            first_refusing_effect(program, census, depth + 1).unwrap_or_else(
+                                || format!("run_eocs({id} refuses without naming an effect)"),
+                            ),
                         ),
                         None => Some(format!("run_eocs(no program named {id})")),
                     }
@@ -857,7 +948,9 @@ fn refusal_of(effect: &cdda_content::dialogue::Effect, census: &Census, depth: u
                 cdda_content::dialogue::ProgramRef::NamedByVariable { .. } => None,
             })
             .or_else(|| Some("run_eocs(calls a program that is not installed)".to_owned())),
-        cdda_content::dialogue::Effect::If { then, otherwise, .. } => then
+        cdda_content::dialogue::Effect::If {
+            then, otherwise, ..
+        } => then
             .iter()
             .chain(otherwise.iter())
             .find_map(|branch| refusal_of(branch, census, depth + 1))
@@ -874,16 +967,27 @@ fn refusal_of(effect: &cdda_content::dialogue::Effect, census: &Census, depth: u
 /// A one-line sketch of an effect's members, so a census label says what the data asked for rather than only which rule refused.
 fn describe(effect: &cdda_content::dialogue::Effect) -> String {
     match effect {
-        cdda_content::dialogue::Effect::LocationVariableSearch { om_terrain, search_range, .. } => {
+        cdda_content::dialogue::Effect::LocationVariableSearch {
+            om_terrain,
+            search_range,
+            ..
+        } => {
             format!("om_terrain={om_terrain:?} search_range={search_range}")
         }
-        cdda_content::dialogue::Effect::AddEffect { effect, duration, .. } => {
+        cdda_content::dialogue::Effect::AddEffect {
+            effect, duration, ..
+        } => {
             format!("effect={effect:?} duration={duration:?}")
         }
         cdda_content::dialogue::Effect::SpawnMonster { monster, group, .. } => {
             format!("monster={monster:?} group={group:?}")
         }
-        cdda_content::dialogue::Effect::SpawnItem { item, force_equip, use_item_group, .. } => {
+        cdda_content::dialogue::Effect::SpawnItem {
+            item,
+            force_equip,
+            use_item_group,
+            ..
+        } => {
             format!("item={item:?} force_equip={force_equip} group={use_item_group}")
         }
         cdda_content::dialogue::Effect::Math(statements) => format!("{statements:?}"),
@@ -993,8 +1097,16 @@ fn the_call_graph_says_which_missing_program_blocks_the_most() {
         readable.len()
     );
 
-    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
-    assert_eq!(readable.len(), crate::numbers::NOW.readable, "the port reads 692 of them");
+    assert_eq!(
+        defined,
+        crate::numbers::NOW.defined,
+        "the data defines 692 nameable effect-on-conditions"
+    );
+    assert_eq!(
+        readable.len(),
+        crate::numbers::NOW.readable,
+        "the port reads 692 of them"
+    );
     assert!(!ranked.is_empty(), "and something is blocking something");
 }
 
@@ -1106,7 +1218,10 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
                 gaps_total += gaps.len();
                 if let [(only, said)] = gaps.as_slice() {
                     if std::env::var("CDDA_SHOW_GAP").is_ok_and(|wanted| wanted == *only) {
-                        println!("GAP {only} :: {}", said.chars().take(600).collect::<String>());
+                        println!(
+                            "GAP {only} :: {}",
+                            said.chars().take(600).collect::<String>()
+                        );
                     }
                     *one_gap.entry(only.clone()).or_insert(0) += 1;
                 }
@@ -1125,7 +1240,11 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
          would finish them: {ranked:?}"
     );
 
-    assert_eq!(defined, crate::numbers::NOW.defined, "the data defines 692 nameable effect-on-conditions");
+    assert_eq!(
+        defined,
+        crate::numbers::NOW.defined,
+        "the data defines 692 nameable effect-on-conditions"
+    );
     // 987 unreadable members across 511 programs, and 138 of those programs are **one member** from running.
     //
     // The ranking's tail still carries two modifier names - `duration` and `bonus` - because a refused entry reports its first key, and a
@@ -1134,10 +1253,18 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // 1,190 leaves once the descent follows **membership** rather than member order. The old count was lower because an `if` written
     // `{"else": …, "if": …, "then": …}` had its branches skipped and counted as one unnameable gap; now every gap names a member that could be
     // ported, and the `<nested>` residue is zero.
-    assert_eq!(gaps_total, crate::numbers::NOW.leaves, "the data's programs hold the unreadable leaves the census counts");
+    assert_eq!(
+        gaps_total,
+        crate::numbers::NOW.leaves,
+        "the data's programs hold the unreadable leaves the census counts"
+    );
     // 198 programs are one leaf away, but the eight members above would finish only 115 of them - the rest sit behind a long tail. Reading the
     // printed line as "the top eight members would finish" is the honest reading, not "there are 115 such programs".
-    assert_eq!(single, crate::numbers::NOW.one_gap, "a hundred and eighty-eight programs are one leaf away");
+    assert_eq!(
+        single,
+        crate::numbers::NOW.one_gap,
+        "a hundred and eighty-eight programs are one leaf away"
+    );
     // **An empty ranking is the win, not a broken report.** When no program is one member from reading whole there is nothing left to rank, and the
     // check becomes the equality that matters: the list is empty exactly when the one-gap count is zero.
     assert_eq!(
@@ -1149,7 +1276,10 @@ fn the_programs_one_gap_away_say_what_to_port_next() {
     // shape rather than pinned to a list. Pinning it made one feature cost a dozen edits; the invariant is that every ranked member is a member the
     // data really writes, which the read-side census has already established.
     for (member, count) in &ranked {
-        assert!(*count > 0, "{member} is ranked with {count} programs behind it");
+        assert!(
+            *count > 0,
+            "{member} is ranked with {count} programs behind it"
+        );
     }
 }
 
@@ -1163,7 +1293,10 @@ fn unreadable_members(definition: &cdda_json::Value) -> Vec<(String, String)> {
         && cdda_content::dialogue::read_condition(condition).is_none()
     {
         // Name the **condition** that refuses rather than the slot it sits in: "condition" as a gap told the port nothing about what to port.
-        gaps.push((first_refusing_condition(condition), format!("{condition:?}")));
+        gaps.push((
+            first_refusing_condition(condition),
+            format!("{condition:?}"),
+        ));
     }
     for slot in ["effect", "true_effect", "false_effect"] {
         let Some(effects) = member(definition, slot) else {
@@ -1192,7 +1325,14 @@ fn is_comment(key: &str) -> bool {
 fn is_descriptor(key: &str) -> bool {
     matches!(
         key,
-        "duration" | "bonus" | "intensity" | "popup" | "sound" | "same_snippet" | "target_part" | "target_var"
+        "duration"
+            | "bonus"
+            | "intensity"
+            | "popup"
+            | "sound"
+            | "same_snippet"
+            | "target_part"
+            | "target_var"
     )
 }
 
@@ -1292,9 +1432,9 @@ fn collect_leaves(entry: &cdda_json::Value, gaps: &mut Vec<(String, String)>) {
     // too long to read in a terminal once a program has ten effects.
     // The leaf **and the object that holds it**: a leaf called `max_radius` says which member the reader choked on, not which effect the member belonged to,
     // and the same name appears in three different effects.
-    let leaf = object.get(key).map_or_else(String::new, |value| {
-        format!("{value:?}  IN  {object:?}")
-    });
+    let leaf = object
+        .get(key)
+        .map_or_else(String::new, |value| format!("{value:?}  IN  {object:?}"));
     if is_container_member(key) {
         gaps.push(("<nested>".to_owned(), leaf));
     } else {
@@ -1320,19 +1460,27 @@ fn the_snippet_store_picks_a_line_by_weight_and_never_picks_a_weightless_one() {
             ("notes".to_owned(), line("c", "Never read.", 0)),
         ],
     );
-    assert_eq!(cdda_sim::snippets::census(&world), (1, 3), "one category, three lines");
+    assert_eq!(
+        cdda_sim::snippets::census(&world),
+        (1, 3),
+        "one category, three lines"
+    );
 
     let mut seen: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     let mut dice = Rolls::new(7);
     for _ in 0..400 {
-        let picked = cdda_sim::snippets::pick(&mut world, "notes", Some(&mut dice)).expect("a line");
+        let picked =
+            cdda_sim::snippets::pick(&mut world, "notes", Some(&mut dice)).expect("a line");
         *seen.entry(picked.id).or_insert(0) += 1;
     }
     assert_eq!(seen.get("c"), None, "a line of weight zero is never picked");
     let a = seen.get("a").copied().unwrap_or(0);
     let b = seen.get("b").copied().unwrap_or(0);
     assert_eq!(a + b, 400);
-    assert!(b > 2 * a, "the heavier line came up about three times as often: {b} to {a}");
+    assert!(
+        b > 2 * a,
+        "the heavier line came up about three times as often: {b} to {a}"
+    );
 
     assert!(
         cdda_sim::snippets::pick(&mut world, "no_such_category", Some(&mut dice)).is_none(),
@@ -1475,7 +1623,10 @@ fn build_a_world(
     cdda_sim::load_level(world, &level);
     // One overmap tile of every terrain the mapgens write, so a search for a named tile finds one.
     for (at, (_, mapgen)) in mapgens.iter().enumerate() {
-        let tile = (i32::try_from(at % 5).unwrap_or(0) + 1, i32::try_from(at / 5).unwrap_or(0) + 1);
+        let tile = (
+            i32::try_from(at % 5).unwrap_or(0) + 1,
+            i32::try_from(at / 5).unwrap_or(0) + 1,
+        );
         cdda_sim::overmap::set_terrain(world, tile, &mapgen.om_terrain);
     }
     // A player who answers whatever is asked, several times over, and who never walks away from a menu that forbids it.

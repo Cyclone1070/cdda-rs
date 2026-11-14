@@ -4,7 +4,12 @@
 //! applies at all: an unarmed-only buff needs an empty hand, a melee-only buff needs a weapon the style allows, and a buff that names neither applies to **neither** - which is why the reference
 //! loads both flags as `false` rather than `true` (`martialarts.cpp:250-251`).
 
-#![allow(clippy::panic, clippy::expect_used, clippy::float_cmp, clippy::indexing_slicing)]
+#![allow(
+    clippy::panic,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing
+)]
 
 use cdda_sim::martial_arts::{Hands, Requirement, applies};
 
@@ -22,15 +27,24 @@ fn requirement(unarmed: bool, melee: bool) -> Requirement {
 #[test]
 fn a_buff_that_names_no_hand_applies_to_none() {
     let neither = requirement(false, false);
-    assert!(!applies(&neither, Hands::Empty, &[]), "an empty hand earns nothing from a buff that does not ask for one");
-    assert!(!applies(&neither, Hands::Weapon("a knife"), &["knife"]), "and neither does a weapon");
+    assert!(
+        !applies(&neither, Hands::Empty, &[]),
+        "an empty hand earns nothing from a buff that does not ask for one"
+    );
+    assert!(
+        !applies(&neither, Hands::Weapon("a knife"), &["knife"]),
+        "and neither does a weapon"
+    );
 }
 
 /// An unarmed-only buff is worth something with an empty hand and nothing with a weapon.
 #[test]
 fn an_unarmed_buff_needs_an_empty_hand() {
     let unarmed = requirement(true, false);
-    assert!(applies(&unarmed, Hands::Empty, &[]), "**an empty hand is what it asks for**");
+    assert!(
+        applies(&unarmed, Hands::Empty, &[]),
+        "**an empty hand is what it asks for**"
+    );
     assert!(
         !applies(&unarmed, Hands::Weapon("a knife"), &["knife"]),
         "and a knife is not, even one the style would allow"
@@ -41,13 +55,19 @@ fn an_unarmed_buff_needs_an_empty_hand() {
 #[test]
 fn a_melee_buff_needs_a_weapon_of_a_category_it_names() {
     let mut melee = requirement(false, true);
-    assert!(!applies(&melee, Hands::Empty, &[]), "a melee buff does nothing in an empty hand");
+    assert!(
+        !applies(&melee, Hands::Empty, &[]),
+        "a melee buff does nothing in an empty hand"
+    );
     assert!(
         applies(&melee, Hands::Weapon("a knife"), &["knife"]),
         "**a weapon with no category stated is allowed by any melee buff**"
     );
     melee.weapon_categories = vec!["KNIFE".to_owned()];
-    assert!(applies(&melee, Hands::Weapon("a knife"), &["KNIFE"]), "and a stated category needs a weapon of it");
+    assert!(
+        applies(&melee, Hands::Weapon("a knife"), &["KNIFE"]),
+        "and a stated category needs a weapon of it"
+    );
     assert!(
         !applies(&melee, Hands::Weapon("a bat"), &["BLUNT"]),
         "**a bat is not a knife, so the buff is not in play**"
@@ -58,8 +78,14 @@ fn a_melee_buff_needs_a_weapon_of_a_category_it_names() {
 #[test]
 fn a_buff_that_allows_both_is_worth_something_either_way() {
     let both = requirement(true, true);
-    assert!(applies(&both, Hands::Empty, &[]), "an empty hand is allowed");
-    assert!(applies(&both, Hands::Weapon("a knife"), &["knife"]), "and so is a weapon");
+    assert!(
+        applies(&both, Hands::Empty, &[]),
+        "an empty hand is allowed"
+    );
+    assert!(
+        applies(&both, Hands::Weapon("a knife"), &["knife"]),
+        "and so is a weapon"
+    );
 }
 
 /// A bonus's scale is multiplied by whatever it scales with, and a bonus that scales with nothing is its scale alone.
@@ -71,16 +97,34 @@ fn a_buff_that_allows_both_is_worth_something_either_way() {
 fn a_bonuss_scale_is_multiplied_by_what_it_scales_with() {
     use cdda_sim::martial_arts::{Scaling, scaled};
 
-    let dex_two = Scaling::Stat { name: "dex".to_owned(), value: 12.0 };
-    assert_eq!(scaled(1.5, &dex_two), 18.0, "**a scale of one and a half with a dexterity of twelve is eighteen**");
-    let melee_three = Scaling::Skill { name: "melee".to_owned(), level: 3.0 };
-    assert_eq!(scaled(0.5, &melee_three), 1.5, "and half of a melee skill of three is one and a half");
+    let dex_two = Scaling::Stat {
+        name: "dex".to_owned(),
+        value: 12.0,
+    };
+    assert_eq!(
+        scaled(1.5, &dex_two),
+        18.0,
+        "**a scale of one and a half with a dexterity of twelve is eighteen**"
+    );
+    let melee_three = Scaling::Skill {
+        name: "melee".to_owned(),
+        level: 3.0,
+    };
+    assert_eq!(
+        scaled(0.5, &melee_three),
+        1.5,
+        "and half of a melee skill of three is one and a half"
+    );
     assert_eq!(
         scaled(2.0, &Scaling::None),
         2.0,
         "**a bonus that scales with nothing is its scale, not zero**"
     );
-    assert_eq!(scaled(2.0, &Scaling::Unknown("speed".to_owned())), 0.0, "a stat the port does not read answers nothing");
+    assert_eq!(
+        scaled(2.0, &Scaling::Unknown("speed".to_owned())),
+        0.0,
+        "a stat the port does not read answers nothing"
+    );
 }
 
 /// Flat bonuses add, and multiplied bonuses multiply - and a multiplier that comes out negative is **clamped to nothing**.
@@ -96,31 +140,72 @@ fn flat_bonuses_add_and_multipliers_multiply_then_clamp() {
     flat.insert(
         "hit".to_owned(),
         vec![
-            Bonus { scale: 1.0, scaling: cdda_sim::martial_arts::Scaling::None },
-            Bonus { scale: 0.5, scaling: cdda_sim::martial_arts::Scaling::Skill { name: "melee".to_owned(), level: 4.0 } },
+            Bonus {
+                scale: 1.0,
+                scaling: cdda_sim::martial_arts::Scaling::None,
+            },
+            Bonus {
+                scale: 0.5,
+                scaling: cdda_sim::martial_arts::Scaling::Skill {
+                    name: "melee".to_owned(),
+                    level: 4.0,
+                },
+            },
         ],
     );
-    assert_eq!(flat_of(&flat, "hit"), 3.0, "**flat bonuses add**: one plus half of a melee skill of four");
-    assert_eq!(flat_of(&flat, "dodge"), 0.0, "a stat with no bonuses is worth nothing at all");
+    assert_eq!(
+        flat_of(&flat, "hit"),
+        3.0,
+        "**flat bonuses add**: one plus half of a melee skill of four"
+    );
+    assert_eq!(
+        flat_of(&flat, "dodge"),
+        0.0,
+        "a stat with no bonuses is worth nothing at all"
+    );
 
     let mut mult = BTreeMap::new();
     mult.insert(
         "block".to_owned(),
         vec![
-            Bonus { scale: 2.0, scaling: cdda_sim::martial_arts::Scaling::None },
-            Bonus { scale: 0.5, scaling: cdda_sim::martial_arts::Scaling::Skill { name: "dex".to_owned(), level: 4.0 } },
+            Bonus {
+                scale: 2.0,
+                scaling: cdda_sim::martial_arts::Scaling::None,
+            },
+            Bonus {
+                scale: 0.5,
+                scaling: cdda_sim::martial_arts::Scaling::Skill {
+                    name: "dex".to_owned(),
+                    level: 4.0,
+                },
+            },
         ],
     );
-    assert_eq!(mult_of(&mult, "block"), 4.0, "**multipliers multiply**: two times half of four");
-    assert_eq!(mult_of(&mult, "speed"), 1.0, "a stat with no multipliers is worth one, not zero");
+    assert_eq!(
+        mult_of(&mult, "block"),
+        4.0,
+        "**multipliers multiply**: two times half of four"
+    );
+    assert_eq!(
+        mult_of(&mult, "speed"),
+        1.0,
+        "a stat with no multipliers is worth one, not zero"
+    );
 
     // **Two negatives multiply to a positive**, which is why the clamp needs an odd count to show: one bonus of minus two is a product of minus two, and that is what the reference floors.
     let mut negative = BTreeMap::new();
     negative.insert(
         "speed".to_owned(),
-        vec![Bonus { scale: -2.0, scaling: cdda_sim::martial_arts::Scaling::None }],
+        vec![Bonus {
+            scale: -2.0,
+            scaling: cdda_sim::martial_arts::Scaling::None,
+        }],
     );
-    assert_eq!(mult_of(&negative, "speed"), 0.0, "**and a product below zero is clamped to zero**");
+    assert_eq!(
+        mult_of(&negative, "speed"),
+        0.0,
+        "**and a product below zero is clamped to zero**"
+    );
 }
 
 /// A move's `weighting` is how many times it appears in the list the pick chooses from, and **every move that qualifies appears at least once**.
@@ -132,25 +217,65 @@ fn a_move_s_weighting_is_how_many_entries_it_gets() {
     use cdda_sim::martial_arts::{Candidate, pick};
 
     let candidates = vec![
-        Candidate { id: "tec_a".to_owned(), weighting: 1 },
-        Candidate { id: "tec_b".to_owned(), weighting: 3 },
+        Candidate {
+            id: "tec_a".to_owned(),
+            weighting: 1,
+        },
+        Candidate {
+            id: "tec_b".to_owned(),
+            weighting: 3,
+        },
     ];
     // Four entries: a, b, b, b. A roll is `[0, 1)`, so the boundaries are three quarters of the way through.
-    assert_eq!(pick(&candidates, 0.0).as_deref(), Some("tec_a"), "the first entry is the first move");
-    assert_eq!(pick(&candidates, 0.24).as_deref(), Some("tec_a"), "**a quarter of the range is the one-entry move**");
-    assert_eq!(pick(&candidates, 0.25).as_deref(), Some("tec_b"), "and the next quarter is the three-entry one");
-    assert_eq!(pick(&candidates, 0.99).as_deref(), Some("tec_b"), "right up to the end");
+    assert_eq!(
+        pick(&candidates, 0.0).as_deref(),
+        Some("tec_a"),
+        "the first entry is the first move"
+    );
+    assert_eq!(
+        pick(&candidates, 0.24).as_deref(),
+        Some("tec_a"),
+        "**a quarter of the range is the one-entry move**"
+    );
+    assert_eq!(
+        pick(&candidates, 0.25).as_deref(),
+        Some("tec_b"),
+        "and the next quarter is the three-entry one"
+    );
+    assert_eq!(
+        pick(&candidates, 0.99).as_deref(),
+        Some("tec_b"),
+        "right up to the end"
+    );
 
     // **A weighting of nothing is still offered**: the reference pushes every qualified technique before it duplicates any.
     let zero = vec![
-        Candidate { id: "tec_never".to_owned(), weighting: 0 },
-        Candidate { id: "tec_once".to_owned(), weighting: 1 },
+        Candidate {
+            id: "tec_never".to_owned(),
+            weighting: 0,
+        },
+        Candidate {
+            id: "tec_once".to_owned(),
+            weighting: 1,
+        },
     ];
-    assert_eq!(pick(&zero, 0.0).as_deref(), Some("tec_never"), "a move weighted nothing is still one entry in two");
-    assert_eq!(pick(&zero, 0.5).as_deref(), Some("tec_once"), "and the other is the other half");
+    assert_eq!(
+        pick(&zero, 0.0).as_deref(),
+        Some("tec_never"),
+        "a move weighted nothing is still one entry in two"
+    );
+    assert_eq!(
+        pick(&zero, 0.5).as_deref(),
+        Some("tec_once"),
+        "and the other is the other half"
+    );
 
     // Nothing qualifies, so nothing is picked - which the reference spells as `tec_none`.
-    assert_eq!(pick(&[], 0.5), None, "**an empty list picks nothing at all**");
+    assert_eq!(
+        pick(&[], 0.5),
+        None,
+        "**an empty list picks nothing at all**"
+    );
 }
 
 /// The data does weight its moves, so the duplication branch is a rule the corpus needs rather than a hypothetical.
@@ -183,9 +308,17 @@ fn the_corpus_weights_its_moves_evenly_enough_to_need_the_rule() {
             }
         }
     }
-    assert_eq!(weightings.len(), 171, "**a hundred and seventy-one moves in the corpus**");
+    assert_eq!(
+        weightings.len(),
+        171,
+        "**a hundred and seventy-one moves in the corpus**"
+    );
     assert!(
-        weightings.iter().filter(|weighting| **weighting > 1).count() > 20,
+        weightings
+            .iter()
+            .filter(|weighting| **weighting > 1)
+            .count()
+            > 20,
         "and more than twenty of them are weighted above one, so the duplication is not a corner case"
     );
     assert_eq!(
@@ -233,12 +366,18 @@ fn a_move_is_offered_only_when_the_moment_is_its_moment() {
         self_armed: false,
         wall_adjacent: true,
     };
-    assert!(offers(&plain, &ordinary, 0.5), "an ordinary move is offered in an ordinary moment");
+    assert!(
+        offers(&plain, &ordinary, 0.5),
+        "an ordinary move is offered in an ordinary moment"
+    );
 
     // A dummy is never offered, whatever else it says.
     let mut dummy = plain.clone();
     dummy.dummy = true;
-    assert!(!offers(&dummy, &ordinary, 0.5), "**a dummy is never offered**");
+    assert!(
+        !offers(&dummy, &ordinary, 0.5),
+        "**a dummy is never offered**"
+    );
 
     // A defensive move is a counter, not an attack.
     // **A counter is flagged twice**: `defensive` says it is not an attack, and the counter flag says which moment it answers. One without the other is refused, because the reference checks
@@ -246,52 +385,118 @@ fn a_move_is_offered_only_when_the_moment_is_its_moment() {
     let mut defensive = plain.clone();
     defensive.defensive = true;
     defensive.block_counter = true;
-    assert!(!offers(&defensive, &ordinary, 0.5), "**a defensive move is not an attack**");
     assert!(
-        offers(&defensive, &Moment { block_counter: true, ..ordinary.clone() }, 0.5),
+        !offers(&defensive, &ordinary, 0.5),
+        "**a defensive move is not an attack**"
+    );
+    assert!(
+        offers(
+            &defensive,
+            &Moment {
+                block_counter: true,
+                ..ordinary.clone()
+            },
+            0.5
+        ),
         "but it is offered to a block counter"
     );
 
     // A critical-only move needs the critical, and a move that is not crit_ok refuses a critical moment.
     let mut critical_only = plain.clone();
     critical_only.crit_tec = true;
-    assert!(!offers(&critical_only, &ordinary, 0.5), "**a critical move is not offered on an ordinary blow**");
     assert!(
-        offers(&critical_only, &Moment { crit: true, ..ordinary.clone() }, 0.5),
+        !offers(&critical_only, &ordinary, 0.5),
+        "**a critical move is not offered on an ordinary blow**"
+    );
+    assert!(
+        offers(
+            &critical_only,
+            &Moment {
+                crit: true,
+                ..ordinary.clone()
+            },
+            0.5
+        ),
         "and is offered when the blow is critical"
     );
     assert!(
-        !offers(&plain, &Moment { crit: true, ..ordinary.clone() }, 0.5),
+        !offers(
+            &plain,
+            &Moment {
+                crit: true,
+                ..ordinary.clone()
+            },
+            0.5
+        ),
         "**a move that is not crit_ok refuses the critical moment**, because crit != its crit_tec"
     );
 
     // Ammunition, reach and the two weapon rules.
     let mut needs_ammo = plain.clone();
     needs_ammo.needs_ammo = true;
-    assert!(!offers(&needs_ammo, &ordinary, 0.5), "a move that needs a loaded weapon is not offered empty");
     assert!(
-        offers(&needs_ammo, &Moment { loaded: true, ..ordinary.clone() }, 0.5),
+        !offers(&needs_ammo, &ordinary, 0.5),
+        "a move that needs a loaded weapon is not offered empty"
+    );
+    assert!(
+        offers(
+            &needs_ammo,
+            &Moment {
+                loaded: true,
+                ..ordinary.clone()
+            },
+            0.5
+        ),
         "and is offered when the weapon is loaded"
     );
 
     let mut disarm = plain.clone();
     disarm.disarms = true;
-    assert!(!offers(&disarm, &Moment { target_armed: false, ..ordinary.clone() }, 0.5), "a disarm does nothing against empty hands");
+    assert!(
+        !offers(
+            &disarm,
+            &Moment {
+                target_armed: false,
+                ..ordinary.clone()
+            },
+            0.5
+        ),
+        "a disarm does nothing against empty hands"
+    );
 
     let mut reach = plain.clone();
     reach.reach_tec = true;
-    assert!(!offers(&reach, &ordinary, 0.5), "**a reach move needs a reach attack**");
     assert!(
-        offers(&reach, &Moment { reach_attacking: true, ..ordinary.clone() }, 0.5),
+        !offers(&reach, &ordinary, 0.5),
+        "**a reach move needs a reach attack**"
+    );
+    assert!(
+        offers(
+            &reach,
+            &Moment {
+                reach_attacking: true,
+                ..ordinary.clone()
+            },
+            0.5
+        ),
         "and is offered when the attack reaches"
     );
 
     // A negative weighting is a chance rather than a prohibition.
     let mut occasional = plain.clone();
     occasional.weighting = -4;
-    assert!(offers(&occasional, &ordinary, 0.0), "**a weighting of minus four is offered on a roll of nothing**");
-    assert!(!offers(&occasional, &ordinary, 0.5), "and refused on a roll of a half, because one in four is a quarter of the range");
-    assert!(offers(&occasional, &ordinary, 0.1), "but a tenth is inside that quarter");
+    assert!(
+        offers(&occasional, &ordinary, 0.0),
+        "**a weighting of minus four is offered on a roll of nothing**"
+    );
+    assert!(
+        !offers(&occasional, &ordinary, 0.5),
+        "and refused on a roll of a half, because one in four is a quarter of the range"
+    );
+    assert!(
+        offers(&occasional, &ordinary, 0.1),
+        "but a tenth is inside that quarter"
+    );
 }
 
 /// The store answers which move a striker makes, from the style it carries and what is in its hands.
@@ -392,7 +597,8 @@ fn the_store_answers_which_move_a_striker_makes() {
 fn a_style_is_learned_from_the_data() {
     use cdda_sim::martial_arts::{Moment, learn_style, pick_for};
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/martial-arts/martial-arts.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/martial-arts/martial-arts.json");
     let text = std::fs::read(path).expect("the martial arts dump exists");
     let value = cdda_json::parse(&text).expect("the dump is valid JSON");
     let cdda_json::Value::Object(root) = value else {
@@ -451,7 +657,9 @@ fn a_style_is_learned_from_the_data() {
 #[test]
 fn the_swing_asks_the_style_and_leaves_the_move_it_made() {
     use bevy_ecs::prelude::*;
-    use cdda_sim::martial_arts::{Practising, Style, Technique, TechniqueFlags, Requirement, LastMove};
+    use cdda_sim::martial_arts::{
+        LastMove, Practising, Requirement, Style, Technique, TechniqueFlags,
+    };
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
@@ -479,14 +687,23 @@ fn the_swing_asks_the_style_and_leaves_the_move_it_made() {
     ));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
     world.entity_mut(zombie).insert((
-        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
-        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        cdda_sim::creature::Health {
+            hp: 9_000,
+            max_hp: 9_000,
+        },
+        cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 0,
+        },
     ));
 
     // A fighter with no style leaves no move behind, which is the plain blow.
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     assert_eq!(
-        world.get::<LastMove>(survivor).and_then(|last| last.0.clone()),
+        world
+            .get::<LastMove>(survivor)
+            .and_then(|last| last.0.clone()),
         None,
         "**a fighter with no style makes no move**"
     );
@@ -526,7 +743,10 @@ fn the_swing_asks_the_style_and_leaves_the_move_it_made() {
     });
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     assert_eq!(
-        world.get::<LastMove>(survivor).and_then(|last| last.0.clone()).as_deref(),
+        world
+            .get::<LastMove>(survivor)
+            .and_then(|last| last.0.clone())
+            .as_deref(),
         Some("tec_always"),
         "**and a fighter with a style leaves the move it made**"
     );
@@ -580,15 +800,34 @@ fn a_move_s_effects_land_by_their_own_chance() {
 
     // An effect that does not need damage lands on a blow that drew nothing.
     let landed = apply_move(&mut world, zombie, &move_with(vec![always.clone()]), 0);
-    assert_eq!(landed, vec!["bleed".to_owned()], "**an effect that needs no damage lands on a harmless blow**");
-    assert!(cdda_sim::applied_effects::has(&world, zombie, "bleed"), "and is on the body");
+    assert_eq!(
+        landed,
+        vec!["bleed".to_owned()],
+        "**an effect that needs no damage lands on a harmless blow**"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, zombie, "bleed"),
+        "and is on the body"
+    );
 
     // One that needs damage does not.
     cdda_sim::applied_effects::remove(&mut world, zombie, "bleed");
-    let landed = apply_move(&mut world, zombie, &move_with(vec![needs_damage.clone()]), 0);
-    assert!(landed.is_empty(), "**an effect that needs damage does not land on a blow that drew none**");
+    let landed = apply_move(
+        &mut world,
+        zombie,
+        &move_with(vec![needs_damage.clone()]),
+        0,
+    );
+    assert!(
+        landed.is_empty(),
+        "**an effect that needs damage does not land on a blow that drew none**"
+    );
     let landed = apply_move(&mut world, zombie, &move_with(vec![needs_damage]), 4);
-    assert_eq!(landed, vec!["bleed".to_owned()], "and does land when the blow drew blood");
+    assert_eq!(
+        landed,
+        vec!["bleed".to_owned()],
+        "and does land when the blow drew blood"
+    );
 
     // The chance is a roll out of a hundred, so half is the first half of the range.
     cdda_sim::applied_effects::remove(&mut world, zombie, "bleed");
@@ -609,7 +848,11 @@ fn a_move_s_effects_land_by_their_own_chance() {
     let mut stunned = move_with(Vec::new());
     stunned.stun_dur = 3;
     let landed = apply_move(&mut world, zombie, &stunned, 0);
-    assert_eq!(landed, vec!["stunned".to_owned()], "a stunning move lands a stun");
+    assert_eq!(
+        landed,
+        vec!["stunned".to_owned()],
+        "a stunning move lands a stun"
+    );
     let duration = cdda_sim::applied_effects::worn(&world, zombie)
         .into_iter()
         .find(|worn| worn.id == "stunned")
@@ -628,7 +871,9 @@ fn a_move_s_effects_land_by_their_own_chance() {
 #[test]
 fn the_move_the_swing_picked_is_the_move_that_lands() {
     use bevy_ecs::prelude::*;
-    use cdda_sim::martial_arts::{AppliedMove, MoveEffect, Practising, Requirement, Style, Technique, TechniqueFlags};
+    use cdda_sim::martial_arts::{
+        AppliedMove, MoveEffect, Practising, Requirement, Style, Technique, TechniqueFlags,
+    };
 
     let mut world = World::new();
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
@@ -663,8 +908,15 @@ fn the_move_the_swing_picked_is_the_move_that_lands() {
     ));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
     world.entity_mut(zombie).insert((
-        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
-        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        cdda_sim::creature::Health {
+            hp: 9_000,
+            max_hp: 9_000,
+        },
+        cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 0,
+        },
     ));
 
     let flags = TechniqueFlags {
@@ -711,8 +963,14 @@ fn the_move_the_swing_picked_is_the_move_that_lands() {
     });
 
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
-    assert!(cdda_sim::applied_effects::has(&world, zombie, "stunned"), "**the move's stun lands on the body it hit**");
-    assert!(cdda_sim::applied_effects::has(&world, zombie, "bleed"), "and so does its effect, because the blow drew blood");
+    assert!(
+        cdda_sim::applied_effects::has(&world, zombie, "stunned"),
+        "**the move's stun lands on the body it hit**"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, zombie, "bleed"),
+        "and so does its effect, because the blow drew blood"
+    );
 }
 
 /// A move that needs limbs needs **enough of them still standing**.
@@ -731,18 +989,51 @@ fn a_vector_that_needs_limbs_needs_enough_of_them() {
         kind: "arm".to_owned(),
         count: 1,
     };
-    let both = vec![LimbState { kind: "arm".to_owned(), healthy: true }, LimbState { kind: "arm".to_owned(), healthy: true }];
-    assert!(limbs_enough(&both, &two_arms), "two healthy arms satisfy a need for two");
+    let both = vec![
+        LimbState {
+            kind: "arm".to_owned(),
+            healthy: true,
+        },
+        LimbState {
+            kind: "arm".to_owned(),
+            healthy: true,
+        },
+    ];
+    assert!(
+        limbs_enough(&both, &two_arms),
+        "two healthy arms satisfy a need for two"
+    );
     assert!(limbs_enough(&both, &one_arm), "and a need for one");
 
-    let one_left = vec![LimbState { kind: "arm".to_owned(), healthy: true }, LimbState { kind: "arm".to_owned(), healthy: false }];
+    let one_left = vec![
+        LimbState {
+            kind: "arm".to_owned(),
+            healthy: true,
+        },
+        LimbState {
+            kind: "arm".to_owned(),
+            healthy: false,
+        },
+    ];
     assert!(
         !limbs_enough(&one_left, &two_arms),
         "**a ruined arm does not count towards a need for two**"
     );
-    assert!(limbs_enough(&one_left, &one_arm), "but it satisfies a need for one");
+    assert!(
+        limbs_enough(&one_left, &one_arm),
+        "but it satisfies a need for one"
+    );
 
-    let legs = vec![LimbState { kind: "leg".to_owned(), healthy: true }, LimbState { kind: "leg".to_owned(), healthy: true }];
+    let legs = vec![
+        LimbState {
+            kind: "leg".to_owned(),
+            healthy: true,
+        },
+        LimbState {
+            kind: "leg".to_owned(),
+            healthy: true,
+        },
+    ];
     assert!(
         !limbs_enough(&legs, &one_arm),
         "**a leg is not an arm**: the need names the kind of limb"
@@ -759,17 +1050,35 @@ fn aims_are_picked_by_their_share_of_the_weight() {
     use cdda_sim::martial_arts_vectors::{WeightedAim, weighted_pick};
 
     let aims = vec![
-        WeightedAim { id: "vector_head".to_owned(), weight: 1.0 },
-        WeightedAim { id: "vector_arm".to_owned(), weight: 3.0 },
+        WeightedAim {
+            id: "vector_head".to_owned(),
+            weight: 1.0,
+        },
+        WeightedAim {
+            id: "vector_arm".to_owned(),
+            weight: 3.0,
+        },
     ];
-    assert_eq!(weighted_pick(&aims, 0.0).as_deref(), Some("vector_head"), "a draw of nothing takes the first aim");
+    assert_eq!(
+        weighted_pick(&aims, 0.0).as_deref(),
+        Some("vector_head"),
+        "a draw of nothing takes the first aim"
+    );
     assert_eq!(
         weighted_pick(&aims, 0.24).as_deref(),
         Some("vector_head"),
         "**a quarter of the weight is still the first aim**, because one of four is its whole share"
     );
-    assert_eq!(weighted_pick(&aims, 0.26).as_deref(), Some("vector_arm"), "just past it, the second");
-    assert_eq!(weighted_pick(&aims, 0.99).as_deref(), Some("vector_arm"), "and the rest of the range is the second");
+    assert_eq!(
+        weighted_pick(&aims, 0.26).as_deref(),
+        Some("vector_arm"),
+        "just past it, the second"
+    );
+    assert_eq!(
+        weighted_pick(&aims, 0.99).as_deref(),
+        Some("vector_arm"),
+        "and the rest of the range is the second"
+    );
 
     // **The boundary leans earlier**: a draw of exactly one quarter accumulates to exactly the first aim's weight, and `>=` keeps it there.
     assert_eq!(
@@ -780,11 +1089,25 @@ fn aims_are_picked_by_their_share_of_the_weight() {
 
     // Nothing weighs anything, so nothing is aimed at - which the reference spells as a null pointer.
     let weightless = vec![
-        WeightedAim { id: "vector_a".to_owned(), weight: 0.0 },
-        WeightedAim { id: "vector_b".to_owned(), weight: 0.0 },
+        WeightedAim {
+            id: "vector_a".to_owned(),
+            weight: 0.0,
+        },
+        WeightedAim {
+            id: "vector_b".to_owned(),
+            weight: 0.0,
+        },
     ];
-    assert_eq!(weighted_pick(&weightless, 0.5), None, "**a list of weightless aims aims at nothing**");
-    assert_eq!(weighted_pick(&[], 0.5), None, "and neither does an empty one");
+    assert_eq!(
+        weighted_pick(&weightless, 0.5),
+        None,
+        "**a list of weightless aims aims at nothing**"
+    );
+    assert_eq!(
+        weighted_pick(&[], 0.5),
+        None,
+        "and neither does an empty one"
+    );
 }
 
 /// The store answers which of a move's aims the striker can actually take, from its own body.
@@ -810,7 +1133,11 @@ fn the_store_answers_which_aims_a_striker_can_take() {
         health_limit: 0,
     };
     world.entity_mut(fighter).insert(cdda_sim::creature::Body {
-        parts: vec![part("arm_l", "arm"), part("arm_r", "arm"), part("leg_l", "leg")],
+        parts: vec![
+            part("arm_l", "arm"),
+            part("arm_r", "arm"),
+            part("leg_l", "leg"),
+        ],
     });
 
     let needs_two_arms = VectorNeed {
@@ -879,13 +1206,19 @@ fn a_limb_stops_counting_at_its_own_limit() {
     }];
 
     // Both arms whole: two healthy limbs.
-    assert!(aims_available(&world, fighter, &one_arm), "two whole arms are enough");
+    assert!(
+        aims_available(&world, fighter, &one_arm),
+        "two whole arms are enough"
+    );
 
     // **Six hit points left on the arm whose limit is five**: the reference asks for strictly more than the limit, so it still counts.
     world.entity_mut(fighter).insert(cdda_sim::creature::Wounds(
         [("arm_r".to_owned(), 94)].into_iter().collect(),
     ));
-    assert!(aims_available(&world, fighter, &one_arm), "an arm at six against a limit of five still counts");
+    assert!(
+        aims_available(&world, fighter, &one_arm),
+        "an arm at six against a limit of five still counts"
+    );
 
     // Five left is not more than five, and the arm stops counting.
     world.entity_mut(fighter).insert(cdda_sim::creature::Wounds(
@@ -905,17 +1238,38 @@ fn a_limb_stops_counting_at_its_own_limit() {
 fn a_limb_is_aimed_at_while_its_health_is_above_the_limit() {
     use cdda_sim::martial_arts_vectors::health_above_limit;
 
-    assert!(health_above_limit(60, 60, 10), "a whole limb is at a hundred, above ten");
-    assert!(health_above_limit(7, 60, 10), "**seven of sixty truncates to eleven**, which is above ten");
-    assert!(!health_above_limit(6, 60, 10), "**six of sixty is exactly ten, which is not above ten**");
-    assert!(!health_above_limit(0, 60, 10), "and a ruined limb is at nothing");
+    assert!(
+        health_above_limit(60, 60, 10),
+        "a whole limb is at a hundred, above ten"
+    );
+    assert!(
+        health_above_limit(7, 60, 10),
+        "**seven of sixty truncates to eleven**, which is above ten"
+    );
+    assert!(
+        !health_above_limit(6, 60, 10),
+        "**six of sixty is exactly ten, which is not above ten**"
+    );
+    assert!(
+        !health_above_limit(0, 60, 10),
+        "and a ruined limb is at nothing"
+    );
 
     // A limit of zero is satisfied by any limb still standing, which is what most aims state.
-    assert!(health_above_limit(1, 60, 0), "one hit point is above a limit of nothing");
+    assert!(
+        health_above_limit(1, 60, 0),
+        "one hit point is above a limit of nothing"
+    );
     // **A limit of a hundred refuses even a whole limb**, because the comparison is strictly greater: nothing is above full health.
-    assert!(!health_above_limit(60, 60, 100), "a whole limb is at exactly a hundred, which is not above a hundred");
+    assert!(
+        !health_above_limit(60, 60, 100),
+        "a whole limb is at exactly a hundred, which is not above a hundred"
+    );
     assert!(health_above_limit(60, 60, 99), "and is above ninety-nine");
-    assert!(!health_above_limit(59, 60, 99), "while a limb one hit point down is at ninety-eight");
+    assert!(
+        !health_above_limit(59, 60, 99),
+        "while a limb one hit point down is at ninety-eight"
+    );
 }
 
 /// The store answers **which** aim a move takes, from the striker's own limbs, and an aim no limb of theirs can take is not among them.
@@ -943,19 +1297,29 @@ fn the_store_answers_which_aim_a_move_takes() {
         health_limit: 1,
     };
     world.entity_mut(fighter).insert(cdda_sim::creature::Body {
-        parts: vec![part("arm_l", "arm"), part("arm_r", "arm"), part("leg_l", "leg")],
+        parts: vec![
+            part("arm_l", "arm"),
+            part("arm_r", "arm"),
+            part("leg_l", "leg"),
+        ],
     });
 
     let punch = Vector {
         id: "vector_punch".to_owned(),
         limbs: vec!["arm_l".to_owned(), "arm_r".to_owned()],
-        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 2 }],
+        needs: vec![VectorNeed {
+            kind: "arm".to_owned(),
+            count: 2,
+        }],
         health_limit: 10,
     };
     let legs = Vector {
         id: "vector_kick".to_owned(),
         limbs: vec!["leg_l".to_owned()],
-        needs: vec![VectorNeed { kind: "leg".to_owned(), count: 2 }],
+        needs: vec![VectorNeed {
+            kind: "leg".to_owned(),
+            count: 2,
+        }],
         health_limit: 10,
     };
 
@@ -971,7 +1335,10 @@ fn the_store_answers_which_aim_a_move_takes() {
     let grip = Vector {
         id: "vector_grip".to_owned(),
         limbs: vec!["arm_l".to_owned()],
-        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 1 }],
+        needs: vec![VectorNeed {
+            kind: "arm".to_owned(),
+            count: 1,
+        }],
         health_limit: 10,
     };
     world.entity_mut(fighter).insert(cdda_sim::creature::Wounds(
@@ -986,7 +1353,10 @@ fn the_store_answers_which_aim_a_move_takes() {
     let either_arm = Vector {
         id: "vector_either".to_owned(),
         limbs: vec!["arm_l".to_owned(), "arm_r".to_owned()],
-        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 1 }],
+        needs: vec![VectorNeed {
+            kind: "arm".to_owned(),
+            count: 1,
+        }],
         health_limit: 10,
     };
     assert_eq!(
@@ -1003,7 +1373,9 @@ fn the_store_answers_which_aim_a_move_takes() {
 #[test]
 fn the_swing_leaves_the_aim_it_took() {
     use bevy_ecs::prelude::*;
-    use cdda_sim::martial_arts::{AppliedMove, Practising, Requirement, Style, Technique, TechniqueFlags, Vector, VectorNeed};
+    use cdda_sim::martial_arts::{
+        AppliedMove, Practising, Requirement, Style, Technique, TechniqueFlags, Vector, VectorNeed,
+    };
     use cdda_sim::martial_arts_vectors::LastAim;
 
     let mut world = World::new();
@@ -1045,8 +1417,15 @@ fn the_swing_leaves_the_aim_it_took() {
     ));
     let zombie = cdda_sim::creature::spawn_creature(&mut world, "a zombie", (1, 0, 0));
     world.entity_mut(zombie).insert((
-        cdda_sim::creature::Health { hp: 9_000, max_hp: 9_000 },
-        cdda_sim::creature::Armour { bash: 0, cut: 0, stab: 0 },
+        cdda_sim::creature::Health {
+            hp: 9_000,
+            max_hp: 9_000,
+        },
+        cdda_sim::creature::Armour {
+            bash: 0,
+            cut: 0,
+            stab: 0,
+        },
     ));
 
     let flags = TechniqueFlags {
@@ -1096,12 +1475,18 @@ fn the_swing_leaves_the_aim_it_took() {
     world.entity_mut(survivor).insert(styled(vec![Vector {
         id: "vector_elbow".to_owned(),
         limbs: vec!["arm_r".to_owned()],
-        needs: vec![VectorNeed { kind: "arm".to_owned(), count: 1 }],
+        needs: vec![VectorNeed {
+            kind: "arm".to_owned(),
+            count: 1,
+        }],
         health_limit: 10,
     }]));
     cdda_sim::creature::swing_what_the_character_holds(&mut world, survivor, zombie);
     assert_eq!(
-        world.get::<LastAim>(survivor).and_then(|aim| aim.0.clone()).as_deref(),
+        world
+            .get::<LastAim>(survivor)
+            .and_then(|aim| aim.0.clone())
+            .as_deref(),
         Some("vector_elbow"),
         "**and a move with an aim the body can take leaves it**"
     );

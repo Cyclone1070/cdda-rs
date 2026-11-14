@@ -122,9 +122,25 @@ fn an_inheriting_harvest_gets_its_parent_s_entries_and_then_its_own() {
     );
     resolve_harvests(&mut all);
     let child = all.get("child").expect("the child");
-    assert_eq!(child.entries.len(), 2, "the parent's entry and the child's, and no more");
-    assert_eq!(child.entries.first().map(|entry| entry.drop.as_str()), Some("meat"), "the parent's comes first");
-    assert_eq!(child.entries.last().map(|entry| entry.drop.as_str()), Some("bone"), "the child's comes after");
+    assert_eq!(
+        child.entries.len(),
+        2,
+        "the parent's entry and the child's, and no more"
+    );
+    assert_eq!(
+        child.entries.first().map(|entry| entry.drop.as_str()),
+        Some("meat"),
+        "the parent's comes first"
+    );
+    assert_eq!(
+        child.entries.last().map(|entry| entry.drop.as_str()),
+        Some("bone"),
+        "the child's comes after"
+    );
     let parent = all.get("parent").expect("the parent");
-    assert_eq!(parent.entries.len(), 1, "the parent is untouched by its child");
+    assert_eq!(
+        parent.entries.len(),
+        1,
+        "the parent is untouched by its child"
+    );
 }

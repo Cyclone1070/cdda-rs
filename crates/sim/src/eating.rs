@@ -39,7 +39,11 @@ pub fn eat_a_bite(
     registry: &std::collections::BTreeMap<String, cdda_content::vitamins::Vitamin>,
 ) -> Result<FoodSummary, BiteError> {
     let summary = food_summary(facts, flags, relative_rot, diet, registry);
-    if summary.water_ml == 0 && summary.solids_ml == 0 && summary.calories == 0 && summary.vitamins.is_empty() {
+    if summary.water_ml == 0
+        && summary.solids_ml == 0
+        && summary.calories == 0
+        && summary.vitamins.is_empty()
+    {
         return Err(BiteError::NotFood);
     }
     let Some(mut body) = world.get::<Body>(creature).cloned() else {

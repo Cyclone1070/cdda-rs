@@ -64,7 +64,14 @@ pub fn line_of_fire_map() -> LineOfFireMap {
                 Square::Floor
             };
             squares.push(([dx, dy, 0], ground));
-            squares.push(([dx, dy, 1], if dx == 8 { Square::OpenAir } else { Square::Floor }));
+            squares.push((
+                [dx, dy, 1],
+                if dx == 8 {
+                    Square::OpenAir
+                } else {
+                    Square::Floor
+                },
+            ));
         }
     }
     LineOfFireMap { squares }

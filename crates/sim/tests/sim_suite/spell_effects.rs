@@ -38,7 +38,9 @@ fn a_spell(effect_name: &str, damage: i64, area: i64) -> Spell {
         casting_time: scaling(0),
         difficulty: Some(0.0),
         max_level: Some(10.0),
-        valid_targets: ["hostile".to_owned(), "ground".to_owned()].into_iter().collect(),
+        valid_targets: ["hostile".to_owned(), "ground".to_owned()]
+            .into_iter()
+            .collect(),
         targeted_monster_ids: std::collections::BTreeSet::new(),
         targeted_species_ids: std::collections::BTreeSet::new(),
         ignored_species_ids: std::collections::BTreeSet::new(),
@@ -182,7 +184,10 @@ fn a_summoning_spell_brings_the_monster_it_names() {
         monster_registry::name_of(&world, MonsterKindId(1)).as_deref(),
         Some("mon_zombie")
     );
-    assert_eq!(monster_registry::hit_points(&mut world, MonsterKindId(1)), 80);
+    assert_eq!(
+        monster_registry::hit_points(&mut world, MonsterKindId(1)),
+        80
+    );
 
     // **A summon draws the square it lands on**, so the world needs dice: the reference's `rng( 0, area.size() - 1 )` is what picks the square, and a world with none would have
     // the rule guess one. It also needs **ground**: a blast stops at the first impassable square, and a world with no terrain has nothing but impassable ones - so the aimed point
@@ -281,7 +286,9 @@ fn a_spell_takes_one_effect_off_and_leaves_the_rest() {
         spell_effects::apply(&mut world, caster, &spell, 0, (0, 0, 0)),
         Effective::Done
     );
-    let worn = world.get::<AppliedEffects>(victim).expect("still wearing something");
+    let worn = world
+        .get::<AppliedEffects>(victim)
+        .expect("still wearing something");
     assert_eq!(worn.0.len(), 1, "one effect came off and one stayed");
     assert_eq!(worn.0[0].id, "effect_bleed", "the bleeding stayed");
     assert_eq!(worn.0[0].intensity, 2, "and kept its numbers");
@@ -369,7 +376,8 @@ fn a_spell_takes_one_field_off_the_squares_it_reaches() {
 fn the_field_numbers_the_port_uses_are_the_oracles_order() {
     use cdda_core_types::field::FieldId;
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/field_types.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/field_types.json");
     let text = std::fs::read_to_string(path).expect("the field dump");
     let value = cdda_json::parse(text.as_bytes()).expect("valid json");
     let cdda_json::Value::Object(root) = &value else {
@@ -396,7 +404,11 @@ fn the_field_numbers_the_port_uses_are_the_oracles_order() {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         by_name.push((id.as_str(), *num as u32));
     }
-    assert_eq!(by_name.len(), 145, "every one of the 145 fields states a number");
+    assert_eq!(
+        by_name.len(),
+        145,
+        "every one of the 145 fields states a number"
+    );
 
     let constants: [(&str, FieldId); 14] = [
         ("fd_fire", cdda_sim::FIRE),
@@ -453,7 +465,10 @@ fn an_attack_spell_hits_everything_its_blast_reaches() {
         });
         world
             .entity_mut(creature)
-            .insert(cdda_sim::creature::Health { hp: 100, max_hp: 100 });
+            .insert(cdda_sim::creature::Health {
+                hp: 100,
+                max_hp: 100,
+            });
     }
 
     let mut spell = a_spell("attack", 10, 1);
@@ -467,7 +482,11 @@ fn an_attack_spell_hits_everything_its_blast_reaches() {
             .map_or(100, |health| health.hp)
     };
     assert!(hurt(&world, near) < 100, "the neighbour lost health");
-    assert_eq!(hurt(&world, far), 100, "and the creature out of the blast did not");
+    assert_eq!(
+        hurt(&world, far),
+        100,
+        "and the creature out of the blast did not"
+    );
     assert_eq!(hurt(&world, caster), 100, "nor did the caster");
 
     // A blast of nothing reaches nobody, which is `NothingAffected` rather than a cast that silently did nothing.
@@ -487,7 +506,10 @@ fn an_attack_spell_hits_everything_its_blast_reaches() {
 #[test]
 fn an_emit_spell_fills_its_blast_with_the_field_the_emission_names() {
     let mut world = World::new();
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0, 3), ("fd_toxic_gas", 20, 3)]);
+    cdda_sim::field_registry::set_field_names(
+        &mut world,
+        &[("fd_null", 0, 3), ("fd_toxic_gas", 20, 3)],
+    );
     cdda_sim::emit_registry::set_emits(
         &mut world,
         &[(
@@ -539,7 +561,10 @@ fn an_emit_spell_fills_its_blast_with_the_field_the_emission_names() {
 #[test]
 fn an_emission_of_a_quantity_spreads_over_the_squares_it_can_reach() {
     let mut world = World::new();
-    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_null", 0, 3), ("fd_toxic_gas", 20, 3)]);
+    cdda_sim::field_registry::set_field_names(
+        &mut world,
+        &[("fd_null", 0, 3), ("fd_toxic_gas", 20, 3)],
+    );
     cdda_sim::emit_registry::set_emits(
         &mut world,
         &[(
@@ -575,8 +600,14 @@ fn an_emission_of_a_quantity_spreads_over_the_squares_it_can_reach() {
             }
         }
     }
-    assert!(squares > 1, "the gas spread over {squares} squares, not one");
-    assert_eq!(total, 12, "holding exactly the quantity the emission stated");
+    assert!(
+        squares > 1,
+        "the gas spread over {squares} squares, not one"
+    );
+    assert_eq!(
+        total, 12,
+        "holding exactly the quantity the emission stated"
+    );
 }
 
 /// **A spell can hand over to a program, and the program knows where it happened.**

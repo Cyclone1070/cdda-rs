@@ -7,7 +7,6 @@ use bevy_ecs::prelude::*;
 
 use cdda_content::dialogue::{Condition, Expression, Operator, StringSource};
 
-
 /// Whether a condition holds for a creature talking to nobody in particular.
 ///
 /// Reference: a `const_dialogue` always has two actors - the player (`u`) and an NPC (`n`) - and many conditions can be asked
@@ -23,7 +22,12 @@ pub fn holds(world: &World, creature: Entity, condition: &Condition) -> bool {
 /// `npc_val` are the listener's.
 #[must_use]
 /// Whether the actor wears anything carrying a flag.
-fn worn_flag(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn worn_flag(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::HasWornWithFlag {
         flag,
         listener: about_listener,
@@ -36,7 +40,12 @@ fn worn_flag(world: &World, speaker: Entity, listener: Option<Entity>, condition
 }
 
 /// Whether the actor carries a flag itself.
-fn creature_flag(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn creature_flag(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::HasFlag {
         flag,
         listener: about_listener,
@@ -78,7 +87,12 @@ fn answer_skill(
 ///
 /// Reference: `is_creature_outside` (`weather.cpp:76-82`): the actor's square is outside **and** the level is at or above street level - a creature below ground
 /// is under rock however open the square above it is.
-fn is_outside(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn is_outside(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::IsOutside {
         listener: about_listener,
     } = condition
@@ -98,7 +112,12 @@ fn is_outside(world: &World, speaker: Entity, listener: Option<Entity>, conditio
 ///
 /// Reference: `f_near_om_location` (`condition.cpp:1074`): every overmap tile within `range` is compared against the name, and the guard holds on the first
 /// match. `oter_no_dir_or_connections` is why the comparison drops the direction - a tile spelled `road_north` answers for `road`.
-fn near_om_location(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn near_om_location(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::NearOmLocation {
         location,
         range,
@@ -117,10 +136,13 @@ fn near_om_location(world: &World, speaker: Entity, listener: Option<Entity>, co
         return false;
     };
     let tile = crate::overmap::tile_of(at.x, at.y);
-    crate::overmap::tiles(world).into_iter().any(|(tile_at, terrain)| {
-        let step = (tile_at.0 - tile.0).abs().max((tile_at.1 - tile.1).abs());
-        step <= *range && (terrain == wanted || crate::overmap::base_terrain(&terrain) == wanted)
-    })
+    crate::overmap::tiles(world)
+        .into_iter()
+        .any(|(tile_at, terrain)| {
+            let step = (tile_at.0 - tile.0).abs().max((tile_at.1 - tile.1).abs());
+            step <= *range
+                && (terrain == wanted || crate::overmap::base_terrain(&terrain) == wanted)
+        })
 }
 
 /// Whether a condition holds, with a listener to ask about.
@@ -132,7 +154,6 @@ pub fn holds_with(
 ) -> bool {
     holds_drawing(world, speaker, listener, condition, &mut None)
 }
-
 
 /// Whether a creature stands on an overmap tile of a named terrain.
 ///
@@ -158,8 +179,6 @@ fn at_om_location(
     crate::overmap::terrain_at(world, tile)
         .is_some_and(|terrain| crate::overmap::base_terrain(terrain) == name)
 }
-
-
 
 /// Whether the program a condition names holds.
 ///
@@ -303,7 +322,11 @@ fn carries_enough(
 
 /// Which creature a guard asks about, or nothing when it asks about a listener that is not there.
 fn actor_for(speaker: Entity, listener: Option<Entity>, about_listener: bool) -> Option<Entity> {
-    if about_listener { listener } else { Some(speaker) }
+    if about_listener {
+        listener
+    } else {
+        Some(speaker)
+    }
 }
 
 /// Whether any name in a list answers yes, resolving each name as the data wrote it.
@@ -314,9 +337,9 @@ fn any_named(
     names: &[cdda_content::dialogue::StringSource],
     mut holds: impl FnMut(String) -> bool,
 ) -> bool {
-    names.iter().any(|wanted| {
-        text_of(world, speaker, listener, wanted).is_some_and(&mut holds)
-    })
+    names
+        .iter()
+        .any(|wanted| text_of(world, speaker, listener, wanted).is_some_and(&mut holds))
 }
 
 /// Whether a creature carries at least one of an item, by stack or by charge.
@@ -378,8 +401,16 @@ pub fn holds_in_store(
 /// Reference: `f_player_see` (`condition.cpp:1371-1375`): `get_player_view().sees( here, *c )` for the creature the dialogue holds. The port asks its own sight rule
 /// between the avatar's square and the creature's, over the sight range the port uses, and answers false when there is no avatar or no creature to look at - which is
 /// what the reference answers for a dialogue with no such actor.
-fn player_sees(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
-    let Condition::PlayerSees { listener: about_listener } = condition else {
+fn player_sees(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
+    let Condition::PlayerSees {
+        listener: about_listener,
+    } = condition
+    else {
         return false;
     };
     let creature = actor_for(speaker, listener, *about_listener);
@@ -396,7 +427,12 @@ fn player_sees(world: &World, speaker: Entity, listener: Option<Entity>, conditi
     if from.z != to.z {
         return false;
     }
-    crate::sees(world, (from.x, from.y), (to.x, to.y), cdda_core_types::grid::MAX_VIEW_DISTANCE)
+    crate::sees(
+        world,
+        (from.x, from.y),
+        (to.x, to.y),
+        cdda_core_types::grid::MAX_VIEW_DISTANCE,
+    )
 }
 
 /// Whether a creature is a person rather than a monster.
@@ -404,7 +440,10 @@ fn player_sees(world: &World, speaker: Entity, listener: Option<Entity>, conditi
 /// Reference: `talker::get_const_character` (`talker.h`) answers non-null for the avatar and for every `Character`, and null for a `monster`. A monster is the one kind of
 /// creature that carries a [`crate::creature::CreatureKind`] - its type id - so "a person" is "a creature with no monster type behind it".
 fn is_person(world: &World, creature: Entity) -> bool {
-    world.get::<crate::Position>(creature).is_some() && world.get::<crate::creature::CreatureKind>(creature).is_none()
+    world.get::<crate::Position>(creature).is_some()
+        && world
+            .get::<crate::creature::CreatureKind>(creature)
+            .is_none()
 }
 
 /// Whether a creature is wielding an item.
@@ -413,7 +452,9 @@ fn is_person(world: &World, creature: Entity) -> bool {
 /// points at the creature.
 fn wields(world: &World, creature: Entity) -> bool {
     let mut query = world.try_query::<&crate::creature::WieldedBy>();
-    query.as_mut().is_some_and(|query| query.iter(world).any(|who| who.0 == creature))
+    query
+        .as_mut()
+        .is_some_and(|query| query.iter(world).any(|who| who.0 == creature))
 }
 
 fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> bool {
@@ -429,10 +470,14 @@ fn simple_holds(world: &World, speaker: Entity, listener: Option<Entity>, name: 
         // Reference: `f_is_avatar` asks whether the talker **is** the player, and `f_is_character` (`condition.cpp:1331-1336`) asks whether it is a person at all - true for
         // the avatar **and** for every NPC, false for a monster. They were one answer here until a data site (`{"and": ["npc_is_character", ...]}`) needed the difference.
         "u_is_avatar" => crate::missions::avatar(world) == Some(speaker),
-        "npc_is_avatar" => listener.is_some_and(|them| crate::missions::avatar(world) == Some(them)),
+        "npc_is_avatar" => {
+            listener.is_some_and(|them| crate::missions::avatar(world) == Some(them))
+        }
         // Reference: `f_is_underwater` (`condition.cpp:2651`) reads `Character::is_underwater`, which is the creature's own state and not the ground's.
         "u_is_underwater" => crate::creature::is_underwater(world, speaker),
-        "npc_is_underwater" => listener.is_some_and(|them| crate::creature::is_underwater(world, them)),
+        "npc_is_underwater" => {
+            listener.is_some_and(|them| crate::creature::is_underwater(world, them))
+        }
         "u_is_character" => is_person(world, speaker),
         "npc_is_character" => listener.is_some_and(|them| is_person(world, them)),
         // Reference: `is_day( p )` (`calendar.cpp:368-371`) is `sun_altitude >= sunrise_angle`, and `is_night` is `sun_altitude <= civil_dawn` - six degrees below the
@@ -467,7 +512,8 @@ fn wears_at_least(
         (true, None) => return false,
         (false, _) => speaker,
     };
-    crate::applied_effects::intensity_of(world, creature, effect).is_some_and(|worn| intensity <= worn)
+    crate::applied_effects::intensity_of(world, creature, effect)
+        .is_some_and(|worn| intensity <= worn)
 }
 
 /// Whether a condition holds, with dice available for the two guards that roll.
@@ -507,28 +553,30 @@ fn holds_within(
         Condition::HasBeta => listener.is_some(),
         // A question the port cannot ask answers the data's default; the runner asks it through the choice queue when it is an `if`'s whole condition.
         Condition::Query { default } => *default,
-        Condition::HasBionics { bionic, listener: about_listener } => {
-            has_bionic(world, speaker, listener, bionic, *about_listener)
-        }
+        Condition::HasBionics {
+            bionic,
+            listener: about_listener,
+        } => has_bionic(world, speaker, listener, bionic, *about_listener),
         Condition::TestEoc { id } => tests_program(world, speaker, listener, id, draws, depth),
         Condition::OneInChance(_) | Condition::XInYChance { .. } => {
             rolls_against(world, speaker, listener, condition, draws)
         }
         Condition::CanSeeLocation { .. } => can_see_asked(world, speaker, listener, condition),
         Condition::MapInCity { .. } => map_in_city(world, speaker, listener, condition),
-        Condition::MapTerFurnWithFlag { .. } => map_ter_furn_with_flag(world, speaker, listener, condition),
+        Condition::MapTerFurnWithFlag { .. } => {
+            map_ter_furn_with_flag(world, speaker, listener, condition)
+        }
         Condition::IsOnTerrain { .. } => is_on_terrain(world, speaker, listener, condition),
         Condition::HasSpecies { .. } => has_species(world, speaker, listener, condition),
         Condition::NpcAllies { .. } => npc_allies(world, speaker, listener, condition),
         Condition::GetCondition { .. } => get_condition(world, speaker, listener, condition),
         Condition::IsDeaf { .. } => is_deaf(world, speaker, listener, condition),
-        Condition::AtOmLocation { place, listener: about_listener } => {
-            at_om_location(world, speaker, listener, place, *about_listener)
-        }
+        Condition::AtOmLocation {
+            place,
+            listener: about_listener,
+        } => at_om_location(world, speaker, listener, place, *about_listener),
         Condition::ExpectsVars { names } => expects_vars(world, speaker, listener, names),
-        Condition::IsSeason { season } => {
-            is_season(world, speaker, listener, season)
-        }
+        Condition::IsSeason { season } => is_season(world, speaker, listener, season),
         Condition::NearOmLocation { .. } => near_om_location(world, speaker, listener, condition),
         Condition::IsOutside { .. } => is_outside(world, speaker, listener, condition),
         Condition::HasWornWithFlag { .. } => worn_flag(world, speaker, listener, condition),
@@ -542,11 +590,14 @@ fn holds_within(
             };
             crate::item_registry::has_enough_charges(world, item)
         }
-        Condition::CanSee { listener: about_listener } => actor_for(speaker, listener, *about_listener)
+        Condition::CanSee {
+            listener: about_listener,
+        } => actor_for(speaker, listener, *about_listener)
             .is_some_and(|actor| crate::seeing::can_see(world, actor)),
         Condition::Simple { name } => simple_holds(world, speaker, listener, name),
-        Condition::IsWeather { wanted } => crate::weather::id_of(world)
-            .is_some_and(|happening| wanted.contains(&happening)),
+        Condition::IsWeather { wanted } => {
+            crate::weather::id_of(world).is_some_and(|happening| wanted.contains(&happening))
+        }
         Condition::HasMission { mission } => {
             let holder = crate::missions::question_holder(world, speaker);
             crate::missions::has_mission(world, holder, mission)
@@ -564,7 +615,14 @@ fn holds_within(
             effect,
             intensity,
             listener: about_listener,
-        } => wears_at_least(world, speaker, listener, effect, *intensity, *about_listener),
+        } => wears_at_least(
+            world,
+            speaker,
+            listener,
+            effect,
+            *intensity,
+            *about_listener,
+        ),
         Condition::And(conditions) => {
             conditions_with_dice(world, speaker, listener, conditions, draws, true)
         }
@@ -586,7 +644,9 @@ fn holds_within(
                 return false;
             };
             let held = crate::traits::traits_held(world, creature);
-            any_named(world, speaker, listener, traits, |name| held.contains(&name))
+            any_named(world, speaker, listener, traits, |name| {
+                held.contains(&name)
+            })
         }
         Condition::HasAnyEffect {
             effects,
@@ -599,9 +659,10 @@ fn holds_within(
                 crate::applied_effects::has(world, creature, &name)
             })
         }
-        Condition::HasItem { item, listener: about_listener } => {
-            carries_one_of(world, speaker, listener, item, *about_listener)
-        }
+        Condition::HasItem {
+            item,
+            listener: about_listener,
+        } => carries_one_of(world, speaker, listener, item, *about_listener),
         Condition::Math(expression) => matches!(
             value_drawing(world, speaker, listener, expression, false, draws.as_deref_mut()),
             Some(result) if result != 0.0
@@ -638,7 +699,12 @@ enum Answer {
 ///
 /// Reference: `npc_value_eval` and its three siblings (`math_parser_diag.cpp:1408-1440`): the name's scope prefix says whose opinion it is (`n_` the NPC, `u_`
 /// the player), and an actor that does not exist answers **zero** rather than failing.
-fn answer_opinion(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> Option<Answer> {
+fn answer_opinion(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+) -> Option<Answer> {
     let (which, about_listener) = match name {
         "n_npc_value" | "npc_value" => (crate::npc_opinion::Feeling::Value, true),
         "n_npc_anger" | "npc_anger" => (crate::npc_opinion::Feeling::Anger, true),
@@ -652,16 +718,20 @@ fn answer_opinion(world: &World, speaker: Entity, listener: Option<Entity>, name
     };
     // Nobody to ask answers zero rather than nothing: that is what lets a program check an opinion in a dialogue that has no listener at all.
     let actor = actor_for(speaker, listener, about_listener);
-    let feeling = actor.map_or(0, |actor| crate::npc_opinion::feeling_of(world, actor, which));
+    let feeling = actor.map_or(0, |actor| {
+        crate::npc_opinion::feeling_of(world, actor, which)
+    });
     Some(Answer::Value(f64::from(feeling)))
 }
 
 /// The unit a call asked its answer in, when it named one.
 fn unit_of(keywords: &[(String, Expression)]) -> Option<&str> {
-    keywords.iter().find_map(|(name, value)| match (name.as_str(), value) {
-        ("unit", Expression::Text(unit)) => Some(unit.as_str()),
-        _ => None,
-    })
+    keywords
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            ("unit", Expression::Text(unit)) => Some(unit.as_str()),
+            _ => None,
+        })
 }
 
 /// How many turns one of a named span is worth.
@@ -705,7 +775,8 @@ fn drawing_function(
 ) -> Answer {
     match (name, arguments) {
         ("rand", [argument]) => {
-            let Some(n) = value_drawing(world, speaker, listener, argument, unset_is_zero, None) else {
+            let Some(n) = value_drawing(world, speaker, listener, argument, unset_is_zero, None)
+            else {
                 return Answer::Refused;
             };
             #[allow(clippy::cast_possible_truncation)]
@@ -768,7 +839,9 @@ fn answer_calories(
     name: &str,
     keywords: &[(String, Expression)],
 ) -> Answer {
-    if keyword_text(world, speaker, listener, keywords, "format").is_some_and(|format| format != "raw") {
+    if keyword_text(world, speaker, listener, keywords, "format")
+        .is_some_and(|format| format != "raw")
+    {
         return Answer::Refused;
     }
     let creature = match name {
@@ -875,12 +948,18 @@ fn answer_time_since(
         Some(unit) => unit_turns(unit),
         None => Some(1.0),
     };
-    turns
-        .zip(scale)
-        .map_or(Answer::NotMine, |(turns, scale)| Answer::Value(turns / scale))
+    turns.zip(scale).map_or(Answer::NotMine, |(turns, scale)| {
+        Answer::Value(turns / scale)
+    })
 }
 
-fn answer_spell(world: &World, speaker: Entity, listener: Option<Entity>, name: &str, argument: &Expression) -> Answer {
+fn answer_spell(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    argument: &Expression,
+) -> Answer {
     let about_listener = name.starts_with("npc_");
     let Some(actor) = actor_for(speaker, listener, about_listener) else {
         return Answer::Refused;
@@ -889,12 +968,16 @@ fn answer_spell(world: &World, speaker: Entity, listener: Option<Entity>, name: 
         return Answer::Refused;
     };
     if name.contains("spell_exp") {
-        return Answer::Value(f64::from(crate::known_spells::experience_of(world, actor, spell)));
+        return Answer::Value(f64::from(crate::known_spells::experience_of(
+            world, actor, spell,
+        )));
     }
     if spell.is_empty() {
         return Answer::Value(f64::from(crate::known_spells::highest_level(world, actor)));
     }
-    Answer::Value(f64::from(crate::known_spells::level_of(world, actor, spell)))
+    Answer::Value(f64::from(crate::known_spells::level_of(
+        world, actor, spell,
+    )))
 }
 
 fn answer_weather(world: &World, aspect: &Expression) -> Answer {
@@ -963,7 +1046,10 @@ fn answer_data_function(
 ///
 /// Reference: the reference's math parser has these in its own table, so a body written as `(_0 / max(1, (_0 - (_1 * _2)))) - 1` evaluates without the dialogue
 /// being involved at all. The port's `math_expr` has no built-ins, so the context supplies them.
-fn simple_arithmetic(name: &str, arguments: &[cdda_content::math_expr::Value]) -> Option<Result<cdda_content::math_expr::Value, cdda_content::math_expr::MathError>> {
+fn simple_arithmetic(
+    name: &str,
+    arguments: &[cdda_content::math_expr::Value],
+) -> Option<Result<cdda_content::math_expr::Value, cdda_content::math_expr::MathError>> {
     use cdda_content::math_expr::{MathError, Value};
     let numbers: Option<Vec<f64>> = arguments.iter().map(Value::as_number).collect();
     let numbers = numbers?;
@@ -978,7 +1064,9 @@ fn simple_arithmetic(name: &str, arguments: &[cdda_content::math_expr::Value]) -
         "sqrt" => first.sqrt(),
         "clamp" => {
             let [value, low, high] = numbers.as_slice() else {
-                return Some(Err(MathError::UnknownName { name: name.to_owned() }));
+                return Some(Err(MathError::UnknownName {
+                    name: name.to_owned(),
+                }));
             };
             value.clamp(*low, *high)
         }
@@ -1027,11 +1115,21 @@ impl cdda_content::math_expr::Context for DialogueMathContext<'_> {
             keywords: &[],
         };
         let mut none = None;
-        match special_function(self.world, self.speaker, self.listener, name, &call, true, &mut none) {
+        match special_function(
+            self.world,
+            self.speaker,
+            self.listener,
+            name,
+            &call,
+            true,
+            &mut none,
+        ) {
             Answer::Value(number) => Ok(cdda_content::math_expr::Value::Number(number)),
-            Answer::Refused | Answer::NotMine => Err(cdda_content::math_expr::MathError::UnknownName {
-                name: name.to_owned(),
-            }),
+            Answer::Refused | Answer::NotMine => {
+                Err(cdda_content::math_expr::MathError::UnknownName {
+                    name: name.to_owned(),
+                })
+            }
         }
     }
 }
@@ -1040,7 +1138,12 @@ impl cdda_content::math_expr::Context for DialogueMathContext<'_> {
 ///
 /// Reference: `hp_eval` and `hp_max_eval` (`math_parser_diag.cpp:1714`) both take a body part; the port has no per-part hit points, so both answer the whole
 /// creature, and the two numbers stay apart because a health bar needs both.
-fn answer_hit_points(world: &World, speaker: Entity, listener: Option<Entity>, name: &str) -> Answer {
+fn answer_hit_points(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+) -> Answer {
     let Some(actor) = actor_for(speaker, listener, matches!(name, "npc_hp" | "npc_hp_max")) else {
         return Answer::Refused;
     };
@@ -1078,9 +1181,7 @@ fn answer_addiction(
         return Answer::Value(f64::from(i32::try_from(turns).unwrap_or(i32::MAX)));
     }
     Answer::Value(f64::from(crate::addictions::intensity_of(
-        world,
-        actor,
-        &addiction,
+        world, actor, &addiction,
     )))
 }
 
@@ -1151,7 +1252,13 @@ fn answer_field_strength(
 ///
 /// Reference: `vitamin_eval` (`math_parser_diag.cpp:1584-1592`) answers `vitamin_get`, which is the stored amount and **zero** for a vitamin the body has none of
 /// (`consumption.cpp:715-723`) - not a refusal, because "none of it" is a real answer.
-fn answer_vitamin(world: &World, speaker: Entity, listener: Option<Entity>, name: &str, arguments: &[Expression]) -> Option<f64> {
+fn answer_vitamin(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+    arguments: &[Expression],
+) -> Option<f64> {
     let [Expression::Text(vitamin)] = arguments else {
         return None;
     };
@@ -1315,7 +1422,8 @@ fn count_monsters_within(
 ) -> f64 {
     let kinds = crate::singletons::holder::<crate::monster_registry::TheMonsterTypes>(world)
         .and_then(|holder| world.get::<crate::monster_registry::MonsterTypes>(holder));
-    let Some(mut query) = world.try_query::<(&crate::creature::CreatureKind, &crate::Position)>() else {
+    let Some(mut query) = world.try_query::<(&crate::creature::CreatureKind, &crate::Position)>()
+    else {
         return 0.0;
     };
     let mut found = 0usize;
@@ -1458,8 +1566,15 @@ fn special_function(
     }
     // A reborrow, so the caller keeps ownership of the dice: `as_deref_mut` on this type is already a reborrow in everything but name.
     if let Some(dice) = draws.as_mut().map(|dice| &mut **dice)
-        && let Answer::Value(drawn) =
-            drawing_function(world, speaker, listener, name, arguments, unset_is_zero, dice)
+        && let Answer::Value(drawn) = drawing_function(
+            world,
+            speaker,
+            listener,
+            name,
+            arguments,
+            unset_is_zero,
+            dice,
+        )
     {
         return Answer::Value(drawn);
     }
@@ -1483,7 +1598,12 @@ fn special_function(
 ///
 /// Reference: `f_map_in_city` (`condition.cpp:1863-1875`): the position is projected to an overmap tile, a target **below z -1 is not in a city**, and the rest is the
 /// city's tile set answering by membership.
-fn map_in_city(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn map_in_city(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::MapInCity { target } = condition else {
         return false;
     };
@@ -1505,8 +1625,18 @@ fn map_in_city(world: &World, speaker: Entity, listener: Option<Entity>, conditi
 ///
 /// Reference: `f_map_ter_furn_with_flag` (`condition.cpp:1818-1842`): the square comes from the `loc` variable, and the flag is asked of the **tile's terrain** or its
 /// furniture, each of which owns its flags in the type table rather than on the square.
-fn map_ter_furn_with_flag(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
-    let Condition::MapTerFurnWithFlag { flag, target, furniture } = condition else {
+fn map_ter_furn_with_flag(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
+    let Condition::MapTerFurnWithFlag {
+        flag,
+        target,
+        furniture,
+    } = condition
+    else {
         return false;
     };
     let Some(holder) = holder_for_scope(world, speaker, listener, &target.0) else {
@@ -1535,7 +1665,12 @@ fn map_ter_furn_with_flag(world: &World, speaker: Entity, listener: Option<Entit
 /// Whether two of the sources read the same text.
 ///
 /// Reference: `f_compare_string` (`condition.cpp`): the sources are read in order and the answer is whether any two agree.
-fn compares_strings(world: &World, speaker: Entity, listener: Option<Entity>, sources: &[cdda_content::dialogue::StringSource]) -> bool {
+fn compares_strings(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    sources: &[cdda_content::dialogue::StringSource],
+) -> bool {
     let mut seen: Vec<String> = Vec::with_capacity(sources.len());
     for source in sources {
         let Some(text) = text_of(world, speaker, listener, source) else {
@@ -1554,28 +1689,50 @@ fn compares_strings(world: &World, speaker: Entity, listener: Option<Entity>, so
 /// Reference: `Character::is_deaf` (`character.cpp:4768-4775`): a `deaf` effect past intensity 2, worn gear carrying the `DEAF` flag, a mutation with the same flag, or
 /// the `narcosis` effect. **The reference's fifth clause is left out** - a fungal mutation while asleep in fungus - because the port has no sleep state yet; the rule is
 /// written here so that the day it does, one clause is added rather than a second rule discovered.
-fn is_deaf(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn is_deaf(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::IsDeaf { listener: theirs } = condition else {
         return false;
     };
     let Some(creature) = actor_for(speaker, listener, *theirs) else {
         return false;
     };
-    if crate::applied_effects::intensity_of(world, creature, "deaf").is_some_and(|strength| strength > 2) {
+    if crate::applied_effects::intensity_of(world, creature, "deaf")
+        .is_some_and(|strength| strength > 2)
+    {
         return true;
     }
     if crate::applied_effects::has(world, creature, "narcosis") {
         return true;
     }
-    crate::worn_flags::worn_with_flag(world, creature, "DEAF") || crate::creature_flags::has_flag(world, creature, "DEAF")
+    crate::worn_flags::worn_with_flag(world, creature, "DEAF")
+        || crate::creature_flags::has_flag(world, creature, "DEAF")
 }
 
-fn can_see_asked(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn can_see_asked(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     answer_can_see_location(world, speaker, listener, condition).unwrap_or(false)
 }
 
-fn answer_can_see_location(world: &World, speaker: Entity, listener: Option<Entity>, condition: &cdda_content::dialogue::Condition) -> Option<bool> {
-    let cdda_content::dialogue::Condition::CanSeeLocation { listener: theirs, target } = condition else {
+fn answer_can_see_location(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &cdda_content::dialogue::Condition,
+) -> Option<bool> {
+    let cdda_content::dialogue::Condition::CanSeeLocation {
+        listener: theirs,
+        target,
+    } = condition
+    else {
         return None;
     };
     let actor = if *theirs { listener } else { Some(speaker) };
@@ -1599,11 +1756,21 @@ fn answer_from_table(
 ) -> Answer {
     match (name, arguments) {
         // Reference: `hp_eval`, which takes a body part the port does not model and answers the whole creature's remaining hit points.
-        ("distance", [first, second]) => return distance_between(world, speaker, listener, first, second),
-        ("u_monsters_nearby" | "npc_monsters_nearby" | "u_characters_nearby" | "npc_characters_nearby", _) => {
+        ("distance", [first, second]) => {
+            return distance_between(world, speaker, listener, first, second);
+        }
+        (
+            "u_monsters_nearby"
+            | "npc_monsters_nearby"
+            | "u_characters_nearby"
+            | "npc_characters_nearby",
+            _,
+        ) => {
             return answer_nearby(world, speaker, listener, name, arguments, keywords);
         }
-        ("health" | "u_health" | "npc_health", []) => return answer_health(world, speaker, listener, name),
+        ("health" | "u_health" | "npc_health", []) => {
+            return answer_health(world, speaker, listener, name);
+        }
         (
             addiction @ ("addiction_intensity"
             | "u_addiction_intensity"
@@ -1614,7 +1781,11 @@ fn answer_from_table(
             _,
         ) => return answer_addiction(world, speaker, listener, addiction, arguments),
         ("weather", [aspect]) => return answer_weather(world, aspect),
-        ("spell_level" | "u_spell_level" | "npc_spell_level" | "spell_exp" | "u_spell_exp" | "npc_spell_exp", [argument]) => return answer_spell(world, speaker, listener, name, argument),
+        (
+            "spell_level" | "u_spell_level" | "npc_spell_level" | "spell_exp" | "u_spell_exp"
+            | "npc_spell_exp",
+            [argument],
+        ) => return answer_spell(world, speaker, listener, name, argument),
         ("has_flag" | "u_has_flag" | "npc_has_flag", _) => {
             return answer_has_flag(world, speaker, listener, name, arguments);
         }
@@ -1626,7 +1797,10 @@ fn answer_from_table(
         ("calories" | "u_calories" | "npc_calories", _) => {
             return answer_calories(world, speaker, listener, name, keywords);
         }
-        ("vitamin" | "u_vitamin" | "npc_vitamin", _) => return answer_vitamin(world, speaker, listener, name, arguments).map_or(Answer::Refused, Answer::Value),
+        ("vitamin" | "u_vitamin" | "npc_vitamin", _) => {
+            return answer_vitamin(world, speaker, listener, name, arguments)
+                .map_or(Answer::Refused, Answer::Value);
+        }
         ("u_pain" | "npc_pain", []) => {
             return answer_pain(world, speaker, listener, name, keywords);
         }
@@ -1708,11 +1882,18 @@ pub fn value_drawing(
             let dice = draws.as_mut()?;
             Some(f64::from(dice.rng(low, high)))
         }
-        Expression::VariableOrDefault { scope, name, fallback } => {
+        Expression::VariableOrDefault {
+            scope,
+            name,
+            fallback,
+        } => {
             // Reference: `dbl_or_var_part::evaluate` (`condition.cpp`) answers the variable's value, and the data's `default` when it holds nothing.
             if scope == "context_val" {
                 let held = crate::dialogue_context::values(world, speaker).remove(name);
-                return Some(held.and_then(|text| text.parse::<f64>().ok()).unwrap_or(*fallback));
+                return Some(
+                    held.and_then(|text| text.parse::<f64>().ok())
+                        .unwrap_or(*fallback),
+                );
             }
             let holder = holder_for_scope(world, speaker, listener, scope)?;
             Some(crate::dialogue_values::number_of(world, holder, name).unwrap_or(*fallback))
@@ -1722,7 +1903,10 @@ pub fn value_drawing(
             // `variables` - so it is not a per-holder scope and has no holder to look up.
             if scope == "context_val" {
                 let held = crate::dialogue_context::values(world, speaker).remove(name)?;
-                return held.parse::<f64>().ok().or(if unset_is_zero { Some(0.0) } else { None });
+                return held
+                    .parse::<f64>()
+                    .ok()
+                    .or(if unset_is_zero { Some(0.0) } else { None });
             }
             let holder = holder_for_scope(world, speaker, listener, scope)?;
             // Reference: `read_var_value` (`dialogue_helpers.cpp:11-16`) answers an empty `diag_value` for a variable nobody set, and
@@ -1781,9 +1965,15 @@ pub fn value_drawing(
             unset_is_zero,
             draws,
         ),
-        Expression::Binary { op, left, right } => {
-            value_binary(world, speaker, listener, *op, (left, right), unset_is_zero, draws)
-        }
+        Expression::Binary { op, left, right } => value_binary(
+            world,
+            speaker,
+            listener,
+            *op,
+            (left, right),
+            unset_is_zero,
+            draws,
+        ),
     }
 }
 
@@ -2003,8 +2193,17 @@ pub fn converted_text_of(
 ///
 /// Reference: `f_is_on_terrain` (`condition.cpp:2124-2133`): the actor's own square, `here.ter( pos )`, compared to `ter_id( name )` **exactly** - not by flag, not by
 /// base terrain, which is what `u_at_om_location` and `u_is_on_terrain_with_flag` ask instead.
-fn is_on_terrain(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
-    let Condition::IsOnTerrain { terrain, listener: about_listener } = condition else {
+fn is_on_terrain(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
+    let Condition::IsOnTerrain {
+        terrain,
+        listener: about_listener,
+    } = condition
+    else {
         return false;
     };
     let Some(actor) = actor_for(speaker, listener, *about_listener) else {
@@ -2026,8 +2225,17 @@ fn is_on_terrain(world: &World, speaker: Entity, listener: Option<Entity>, condi
 ///
 /// Reference: `f_has_species` (`condition.cpp:646-654`). The species list belongs to the monster's **type** (`mtype::species`), and the port copies it onto the creature when the
 /// creature is made - which is what `monster::has_species` reads, since the type is not in the world.
-fn has_species(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
-    let Condition::HasSpecies { species, listener: about_listener } = condition else {
+fn has_species(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
+    let Condition::HasSpecies {
+        species,
+        listener: about_listener,
+    } = condition
+    else {
         return false;
     };
     let Some(actor) = actor_for(speaker, listener, *about_listener) else {
@@ -2045,7 +2253,12 @@ fn has_species(world: &World, speaker: Entity, listener: Option<Entity>, conditi
 ///
 /// Reference: `f_npc_allies` (`condition.cpp:1159-1165`) compares `g->allies().size()` with the number; `f_npc_allies_global` (`:1167-1179`) counts the allies that are alive.
 /// The port's store is one bubble, so both questions read [`crate::npcs::allies`].
-fn npc_allies(world: &World, _speaker: Entity, _listener: Option<Entity>, condition: &Condition) -> bool {
+fn npc_allies(
+    world: &World,
+    _speaker: Entity,
+    _listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::NpcAllies { needed, global: _ } = condition else {
         return false;
     };
@@ -2056,7 +2269,6 @@ fn npc_allies(world: &World, _speaker: Entity, _listener: Option<Entity>, condit
     crate::npcs::allies(world) >= usize::try_from((*target).max(0)).unwrap_or(0)
 }
 
-
 /// Whether a condition stored under a name holds.
 ///
 /// Reference: `f_get_condition` (`condition.cpp:1941-1948`) asking `evaluate_conditional` (`npctalk.cpp:2670-2674`): an unknown name answers **false**, and a stored one is
@@ -2065,7 +2277,12 @@ fn npc_allies(world: &World, _speaker: Entity, _listener: Option<Entity>, condit
 /// **The stored thing is the condition, not its answer** - `set_condition` writes a [`crate::dialogue_values::Value::Condition`], which is why a name set on one turn can answer
 /// differently on the next. `set_condition` writes the *global* holder by default, so that is where this looks first, then at the speaker's own values for a name the data scoped
 /// to an actor.
-fn get_condition(world: &World, speaker: Entity, listener: Option<Entity>, condition: &Condition) -> bool {
+fn get_condition(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    condition: &Condition,
+) -> bool {
     let Condition::GetCondition { name } = condition else {
         return false;
     };
@@ -2080,12 +2297,12 @@ fn get_condition(world: &World, speaker: Entity, listener: Option<Entity>, condi
     if let Some(them) = listener {
         holders.push(them);
     }
-    let stored = holders
-        .into_iter()
-        .find_map(|holder| match crate::dialogue_values::value_of(world, holder, &text) {
+    let stored = holders.into_iter().find_map(|holder| {
+        match crate::dialogue_values::value_of(world, holder, &text) {
             Some(crate::dialogue_values::Value::Condition(condition)) => Some(*condition),
             _ => None,
-        });
+        }
+    });
     let Some(stored) = stored else {
         return false;
     };

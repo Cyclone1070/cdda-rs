@@ -68,8 +68,9 @@ fn and_or_and_not_are_the_reference_s_three_combinators() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     wearing(&mut world, survivor, "effect_bleed", 1);
 
-    let both =
-        condition(r#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_has_effect": "effect_stun"}]}"#);
+    let both = condition(
+        r#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_has_effect": "effect_stun"}]}"#,
+    );
     let either =
         condition(r#"{"or": [{"u_has_effect": "effect_bleed"}, {"u_has_effect": "effect_stun"}]}"#);
     let neither = condition(r#"{"not": {"u_has_effect": "effect_stun"}}"#);
@@ -83,8 +84,9 @@ fn and_or_and_not_are_the_reference_s_three_combinators() {
 fn a_condition_the_port_cannot_read_is_refused_rather_than_answered() {
     // A body part **is** read now: the port's effects belong to the creature, so a question about a part has one answer it can give, and refusing it made three
     // programs unreadable for a distinction the port cannot make either way. `a_has_effect_with_a_bodypart_answers_about_the_creature` pins what it answers.
-    let with_part = cdda_json::parse(br#"{"u_has_effect": "effect_bleed", "bodypart": "arm_l"}"#.as_slice())
-        .expect("valid json");
+    let with_part =
+        cdda_json::parse(br#"{"u_has_effect": "effect_bleed", "bodypart": "arm_l"}"#.as_slice())
+            .expect("valid json");
     assert!(
         read_condition(&with_part).is_some(),
         "a named part does not make the question unreadable"
@@ -92,11 +94,13 @@ fn a_condition_the_port_cannot_read_is_refused_rather_than_answered() {
 
     // And a verb nobody has ported is refused too. This example has moved twice now - `u_has_trait`, then `u_has_flag` - because each one answered
     // as its rule landed, which is what the test is for and why it was worth keeping rather than deleting.
-    let unported = cdda_json::parse(br#"{"u_is_on_furniture": "f_chair"}"#.as_slice()).expect("valid json");
+    let unported =
+        cdda_json::parse(br#"{"u_is_on_furniture": "f_chair"}"#.as_slice()).expect("valid json");
     assert!(read_condition(&unported).is_none());
     // A combination is only as readable as its parts.
     let mixed = cdda_json::parse(
-        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_is_on_furniture": "f_chair"}]}"#.as_slice(),
+        br#"{"and": [{"u_has_effect": "effect_bleed"}, {"u_is_on_furniture": "f_chair"}]}"#
+            .as_slice(),
     )
     .expect("valid json");
     assert!(
@@ -188,7 +192,8 @@ fn the_port_answers_the_questions_it_can_and_says_how_many_that_is() {
     // before it. That is the whole point of a leaf: a combinator is only as readable as its parts, so one ported leaf is worth
     // several times itself.
     assert_eq!(
-        readable, crate::numbers::NOW.conditions_readable,
+        readable,
+        crate::numbers::NOW.conditions_readable,
         "of which the port answers 1,501: `u_has_effect`, `compare_string`, `u_has_items`, the combinators, and the `math` expressions whose every name it knows"
     );
 }
@@ -210,7 +215,10 @@ fn compare_string_looks_for_a_repeat_anywhere_in_the_list() {
     );
 
     let repeats = condition(r#"{"compare_string": ["marloss", "mycus", "marloss"]}"#);
-    assert!(holds(&world, survivor, &repeats), "the first and last match");
+    assert!(
+        holds(&world, survivor, &repeats),
+        "the first and last match"
+    );
 
     let all_different = condition(r#"{"compare_string": ["marloss", "mycus", "zombie"]}"#);
     assert!(!holds(&world, survivor, &all_different));
@@ -264,17 +272,25 @@ fn has_items_counts_the_stacks_and_the_charges_a_creature_carries() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     for _ in 0..2 {
         let item = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
-        world.entity_mut(item).insert(cdda_sim::creature::Carried(survivor));
+        world
+            .entity_mut(item)
+            .insert(cdda_sim::creature::Carried(survivor));
     }
 
     let two_rags = condition(r#"{"u_has_items": {"item": "rag", "count": 2}}"#);
-    assert!(holds(&world, survivor, &two_rags), "two rag stacks are carried");
+    assert!(
+        holds(&world, survivor, &two_rags),
+        "two rag stacks are carried"
+    );
 
     let three_rags = condition(r#"{"u_has_items": {"item": "rag", "count": 3}}"#);
     assert!(!holds(&world, survivor, &three_rags), "and a third is not");
 
     let two_charges = condition(r#"{"u_has_items": {"item": "rag", "charges": 2}}"#);
-    assert!(holds(&world, survivor, &two_charges), "each stack holds one charge here, so two stacks are two charges");
+    assert!(
+        holds(&world, survivor, &two_charges),
+        "each stack holds one charge here, so two stacks are two charges"
+    );
 
     let some_rope = condition(r#"{"u_has_items": {"item": "rope", "count": 1}}"#);
     assert!(!holds(&world, survivor, &some_rope), "no rope is carried");
@@ -306,8 +322,18 @@ fn the_npc_s_variables_are_not_the_player_s() {
     let mut world = World::new();
     let player = cdda_sim::creature::spawn_creature(&mut world, "the player", (0, 0, 0));
     let trader = cdda_sim::creature::spawn_creature(&mut world, "the trader", (1, 0, 0));
-    cdda_sim::dialogue_values::set(&mut world, player, "price", cdda_sim::dialogue_values::Value::Number(10.0));
-    cdda_sim::dialogue_values::set(&mut world, trader, "price", cdda_sim::dialogue_values::Value::Number(25.0));
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        player,
+        "price",
+        cdda_sim::dialogue_values::Value::Number(10.0),
+    );
+    cdda_sim::dialogue_values::set(
+        &mut world,
+        trader,
+        "price",
+        cdda_sim::dialogue_values::Value::Number(25.0),
+    );
 
     let asks_the_npc = condition(r#"{"math": ["n_val('price')", "==", 25]}"#);
     let asks_the_player = condition(r#"{"math": ["u_val('price')", "==", 10]}"#);
@@ -342,7 +368,10 @@ fn the_math_functions_answer_what_the_reference_s_table_answers() {
     let fahrenheit = condition(r#"{"math": ["fahrenheit(300)", ">", 80.32]}"#);
     assert!(holds(&world, survivor, &fahrenheit));
     let back = condition(r#"{"math": ["from_celsius(celsius(300))", "==", 300]}"#);
-    assert!(holds(&world, survivor, &back), "the two conversions invert each other");
+    assert!(
+        holds(&world, survivor, &back),
+        "the two conversions invert each other"
+    );
 
     // Rounding, and the three-argument clamp.
     let rounded = condition(r#"{"math": ["round(2.5)", "==", 3]}"#);
@@ -367,13 +396,17 @@ fn the_math_functions_answer_what_the_reference_s_table_answers() {
     // A wrong number of arguments is refused at **read**, because the port knows that function's arity. A name the port has no rule for is a different matter:
     // the reference parses any name and fails when it evaluates (`math_parser`), which is how the data's own functions are called after they load, so the port
     // reads it and refuses where it answers.
-    let wrong_arity = cdda_json::parse(br#"{"math": ["clamp(1, 2)", "==", 1]}"#.as_slice()).expect("json");
+    let wrong_arity =
+        cdda_json::parse(br#"{"math": ["clamp(1, 2)", "==", 1]}"#.as_slice()).expect("json");
     assert!(
         cdda_content::dialogue::read_condition(&wrong_arity).is_none(),
         "a known function with the wrong number of arguments is refused at read"
     );
-    let unknown_name = cdda_json::parse(br#"{"math": ["weather(temperature)", "==", 1]}"#.as_slice()).expect("json");
-    let read = cdda_content::dialogue::read_condition(&unknown_name).expect("an unknown name reads");
+    let unknown_name =
+        cdda_json::parse(br#"{"math": ["weather(temperature)", "==", 1]}"#.as_slice())
+            .expect("json");
+    let read =
+        cdda_content::dialogue::read_condition(&unknown_name).expect("an unknown name reads");
     let mut world = bevy_ecs::prelude::World::new();
     let speaker = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     assert!(
@@ -447,8 +480,9 @@ fn a_chance_guard_rolls_and_a_chance_of_one_always_holds() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     cdda_sim::singletons::put_rolls(&mut world, Rolls::new(11));
 
-    let sure = read_condition(&cdda_json::parse(br#"{"one_in_chance": 1}"#.as_slice()).expect("json"))
-        .expect("readable");
+    let sure =
+        read_condition(&cdda_json::parse(br#"{"one_in_chance": 1}"#.as_slice()).expect("json"))
+            .expect("readable");
     for _ in 0..50 {
         assert!(
             cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &sure),
@@ -457,8 +491,9 @@ fn a_chance_guard_rolls_and_a_chance_of_one_always_holds() {
     }
 
     // A chance of a hundred holds sometimes and not always, over a hundred draws.
-    let rare = read_condition(&cdda_json::parse(br#"{"one_in_chance": 100}"#.as_slice()).expect("json"))
-        .expect("readable");
+    let rare =
+        read_condition(&cdda_json::parse(br#"{"one_in_chance": 100}"#.as_slice()).expect("json"))
+            .expect("readable");
     let held = (0..500)
         .filter(|_| cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &rare))
         .count();
@@ -477,12 +512,18 @@ fn a_chance_guard_rolls_and_a_chance_of_one_always_holds() {
     )
     .expect("readable");
     for _ in 0..50 {
-        assert!(!cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &never));
-        assert!(cdda_sim::conditions::holds_in_store(&mut world, survivor, None, &always));
+        assert!(!cdda_sim::conditions::holds_in_store(
+            &mut world, survivor, None, &never
+        ));
+        assert!(cdda_sim::conditions::holds_in_store(
+            &mut world, survivor, None, &always
+        ));
     }
 
     // Asked **without** the store, the guards answer false rather than inventing a roll.
-    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &sure));
+    assert!(!cdda_sim::conditions::holds_with(
+        &world, survivor, None, &sure
+    ));
 
     // And inside a combinator the dice still reach the guard.
     let nested = read_condition(
@@ -492,10 +533,7 @@ fn a_chance_guard_rolls_and_a_chance_of_one_always_holds() {
     .expect("readable");
     cdda_sim::missions::set_avatar(&mut world, survivor);
     assert!(cdda_sim::conditions::holds_in_store(
-        &mut world,
-        survivor,
-        None,
-        &nested
+        &mut world, survivor, None, &nested
     ));
 }
 
@@ -522,10 +560,20 @@ fn carrying_one_item_answers_the_guard() {
     );
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let item = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
-    world.entity_mut(item).insert(cdda_sim::creature::Carried(survivor));
+    world
+        .entity_mut(item)
+        .insert(cdda_sim::creature::Carried(survivor));
 
-    assert!(holds(&world, survivor, &condition(r#"{"u_has_item": "rag"}"#)));
-    assert!(!holds(&world, survivor, &condition(r#"{"u_has_item": "rope"}"#)));
+    assert!(holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_has_item": "rag"}"#)
+    ));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_has_item": "rope"}"#)
+    ));
 
     // The listener's own pockets are asked about when the guard names the listener.
     let other = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (0, 0, 0));
@@ -535,7 +583,9 @@ fn carrying_one_item_answers_the_guard() {
         "the stranger carries nothing"
     );
     let theirs = cdda_sim::drop_item(&mut world, (0, 0), cdda_sim::ItemTypeId(1), 1);
-    world.entity_mut(theirs).insert(cdda_sim::creature::Carried(other));
+    world
+        .entity_mut(theirs)
+        .insert(cdda_sim::creature::Carried(other));
     assert!(
         cdda_sim::conditions::holds_with(&world, survivor, Some(other), &listener_guard),
         "and now the listener's own pocket answers yes"
@@ -553,14 +603,32 @@ fn holding_any_of_a_list_answers_a_list_guard() {
     cdda_sim::traits::set_traits(&mut world, survivor, &["QUICK"]);
     wearing(&mut world, survivor, "wet", 1);
 
-    assert!(holds(&world, survivor, &condition(r#"{"u_has_any_trait": ["QUICK", "TOUGH"]}"#)));
-    assert!(!holds(&world, survivor, &condition(r#"{"u_has_any_trait": ["TOUGH", "FAST"]}"#)));
-    assert!(holds(&world, survivor, &condition(r#"{"u_has_any_effect": ["wet", "downed"]}"#)));
-    assert!(!holds(&world, survivor, &condition(r#"{"u_has_any_effect": ["downed"]}"#)));
+    assert!(holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_has_any_trait": ["QUICK", "TOUGH"]}"#)
+    ));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_has_any_trait": ["TOUGH", "FAST"]}"#)
+    ));
+    assert!(holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_has_any_effect": ["wet", "downed"]}"#)
+    ));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_has_any_effect": ["downed"]}"#)
+    ));
 
     // Asked about a listener that is not there, both answer false rather than reaching for the speaker.
     let npc_guard = condition(r#"{"npc_has_any_trait": ["QUICK"]}"#);
-    assert!(!cdda_sim::conditions::holds_with(&world, survivor, None, &npc_guard));
+    assert!(!cdda_sim::conditions::holds_with(
+        &world, survivor, None, &npc_guard
+    ));
     let stranger = cdda_sim::creature::spawn_creature(&mut world, "a stranger", (0, 0, 0));
     assert!(!cdda_sim::conditions::holds_with(
         &world,
@@ -598,7 +666,10 @@ fn asking_another_program_condition_runs_nothing() {
     cdda_sim::eoc_registry::set_programs(&mut world, std::slice::from_ref(&program));
 
     let guard = condition(r#"{"test_eoc": "EOC_TARGET"}"#);
-    assert!(!holds(&world, survivor, &guard), "the target's condition is false");
+    assert!(
+        !holds(&world, survivor, &guard),
+        "the target's condition is false"
+    );
     assert!(
         cdda_sim::messages::lines(&world).is_empty(),
         "and asking ran nothing"
@@ -617,7 +688,11 @@ fn asking_another_program_condition_runs_nothing() {
     );
 
     // A name nothing defines answers false rather than panicking.
-    assert!(!holds(&world, survivor, &condition(r#"{"test_eoc": "EOC_MISSING"}"#)));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"test_eoc": "EOC_MISSING"}"#)
+    ));
 }
 
 /// The clock answers the season, and a guard can ask for one.
@@ -637,10 +712,20 @@ fn the_calendar_turns_days_into_seasons() {
         cdda_sim::calendar::season_of_year(&world).is_none(),
         "a world nothing has told the time has no season"
     );
-    assert!(!holds(&world, survivor, &condition(r#"{"is_season": "spring"}"#)));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"is_season": "spring"}"#)
+    ));
 
     cdda_sim::calendar::set_season_length(&mut world, 91);
-    for (days_in, wanted) in [(0, "spring"), (90, "spring"), (91, "summer"), (182, "autumn"), (273, "winter")] {
+    for (days_in, wanted) in [
+        (0, "spring"),
+        (90, "spring"),
+        (91, "summer"),
+        (182, "autumn"),
+        (273, "winter"),
+    ] {
         cdda_sim::calendar::set_turn(&mut world, days_in * day);
         assert_eq!(
             cdda_sim::calendar::season_of_year(&world).map(cdda_sim::calendar::Season::name),
@@ -648,7 +733,11 @@ fn the_calendar_turns_days_into_seasons() {
             "day {days_in} is in {wanted}"
         );
         assert!(
-            holds(&world, survivor, &condition(&format!(r#"{{"is_season": "{wanted}"}}"#))),
+            holds(
+                &world,
+                survivor,
+                &condition(&format!(r#"{{"is_season": "{wanted}"}}"#))
+            ),
             "and the guard agrees"
         );
     }
@@ -674,24 +763,44 @@ fn standing_on_an_overmap_tile_answers_the_guard() {
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (30, 4, 0));
 
     // Nothing has generated a world, so no tile has a terrain and the guard answers false rather than inventing one.
-    assert!(!holds(&world, survivor, &condition(r#"{"u_at_om_location": "field"}"#)));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_at_om_location": "field"}"#)
+    ));
 
     let tile = cdda_sim::overmap::tile_of(30, 4);
     assert_eq!(tile, (1, 0), "a tile is twenty-four squares across");
     cdda_sim::overmap::set_terrain(&mut world, tile, "field_north");
     assert!(
-        holds(&world, survivor, &condition(r#"{"u_at_om_location": "field"}"#)),
+        holds(
+            &world,
+            survivor,
+            &condition(r#"{"u_at_om_location": "field"}"#)
+        ),
         "a rotated tile answers its base terrain"
     );
-    assert!(!holds(&world, survivor, &condition(r#"{"u_at_om_location": "house"}"#)));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_at_om_location": "house"}"#)
+    ));
 
     // A square in the next tile answers about that tile instead.
     world
         .entity_mut(survivor)
         .insert(cdda_sim::Position { x: 60, y: 4, z: 0 });
-    assert!(!holds(&world, survivor, &condition(r#"{"u_at_om_location": "field"}"#)));
+    assert!(!holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_at_om_location": "field"}"#)
+    ));
     cdda_sim::overmap::set_terrain(&mut world, cdda_sim::overmap::tile_of(60, 4), "house_east");
-    assert!(holds(&world, survivor, &condition(r#"{"u_at_om_location": "house"}"#)));
+    assert!(holds(
+        &world,
+        survivor,
+        &condition(r#"{"u_at_om_location": "house"}"#)
+    ));
 
     // The listener's own tile is asked about when the guard names the listener.
     let npc_guard = condition(r#"{"npc_at_om_location": "house"}"#);
@@ -712,11 +821,11 @@ fn standing_on_an_overmap_tile_answers_the_guard() {
 
 /// Whether a condition the test writes holds for a creature.
 fn asked_about_bionic(world: &World, creature: bevy_ecs::prelude::Entity, text: &str) -> bool {
-        let value = cdda_json::parse(text.as_bytes()).expect("json");
-        let condition = cdda_content::dialogue::read_condition(&value)
-            .unwrap_or_else(|| panic!("{text} must read"));
-        cdda_sim::conditions::holds(world, creature, &condition)
-    }
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let condition = cdda_content::dialogue::read_condition(&value)
+        .unwrap_or_else(|| panic!("{text} must read"));
+    cdda_sim::conditions::holds(world, creature, &condition)
+}
 
 /// `u_has_bionics` asks about the bionic a creature carries, and `ANY` asks about any of them.
 ///
@@ -726,19 +835,36 @@ fn asked_about_bionic(world: &World, creature: bevy_ecs::prelude::Entity, text: 
 fn a_bionic_condition_asks_what_the_creature_carries() {
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
-    assert!(!asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "bio_power_storage"}"#), "nothing installed yet");
-    assert!(!asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "ANY"}"#), "and no bionic at all");
+    assert!(
+        !asked_about_bionic(
+            &world,
+            survivor,
+            r#"{"u_has_bionics": "bio_power_storage"}"#
+        ),
+        "nothing installed yet"
+    );
+    assert!(
+        !asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "ANY"}"#),
+        "and no bionic at all"
+    );
 
     cdda_sim::bionics::install(&mut world, survivor, "bio_power_storage");
     assert!(
-        asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "bio_power_storage"}"#),
+        asked_about_bionic(
+            &world,
+            survivor,
+            r#"{"u_has_bionics": "bio_power_storage"}"#
+        ),
         "the named bionic is installed"
     );
     assert!(
         !asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "bio_night_vision"}"#),
         "a bionic it does not have does not hold"
     );
-    assert!(asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "ANY"}"#), "ANY holds with one installed");
+    assert!(
+        asked_about_bionic(&world, survivor, r#"{"u_has_bionics": "ANY"}"#),
+        "ANY holds with one installed"
+    );
 
     // The list keeps no duplicates, so installing twice changes nothing.
     cdda_sim::bionics::install(&mut world, survivor, "bio_power_storage");
@@ -773,13 +899,18 @@ fn a_creature_asleep_cannot_see_and_one_awake_can() {
         &cdda_json::parse(br#""u_can_see""#.as_slice()).expect("json"),
     )
     .expect("a bare name is readable");
-    assert!(cdda_sim::conditions::holds(&world, survivor, &bare), "awake, so it sees");
+    assert!(
+        cdda_sim::conditions::holds(&world, survivor, &bare),
+        "awake, so it sees"
+    );
 
     // Each of the three effects the reference counts as being asleep takes sight away, so each is exercised rather than a stand-in.
     for asleep in cdda_sim::seeing::ASLEEP {
         let add = cdda_content::dialogue::read_effect(
-            &cdda_json::parse(format!(r#"{{"u_add_effect": "{asleep}", "duration": "PERMANENT"}}"#).as_bytes())
-                .expect("json"),
+            &cdda_json::parse(
+                format!(r#"{{"u_add_effect": "{asleep}", "duration": "PERMANENT"}}"#).as_bytes(),
+            )
+            .expect("json"),
         )
         .expect("readable");
         assert_eq!(
@@ -791,7 +922,8 @@ fn a_creature_asleep_cannot_see_and_one_awake_can() {
             "a creature with {asleep} cannot see"
         );
         let remove = cdda_content::dialogue::read_effect(
-            &cdda_json::parse(format!(r#"{{"u_lose_effect": "{asleep}"}}"#).as_bytes()).expect("json"),
+            &cdda_json::parse(format!(r#"{{"u_lose_effect": "{asleep}"}}"#).as_bytes())
+                .expect("json"),
         )
         .expect("readable");
         assert_eq!(
@@ -832,8 +964,10 @@ fn the_creatures_own_numbers_answer_in_math() {
     );
 
     let add = cdda_content::dialogue::read_effect(
-        &cdda_json::parse(br#"{"u_add_effect": "drunk", "duration": 100, "intensity": 3}"#.as_slice())
-            .expect("json"),
+        &cdda_json::parse(
+            br#"{"u_add_effect": "drunk", "duration": 100, "intensity": 3}"#.as_slice(),
+        )
+        .expect("json"),
     )
     .expect("readable");
     assert_eq!(
@@ -849,8 +983,12 @@ fn the_creatures_own_numbers_answer_in_math() {
 
     // `has_var` separates unset from zero, which is the whole reason the data calls it.
     let unset = read_text_expression("has_var('scouted')").expect("readable");
-    assert_eq!(cdda_sim::conditions::value(&world, survivor, None, &unset), Some(0.0));
-    let assignment = cdda_content::dialogue::read_assignment("u_val('scouted') = 0").expect("readable");
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &unset),
+        Some(0.0)
+    );
+    let assignment =
+        cdda_content::dialogue::read_assignment("u_val('scouted') = 0").expect("readable");
     assert_eq!(
         cdda_sim::dialogue_effects::run_assignment(&mut world, survivor, None, &assignment),
         cdda_sim::dialogue_effects::Applied::Done
@@ -876,7 +1014,10 @@ fn the_moon_phase_is_the_index_the_data_compares_against() {
     let phase = read_text_expression("moon_phase()").expect("readable");
 
     // No clock set: the function refuses rather than answering a phase nobody set.
-    assert_eq!(cdda_sim::conditions::value(&world, survivor, None, &phase), None);
+    assert_eq!(
+        cdda_sim::conditions::value(&world, survivor, None, &phase),
+        None
+    );
 
     cdda_sim::calendar::set_turn(&mut world, 0);
     let at_zero = cdda_sim::conditions::value(&world, survivor, None, &phase).expect("answered");
@@ -891,7 +1032,8 @@ fn the_moon_phase_is_the_index_the_data_compares_against() {
 
     // A quarter of a month on is a different phase, so the function is not constant.
     cdda_sim::calendar::set_turn(&mut world, 7 * 24 * 60 * 60);
-    let a_week_later = cdda_sim::conditions::value(&world, survivor, None, &phase).expect("answered");
+    let a_week_later =
+        cdda_sim::conditions::value(&world, survivor, None, &phase).expect("answered");
     assert!(
         (at_zero - a_week_later).abs() > f64::EPSILON,
         "a week after the new moon the phase has moved: {at_zero} and {a_week_later}"
@@ -923,8 +1065,16 @@ fn a_creature_flag_answers_no_when_the_creature_does_not_carry_it() {
 
     // The flag family is on the creature, so giving it one changes the answer without touching anything else.
     cdda_sim::creature_flags::add_flag(&mut world, survivor, "GRAB");
-    assert_eq!(cdda_sim::creature_flags::flags_of(&world, survivor), vec!["GRAB".to_owned()]);
-    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &grabs));
+    assert_eq!(
+        cdda_sim::creature_flags::flags_of(&world, survivor),
+        vec!["GRAB".to_owned()]
+    );
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &grabs
+    ));
 
     // The listener's spelling asks about the other creature, which still carries none.
     let theirs = cdda_content::dialogue::read_condition(
@@ -936,11 +1086,23 @@ fn a_creature_flag_answers_no_when_the_creature_does_not_carry_it() {
         "the guard asks about the listener, not the speaker"
     );
     cdda_sim::creature_flags::add_flag(&mut world, talker, "GRAB");
-    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &theirs));
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &theirs
+    ));
 
     // And taking it away puts the answer back, so the flag is what the guard reads.
-    assert!(cdda_sim::creature_flags::remove_flag(&mut world, survivor, "GRAB"));
-    assert!(!cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &grabs));
+    assert!(cdda_sim::creature_flags::remove_flag(
+        &mut world, survivor, "GRAB"
+    ));
+    assert!(!cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &grabs
+    ));
 }
 
 /// A worn flag is a flag on a **worn item's type**, not on the creature.
@@ -969,7 +1131,9 @@ fn a_worn_flag_asks_the_items_type_and_not_the_creature() {
 
     // A blindfold with the flag: true. A hood without it: still false.
     let blindfold = cdda_sim::drop_item(&mut world, (0, 0), ItemTypeId(1), 1);
-    world.entity_mut(blindfold).insert(cdda_sim::creature::WornBy(survivor));
+    world
+        .entity_mut(blindfold)
+        .insert(cdda_sim::creature::WornBy(survivor));
     assert!(cdda_sim::conditions::holds(&world, survivor, &guard));
     assert_eq!(
         cdda_sim::worn_flags::worn_flags_of(&world, survivor),
@@ -977,7 +1141,9 @@ fn a_worn_flag_asks_the_items_type_and_not_the_creature() {
     );
 
     let hood = cdda_sim::drop_item(&mut world, (0, 0), ItemTypeId(2), 1);
-    world.entity_mut(hood).insert(cdda_sim::creature::WornBy(survivor));
+    world
+        .entity_mut(hood)
+        .insert(cdda_sim::creature::WornBy(survivor));
     let hooded = cdda_content::dialogue::read_condition(
         &cdda_json::parse(br#"{"u_has_worn_with_flag": "HOOD"}"#.as_slice()).expect("json"),
     )
@@ -992,7 +1158,9 @@ fn a_worn_flag_asks_the_items_type_and_not_the_creature() {
 
     // An item lying on the ground is not worn, so it does not answer.
     let spare = cdda_sim::drop_item(&mut world, (3, 3), ItemTypeId(1), 1);
-    world.entity_mut(spare).remove::<cdda_sim::creature::WornBy>();
+    world
+        .entity_mut(spare)
+        .remove::<cdda_sim::creature::WornBy>();
     let elsewhere = cdda_sim::creature::spawn_creature(&mut world, "someone else", (5, 5, 0));
     assert!(
         !cdda_sim::conditions::holds(&world, elsewhere, &guard),
@@ -1016,7 +1184,10 @@ fn time_since_counts_from_a_named_point_or_a_turn() {
     #[allow(clippy::cast_possible_truncation)]
     let clock = (day + day / 2.0 + 10.0) as i64;
     cdda_sim::calendar::set_turn(&mut world, clock);
-    assert_eq!(cdda_sim::calendar::of(&world).map(|calendar| calendar.turn), Some(clock));
+    assert_eq!(
+        cdda_sim::calendar::of(&world).map(|calendar| calendar.turn),
+        Some(clock)
+    );
 
     let count = |world: &mut World, text: &str| {
         cdda_sim::conditions::value(
@@ -1050,7 +1221,10 @@ fn time_since_counts_from_a_named_point_or_a_turn() {
         "then",
         cdda_sim::dialogue_values::Value::Number(day),
     );
-    assert_eq!(count(&mut world, "time_since(u_val('then'))"), Some(day / 2.0 + 10.0));
+    assert_eq!(
+        count(&mut world, "time_since(u_val('then'))"),
+        Some(day / 2.0 + 10.0)
+    );
     #[allow(clippy::cast_possible_truncation)]
     let two_days = (day * 2.0) as i64;
     cdda_sim::calendar::set_turn(&mut world, two_days);
@@ -1064,7 +1238,10 @@ fn time_since_counts_from_a_named_point_or_a_turn() {
     #[allow(clippy::cast_possible_truncation)]
     let just_after_midnight = (day + 100.0) as i64;
     cdda_sim::calendar::set_turn(&mut world, just_after_midnight);
-    assert_eq!(count(&mut world, "time_since('noon')"), Some(100.0 - day / 2.0));
+    assert_eq!(
+        count(&mut world, "time_since('noon')"),
+        Some(100.0 - day / 2.0)
+    );
 
     // A name that is not a time is not answered.
     assert_eq!(count(&mut world, "time_since('teatime')"), None);
@@ -1091,7 +1268,8 @@ fn a_nearby_overmap_terrain_guard_looks_within_its_range() {
     );
 
     let wider = cdda_content::dialogue::read_condition(
-        &cdda_json::parse(br#"{"u_near_om_location": "shelter", "range": 3}"#.as_slice()).expect("json"),
+        &cdda_json::parse(br#"{"u_near_om_location": "shelter", "range": 3}"#.as_slice())
+            .expect("json"),
     )
     .expect("readable");
     assert!(
@@ -1101,7 +1279,8 @@ fn a_nearby_overmap_terrain_guard_looks_within_its_range() {
 
     // A different name is a different question, and a name that is not there answers no rather than refusing.
     let elsewhere = cdda_content::dialogue::read_condition(
-        &cdda_json::parse(br#"{"u_near_om_location": "lab_finale", "range": 3}"#.as_slice()).expect("json"),
+        &cdda_json::parse(br#"{"u_near_om_location": "lab_finale", "range": 3}"#.as_slice())
+            .expect("json"),
     )
     .expect("readable");
     assert!(!cdda_sim::conditions::holds(&world, survivor, &elsewhere));
@@ -1116,11 +1295,17 @@ fn a_nearby_overmap_terrain_guard_looks_within_its_range() {
 
     // The listener's spelling asks about the other creature's tile.
     let theirs = cdda_content::dialogue::read_condition(
-        &cdda_json::parse(br#"{"npc_near_om_location": "shelter", "range": 9}"#.as_slice()).expect("json"),
+        &cdda_json::parse(br#"{"npc_near_om_location": "shelter", "range": 9}"#.as_slice())
+            .expect("json"),
     )
     .expect("readable");
     let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (1, 1, 0));
-    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &theirs));
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &theirs
+    ));
     let far_away = cdda_sim::creature::spawn_creature(&mut world, "someone far", (600, 600, 0));
     assert!(
         !cdda_sim::conditions::holds_with(&world, survivor, Some(far_away), &theirs),
@@ -1131,7 +1316,10 @@ fn a_nearby_overmap_terrain_guard_looks_within_its_range() {
     for camp in ["FACTION_CAMP_ANY", "FACTION_CAMP_START"] {
         let text = format!(r#"{{"u_near_om_location": "{camp}"}}"#);
         let value = cdda_json::parse(text.as_bytes()).expect("json");
-        assert!(cdda_content::dialogue::read_condition(&value).is_none(), "{camp}");
+        assert!(
+            cdda_content::dialogue::read_condition(&value).is_none(),
+            "{camp}"
+        );
     }
 }
 
@@ -1165,7 +1353,10 @@ fn a_skill_question_answers_zero_for_an_unpractised_skill() {
     );
 
     cdda_sim::skills_of::set_level(&mut world, survivor, "bashing", 4);
-    assert_eq!(cdda_sim::skills_of::level_of(&world, survivor, "bashing"), 4);
+    assert_eq!(
+        cdda_sim::skills_of::level_of(&world, survivor, "bashing"),
+        4
+    );
     assert_eq!(
         cdda_sim::conditions::value(
             &world,
@@ -1189,7 +1380,8 @@ fn a_skill_question_answers_zero_for_an_unpractised_skill() {
 
     // The listener's spelling asks about the other creature, which has practised nothing.
     cdda_sim::skills_of::set_level(&mut world, talker, "bashing", 7);
-    let about_talker = cdda_content::dialogue::read_text_expression("npc_skill('bashing')").expect("readable");
+    let about_talker =
+        cdda_content::dialogue::read_text_expression("npc_skill('bashing')").expect("readable");
     assert_eq!(
         cdda_sim::conditions::value(&world, survivor, Some(talker), &about_talker),
         Some(7.0),
@@ -1208,8 +1400,8 @@ fn a_skill_question_answers_zero_for_an_unpractised_skill() {
 /// above street level, so a cellar answers no however open the square above it is.
 #[test]
 fn an_outside_guard_asks_about_the_square_and_the_level() {
-    use cdda_sim::singletons::set_prototypes;
     use cdda_sim::Prototypes;
+    use cdda_sim::singletons::set_prototypes;
 
     let mut world = World::new();
     let mut level = cdda_core_types::level::Level::new();
@@ -1254,7 +1446,12 @@ fn an_outside_guard_asks_about_the_square_and_the_level() {
     )
     .expect("readable");
     let talker = cdda_sim::creature::spawn_creature(&mut world, "the talker", (3, 3, 0));
-    assert!(cdda_sim::conditions::holds_with(&world, survivor, Some(talker), &theirs));
+    assert!(cdda_sim::conditions::holds_with(
+        &world,
+        survivor,
+        Some(talker),
+        &theirs
+    ));
     let buried = cdda_sim::creature::spawn_creature(&mut world, "the buried", (3, 3, -1));
     assert!(
         !cdda_sim::conditions::holds_with(&world, survivor, Some(buried), &theirs),
@@ -1274,10 +1471,7 @@ fn a_named_unit_scales_the_answer() {
 
     let answer = |world: &mut World, text: &str| {
         let condition = cdda_content::dialogue::read_condition(
-            &cdda_json::parse(
-                format!(r#"{{"math": ["{text}"]}}"#).as_bytes(),
-            )
-            .expect("json"),
+            &cdda_json::parse(format!(r#"{{"math": ["{text}"]}}"#).as_bytes()).expect("json"),
         )
         .expect("readable");
         cdda_sim::conditions::holds(world, survivor, &condition)
@@ -1285,23 +1479,43 @@ fn a_named_unit_scales_the_answer() {
 
     // Two days after the cataclysm: two days, forty-eight hours, and not zero in either.
     cdda_sim::calendar::set_turn(&mut world, 2 * cdda_sim::calendar::TURNS_PER_DAY);
-    assert!(answer(&mut world, "time_since('cataclysm', 'unit': 'days') >= 2"));
-    assert!(answer(&mut world, "time_since('cataclysm', 'unit': 'hours') >= 48"));
-    assert!(!answer(&mut world, "time_since('cataclysm', 'unit': 'weeks') >= 1"));
+    assert!(answer(
+        &mut world,
+        "time_since('cataclysm', 'unit': 'days') >= 2"
+    ));
+    assert!(answer(
+        &mut world,
+        "time_since('cataclysm', 'unit': 'hours') >= 48"
+    ));
+    assert!(!answer(
+        &mut world,
+        "time_since('cataclysm', 'unit': 'weeks') >= 1"
+    ));
 
     // The turn figure is what it always was when no unit is named, which is how every call without one still reads.
-    assert!(answer(&mut world, &format!(
-        "time_since('cataclysm') >= {}",
-        2 * cdda_sim::calendar::TURNS_PER_DAY
-    )));
+    assert!(answer(
+        &mut world,
+        &format!(
+            "time_since('cataclysm') >= {}",
+            2 * cdda_sim::calendar::TURNS_PER_DAY
+        )
+    ));
 
     // A named argument the function does not know, and a unit the port has no span for, are refused rather than read as zero.
-    assert!(cdda_content::dialogue::read_condition(
-        &cdda_json::parse(br#"{"math": ["time_since('cataclysm', 'unit': 'fortnights') >= 1"]}"#.as_slice()).expect("json"),
-    )
-    .is_some());
+    assert!(
+        cdda_content::dialogue::read_condition(
+            &cdda_json::parse(
+                br#"{"math": ["time_since('cataclysm', 'unit': 'fortnights') >= 1"]}"#.as_slice()
+            )
+            .expect("json"),
+        )
+        .is_some()
+    );
     let unknown_unit = cdda_content::dialogue::read_condition(
-        &cdda_json::parse(br#"{"math": ["time_since('cataclysm', 'unit': 'fortnights') >= 1"]}"#.as_slice()).expect("json"),
+        &cdda_json::parse(
+            br#"{"math": ["time_since('cataclysm', 'unit': 'fortnights') >= 1"]}"#.as_slice(),
+        )
+        .expect("json"),
     )
     .expect("readable");
     assert!(
@@ -1375,7 +1589,11 @@ fn an_opinion_number_comes_from_the_creature_and_is_zero_when_absent() {
     ));
 
     // A dialogue with nobody on the other side answers zero rather than refusing.
-    assert!(cdda_sim::conditions::holds(&world, survivor, &asks("n_npc_value() == 0")));
+    assert!(cdda_sim::conditions::holds(
+        &world,
+        survivor,
+        &asks("n_npc_value() == 0")
+    ));
 }
 
 /// `has_var` reads a bare name as the name being asked about, not as a value.
@@ -1395,13 +1613,21 @@ fn has_var_reads_the_name_the_data_writes() {
     };
 
     // Nothing stored yet: both spellings answer no, and the negation answers yes.
-    assert!(!cdda_sim::conditions::holds(&world, survivor, &asks("has_var(project_flag) == 1")));
+    assert!(!cdda_sim::conditions::holds(
+        &world,
+        survivor,
+        &asks("has_var(project_flag) == 1")
+    ));
     assert!(!cdda_sim::conditions::holds(
         &world,
         survivor,
         &asks("has_var('project_flag') == 1")
     ));
-    assert!(cdda_sim::conditions::holds(&world, survivor, &asks("!has_var(project_flag)")));
+    assert!(cdda_sim::conditions::holds(
+        &world,
+        survivor,
+        &asks("!has_var(project_flag)")
+    ));
 
     // Once it is set, both spellings answer yes and the negation answers no.
     cdda_sim::dialogue_values::set(
@@ -1410,11 +1636,19 @@ fn has_var_reads_the_name_the_data_writes() {
         "project_flag",
         cdda_sim::dialogue_values::Value::Number(1.0),
     );
-    assert!(cdda_sim::conditions::holds(&world, survivor, &asks("has_var(project_flag) == 1")));
+    assert!(cdda_sim::conditions::holds(
+        &world,
+        survivor,
+        &asks("has_var(project_flag) == 1")
+    ));
     assert!(cdda_sim::conditions::holds(
         &world,
         survivor,
         &asks("has_var('project_flag') == 1")
     ));
-    assert!(!cdda_sim::conditions::holds(&world, survivor, &asks("!has_var(project_flag)")));
+    assert!(!cdda_sim::conditions::holds(
+        &world,
+        survivor,
+        &asks("!has_var(project_flag)")
+    ));
 }

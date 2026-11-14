@@ -69,7 +69,11 @@ impl TerrainTable {
             table.insert(code, prototype.transparent);
             table.insert_light(code, f32::from(i16::try_from(prototype.light).unwrap_or(0)));
             table.insert_move_cost(code, prototype.move_cost);
-            if let Some(symbol) = prototype.symbol.first().and_then(|value| u8::try_from(*value).ok()) {
+            if let Some(symbol) = prototype
+                .symbol
+                .first()
+                .and_then(|value| u8::try_from(*value).ok())
+            {
                 table.insert_symbol(code, char::from(symbol));
             }
             codes.insert(prototype.id, code);

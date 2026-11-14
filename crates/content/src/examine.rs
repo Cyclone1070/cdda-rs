@@ -121,7 +121,9 @@ pub fn read(object: &Object) -> Result<Option<ExamineAction>, crate::mapdata::Lo
                     ter_set: text(actor, "ter_set"),
                     item: text(actor, "item"),
                 })),
-                "cardreader" => Ok(Some(ExamineAction::CardReader(Box::new(read_cardreader(actor))))),
+                "cardreader" => Ok(Some(ExamineAction::CardReader(Box::new(read_cardreader(
+                    actor,
+                ))))),
                 "effect_on_condition" => Ok(Some(ExamineAction::EffectOnCondition {
                     ids: effect_ids(actor),
                 })),

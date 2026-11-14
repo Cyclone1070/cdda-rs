@@ -63,7 +63,14 @@ pub fn cost_of_firing(
     let (base, reduction, min) = line.map_or_else(unknown_skill_line, |line| {
         (line.base_time, line.time_reduction_per_level, line.min_time)
     });
-    cost_of_a_shot(base, reduction, min, skill_level, stamina_percent, reload_moves)
+    cost_of_a_shot(
+        base,
+        reduction,
+        min,
+        skill_level,
+        stamina_percent,
+        reload_moves,
+    )
 }
 
 /// The whole cost of a shot: the skill's line plus the ammunition's reach, which is `RAS_time`'s own sum.
@@ -177,8 +184,18 @@ pub fn recoil_after_firing(current: i32, kick: i32, reload_and_shoot: bool) -> i
 /// What the barrel does to the numbers (`di_considering_length`) is **not** ported: the port has no barrel metric, so every round is priced as if fired from the barrel the data was written for.
 /// Said here rather than left to look accidental.
 #[must_use]
-pub fn blow_of(gun: &cdda_content::guns::GunType, round: Option<&cdda_content::ammo::AmmoType>) -> crate::melee::Damage {
-    let round = round.map(|round| (round.damage_bash, round.damage_cut, round.damage_stab, round.damage_bullet));
+pub fn blow_of(
+    gun: &cdda_content::guns::GunType,
+    round: Option<&cdda_content::ammo::AmmoType>,
+) -> crate::melee::Damage {
+    let round = round.map(|round| {
+        (
+            round.damage_bash,
+            round.damage_cut,
+            round.damage_stab,
+            round.damage_bullet,
+        )
+    });
     let (bash, cut, stab, bullet) = round.unwrap_or((0, 0, 0, 0));
     crate::melee::Damage {
         bash: gun.damage_bash + bash,
@@ -236,18 +253,36 @@ pub fn fire_at(
         .map_or(0, |dirt| dirt.points);
     let mut misfired = false;
     if let Some(mut dice) = crate::singletons::take_rolls(world) {
-        let never_jams = gun_entity.is_some_and(|gun_entity| world.get::<NeverJams>(gun_entity).is_some());
+        let never_jams =
+            gun_entity.is_some_and(|gun_entity| world.get::<NeverJams>(gun_entity).is_some());
         misfired = misfires(dirt, gun.durability, never_jams, &mut dice);
         crate::singletons::put_rolls(world, dice);
     }
     if misfired {
-        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded: true, noise: 0, misfired: true };
+        return Fired {
+            cost: 0,
+            aim: crate::ballistics::aim_of(0.0, 0.0, 1.0),
+            hit: None,
+            hurt: 0,
+            loaded: true,
+            noise: 0,
+            misfired: true,
+        };
     }
     // Reference: `fire_gun` checks `gun.ammo_required()` and consumes the rounds **before** the shot is loosed (`ranged.cpp:1168-1172`), and breaks out of the burst when the gun cannot
     // load. A gun the port has no entity for is treated as loaded, which keeps this rule usable without one.
-    let loaded = gun_entity.is_none_or(|gun_entity| crate::shot::spend_rounds(world, gun_entity, gun.ammo_to_fire));
+    let loaded = gun_entity
+        .is_none_or(|gun_entity| crate::shot::spend_rounds(world, gun_entity, gun.ammo_to_fire));
     if !loaded {
-        return Fired { cost: 0, aim: crate::ballistics::aim_of(0.0, 0.0, 1.0), hit: None, hurt: 0, loaded, noise: 0, misfired: false };
+        return Fired {
+            cost: 0,
+            aim: crate::ballistics::aim_of(0.0, 0.0, 1.0),
+            hit: None,
+            hurt: 0,
+            loaded,
+            noise: 0,
+            misfired: false,
+        };
     }
     let blow = blow_of(gun, round);
     let level = crate::creature::skill_level(world, shooter, &gun.skill);
@@ -258,7 +293,9 @@ pub fn fire_at(
     // Reference: the shot's own error is drawn from the composed dispersion, one draw per source.
     // Reference: `total_gun_dispersion( gun, recoil_total(), proj.shot_spread )` (`ranged.cpp:1108`) folds the shooter's **accumulated recoil** into the same dispersion the weapon's own
     // figures make - so a shooter who has already fired is aiming worse with the identical gun.
-    let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
+    let carried = world
+        .get::<Recoil>(shooter)
+        .map_or(0, |recoil| recoil.points);
     let sources = crate::dispersion::Dispersion {
         linear: vec![crate::dispersion::weapon_dispersion(shotmaker) + f64::from(carried)],
         ..crate::dispersion::Dispersion::default()
@@ -275,7 +312,8 @@ pub fn fire_at(
         let mut scatter = 0.0;
         let rolled = match crate::singletons::take_rolls(world) {
             Some(mut dice) => {
-                let arcmin = shot_spread_arcmin(round.map_or(0, |round| round.shot_spread), &mut dice);
+                let arcmin =
+                    shot_spread_arcmin(round.map_or(0, |round| round.shot_spread), &mut dice);
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 let tiles = range.max(1.0).round() as usize;
                 scatter = spread_across_tiles(arcmin, tiles);
@@ -295,7 +333,9 @@ pub fn fire_at(
         if aim.missed_by < 1.0
             && let Some(struck) = crate::creature::creature_at(world, target)
                 .into_iter()
-                .find(|entity| *entity != shooter && crate::creature::health_of(world, *entity).is_some())
+                .find(|entity| {
+                    *entity != shooter && crate::creature::health_of(world, *entity).is_some()
+                })
         {
             hits += 1;
             hurt += hurt_once(world, struck, &blow, shooter);
@@ -315,7 +355,9 @@ pub fn fire_at(
         gun_weight_g,
         crate::creature::effective_strength(world, shooter),
     );
-    let carried = world.get::<Recoil>(shooter).map_or(0, |recoil| recoil.points);
+    let carried = world
+        .get::<Recoil>(shooter)
+        .map_or(0, |recoil| recoil.points);
     let after = recoil_after_firing(carried, kick, reload_and_shoot);
     if let Some(mut recoil) = world.get_mut::<Recoil>(shooter) {
         recoil.points = after;
@@ -341,7 +383,15 @@ pub fn fire_at(
             world.entity_mut(gun_entity).insert(Dirt { points: fouled });
         }
     }
-    Fired { cost, aim, hit: struck, hurt, loaded: true, noise, misfired: false }
+    Fired {
+        cost,
+        aim,
+        hit: struck,
+        hurt,
+        loaded: true,
+        noise,
+        misfired: false,
+    }
 }
 
 /// The shooter's wind as a whole percentage, which is what `RAS_time` compares against twenty-five.
@@ -361,7 +411,11 @@ fn stamina_percent(world: &bevy_ecs::prelude::World, shooter: bevy_ecs::prelude:
 /// How far the shooter is from the square it aims at, in squares: `rl_dist`, which counts a diagonal as one.
 ///
 /// Reference: `rl_dist( source, target )` (`src/point.h`) - the **larger** of the two offsets. A shooter with no position is at zero range, which keeps the aim arithmetic finite.
-fn range_to(world: &bevy_ecs::prelude::World, shooter: bevy_ecs::prelude::Entity, target: (i32, i32, i32)) -> f64 {
+fn range_to(
+    world: &bevy_ecs::prelude::World,
+    shooter: bevy_ecs::prelude::Entity,
+    target: (i32, i32, i32),
+) -> f64 {
     let Some(from) = world.get::<crate::Position>(shooter) else {
         return 0.0;
     };
@@ -388,7 +442,8 @@ fn hurt_once(
                 level(&crate::creature::wielding_skill(world, shooter)),
                 crate::creature::effective_dexterity(world, shooter),
                 crate::creature::effective_perception(world, shooter),
-                crate::creature::limb_score(world, struck, "vision").min(crate::creature::limb_score(world, shooter, "vision")),
+                crate::creature::limb_score(world, struck, "vision")
+                    .min(crate::creature::limb_score(world, shooter, "vision")),
                 crate::creature::limb_score(world, shooter, "vision"),
             ),
             // Reference: the **target's** families are the last term of the attacker's skill (`weakpoint.cpp:401-409`).
@@ -416,7 +471,11 @@ fn hurt_once(
         Some(weak) => {
             let (bash, cut, stab) = crate::weakpoints::apply_to_blow(
                 &weak.factors,
-                (f64::from(blow.bash), f64::from(blow.cut), f64::from(blow.stab)),
+                (
+                    f64::from(blow.bash),
+                    f64::from(blow.cut),
+                    f64::from(blow.stab),
+                ),
                 false,
             );
             #[allow(clippy::cast_possible_truncation)]
@@ -426,10 +485,17 @@ fn hurt_once(
                 stab: stab as i32,
                 penetration: blow.penetration,
             };
-            let armour = world.get::<crate::creature::Armour>(struck).copied().unwrap_or_default();
+            let armour = world
+                .get::<crate::creature::Armour>(struck)
+                .copied()
+                .unwrap_or_default();
             let (bash, cut, stab) = crate::weakpoints::apply_to_armour_triple(
                 &weak.factors,
-                (f64::from(armour.bash), f64::from(armour.cut), f64::from(armour.stab)),
+                (
+                    f64::from(armour.bash),
+                    f64::from(armour.cut),
+                    f64::from(armour.stab),
+                ),
             );
             #[allow(clippy::cast_possible_truncation)]
             let armour = crate::creature::Armour {
@@ -439,7 +505,13 @@ fn hurt_once(
             };
             (blow, armour)
         }
-        None => (*blow, world.get::<crate::creature::Armour>(struck).copied().unwrap_or_default()),
+        None => (
+            *blow,
+            world
+                .get::<crate::creature::Armour>(struck)
+                .copied()
+                .unwrap_or_default(),
+        ),
     };
     let mut total = 0;
     for (amount, resist) in [
@@ -477,7 +549,11 @@ fn hurt_once(
 /// gun's rounds in the item's own `charges`, which is the store's one place for "how many of this thing are here" - so loading a shot is a component write, and a gun with nothing left is a
 /// gun that does not fire rather than one that fires a ghost round.
 #[must_use]
-pub fn spend_rounds(world: &mut bevy_ecs::prelude::World, gun: bevy_ecs::prelude::Entity, rounds: i32) -> bool {
+pub fn spend_rounds(
+    world: &mut bevy_ecs::prelude::World,
+    gun: bevy_ecs::prelude::Entity,
+    rounds: i32,
+) -> bool {
     let Some(mut held) = world.get_mut::<crate::GroundItem>(gun) else {
         return true;
     };
@@ -562,7 +638,18 @@ pub fn fire_burst(
 ) -> Vec<Fired> {
     let mut made = Vec::new();
     for _ in 0..burst.max(0) {
-        let shot = fire_at(world, shooter, gun, lines, target, divider, round, gun_entity, gun_weight_g, reload_and_shoot);
+        let shot = fire_at(
+            world,
+            shooter,
+            gun,
+            lines,
+            target,
+            divider,
+            round,
+            gun_entity,
+            gun_weight_g,
+            reload_and_shoot,
+        );
         if !shot.loaded {
             break;
         }
@@ -571,7 +658,15 @@ pub fn fire_burst(
     // Reference: `ranged.cpp:1207-1213`, once per burst and not once per shot.
     let hits = i32::try_from(made.iter().filter(|shot| shot.hit.is_some()).count()).unwrap_or(0);
     let shots = i32::try_from(made.len()).unwrap_or(0);
-    practise_after_a_burst(world, shooter, &gun.skill, hits, shots, gun.skill == "launcher", wont_train_marksmanship);
+    practise_after_a_burst(
+        world,
+        shooter,
+        &gun.skill,
+        hits,
+        shots,
+        gun.skill == "launcher",
+        wont_train_marksmanship,
+    );
     made
 }
 
@@ -617,7 +712,12 @@ pub fn practise_after_a_burst(
 /// `NEVER_JAMS` skips **both**, which is the flag's whole meaning. The reference's magazine branch, its underwater branch and its consumable-gunmod branch are named in `docs/parity.md` rather
 /// than guessed at.
 #[must_use]
-pub fn misfires(dirt: i32, durability: i32, never_jams: bool, dice: &mut cdda_core_types::rng::Rolls) -> bool {
+pub fn misfires(
+    dirt: i32,
+    durability: i32,
+    never_jams: bool,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> bool {
     if never_jams {
         return false;
     }
@@ -642,7 +742,12 @@ pub fn misfires(dirt: i32, durability: i32, never_jams: bool, dice: &mut cdda_co
 /// The port takes the black-powder terms as arguments because the ammo dump does not carry the round's `ammo_effects` yet, so every round it knows is ordinary - **a named gap, and the cap of
 /// 7,150 is the half that matters on every shot**.
 #[must_use]
-pub fn dirt_after_a_shot(dirt: i32, blackpowder: bool, blackpowder_tolerance: i32, non_fouling: bool) -> i32 {
+pub fn dirt_after_a_shot(
+    dirt: i32,
+    blackpowder: bool,
+    blackpowder_tolerance: i32,
+    non_fouling: bool,
+) -> i32 {
     if non_fouling || dirt >= MAX_DIRT {
         return dirt.clamp(0, MAX_DIRT);
     }
@@ -686,7 +791,11 @@ pub fn incendiary_turns(
     dice: &mut cdda_core_types::rng::Rolls,
 ) -> Option<i32> {
     // `dam > 2 ? dam / 2 : one_in( 2 )` - the reference's bool-to-int, kept as a one-or-nothing.
-    let amount = if damage > 2 { damage / 2 } else { i32::from(dice.one_in(2)) };
+    let amount = if damage > 2 {
+        damage / 2
+    } else {
+        i32::from(dice.one_in(2))
+    };
     if amount <= 0 || !dice.x_in_y(f64::from(amount), 50.0) {
         return None;
     }
@@ -706,14 +815,20 @@ pub fn incendiary_turns(
 #[must_use]
 pub fn catches_fire_readily(materials: &std::collections::BTreeMap<String, i32>) -> bool {
     materials.keys().any(|material| {
-        material == "veggy" || matches!(material.as_str(), "paper" | "powder" | "wood" | "cotton" | "wool")
+        material == "veggy"
+            || matches!(
+                material.as_str(),
+                "paper" | "powder" | "wood" | "cotton" | "wool"
+            )
     })
 }
 
 /// Whether a creature's materials are flesh: the reference's `cmat_flesh`, which is **flesh and iflesh** (`creature.cpp:171-173`).
 #[must_use]
 pub fn is_flesh(materials: &std::collections::BTreeMap<String, i32>) -> bool {
-    materials.keys().any(|material| matches!(material.as_str(), "flesh" | "iflesh"))
+    materials
+        .keys()
+        .any(|material| matches!(material.as_str(), "flesh" | "iflesh"))
 }
 
 /// Sets a creature alight when the round was incendiary or igniting and its materials say it should burn.
@@ -748,7 +863,11 @@ fn set_alight_if_fire_round(
         ignite_turns(damage, readily, false, flesh, &mut dice)
     };
     if let Some(turns) = lit {
-        crate::applied_effects::add(world, struck, crate::effects::ActiveEffect::new(&kind, i64::from(turns), 1));
+        crate::applied_effects::add(
+            world,
+            struck,
+            crate::effects::ActiveEffect::new(&kind, i64::from(turns), 1),
+        );
     }
     crate::singletons::put_rolls(world, dice);
 }
@@ -777,7 +896,11 @@ pub fn ignite_turns(
     flesh: bool,
     dice: &mut cdda_core_types::rng::Rolls,
 ) -> Option<i32> {
-    let amount = if damage > 2 { damage / 2 } else { i32::from(dice.one_in(2)) };
+    let amount = if damage > 2 {
+        damage / 2
+    } else {
+        i32::from(dice.one_in(2))
+    };
     if amount <= 0 || !dice.x_in_y(1.0, 2.0) {
         return None;
     }
@@ -812,7 +935,12 @@ pub fn ignite_turns(
 /// from the gun's own loudness - **the reference simply says eight, twenty-four and four.** The threshold ladder on the noise is the other half: a burst and a single shot say **different words
 /// at the same volume**.
 #[must_use]
-pub fn gun_noise_word(noise: i32, ammo_type: &str, effects: &[String], burst: bool) -> (i32, &'static str) {
+pub fn gun_noise_word(
+    noise: i32,
+    ammo_type: &str,
+    effects: &[String],
+    burst: bool,
+) -> (i32, &'static str) {
     let has = |name: &str| effects.iter().any(|effect| effect == name);
     if matches!(ammo_type, "40x46mm" | "40x53mm") {
         return (8, "Thunk!");
@@ -878,7 +1006,13 @@ fn make_the_gun_s_sound(
     });
     if audible_to > 0 {
         // `sounds::sound_t::combat` (`ranged.cpp:2385`), which the reference's own `is_provocative` says is **not** provocative - a gunshot does not make a monster curious by this rule.
-        crate::sounds::make_a_sound_of_kind(world, place, audible_to, saying, crate::sounds::SoundCategory::Combat);
+        crate::sounds::make_a_sound_of_kind(
+            world,
+            place,
+            audible_to,
+            saying,
+            crate::sounds::SoundCategory::Combat,
+        );
     }
 }
 
@@ -900,7 +1034,12 @@ fn make_the_gun_s_sound(
 ///
 /// The answer is the `int` the reference's `pow` is assigned to, so it **truncates**; the activity level (`10 * str_ratio`) is the caller's, since the port has no activity level yet.
 #[must_use]
-pub fn archery_stamina_cost(min_strength: i32, strength: f32, archery_skill: f32, athletics_skill: f32) -> i32 {
+pub fn archery_stamina_cost(
+    min_strength: i32,
+    strength: f32,
+    archery_skill: f32,
+    athletics_skill: f32,
+) -> i32 {
     if strength <= 0.0 {
         // The reference divides by the arm's strength and would divide by zero; a creature with no strength is the port's own guard rather than an invented ratio.
         return 0;

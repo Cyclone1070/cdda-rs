@@ -50,7 +50,11 @@ fn the_dump_says_how_many_spells_there_are_and_what_each_one_does() {
     println!("spells: {spells}; effects: {top:?}");
 
     assert_eq!(spells, 245, "the engine has 245 spells");
-    assert_eq!(effects.get("attack").copied(), Some(77), "77 of them attack");
+    assert_eq!(
+        effects.get("attack").copied(),
+        Some(77),
+        "77 of them attack"
+    );
     assert_eq!(
         effects.get("effect_on_condition").copied(),
         Some(63),

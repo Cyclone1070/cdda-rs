@@ -47,7 +47,6 @@ pub struct GunType {
     pub durability: i32,
 }
 
-
 /// Reads one gun from a dump row: `--dump-guns`.
 ///
 /// # Errors

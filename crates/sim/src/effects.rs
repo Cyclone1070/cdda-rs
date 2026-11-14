@@ -236,7 +236,9 @@ impl ActiveEffect {
         is_new: bool,
     ) {
         let amount = self.amount_for(kind, "HUNGER", rolls, is_new);
-        if amount != 0 && (is_new || self.activated(kind, rolls, turn, "HUNGER", amount, false, 1.0)) {
+        if amount != 0
+            && (is_new || self.activated(kind, rolls, turn, "HUNGER", amount, false, 1.0))
+        {
             let movement = bound_mod_to_vals(
                 body.hunger,
                 amount,
@@ -246,7 +248,9 @@ impl ActiveEffect {
             body.set_hunger(body.hunger + movement);
         }
         let amount = self.amount_for(kind, "THIRST", rolls, is_new);
-        if amount != 0 && (is_new || self.activated(kind, rolls, turn, "THIRST", amount, false, 1.0)) {
+        if amount != 0
+            && (is_new || self.activated(kind, rolls, turn, "THIRST", amount, false, 1.0))
+        {
             let movement = bound_mod_to_vals(
                 body.thirst,
                 amount,
@@ -259,7 +263,13 @@ impl ActiveEffect {
     }
 
     /// The amount, read the way the branch reads it: `get_amount` on arrival, `get_mod` afterwards.
-    fn amount_for(&self, kind: &EffectType, argument: &str, rolls: &mut Rolls, is_new: bool) -> i32 {
+    fn amount_for(
+        &self,
+        kind: &EffectType,
+        argument: &str,
+        rolls: &mut Rolls,
+        is_new: bool,
+    ) -> i32 {
         if is_new {
             #[allow(clippy::cast_possible_truncation)]
             let amount = kind.mod_value(argument, ModAction::Amount, 0, self.intensity) as i32;
@@ -324,9 +334,24 @@ pub fn duration_intensity(duration: i64, factor: i64) -> i32 {
 /// rather than rounded, and the high is read as an integer before the gate is tested — so a stated maximum of `0.5` says nothing and the low comes back alone.
 #[must_use]
 #[allow(clippy::cast_possible_truncation)]
-pub fn average_mod(kind: &cdda_content::effects::EffectType, argument: &str, level: u8, intensity: i32) -> i32 {
-    let low = kind.mod_value(argument, cdda_content::effects::ModAction::Min, level, intensity);
-    let high = kind.mod_value(argument, cdda_content::effects::ModAction::Max, level, intensity);
+pub fn average_mod(
+    kind: &cdda_content::effects::EffectType,
+    argument: &str,
+    level: u8,
+    intensity: i32,
+) -> i32 {
+    let low = kind.mod_value(
+        argument,
+        cdda_content::effects::ModAction::Min,
+        level,
+        intensity,
+    );
+    let high = kind.mod_value(
+        argument,
+        cdda_content::effects::ModAction::Max,
+        level,
+        intensity,
+    );
     if high as i32 != 0 {
         f64::midpoint(low, high) as i32
     } else {

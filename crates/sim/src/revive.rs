@@ -63,7 +63,9 @@ pub fn revive(
         if !dormant && crate::monster_registry::kind_has_flag(world, dead.kind, "NO_NECRO") {
             continue;
         }
-        if !species.is_empty() && !crate::monster_registry::kind_in_species(world, dead.kind, species) {
+        if !species.is_empty()
+            && !crate::monster_registry::kind_in_species(world, dead.kind, species)
+        {
             continue;
         }
         let hit_points = crate::monster_registry::hit_points(world, dead.kind);

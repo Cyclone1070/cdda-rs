@@ -108,13 +108,16 @@ fn turns(object: &cdda_json::Object, key: &str) -> i64 {
 }
 
 fn recorded() -> (Vec<Profile>, Vec<Run>) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-merge.json");
-    let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/effect-merge.json");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|_| panic!("the recording at {}", path.display()));
     let value = cdda_json::parse(&bytes).expect("valid json");
     let Value::Object(root) = value else {
         panic!("the dump is an object")
     };
-    let (Some(Value::Array(profiles)), Some(Value::Array(runs))) = (root.get("profiles"), root.get("runs"))
+    let (Some(Value::Array(profiles)), Some(Value::Array(runs))) =
+        (root.get("profiles"), root.get("runs"))
     else {
         panic!("profiles and runs")
     };
@@ -125,9 +128,11 @@ fn recorded() -> (Vec<Profile>, Vec<Run>) {
                 panic!("a profile")
             };
             Profile {
-                max_intensity: i32::try_from(integer(profile, "max_intensity")).expect("an intensity"),
+                max_intensity: i32::try_from(integer(profile, "max_intensity"))
+                    .expect("an intensity"),
                 max_duration: turns(profile, "max_duration"),
-                dur_add_perc: i32::try_from(integer(profile, "dur_add_perc")).expect("a percentage"),
+                dur_add_perc: i32::try_from(integer(profile, "dur_add_perc"))
+                    .expect("a percentage"),
                 int_add_val: i32::try_from(integer(profile, "int_add_val")).expect("a step"),
                 int_dur_factor: turns(profile, "int_dur_factor"),
                 int_decay_remove: boolean(profile, "int_decay_remove"),
@@ -137,7 +142,9 @@ fn recorded() -> (Vec<Profile>, Vec<Run>) {
     let runs = runs
         .iter()
         .map(|run| {
-            let Value::Object(run) = run else { panic!("a run") };
+            let Value::Object(run) = run else {
+                panic!("a run")
+            };
             let Some(Value::Array(steps)) = run.get("steps") else {
                 panic!("steps")
             };
@@ -146,10 +153,13 @@ fn recorded() -> (Vec<Profile>, Vec<Run>) {
                 steps: steps
                     .iter()
                     .map(|step| {
-                        let Value::Object(step) = step else { panic!("a step") };
+                        let Value::Object(step) = step else {
+                            panic!("a step")
+                        };
                         Step {
                             minutes: integer(step, "minutes"),
-                            intensity: i32::try_from(integer(step, "intensity")).expect("an intensity"),
+                            intensity: i32::try_from(integer(step, "intensity"))
+                                .expect("an intensity"),
                             after_intensity: i32::try_from(integer(step, "after_intensity"))
                                 .expect("an intensity"),
                             after_turns: integer(step, "after_turns"),
@@ -179,7 +189,9 @@ fn every_application_leaves_the_intensity_and_duration_the_reference_leaves() {
         let kind = profiles[run.profile].kind();
         let mut active: Option<cdda_sim::effects::ActiveEffect> = None;
         for (index, step) in run.steps.iter().enumerate() {
-            let before = active.as_ref().map(|effect| (effect.intensity, effect.duration));
+            let before = active
+                .as_ref()
+                .map(|effect| (effect.intensity, effect.duration));
             match &mut active {
                 None => {
                     active = Some(cdda_sim::effects::ActiveEffect::new(
@@ -204,7 +216,9 @@ fn every_application_leaves_the_intensity_and_duration_the_reference_leaves() {
             }
             // What the step actually exercised, so the counts below are honest about the grid rather than about the code.
             if let Some((intensity, duration)) = before {
-                if step.intensity > 0 && effect.intensity == step.intensity && effect.intensity != intensity
+                if step.intensity > 0
+                    && effect.intensity == step.intensity
+                    && effect.intensity != intensity
                 {
                     jumped += 1;
                 }
@@ -227,10 +241,19 @@ fn every_application_leaves_the_intensity_and_duration_the_reference_leaves() {
     // **Non-vacuity**: each branch of the rule has to be taken by a real run, or the grid is testing one path six ways.
     assert!(created >= 30, "effects created: {created}");
     assert!(merged >= 60, "effects merged into: {merged}");
-    assert!(jumped > 0, "intensities jumped to the one asked for: {jumped}");
-    assert!(stepped > 0, "intensities stepped by the type's own size: {stepped}");
+    assert!(
+        jumped > 0,
+        "intensities jumped to the one asked for: {jumped}"
+    );
+    assert!(
+        stepped > 0,
+        "intensities stepped by the type's own size: {stepped}"
+    );
     assert!(capped > 0, "durations capped by the ceiling: {capped}");
-    assert!(zero_kept > 0, "zero intensities lifted back to one: {zero_kept}");
+    assert!(
+        zero_kept > 0,
+        "zero intensities lifted back to one: {zero_kept}"
+    );
     assert!(
         differing.is_empty(),
         "{} disagreements over {} applications; the first twelve are {:#?}",

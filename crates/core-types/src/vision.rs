@@ -42,13 +42,7 @@ pub fn apparent_light_with(
     grid: &crate::level::SeenGrid,
     square: (i32, i32),
 ) -> f32 {
-    apparent_light_with_codes(
-        &|x, y| level.terrain_at(x, y),
-        view,
-        light,
-        grid,
-        square,
-    )
+    apparent_light_with_codes(&|x, y| level.terrain_at(x, y), view, light, grid, square)
 }
 
 /// [`apparent_light_with`] for a caller whose squares are components rather than a level.
@@ -87,7 +81,9 @@ pub fn apparent_light_at_seen(
     light: &BTreeMap<(i32, i32), FourQuadrants>,
     square: (i32, i32),
 ) -> f32 {
-    let grid = level.seen_grid(view.origin, view.radius, |code| (view.transparency_of)(code));
+    let grid = level.seen_grid(view.origin, view.radius, |code| {
+        (view.transparency_of)(code)
+    });
     let opaque = level
         .terrain_at(square.0, square.1)
         .is_some_and(|code| (view.blocks_light)(code));
@@ -264,7 +260,9 @@ pub fn lit_level_at_square(
     // **Visibility multiplies the light.** `apparent_light = vis * lm.max()` (`lightmap.cpp:795-798`), and `vis` is the seen-cache value, so a square out of the cast has an
     // apparent light of zero however bright the light map says it is. [`apparent_light_at_seen`] does that multiplication and, on an opaque square, keeps only the quarters the
     // character can see it from. Believing the light map is already apparent light shows the player what is behind a wall, which is what the first test here caught.
-    let grid = level.seen_grid(view.origin, view.radius, |code| (view.transparency_of)(code));
+    let grid = level.seen_grid(view.origin, view.radius, |code| {
+        (view.transparency_of)(code)
+    });
     lit_level_with(level, view, light, &grid, square)
 }
 
