@@ -226,14 +226,14 @@ pub fn first_collision(world: &World, vehicle: Entity, delta: (i32, i32)) -> Opt
         if let Some(square_data) = crate::mapsquare::at(world, destination) {
             if terrain_collision(world, &square_data, built, part) {
                 return Some(Collision::Terrain {
-                    part: index,
+                    part: blamed_part(world, built, index),
                     square: destination,
                     bashable: true,
                 });
             }
             if square_data.impassable() {
                 return Some(Collision::Terrain {
-                    part: index,
+                    part: blamed_part(world, built, index),
                     square: destination,
                     bashable: false,
                 });
@@ -247,12 +247,37 @@ pub fn first_collision(world: &World, vehicle: Entity, delta: (i32, i32)) -> Opt
                 continue;
             }
             return Some(Collision::Creature {
-                part: index,
+                part: blamed_part(world, built, index),
                 target,
             });
         }
     }
     None
+}
+
+/// The part the reference blames for a hit: the part itself when it is armour, else the first **unbroken** armour part on the same mount.
+///
+/// Reference: `vehicle::part_with_feature( part, VPFLAG_ARMOR, /* unbroken */ true )` (`vehicle.cpp:3030-3048`), called from `part_collision` before it works
+/// out what kind of hit this is (`vehicle_move.cpp:922-929`) - "damage armor before damaging any other parts". The vehicle-vehicle branch returns before that
+/// call, so a collision with another vehicle names the part that reached it, not the plate beside it.
+fn blamed_part(world: &World, vehicle: &Vehicle, part: usize) -> usize {
+    let Some(colliding) = vehicle.parts.get(part) else {
+        return part;
+    };
+    let is_armour = |candidate: &VehiclePart| {
+        !candidate.broken
+            && spec_of(world, &candidate.part)
+                .is_some_and(|spec| spec.flags.contains("ARMOR"))
+    };
+    if is_armour(colliding) {
+        return part;
+    }
+    for (index, other) in vehicle.parts.iter().enumerate() {
+        if other.x == colliding.x && other.y == colliding.y && is_armour(other) {
+            return index;
+        }
+    }
+    part
 }
 
 /// Whether a part would hit the terrain on a square as **bashable** - the reference's long condition at `vehicle_move.cpp:950-967`.

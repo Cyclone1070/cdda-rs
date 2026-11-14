@@ -2127,3 +2127,10 @@ space, a ram's mount passes over a `SHORT` thing, `NOCOLLIDE` never interacts. `
 behind answers); a port-only gate pins the clauses the data does not reach, including that a `TINY` flower without a wheel still stops a frame as
 `other`. The square data moved to `crates/sim/src/mapsquare.rs`, shared with bashing. Five mutations caught. **Named**: the `RAIL`/`can_use_rails`
 clause, impassable fields, and the `ARMOR` part swap.
+
+**Round 1524 ported the armour swap.** A collision's part is not always the part that reached the target: the reference asks
+`part_with_feature( part, ARMOR, true )` first and blames the plate (`vehicle.cpp:3030-3048`, `vehicle_move.cpp:922-929`). The port's `blamed_part` answers
+the part itself when it is armour, else the first **unbroken** plate on the same mount, and the vehicle-vehicle branch keeps the part that hit, because the
+reference returns before the swap. `corpus/vehicle_armour.json` (`--dump-vehicle-armour`) pins a quad bike blaming `plating_steel` and then its `frame` once
+the plate is ruined with `set_hp( part, 0 )`, and a bicycle blaming `xlframe` both times. Since no `structure` part in the data carries `ARMOR`, the
+self-check is pinned by a fixture. Four mutations caught. **Named**: the reference's `ARMOR` bitflag is read as the part's flag string.

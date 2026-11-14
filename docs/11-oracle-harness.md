@@ -68,6 +68,7 @@ one to write - a single call to that builder with the same id - before any dump 
 | `--dump-vehicles <file>` | Every vehicle part and prototype, with durability, location, size, flags and armour | P8's store and mount rule |
 | `--dump-vehicle-rotation <file>` | `coord_translate` over a grid of mounts at 0, 45, 90, 180 and 270 degrees | P8's facing gate |
 | `--dump-vehicle-placement <file>` | A placed 2-seater helicopter: name, mounts, squares, fuel type and ammo, part by part | P8's placement gate and the fuel rounds |
+| `--dump-vehicle-armour <file>` | Which part a wall would hit on an armoured quad bike and an unarmoured bicycle, before and after the plate is ruined | P8's armour gate |
 | `--dump-vehicle-collision <file>` | A placed bicycle's one-square moves, detect-only: the hitting part, what it hits, the target part, and the projection used | P8's collision gate |
 | `--dump-vehicle-mass <file>` | A placed bicycle with fifty rocks in its basket: each part's base and cargo mass, and the vehicle's total | P8's mass gate |
 

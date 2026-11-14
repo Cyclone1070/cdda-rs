@@ -45,6 +45,29 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## Armour takes the hit (round 1524)
+
+A collision names a part, and that part is not always the one that reached the target. The reference spends its first line of damage accounting on the
+armour - "damage armor before damaging any other parts" - through
+`vehicle::part_with_feature( part, VPFLAG_ARMOR, /* unbroken */ true )` (`vehicle.cpp:3030-3048`), called from `part_collision` before it works out what
+kind of hit this is (`vehicle_move.cpp:922-929`).
+
+| Step | Reference | Port |
+|---|---|---|
+the part itself is a plate | the self-check comes first (`vehicle.cpp:3037-3040`) | `blamed_part` returns it |
+else the mount's first unbroken plate | the loop over `parts_at_relative( mount )` | the same loop, in part order |
+a **broken** plate is skipped | `!is_broken()` in the same test - a part is broken when its damage reaches its maximum (`vehicle_part.cpp:209-212`) | the port's `broken` flag, which its damage rule sets |
+a vehicle-vehicle collision | returns before the swap (`vehicle_move.cpp:838-846`) | no swap either |
+
+`corpus/vehicle_armour.json` is `--dump-vehicle-armour`: a quad bike whose leading mount carries `plating_steel` and a bicycle with no plate, each with a wall
+ahead, and each asked twice - the second time after `set_hp( part, 0 )` ruins whatever took the first hit. The quad bike answers **plating_steel**, then
+**frame**; the bicycle answers **xlframe** both times. Four mutations were caught: the self-check removed, the same-mount loop disabled, the broken plate
+still counting, and the terrain branch not consulting the rule at all.
+
+**Named:** no `structure` part in the shipped data carries `ARMOR`, so the self-check is unreachable from content and is pinned by a fixture instead
+(`a_part_that_is_itself_armour_takes_the_hit`) - a frame marked `ARMOR` with a plate earlier in part order on the same mount. The reference's
+`ARMOR` **bitflag** is read by the port as the part's `ARMOR` flag string, which is how the loader stores it.
+
 ## Terrain stops a vehicle, and the trivial things do not (round 1523)
 
 A vehicle's projection now looks under the squares it would take as well as into them. The reference splits terrain into two answers - **bashable**

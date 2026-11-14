@@ -1900,3 +1900,134 @@ fn trivial_things_do_not_stop_a_vehicle() {
         "**a ram's mount passes over a short thing it would otherwise hit**"
     );
 }
+
+#[test]
+fn armour_takes_the_hit_and_a_broken_plate_does_not() {
+    use cdda_sim::vehicles::{Collision, Vehicle, first_collision, spawn_facing};
+
+    // `corpus/vehicle_armour.json` is `--dump-vehicle-armour`: a wall in front of the leading structure part of a quad bike - which carries steel plating on
+    // that mount - and of a bicycle, which carries none. The reference blames the plate, then blames the frame once the plate is ruined.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_armour.json");
+    let bytes = std::fs::read(path).expect("the armour recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let origin = square_of(&root, "origin");
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut blames = std::collections::BTreeSet::new();
+    // For each vehicle, the part its healthy case blamed: the broken case that follows is that same part ruined.
+    let mut healthy_part: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        let wall = square_of(case, "wall_at");
+        let mut world = World::new();
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let tile = recorded_tile("t_wall");
+        let code = 11;
+        cdda_sim::terrain_types::set_types(&mut world, [(tile.id.clone(), code)]);
+        cdda_sim::bash::set_data(&mut world, [tile]);
+        cdda_sim::square::set_terrain(&mut world, wall, code);
+        let name = text_of(case, "vehicle");
+        let vehicle = spawn_facing(&mut world, &name, origin, 0.0).expect("the recorded vehicle builds");
+        assert_eq!(int_of(case, "hit"), 1, "the wall is in the way in every case");
+        if case.get("plates").is_some() {
+            let ruined = *healthy_part.get(&name).expect("the healthy case came first");
+            let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+            let part = built.parts.get_mut(ruined).expect("the part the healthy case blamed");
+            part.hp = 0;
+            part.broken = true;
+        } else {
+            healthy_part.insert(
+                name,
+                usize::try_from(int_of(case, "reported_index")).expect("a part index"),
+            );
+        }
+
+        let answer = first_collision(&world, vehicle, (1, 0));
+        let Some(Collision::Terrain { part, bashable, .. }) = answer else {
+            panic!("{}: the wall is hit, not something else", text_of(case, "name"));
+        };
+        assert!(bashable, "{}: a wall is bashable", text_of(case, "name"));
+        assert_eq!(
+            part,
+            usize::try_from(int_of(case, "reported_index")).expect("a part index"),
+            "{}: **the part the reference blames is the part the port blames**",
+            text_of(case, "name")
+        );
+        let named = world
+            .get::<Vehicle>(vehicle)
+            .expect("a vehicle")
+            .parts
+            .get(part)
+            .expect("the part")
+            .part
+            .clone();
+        assert_eq!(named, text_of(case, "reported"), "{}: and by name", text_of(case, "name"));
+        blames.insert(named);
+        seen += 1;
+    }
+    assert_eq!(seen, 4, "the recording holds four cases");
+    assert_eq!(
+        blames.len(),
+        3,
+        "**the plate answers one case, and two different frames the others**: {blames:?}"
+    );
+}
+
+#[test]
+fn a_part_that_is_itself_armour_takes_the_hit() {
+    use cdda_sim::vehicles::{Collision, Vehicle, first_collision, spawn_facing};
+
+    // No `structure` part in the shipped data is also armour, so the reference's first clause - the part that hits is itself a plate, so it takes the hit
+    // (`vehicle.cpp:3037-3040`) - cannot be reached by any recording. A fixture pins it instead: a frame marked `ARMOR`, with a plate **earlier in part order** on the
+    // same mount. Without the self-check the loop would blame the earlier plate.
+    let mut materials = store();
+    for spec in &mut materials.parts {
+        if spec.id == "xlframe" {
+            spec.flags.insert("ARMOR".to_owned());
+        }
+    }
+    for prototype in &mut materials.prototypes {
+        if prototype.id == "bicycle" {
+            prototype.parts.insert(
+                0,
+                cdda_content::vehicles::Placement {
+                    part: "plating_steel".to_owned(),
+                    x: 1,
+                    y: 0,
+                    variant: String::new(),
+                    with_ammo: 0,
+                },
+            );
+        }
+    }
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, materials);
+    let tile = recorded_tile("t_wall");
+    let code = 11;
+    cdda_sim::terrain_types::set_types(&mut world, [(tile.id.clone(), code)]);
+    cdda_sim::bash::set_data(&mut world, [tile]);
+    cdda_sim::square::set_terrain(&mut world, (32, 30, 0), code);
+    let vehicle = spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
+    let Some(Collision::Terrain { part, .. }) = first_collision(&world, vehicle, (1, 0)) else {
+        panic!("the wall is in the way");
+    };
+    assert_eq!(
+        world
+            .get::<Vehicle>(vehicle)
+            .expect("a vehicle")
+            .parts
+            .get(part)
+            .expect("the part")
+            .part,
+        "xlframe",
+        "**a part that is itself armour takes the hit, even with a plate earlier on its mount**"
+    );
+}

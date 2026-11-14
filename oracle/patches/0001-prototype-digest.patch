@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-14 11:14:27
-@@ -0,0 +1,8376 @@
++++ oracle/src/src/harness.cpp	2026-11-14 12:23:54
+@@ -0,0 +1,8465 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1266,6 +1266,95 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// (`mapgen.cpp:7523-7560`) refuses a vehicle whose structural squares hit deep water or another vehicle, and it needs the dynamic data loaded (`check_mod_data`) or the prototype id
 +/// does not exist. It lays floor around the avatar first so terrain cannot be the reason, places the 2-seater helicopter at the avatar's own square, and records what the reference
 +/// built: the name, every part's mount and square, its spec's fuel type, and the ammo a tank happens to hold.
++void dump_vehicle_armour( const std::string &path )
++{
++    static const std::string structure_location( "structure" );
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -12; dx <= 12; dx++ ) {
++        for( int dy = -12; dy <= 12; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"vehicle_armour\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    // One vehicle, a wall in front of its leading structure part, and what the reference says would take the hit.
++    const auto dump_vehicle = [&]( const char *name, const vproto_id &type ) {
++        vehicle *veh = here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true );
++        if( veh == nullptr ) {
++            std::fprintf( stderr, "harness: %s did not place\n", type.str().c_str() );
++            return;
++        }
++        // The leading structure part is the one furthest forward; the wall goes in the square its own move would take.
++        int leading = -1;
++        for( int p = 0; p < veh->part_count(); p++ ) {
++            const vehicle_part &vp = veh->part( p );
++            if( vp.removed || vp.info().location != structure_location ) {
++                continue;
++            }
++            if( leading < 0 || vp.mount.x() > veh->part( leading ).mount.x() ) {
++                leading = p;
++            }
++        }
++        const tripoint_bub_ms wall =
++            veh->bub_part_pos( here, leading ) + tripoint_rel_ms( 1, 0, 0 );
++        here.ter_set( wall, ter_id( "t_wall" ) );
++
++        const auto ask = [&]( const char *case_name, const char *plate_state ) {
++            veh->precalc_mounts( 1, 0_degrees, veh->pivot_point( here ) );
++            std::vector<veh_collision> colls;
++            const bool hit = veh->collision(
++                                 here, colls, tripoint_rel_ms( 1, 0, 0 ) - veh->pivot_displacement(), true, false );
++            std::fprintf( out,
++                          "%s{\"name\":\"%s\",\"vehicle\":\"%s\",\"wall_at\":[%d,%d,%d],\"lead_part\":%d,"
++                          "\"hit\":%d",
++                          first_case ? "" : ",", case_name, type.str().c_str(), wall.x(), wall.y(), wall.z(),
++                          leading, hit ? 1 : 0 );
++            first_case = false;
++            if( hit && !colls.empty() ) {
++                const veh_collision &coll = colls.front();
++                std::fprintf( out, ",\"reported\":\"%s\",\"reported_index\":%d,\"type\":\"%d\"",
++                              veh->part( coll.part ).info().id.str().c_str(), coll.part,
++                              static_cast<int>( coll.type ) );
++            }
++            if( plate_state != nullptr ) {
++                std::fprintf( out, ",\"plates\":\"%s\"", plate_state );
++            }
++            std::fprintf( out, "}" );
++        };
++
++        ask( name, nullptr );
++        // Break whatever took the hit and ask again: the swap only counts an unbroken plate (`part_with_feature( part, ARMOR, true )`).
++        std::vector<veh_collision> probe;
++        veh->collision( here, probe, tripoint_rel_ms( 1, 0, 0 ) - veh->pivot_displacement(), true,
++                        false );
++        if( !probe.empty() ) {
++            // `set_hp( part, 0 )` is the reference's own way to ruin a part: it sets the damage to the maximum, which is what `is_broken()` tests.
++            veh->set_hp( veh->part( probe.front().part ), 0, false );
++            ask( "a_broken_plate_does_not_take_it", "broken" );
++        }
++        here.destroy_vehicle( veh );
++        here.ter_set( wall, ter_id( "t_floor" ) );
++    };
++
++    dump_vehicle( "armour_takes_the_hit", vproto_id( "quad_bike" ) );
++    dump_vehicle( "a_bicycle_has_no_plate", vproto_id( "bicycle" ) );
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_vehicle_collision( const std::string &path )
 +{
 +    static const std::string structure_location( "structure" );
@@ -8738,8 +8827,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-14 09:19:42
-@@ -0,0 +1,436 @@
++++ oracle/src/src/harness.h	2026-11-14 12:18:30
+@@ -0,0 +1,437 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -8889,6 +8978,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_placement( const std::string &path );
 +void dump_vehicle_mass( const std::string &path );
 +void dump_vehicle_collision( const std::string &path );
++void dump_vehicle_armour( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -9463,7 +9553,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-14 09:19:42
++++ oracle/src/src/main.cpp	2026-11-14 12:18:30
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -9474,7 +9564,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,173 @@
+@@ -272,6 +275,174 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -9639,6 +9729,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_placement;
 +    std::string dump_vehicle_mass;
 +    std::string dump_vehicle_collision;
++    std::string dump_vehicle_armour;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -9648,7 +9739,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +470,1500 @@
+@@ -300,6 +471,1510 @@
                  }
              },
              {
@@ -9818,6 +9909,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_placement = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-armour", "<file>",
++                "Writes which part a wall would hit on an armoured vehicle, before and after the plate breaks",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_armour = params[0];
 +                    return 1;
 +                }
 +            },
@@ -11149,7 +11250,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2450,843 @@
+@@ -786,6 +2461,855 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -11400,6 +11501,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_placement( cli.dump_vehicle_placement );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_armour.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_armour( cli.dump_vehicle_armour );
 +            exit_handler( 0 );
 +        }
 +
