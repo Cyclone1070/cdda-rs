@@ -165,5 +165,6 @@ mod gun_rules;
 mod harvest_drop_types;
 mod math_values;
 mod mutation_activation;
+mod parse_memo;
 mod shot_rules;
 mod weakpoints;

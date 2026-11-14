@@ -135,30 +135,43 @@ pub type IdsByType = BTreeMap<String, Vec<String>>;
 /// where re-parsing costs seconds every time. `CDDA_NO_PARSE_MEMO=1` turns it off
 /// for anyone measuring the parser itself.
 pub fn read_json(path: &Path) -> Option<std::sync::Arc<cdda_json::Value>> {
-    use std::cell::RefCell;
     use std::collections::HashMap;
-    use std::sync::{Arc, OnceLock};
+    use std::sync::{Arc, Mutex, OnceLock};
 
+    // **The memo is the process's, not the thread's.** It was a `thread_local!` while this doc said "this process", so the gate's test threads each parsed the
+    // 6,220-file tree for themselves, and the suite spent its time repeating work the memo was written to avoid. One lock, held only for the map operation and never
+    // across a parse, so two threads reading two different files still parse in parallel.
+    static MEMO: OnceLock<Mutex<HashMap<PathBuf, Option<Arc<cdda_json::Value>>>>> = OnceLock::new();
     static DISABLED: OnceLock<bool> = OnceLock::new();
     let disabled = *DISABLED.get_or_init(|| std::env::var_os("CDDA_NO_PARSE_MEMO").is_some());
-
-    thread_local! {
-        static MEMO: RefCell<HashMap<PathBuf, Option<Arc<cdda_json::Value>>>> =
-            RefCell::new(HashMap::new());
-    }
 
     let bytes = std::fs::read(path).ok()?;
     if disabled {
         return cdda_json::parse(&bytes).ok().map(Arc::new);
     }
-    MEMO.with(|memo| {
-        if let Some(hit) = memo.borrow().get(path) {
-            return hit.clone();
-        }
-        let parsed = cdda_json::parse(&bytes).ok().map(Arc::new);
-        memo.borrow_mut().insert(path.to_path_buf(), parsed.clone());
-        parsed
-    })
+    let memo = MEMO.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(hit) = memo.lock().ok()?.get(path).cloned() {
+        return hit;
+    }
+    let parsed = cdda_json::parse(&bytes).ok().map(Arc::new);
+    PARSES.with(|count| count.set(count.get() + 1));
+    if let Ok(mut held) = memo.lock() {
+        held.insert(path.to_path_buf(), parsed.clone());
+    }
+    parsed
+}
+
+// Per thread, because a test asserting "my second call parsed nothing" should not be counting the tests running beside it.
+std::thread_local! {
+    static PARSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many files **this thread** has parsed through [`read_json`].
+///
+/// The memo's whole worth is the difference between this number and the number of calls, and a test is the only caller.
+#[must_use]
+pub fn parse_count() -> usize {
+    PARSES.with(std::cell::Cell::get)
 }
 pub mod crit_chance;
 pub mod overmap_build;
