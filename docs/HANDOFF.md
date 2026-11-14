@@ -1,6 +1,6 @@
 # Handoff
 
-Last round: 43. State at hand-off: **CI green**, gate green, tree clean.
+Last round: 44. State at hand-off: **CI green**, gate green, tree clean.
 
 ## Where the work stands
 
@@ -23,21 +23,20 @@ turn loop's own costs were found and fixed on the way:
 | `snapshot` borrowed view | not started — borrow-checker risk across 21 call sites |
 | `clippy.toml` thresholds + ledgers | not started |
 
-## This round: the thrust step
+## Rounds 43 and 44: the thrust step, and the store driving it
 
-`vehicle::thrust` (`vehicle_move.cpp:453-620`) decides the next turn's speed, and it is ported and gated: `vehicle_move::thrust_velocity` plus
-`corpus/vehicle_thrust.json`, thirteen recorded cases from a bicycle, a car and an electric car - at rest, rolling, at cruise, braking,
-reversing, and one engine-off. Two mutations checked: no reverse penalty fails `bicycle_reversing`, no brake floor fails `bicycle_braking`.
+`vehicle_move::thrust_velocity` is the speed a thrust step leaves, ported from `vehicle::thrust` (`vehicle_move.cpp:453-620`) and gated on thirteen recorded cases
+(`corpus/vehicle_thrust.json`). Round 44 wired it: `vehicle_move::thrust(world, vehicle, direction)` reads acceleration, top speed, the reverse floor and the
+battery question from the vehicle's own parts and writes `Vehicle::velocity`. `Vehicle` now carries `cruise_velocity`. Three more gates: the reverse floor against
+the same thirteen rows, the battery-engine question on three vehicles, and a bicycle in the store reaching 1,650 from rest and being held at its 1,871 top speed.
 
 ## The next cycle
 
-The thrust step is a pure function; nothing in the store calls it yet. Next, in order:
-
-1. `thrust(world, vehicle, direction, cruise)` - read `current_acceleration`, the top speed and the reverse floor from the store, apply
-   `thrust_velocity`, write `Vehicle.velocity`. Traction is `1.0` until `k_traction` is ported, and the doc says so.
-2. `max_reverse_velocity` (`vehicle.cpp`) - the reverse floor. The corpus already carries it per case (`max_reverse`), so the gate starts from rows
-   that exist.
-3. `map::move_vehicle` - velocity into squares per turn through the facing: the part that makes the vehicle go somewhere.
+1. `map::move_vehicle` - the part that makes the vehicle go somewhere: velocity into squares per turn through the facing, with the reference's `of_turn` and the
+   collision cases. This is the big one; dump first (`--dump-vehicle-move`), then the gate, then the port.
+2. `vehicle::slowdown` (`vehicle.cpp`, the `vslowdown` in `gain_moves`) - the speed a vehicle loses per turn to rolling and air drag before thrust, which the
+   movement rule runs before it moves anything.
+3. Fuel burn per step (`consume_fuel`) and engine damage under strain - named gaps in `docs/parity.md`.
 
 ## What must stay true
 
