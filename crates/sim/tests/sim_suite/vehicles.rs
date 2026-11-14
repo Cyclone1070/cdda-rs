@@ -22,15 +22,22 @@ fn world_with_the_helicopter() -> (World, Entity) {
     let mut world = World::new();
     let materials = store();
     cdda_sim::vehicles::set_store(&mut world, materials);
-    let vehicle = cdda_sim::vehicles::spawn(&mut world, "2seater2", (10, 10, 0)).expect("the helicopter builds");
+    let vehicle = cdda_sim::vehicles::spawn(&mut world, "2seater2", (10, 10, 0))
+        .expect("the helicopter builds");
     (world, vehicle)
 }
 
 #[test]
 fn a_prototype_becomes_one_entity_holding_every_part_its_blueprint_names() {
     let (world, vehicle) = world_with_the_helicopter();
-    let built = world.get::<cdda_sim::vehicles::Vehicle>(vehicle).expect("a vehicle");
-    assert_eq!(built.parts.len(), 71, "**one part per placement**, and the blueprint has 71");
+    let built = world
+        .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+        .expect("a vehicle");
+    assert_eq!(
+        built.parts.len(),
+        71,
+        "**one part per placement**, and the blueprint has 71"
+    );
     let frame = &built.parts[0];
     assert_eq!(frame.part, "frame", "the blueprint's first placement");
     assert_eq!((frame.x, frame.y), (0, 0), "in the origin square");
@@ -40,7 +47,10 @@ fn a_prototype_becomes_one_entity_holding_every_part_its_blueprint_names() {
     );
     assert!(!frame.broken, "and nothing starts broken");
     assert_eq!(
-        world.get::<cdda_sim::Position>(vehicle).copied().map(|at| (at.x, at.y, at.z)),
+        world
+            .get::<cdda_sim::Position>(vehicle)
+            .copied()
+            .map(|at| (at.x, at.y, at.z)),
         Some((10, 10, 0)),
         "the vehicle stands where it was built"
     );
@@ -68,15 +78,28 @@ fn a_hit_that_reaches_the_hit_points_breaks_the_part_and_leaves_it_in_place() {
     let outcome = cdda_sim::vehicles::damage(&mut world, vehicle, 0, 450, "bash", false);
     assert_eq!(
         outcome,
-        cdda_sim::vehicle_damage::Outcome::Applied { net: 430, hp_after: 0, broke: true },
+        cdda_sim::vehicle_damage::Outcome::Applied {
+            net: 430,
+            hp_after: 0,
+            broke: true
+        },
         "a 450-point bash lands for 430 after the frame's 20 armour, which takes it to zero"
     );
-    let built = world.get::<cdda_sim::vehicles::Vehicle>(vehicle).expect("a vehicle");
-    assert!(built.parts[0].broken, "**the part is broken and still there**: a vehicle does not lose its frame");
+    let built = world
+        .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+        .expect("a vehicle");
+    assert!(
+        built.parts[0].broken,
+        "**the part is broken and still there**: a vehicle does not lose its frame"
+    );
     assert_eq!(built.parts[0].hp, 0, "with no hit points left");
     assert_eq!(
         cdda_sim::vehicles::parts_at(&world, vehicle, 0, 0).len(),
-        built.parts.iter().filter(|part| (part.x, part.y) == (0, 0)).count(),
+        built
+            .parts
+            .iter()
+            .filter(|part| (part.x, part.y) == (0, 0))
+            .count(),
         "and it still occupies its square"
     );
 }
@@ -176,7 +199,7 @@ fn a_square_answers_which_vehicle_stands_on_it() {
 
 #[test]
 fn a_part_is_installed_only_where_the_structure_allows() {
-    use cdda_sim::vehicles::{install_part, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, install_part};
 
     let (mut world, vehicle) = world_with_the_helicopter();
 
@@ -255,7 +278,7 @@ fn a_part_is_installed_only_where_the_structure_allows() {
 
 #[test]
 fn a_part_comes_out_and_its_square_gives_the_vehicle_up() {
-    use cdda_sim::vehicles::{at, install_part, parts_at, remove_part, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, at, install_part, parts_at, remove_part};
 
     let (mut world, vehicle) = world_with_the_helicopter();
     assert_eq!(install_part(&mut world, vehicle, "frame", 2, 1), Some(71));
@@ -263,7 +286,9 @@ fn a_part_comes_out_and_its_square_gives_the_vehicle_up() {
 
     let removed = remove_part(&mut world, vehicle, 71);
     assert_eq!(
-        removed.as_ref().map(|part| (part.part.as_str(), part.x, part.y)),
+        removed
+            .as_ref()
+            .map(|part| (part.part.as_str(), part.x, part.y)),
         Some(("frame", 2, 1)),
         "the removed part comes back, mount and all"
     );
@@ -296,7 +321,10 @@ fn a_part_comes_out_and_its_square_gives_the_vehicle_up() {
     );
     for _ in 0..2 {
         let remaining = parts_at(&world, vehicle, 1, 1);
-        let last = remaining.first().copied().expect("two parts stand at (1, 1)");
+        let last = remaining
+            .first()
+            .copied()
+            .expect("two parts stand at (1, 1)");
         remove_part(&mut world, vehicle, last).expect("the part comes out");
     }
     assert_eq!(
@@ -330,7 +358,7 @@ fn a_part_comes_out_and_its_square_gives_the_vehicle_up() {
 
 #[test]
 fn a_tow_cable_is_the_only_part_that_joins_a_harness_or_a_protrusion() {
-    use cdda_sim::vehicles::{install_part, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, install_part};
 
     let (mut world, vehicle) = world_with_the_helicopter();
     // A harness on an empty square beside the hull: structural, so it is a valid first part.
@@ -375,7 +403,7 @@ fn a_tow_cable_is_the_only_part_that_joins_a_harness_or_a_protrusion() {
 
 #[test]
 fn cargo_and_opaque_parts_refuse_their_company() {
-    use cdda_sim::vehicles::{install_part, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, install_part};
 
     let (mut world, vehicle) = world_with_the_helicopter();
     // A freezer is structural and cargo, so it can start a square.
@@ -430,8 +458,8 @@ type FacingSquare = ((i32, i32), (i32, i32));
 /// Written by `--dump-vehicle-rotation` (`oracle/src/src/harness.cpp`), which advances a `tileray` by each mount's x and offsets it by its y - the body of
 /// `vehicle::coord_translate` (`vehicle.cpp:3598-3615`) - over a grid that covers every mount the helicopter has.
 fn recorded_facings() -> Vec<(i32, Vec<FacingSquare>)> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../corpus/vehicle_rotation.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rotation.json");
     let bytes = std::fs::read(path).expect("the facing recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -508,7 +536,7 @@ fn a_facing_turns_a_mount_the_way_the_reference_turns_it() {
 
 #[test]
 fn a_turned_vehicle_stands_on_the_turned_squares_and_the_index_lists_them() {
-    use cdda_sim::vehicles::{occupied_squares, part_squares, spawn_facing, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, occupied_squares, part_squares, spawn_facing};
 
     let facings = recorded_facings();
     let mut compared = 0;
@@ -520,10 +548,8 @@ fn a_turned_vehicle_stands_on_the_turned_squares_and_the_index_lists_them() {
         cdda_sim::PositionIndex::rebuild(&mut world);
 
         let built = world.get::<Vehicle>(vehicle).expect("a vehicle").clone();
-        let recorded: std::collections::BTreeMap<(i32, i32), (i32, i32)> = squares
-            .iter()
-            .map(|(mount, at)| (*mount, *at))
-            .collect();
+        let recorded: std::collections::BTreeMap<(i32, i32), (i32, i32)> =
+            squares.iter().map(|(mount, at)| (*mount, *at)).collect();
         let port_squares = part_squares(&world, vehicle);
         assert_eq!(port_squares.len(), built.parts.len(), "one square per part");
         for (index, part) in built.parts.iter().enumerate() {
@@ -594,7 +620,7 @@ fn part_index(world: &World, vehicle: Entity, x: i32, y: i32, id: &str) -> Optio
 
 #[test]
 fn removing_a_part_removes_the_parts_that_depend_on_it() {
-    use cdda_sim::vehicles::{install_part, parts_at, remove_part, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, install_part, parts_at, remove_part};
 
     let (mut world, vehicle) = world_with_the_helicopter();
     assert_eq!(
@@ -702,7 +728,7 @@ fn creature_at(world: &mut World, x: i32, y: i32) -> Entity {
 
 #[test]
 fn a_creature_boards_the_seat_under_it_and_can_get_out() {
-    use cdda_sim::vehicles::{board, unboard, Riding};
+    use cdda_sim::vehicles::{Riding, board, unboard};
 
     let (mut world, vehicle) = world_with_the_helicopter();
     let rider = creature_at(&mut world, 10, 10);
@@ -714,7 +740,10 @@ fn a_creature_boards_the_seat_under_it_and_can_get_out() {
     );
     assert_eq!(
         world.get::<Riding>(rider).copied(),
-        Some(Riding { vehicle, part: seat }),
+        Some(Riding {
+            vehicle,
+            part: seat
+        }),
         "and the seat is named once, on the creature"
     );
     assert!(unboard(&mut world, rider), "it can get out");
@@ -727,7 +756,7 @@ fn a_creature_boards_the_seat_under_it_and_can_get_out() {
 
 #[test]
 fn a_seat_holds_one_creature_and_a_window_holds_none() {
-    use cdda_sim::vehicles::{board, damage, remove_part, Riding};
+    use cdda_sim::vehicles::{Riding, board, damage, remove_part};
 
     let (mut world, vehicle) = world_with_the_helicopter();
     let first = creature_at(&mut world, 10, 10);
@@ -744,7 +773,10 @@ fn a_seat_holds_one_creature_and_a_window_holds_none() {
     );
     assert_eq!(
         world.get::<Riding>(second).copied(),
-        Some(Riding { vehicle, part: seat })
+        Some(Riding {
+            vehicle,
+            part: seat
+        })
     );
 
     // A windshield is not a seat, and a square off the vehicle is not either.
@@ -780,7 +812,7 @@ fn a_seat_holds_one_creature_and_a_window_holds_none() {
 
 #[test]
 fn an_open_door_stops_blocking_the_square_it_stands_on() {
-    use cdda_sim::vehicles::{move_cost_at, open_or_close, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, move_cost_at, open_or_close};
 
     let (mut world, vehicle) = world_with_the_helicopter();
     let door = part_index(&world, vehicle, -1, -1, "door").expect("the door");
@@ -789,7 +821,10 @@ fn an_open_door_stops_blocking_the_square_it_stands_on() {
         Some(0),
         "a closed door is an obstacle"
     );
-    assert!(open_or_close(&mut world, vehicle, door, true), "the door opens");
+    assert!(
+        open_or_close(&mut world, vehicle, door, true),
+        "the door opens"
+    );
     assert!(
         world.get::<Vehicle>(vehicle).expect("a vehicle").parts[door].open,
         "the part carries its own state"
@@ -799,7 +834,10 @@ fn an_open_door_stops_blocking_the_square_it_stands_on() {
         Some(8),
         "**an open door stops blocking**"
     );
-    assert!(open_or_close(&mut world, vehicle, door, false), "and closes");
+    assert!(
+        open_or_close(&mut world, vehicle, door, false),
+        "and closes"
+    );
     assert_eq!(
         move_cost_at(&world, (9, 9, 0)),
         Some(0),
@@ -816,12 +854,16 @@ fn an_open_door_stops_blocking_the_square_it_stands_on() {
         !world.get::<Vehicle>(vehicle).expect("a vehicle").parts[windshield].open,
         "and carries no open state of its own"
     );
-    assert_eq!(move_cost_at(&world, (11, 10, 0)), Some(0), "so it still blocks");
+    assert_eq!(
+        move_cost_at(&world, (11, 10, 0)),
+        Some(0),
+        "so it still blocks"
+    );
 }
 
 #[test]
 fn a_placed_vehicle_stands_where_the_reference_places_it() {
-    use cdda_sim::vehicles::{part_squares, spawn_facing, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, part_squares, spawn_facing};
 
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/vehicle_placement.json");
@@ -841,7 +883,11 @@ fn a_placed_vehicle_stands_where_the_reference_places_it() {
     let Some(cdda_json::Value::Array(placed)) = root.get("parts") else {
         panic!("the recording has parts");
     };
-    assert_eq!(placed.len(), 71, "the reference placed the helicopter's 71 parts");
+    assert_eq!(
+        placed.len(),
+        71,
+        "the reference placed the helicopter's 71 parts"
+    );
 
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
@@ -1030,17 +1076,24 @@ fn every_placed_part_says_what_it_can_hold_and_what_fuel_it_uses() {
         );
         if spec.flags.contains("ENGINE") {
             engines += 1;
-            assert!(spec.fuel_opts.len() >= 2, "{} is multi-fuel", placement.part);
+            assert!(
+                spec.fuel_opts.len() >= 2,
+                "{} is multi-fuel",
+                placement.part
+            );
         }
     }
-    assert!(stores >= 3, "the helicopter's tanks are fuel stores: {stores}");
+    assert!(
+        stores >= 3,
+        "the helicopter's tanks are fuel stores: {stores}"
+    );
     assert!(batteries >= 1, "and it carries a battery: {batteries}");
     assert_eq!(engines, 2, "the helicopter has two engines");
 }
 
 #[test]
 fn a_vehicle_says_how_much_fuel_of_a_type_it_carries() {
-    use cdda_sim::vehicles::{damage, fuel_left, spawn_facing, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, damage, fuel_left, spawn_facing};
 
     let placed = placed_parts();
     let origin = placed_origin();
@@ -1116,7 +1169,7 @@ fn a_vehicle_says_how_much_fuel_of_a_type_it_carries() {
 
 /// The helicopter with the reference's fuel contents copied onto it, as the placement dump records them.
 fn fueled_helicopter() -> (World, Entity) {
-    use cdda_sim::vehicles::{spawn_facing, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, spawn_facing};
 
     let placed = placed_parts();
     let origin = placed_origin();
@@ -1136,7 +1189,7 @@ fn fueled_helicopter() -> (World, Entity) {
 
 /// Puts a fuel in the vehicle's tanks, replacing whatever they held - the harness's `ammo_set` for a single fuel.
 fn fill_tanks(world: &mut World, vehicle: Entity, fuel: &str, charges: i32) {
-    use cdda_sim::vehicles::{part_spec, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, part_spec};
 
     let tanks: Vec<usize> = {
         let built = world.get::<Vehicle>(vehicle).expect("a vehicle");
@@ -1145,7 +1198,8 @@ fn fill_tanks(world: &mut World, vehicle: Entity, fuel: &str, charges: i32) {
             .iter()
             .enumerate()
             .filter(|(index, _)| {
-                part_spec(world, vehicle, *index).is_some_and(|spec| spec.fuel_store && !spec.battery)
+                part_spec(world, vehicle, *index)
+                    .is_some_and(|spec| spec.fuel_store && !spec.battery)
             })
             .map(|(index, _)| index)
             .collect()
@@ -1160,7 +1214,9 @@ fn fill_tanks(world: &mut World, vehicle: Entity, fuel: &str, charges: i32) {
 
 #[test]
 fn an_engine_starts_only_when_it_has_fuel() {
-    use cdda_sim::vehicles::{damage, engine_fuel_left, fuel_current, is_engine_on, start_engine, Vehicle};
+    use cdda_sim::vehicles::{
+        Vehicle, damage, engine_fuel_left, fuel_current, is_engine_on, start_engine,
+    };
 
     let (mut world, vehicle) = fueled_helicopter();
     let engine = part_index(&world, vehicle, -2, -1, "engine_turbine_small").expect("the engine");
@@ -1172,7 +1228,10 @@ fn an_engine_starts_only_when_it_has_fuel() {
         !start_engine(&mut world, vehicle, engine, true),
         "**asking to start an engine that is already on answers no** - the reference returns early when the switch is already where it was asked to be"
     );
-    assert!(start_engine(&mut world, vehicle, engine, false), "turning it off works");
+    assert!(
+        start_engine(&mut world, vehicle, engine, false),
+        "turning it off works"
+    );
     assert!(!is_engine_on(&world, vehicle, engine), "and now it is off");
     assert!(
         start_engine(&mut world, vehicle, engine, true),
@@ -1180,13 +1239,20 @@ fn an_engine_starts_only_when_it_has_fuel() {
     );
     assert!(is_engine_on(&world, vehicle, engine), "and it reads as on");
     assert_eq!(fuel_current(&world, vehicle, engine), "gasoline");
-    assert_eq!(engine_fuel_left(&world, vehicle, engine), 300, "its fuel is the three full tanks");
+    assert_eq!(
+        engine_fuel_left(&world, vehicle, engine),
+        300,
+        "its fuel is the three full tanks"
+    );
 
     assert!(
         !start_engine(&mut world, vehicle, engine, true),
         "**asking for the state it already has changes nothing and answers no**"
     );
-    assert!(start_engine(&mut world, vehicle, engine, false), "turning it off always works");
+    assert!(
+        start_engine(&mut world, vehicle, engine, false),
+        "turning it off always works"
+    );
     assert!(!is_engine_on(&world, vehicle, engine));
 
     // A broken engine cannot start, even full of fuel.
@@ -1236,7 +1302,7 @@ fn an_engine_starts_only_when_it_has_fuel() {
 
 #[test]
 fn an_engine_takes_the_first_fuel_it_can_burn() {
-    use cdda_sim::vehicles::{engine_fuel_left, fuel_current, part_spec, start_engine, Vehicle};
+    use cdda_sim::vehicles::{Vehicle, engine_fuel_left, fuel_current, part_spec, start_engine};
 
     let (mut world, vehicle) = fueled_helicopter();
     let engine = part_index(&world, vehicle, -2, -1, "engine_turbine_small").expect("the engine");
@@ -1261,8 +1327,14 @@ fn an_engine_takes_the_first_fuel_it_can_burn() {
     // Diesel only: its own type is dry, so it takes the first option that is not. The engine is already on - a fresh part's switch is on - so it is switched off
     // before it is asked to choose a fuel, which is what the reference's own "start" does on a vehicle nobody has started yet.
     fill_tanks(&mut world, vehicle, "diesel", 100);
-    assert!(start_engine(&mut world, vehicle, engine, false), "switched off first");
-    assert!(start_engine(&mut world, vehicle, engine, true), "it starts on diesel");
+    assert!(
+        start_engine(&mut world, vehicle, engine, false),
+        "switched off first"
+    );
+    assert!(
+        start_engine(&mut world, vehicle, engine, true),
+        "it starts on diesel"
+    );
     assert_eq!(
         fuel_current(&world, vehicle, engine),
         "diesel",
@@ -1273,7 +1345,10 @@ fn an_engine_takes_the_first_fuel_it_can_burn() {
     // Gasoline again: the choice is made afresh on each start, not remembered forever.
     assert!(start_engine(&mut world, vehicle, engine, false));
     fill_tanks(&mut world, vehicle, "gasoline", 100);
-    assert!(start_engine(&mut world, vehicle, engine, true), "it starts on gasoline");
+    assert!(
+        start_engine(&mut world, vehicle, engine, true),
+        "it starts on gasoline"
+    );
     assert_eq!(
         fuel_current(&world, vehicle, engine),
         "gasoline",
@@ -1308,17 +1383,29 @@ fn cargo_kind(id: &str, volume_ml: i64) -> cdda_sim::item_registry::Kind<'_> {
 }
 
 /// The reference's bicycle, with a rock and an anvil to try in its basket.
-fn bicycle_with_cargo() -> (World, Entity, usize, usize, cdda_sim::ItemTypeId, cdda_sim::ItemTypeId) {
+fn bicycle_with_cargo() -> (
+    World,
+    Entity,
+    usize,
+    usize,
+    cdda_sim::ItemTypeId,
+    cdda_sim::ItemTypeId,
+) {
     use cdda_sim::item_registry::{id_of, set_item_types};
     use cdda_sim::vehicles::spawn_facing;
 
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
-    let kinds = [cargo_kind("null", 0), cargo_kind("rock", 50), cargo_kind("anvil", 25_000)];
+    let kinds = [
+        cargo_kind("null", 0),
+        cargo_kind("rock", 50),
+        cargo_kind("anvil", 25_000),
+    ];
     set_item_types(&mut world, &kinds);
     let rock = id_of(&mut world, "rock").expect("the rock");
     let anvil = id_of(&mut world, "anvil").expect("the anvil");
-    let vehicle = spawn_facing(&mut world, "bicycle", (10, 10, 0), 0.0).expect("the bicycle builds");
+    let vehicle =
+        spawn_facing(&mut world, "bicycle", (10, 10, 0), 0.0).expect("the bicycle builds");
     let basket = part_index(&world, vehicle, -1, 0, "basketsm").expect("the basket");
     let frame = part_index(&world, vehicle, 0, 0, "xlframe").expect("the frame");
     (world, vehicle, basket, frame, rock, anvil)
@@ -1327,13 +1414,21 @@ fn bicycle_with_cargo() -> (World, Entity, usize, usize, cdda_sim::ItemTypeId, c
 #[test]
 fn a_cargo_part_holds_only_what_fits() {
     use cdda_sim::vehicle_cargo::{
-        InVehiclePart, cargo_capacity, free_volume, items_in_part, stow_item, stored_volume,
+        InVehiclePart, cargo_capacity, free_volume, items_in_part, stored_volume, stow_item,
     };
 
     let (mut world, vehicle, basket, frame, rock, anvil) = bicycle_with_cargo();
 
-    assert_eq!(cargo_capacity(&world, vehicle, basket), 20_000, "**a basket holds twenty litres**");
-    assert_eq!(cargo_capacity(&world, vehicle, frame), 0, "a frame is not cargo and holds nothing");
+    assert_eq!(
+        cargo_capacity(&world, vehicle, basket),
+        20_000,
+        "**a basket holds twenty litres**"
+    );
+    assert_eq!(
+        cargo_capacity(&world, vehicle, frame),
+        0,
+        "a frame is not cargo and holds nothing"
+    );
     assert_eq!(free_volume(&world, vehicle, basket), 20_000);
 
     assert!(
@@ -1344,7 +1439,11 @@ fn a_cargo_part_holds_only_what_fits() {
         stow_item(&mut world, vehicle, frame, rock, 1).is_none(),
         "and a part that is not cargo holds nothing at all"
     );
-    assert_eq!(items_in_part(&world, vehicle, basket).len(), 0, "a refusal stores nothing");
+    assert_eq!(
+        items_in_part(&world, vehicle, basket).len(),
+        0,
+        "a refusal stores nothing"
+    );
 
     // A stack takes its charge count in room.
     let stack = stow_item(&mut world, vehicle, basket, rock, 300).expect("300 rocks fit");
@@ -1422,7 +1521,7 @@ fn a_full_part_says_so_and_a_broken_one_takes_nothing() {
 #[test]
 fn an_item_can_come_back_out_of_a_part() {
     use cdda_sim::vehicle_cargo::{
-        free_volume, items_in_part, remove_item, stow_item, stored_volume,
+        free_volume, items_in_part, remove_item, stored_volume, stow_item,
     };
 
     let (mut world, vehicle, basket, _frame, rock, _anvil) = bicycle_with_cargo();
@@ -1430,14 +1529,20 @@ fn an_item_can_come_back_out_of_a_part() {
     let single = stow_item(&mut world, vehicle, basket, rock, 1).expect("a rock fits");
     assert_eq!(stored_volume(&world, vehicle, basket), 15_050);
 
-    assert!(remove_item(&mut world, single), "**a held item comes back out**");
+    assert!(
+        remove_item(&mut world, single),
+        "**a held item comes back out**"
+    );
     assert_eq!(
         stored_volume(&world, vehicle, basket),
         15_000,
         "and the room it took comes back with it"
     );
     assert_eq!(items_in_part(&world, vehicle, basket).len(), 1);
-    assert!(!remove_item(&mut world, single), "the same item cannot come out twice");
+    assert!(
+        !remove_item(&mut world, single),
+        "the same item cannot come out twice"
+    );
 
     assert!(remove_item(&mut world, stack));
     assert_eq!(stored_volume(&world, vehicle, basket), 0);
@@ -1458,7 +1563,11 @@ fn a_wreck_can_be_salvaged() {
     let (mut world, vehicle, basket, _frame, rock, _anvil) = bicycle_with_cargo();
     let salvage = stow_item(&mut world, vehicle, basket, rock, 10).expect("rocks fit");
     damage(&mut world, vehicle, basket, 10_000, "bash", true);
-    assert_eq!(items_in_part(&world, vehicle, basket).len(), 1, "the wreck still holds it");
+    assert_eq!(
+        items_in_part(&world, vehicle, basket).len(),
+        1,
+        "the wreck still holds it"
+    );
     assert!(
         remove_item(&mut world, salvage),
         "**a broken part gives back what it holds**"
@@ -1491,16 +1600,27 @@ fn a_vehicle_moves_one_square_and_its_squares_follow() {
 
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
-    let vehicle = spawn_facing(&mut world, "bicycle", (20, 20, 0), 0.0).expect("the bicycle builds");
+    let vehicle =
+        spawn_facing(&mut world, "bicycle", (20, 20, 0), 0.0).expect("the bicycle builds");
     let before = occupied_squares(&world, vehicle);
     assert_eq!(before.len(), 3, "the bicycle stands on three squares");
     for square in &before {
-        assert!(things_at(&world, square.0, square.1).contains(&vehicle), "the index holds it before the move");
+        assert!(
+            things_at(&world, square.0, square.1).contains(&vehicle),
+            "the index holds it before the move"
+        );
     }
 
-    assert!(move_vehicle(&mut world, vehicle, (1, 0)), "**a vehicle moves one square**");
+    assert!(
+        move_vehicle(&mut world, vehicle, (1, 0)),
+        "**a vehicle moves one square**"
+    );
     let after = occupied_squares(&world, vehicle);
-    assert_eq!(after.len(), before.len(), "it stands on as many squares as before");
+    assert_eq!(
+        after.len(),
+        before.len(),
+        "it stands on as many squares as before"
+    );
     for (old, new) in before.iter().zip(&after) {
         assert_eq!(
             *new,
@@ -1508,8 +1628,15 @@ fn a_vehicle_moves_one_square_and_its_squares_follow() {
             "**every square of it moves with it**"
         );
     }
-    let left: Vec<_> = before.iter().filter(|square| !after.contains(square)).collect();
-    assert_eq!(left.len(), 1, "a three-square bicycle moved one square leaves one square behind");
+    let left: Vec<_> = before
+        .iter()
+        .filter(|square| !after.contains(square))
+        .collect();
+    assert_eq!(
+        left.len(),
+        1,
+        "a three-square bicycle moved one square leaves one square behind"
+    );
     for square in &left {
         assert!(
             !things_at(&world, square.0, square.1).contains(&vehicle),
@@ -1523,9 +1650,19 @@ fn a_vehicle_moves_one_square_and_its_squares_follow() {
         );
     }
 
-    assert!(!move_vehicle(&mut world, vehicle, (0, 0)), "an empty displacement is refused");
-    assert!(!move_vehicle(&mut world, vehicle, (2, 0)), "a displacement longer than a square is refused");
-    assert_eq!(occupied_squares(&world, vehicle), after, "a refused move changes nothing");
+    assert!(
+        !move_vehicle(&mut world, vehicle, (0, 0)),
+        "an empty displacement is refused"
+    );
+    assert!(
+        !move_vehicle(&mut world, vehicle, (2, 0)),
+        "a displacement longer than a square is refused"
+    );
+    assert_eq!(
+        occupied_squares(&world, vehicle),
+        after,
+        "a refused move changes nothing"
+    );
 }
 
 #[test]
@@ -1534,23 +1671,35 @@ fn a_rider_moves_with_the_seat_it_sits_on() {
 
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
-    let vehicle = spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
+    let vehicle =
+        spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
     let saddle = part_index(&world, vehicle, 0, 0, "saddle").expect("the saddle");
     let rider = creature_at(&mut world, 30, 30);
-    assert_eq!(board(&mut world, vehicle, rider), Some(saddle), "the rider takes the saddle");
+    assert_eq!(
+        board(&mut world, vehicle, rider),
+        Some(saddle),
+        "the rider takes the saddle"
+    );
     let seat_before = part_squares(&world, vehicle)[saddle];
 
-    assert!(move_vehicle(&mut world, vehicle, (0, 1)), "the bicycle moves");
+    assert!(
+        move_vehicle(&mut world, vehicle, (0, 1)),
+        "the bicycle moves"
+    );
     let seat_after = part_squares(&world, vehicle)[saddle];
     assert_ne!(seat_before, seat_after, "the seat moved");
-    let position = world.get::<cdda_sim::Position>(rider).expect("the rider has a square");
+    let position = world
+        .get::<cdda_sim::Position>(rider)
+        .expect("the rider has a square");
     assert_eq!(
         (position.x, position.y, position.z),
         seat_after,
         "**a rider is put on the seat's new square**"
     );
     assert!(
-        world.get::<Riding>(rider).is_some_and(|riding| riding.vehicle == vehicle && riding.part == saddle),
+        world
+            .get::<Riding>(rider)
+            .is_some_and(|riding| riding.vehicle == vehicle && riding.part == saddle),
         "and still sits in the same seat"
     );
     assert!(
@@ -1562,7 +1711,6 @@ fn a_rider_moves_with_the_seat_it_sits_on() {
         "and not where it was"
     );
 }
-
 
 /// The four tiles the collision recording names, with the numbers the reference's own data gives them.
 ///
@@ -1597,7 +1745,10 @@ fn recorded_tile(id: &str) -> cdda_content::mapdata::MapData {
 }
 
 /// Rebuilds the world one collision case was asked in: a bicycle at the recorded origin, the obstacle the case names, and nothing else.
-fn collision_world(case: &cdda_json::Object, at: (i32, i32, i32)) -> (World, Entity, Option<Entity>) {
+fn collision_world(
+    case: &cdda_json::Object,
+    at: (i32, i32, i32),
+) -> (World, Entity, Option<Entity>) {
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
     if case.get("terrain").is_some() {
@@ -1607,7 +1758,8 @@ fn collision_world(case: &cdda_json::Object, at: (i32, i32, i32)) -> (World, Ent
         cdda_sim::bash::set_data(&mut world, [recorded_tile(&id)]);
         cdda_sim::square::set_terrain(&mut world, square_of(case, "terrain_at"), code);
     }
-    let first = cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", at, 0.0).expect("the bicycle builds");
+    let first = cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", at, 0.0)
+        .expect("the bicycle builds");
     let mut blocker = None;
     for field in ["obstacle_at", "creature_at"] {
         let Some(cdda_json::Value::Array(square)) = case.get(field) else {
@@ -1619,7 +1771,8 @@ fn collision_world(case: &cdda_json::Object, at: (i32, i32, i32)) -> (World, Ent
             coordinate(square, 2),
         );
         let spawned = if field == "obstacle_at" {
-            cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", there, 0.0).expect("the obstacle builds")
+            cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", there, 0.0)
+                .expect("the obstacle builds")
         } else {
             world
                 .spawn((
@@ -1647,7 +1800,8 @@ fn a_vehicle_sees_what_it_would_hit() {
 
     // `corpus/vehicle_collision.json` is `--dump-vehicle-collision`: a bicycle at the avatar's square, then four displacements answered in detect-only mode. Each case names
     // the world it was asked in - a second bicycle for the vehicle collision, a zombie for the body collision - and the port rebuilds exactly that world.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_collision.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_collision.json");
     let bytes = std::fs::read(path).expect("the collision recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -1677,13 +1831,20 @@ fn a_vehicle_sees_what_it_would_hit() {
         };
         let delta = (coordinate(dp, 0), coordinate(dp, 1));
         let hit = int_of(case, "hit") != 0;
-        let kind = if hit { text_of(case, "type") } else { "nothing".to_owned() };
+        let kind = if hit {
+            text_of(case, "type")
+        } else {
+            "nothing".to_owned()
+        };
 
         let (world, first, blocker) = collision_world(case, at);
         let answer = first_collision(&world, first, delta);
         let part = match answer {
             None => {
-                assert!(!hit, "**a {name} move hits nothing, as the reference says**");
+                assert!(
+                    !hit,
+                    "**a {name} move hits nothing, as the reference says**"
+                );
                 None
             }
             Some(Collision::Vehicle {
@@ -1691,8 +1852,15 @@ fn a_vehicle_sees_what_it_would_hit() {
                 target,
                 target_part,
             }) => {
-                assert!(hit && kind == "veh", "**the reference answers a vehicle for {name}**");
-                assert_eq!(Some(target), blocker, "{name}: the vehicle it hits is the one standing there");
+                assert!(
+                    hit && kind == "veh",
+                    "**the reference answers a vehicle for {name}**"
+                );
+                assert_eq!(
+                    Some(target),
+                    blocker,
+                    "{name}: the vehicle it hits is the one standing there"
+                );
                 assert_eq!(
                     target_part,
                     usize::try_from(int_of(case, "target_part")).expect("a part index"),
@@ -1713,8 +1881,15 @@ fn a_vehicle_sees_what_it_would_hit() {
                 Some(part)
             }
             Some(Collision::Creature { part, target }) => {
-                assert!(hit && kind == "body", "**the reference answers a body for {name}**");
-                assert_eq!(Some(target), blocker, "{name}: the creature it hits is the one standing there");
+                assert!(
+                    hit && kind == "body",
+                    "**the reference answers a body for {name}**"
+                );
+                assert_eq!(
+                    Some(target),
+                    blocker,
+                    "{name}: the creature it hits is the one standing there"
+                );
                 Some(part)
             }
         };
@@ -1745,7 +1920,6 @@ fn a_vehicle_sees_what_it_would_hit() {
         4,
         "**it covers a vehicle, a body, bashable terrain and a clear square**: {kinds:?}"
     );
-
 }
 
 #[test]
@@ -1756,9 +1930,16 @@ fn the_prediction_does_not_stop_the_move() {
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
     let first = spawn_facing(&mut world, "bicycle", (40, 40, 0), 0.0).expect("the bicycle builds");
-    let second = spawn_facing(&mut world, "bicycle", (42, 40, 0), 0.0).expect("the obstacle builds");
-    assert!(first_collision(&world, first, (1, 0)).is_some(), "the square ahead holds the other bicycle");
-    assert!(move_vehicle(&mut world, first, (1, 0)), "the move itself is not refused yet");
+    let second =
+        spawn_facing(&mut world, "bicycle", (42, 40, 0), 0.0).expect("the obstacle builds");
+    assert!(
+        first_collision(&world, first, (1, 0)).is_some(),
+        "the square ahead holds the other bicycle"
+    );
+    assert!(
+        move_vehicle(&mut world, first, (1, 0)),
+        "the move itself is not refused yet"
+    );
     assert!(
         first_collision(&world, first, (1, 0)).is_some_and(
             |collision| matches!(collision, Collision::Vehicle { target, .. } if target == second)
@@ -1773,11 +1954,16 @@ fn a_rider_is_not_something_the_vehicle_hits() {
 
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
-    let vehicle = spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
+    let vehicle =
+        spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
     let rider = creature_at(&mut world, 30, 30);
     cdda_sim::singletons::index_mut(&mut world).insert(rider, (30, 30, 0));
     let saddle = part_index(&world, vehicle, 0, 0, "saddle").expect("the saddle");
-    assert_eq!(board(&mut world, vehicle, rider), Some(saddle), "the rider takes the saddle");
+    assert_eq!(
+        board(&mut world, vehicle, rider),
+        Some(saddle),
+        "the rider takes the saddle"
+    );
 
     // The trailing frame moves onto the square the rider stands on; a passenger is not debris (`vehicle_move.cpp:867-872`).
     assert_eq!(
@@ -1788,7 +1974,10 @@ fn a_rider_is_not_something_the_vehicle_hits() {
     assert!(unboard(&mut world, rider), "the rider gets off");
     assert_eq!(
         first_collision(&world, vehicle, (1, 0)),
-        Some(Collision::Creature { part: 6, target: rider }),
+        Some(Collision::Creature {
+            part: 6,
+            target: rider
+        }),
         "**and once off, standing there, the trailing frame would hit them**"
     );
 }
@@ -1815,7 +2004,12 @@ fn synthetic_tile(id: &str, move_cost: i32, flags: &[&str]) -> cdda_content::map
 }
 
 /// A bicycle standing at `at` in a world whose ground at `ahead` is the one tile described.
-fn bicycle_facing(world: &mut World, at: (i32, i32, i32), ahead: (i32, i32, i32), tile: cdda_content::mapdata::MapData) -> Entity {
+fn bicycle_facing(
+    world: &mut World,
+    at: (i32, i32, i32),
+    ahead: (i32, i32, i32),
+    tile: cdda_content::mapdata::MapData,
+) -> Entity {
     let code = 9;
     cdda_sim::terrain_types::set_types(world, [(tile.id.clone(), code)]);
     cdda_sim::bash::set_data(world, [tile]);
@@ -1833,7 +2027,9 @@ fn trivial_things_do_not_stop_a_vehicle() {
     let mut materials = store();
     for prototype in &mut materials.prototypes {
         if prototype.id == "bicycle" {
-            prototype.parts.retain(|placement| !placement.part.starts_with("wheel_bicycle"));
+            prototype
+                .parts
+                .retain(|placement| !placement.part.starts_with("wheel_bicycle"));
         }
     }
     let mut world = World::new();
@@ -1844,7 +2040,8 @@ fn trivial_things_do_not_stop_a_vehicle() {
         cdda_sim::terrain_types::set_types(&mut world, [(tile.id.clone(), code)]);
         cdda_sim::bash::set_data(&mut world, [tile.clone()]);
         cdda_sim::square::set_terrain(&mut world, (32, 30, 0), code);
-        cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds")
+        cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0)
+            .expect("the bicycle builds")
     };
     // A flower has no walkable square either, so a frame with no wheel in its space still stops - as the reference's `veh_coll_other` rather than `bashable`.
     assert_eq!(
@@ -1866,18 +2063,31 @@ fn trivial_things_do_not_stop_a_vehicle() {
         cdda_sim::terrain_types::set_types(&mut world, [(tile.id.clone(), code)]);
         cdda_sim::bash::set_data(&mut world, [tile.clone()]);
         cdda_sim::square::set_terrain(&mut world, (32, 30, 0), code);
-        cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds")
+        cdda_sim::vehicles::spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0)
+            .expect("the bicycle builds")
     };
     assert!(
-        matches!(first_collision(&world, vehicle, (1, 0)), Some(Collision::Terrain { bashable: true, .. })),
+        matches!(
+            first_collision(&world, vehicle, (1, 0)),
+            Some(Collision::Terrain { bashable: true, .. })
+        ),
         "**with a wheel on its mount the same flower is hit**"
     );
 
     // `NOCOLLIDE` never interacts with a vehicle, even when it is bashable.
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
-    let vehicle = bicycle_facing(&mut world, (30, 30, 0), (32, 30, 0), synthetic_tile("t_smoke_thing", 6, &["NOCOLLIDE"]));
-    assert_eq!(first_collision(&world, vehicle, (1, 0)), None, "**a NOCOLLIDE thing never stops a vehicle**");
+    let vehicle = bicycle_facing(
+        &mut world,
+        (30, 30, 0),
+        (32, 30, 0),
+        synthetic_tile("t_smoke_thing", 6, &["NOCOLLIDE"]),
+    );
+    assert_eq!(
+        first_collision(&world, vehicle, (1, 0)),
+        None,
+        "**a NOCOLLIDE thing never stops a vehicle**"
+    );
 
     // A `SHORT` thing is not hit by a `PROTRUSION` on the part's mount, though the same part hits anything taller. The spike goes into the blueprint because a
     // structure part cannot be installed beside the frame it shares a square with.
@@ -1886,7 +2096,10 @@ fn trivial_things_do_not_stop_a_vehicle() {
     cdda_sim::vehicles::set_store(&mut world, store());
     let plain = bicycle_facing(&mut world, (30, 30, 0), (32, 30, 0), low.clone());
     assert!(
-        matches!(first_collision(&world, plain, (1, 0)), Some(Collision::Terrain { bashable: true, .. })),
+        matches!(
+            first_collision(&world, plain, (1, 0)),
+            Some(Collision::Terrain { bashable: true, .. })
+        ),
         "a short thing is hit by a plain frame"
     );
     let mut materials = store();
@@ -1917,7 +2130,8 @@ fn armour_takes_the_hit_and_a_broken_plate_does_not() {
 
     // `corpus/vehicle_armour.json` is `--dump-vehicle-armour`: a wall in front of the leading structure part of a quad bike - which carries steel plating on
     // that mount - and of a bicycle, which carries none. The reference blames the plate, then blames the frame once the plate is ruined.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_armour.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_armour.json");
     let bytes = std::fs::read(path).expect("the armour recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -1931,7 +2145,8 @@ fn armour_takes_the_hit_and_a_broken_plate_does_not() {
     let mut seen = 0;
     let mut blames = std::collections::BTreeSet::new();
     // For each vehicle, the part its healthy case blamed: the broken case that follows is that same part ruined.
-    let mut healthy_part: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut healthy_part: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
     for case in cases {
         let cdda_json::Value::Object(case) = case else {
             panic!("a case is an object");
@@ -1945,12 +2160,22 @@ fn armour_takes_the_hit_and_a_broken_plate_does_not() {
         cdda_sim::bash::set_data(&mut world, [tile]);
         cdda_sim::square::set_terrain(&mut world, wall, code);
         let name = text_of(case, "vehicle");
-        let vehicle = spawn_facing(&mut world, &name, origin, 0.0).expect("the recorded vehicle builds");
-        assert_eq!(int_of(case, "hit"), 1, "the wall is in the way in every case");
+        let vehicle =
+            spawn_facing(&mut world, &name, origin, 0.0).expect("the recorded vehicle builds");
+        assert_eq!(
+            int_of(case, "hit"),
+            1,
+            "the wall is in the way in every case"
+        );
         if case.get("plates").is_some() {
-            let ruined = *healthy_part.get(&name).expect("the healthy case came first");
+            let ruined = *healthy_part
+                .get(&name)
+                .expect("the healthy case came first");
             let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
-            let part = built.parts.get_mut(ruined).expect("the part the healthy case blamed");
+            let part = built
+                .parts
+                .get_mut(ruined)
+                .expect("the part the healthy case blamed");
             part.hp = 0;
             part.broken = true;
         } else {
@@ -1962,7 +2187,10 @@ fn armour_takes_the_hit_and_a_broken_plate_does_not() {
 
         let answer = first_collision(&world, vehicle, (1, 0));
         let Some(Collision::Terrain { part, bashable, .. }) = answer else {
-            panic!("{}: the wall is hit, not something else", text_of(case, "name"));
+            panic!(
+                "{}: the wall is hit, not something else",
+                text_of(case, "name")
+            );
         };
         assert!(bashable, "{}: a wall is bashable", text_of(case, "name"));
         assert_eq!(
@@ -1979,7 +2207,12 @@ fn armour_takes_the_hit_and_a_broken_plate_does_not() {
             .expect("the part")
             .part
             .clone();
-        assert_eq!(named, text_of(case, "reported"), "{}: and by name", text_of(case, "name"));
+        assert_eq!(
+            named,
+            text_of(case, "reported"),
+            "{}: and by name",
+            text_of(case, "name")
+        );
         blames.insert(named);
         seen += 1;
     }
@@ -2025,7 +2258,8 @@ fn a_part_that_is_itself_armour_takes_the_hit() {
     cdda_sim::terrain_types::set_types(&mut world, [(tile.id.clone(), code)]);
     cdda_sim::bash::set_data(&mut world, [tile]);
     cdda_sim::square::set_terrain(&mut world, (32, 30, 0), code);
-    let vehicle = spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
+    let vehicle =
+        spawn_facing(&mut world, "bicycle", (30, 30, 0), 0.0).expect("the bicycle builds");
     let Some(Collision::Terrain { part, .. }) = first_collision(&world, vehicle, (1, 0)) else {
         panic!("the wall is in the way");
     };
@@ -2050,7 +2284,8 @@ fn a_vehicles_wheels_say_what_they_resist_rolling_with() {
     // `corpus/vehicle_rolling.json` is `--dump-vehicle-rolling`: a bicycle, a quad bike, and a bicycle whose wheels are all ruined. Each case carries its parts'
     // base item weights, so the gate can install the reference's own registry and compare the coefficient rather than an approximation of it. The reference's
     // `coeff_rolling_drag` is the first number of the driving model, and it answers 50 as the wheel factor for a vehicle with no usable wheel.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json");
     let bytes = std::fs::read(path).expect("the rolling recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -2140,7 +2375,11 @@ fn a_vehicles_wheels_say_what_they_resist_rolling_with() {
         seen += 1;
     }
     assert_eq!(seen, 3, "the recording holds three vehicles");
-    assert_eq!(factors.len(), 2, "**one of them has no usable wheel**: {factors:?}");
+    assert_eq!(
+        factors.len(),
+        2,
+        "**one of them has no usable wheel**: {factors:?}"
+    );
 }
 
 #[test]
@@ -2148,7 +2387,8 @@ fn the_cubic_turns_drag_and_power_into_a_top_speed() {
     // `corpus/vehicle_top_speed.json` is `--dump-vehicle-top-speed`: six real vehicles and a humvee with no wheel and a broken engine, each recording the three
     // coefficients the reference solved and the speed it answered. The port's `top_speed_vmiph` is checked on those numbers, including the one corner where the
     // reference's cubic goes through `std::complex`.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_top_speed.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_top_speed.json");
     let bytes = std::fs::read(path).expect("the top-speed recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -2177,8 +2417,9 @@ fn the_cubic_turns_drag_and_power_into_a_top_speed() {
         let mut world = World::new();
         cdda_sim::vehicles::set_store(&mut world, store());
         let origin = square_of(&root, "origin");
-        let vehicle = cdda_sim::vehicles::spawn_facing(&mut world, &text_of(case, "vehicle"), origin, 0.0)
-            .expect("the recorded vehicle builds");
+        let vehicle =
+            cdda_sim::vehicles::spawn_facing(&mut world, &text_of(case, "vehicle"), origin, 0.0)
+                .expect("the recorded vehicle builds");
         if text_of(case, "name").starts_with("a_humvee_with_no_wheel") {
             let count = world
                 .get::<cdda_sim::vehicles::Vehicle>(vehicle)
@@ -2189,7 +2430,9 @@ fn the_cubic_turns_drag_and_power_into_a_top_speed() {
                 if cdda_sim::vehicles::part_spec(&world, vehicle, index)
                     .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "ENGINE"))
                 {
-                    let mut built = world.get_mut::<cdda_sim::vehicles::Vehicle>(vehicle).expect("a vehicle");
+                    let mut built = world
+                        .get_mut::<cdda_sim::vehicles::Vehicle>(vehicle)
+                        .expect("a vehicle");
                     let part = built.parts.get_mut(index).expect("a part");
                     part.hp = 0;
                     part.broken = true;
@@ -2216,8 +2459,14 @@ fn the_cubic_turns_drag_and_power_into_a_top_speed() {
         seen += 1;
     }
     assert_eq!(seen, 9, "the recording holds nine vehicles");
-    assert_eq!(complex, 1, "**one of them reaches the complex branch**: {complex}");
-    assert!(speeds.len() >= 5, "the speeds are not all the same: {speeds:?}");
+    assert_eq!(
+        complex, 1,
+        "**one of them reaches the complex branch**: {complex}"
+    );
+    assert!(
+        speeds.len() >= 5,
+        "the speeds are not all the same: {speeds:?}"
+    );
 }
 
 #[test]
@@ -2234,7 +2483,10 @@ fn the_complex_branch_of_the_cubic_agrees_with_a_bisection() {
     let q = p * p * p + (rolling * 33.33 * rolling - 3.0 * air * -power) / (6.0 * air * air);
     let r = rolling * 33.33 / (3.0 * air);
     let tricky = q * q + (r - p * p) * (r - p * p) * (r - p * p);
-    assert!(tricky < 0.0, "the case must reach the complex branch: {tricky}");
+    assert!(
+        tricky < 0.0,
+        "the case must reach the complex branch: {tricky}"
+    );
 
     let at = |v: f64| air * v * v * v + rolling * v * v + 33.33 * rolling * v - power;
     let (mut low, mut high) = (0.0, 10_000.0);
@@ -2264,7 +2516,8 @@ fn the_body_prices_the_air_one_column_at_a_time() {
 
     // `corpus/vehicle_top_speed.json` records each vehicle's `coeff_air_drag` beside its speed. The rule is a column scan over the structure parts, so a bicycle
     // with no body at all and a helicopter with rotors give opposite ends of it.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_top_speed.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_top_speed.json");
     let bytes = std::fs::read(path).expect("the top-speed recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -2289,7 +2542,10 @@ fn the_body_prices_the_air_one_column_at_a_time() {
             panic!("recorded air drag");
         };
         let Some(answered) = cdda_sim::vehicle_air::coeff_air_drag(&world, vehicle) else {
-            panic!("{}: the port answers for a placed vehicle", text_of(case, "name"));
+            panic!(
+                "{}: the port answers for a placed vehicle",
+                text_of(case, "name")
+            );
         };
         let difference = (answered - recorded).abs();
         assert!(
@@ -2303,7 +2559,10 @@ fn the_body_prices_the_air_one_column_at_a_time() {
         seen += 1;
     }
     assert_eq!(seen, 9, "the recording holds nine vehicles");
-    assert!(values.len() >= 7, "the drags are not all the same: {values:?}");
+    assert!(
+        values.len() >= 7,
+        "the drags are not all the same: {values:?}"
+    );
 }
 
 #[test]
@@ -2313,7 +2572,8 @@ fn the_engines_are_summed_and_the_vehicle_drives_itself_to_its_top_speed() {
 
     // The whole chain in one gate, on the three vehicles whose mass the port reproduces exactly: the port measures the body's air drag, the wheels' rolling
     // resistance and the engines' power, and the cubic turns them into the speed the reference recorded. No recorded coefficient is used for the answer.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json");
     let bytes = std::fs::read(path).expect("the rolling recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -2367,7 +2627,11 @@ fn the_engines_are_summed_and_the_vehicle_drives_itself_to_its_top_speed() {
             .collect();
         set_item_types(&mut world, &specs);
         if int_of(case, "wheel_count") == 0 {
-            let broken: Vec<usize> = (0..world.get::<Vehicle>(vehicle).expect("a vehicle").parts.len())
+            let broken: Vec<usize> = (0..world
+                .get::<Vehicle>(vehicle)
+                .expect("a vehicle")
+                .parts
+                .len())
                 .filter(|index| {
                     cdda_sim::vehicles::part_spec(&world, vehicle, *index)
                         .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "WHEEL"))
@@ -2393,7 +2657,10 @@ fn the_engines_are_summed_and_the_vehicle_drives_itself_to_its_top_speed() {
         seen += 1;
     }
     assert_eq!(seen, 3, "the recording holds three vehicles");
-    assert!(speeds.len() >= 2, "the speeds are not all the same: {speeds:?}");
+    assert!(
+        speeds.len() >= 2,
+        "the speeds are not all the same: {speeds:?}"
+    );
 }
 
 #[test]
@@ -2404,15 +2671,25 @@ fn a_switched_off_engine_makes_no_power() {
     // cases all have their switches on, so this is the only case that can tell the two apart.
     let mut world = World::new();
     cdda_sim::vehicles::set_store(&mut world, store());
-    let vehicle = spawn_facing(&mut world, "quad_bike", (70, 70, 0), 0.0).expect("the quad bike builds");
-    let engine = (0..world.get::<Vehicle>(vehicle).expect("a vehicle").parts.len())
+    let vehicle =
+        spawn_facing(&mut world, "quad_bike", (70, 70, 0), 0.0).expect("the quad bike builds");
+    let engine = (0..world
+        .get::<Vehicle>(vehicle)
+        .expect("a vehicle")
+        .parts
+        .len())
         .find(|index| {
             cdda_sim::vehicles::part_spec(&world, vehicle, *index)
                 .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "ENGINE"))
         })
         .expect("an engine");
-    assert_eq!(cdda_sim::vehicle_drive::total_power(&world, vehicle), 37_300);
-    assert!(cdda_sim::vehicles::start_engine(&mut world, vehicle, engine, false));
+    assert_eq!(
+        cdda_sim::vehicle_drive::total_power(&world, vehicle),
+        37_300
+    );
+    assert!(cdda_sim::vehicles::start_engine(
+        &mut world, vehicle, engine, false
+    ));
     assert_eq!(
         cdda_sim::vehicle_drive::total_power(&world, vehicle),
         0,
@@ -2454,7 +2731,8 @@ fn a_damaged_engine_makes_less_power() {
 
     // `corpus/engine_power.json` is `--dump-engine-power`: the quad bike's one engine walked from whole to broken, with the reference's `health_percent` and the
     // engine's own `damaged_power_factor`. The arithmetic is the reference's to the last digit, because its power unit is an integer of milliwatts.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/engine_power.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/engine_power.json");
     let bytes = std::fs::read(path).expect("the engine-power recording");
     let value = cdda_json::parse(&bytes).expect("valid json");
     let cdda_json::Value::Object(root) = value else {
@@ -2478,9 +2756,14 @@ fn a_damaged_engine_makes_less_power() {
         let engine = usize::try_from(int_of(case, "engine_part")).expect("a part index");
         let durability = int_of(case, "durability");
         let hp = int_of(case, "hp");
-        let spec = cdda_sim::vehicles::part_spec(&world, vehicle, engine).expect("the engine's spec");
-        assert_eq!(spec.durability, durability, "the recorded durability is the store's");
-        let Some(cdda_json::Value::Float(recorded_factor)) = case.get("damaged_power_factor") else {
+        let spec =
+            cdda_sim::vehicles::part_spec(&world, vehicle, engine).expect("the engine's spec");
+        assert_eq!(
+            spec.durability, durability,
+            "the recorded durability is the store's"
+        );
+        let Some(cdda_json::Value::Float(recorded_factor)) = case.get("damaged_power_factor")
+        else {
             panic!("a recorded factor");
         };
         assert_eq!(
@@ -2500,7 +2783,12 @@ fn a_damaged_engine_makes_less_power() {
             .get(engine)
             .expect("the engine")
             .hp;
-        assert_eq!(recorded_hp, hp, "{}: the engine stands where the recording left it", text_of(case, "name"));
+        assert_eq!(
+            recorded_hp,
+            hp,
+            "{}: the engine stands where the recording left it",
+            text_of(case, "name")
+        );
 
         let power = cdda_sim::vehicle_drive::total_power(&world, vehicle);
         assert_eq!(
@@ -2512,10 +2800,178 @@ fn a_damaged_engine_makes_less_power() {
         powers.insert(power);
         seen += 1;
     }
-    assert_eq!(seen, 8, "the recording walks eight steps from whole to broken");
+    assert_eq!(
+        seen, 8,
+        "the recording walks eight steps from whole to broken"
+    );
     assert!(
         powers.len() >= 6,
         "**the numbers fall as the engine is hurt**: {powers:?}"
     );
     assert!(powers.contains(&0), "and the broken engine makes nothing");
+}
+
+#[test]
+fn the_engines_push_harder_at_low_speed() {
+    // `corpus/vehicle_acceleration.json` is `--dump-vehicle-acceleration`: two vehicles asked what their engine can add at a series of speeds. The rule is
+    // `100 * 100 * ( power / weight ) / cmps` - one double division truncated, then integer arithmetic - so the dump checks every step of it.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../corpus/vehicle_acceleration.json");
+    let bytes = std::fs::read(path).expect("the acceleration recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    let mut accelerations = std::collections::BTreeSet::new();
+    for case in cases {
+        let cdda_json::Value::Object(case) = case else {
+            panic!("a case is an object");
+        };
+        if int_of(case, "engine_on") == 0 {
+            assert_eq!(
+                int_of(case, "acceleration"),
+                0,
+                "{}: **nothing turning adds nothing**",
+                text_of(case, "name")
+            );
+            continue;
+        }
+        let Some(cdda_json::Value::Float(mass_kg)) = case.get("mass_kg") else {
+            panic!("a recorded mass");
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        let grams = (mass_kg * 1000.0).round() as i64;
+        assert_eq!(
+            cdda_sim::vehicle_move::ground_acceleration(
+                int_of(case, "power_w"),
+                grams,
+                int_of(case, "max_velocity"),
+                int_of(case, "at"),
+            ),
+            int_of(case, "acceleration"),
+            "{}: **the port's acceleration is the reference's**",
+            text_of(case, "name")
+        );
+        accelerations.insert(int_of(case, "acceleration"));
+        seen += 1;
+    }
+    assert_eq!(seen, 14, "the recording asks fourteen running cases");
+    assert!(
+        accelerations.len() >= 6,
+        "**the answer falls as the speed rises**: {accelerations:?}"
+    );
+}
+
+#[test]
+fn a_vehicle_accelerates_from_where_it_stands() {
+    use cdda_sim::item_registry::{Kind, set_item_types};
+    use cdda_sim::vehicles::{Vehicle, spawn_facing};
+
+    // The world-level half: `current_acceleration` reads the vehicle's own `velocity` and its engines. The weights come from `vehicle_rolling.json`, which carries
+    // the same two vehicles' parts, so the mass is the reference's own.
+    let rolling =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json");
+    let bytes = std::fs::read(rolling).expect("the rolling recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the rolling recording is an object");
+    };
+    let origin = square_of(&root, "origin");
+    let Some(cdda_json::Value::Array(recordings)) = root.get("cases") else {
+        panic!("cases");
+    };
+    let Some(cdda_json::Value::Object(bicycle)) = recordings
+        .iter()
+        .find(|case| matches!(case, cdda_json::Value::Object(object) if text_of(object, "name") == "bicycle"))
+    else {
+        panic!("the bicycle's recording");
+    };
+    let Some(cdda_json::Value::Array(parts)) = bicycle.get("parts") else {
+        panic!("its parts");
+    };
+    let mut kinds: Vec<(String, i64)> = Vec::new();
+    for part in parts {
+        let cdda_json::Value::Object(part) = part else {
+            panic!("a part is an object");
+        };
+        let item = text_of(part, "item");
+        let weight = i64::from(int_of(part, "base_mass_g"));
+        if let Some(slot) = kinds.iter_mut().find(|(id, _)| *id == item) {
+            slot.1 = weight;
+        } else {
+            kinds.push((item, weight));
+        }
+    }
+    let specs: Vec<Kind<'_>> = kinds
+        .iter()
+        .map(|(id, weight)| Kind {
+            id,
+            volume_ml: 0,
+            weight_g: *weight,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -1,
+        })
+        .collect();
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "bicycle", origin, 0.0).expect("the bicycle builds");
+    set_item_types(&mut world, &specs);
+
+    assert_eq!(
+        cdda_sim::vehicle_move::current_acceleration(&world, vehicle),
+        1_650,
+        "**a standing bicycle can add 1,650 vmiph this turn**"
+    );
+    for (velocity, expected) in [(1_500, 1_100), (2_000, 825), (10_000, 163)] {
+        world
+            .get_mut::<Vehicle>(vehicle)
+            .expect("a vehicle")
+            .velocity = velocity;
+        assert_eq!(
+            cdda_sim::vehicle_move::current_acceleration(&world, vehicle),
+            expected,
+            "at {velocity} vmiph the engine can add {expected}"
+        );
+    }
+    // Reverse is the same push: the reference asks about `std::abs( velocity )`, so a vehicle backing up accelerates as hard as one going forward.
+    world
+        .get_mut::<Vehicle>(vehicle)
+        .expect("a vehicle")
+        .velocity = -1_500;
+    assert_eq!(
+        cdda_sim::vehicle_move::current_acceleration(&world, vehicle),
+        1_100,
+        "**backwards is the same as forwards**: the reference asks about the absolute speed"
+    );
+
+    // With every engine broken there is nothing to push with.
+    let count = world
+        .get::<Vehicle>(vehicle)
+        .expect("a vehicle")
+        .parts
+        .len();
+    let engines: Vec<usize> = (0..count)
+        .filter(|index| {
+            cdda_sim::vehicles::part_spec(&world, vehicle, *index)
+                .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "ENGINE"))
+        })
+        .collect();
+    let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+    for index in engines {
+        built.parts.get_mut(index).expect("an engine").broken = true;
+    }
+    assert_eq!(
+        cdda_sim::vehicle_move::current_acceleration(&world, vehicle),
+        0,
+        "**a broken engine pushes nothing**"
+    );
 }

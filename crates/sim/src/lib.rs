@@ -4,161 +4,160 @@
 //! components, reached by id and never by pointer. What a square holds is found through a
 //! grid resource rebuilt from the World, never kept as a second authority.
 
-pub mod transform;
-pub mod blast;
+pub mod aim;
+pub mod applied_effects;
+pub mod ballistics;
+pub mod bash;
 pub mod bionics;
+pub mod blast;
+pub mod burning;
 pub mod calendar;
 pub mod camps;
 pub mod cities;
 pub mod dialogue_context;
-pub mod npc_opinion;
-pub mod npcs;
-pub mod outdoors;
-pub mod proficiencies;
-pub mod overmap;
-pub mod aim;
-pub mod ballistics;
-pub mod bash;
-pub mod burning;
 pub mod emit_at;
 pub mod emit_registry;
 pub mod falling;
-pub mod memory;
-pub mod mapgen_place;
-pub mod mapgen_update;
-pub mod messages;
-pub mod missions;
-pub mod morale;
-pub mod mutation_data;
-pub mod mutation_activation;
-pub mod mutations;
-pub mod seeing;
-pub mod snippets;
 pub mod field_passage;
 pub mod field_registry;
 pub mod field_spread;
 pub mod field_table;
 pub mod flag_registry;
+pub mod mapgen_place;
+pub mod mapgen_update;
+pub mod memory;
+pub mod messages;
+pub mod missions;
+pub mod morale;
+pub mod mutation_activation;
+pub mod mutation_data;
+pub mod mutations;
+pub mod npc_opinion;
+pub mod npcs;
+pub mod outdoors;
+pub mod overmap;
+pub mod proficiencies;
 pub mod radiation;
 pub mod regeneration;
 pub mod revive;
 pub mod rotation;
-pub mod applied_effects;
+pub mod seeing;
+pub mod snippets;
+pub mod transform;
 /// What a monster bleeds and splatters into lives beside the monster data it reads, so the sim re-exports it.
 pub use cdda_content::blood;
 pub mod body;
-pub mod digest;
-pub mod dispersion;
-pub mod dialogue_effects;
-pub mod events;
-pub mod dialogue_values;
-pub mod effect_registry;
-pub mod eoc_registry;
-pub mod explosion;
-pub mod flashbang;
-pub mod eating;
-pub mod effects;
-pub mod enchantments;
-pub mod singletons;
-pub mod square;
+pub mod choices;
 pub mod conditions;
 pub mod containment;
 pub mod craft_roll;
 pub mod crafting;
-pub mod choices;
 pub mod creature;
 pub mod creature_flags;
+pub mod dialogue_effects;
+pub mod dialogue_values;
+pub mod digest;
+pub mod dispersion;
+pub mod eating;
+pub mod effect_registry;
+pub mod effects;
+pub mod enchantments;
+pub mod eoc_registry;
+pub mod events;
+pub mod explosion;
+pub mod fire_facts;
+pub mod flashbang;
 pub mod harvest_skills;
 pub mod hearing;
 pub mod hit_location;
-pub mod limbs;
-pub mod weakpoints;
-pub mod kills;
-pub mod line;
-pub mod martial_arts;
-pub mod martial_arts_vectors;
-pub mod melee;
-pub mod sounds;
-pub mod teleport;
-pub mod timed_events;
-pub mod vehicle_damage;
-pub mod vehicle_cargo;
-pub mod vehicle_mass;
-pub mod vehicles;
-pub mod vomit;
-pub mod traits;
-pub mod spell_area;
-pub mod spell_line;
-pub mod spell_targets;
-pub mod spell_effects;
-pub mod spell_types;
-pub mod spellcasting;
-pub mod summoned;
-pub mod pathfinding;
-pub mod routing;
-pub mod fire_facts;
-pub mod turn;
+pub mod identification;
 pub mod inspect;
 pub mod inventory;
 pub mod item_data;
 pub mod item_groups;
-pub mod identification;
 pub mod item_parts;
-pub mod reading;
-pub mod sight;
 pub mod item_registry;
+pub mod kills;
+pub mod limbs;
+pub mod line;
+pub mod martial_arts;
+pub mod martial_arts_vectors;
+pub mod melee;
 pub mod monster_catalog;
 pub mod monster_groups;
 pub mod monster_registry;
 pub mod monster_spawning;
+pub mod pathfinding;
 pub mod pockets;
+pub mod reading;
+pub mod routing;
+pub mod sight;
+pub mod singletons;
+pub mod sounds;
+pub mod spell_area;
+pub mod spell_effects;
+pub mod spell_line;
+pub mod spell_targets;
+pub mod spell_types;
+pub mod spellcasting;
+pub mod square;
+pub mod summoned;
+pub mod teleport;
+pub mod timed_events;
+pub mod traits;
+pub mod turn;
+pub mod vehicle_cargo;
+pub mod vehicle_damage;
+pub mod vehicle_mass;
+pub mod vehicles;
+pub mod vomit;
+pub mod weakpoints;
 pub use square::load_level;
-pub mod skills;
 pub mod shot;
+pub mod skills;
 pub mod skills_of;
 pub use singletons::{
-    TheFallingQueue, TheFieldRules, TheMemory, TheScent, TheIndex, ThePrototypes, TheSightCasts, SightCasts, TheScentTable, TheClimate, TheFieldTable, TheLight, TheWeather,
-    adjust_radiation,
-    falling_queue_entity, field_rules, memory, memory_entity, queue_support_loss,
-    climate, climate_read, count_sight_cast, field_table, index, index_mut, light,
-    light_is_stale, light_mut, light_rebuilds, mark_light_stale,
-    prototypes, sight_casts,
-    set_field_table,
-    set_prototypes, set_weather, scent_table, weather, set_climate, set_field_rules, set_scent_table,
-    singleton, support_lost,
+    SightCasts, TheClimate, TheFallingQueue, TheFieldRules, TheFieldTable, TheIndex, TheLight,
+    TheMemory, ThePrototypes, TheScent, TheScentTable, TheSightCasts, TheWeather, adjust_radiation,
+    climate, climate_read, count_sight_cast, falling_queue_entity, field_rules, field_table, index,
+    index_mut, light, light_is_stale, light_mut, light_rebuilds, mark_light_stale, memory,
+    memory_entity, prototypes, queue_support_loss, scent_table, set_climate, set_field_rules,
+    set_field_table, set_prototypes, set_scent_table, set_weather, sight_casts, singleton,
+    support_lost, weather,
 };
+pub mod achievements;
+pub mod addictions;
 pub mod food_summary;
 pub mod frame;
 pub mod friendly;
-pub mod furniture_types;
-pub mod needs;
 pub mod fun_for;
+pub mod furniture_types;
 pub mod glare;
-pub mod weather_sum;
-pub mod wind;
+pub mod known_spells;
+pub mod mapsquare;
+pub mod math_functions;
+pub mod needs;
+pub mod noise;
+pub mod recipes_known;
+pub mod revert;
+pub mod scent;
+pub mod scent_table;
+pub mod scheduled;
+pub mod temperature;
 pub mod terrain_table;
 pub mod terrain_transform;
 pub mod terrain_types;
 pub mod throwing;
-pub mod noise;
-pub mod achievements;
-pub mod addictions;
-pub mod known_spells;
-pub mod math_functions;
-pub mod recipes_known;
-pub mod revert;
-pub mod scheduled;
-pub mod scent;
-pub mod scent_table;
-pub mod temperature;
-pub mod mapsquare;
 pub mod vehicle_air;
 pub mod vehicle_drive;
-pub mod weather;
-pub mod wetness;
-pub mod worn_flags;
-pub mod weather_gen;
+pub mod vehicle_move;
 pub mod vitamin_registry;
+pub mod weather;
+pub mod weather_gen;
+pub mod weather_sum;
+pub mod wetness;
+pub mod wind;
+pub mod worn_flags;
 pub use weather::{Climate, Forecast, System, Weather, tick_climate, wind_of};
 
 use bevy_ecs::prelude::*;
@@ -963,7 +962,15 @@ pub fn process_gas(
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
-    process_gas_in_submap(world, id, Where::Anywhere, percent_spread, windpower, can_take, rolls);
+    process_gas_in_submap(
+        world,
+        id,
+        Where::Anywhere,
+        percent_spread,
+        windpower,
+        can_take,
+        rolls,
+    );
 }
 
 /// One gas, on the squares of one submap, for a caller walking the reference's sweep submap by submap.
@@ -1007,7 +1014,10 @@ pub fn process_gas_in_wind(
     id: FieldId,
     scope: Where,
     percent_spread: i32,
-    surroundings: Surroundings<impl Fn((i32, i32, i32)) -> Wind + Copy, impl Fn(FieldId) -> i64 + Copy>,
+    surroundings: Surroundings<
+        impl Fn((i32, i32, i32)) -> Wind + Copy,
+        impl Fn(FieldId) -> i64 + Copy,
+    >,
     can_take: impl Fn((i32, i32, i32), (i32, i32, i32)) -> bool + Copy,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
@@ -1069,7 +1079,15 @@ pub fn process_gas_in_submap(
             direction: 0,
             sheltered: false,
         };
-        process_one_gas(world, entity, percent_spread, wind, 1_000_000, can_take, rolls);
+        process_one_gas(
+            world,
+            entity,
+            percent_spread,
+            wind,
+            1_000_000,
+            can_take,
+            rolls,
+        );
     }
 }
 
@@ -1122,7 +1140,8 @@ fn process_one_gas(
             windpower: wind.power,
             wind_direction: wind.direction,
         };
-        let movement = cdda_core_types::fire::spread_gas(intensity, age, percent_spread, &around, rolls);
+        let movement =
+            cdda_core_types::fire::spread_gas(intensity, age, percent_spread, &around, rolls);
         let destination = match movement.direction {
             cdda_core_types::fire::GasDirection::Side(index) => neighbour_of(x, y, z, index),
             cdda_core_types::fire::GasDirection::Down => Some((x, y, z - 1)),
@@ -1132,8 +1151,15 @@ fn process_one_gas(
         let Some(destination) = destination else {
             return;
         };
-        apply_gas_spread(world, entity, destination, id, &movement, intensity, half_life);
-
+        apply_gas_spread(
+            world,
+            entity,
+            destination,
+            id,
+            &movement,
+            intensity,
+            half_life,
+        );
     }
 }
 
@@ -1167,7 +1193,8 @@ fn apply_gas_spread(
     } else {
         // The newborn carries the **type's own** half-life: a mist born from a spreading mist must decay on the same clock as its parent, and a placeholder here
         // is a field that outlives the reference's by however much the placeholder is larger.
-        let mut entry = cdda_core_types::field::FieldEntry::new(intensity.max(1), half_life, false, false);
+        let mut entry =
+            cdda_core_types::field::FieldEntry::new(intensity.max(1), half_life, false, false);
         entry.set_intensity(1);
         entry.set_age(movement.transferred_age);
         world.spawn((
@@ -1229,7 +1256,12 @@ fn field_strengths(
     query
         .iter(world)
         .filter(|(_, field)| field.id == id && field.entry.is_alive())
-        .map(|(position, field)| ((position.x, position.y, position.z), field.entry.intensity()))
+        .map(|(position, field)| {
+            (
+                (position.x, position.y, position.z),
+                field.entry.intensity(),
+            )
+        })
         .collect()
 }
 
@@ -1371,7 +1403,9 @@ pub fn apply_weather_change(
     change: cdda_content::weather::Change,
 ) -> bool {
     match change {
-        cdda_content::weather::Change::Weather { sight_changed: true } => {
+        cdda_content::weather::Change::Weather {
+            sight_changed: true,
+        } => {
             singletons::mark_light_stale(world);
             true
         }
@@ -1496,7 +1530,9 @@ impl FieldOpacityGrid {
 /// The prototypes come from the [`Prototypes`] resource and the fields from [`field_table::FieldTable`], so there is one source for what a code means and no way to cast
 /// with a table the world does not have.
 pub fn cast_lights_with(world: &mut World) {
-    let sight_penalty = singletons::weather(world).unwrap_or_default().sight_penalty();
+    let sight_penalty = singletons::weather(world)
+        .unwrap_or_default()
+        .sight_penalty();
     // The sky map: an `INDOORS` flag on either layer covers the three-by-three block around it (`build_outside_cache`).
     let (terrain, furniture) = singletons::prototypes(world).map_or_else(
         || {
@@ -1752,7 +1788,9 @@ pub fn cast_sunlight(
 /// is a square **under a roof**, so the level above it at that square is opaque and has a floor. That is exactly what the reference's `prev_transparency_cache` and
 /// `prev_floor_cache` would say about a hut - and it is why daylight still reaches a square just inside a doorway, from the cardinal that is in the open.
 pub fn cast_sunlight_with(world: &mut World, turns: f64) {
-    let sight_penalty = singletons::weather(world).unwrap_or_default().sight_penalty();
+    let sight_penalty = singletons::weather(world)
+        .unwrap_or_default()
+        .sight_penalty();
     let (terrain, furniture) = singletons::prototypes(world).map_or_else(
         || {
             (
@@ -2152,7 +2190,9 @@ pub fn spread_gas(
     // Dissipate faster outdoors, before any of the spread dice - and before the intensity bail, which is what the reference does: a thin gas outdoors still ages
     // away faster.
     if outdoors && outdoor_age_speedup != 0 {
-        let age = world.get::<Field>(source).map_or(0, |field| field.entry.age());
+        let age = world
+            .get::<Field>(source)
+            .map_or(0, |field| field.entry.age());
         if let Some(mut field) = world.get_mut::<Field>(source) {
             field.entry.set_age(age + outdoor_age_speedup);
         }
@@ -2162,7 +2202,15 @@ pub fn spread_gas(
         direction: context.wind_angle,
         sheltered: false,
     };
-    process_one_gas(world, source, percent_spread, wind, 1_000_000, can_take, rolls);
+    process_one_gas(
+        world,
+        source,
+        percent_spread,
+        wind,
+        1_000_000,
+        can_take,
+        rolls,
+    );
 }
 
 /// Replaces one field on a square with another kind, carrying the age across.
@@ -2232,7 +2280,13 @@ pub fn process_flame_burst(
         }
         // The reference makes hot air on the step that thins it, at the new intensity.
         if let Some(position) = world.get::<Position>(entity).copied() {
-            create_hot_air(world, (position.x, position.y), position.z, intensity - 1, rolls);
+            create_hot_air(
+                world,
+                (position.x, position.y),
+                position.z,
+                intensity - 1,
+                rolls,
+            );
         }
     } else {
         transform_field(world, entity, FIRE_VENT, 3, age, true);
@@ -2261,7 +2315,13 @@ pub fn process_fire_vent(
             field.entry.set_intensity(intensity - 1);
         }
         if let Some(position) = world.get::<Position>(entity).copied() {
-            create_hot_air(world, (position.x, position.y), position.z, intensity - 1, rolls);
+            create_hot_air(
+                world,
+                (position.x, position.y),
+                position.z,
+                intensity - 1,
+                rolls,
+            );
         }
     } else {
         transform_field(world, entity, FLAME_BURST, 3, age, true);
@@ -2458,48 +2518,72 @@ pub fn run_field_sweep(
             for sy in 0..12 {
                 let square = (key.1 * 12 + sx, key.2 * 12 + sy, key.0);
                 let here = Where::Square(square);
-            // Fires first: everything else this turn reacts to what they left behind.
-            process_fires_in_submap(world, map, windpower, here, rolls);
-        // Then the incendiaries, which can light the fire the next turn burns.
-        process_incendiaries_in_submap(
-            world,
-            here,
-            |x, y, z| {
-                // The three flammable flags, read back from the ground the fire rules already ask about: a `FIRE_CONTAINER` answers `Inert`, which is right - a
-                // brazier holds its fire rather than catching, and the reference's three flags agree with that by all being false on the container itself.
-                match map.ground((x, y, z)) {
-                    cdda_core_types::fire::Ground::Flammable => TerrainFacts { flammable: true, ..TerrainFacts::default() },
-                    cdda_core_types::fire::Ground::FlammableHard => TerrainFacts { flammable_hard: true, ..TerrainFacts::default() },
-                    cdda_core_types::fire::Ground::FlammableAsh => TerrainFacts { flammable_ash: true, ..TerrainFacts::default() },
-                    cdda_core_types::fire::Ground::Inert => TerrainFacts::default(),
+                // Fires first: everything else this turn reacts to what they left behind.
+                process_fires_in_submap(world, map, windpower, here, rolls);
+                // Then the incendiaries, which can light the fire the next turn burns.
+                process_incendiaries_in_submap(
+                    world,
+                    here,
+                    |x, y, z| {
+                        // The three flammable flags, read back from the ground the fire rules already ask about: a `FIRE_CONTAINER` answers `Inert`, which is right - a
+                        // brazier holds its fire rather than catching, and the reference's three flags agree with that by all being false on the container itself.
+                        match map.ground((x, y, z)) {
+                            cdda_core_types::fire::Ground::Flammable => TerrainFacts {
+                                flammable: true,
+                                ..TerrainFacts::default()
+                            },
+                            cdda_core_types::fire::Ground::FlammableHard => TerrainFacts {
+                                flammable_hard: true,
+                                ..TerrainFacts::default()
+                            },
+                            cdda_core_types::fire::Ground::FlammableAsh => TerrainFacts {
+                                flammable_ash: true,
+                                ..TerrainFacts::default()
+                            },
+                            cdda_core_types::fire::Ground::Inert => TerrainFacts::default(),
+                        }
+                    },
+                    rolls,
+                );
+                // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
+                for (id, percent_spread) in [
+                    (SMOKE, 10),
+                    (HOT_AIR_1, 10),
+                    (HOT_AIR_2, 10),
+                    (HOT_AIR_3, 10),
+                    (HOT_AIR_4, 10),
+                ] {
+                    process_gas_in_submap(
+                        world,
+                        id,
+                        here,
+                        percent_spread,
+                        windpower,
+                        can_take,
+                        rolls,
+                    );
                 }
-            },
-            rolls,
-        );
-        // Then the gases, including the haze the fires just made. `percent_spread` is `fd_smoke`'s and the hot air kinds' own data.
-        for (id, percent_spread) in [
-            (SMOKE, 10),
-            (HOT_AIR_1, 10),
-            (HOT_AIR_2, 10),
-            (HOT_AIR_3, 10),
-            (HOT_AIR_4, 10),
-        ] {
-            process_gas_in_submap(world, id, here, percent_spread, windpower, can_take, rolls);
-        }
-            // **This square's fields age now**, including whatever the lines above just made here. A field born on a square the sweep has already passed is not
-            // in this list and waits for the next turn, which is the one-turn difference the roof fixture measured.
-            let found: Vec<(Entity, i32, i32)> = {
-                let mut query = world.query::<(Entity, &Position)>();
-                query
-                    .iter(world)
-                    .filter(|(entity, position)| {
-                        (position.x, position.y, position.z) == square
-                            && world.get::<Field>(*entity).is_some()
-                    })
-                    .map(|(entity, position)| (entity, position.x, position.y))
-                    .collect()
-            };
-                decay_the_fields_the_sweep_found(world, &found, 0, rolls, |_field| None, |_turn, _square, _rolls| {});
+                // **This square's fields age now**, including whatever the lines above just made here. A field born on a square the sweep has already passed is not
+                // in this list and waits for the next turn, which is the one-turn difference the roof fixture measured.
+                let found: Vec<(Entity, i32, i32)> = {
+                    let mut query = world.query::<(Entity, &Position)>();
+                    query
+                        .iter(world)
+                        .filter(|(entity, position)| {
+                            (position.x, position.y, position.z) == square
+                                && world.get::<Field>(*entity).is_some()
+                        })
+                        .map(|(entity, position)| (entity, position.x, position.y))
+                        .collect()
+                };
+                decay_the_fields_the_sweep_found(
+                    world,
+                    &found,
+                    0,
+                    rolls,
+                    |_field| None,
+                    |_turn, _square, _rolls| {},
+                );
             }
         }
     }
@@ -2544,7 +2628,11 @@ pub fn run_environment_turn(
 /// The rules come from a [`falling::FieldRules`] resource when the world has one; without it nothing accelerates, so only items fall. A world that has loaded its field
 /// prototypes should insert it.
 pub fn process_falling_turn(world: &mut World) {
-    let squares: Vec<(i32, i32, i32)> = singletons::support_lost(world).squares.iter().copied().collect();
+    let squares: Vec<(i32, i32, i32)> = singletons::support_lost(world)
+        .squares
+        .iter()
+        .copied()
+        .collect();
     if squares.is_empty() {
         return;
     }
@@ -2729,7 +2817,10 @@ pub fn process_incendiary(
     let Some(position) = world.get::<Position>(entity).copied() else {
         return;
     };
-    let Some(intensity) = world.get::<Field>(entity).map(|field| field.entry.intensity()) else {
+    let Some(intensity) = world
+        .get::<Field>(entity)
+        .map(|field| field.entry.intensity())
+    else {
         return;
     };
     let destination = (position.x + dx, position.y + dy);
@@ -2738,7 +2829,13 @@ pub fn process_incendiary(
         add_or_thicken(world, destination, position.z, FIRE, 1);
     }
     // The reference's `create_hot_air`, which draws its own ten dice — five attempts of two each — whether or not anything caught.
-    create_hot_air(world, (position.x, position.y), position.z, intensity, rolls);
+    create_hot_air(
+        world,
+        (position.x, position.y),
+        position.z,
+        intensity,
+        rolls,
+    );
 }
 
 /// Electricity, as the field registry numbers it.
@@ -3222,7 +3319,13 @@ pub fn process_fire_residue(
     }
     let ceiling = 4 - i32::try_from(adjacent_fires).unwrap_or(4);
     if adjacent_fires < 5 && ceiling > 0 && rolls.rng(0, ceiling) != 0 {
-        create_hot_air(world, (position.x, position.y), position.z, intensity, rolls);
+        create_hot_air(
+            world,
+            (position.x, position.y),
+            position.z,
+            intensity,
+            rolls,
+        );
     }
 }
 
@@ -3243,8 +3346,6 @@ pub fn process_extra_radiation(
     let extra_radiation = rolls.rng(min, max);
     singletons::adjust_radiation(world, square, extra_radiation);
 }
-
-
 
 /// Fills the squares around a vent with the gas it wanders into.
 ///
@@ -3791,7 +3892,10 @@ pub fn damage_monster(world: &mut World, entity: Entity, amount: i32) -> bool {
     let left = hp - amount.max(0);
     if left <= 0 {
         // The index goes with the entity, or the square keeps claiming an occupant that no longer exists.
-        if let Some(place) = world.get::<Position>(entity).map(|place| (place.x, place.y, place.z)) {
+        if let Some(place) = world
+            .get::<Position>(entity)
+            .map(|place| (place.x, place.y, place.z))
+        {
             crate::singletons::index_mut(world).remove(entity, place);
         }
         world.despawn(entity);
@@ -4415,7 +4519,9 @@ pub fn process_field_turn(
             .get::<Field>(entity)
             .map_or(0, |field| field.entry.intensity());
         let (least, most) = data.extra_radiation;
-        let z = world.get::<Position>(entity).map_or(0, |position| position.z);
+        let z = world
+            .get::<Position>(entity)
+            .map_or(0, |position| position.z);
         if most > 0 {
             process_extra_radiation(world, (x, y, z), least, most, rolls);
         }
@@ -4665,7 +4771,10 @@ pub fn accepts(
     }
     pocket.items.iter().any(|allowed| allowed == id)
         || pocket.flags.iter().any(|allowed| flags.contains(allowed))
-        || pocket.materials.iter().any(|allowed| allowed == base_material)
+        || pocket
+            .materials
+            .iter()
+            .any(|allowed| allowed == base_material)
 }
 
 impl Container {
@@ -4963,7 +5072,9 @@ impl InsertError {
             // The reference's own wording for a container whose pockets all refused: `pockets unacceptable because a, b, or c`
             // (`src/item_contents.cpp:818-822`). A single pocket's refusal is returned as its own variant instead, so this wording appears only where several rules
             // were named.
-            Self::AnyOf { messages } => format!("pockets unacceptable because {}", join_with_or(messages)),
+            Self::AnyOf { messages } => {
+                format!("pockets unacceptable because {}", join_with_or(messages))
+            }
         }
     }
 }
@@ -5199,7 +5310,9 @@ pub fn insert_into(
         }
         return Err(InsertError::AnyOf { messages });
     };
-    world.entity_mut(item).insert((Inside(container), InPocket(index)));
+    world
+        .entity_mut(item)
+        .insert((Inside(container), InPocket(index)));
     Ok(())
 }
 
@@ -5553,20 +5666,10 @@ fn amount_of_items(
 /// anything else answers what it holds — a magazine's rounds — which is `ammo_remaining_linked` in the reference. A broken item answers nothing. The walk only
 /// descends into containers, which the port reads as "descend always", because only a container can have contents in the first place.
 #[must_use]
-pub fn charges_of(
-    world: &mut World,
-    inventory: &Inventory,
-    kind: ItemTypeId,
-    limit: i32,
-) -> i32 {
+pub fn charges_of(world: &mut World, inventory: &Inventory, kind: ItemTypeId, limit: i32) -> i32 {
     let mut total: i32 = 0;
     for item in inventory.items.clone() {
-        total = total.saturating_add(charges_of_item(
-            world,
-            item,
-            kind,
-            limit - total,
-        ));
+        total = total.saturating_add(charges_of_item(world, item, kind, limit - total));
         if total >= limit {
             break;
         }
@@ -5938,7 +6041,6 @@ pub enum Overflow {
     None,
 }
 
-
 /// What a line of fire needs to know about the map.
 ///
 /// Reference: `map::clear_path` asks three things of the map - whether a square is in bounds, what it costs to move through, and whether anything supports a body at a
@@ -6073,12 +6175,18 @@ pub fn fill_container(
     rolls: &mut Rolls,
 ) -> Filled {
     let Some(position) = world.get::<Position>(container).copied() else {
-        return Filled { inside: 0, left_over: kinds.len() };
+        return Filled {
+            inside: 0,
+            left_over: kinds.len(),
+        };
     };
     let mut kinds = kinds.to_vec();
     // The shuffle comes before anything is offered, and over the whole run rather than a prefix.
     shuffle(&mut kinds, rolls);
-    let mut filled = Filled { inside: 0, left_over: 0 };
+    let mut filled = Filled {
+        inside: 0,
+        left_over: 0,
+    };
     for kind in &kinds {
         let item = world
             .spawn((
@@ -6131,7 +6239,9 @@ pub fn force_into(world: &mut World, container: Entity, item: Entity) -> Result<
     if world.get::<Inside>(item).is_some() {
         return Err(InsertError::AlreadyInside);
     }
-    world.entity_mut(item).insert((Inside(container), InPocket(0)));
+    world
+        .entity_mut(item)
+        .insert((Inside(container), InPocket(0)));
     Ok(())
 }
 
@@ -6794,7 +6904,8 @@ pub fn take_turn_blocked(
 pub fn occupied(world: &mut World, square: (i32, i32)) -> bool {
     let mut query = world.query::<(Entity, &Position, &crate::creature::Creature)>();
     query.iter(world).any(|(entity, position, _)| {
-        (position.x, position.y) == square && crate::creature::health_of(world, entity).is_none_or(|hp| hp > 0)
+        (position.x, position.y) == square
+            && crate::creature::health_of(world, entity).is_none_or(|hp| hp > 0)
     })
 }
 
@@ -7023,8 +7134,7 @@ pub fn monster_turns_striking(
         // Every hit the turn produced lands on whoever stands on the target square.
         for _ in 0..turn.hits {
             let victim = {
-                let mut monsters =
-                    world.query::<(Entity, &Position, &crate::creature::Creature)>();
+                let mut monsters = world.query::<(Entity, &Position, &crate::creature::Creature)>();
                 let found = monsters
                     .iter(world)
                     .find(|(entity, position, _)| {
@@ -7139,7 +7249,9 @@ pub fn strike_player(world: &mut World, target: Entity, blow: i32) -> bool {
     let Some(hp) = crate::creature::health_of(world, target) else {
         return false;
     };
-    let armour = world.get::<crate::creature::Armour>(target).map_or(0, |worn| worn.bash);
+    let armour = world
+        .get::<crate::creature::Armour>(target)
+        .map_or(0, |worn| worn.bash);
     let dealt = through_armour(blow, armour);
     let left = hp.saturating_sub(dealt);
     crate::creature::set_health_left(world, target, left);
@@ -7237,11 +7349,7 @@ pub fn player_turn(
             dice,
             sides,
         };
-        let swung = crate::melee::strike(
-            rolls,
-            attack,
-            crate::creature::defence_of(world, victim),
-        );
+        let swung = crate::melee::strike(rolls, attack, crate::creature::defence_of(world, victim));
         if swung.hit {
             crate::creature::hurt(world, victim, swung.damage);
         }
@@ -7429,10 +7537,7 @@ pub fn pick_fault(
     blocks: impl Fn(&str) -> BTreeSet<String>,
     rolls: &mut Rolls,
 ) -> Option<String> {
-    let blocked: BTreeSet<String> = existing
-        .iter()
-        .flat_map(|fault| blocks(fault))
-        .collect();
+    let blocked: BTreeSet<String> = existing.iter().flat_map(|fault| blocks(fault)).collect();
     let candidates: Vec<&(String, i32)> = faults
         .iter()
         .filter(|(id, weight)| {
@@ -7504,7 +7609,11 @@ pub fn rand_degradation(rolls: &mut Rolls, damage: i32, degrade_increments: i32)
 /// Reference: `item::degradation_symbol` (`src/item.cpp:6918-6941`). Five bars, from a full block at no degradation down to a single row at four increments or more,
 /// and **nothing at all for a type that does not degrade** — the type check is the last thing the reference does, not the first.
 #[must_use]
-pub fn degradation_symbol(degradation: i32, max_damage: i32, degrade_increments: i32) -> &'static str {
+pub fn degradation_symbol(
+    degradation: i32,
+    max_damage: i32,
+    degrade_increments: i32,
+) -> &'static str {
     if degrade_increments == 0 {
         return "";
     }
@@ -7553,7 +7662,11 @@ pub fn degrade_amount(after: &ItemDamage, before_damage: i32, limits: &DamageLim
 
 /// A damage's position in the type's five bands, with the reference's odd `-1` for undamaged.
 fn factor(damage: i32, max_damage: i32) -> i32 {
-    if damage == 0 { -1 } else { (damage - 1) * 5 / max_damage }
+    if damage == 0 {
+        -1
+    } else {
+        (damage - 1) * 5 / max_damage
+    }
 }
 
 /// The largest volume any item may take up: `MAX_ITEM_VOLUME` (`src/game_constants.h:35-36`), one tile, 1,000 litres.
@@ -7955,7 +8068,10 @@ pub fn butchery_yield_multiplier(skill_level: i32, dex: i32, tool_quality: i32) 
     let skill_score = f64::from(skill_level) / 10.0;
     let tool_score = f64::from(tool_quality + 50) / 100.0;
     let dex_score = f64::from(dex) / 20.0;
-    skill_score.clamp(0.0, 1.0).mul_add(0.5, tool_score.clamp(0.0, 1.0) * 0.3) + dex_score.clamp(0.0, 1.0) * 0.2
+    skill_score
+        .clamp(0.0, 1.0)
+        .mul_add(0.5, tool_score.clamp(0.0, 1.0) * 0.3)
+        + dex_score.clamp(0.0, 1.0) * 0.2
 }
 
 /// What a damaged corpse still gives up, as a weight.
@@ -8028,7 +8144,10 @@ pub fn after_the_action(
             Some(HarvestEntry::Flesh) => Some(count / 4),
             Some(HarvestEntry::Bone) => Some(count / 2),
             Some(HarvestEntry::Skin)
-                if matches!(state.size, CreatureSize::Medium | CreatureSize::Large | CreatureSize::Huge) =>
+                if matches!(
+                    state.size,
+                    CreatureSize::Medium | CreatureSize::Large | CreatureSize::Huge
+                ) =>
             {
                 Some(count / 2)
             }
@@ -8131,11 +8250,19 @@ impl ButcheryPractice {
                     0,
                     steps_above_medium(self.size) + 2 + self.tool_quality.clamp(0, 3) + 2,
                 )),
-                _ => Some(("survival".to_owned(), 0, steps_above_medium(self.size).max(0) + 4)),
+                _ => Some((
+                    "survival".to_owned(),
+                    0,
+                    steps_above_medium(self.size).max(0) + 4,
+                )),
             };
         }
         let each = i32::try_from(count).unwrap_or(i32::MAX);
-        let mut practice: i32 = self.butcheries.iter().map(|rolled| (4 + rolled) / each).sum();
+        let mut practice: i32 = self
+            .butcheries
+            .iter()
+            .map(|rolled| (4 + rolled) / each)
+            .sum();
         practice += each;
         practice = practice.max(0);
         if self.action == ButcherAction::Dissect {
@@ -8145,7 +8272,11 @@ impl ButcheryPractice {
                 self.size_number() + self.tool_quality.min(3) + 2,
             ));
         }
-        Some(("survival".to_owned(), practice, steps_above_medium(self.size).max(0) + 4))
+        Some((
+            "survival".to_owned(),
+            practice,
+            steps_above_medium(self.size).max(0) + 4,
+        ))
     }
 
     /// The reference's own numbering of the size classes, where a person is two.
@@ -8562,7 +8693,16 @@ pub fn butcher_finish(
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> Vec<(ItemTypeId, i32)> {
     let mut nothing = Vec::new();
-    butcher_finish_recording(world, corpse, table, state, drop_of, drop_grams, rolls, &mut nothing)
+    butcher_finish_recording(
+        world,
+        corpse,
+        table,
+        state,
+        drop_of,
+        drop_grams,
+        rolls,
+        &mut nothing,
+    )
 }
 
 /// [`butcher_finish`], with the butchery figure rolled for each entry left where the caller can find it.
@@ -8715,7 +8855,8 @@ pub fn remove_one_fault_of_type(
 /// returned the boolean alone would repair a worn-through weapon in one action.
 #[must_use]
 pub fn repairable_levels(damage: i32, degradation: i32, damage_max: i32, by_charges: bool) -> i32 {
-    let levels = damage_level(damage, damage_max, by_charges) - damage_level(degradation, damage_max, by_charges);
+    let levels = damage_level(damage, damage_max, by_charges)
+        - damage_level(degradation, damage_max, by_charges);
     if levels > 0 {
         levels
     } else {

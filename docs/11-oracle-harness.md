@@ -68,6 +68,7 @@ one to write - a single call to that builder with the same id - before any dump 
 | `--dump-vehicles <file>` | Every vehicle part and prototype, with durability, location, size, flags and armour | P8's store and mount rule |
 | `--dump-vehicle-rotation <file>` | `coord_translate` over a grid of mounts at 0, 45, 90, 180 and 270 degrees | P8's facing gate |
 | `--dump-vehicle-placement <file>` | A placed 2-seater helicopter: name, mounts, squares, fuel type and ammo, part by part | P8's placement gate and the fuel rounds |
+| `--dump-vehicle-acceleration <file>` | What a vehicle's engine can add at a series of speeds, with the power, mass and top speed the rule divides | P8's thrust gate |
 | `--dump-engine-power <file>` | One engine's power as it is damaged from whole to broken, with its health and `damaged_power_factor` | P8's damage-scaling gate |
 | `--dump-vehicle-top-speed <file>` | Each vehicle's air drag, rolling drag, engine power and the top speed the reference's cubic makes of them; nine vehicles, including a rammed 4x4 and a pickup with an aisle | P8's top-speed and air-drag gates |
 | `--dump-vehicle-rolling <file>` | What a vehicle's wheels resist rolling with: the unbroken wheels, each case's part weights, `coeff_rolling_drag`, and the power and top speed it feeds | P8's rolling and whole-chain gates |

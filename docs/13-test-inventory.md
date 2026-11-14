@@ -2166,3 +2166,8 @@ reference's `total_mass` contents for six vehicles are named.
 watts, and `1.0f - dpf` is the float subtraction the reference writes. `corpus/engine_power.json` (`--dump-engine-power`) walks the quad bike's 200-durability,
 37,300 W engine through healths 1, 0.9, 0.75, 0.5, 0.25, 0.1, 0.005 and 0; all eight match. The parts dump is version 9 with `damaged_power_factor`. Four
 mutations caught.
+
+**Round 1530 ported thrust.** `vehicle_move` holds `vmiph_to_cmps`, `cmps_to_vmiph` and `ground_acceleration` (`vehicle.cpp:4110-4129`): a thousand-vmiph floor and
+a quarter of the top speed as the speed the rule asks about, one double division for power over weight truncated at once, and integer division the rest of the way.
+`Vehicle` gained `velocity`, and `current_acceleration` reads it - `std::abs` included. `corpus/vehicle_acceleration.json` (`--dump-vehicle-acceleration`) records
+two vehicles at seven speeds plus an engine-off case; all fourteen running cases and both off cases match. Five mutations caught.

@@ -96,6 +96,9 @@ pub struct Vehicle {
     pub parts: Vec<VehiclePart>,
     /// The direction it faces, in degrees clockwise from east - the reference's `turn_dir`. A placed vehicle faces 0 unless its placement names another direction.
     pub rotation: f64,
+    /// How fast it is going, in hundredths of a mile per hour, negative for reverse - the reference's `velocity` (`vehicle.h`), which is a plain `int` member and
+    /// the state every movement rule reads. A vehicle placed from a blueprint stands still.
+    pub velocity: i32,
 }
 
 /// Builds a vehicle facing east, standing at a square.
@@ -138,7 +141,11 @@ pub fn spawn_facing(
     }
     let entity = world
         .spawn((
-            Vehicle { parts, rotation },
+            Vehicle {
+                parts,
+                rotation,
+                velocity: 0,
+            },
             crate::Position {
                 x: at.0,
                 y: at.1,
@@ -278,8 +285,7 @@ fn blamed_part(world: &World, vehicle: &Vehicle, part: usize) -> usize {
     };
     let is_armour = |candidate: &VehiclePart| {
         !candidate.broken
-            && spec_of(world, &candidate.part)
-                .is_some_and(|spec| spec.flags.contains("ARMOR"))
+            && spec_of(world, &candidate.part).is_some_and(|spec| spec.flags.contains("ARMOR"))
     };
     if is_armour(colliding) {
         return part;
@@ -379,7 +385,9 @@ pub fn move_vehicle(world: &mut World, vehicle: Entity, delta: (i32, i32)) -> bo
         let Some(square) = squares.get(part).copied() else {
             continue;
         };
-        let from = world.get::<Position>(rider).map(|position| (position.x, position.y, position.z));
+        let from = world
+            .get::<Position>(rider)
+            .map(|position| (position.x, position.y, position.z));
         {
             let Some(mut position) = world.get_mut::<Position>(rider) else {
                 continue;
@@ -433,7 +441,8 @@ pub fn part_squares(world: &World, vehicle: Entity) -> Vec<(i32, i32, i32)> {
         .parts
         .iter()
         .map(|part| {
-            let (dx, dy) = crate::rotation::coord_translate(built.rotation, (0, 0), (part.x, part.y));
+            let (dx, dy) =
+                crate::rotation::coord_translate(built.rotation, (0, 0), (part.x, part.y));
             (at.x + dx, at.y + dy, at.z)
         })
         .collect()
@@ -595,7 +604,10 @@ pub fn open_or_close(world: &mut World, vehicle: Entity, index: usize, opening: 
 /// spec names. Returns the empty string for a part that is not an engine.
 #[must_use]
 pub fn fuel_current(world: &World, vehicle: Entity, index: usize) -> String {
-    let Some(part) = world.get::<Vehicle>(vehicle).and_then(|built| built.parts.get(index)) else {
+    let Some(part) = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+    else {
         return String::new();
     };
     if !part.fuel_preference.is_empty() {
@@ -627,7 +639,10 @@ pub fn is_engine_on(world: &World, vehicle: Entity, index: usize) -> bool {
 /// fuel of its current type needs no choice; otherwise the engine takes the **first** of its `fuel_opts` the vehicle actually has, and remembers it. The answer is whether the
 /// engine can be started at all, which is why `start_engine` calls this rather than a separate check.
 pub fn auto_select_fuel(world: &mut World, vehicle: Entity, index: usize) -> bool {
-    let Some(part) = world.get::<Vehicle>(vehicle).and_then(|built| built.parts.get(index)) else {
+    let Some(part) = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+    else {
         return false;
     };
     let (broken, name) = (part.broken, part.part.clone());
@@ -666,7 +681,10 @@ pub fn auto_select_fuel(world: &mut World, vehicle: Entity, index: usize) -> boo
 /// battery charge, fuel pumps, and rolls a chance of failure against engine damage, with sounds and backfires. The port has no driver, faults, battery discharge or start sounds yet,
 /// so those checks are not here; `auto_select_fuel` is the one start condition that needs only the vehicle.
 pub fn start_engine(world: &mut World, vehicle: Entity, index: usize, turn_on: bool) -> bool {
-    let Some(part) = world.get::<Vehicle>(vehicle).and_then(|built| built.parts.get(index)) else {
+    let Some(part) = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+    else {
         return false;
     };
     if part.enabled == turn_on {
@@ -807,11 +825,9 @@ fn stands_on_structure(world: &World, vehicle: Entity, x: i32, y: i32) -> bool {
             let Some(part) = built.parts.get(index) else {
                 continue;
             };
-            if spec_of(world, &part.part)
-                .is_some_and(|other| {
-                    other.location == "structure" && !other.flags.contains("PROTRUSION")
-                })
-            {
+            if spec_of(world, &part.part).is_some_and(|other| {
+                other.location == "structure" && !other.flags.contains("PROTRUSION")
+            }) {
                 return true;
             }
         }
@@ -825,7 +841,13 @@ fn stands_on_structure(world: &World, vehicle: Entity, x: i32, y: i32) -> bool {
 /// derived lists the part changes. The port has no derived part lists to rebuild and no fake parts to remove, so it appends and answers the index; the square joins the one index at once.
 ///
 /// Returns nothing when the part is not in the store, the vehicle does not exist, or the mount is refused.
-pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i32) -> Option<usize> {
+pub fn install_part(
+    world: &mut World,
+    vehicle: Entity,
+    part: &str,
+    x: i32,
+    y: i32,
+) -> Option<usize> {
     let spec = spec_of(world, part)?.clone();
     let at = *world.get::<Position>(vehicle)?;
     if !can_mount(world, vehicle, &spec, x, y) {
@@ -856,7 +878,10 @@ pub fn install_part(world: &mut World, vehicle: Entity, part: &str, x: i32, y: i
     let (dx, dy) = crate::rotation::coord_translate(rotation, (0, 0), (x, y));
     let square = (at.x + dx, at.y + dy, at.z);
     let mut positions = crate::singletons::index_mut(world);
-    if !positions.at_level(square.0, square.1, square.2).contains(&vehicle) {
+    if !positions
+        .at_level(square.0, square.1, square.2)
+        .contains(&vehicle)
+    {
         positions.insert(vehicle, square);
     }
     Some(index)
@@ -923,9 +948,7 @@ fn remove_one_part(world: &mut World, vehicle: Entity, index: usize) -> Option<V
         .and_then(|built| built.parts.get(index))
         .and_then(|part| spec_of(world, &part.part))
         .is_some_and(|spec| spec.flags.contains("BOARDABLE"));
-    if boardable
-        && let Some(rider) = rider_at(world, vehicle, index)
-    {
+    if boardable && let Some(rider) = rider_at(world, vehicle, index) {
         unboard(world, rider);
     }
     let removed = {
@@ -977,7 +1000,9 @@ pub fn damage(
         return crate::vehicle_damage::Outcome::Ignored;
     };
     let outcome = crate::vehicle_damage::hit(&spec, current, amount, kind, no_resist);
-    if let crate::vehicle_damage::Outcome::Applied { hp_after, broke, .. } = outcome
+    if let crate::vehicle_damage::Outcome::Applied {
+        hp_after, broke, ..
+    } = outcome
         && let Some(mut built) = world.get_mut::<Vehicle>(vehicle)
         && let Some(part) = built.parts.get_mut(index)
     {
@@ -989,7 +1014,11 @@ pub fn damage(
 
 /// The spec of one part of one vehicle, copied out of the world's store - the reference's `vehicle_part::info()`.
 #[must_use]
-pub fn part_spec(world: &World, vehicle: Entity, index: usize) -> Option<cdda_content::vehicles::PartSpec> {
+pub fn part_spec(
+    world: &World,
+    vehicle: Entity,
+    index: usize,
+) -> Option<cdda_content::vehicles::PartSpec> {
     let store = crate::singletons::holder::<TheVehicleStore>(world)?;
     let name = world
         .get::<Vehicle>(vehicle)

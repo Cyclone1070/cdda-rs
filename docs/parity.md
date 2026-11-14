@@ -45,6 +45,40 @@ itself rather than a constant. Both read now, which took the refusal census from
 **Named, not invented**: `trigdist` is a world option and the port has no option store, so the square walk is the rule and the circle is what an option would make of it. The
 vision levels are one bit, full or nothing, because nothing has asked a partial one.
 
+## The engines push hardest at low speed (round 1530)
+
+`vehicle::ground_acceleration` (`vehicle.cpp:4110-4129`) is what a vehicle can add this turn, and it is four divisions with three of them integer:
+
+| Step | Reference | Port |
+|---|---|---|
+the speed it asks about | `std::max( at_vel_in_vmi, std::max( 1000, max_velocity( here, fueled ) / 4 ) )` | the same, `max_velocity / 4` in integers |
+to centimetres per second | `vmiph_to_cmps`: `vmiph / mps_to_miph`, **truncated** | the same |
+weight | `to_kilogram( total_mass( here ) )` - milligrams over a million (`units.h:363`), a double | grams times a thousand over a million, so the same double |
+power to weight | `int engine_power_ratio = to_watt( power ) / weight` - the **one** double division, truncated at once | the same |
+the answer | `100 * 100 * ratio / cmps`, integer, then `cmps_to_vmiph` (`cmps * mps_to_miph`, truncated) | the same |
+
+`corpus/vehicle_acceleration.json` records both mass-exact vehicles at 0, 50, 500, 1,000, 1,500, 2,000 and 10,000 vmiph, and once with nothing turning:
+
+| vehicle | at | power W | mass kg | answer vmiph |
+|---|---|---|---|---|
+bicycle | 0-1,000 | 360 | 10.817 | 1,650 |
+bicycle | 1,500 | 360 | 10.817 | 1,100 |
+bicycle | 2,000 | 360 | 10.817 | 825 |
+bicycle | 10,000 | 360 | 10.817 | 163 |
+quad bike | 0-2,000 | 37,300 | 260.845 | 3,451 |
+quad bike | 10,000 | 37,300 | 260.845 | 709 |
+either, engine off | 500 | - | - | 0 |
+
+The answer is flat until the vehicle is near its top speed, because the rule asks about a quarter of it - that is the reference saying "a slow vehicle accelerates
+toward a target it can reach", not a port artefact.
+
+`Vehicle` now carries `velocity` (hundredths of a mile per hour, negative for reverse), the state every movement rule reads, and `vehicle_move::current_acceleration`
+answers it from that state - including the reference's `std::abs( velocity )`, so backing up pushes as hard as going forward. Five mutations caught: the thousand-vmiph
+floor, the `cmps` division, the ratio's scale, the conversion to centimetres per second, and the absolute value on the speed.
+
+**Named:** the reference's `engine_on` member (a flag `start_engines` sets) is not ported; the port answers zero when no engine can make power at all. Towing, water,
+rotor and rail acceleration are separate rules with their own coefficients and are not ported.
+
 ## A damaged engine makes less power (round 1529)
 
 `vehicle::part_vpower_w` (`vehicle.cpp:1125-1190`) ends with the line that makes damage bite: an engine's power is scaled by
