@@ -182,7 +182,7 @@ def main():
                      [f"| `{c}` | " + ", ".join(f"`{f}`" for f in sorted(ctx[c])[:3]) +
                       (" …" if len(ctx[c]) > 3 else "") + " |" for c in sorted(ctx)] +
                      ["", "| File building menus | Menu sites |", "|---|---|"] +
-                     [f"| `src/{f}` | {n} |" for f, n in sorted(menus.items(), key=lambda x: -x[1])]))
+                     [f"| `src/{f}` | {n} |" for f, n in sorted(menus.items(), key=lambda x: (-x[1], x[0]))]))
 
     # ------------------------------------------------- 6. events and ids
     events = distinct_funcs(r'event_type::(\w+)')

@@ -6,9 +6,22 @@
 
 use std::collections::BTreeSet;
 
+/// The reference's sources: the oracle's patched copy when it is here, the pinned checkout when it is not.
+///
+/// The harness patches forty-five files and neither of the two read here, so the tables are the reference's own either way - and a runner that fetched only the
+/// pinned checkout can still prove the rule instead of skipping it.
+fn reference_sources() -> std::path::PathBuf {
+    let oracle = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/src");
+    if oracle.is_dir() {
+        oracle
+    } else {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA/src")
+    }
+}
+
 /// The member names the reference's tables define.
 fn reference_members() -> BTreeSet<String> {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../oracle/src/src");
+    let root = reference_sources();
     let mut names = BTreeSet::new();
     for file in ["npctalk.cpp", "condition.cpp"] {
         let Ok(text) = std::fs::read_to_string(root.join(file)) else {
