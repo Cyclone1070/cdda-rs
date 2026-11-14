@@ -1,6 +1,6 @@
 # Handoff
 
-Last round: 42. State at hand-off: **CI green**, gate green, tree clean.
+Last round: 43. State at hand-off: **CI green**, gate green, tree clean.
 
 ## Where the work stands
 
@@ -23,11 +23,21 @@ turn loop's own costs were found and fixed on the way:
 | `snapshot` borrowed view | not started — borrow-checker risk across 21 call sites |
 | `clippy.toml` thresholds + ledgers | not started |
 
+## This round: the thrust step
+
+`vehicle::thrust` (`vehicle_move.cpp:453-620`) decides the next turn's speed, and it is ported and gated: `vehicle_move::thrust_velocity` plus
+`corpus/vehicle_thrust.json`, thirteen recorded cases from a bicycle, a car and an electric car - at rest, rolling, at cruise, braking,
+reversing, and one engine-off. Two mutations checked: no reverse penalty fails `bicycle_reversing`, no brake floor fails `bicycle_braking`.
+
 ## The next cycle
 
-Port forward per `docs/05-roadmap.md`: the moving vehicle. `Vehicle::velocity` exists and the engines'
-power is gated, but nothing pushes a vehicle yet — thrust, drag and `map::move_vehicle` are the next
-three rules, dump first, then the gate, then the port.
+The thrust step is a pure function; nothing in the store calls it yet. Next, in order:
+
+1. `thrust(world, vehicle, direction, cruise)` - read `current_acceleration`, the top speed and the reverse floor from the store, apply
+   `thrust_velocity`, write `Vehicle.velocity`. Traction is `1.0` until `k_traction` is ported, and the doc says so.
+2. `max_reverse_velocity` (`vehicle.cpp`) - the reverse floor. The corpus already carries it per case (`max_reverse`), so the gate starts from rows
+   that exist.
+3. `map::move_vehicle` - velocity into squares per turn through the facing: the part that makes the vehicle go somewhere.
 
 ## What must stay true
 
