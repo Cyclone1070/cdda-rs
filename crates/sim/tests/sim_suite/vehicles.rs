@@ -4088,3 +4088,33 @@ fn a_hit_breaks_a_square_only_when_it_reaches_its_resistance() {
         "a square nothing can break is not broken by any strength"
     );
 }
+
+/// **The prediction the split makes, against the wall's real resistance.** A car at 1,000 deals its obstacle 15 and a car at 2,000 deals 62; the wall's own `str_min`
+/// comes from the reference's data. If those two numbers straddle it, a wooden wall stands against the slower car and gives way to the faster one - which is the
+/// behaviour the obstacle branch must produce once it is wired.
+#[test]
+fn the_slower_car_leaves_the_wall_and_the_faster_one_does_not() {
+    use cdda_content::mapdata::MapDataKind;
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA");
+    let loaded =
+        cdda_content::mapdata::load_paths(&[&root.join("data/core"), &root.join("data/json")])
+            .expect("loads the content set");
+    let wall = loaded
+        .iter()
+        .find(|prototype| prototype.id == "t_wall" && prototype.kind == MapDataKind::Terrain)
+        .expect("the wall");
+    let resistance = cdda_sim::bash::resistance(None, wall.bash.as_ref());
+    assert!(resistance > 0, "the wall resists: {resistance}");
+
+    // The shares the split gives the obstacle at the two recorded speeds, worked out from `crash_impulse`'s own numbers.
+    let shares = (15, 62);
+    assert!(
+        !cdda_sim::bash::breaks(resistance, shares.0),
+        "**15 against a wall resisting {resistance} leaves it standing**"
+    );
+    assert!(
+        cdda_sim::bash::breaks(resistance, shares.1),
+        "**62 against the same wall takes it down**"
+    );
+}

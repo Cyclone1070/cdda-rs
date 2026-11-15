@@ -36914,3 +36914,7 @@ prediction this rule makes that can be checked against a recording rather than a
 15 against a wall that resists 20 leaves it standing, 62 takes it down, equality breaks it because the reference uses `<=`, and a `-1` resistance is unreachable by
 any strength. The branch's three pieces - the split's obstacle share, the square's resistance, and this comparison - are now all ported and gated; only the call
 between them is missing.
+
+**The prediction holds against the real wall.** `t_wall`'s own `str_min` from the reference data sits between the two shares the split produces: 15 from the car at 1,000
+does not break it, 62 from the car at 2,000 does. `the_slower_car_leaves_the_wall_and_the_faster_one_does_not` asserts exactly that, so the obstacle branch now has a
+behavioural expectation written from the rule and checked against the data - not a number copied from a dump.
