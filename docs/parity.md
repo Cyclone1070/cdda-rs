@@ -36841,3 +36841,7 @@ wall. That is the next rule.
 - each hit goes through `damage_direct`.
 
 So the spread is **random** and the recording cannot pin it row by row the way the impulse could. Two ways to gate it, and the port must pick one explicitly: give the harness a fixed world seed and record the damage each part takes, or port it as a deterministic sum (the expectation) and say so. The first is a real gate; the second is a weaker one and belongs in `parity.md` as weaker if it is chosen.
+
+`vehicle_move::spread_share` is the scaling half of `damage_all`, ported as a pure function with the draw as a parameter: `draw / (distance * distance)`, nothing at
+distance one, a shock absorber's bonus off first, floored at zero. Gated on hand-checked values - 100 at distance 2 is 25, at 3 is 11 - and the random draw stays
+outside it, so the seeded recording can pin the caller without changing this rule.

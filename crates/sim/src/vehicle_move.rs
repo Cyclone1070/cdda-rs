@@ -490,3 +490,17 @@ fn part_density(world: &World, vehicle: Entity, part: usize) -> Option<f64> {
     let spec = crate::vehicles::part_spec(world, vehicle, part)?;
     spec.density
 }
+
+/// How much of a blow reaches a part at a given distance from the impact.
+///
+/// Reference: `vehicle::damage_all` (`vehicle.cpp:7674-7687`): `net_dmg = rng( dmg1, dmg2 ) / ( distance * distance )`, where the distance is
+/// `1 + square_dist( mount, impact )` and only parts further than one square are touched; a part with a shock absorber on its mount loses the absorber's `bonus`
+/// points from that, floored at zero. The draw is a parameter because it is random in the reference; the caller supplies it, so this rule stays a pure function and
+/// the gate can pin it with a seed.
+#[must_use]
+pub fn spread_share(draw: i32, distance: i32, shock_absorber_bonus: i32) -> i32 {
+    if distance <= 1 || draw <= 0 {
+        return 0;
+    }
+    (draw / (distance * distance) - shock_absorber_bonus).max(0)
+}

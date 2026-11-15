@@ -3871,3 +3871,34 @@ fn a_crash_marks_the_car_that_hits_the_wall() {
         "and that is within a few hit points of the reference's 41: {lost}"
     );
 }
+
+/// **The spread falls off with the square of the distance.** Reference: `damage_all`'s `rng( dmg1, dmg2 ) / ( distance * distance )`
+/// (`vehicle.cpp:7679`), with the distance counted as `1 + square_dist`.
+#[test]
+fn a_blow_reaches_further_parts_more_weakly() {
+    assert_eq!(
+        cdda_sim::vehicle_move::spread_share(100, 2, 0),
+        25,
+        "an adjacent-square part takes a quarter"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::spread_share(100, 3, 0),
+        11,
+        "and one square further, a ninth - integer division, as the reference writes it"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::spread_share(100, 1, 0),
+        0,
+        "**the part at the impact takes nothing from the spread**"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::spread_share(100, 2, 5),
+        20,
+        "a shock absorber takes its bonus off first"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::spread_share(10, 4, 20),
+        0,
+        "and never below zero"
+    );
+}
