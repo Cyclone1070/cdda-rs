@@ -3880,7 +3880,7 @@ fn a_crash_marks_the_car_that_hits_the_wall() {
     // The spread reaches the neighbourhood: some part other than the direct hit lost hit points too.
     let dented = world
         .get::<cdda_sim::vehicles::Vehicle>(car)
-        .map(|built| {
+        .map_or(0, |built| {
             built
                 .parts
                 .iter()
@@ -3890,8 +3890,7 @@ fn a_crash_marks_the_car_that_hits_the_wall() {
                         .is_some_and(|spec| part.hp < spec.durability)
                 })
                 .count()
-        })
-        .unwrap_or(0);
+        });
     assert!(
         dented > 1,
         "**the blow spreads: {dented} part(s) dented, not just the one at the wall**"
