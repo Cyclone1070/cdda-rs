@@ -3773,7 +3773,7 @@ fn a_crash_produces_the_impulse_the_reference_produces() {
         if density <= 0.0 {
             continue;
         }
-        let (impulse, left) = cdda_sim::vehicle_move::crash_impulse(
+        let (impulse, obstacle, left) = cdda_sim::vehicle_move::crash_impulse(
             i64::from(int_of(row, "mass_g")),
             int_of(row, "speed"),
             density,
@@ -3786,6 +3786,11 @@ fn a_crash_produces_the_impulse_the_reference_produces() {
             int_of(row, "speed")
         );
         assert_eq!(left, 0, "the crash leaves no speed");
+        // **The obstacle gets the rest**, about a quarter of the blow because the material factor is clamped at 25.
+        assert!(
+            obstacle > 0 && obstacle < impulse,
+            "the obstacle takes {obstacle} of the {impulse} dealt"
+        );
         seen += 1;
     }
     assert_eq!(seen, 2, "two recorded rows name a part and its density");
@@ -3865,7 +3870,7 @@ fn a_crash_marks_the_car_that_hits_the_wall() {
         .expect("the dented part's spec");
     let density = spec.density.expect("a density");
     let mass = cdda_sim::vehicle_mass::mass(&world, car);
-    let (impulse, _) = cdda_sim::vehicle_move::crash_impulse(mass, 1000, density);
+    let (impulse, _, _) = cdda_sim::vehicle_move::crash_impulse(mass, 1000, density);
     let reduction = spec.damage_reduction.get("bash").copied().unwrap_or(0.0);
     #[allow(clippy::cast_possible_truncation)]
     let expected = impulse - reduction as i32;

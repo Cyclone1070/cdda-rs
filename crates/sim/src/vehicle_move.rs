@@ -421,11 +421,12 @@ pub const UNBREAKABLE_DENSITY: f64 = 80.0;
 /// The impulse a crash into an unbreakable obstacle produces, and the speed it leaves.
 ///
 /// Reference: `vehicle::part_collision`'s loop (`vehicle_move.cpp:1030-1168`) for the `veh_coll_other` branch. The reference's own guard prints 61 for the car at
-/// 1,000 and 247 at 2,000, and those are the numbers this returns - the blow **before** any part reduction or spreading.
+/// 1,000 and 247 at 2,000, and those are the numbers this returns - the blow **before** any part reduction or spreading. The second number is the **obstacle's**
+/// share, `damage * ( 100 - k ) / 100`: about a quarter of the blow, because the material factor is clamped at 25.
 #[must_use]
-pub fn crash_impulse(mass_g: i64, velocity: i32, vpart_density: f64) -> (i32, i32) {
+pub fn crash_impulse(mass_g: i64, velocity: i32, vpart_density: f64) -> (i32, i32, i32) {
     if velocity == 0 || mass_g <= 0 || vpart_density <= 0.0 {
-        return (0, velocity);
+        return (0, 0, velocity);
     }
     #[allow(clippy::cast_precision_loss)]
     let mass = mass_g as f64 / 1000.0;
@@ -470,9 +471,12 @@ pub fn crash_impulse(mass_g: i64, velocity: i32, vpart_density: f64) -> (i32, i3
     }
     #[allow(clippy::cast_possible_truncation)]
     let impulse = (damage * k / 100.0) as i32;
+    // The obstacle's share is the rest of the same blow (`vehicle_move.cpp:1066`), truncated the way the reference truncates it on its way into `bash`.
+    #[allow(clippy::cast_possible_truncation)]
+    let obstacle = (damage * (100.0 - k) / 100.0) as i32;
     #[allow(clippy::cast_possible_truncation)]
     let left = speed as i32;
-    (impulse, left)
+    (impulse, obstacle, left)
 }
 
 /// Dents the part that a crash stopped the vehicle on, when the part says what it is made of.
@@ -495,7 +499,7 @@ fn dent_on_crash(
     else {
         return;
     };
-    let (impulse, _) = crash_impulse(mass, velocity, density);
+    let (impulse, _, _) = crash_impulse(mass, velocity, density);
     if impulse > 0 {
         crate::vehicles::damage(world, vehicle, part, impulse, "bash", false);
         // **And the neighbourhood**: the reference follows the blow with `damage_all( coll_dmg / 2, coll_dmg, ... )` (`map.cpp:869`), which is why a real crash
