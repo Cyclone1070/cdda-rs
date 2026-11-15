@@ -37071,3 +37071,21 @@ blueprint would make no safe power at all - so it is a round of its own, with th
 **Safe power needs fuel now (round 90).** `safe_power_of` asks `engine_fuel_left` before it counts an engine, so the chain is on **and** fuelled - the reference's
 `!fueled || engine_fuel_left` condition. The two tests that assert a positive safe total fill their own tanks first (`fill_own_tanks`), which is the change the rule
 demanded: a car off the blueprint makes no safe power, and a test that says otherwise was asserting on an empty tank.
+
+## Fuel burn: what the rule needs and what the data does not have (round 91)
+
+The chain after "is the engine fuelled" is `vehicle::consume_fuel` (`vehicle.cpp:5226-5260`), and reading it end to end settles what a port needs:
+
+```
+to_consume = fuel_usage[fuel] * 1s * load * ( 1 + strain^2 * 100 ) / 1000
+to_consume -= fuel_remainder[fuel]
+drain_energy( fuel, to_consume )        // walks every part, `consume_energy` per tank
+```
+
+**Four inputs, and the corpus carries none of them:** the per-engine `energy_consumption` (`fuel_usage` sums it per fuel type), the *energy per charge* of each fuel so
+`to_consume` in joules can be turned into charges drained, the `fuel_remainder` carried between turns, and `strain` - which is itself unported.
+
+So this is not a rule that can be ported in one round from what is dumped. **The next oracle dump has to carry:** `energy_consumption` per engine part, and the fuel
+items' energy per charge - then `fuel_usage`, `drain_energy` and `consume_fuel` follow in that order, each gated on its own numbers.
+
+Recorded rather than guessed: the port has no invented constants here.
