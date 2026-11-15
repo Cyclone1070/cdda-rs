@@ -179,8 +179,14 @@ fn a_part_carries_its_material_density() {
             .and_then(|part| part.density)
             .unwrap_or_else(|| panic!("{id} has a density"))
     };
-    assert_eq!(density_of("frame"), 8.0, "a steel frame");
-    assert_eq!(density_of("windshield"), 2.5, "glass");
+    assert!(
+        (density_of("frame") - 8.0).abs() < 1e-6,
+        "a steel frame is 8 per litre"
+    );
+    assert!(
+        (density_of("windshield") - 2.5).abs() < 1e-6,
+        "glass is 2.5 per litre"
+    );
     assert!(
         dump.parts
             .iter()
