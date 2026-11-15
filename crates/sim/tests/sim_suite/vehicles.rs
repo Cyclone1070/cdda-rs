@@ -3981,3 +3981,40 @@ fn the_data_says_which_obstacles_can_be_bashed() {
         "a destroy-only block answers no to a bash"
     );
 }
+
+/// **The square's resistance is the furniture's if it is bashable, else the terrain's, else none.** Reference: `map::bash_resistance` (`map.cpp:3204-3215`).
+#[test]
+fn a_square_resists_with_what_stands_on_it_first() {
+    use cdda_content::mapdata::BashInfo;
+    let block = |str_min: i32| BashInfo {
+        str_min,
+        ..BashInfo::default()
+    };
+    let (terrain, furniture) = (block(20), block(50));
+
+    assert_eq!(
+        cdda_sim::bash::resistance(Some(&furniture), Some(&terrain)),
+        50,
+        "**the furniture answers first**"
+    );
+    assert_eq!(
+        cdda_sim::bash::resistance(None, Some(&terrain)),
+        20,
+        "with nothing on it, the terrain answers"
+    );
+    assert_eq!(
+        cdda_sim::bash::resistance(None, None),
+        -1,
+        "**and an unbreakable square answers -1**"
+    );
+    let only_destroy = BashInfo {
+        str_min: 50,
+        destroy_only: true,
+        ..BashInfo::default()
+    };
+    assert_eq!(
+        cdda_sim::bash::resistance(Some(&only_destroy), Some(&terrain)),
+        20,
+        "a destroy-only block does not answer, so the terrain's does"
+    );
+}

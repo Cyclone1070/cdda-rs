@@ -36879,3 +36879,7 @@ first piece: the two queries, gated on the tiles already recorded in `corpus/`.
 `destroy_only` block answers no to an ordinary hit. Gated on the four cases the reference's own test distinguishes. What it is not yet gated on is **real tile data**:
 the collision fixtures build their tiles by hand, so the next dump must record bash blocks for the tiles the crash tests use before the obstacle branch can consult
 them.
+
+`bash::resistance` is `map::bash_resistance` (`map.cpp:3204-3215`): the furniture's `str_min` when the furniture is bashable, else the terrain's, else `-1` for a square
+that cannot be broken. Gated on all four shapes, including the one worth remembering - a `destroy_only` block does not answer, so the terrain's number is used instead.
+With `is_bashable` beside it, the crash's obstacle branch has both queries it needs; only real tile data is still missing between the rule and its gate.

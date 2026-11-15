@@ -369,3 +369,22 @@ fn unchanged(target: &BashTarget) -> BashOutcome {
 pub fn is_bashable(bash: Option<&cdda_content::mapdata::BashInfo>) -> bool {
     bash.is_some_and(|block| block.str_min != -1 && !block.destroy_only)
 }
+
+/// How much strength it takes to break the square, or `-1` for a square that cannot be broken.
+///
+/// Reference: `map::bash_resistance` (`map.cpp:3204-3215`), which returns the **furniture's** `str_min` when the furniture is bashable, else the **terrain's** when the
+/// terrain is, else `-1`. The crash compares it against the damage it would deal: `bash_resistance( pos, bash_floor ) <= obj_dmg` (`vehicle_move.cpp:1075`) - a
+/// comparison, never a subtraction.
+#[must_use]
+pub fn resistance(
+    furniture: Option<&cdda_content::mapdata::BashInfo>,
+    terrain: Option<&cdda_content::mapdata::BashInfo>,
+) -> i32 {
+    if is_bashable(furniture) {
+        return furniture.map_or(-1, |block| block.str_min);
+    }
+    if is_bashable(terrain) {
+        return terrain.map_or(-1, |block| block.str_min);
+    }
+    -1
+}
