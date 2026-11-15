@@ -36755,3 +36755,10 @@ checked against it line by line. Until then the loop would be transcribed arithm
 reference's blow - 61 before the frame's 20 points of bash reduction, 41 after - but at 2,000 it accumulates 247 where the reference records 44 on a windshield with
 50 hit points. The reference must stop the loop when the hit part is **destroyed**, not when the direction changes: the windshield cannot absorb 247, and its 44 is
 what a single blow can mean before the part is gone. The next round reads `part_collision`'s exit conditions again before the loop is written a third time.
+
+**The branch is wrong, not the loop.** The car at 2,000 losing 44 while the loop's arithmetic says 247 does not fit `veh_coll_other`: with mass 1000 kg and restitution
+0.10 the first iteration alone is about 250 damage, so the reference cannot be in that branch at all. `t_vitrified_wall` has no `bash` block in the terrain data, but
+`terrain_collision_data` is only skipped when `is_bashable_ter_furn` is **false in the map's own answer**, which asks the terrain and its furniture - and a wall may
+be bashable through a bash block the scan did not see, or through `furn_set` left behind. The next dump must record `veh_collision.type` and `imp` themselves
+(`veh->collision( here, colls, tripoint_rel_ms( 1, 0, 0 ), false )` after `precalc_mounts`), which settles both the branch and the number in one row instead of
+inferring them from hit points.
