@@ -36938,3 +36938,8 @@ the round that answered the impulse question in one run.
 strength 19, and `bash_square` answering **None** - so the square and the flag are right and the strength is real. Giving the world dice (`put_rolls`) and installing
 the map table (`mapsquare::set_data`, which `bash_square` reads through `mapsquare::table`) both leave it silent, so `None` comes from somewhere neither change
 reaches. The next print goes **inside** `bash_square` at each of its four `?` operators, which names the one that fails in a single run.
+
+**A third cause ruled out, and the one left.** With dice, the map table and the terrain codes all installed, `bash_square` still answers `None` for square
+`(103, 99, 0)` - and the square is still `t_wall`, so nothing broke and nothing was damaged. Of its four `?` operators, three now have named counter-evidence; what is
+left is `square::terrain_at` answering for that square, which is the one thing not yet observed directly. The next print goes there, inside `bash_square`, and it
+names the answer in one run.
