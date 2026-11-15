@@ -346,6 +346,17 @@ pub fn turn_cost(velocity: i32) -> f32 {
 ///
 /// The displacement goes through [`crate::vehicles::move_vehicle`], so the index and every rider move with it. Returns whether the vehicle changed square.
 pub fn move_step(world: &mut World, vehicle: Entity) -> bool {
+    // **The caller owns randomness.** The turn loop threads its own stream through [`move_step_with_rolls`]; this entry point exists for the callers that only
+    // move a vehicle - the tests and the inspection tools - and it takes a fresh stream so a crash's spread still happens, deterministically.
+    move_step_with_rolls(world, vehicle, &mut cdda_core_types::rng::Rolls::new(0))
+}
+
+/// Moves a vehicle one square, drawing from the game's own stream for the damage a crash spreads.
+pub fn move_step_with_rolls(
+    world: &mut World,
+    vehicle: Entity,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
     let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
         return false;
     };
@@ -389,7 +400,7 @@ pub fn move_step(world: &mut World, vehicle: Entity) -> bool {
     {
         // The crash dents the part that met the obstacle, once the data says what it is made of. Until a part carries a density the blow has no split to compute,
         // so the vehicle stops exactly as before and nothing is damaged - the recording is what fills the gap, not a guess here.
-        dent_on_crash(world, vehicle, part);
+        dent_on_crash(world, vehicle, part, rolls);
         if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
             built.velocity = 0;
             built.of_turn_carry = 0.0;
@@ -468,7 +479,12 @@ pub fn crash_impulse(mass_g: i64, velocity: i32, vpart_density: f64) -> (i32, i3
 ///
 /// The impulse comes from [`crash_impulse`], the split from the part's own density; without one the reference's loop has no `k` to compute and the vehicle simply
 /// stops. Nothing else about the crash moves: the recording's eight rows are the gate for the loop, and this is the seam that will carry them into the store.
-fn dent_on_crash(world: &mut World, vehicle: Entity, part: usize) {
+fn dent_on_crash(
+    world: &mut World,
+    vehicle: Entity,
+    part: usize,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
     let Some(density) = part_density(world, vehicle, part) else {
         return;
     };
@@ -482,6 +498,13 @@ fn dent_on_crash(world: &mut World, vehicle: Entity, part: usize) {
     let (impulse, _) = crash_impulse(mass, velocity, density);
     if impulse > 0 {
         crate::vehicles::damage(world, vehicle, part, impulse, "bash", false);
+        // **And the neighbourhood**: the reference follows the blow with `damage_all( coll_dmg / 2, coll_dmg, ... )` (`map.cpp:869`), which is why a real crash
+        // dents more than the part that touched the wall.
+        let impact = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(part))
+            .map_or((0, 0), |entry| (entry.x, entry.y));
+        damage_around(world, vehicle, impact, impulse, rolls);
     }
 }
 
@@ -503,4 +526,41 @@ pub fn spread_share(draw: i32, distance: i32, shock_absorber_bonus: i32) -> i32 
         return 0;
     }
     (draw / (distance * distance) - shock_absorber_bonus).max(0)
+}
+
+/// Spreads a blow across the parts around the point it landed on.
+///
+/// Reference: `vehicle::damage_all( here, coll_dmg / 2, coll_dmg, damage_bash, collision_point )` (`map.cpp:869`) and its loop (`vehicle.cpp:7674-7689`): every part
+/// further than one square draws `rng( low, high )`, takes [`spread_share`] of it, and goes through [`crate::vehicles::damage`]. Returns how many parts it touched.
+pub fn damage_around(
+    world: &mut World,
+    vehicle: Entity,
+    impact: (i32, i32),
+    coll_dmg: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> usize {
+    let (low, high) = (coll_dmg / 2, coll_dmg);
+    let count = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    let mut touched = 0;
+    for part in 0..count {
+        let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+            break;
+        };
+        let Some(entry) = built.parts.get(part) else {
+            continue;
+        };
+        let distance = 1 + (entry.x - impact.0).abs() + (entry.y - impact.1).abs();
+        if distance <= 1 {
+            continue;
+        }
+        let draw = rolls.rng(low.max(1), high.max(low.max(1)));
+        let share = spread_share(draw, distance, 0);
+        if share > 0 {
+            crate::vehicles::damage(world, vehicle, part, share, "bash", false);
+            touched += 1;
+        }
+    }
+    touched
 }

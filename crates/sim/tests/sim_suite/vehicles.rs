@@ -3838,10 +3838,17 @@ fn a_crash_marks_the_car_that_hits_the_wall() {
         let built = world
             .get::<cdda_sim::vehicles::Vehicle>(car)
             .expect("a vehicle");
-        built.parts.iter().enumerate().find_map(|(index, part)| {
-            let spec = cdda_sim::vehicles::part_spec(&world, car, index)?;
-            (part.hp < spec.durability).then(|| (spec.id.clone(), spec.durability - part.hp))
-        })
+        // **The direct hit, not the spread**: the part that lost the most is the one the collision blamed, and that is the one the impulse's arithmetic covers.
+        // Its neighbours are dented too, by `damage_around`, and those are checked separately.
+        built
+            .parts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, part)| {
+                let spec = cdda_sim::vehicles::part_spec(&world, car, index)?;
+                (part.hp < spec.durability).then(|| (spec.id.clone(), spec.durability - part.hp))
+            })
+            .max_by_key(|(_, lost)| *lost)
     };
     let (id, lost) = dented.expect("**the crash dented a part**");
     // The rule is verified against the reference in `a_crash_produces_the_impulse_the_reference_produces`; this checks the **wiring** - that the blow the rule
@@ -3869,6 +3876,25 @@ fn a_crash_marks_the_car_that_hits_the_wall() {
     assert!(
         (33..=45).contains(&lost),
         "and that is within a few hit points of the reference's 41: {lost}"
+    );
+    // The spread reaches the neighbourhood: some part other than the direct hit lost hit points too.
+    let dented = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map(|built| {
+            built
+                .parts
+                .iter()
+                .enumerate()
+                .filter(|(index, part)| {
+                    cdda_sim::vehicles::part_spec(&world, car, *index)
+                        .is_some_and(|spec| part.hp < spec.durability)
+                })
+                .count()
+        })
+        .unwrap_or(0);
+    assert!(
+        dented > 1,
+        "**the blow spreads: {dented} part(s) dented, not just the one at the wall**"
     );
 }
 

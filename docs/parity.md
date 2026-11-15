@@ -36849,3 +36849,12 @@ outside it, so the seeded recording can pin the caller without changing this rul
 The spread's caller cannot land before the vehicle step owns its rolls: `check_dead_rules` fails a `pub fn` that touches the store and has no caller, and the crash
 seam has no `Rolls` to give it. So the order is: give `move_step` its own `Rolls` (the turn loop already keeps one), then `damage_around` joins the crash in the same
 commit as its caller.
+
+## A crash dents a neighbourhood (round 53)
+
+`move_step_with_rolls` threads the game's own random stream into the crash, and `dent_on_crash` follows the direct blow with `damage_around` - the reference's
+`damage_all( coll_dmg / 2, coll_dmg, ... )`. The crash test now checks both halves: the **direct hit** loses what `crash_impulse` says (38 for this fixture's car,
+against the reference's 41), and **more than one part** is dented, which is the spread reaching the neighbours.
+
+`move_step` keeps its old signature and delegates with a fresh stream, so the tests and the inspection tools that only move a vehicle do not carry randomness they
+have no business owning. The turn loop will pass its own stream through `move_step_with_rolls` when it drives vehicles.
