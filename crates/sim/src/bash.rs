@@ -38,17 +38,24 @@ pub fn bash_square(
     strength: i32,
     silent: bool,
 ) -> Option<BashOutcome> {
-    eprintln!(
-        "BSQ at={at:?} table={}",
-        crate::mapsquare::table(world).is_some()
-    );
+    let mut rolls = crate::singletons::take_rolls(world)?;
+    let outcome = bash_square_with_rolls(world, at, strength, silent, &mut rolls);
+    crate::singletons::put_rolls(world, rolls);
+    outcome
+}
+
+/// The same hit, drawing from **the caller's** stream.
+///
+/// Reference: the dice belong to the turn, not the map - `map::bash` is handed a roll the caller has already drawn (`map.cpp:1055`), and the vehicle step holds the
+/// stream for its whole step. Passing it in keeps one source of randomness instead of a second copy in the store that can be empty when the step needs it.
+pub fn bash_square_with_rolls(
+    world: &mut World,
+    at: (i32, i32, i32),
+    strength: i32,
+    silent: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<BashOutcome> {
     let data = crate::mapsquare::table(world)?.0;
-    eprintln!(
-        "BSQ terrain_at={:?} name={:?}",
-        crate::square::terrain_at(world, at),
-        crate::square::terrain_at(world, at)
-            .and_then(|code| crate::terrain_types::name_of(world, code))
-    );
     let ground = crate::square::terrain_at(world, at)
         .and_then(|code| crate::terrain_types::name_of(world, code))?;
     let furniture = crate::square::furniture_at(world, at)
@@ -63,10 +70,8 @@ pub fn bash_square(
         below,
         damage: crate::square::bash_damage_at(world, at),
     };
-    let mut rolls = crate::singletons::take_rolls(world)?;
     #[allow(clippy::cast_possible_truncation)]
     let roll = rolls.rng_float(0.0, 1.0) as f32;
-    crate::singletons::put_rolls(world, rolls);
     let params = BashParams {
         strength,
         silent,

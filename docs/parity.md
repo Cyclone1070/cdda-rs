@@ -36948,3 +36948,14 @@ names the answer in one run.
 and the print after them never appears, so the function stops at `take_rolls`. A world with no dice makes `bash_square` answer `None` silently, which is correct
 behaviour but invisible: the print in the test that *did* install dice showed the same `None`, so the install either did not take or was consumed before the bash. The
 next step prints whether the dice are present **at that moment**, which distinguishes the two.
+
+## A crash breaks the wall it hits (round 74)
+
+`a_fast_crash_breaks_the_wall_it_hits` passes: the car at 2,000 deals the wall about 62, the wall resists 10, and the square comes away as the terrain the block says
+it becomes. Three causes had to be cleared, and each was a real fact about the port rather than a mistake in the rule:
+
+1. **The dice belong to the caller.** `bash_square` reached into the store for a roll, and a world without dice answered `None` silently. The crash now draws from the
+   stream it already holds; `bash_square_with_rolls` is the caller-dice form and `bash_square` keeps the store form for the tools that have no stream.
+2. **A fresh world has no map data table.** `bash_square` reads the square through `mapsquare::table`, so a test must install it with `mapsquare::set_data`.
+3. **A bash block that names no rubble changes nothing.** `BashInfo::set` is what the square becomes; with it empty the hit succeeds and leaves the terrain as it was,
+   which reads exactly like a hit that never happened.

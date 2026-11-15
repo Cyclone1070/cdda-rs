@@ -4118,3 +4118,67 @@ fn the_slower_car_leaves_the_wall_and_the_faster_one_does_not() {
         "**62 against the same wall takes it down**"
     );
 }
+
+/// **A crash strong enough leaves the wall broken.**
+///
+/// The car at 2,000 deals the obstacle about 62 and the fixture's wall resists 10, so the square the collision reports comes away changed - carrying bash damage, or
+/// standing as different terrain because the hit went through. The crash draws from its own stream (`bash_square_with_rolls`), so this needs no dice in the store; it
+/// does need the map data table, which is what `bash_square` reads the square through.
+#[test]
+fn a_fast_crash_breaks_the_wall_it_hits() {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_floor".to_owned(), FLOOR), ("t_wall".to_owned(), WALL)],
+    );
+    let mut wall = recorded_tile("t_wall");
+    wall.bash = Some(cdda_content::mapdata::BashInfo {
+        str_min: 10,
+        str_max: 10,
+        // **What it becomes.** A block that names nothing leaves the square standing even when the hit goes through, because there is no terrain to turn it into.
+        set: "t_floor".to_owned(),
+        ..cdda_content::mapdata::BashInfo::default()
+    });
+    cdda_sim::mapsquare::set_data(
+        &mut world,
+        [recorded_tile("t_floor"), wall, recorded_tile("t_open_air")],
+    );
+    for y in 95..=105 {
+        for x in 95..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    for y in 95..=105 {
+        cdda_sim::square::set_terrain(&mut world, (103, y, 0), WALL);
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 2000;
+        built.of_turn = 20.0;
+    }
+    for _ in 0..6 {
+        if !cdda_sim::vehicle_move::move_step(&mut world, car) {
+            break;
+        }
+    }
+
+    let changed = (95..=105).any(|y| {
+        let square = (103, y, 0);
+        cdda_sim::square::bash_damage_at(&world, square) > 0
+            || cdda_sim::mapsquare::at(&world, square)
+                .is_some_and(|data| data.terrain.id != "t_wall")
+    });
+    assert!(
+        changed,
+        "**the wall took the hit somewhere along its length**"
+    );
+}

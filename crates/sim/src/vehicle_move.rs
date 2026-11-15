@@ -517,7 +517,7 @@ fn dent_on_crash(
         // **And the wall**: a bashable obstacle takes the rest of the split, `obj_dmg = dmg * ( 100 - k ) / 100`, through the map's own bash rule
         // (`vehicle_move.cpp:1074-1078`). `bash_square` reads the square, decides with the data and writes back what it broke.
         if bashable && obstacle > 0 {
-            crate::bash::bash_square(world, square, obstacle, true);
+            crate::bash::bash_square_with_rolls(world, square, obstacle, true, rolls);
         }
     }
 }
