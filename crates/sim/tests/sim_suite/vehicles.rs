@@ -3895,6 +3895,28 @@ fn a_crash_marks_the_car_that_hits_the_wall() {
         dented > 1,
         "**the blow spreads: {dented} part(s) dented, not just the one at the wall**"
     );
+    // And the spread is weaker than the blow: every part other than the direct hit lost less than it did.
+    let others = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map(|built| {
+            built
+                .parts
+                .iter()
+                .enumerate()
+                .filter_map(|(index, part)| {
+                    let spec = cdda_sim::vehicles::part_spec(&world, car, index)?;
+                    (part.hp < spec.durability && spec.id != id)
+                        .then_some(spec.durability - part.hp)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    for lost in &others {
+        assert!(
+            *lost < 38,
+            "**a neighbour lost {lost}, less than the direct hit's 38**"
+        );
+    }
 }
 
 /// **The spread falls off with the square of the distance.** Reference: `damage_all`'s `rng( dmg1, dmg2 ) / ( distance * distance )`
