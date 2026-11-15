@@ -36789,3 +36789,6 @@ rule, and the recording's hit points are its gate.
 `crash_impulse` takes it as an argument now, but nothing in the data supplies it - and `damage_all`, the reference's rule for hitting every part around a point.
 The density is the cheap one: the dump already computes `vpart_dens` for the part that takes the hit, so recording it for **every** part (`dump_vehicle_parts`)
 gives the loader a value instead of a formula. `damage_all` is the next rule to read, and `vehicle::damage` - already ported - is what each of its hits calls.
+
+The loader now carries a part's **density** (`PartSpec::density`, read from `vpart_dens`), so the crash distribution has somewhere to get it from; the value arrives
+when the vehicle dump records it for every part rather than only for the one a crash names.

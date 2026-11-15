@@ -72,6 +72,9 @@ pub struct PartSpec {
     /// Reference: `vpart_info::wheel_info::rolling_resistance` (`src/veh_type.h:142`), a float that defaults to 1 - a bicycle wheel is 0.45. Only a part with
     /// wheel info has one, which is why this is `Option` and not a defaulted number: a frame `0.0` would look like a frictionless wheel.
     pub rolling_resistance: Option<f32>,
+    /// What the part's material weighs per litre, when the data says - the reference computes it from the base item's materials (`vehicle_move.cpp:996-1005`) and
+    /// the crash rule divides two of these. `None` until the dump records it, which is a change to the recording rather than to the rule.
+    pub density: Option<f64>,
     /// The item it is made of.
     pub item: String,
     /// The slot of the vehicle tile it occupies.
@@ -258,6 +261,16 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
             }
             Some(Value::Null) | None => None,
             _ => return Err("a part's damaged_power_factor is not a number".to_owned()),
+        },
+        density: match object.get("vpart_dens") {
+            Some(Value::Float(value)) => Some(*value),
+            Some(Value::Int(value)) =>
+            {
+                #[allow(clippy::cast_precision_loss)]
+                Some(*value as f64)
+            }
+            Some(Value::Null) | None => None,
+            _ => return Err("a part's vpart_dens is not a number".to_owned()),
         },
         item: text("item")?,
         location: text("location")?,
