@@ -36962,3 +36962,6 @@ it becomes. Three causes had to be cleared, and each was a real fact about the p
 
 **Mutation-checked.** Passing a strength of zero instead of the obstacle's share makes `a_fast_crash_breaks_the_wall_it_hits` fail, and restoring it makes the test pass -
 so the gate is watching the branch rather than watching nothing.
+
+**Both halves of the obstacle branch are gated.** A car at 2,000 breaks a wall that resists 10; a car at 400 leaves a wall that resists 60 exactly where it stood. The
+pair is what makes the branch a rule rather than a habit: a collision that broke everything it touched would pass the first test and fail the second.

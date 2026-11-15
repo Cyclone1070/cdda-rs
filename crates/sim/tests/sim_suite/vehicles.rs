@@ -4182,3 +4182,63 @@ fn a_fast_crash_breaks_the_wall_it_hits() {
         "**the wall took the hit somewhere along its length**"
     );
 }
+
+/// **A slow car leaves the wall standing.** The other half of the obstacle branch: the same wall, the same approach, a quarter of the speed - and the square is
+/// untouched, because the share the split gives it falls below the wall's resistance. Without this, a branch that broke everything it touched would pass.
+#[test]
+fn a_slow_crash_leaves_the_wall_standing() {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_floor".to_owned(), FLOOR), ("t_wall".to_owned(), WALL)],
+    );
+    let mut wall = recorded_tile("t_wall");
+    wall.bash = Some(cdda_content::mapdata::BashInfo {
+        str_min: 60,
+        str_max: 60,
+        set: "t_floor".to_owned(),
+        ..cdda_content::mapdata::BashInfo::default()
+    });
+    cdda_sim::mapsquare::set_data(
+        &mut world,
+        [recorded_tile("t_floor"), wall, recorded_tile("t_open_air")],
+    );
+    for y in 95..=105 {
+        for x in 95..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    for y in 95..=105 {
+        cdda_sim::square::set_terrain(&mut world, (103, y, 0), WALL);
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 400;
+        built.of_turn = 20.0;
+    }
+    for _ in 0..8 {
+        if !cdda_sim::vehicle_move::move_step(&mut world, car) {
+            break;
+        }
+    }
+
+    let changed = (95..=105).any(|y| {
+        let square = (103, y, 0);
+        cdda_sim::square::bash_damage_at(&world, square) > 0
+            || cdda_sim::mapsquare::at(&world, square)
+                .is_some_and(|data| data.terrain.id != "t_wall")
+    });
+    assert!(
+        !changed,
+        "**a 400 vmiph car does not break a wall that resists 60**"
+    );
+}
