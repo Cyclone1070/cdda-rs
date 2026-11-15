@@ -37050,3 +37050,9 @@ the engine filter - is still unported, so every engine counts as running.
 
 The dump was rebuilt from the pinned reference with the new field, the patch regenerated and verified byte for byte, and the loader gated against a value that came from the
 reference rather than from a transcription.
+
+**Safe power now reads the store (round 87).** `vehicle_drive::safe_power_of` gathers every part that carries an `m2c` ratio and hands its power and ratio to `safe_power`,
+which is the reference's `engine_info` filter without the pointer. The car's total is positive and the safe total is smaller but still positive, so the ratio reaches the rule.
+
+**Still open in the same function:** the reference also requires the engine to be **on** and to have **fuel** (`is_engine_on`, `engine_fuel_left`); the port counts every
+engine part it finds. That makes safe power an over-estimate for a car with its engine off, and it is the next rule in the chain.

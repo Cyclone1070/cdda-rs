@@ -288,3 +288,24 @@ pub fn safe_power(engines: &[(i32, i32)]) -> i32 {
     let power = power.clamp(0, i64::from(i32::MAX)) as i32;
     power
 }
+
+/// What a vehicle's engines may give in safe mode, read from the store.
+///
+/// The store half of [`safe_power`]: every part that carries an `m2c` ratio contributes its power and that ratio, which is the reference's `engine_info` filter. An
+/// engine with no ratio in the data is not an engine the port can cap, so it is left out rather than guessed at full power.
+#[must_use]
+pub fn safe_power_of(world: &World, vehicle: Entity) -> i32 {
+    let count = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    let mut engines = Vec::new();
+    for index in 0..count {
+        let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
+            continue;
+        };
+        if let Some(m2c) = spec.m2c {
+            engines.push((spec.power, m2c));
+        }
+    }
+    safe_power(&engines)
+}

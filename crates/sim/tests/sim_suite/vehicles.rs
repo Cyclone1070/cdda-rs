@@ -4397,3 +4397,21 @@ fn safe_power_caps_every_engine_at_its_own_ratio() {
     );
     assert_eq!(power(&[]), 0, "no engines, no power");
 }
+
+/// **Safe mode asks for less than full power.** The store's half of `safe_power`: the car's engines carry an `m2c` ratio below 100, so the capped total is smaller than
+/// the full one and still positive. Both numbers come from the same parts, so the test says the ratio reached the rule rather than that some number did.
+#[test]
+fn safe_mode_asks_for_less_power_than_full() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+
+    let full = cdda_sim::vehicle_drive::total_power(&world, car);
+    let safe = cdda_sim::vehicle_drive::safe_power_of(&world, car);
+    assert!(full > 0, "**the car's engine makes power: {full} W**");
+    assert!(
+        safe > 0 && safe < full,
+        "**safe mode asks for less: {safe} W against {full} W**"
+    );
+}
