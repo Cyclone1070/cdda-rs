@@ -36767,3 +36767,10 @@ inferring them from hit points.
 pivot_point )` - aborts the process before the dump is written, which is why the recording still carries only hit points. The reliable route is the one
 `move_vehicle` itself takes: let `act_on_map` run and record the parts' hit points, or patch `part_collision` to print `ret.type`/`ret.imp` for the harness build
 only. The second is the next attempt: one line inside the reference's own function, guarded by `#ifdef CATA_HARNESS`, cannot crash a path that already runs.
+
+**The loop is right; the distribution is not.** With a guarded print inside `part_collision`, the reference states its own impulse for every recorded crash: `type=4`
+(`veh_coll_other`, the branch the port ports), `mass2=1000`, `e=0.10`, `part_dens=80`, and **imp 61 for the car at 1,000 and 247 at 2,000** - the exact numbers the
+port's `crash_damage` produces. So the arithmetic of the impulse loop is confirmed by the reference itself, and the mismatch (247 against the 44 hit points the
+windshield actually loses) is **downstream of the loop**: `map::move_vehicle` applies `coll_dmg` as `veh.damage( part, coll_dmg, bash )` **and** `veh.damage_all(
+coll_dmg / 2, coll_dmg, bash, collision_point )` (`map.cpp:859-870`), so the blow is spread over the neighbouring parts and the part that started with 50 hit points
+is not the one that absorbs all of it. The next round ports the distribution, and the loop can go in now that its numbers are the reference's.
