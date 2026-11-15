@@ -4398,6 +4398,33 @@ fn safe_power_caps_every_engine_at_its_own_ratio() {
     assert_eq!(power(&[]), 0, "no engines, no power");
 }
 
+/// Puts a tankful of the car's own fuel in every tank it has, so an engine that needs fuel can run. A car off the blueprint is dry, which is the rule's own default.
+fn fill_own_tanks(world: &mut World, car: Entity) {
+    let Some(count) = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map(|built| built.parts.len())
+    else {
+        return;
+    };
+    let fuel = (0..count)
+        .filter_map(|index| cdda_sim::vehicles::part_spec(world, car, index))
+        .find_map(|spec| spec.fuel_opts.first().cloned());
+    let Some(fuel) = fuel else { return };
+    for index in 0..count {
+        let is_tank =
+            cdda_sim::vehicles::part_spec(world, car, index).is_some_and(|spec| spec.fuel_store);
+        if !is_tank {
+            continue;
+        }
+        if let Some(mut built) = world.get_mut::<cdda_sim::vehicles::Vehicle>(car) {
+            if let Some(part) = built.parts.get_mut(index) {
+                part.fuel.clone_from(&fuel);
+                part.charges = 100;
+            }
+        }
+    }
+}
+
 /// **Safe mode asks for less than full power.** The store's half of `safe_power`: the car's engines carry an `m2c` ratio below 100, so the capped total is smaller than
 /// the full one and still positive. Both numbers come from the same parts, so the test says the ratio reached the rule rather than that some number did.
 #[test]
@@ -4406,6 +4433,7 @@ fn safe_mode_asks_for_less_power_than_full() {
     install_part_weights(&mut world, "car");
     cdda_sim::vehicles::set_store(&mut world, store());
     let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
 
     let full = cdda_sim::vehicle_drive::total_power(&world, car);
     let safe = cdda_sim::vehicle_drive::safe_power_of(&world, car);
@@ -4424,6 +4452,7 @@ fn safe_power_needs_the_engine_switched_on() {
     install_part_weights(&mut world, "car");
     cdda_sim::vehicles::set_store(&mut world, store());
     let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
 
     let running = cdda_sim::vehicle_drive::safe_power_of(&world, car);
     assert!(running > 0, "**running engines make {running} W**");

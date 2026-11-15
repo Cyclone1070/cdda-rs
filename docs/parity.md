@@ -37067,3 +37067,7 @@ dry; ten charges of the engine's own fuel make it fuelled.
 
 **Not wired yet:** `safe_power` does not consult it, so safe power still counts a dry engine. Wiring it changes what every existing engine test means - a car off the
 blueprint would make no safe power at all - so it is a round of its own, with the fixture's fuel stated rather than assumed.
+
+**Safe power needs fuel now (round 90).** `safe_power_of` asks `engine_fuel_left` before it counts an engine, so the chain is on **and** fuelled - the reference's
+`!fueled || engine_fuel_left` condition. The two tests that assert a positive safe total fill their own tanks first (`fill_own_tanks`), which is the change the rule
+demanded: a car off the blueprint makes no safe power, and a test that says otherwise was asserting on an empty tank.

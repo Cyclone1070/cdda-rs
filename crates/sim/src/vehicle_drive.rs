@@ -309,7 +309,10 @@ pub fn safe_power_of(world: &World, vehicle: Entity) -> i32 {
             .get::<crate::vehicles::Vehicle>(vehicle)
             .and_then(|built| built.parts.get(index))
             .is_some_and(|part| part.enabled);
-        if let Some(m2c) = spec.m2c.filter(|_| switched_on) {
+        if let Some(m2c) = spec
+            .m2c
+            .filter(|_| switched_on && engine_fuel_left(world, vehicle, index))
+        {
             engines.push((spec.power, m2c));
         }
     }
