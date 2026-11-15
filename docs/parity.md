@@ -36982,3 +36982,18 @@ masses and calls `veh.damage( part, dmg1_part, bash )` on each side.
 That is the next read: `map.cpp`'s vehicle arm, the `dmg1_part` formula, and whether the two vehicles exchange velocity or each keeps its own. The port's detection
 already reports `Collision::Vehicle { target, target_part }`, so the seam mirrors the terrain one: read the branch, dump two vehicles at known speeds, port, gate both
 ways.
+
+### The rule, read (`map.cpp:1090-1200`)
+
+Two vehicles, `m1` and `m2` in kilograms, `e` the restitution, and a normalised collision axis:
+
+1. **Exchange**, per axis component: `vel1_a = ( m1*vel1*(1+e) + vel2*(m2 - m1*e) ) / (m1+m2)` and the mirror for `vel2_a`; the final vectors are
+   `axis_y*vel_a_y + axis_x*vel_a_x`.
+2. **Speed and direction**, per vehicle: `final.magnitude()` with the sign flipped when the final vector points against the vehicle's facing.
+3. **Turn order**: `avg = max( 0.1, (of_turn2 + of_turn1) / 2 )`, then `of_turn1 = avg * 0.9` and `of_turn2 = avg * 1.1` - vehicle two gets the initiative.
+4. **Deformation energy**: `d_E = E_before - E_after` with `E = 0.5*m1*v1² + 0.5*m2*v2²`, and `dmg = |d_E / 1000 / 2000|` - note the second divisor is 2000 here, not the
+   400 the obstacle branch uses.
+5. **Split**: half each (`dmg_veh1 = dmg_veh2 = dmg * 0.5`), then **divided by the number of colliding part pairs** between the two vehicles.
+6. **Parts**: each colliding part is replaced by an `ARMOR` part on its mount when it has one, then `damage( part, dmg_part, bash )` on both sides.
+
+The vertical case (`veh.vertical_velocity`) is a separate inelastic formula - `dmg = |vertical_velocity / 100| * m1 / 10` - and is out of scope until a vehicle can fall.
