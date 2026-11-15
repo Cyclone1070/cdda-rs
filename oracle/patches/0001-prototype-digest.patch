@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-15 10:15:59
-@@ -0,0 +1,9115 @@
++++ oracle/src/src/harness.cpp	2026-11-15 11:30:05
+@@ -0,0 +1,9121 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1575,6 +1575,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            // **A vitrified wall, not a wooden one**: `t_vitrified_wall` is impassable and has no bash block, so the reference's own constants decide the
 +            // collision - mass 1000 kg, restitution 0.10, density 80 (`vehicle_move.cpp:961-967`) - instead of `terrain_collision_data`'s bash figures,
 +            // which are not in the dump.
++            // Far enough that the vehicle's own body does not overlap it when it is placed.
 +            for( int dy = -3; dy <= 3; dy++ ) {
 +                here.ter_set( start + tripoint_rel_ms( 4, dy, 0 ), ter_id( "t_vitrified_wall" ) );
 +            }
@@ -1587,12 +1588,17 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                hp_before.push_back( veh->part( index ).hp() );
 +            }
 +
-+            // One movement call is one square: the vehicle hits the wall on the square it tries to enter, and may then be stopped or bounce.
++            // **Exactly one movement call**: the hit points lost are then one collision's blow, which is what the impulse loop computes. Recording eight calls
++            // mixed repeated hits into one number and made the row impossible to check.
++            // Move until the collision happens, then stop: the hit points recorded are **one blow**, which is what the impulse loop computes.
 +            for( int step = 0; step < 8; step++ ) {
 +                if( veh == nullptr ) {
 +                    break;
 +                }
 +                veh = veh->act_on_map( here );
++                if( veh == nullptr || veh->velocity != speed ) {
++                    break;
++                }
 +            }
 +            if( veh == nullptr ) {
 +                std::fprintf( out, "%s{\"vehicle\":\"%s\",\"speed\":%d,\"destroyed\":true}",
