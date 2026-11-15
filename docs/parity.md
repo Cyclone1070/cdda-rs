@@ -37089,3 +37089,10 @@ So this is not a rule that can be ported in one round from what is dumped. **The
 items' energy per charge - then `fuel_usage`, `drain_energy` and `consume_fuel` follow in that order, each gated on its own numbers.
 
 Recorded rather than guessed: the port has no invented constants here.
+
+**What an engine draws, dumped and loaded (round 92).** `corpus/vehicles.json` is version **12**: every part carries `energy_consumption_w`, straight from
+`vpart_info::energy_consumption` (`veh_type.h:428`). The I6 diesel makes 223,800 W of thrust and draws **559,500 W** to do it - 335,700 W is heat, which is the reference's
+own arithmetic and not a coincidence of the data. Thirty parts in the corpus draw something; a frame draws nothing.
+
+That closes the first of the two missing inputs for `consume_fuel`. **Still missing: energy per charge of each fuel**, which turns joules into charges when `drain_energy`
+walks the tanks.

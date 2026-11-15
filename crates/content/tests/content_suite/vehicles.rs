@@ -216,3 +216,26 @@ fn an_engine_carries_its_motor_to_crankshaft_ratio() {
         .expect("a frame");
     assert_eq!(body.m2c, None, "a frame is not an engine");
 }
+
+/// **An engine draws more than it makes.** Reference: `vpart_info::energy_consumption` (`veh_type.h:428`), from the reference's own dump: the 6 L I6 diesel makes
+/// 223,800 W of thrust and draws 559,500 W doing it, so 335,700 W is heat. A frame draws nothing.
+#[test]
+fn an_engine_carries_what_it_draws() {
+    let store = dump();
+    let engine = store
+        .parts
+        .iter()
+        .find(|part| part.id == "diesel_engine_i6")
+        .expect("the I6 diesel is in the corpus");
+    assert_eq!(
+        engine.energy_consumption_w, 559_500,
+        "**it draws 559,500 W**"
+    );
+    assert_eq!(engine.power, 223_800, "and makes 223,800 W of thrust");
+    let frame = store
+        .parts
+        .iter()
+        .find(|part| part.id == "frame")
+        .expect("a frame");
+    assert_eq!(frame.energy_consumption_w, 0, "a frame draws nothing");
+}

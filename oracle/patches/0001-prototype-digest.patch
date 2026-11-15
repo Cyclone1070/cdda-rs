@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-16 05:18:17
-@@ -0,0 +1,9137 @@
++++ oracle/src/src/harness.cpp	2026-11-16 09:39:44
+@@ -0,0 +1,9143 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1113,6 +1113,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        // Version 11: how much of its power an engine may give in safe mode. `engine_info::m2c` (`veh_type.h:125`) is the motor-to-crankshaft ratio the safe branch
 +        // multiplies each engine by; -1 means "not an engine".
 +        int m2c = -1;
++        // Version 12: how much power an engine draws when it runs. `vpart_info::energy_consumption` (`veh_type.h:428`) is a `units::power`; `fuel_usage` sums it per
++        // fuel type, and `consume_fuel` is that sum scaled by load and strain.
++        int energy_consumption_w = 0;
 +    };
 +    struct dumped_prototype {
 +        std::string id;
@@ -1145,6 +1148,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            entry.damaged_power_factor = static_cast<double>( part.engine_info->damaged_power_factor );
 +            entry.m2c = part.engine_info->m2c;
 +        }
++        entry.energy_consumption_w = units::to_watt( part.energy_consumption );
 +        if( part.wheel_info ) {
 +            entry.has_wheel_info = true;
 +            entry.rolling_resistance = static_cast<double>( part.wheel_info->rolling_resistance );
@@ -1190,7 +1194,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    []( const dumped_prototype &lhs, const dumped_prototype &rhs ) {
 +        return lhs.id < rhs.id;
 +    } );
-+    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":11,\n\"parts\":[\n" );
++    std::fprintf( out, "{\"harness\":\"vehicles\",\"version\":12,\n\"parts\":[\n" );
 +    bool first = true;
 +    for( const dumped_part &part : parts ) {
 +        std::fprintf( out, "%s{\"id\":", first ? "" : ",\n" );
@@ -1202,8 +1206,10 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out, "\"%s\"", escaped( part.item ).c_str() );
 +        std::fprintf( out, ",\"location\":" );
 +        std::fprintf( out, "\"%s\"", escaped( part.location ).c_str() );
-+        std::fprintf( out, ",\"size\":%d,\"cargo_weight_modifier\":%d,\"power\":%d,\"m2c\":%d",
-+                      part.size, part.cargo_weight_modifier, part.power, part.m2c );
++        std::fprintf( out, ",\"size\":%d,\"cargo_weight_modifier\":%d,\"power\":%d,\"m2c\":%d,"
++                      "\"energy_consumption_w\":%d",
++                      part.size, part.cargo_weight_modifier, part.power, part.m2c,
++                      part.energy_consumption_w );
 +        if( part.has_engine_info ) {
 +            std::fprintf( out, ",\"damaged_power_factor\":%.9g", part.damaged_power_factor );
 +        } else {

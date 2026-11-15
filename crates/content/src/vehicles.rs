@@ -70,6 +70,9 @@ pub struct PartSpec {
     /// Reference: `vpart_info::engine_info::m2c` (`src/veh_type.h:125`), the motor-to-crankshaft ratio the safe branch multiplies an engine's power by - 65 for a
     /// diesel I6, so safe mode lets it give 65% of what it makes. `None` for everything that is not an engine.
     pub m2c: Option<i32>,
+    /// Reference: `vpart_info::energy_consumption` (`src/veh_type.h:428`), the power a part draws when it runs, in watts - 559,500 W for the 6 L I6 diesel, which makes
+    /// 223,800 W of thrust and therefore loses 335,700 W to heat. 0 for everything that draws nothing.
+    pub energy_consumption_w: i32,
     /// What this wheel resists rolling with, and `None` for a part that is not a wheel.
     ///
     /// Reference: `vpart_info::wheel_info::rolling_resistance` (`src/veh_type.h:142`), a float that defaults to 1 - a bicycle wheel is 0.45. Only a part with
@@ -276,6 +279,7 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
             Some(Value::Null) | None => None,
             _ => return Err("a part's m2c is not a number".to_owned()),
         },
+        energy_consumption_w: i32::try_from(number("energy_consumption_w")?).unwrap_or(0),
         density: match object.get("vpart_dens") {
             Some(Value::Float(value)) => Some(*value),
             Some(Value::Int(value)) =>
