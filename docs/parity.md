@@ -36918,3 +36918,13 @@ between them is missing.
 **The prediction holds against the real wall.** `t_wall`'s own `str_min` from the reference data sits between the two shares the split produces: 15 from the car at 1,000
 does not break it, 62 from the car at 2,000 does. `the_slower_car_leaves_the_wall_and_the_faster_one_does_not` asserts exactly that, so the obstacle branch now has a
 behavioural expectation written from the rule and checked against the data - not a number copied from a dump.
+
+## A crash can break what it hits (round 69)
+
+`dent_on_crash` now takes the square and the collision's `bashable` flag, and after the part damage it hands the obstacle its share of the split through
+`bash::bash_square` - which reads the square, decides with the real data (`accepts_bash`, `resistance`, `breaks` inside `bash`), and writes back the terrain, furniture and
+damage it broke. The vehicle side and the map side of a collision are one path now.
+
+**Not yet gated by a test of its own**: the existing wall tests assert that the car stops and dents, and the prediction test asserts the comparison the branch makes,
+but nothing drives a car into a wall whose `str_min` the port's fixture actually records and checks the terrain changed. The fixtures' tiles carry placeholder blocks,
+so that gate needs the bash-block dump - the same one still owed for the tiles the crash tests use.

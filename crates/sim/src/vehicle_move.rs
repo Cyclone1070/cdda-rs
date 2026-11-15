@@ -395,12 +395,15 @@ pub fn move_step_with_rolls(
     // what a part would hit - and `map::move_vehicle` calls `veh.stop()` when a collision leaves the vehicle unable to move (`map.cpp:948-950`): the square is
     // never entered and the speed is gone. Smashing the obstacle, the damage the crash does and the bounce off another vehicle are the collision rounds that
     // follow; this one only refuses to drive through.
-    if let Some(crate::vehicles::Collision::Terrain { part, .. }) =
-        crate::vehicles::first_collision(world, vehicle, step)
+    if let Some(crate::vehicles::Collision::Terrain {
+        part,
+        square,
+        bashable,
+    }) = crate::vehicles::first_collision(world, vehicle, step)
     {
         // The crash dents the part that met the obstacle, once the data says what it is made of. Until a part carries a density the blow has no split to compute,
         // so the vehicle stops exactly as before and nothing is damaged - the recording is what fills the gap, not a guess here.
-        dent_on_crash(world, vehicle, part, rolls);
+        dent_on_crash(world, vehicle, part, square, bashable, rolls);
         if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
             built.velocity = 0;
             built.of_turn_carry = 0.0;
@@ -487,6 +490,8 @@ fn dent_on_crash(
     world: &mut World,
     vehicle: Entity,
     part: usize,
+    square: (i32, i32, i32),
+    bashable: bool,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) {
     let Some(density) = part_density(world, vehicle, part) else {
@@ -499,7 +504,7 @@ fn dent_on_crash(
     else {
         return;
     };
-    let (impulse, _, _) = crash_impulse(mass, velocity, density);
+    let (impulse, obstacle, _) = crash_impulse(mass, velocity, density);
     if impulse > 0 {
         crate::vehicles::damage(world, vehicle, part, impulse, "bash", false);
         // **And the neighbourhood**: the reference follows the blow with `damage_all( coll_dmg / 2, coll_dmg, ... )` (`map.cpp:869`), which is why a real crash
@@ -509,6 +514,11 @@ fn dent_on_crash(
             .and_then(|built| built.parts.get(part))
             .map_or((0, 0), |entry| (entry.x, entry.y));
         damage_around(world, vehicle, impact, impulse, rolls);
+        // **And the wall**: a bashable obstacle takes the rest of the split, `obj_dmg = dmg * ( 100 - k ) / 100`, through the map's own bash rule
+        // (`vehicle_move.cpp:1074-1078`). `bash_square` reads the square, decides with the data and writes back what it broke.
+        if bashable && obstacle > 0 {
+            crate::bash::bash_square(world, square, obstacle, true);
+        }
     }
 }
 
