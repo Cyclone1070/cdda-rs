@@ -36805,3 +36805,9 @@ piece the damage needed.
 **The seam does not fire yet.** A car driven into a wall at 1,000 vmiph stops, and no part loses a hit point: `dent_on_crash` is called with the part the collision
 blames, and either that part's `part_spec` does not resolve or its density is still `None` in the test's store. The next round prints those two values inside the
 seam rather than guessing which; the test that would have gated it is written in this round's log and comes back with the answer.
+
+**Why the seam stays quiet: the mass, not the density.** `dent_on_crash` gives `crash_impulse` `vehicle_mass::mass`, which is the **sum of the parts' base items'
+weights** (`vehicle_mass::part_mass` -> `item_registry::weight_in`) - and `crash_impulse` returns nothing for a mass of zero. The wall test installs only
+`install_part_weights( world, "car" )`, which is part-id weights from the top-speed recording; nothing puts the car's *items* in the registry. So the test's car
+weighs zero grams and the blow is zero before density is ever consulted. The next round loads the vehicle dump's items, or fails the test with the mass printed -
+guessing again is what this round already paid for.
