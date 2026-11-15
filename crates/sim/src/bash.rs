@@ -366,7 +366,7 @@ fn unchanged(target: &BashTarget) -> BashOutcome {
 /// `is_bashable_ter_furn( pos, false )` (`vehicle_move.cpp:1074`). A tile with **no** block cannot be bashed; a `-1` `str_min` is how the data spells "never"; and a
 /// `destroy_only` block answers no unless the hit is a `destroy`. That is the difference between a wall a car goes through and one it does not.
 #[must_use]
-pub fn is_bashable(bash: Option<&cdda_content::mapdata::BashInfo>) -> bool {
+pub fn accepts_bash(bash: Option<&cdda_content::mapdata::BashInfo>) -> bool {
     bash.is_some_and(|block| block.str_min != -1 && !block.destroy_only)
 }
 
@@ -380,10 +380,10 @@ pub fn resistance(
     furniture: Option<&cdda_content::mapdata::BashInfo>,
     terrain: Option<&cdda_content::mapdata::BashInfo>,
 ) -> i32 {
-    if is_bashable(furniture) {
+    if accepts_bash(furniture) {
         return furniture.map_or(-1, |block| block.str_min);
     }
-    if is_bashable(terrain) {
+    if accepts_bash(terrain) {
         return terrain.map_or(-1, |block| block.str_min);
     }
     -1

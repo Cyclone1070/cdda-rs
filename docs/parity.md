@@ -36889,3 +36889,7 @@ terrain with a block that is not `bash_below`. `bash::is_bashable` (`bash.rs`) i
 reference has both ideas - `is_bashable_ter_furn` for presence and the `bash_ter_furn` guard for whether a hit gets through - but the port now spells them in two
 places without saying which is which, which is the second source of truth the architecture forbids. Reconciling them is the next round's first task: one function,
 `bashable` as presence, and the destroy/never test applied only when a hit is actually made.
+
+**Reconciled by naming.** The guard is `bash::accepts_bash` and the presence test stays `SquareData::bashable`: one says whether a square has a bash block, the other
+whether a hit is allowed through it. The collision keeps asking `bashable` (presence), and `accepts_bash` runs when a hit is actually made - which is the reference's
+own division (`is_bashable_ter_furn` for presence, `bash_ter_furn`'s first line for the guard), now spelled with two names that cannot be confused.

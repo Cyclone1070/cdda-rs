@@ -3963,21 +3963,21 @@ fn the_data_says_which_obstacles_can_be_bashed() {
 
     let wall = block(20, false);
     assert!(
-        cdda_sim::bash::is_bashable(Some(&wall)),
+        cdda_sim::bash::accepts_bash(Some(&wall)),
         "**a wall gives way**"
     );
     assert!(
-        !cdda_sim::bash::is_bashable(None),
+        !cdda_sim::bash::accepts_bash(None),
         "**open air has no block, so nothing to break**"
     );
     let never = block(-1, false);
     assert!(
-        !cdda_sim::bash::is_bashable(Some(&never)),
+        !cdda_sim::bash::accepts_bash(Some(&never)),
         "a -1 str_min is the data's never"
     );
     let only_destroy = block(20, true);
     assert!(
-        !cdda_sim::bash::is_bashable(Some(&only_destroy)),
+        !cdda_sim::bash::accepts_bash(Some(&only_destroy)),
         "a destroy-only block answers no to a bash"
     );
 }
