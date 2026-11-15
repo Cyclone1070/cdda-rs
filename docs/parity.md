@@ -36883,3 +36883,9 @@ them.
 `bash::resistance` is `map::bash_resistance` (`map.cpp:3204-3215`): the furniture's `str_min` when the furniture is bashable, else the terrain's, else `-1` for a square
 that cannot be broken. Gated on all four shapes, including the one worth remembering - a `destroy_only` block does not answer, so the terrain's number is used instead.
 With `is_bashable` beside it, the crash's obstacle branch has both queries it needs; only real tile data is still missing between the rule and its gate.
+
+**Two predicates, and they are not the same rule.** `SquareData::bashable` (`mapsquare.rs:120`) is what the vehicle collision already asks: furniture with any bash block, or
+terrain with a block that is not `bash_below`. `bash::is_bashable` (`bash.rs`) is `bash_ter_furn`'s test: no block, `-1` `str_min` or `destroy_only` all answer no. The
+reference has both ideas - `is_bashable_ter_furn` for presence and the `bash_ter_furn` guard for whether a hit gets through - but the port now spells them in two
+places without saying which is which, which is the second source of truth the architecture forbids. Reconciling them is the next round's first task: one function,
+`bashable` as presence, and the destroy/never test applied only when a hit is actually made.
