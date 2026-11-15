@@ -396,3 +396,67 @@ pub fn move_step(world: &mut World, vehicle: Entity) -> bool {
 
     crate::vehicles::move_vehicle(world, vehicle, step)
 }
+
+/// The obstacle an unbreakable crash lands on: `veh_coll_other` (`vehicle_move.cpp:961-967`).
+pub const UNBREAKABLE_MASS_KG: f64 = 1000.0;
+/// Its restitution - `e = 0.10f` (`vehicle_move.cpp:964`).
+pub const UNBREAKABLE_RESTITUTION: f64 = 0.10;
+/// Its density - `part_dens = 80` (`vehicle_move.cpp:965`).
+pub const UNBREAKABLE_DENSITY: f64 = 80.0;
+
+/// The impulse a crash into an unbreakable obstacle produces, and the speed it leaves.
+///
+/// Reference: `vehicle::part_collision`'s loop (`vehicle_move.cpp:1030-1168`) for the `veh_coll_other` branch. The reference's own guard prints 61 for the car at
+/// 1,000 and 247 at 2,000, and those are the numbers this returns - the blow **before** any part reduction or spreading.
+#[must_use]
+pub fn crash_impulse(mass_g: i64, velocity: i32, vpart_density: f64) -> (i32, i32) {
+    if velocity == 0 || mass_g <= 0 || vpart_density <= 0.0 {
+        return (0, velocity);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let mass = mass_g as f64 / 1000.0;
+    let (mass2, e) = (UNBREAKABLE_MASS_KG, UNBREAKABLE_RESTITUTION);
+    let material_factor = ((UNBREAKABLE_DENSITY - vpart_density) * 0.5).clamp(-25.0, 25.0);
+    let weight_factor = if mass >= mass2 {
+        -25.0 * (mass.ln() - mass2.ln()) / mass.ln()
+    } else {
+        25.0 * (mass2.ln() - mass.ln()) / mass2.ln()
+    };
+    let k = (50.0 + material_factor + weight_factor).clamp(10.0, 90.0);
+    #[allow(clippy::cast_precision_loss)]
+    let mut speed = velocity as f32;
+    let sign_before = speed.signum();
+    let mut vel2 = 0.0_f64;
+    let mut damage = 0.0_f64;
+    for _ in 0..100 {
+        let vel1 = f64::from(speed) / 100.0;
+        let vel1_a = (mass * vel1 + mass2 * vel2 + e * mass2 * (vel2 - vel1)) / (mass + mass2);
+        let vel2_a = (mass * vel1 + mass2 * vel2 + e * mass * (vel1 - vel2)) / (mass + mass2);
+        let before = 0.5 * (mass * vel1 * vel1) + 0.5 * (mass2 * vel2 * vel2);
+        let after = 0.5 * (mass * vel1_a * vel1_a) + 0.5 * (mass2 * vel2_a * vel2_a);
+        let deformation = before - after;
+        if deformation <= 0.0 {
+            if vel1_a.abs() < vel1.abs() {
+                #[allow(clippy::cast_possible_truncation)]
+                let lower = (vel1_a * 90.0) as f32;
+                speed = lower;
+            }
+            if vel2_a.abs() > vel2.abs() {
+                vel2 = vel2_a;
+            }
+            continue;
+        }
+        damage += deformation / 400.0;
+        #[allow(clippy::cast_possible_truncation)]
+        let next = (vel1_a * 100.0) as f32;
+        speed = next;
+        if (speed.signum() - sign_before).abs() > f32::EPSILON {
+            break;
+        }
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let impulse = (damage * k / 100.0) as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let left = speed as i32;
+    (impulse, left)
+}

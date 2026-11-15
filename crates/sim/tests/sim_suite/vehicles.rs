@@ -3741,3 +3741,52 @@ fn a_crash_into_a_wall_costs_the_part_the_reference_recorded() {
         "**at 2,000 the fragile windshield takes the hit instead, and it costs more**"
     );
 }
+
+/// **The impulse a crash produces is the reference's own number.**
+///
+/// The recording's `imp` column came from a guarded print inside `part_collision`, so this compares the port's loop against what the reference computed rather than
+/// against hit points that a second rule then spreads. Three rows name a part with a recorded density; the bicycle's are skipped because the dump only names a
+/// density for the part that lost the most, and no bicycle part lost any.
+#[test]
+fn a_crash_produces_the_impulse_the_reference_produces() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_crash.json");
+    let bytes = std::fs::read(path).expect("the crash recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let density = match row.get("vpart_dens") {
+            Some(cdda_json::Value::Float(value)) => *value,
+            Some(cdda_json::Value::Int(value)) => f64::from(i32::try_from(*value).expect("small")),
+            _ => panic!("a part density"),
+        };
+        if density <= 0.0 {
+            continue;
+        }
+        let (impulse, left) = cdda_sim::vehicle_move::crash_impulse(
+            i64::from(int_of(row, "mass_g")),
+            int_of(row, "speed"),
+            density,
+        );
+        assert_eq!(
+            impulse,
+            int_of(row, "imp"),
+            "{} at {}: **the impulse is the reference's**",
+            text_of(row, "vehicle"),
+            int_of(row, "speed")
+        );
+        assert_eq!(left, 0, "the crash leaves no speed");
+        seen += 1;
+    }
+    assert_eq!(seen, 2, "two recorded rows name a part and its density");
+}

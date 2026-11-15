@@ -36777,3 +36777,10 @@ is not the one that absorbs all of it. The next round ports the distribution, an
 
 The impulses are now in the recording: `imp` is 0, 0, 1, 4 for the bicycle at 100, 400, 1,000 and 2,000 and 0, 9, 61, 247 for the car, taken from the guarded
 print inside `part_collision`. The gate for the ported loop is a comparison against that column, and it can be written without any further reference build.
+
+## The crash impulse (round 36)
+
+`vehicle_move::crash_impulse` is in the tree and gated on the recording's `imp` column - the reference's own numbers, printed from inside `part_collision`: **61** for
+the car at 1,000 and **247** at 2,000. That blow is what the loop produces; what a part *loses* is smaller, and the difference is `map::move_vehicle`'s
+distribution (`map.cpp:859-870`), `damage` plus `damage_all( coll_dmg / 2, ... )`, which spreads it over the neighbouring parts. That distribution is the next
+rule, and the recording's hit points are its gate.
