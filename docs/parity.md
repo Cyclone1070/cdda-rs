@@ -36845,3 +36845,7 @@ So the spread is **random** and the recording cannot pin it row by row the way t
 `vehicle_move::spread_share` is the scaling half of `damage_all`, ported as a pure function with the draw as a parameter: `draw / (distance * distance)`, nothing at
 distance one, a shock absorber's bonus off first, floored at zero. Gated on hand-checked values - 100 at distance 2 is 25, at 3 is 11 - and the random draw stays
 outside it, so the seeded recording can pin the caller without changing this rule.
+
+The spread's caller cannot land before the vehicle step owns its rolls: `check_dead_rules` fails a `pub fn` that touches the store and has no caller, and the crash
+seam has no `Rolls` to give it. So the order is: give `move_step` its own `Rolls` (the turn loop already keeps one), then `damage_around` joins the crash in the same
+commit as its caller.
