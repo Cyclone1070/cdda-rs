@@ -4242,3 +4242,52 @@ fn a_slow_crash_leaves_the_wall_standing() {
         "**a 400 vmiph car does not break a wall that resists 60**"
     );
 }
+
+/// **The exchange keeps total momentum and, at restitution zero, makes the two speeds equal.** Reference: `map.cpp:1100-1112`.
+#[test]
+fn two_vehicles_exchange_momentum_and_share_a_speed_when_they_stick() {
+    // **Speeds are the game's own `velocity`, which is 100 to the mile per hour**, not metres per second: 1,000 is ten miles an hour.
+    let (a, b) = cdda_sim::vehicle_move::exchanged(1000.0, 1000.0, 1000.0, 0.0, 0.0);
+    assert!(
+        (a - 500.0).abs() < 1e-9 && (b - 500.0).abs() < 1e-9,
+        "**equal masses, no bounce: both leave at 500** ({a}, {b})"
+    );
+    // Momentum is conserved for any restitution: m1*v1 + m2*v2 before equals after.
+    for e in [0.0, 0.1, 1.0] {
+        let (a, b) = cdda_sim::vehicle_move::exchanged(1200.0, 800.0, 900.0, -300.0, e);
+        let before = 1200.0 * 800.0 + 900.0 * -300.0;
+        let after = 1200.0 * a + 900.0 * b;
+        assert!(
+            (before - after).abs() < 1e-6,
+            "momentum at e={e}: {before} against {after}"
+        );
+    }
+}
+
+/// **A heavier vehicle barely slows.** 2,000 kg into 500 kg at 10 m/s, no bounce: the pair leaves at 8 and 8.
+#[test]
+fn the_heavier_vehicle_decides_the_speed() {
+    let (a, b) = cdda_sim::vehicle_move::exchanged(2000.0, 1000.0, 500.0, 0.0, 0.0);
+    assert!((a - 800.0).abs() < 1e-9, "the heavy one keeps 800: {a}");
+    assert!(
+        (b - 800.0).abs() < 1e-9,
+        "and drags the light one to 800: {b}"
+    );
+}
+
+/// **The collision's damage comes from the lost energy**, with the rule's own divisors - `| d_E / 1000 / 2000 |` (`map.cpp:1144`).
+#[test]
+fn a_collision_deals_damage_from_the_energy_it_loses() {
+    // 1000 kg at 10 m/s meets 1000 kg at rest, restitution 0: E before 50,000, after 25,000, so 25,000 J lost.
+    let damage = cdda_sim::vehicle_move::collision_damage(1000.0, 1000.0, 1000.0, 0.0, 0.0);
+    assert_eq!(
+        damage, 125,
+        "**250,000,000 / 1,000 / 2,000 is 125** - the obstacle branch's 400 would have said 625"
+    );
+    // Nothing lost, nothing dealt: a perfectly elastic pass-through.
+    assert_eq!(
+        cdda_sim::vehicle_move::collision_damage(1000.0, 1000.0, 1000.0, 0.0, 1.0),
+        0,
+        "an elastic exchange loses no energy"
+    );
+}

@@ -36997,3 +36997,14 @@ Two vehicles, `m1` and `m2` in kilograms, `e` the restitution, and a normalised 
 6. **Parts**: each colliding part is replaced by an `ARMOR` part on its mount when it has one, then `damage( part, dmg_part, bash )` on both sides.
 
 The vertical case (`veh.vertical_velocity`) is a separate inelastic formula - `dmg = |vertical_velocity / 100| * m1 / 10` - and is out of scope until a vehicle can fall.
+
+## The exchange, ported (round 80)
+
+`vehicle_move::exchanged` is the two-body exchange and `collision_damage` the damage it implies, both gated:
+
+- **speeds are the game's `velocity`, 100 to the mile an hour** - not metres per second. Reading it as m/s makes every collision deal zero damage, which is how the first
+  version of the test failed;
+- the exchange is written in the **momentum-conserving** form, because the transposed form the reference prints only conserves momentum for equal masses. Which the
+  reference means is a question for the recording;
+- the damage divides the lost energy by **1,000 and then 2,000**, where the obstacle branch divides by 400: 1,000 kg at 1,000 into 1,000 kg at rest deals 125, and the
+  obstacle rule would have said 625.

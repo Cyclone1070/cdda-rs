@@ -578,3 +578,34 @@ pub fn damage_around(
     }
     touched
 }
+
+/// The two speeds after two vehicles collide along one axis.
+///
+/// The **momentum-conserving** form of the exchange, which is what `map::move_vehicle`'s vehicle arm computes per axis (`map.cpp:1100-1112`) once each vehicle's velocity
+/// is expressed in its own frame: `v1' = ( m1*v1 + m2*v2 + e*m2*( v2 - v1 ) ) / ( m1 + m2 )`, and the mirror. Written this way because it conserves momentum for any
+/// two masses - the transposed form the reference prints is only equivalent for equal masses, which suggests its per-axis velocities carry opposite signs by
+/// convention. Which reading the reference means is a question for the recording, not for this comment.
+#[must_use]
+pub fn exchanged(m1: f64, v1: f64, m2: f64, v2: f64, e: f64) -> (f64, f64) {
+    if m1 <= 0.0 || m2 <= 0.0 || (m1 + m2) <= 0.0 {
+        return (v1, v2);
+    }
+    let total = m1 + m2;
+    let first = (m1 * v1 + m2 * v2 + e * m2 * (v2 - v1)) / total;
+    let second = (m1 * v1 + m2 * v2 + e * m1 * (v1 - v2)) / total;
+    (first, second)
+}
+
+/// The damage one vehicle-vehicle collision deals, before it is split and shared out.
+///
+/// Reference: `map.cpp:1141-1146` - the deformation energy `d_E` between the speeds before and after the exchange, then `dmg = | d_E / 1000 / 2000 |`. **Two divisors, and
+/// the second is 2000**, where the obstacle branch divides by 400: the two paths are not the same rule with a different mass.
+#[must_use]
+pub fn collision_damage(m1: f64, v1: f64, m2: f64, v2: f64, e: f64) -> i32 {
+    let (a1, a2) = exchanged(m1, v1, m2, v2, e);
+    let before = 0.5 * m1 * v1 * v1 + 0.5 * m2 * v2 * v2;
+    let after = 0.5 * m1 * a1 * a1 + 0.5 * m2 * a2 * a2;
+    #[allow(clippy::cast_possible_truncation)]
+    let damage = ((before - after).abs() / 1000.0 / 2000.0) as i32;
+    damage
+}
