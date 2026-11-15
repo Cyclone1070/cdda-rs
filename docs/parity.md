@@ -36965,3 +36965,20 @@ so the gate is watching the branch rather than watching nothing.
 
 **Both halves of the obstacle branch are gated.** A car at 2,000 breaks a wall that resists 10; a car at 400 leaves a wall that resists 60 exactly where it stood. The
 pair is what makes the branch a rule rather than a habit: a collision that broke everything it touched would pass the first test and fail the second.
+
+## Vehicle against vehicle (`vehicle_move.cpp:856-871`, then `map.cpp`)
+
+The reference deliberately does **not** solve a vehicle-vehicle collision in `part_collision`. As soon as the opposing square holds another vehicle it returns
+immediately:
+
+```
+if( is_veh_collision ) { ret.type = veh_coll_veh; ret.target = &ovp->vehicle(); ret.target_part = ovp->part_index(); return ret; }
+```
+
+with the comment "Vehicle collisions are a special case. The map takes care of the dynamic stuff." So the impulse loop the port already has is never entered for two
+vehicles - the momentum exchange and the damage both live in `map::move_vehicle`'s `veh_coll_veh` arm, which computes `dmg1_part` from the relative speed and the two
+masses and calls `veh.damage( part, dmg1_part, bash )` on each side.
+
+That is the next read: `map.cpp`'s vehicle arm, the `dmg1_part` formula, and whether the two vehicles exchange velocity or each keeps its own. The port's detection
+already reports `Collision::Vehicle { target, target_part }`, so the seam mirrors the terrain one: read the branch, dump two vehicles at known speeds, port, gate both
+ways.
