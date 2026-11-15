@@ -388,3 +388,13 @@ pub fn resistance(
     }
     -1
 }
+
+/// Whether a hit of `strength` is enough to break a square whose `resistance` is the given one.
+///
+/// Reference: the vehicle collision's test, `here.bash_resistance( pos, bash_floor ) <= obj_dmg` (`vehicle_move.cpp:1075`) - a **comparison**, so a square whose
+/// resistance equals the damage is broken, and one step less is not. A resistance of `-1` is [`resistance`]'s answer for a square nothing can break, so no strength
+/// reaches it.
+#[must_use]
+pub fn breaks(resistance: i32, strength: i32) -> bool {
+    resistance >= 0 && resistance <= strength
+}

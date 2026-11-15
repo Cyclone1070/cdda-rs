@@ -36909,3 +36909,8 @@ test's fixtures, and the rule is checked against the data rather than against my
 The material factor is 36 for the frame - `( 80 - 8 ) * 0.5` - but the reference clamps it at **25**, so the vehicle keeps three quarters of the blow regardless of how
 dense its part is. That is the number the next gate needs: against `t_wall`'s own resistance, 15 will not break a wall and 62 very likely will, which is the first
 prediction this rule makes that can be checked against a recording rather than against arithmetic alone.
+
+`bash::breaks` is the obstacle branch's comparison, `bash_resistance( pos, bash_floor ) <= obj_dmg` (`vehicle_move.cpp:1075`), with the two recorded crashes as its gate:
+15 against a wall that resists 20 leaves it standing, 62 takes it down, equality breaks it because the reference uses `<=`, and a `-1` resistance is unreachable by
+any strength. The branch's three pieces - the split's obstacle share, the square's resistance, and this comparison - are now all ported and gated; only the call
+between them is missing.

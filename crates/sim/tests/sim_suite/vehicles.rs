@@ -4066,3 +4066,25 @@ fn the_real_data_says_which_tiles_a_bash_gets_through() {
         "**and the vitrified wall is the stone a crash cannot break**"
     );
 }
+
+/// **The comparison the obstacle branch makes**, checked against the two recorded crashes: the car at 1,000 deals 15 and a wall resists far more, so it stands; the
+/// car at 2,000 deals 62 and the same wall gives way. `-1` is a square nothing can break.
+#[test]
+fn a_hit_breaks_a_square_only_when_it_reaches_its_resistance() {
+    assert!(
+        !cdda_sim::bash::breaks(20, 15),
+        "**15 against a wall that resists 20 leaves it standing**"
+    );
+    assert!(
+        cdda_sim::bash::breaks(20, 62),
+        "**62 against the same wall takes it down**"
+    );
+    assert!(
+        cdda_sim::bash::breaks(20, 20),
+        "and equality breaks it: the reference compares with `<=`"
+    );
+    assert!(
+        !cdda_sim::bash::breaks(-1, 1_000_000),
+        "a square nothing can break is not broken by any strength"
+    );
+}
