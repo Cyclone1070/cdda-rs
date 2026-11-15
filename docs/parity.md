@@ -36933,3 +36933,8 @@ so that gate needs the bash-block dump - the same one still owed for the tiles t
 bash damage and the same terrain. The part damage proves the seam is reached with a real impulse and density; so the gap is inside `bash_square`'s read of the square,
 its decision, or the identity of the square the collision reports. The next step prints that square and the `BashOutcome` it returns, rather than another hypothesis -
 the round that answered the impulse question in one run.
+
+**Two candidate causes ruled out for the silent obstacle branch.** A print inside the branch shows it is reached with `square=(103, 99, 0)`, `bashable=true`,
+strength 19, and `bash_square` answering **None** - so the square and the flag are right and the strength is real. Giving the world dice (`put_rolls`) and installing
+the map table (`mapsquare::set_data`, which `bash_square` reads through `mapsquare::table`) both leave it silent, so `None` comes from somewhere neither change
+reaches. The next print goes **inside** `bash_square` at each of its four `?` operators, which names the one that fails in a single run.
