@@ -581,10 +581,20 @@ pub fn damage_around(
 
 /// The two speeds after two vehicles collide along one axis.
 ///
-/// The **momentum-conserving** form of the exchange, which is what `map::move_vehicle`'s vehicle arm computes per axis (`map.cpp:1100-1112`) once each vehicle's velocity
-/// is expressed in its own frame: `v1' = ( m1*v1 + m2*v2 + e*m2*( v2 - v1 ) ) / ( m1 + m2 )`, and the mirror. Written this way because it conserves momentum for any
-/// two masses - the transposed form the reference prints is only equivalent for equal masses, which suggests its per-axis velocities carry opposite signs by
-/// convention. Which reading the reference means is a question for the recording, not for this comment.
+/// The two speeds after two vehicles collide along one axis.
+///
+/// Reference: `map::move_vehicle`'s vehicle arm (`map.cpp:1106-1110`), exactly as written:
+///
+/// ```text
+/// vel1_y_a = ( m2*vel2_y*(1+e) + vel1_y*( m1 - m2*e ) ) / ( m1 + m2 )
+/// vel2_y_a = ( m1*vel1_y*(1+e) + vel2_y*( m2 - m1*e ) ) / ( m1 + m2 )
+/// ```
+///
+/// Each body keeps its own component with its own mass and takes the other's through the restitution; the form conserves momentum for any two masses, and the test says
+/// so. Force is transmitted only along the collision axis - the perpendicular components pass through untouched, which is the caller's business, not this function's.
+///
+/// The restitution is **not** a constant: the reference draws it from `get_collision_factor( vel1_y/100 - vel2_y/100 )` (`map.cpp:1101`), the difference of the two
+/// speeds in miles an hour. That rule is not ported yet, so `e` is a parameter here.
 #[must_use]
 pub fn exchanged(m1: f64, v1: f64, m2: f64, v2: f64, e: f64) -> (f64, f64) {
     if m1 <= 0.0 || m2 <= 0.0 || (m1 + m2) <= 0.0 {
@@ -608,4 +618,19 @@ pub fn collision_damage(m1: f64, v1: f64, m2: f64, v2: f64, e: f64) -> i32 {
     #[allow(clippy::cast_possible_truncation)]
     let damage = ((before - after).abs() / 1000.0 / 2000.0) as i32;
     damage
+}
+
+/// The restitution of a vehicle-vehicle collision, from the difference of the two speeds.
+///
+/// Reference: `get_collision_factor` (`vehicle_move.cpp:1636-1643`): up to 31 miles an hour apart the factor falls linearly from **1** to **0.1**, and beyond that it
+/// stays at 0.1. A gentle nudge is almost perfectly elastic; a hard hit is almost inelastic, which is why a fast crash dumps its energy into the parts instead of
+/// bouncing the vehicles apart.
+#[must_use]
+pub fn collision_factor(delta_v: f64) -> f64 {
+    let gap = delta_v.abs();
+    if gap <= 31.0 {
+        1.0 - (0.9 * gap) / 31.0
+    } else {
+        0.1
+    }
 }

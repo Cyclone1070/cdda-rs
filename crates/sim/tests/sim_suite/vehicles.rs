@@ -4291,3 +4291,26 @@ fn a_collision_deals_damage_from_the_energy_it_loses() {
         "an elastic exchange loses no energy"
     );
 }
+
+/// **A nudge bounces, a hard hit does not.** Reference: `get_collision_factor` (`vehicle_move.cpp:1636-1643`) - 1 falling to 0.1 across 31 miles an hour.
+#[test]
+fn the_collision_factor_falls_from_one_to_a_tenth_across_thirty_one() {
+    let factor = cdda_sim::vehicle_move::collision_factor;
+    assert!((factor(0.0) - 1.0).abs() < 1e-12, "no difference, no loss");
+    assert!(
+        (factor(31.0) - 0.1).abs() < 1e-12,
+        "**31 miles an hour apart is the floor**"
+    );
+    assert!(
+        (factor(15.5) - 0.55).abs() < 1e-9,
+        "halfway is 0.55, a straight line between them"
+    );
+    assert!(
+        (factor(100.0) - 0.1).abs() < 1e-12,
+        "beyond the floor it stays"
+    );
+    assert!(
+        (factor(-31.0) - 0.1).abs() < 1e-12,
+        "and the sign does not matter: it takes the absolute difference"
+    );
+}

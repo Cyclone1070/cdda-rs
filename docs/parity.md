@@ -37008,3 +37008,8 @@ The vertical case (`veh.vertical_velocity`) is a separate inelastic formula - `d
   reference means is a question for the recording;
 - the damage divides the lost energy by **1,000 and then 2,000**, where the obstacle branch divides by 400: 1,000 kg at 1,000 into 1,000 kg at rest deals 125, and the
   obstacle rule would have said 625.
+
+**The restitution is a rule, not a constant.** `get_collision_factor` (`vehicle_move.cpp:1636-1643`) falls from **1** at no speed difference to **0.1** at 31 miles an
+hour apart, and stays at 0.1 beyond. `vehicle_move::collision_factor` is ported and gated on the endpoints, the midpoint (0.55 at 15.5) and the sign. It also corrects
+round 80's note: the reference's exchange formulas are exactly the momentum-conserving pair - I had mis-transcribed them, and the ported function is the reference's
+own form. What is still missing before the collision can be wired is the perpendicular component passing through untouched and the per-part-pair split.
