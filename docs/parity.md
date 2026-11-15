@@ -36774,3 +36774,6 @@ port's `crash_damage` produces. So the arithmetic of the impulse loop is confirm
 windshield actually loses) is **downstream of the loop**: `map::move_vehicle` applies `coll_dmg` as `veh.damage( part, coll_dmg, bash )` **and** `veh.damage_all(
 coll_dmg / 2, coll_dmg, bash, collision_point )` (`map.cpp:859-870`), so the blow is spread over the neighbouring parts and the part that started with 50 hit points
 is not the one that absorbs all of it. The next round ports the distribution, and the loop can go in now that its numbers are the reference's.
+
+The impulses are now in the recording: `imp` is 0, 0, 1, 4 for the bicycle at 100, 400, 1,000 and 2,000 and 0, 9, 61, 247 for the car, taken from the guarded
+print inside `part_collision`. The gate for the ported loop is a comparison against that column, and it can be written without any further reference build.
