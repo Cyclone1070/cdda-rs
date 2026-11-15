@@ -36811,3 +36811,8 @@ weights** (`vehicle_mass::part_mass` -> `item_registry::weight_in`) - and `crash
 `install_part_weights( world, "car" )`, which is part-id weights from the top-speed recording; nothing puts the car's *items* in the registry. So the test's car
 weighs zero grams and the blow is zero before density is ever consulted. The next round loads the vehicle dump's items, or fails the test with the mass printed -
 guessing again is what this round already paid for.
+
+**Round 44's hypothesis was wrong.** `install_part_weights` does fill the item registry - it turns the top-speed recording's `base_mass_g` per part into `Kind`s, and the
+car's frame alone is 20 kg of the ~1,065 kg total - so the test's car does not weigh zero and the seam is not silent for that reason. Two candidates remain: the
+part the collision blames has no density in the store, or `vehicles::damage` is not writing the hit points the assertion reads. Both are one print apart, and the
+next round prints them inside `dent_on_crash` rather than writing a third hypothesis.
