@@ -36898,3 +36898,14 @@ own division (`is_bashable_ter_furn` for presence, `bash_ter_furn`'s first line 
 `mapdata::load_paths` - the same load the field-by-field content test uses - and asserts what the obstacle branch needs: `t_wall` has a block with a real `str_min` and
 `destroy_only` false, `t_open_air` has none at all, and `t_vitrified_wall` is a block the guard refuses. So the two records that confused the crash dumps are now the
 test's fixtures, and the rule is checked against the data rather than against my own arithmetic.
+
+**The split gives the obstacle about a quarter, and the clamp is why.** Working `k` through by hand for the two recorded crashes:
+
+| Crash | `k` | obstacle share `dmg * (100 - k) / 100` |
+|---|---|---|
+| car at 1,000, frame (density 8) | 74.77 | **15** |
+| car at 2,000, windshield (density 2.5) | 74.72 | **62** |
+
+The material factor is 36 for the frame - `( 80 - 8 ) * 0.5` - but the reference clamps it at **25**, so the vehicle keeps three quarters of the blow regardless of how
+dense its part is. That is the number the next gate needs: against `t_wall`'s own resistance, 15 will not break a wall and 62 very likely will, which is the first
+prediction this rule makes that can be checked against a recording rather than against arithmetic alone.
