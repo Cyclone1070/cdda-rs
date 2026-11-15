@@ -36816,3 +36816,9 @@ guessing again is what this round already paid for.
 car's frame alone is 20 kg of the ~1,065 kg total - so the test's car does not weigh zero and the seam is not silent for that reason. Two candidates remain: the
 part the collision blames has no density in the store, or `vehicles::damage` is not writing the hit points the assertion reads. Both are one print apart, and the
 next round prints them inside `dent_on_crash` rather than writing a third hypothesis.
+
+**The seam fires.** A print inside `dent_on_crash` during the wall test reports `part=4 spec=Some("xlframe") density=Some(2.7) mass=10817` - so the collision names a
+real part, the spec resolves, the density is read from the new dump, and the mass is the bicycle's 10.8 kg. Three candidate explanations are dead: the spec is not
+`None`, the density is not `None`, and the mass is not zero. What the print also shows is why the bicycle loses nothing: 10.8 kg against a tonne is an impulse of 1,
+which the frame's bash reduction absorbs entirely. The car test that failed in round 43 must therefore have failed before the collision - its own geometry, not the
+rule.
