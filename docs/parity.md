@@ -37013,3 +37013,7 @@ The vertical case (`veh.vertical_velocity`) is a separate inelastic formula - `d
 hour apart, and stays at 0.1 beyond. `vehicle_move::collision_factor` is ported and gated on the endpoints, the midpoint (0.55 at 15.5) and the sign. It also corrects
 round 80's note: the reference's exchange formulas are exactly the momentum-conserving pair - I had mis-transcribed them, and the ported function is the reference's
 own form. What is still missing before the collision can be wired is the perpendicular component passing through untouched and the per-part-pair split.
+
+**The blow is shared out.** `vehicle_move::collision_share` is `map.cpp:1157-1169`: half the damage, divided by the number of colliding part pairs, truncated - 125 over one
+pair is 62, over three pairs it is 20 each, so one blow across three pairs lands on six parts. Zero pairs answers nothing rather than dividing by zero. The remaining piece
+before the seam can be wired is the `ARMOR` substitution: each colliding part is replaced by an ARMOR part on its mount when it has one.

@@ -4314,3 +4314,13 @@ fn the_collision_factor_falls_from_one_to_a_tenth_across_thirty_one() {
         "and the sign does not matter: it takes the absolute difference"
     );
 }
+
+/// **Half the damage, shared out across the part pairs.** Reference: `map.cpp:1157-1169` - `dmg * 0.5` then `/ coll_parts_cnt`.
+#[test]
+fn a_collision_s_half_is_shared_across_its_part_pairs() {
+    let share = cdda_sim::vehicle_move::collision_share;
+    assert_eq!(share(125, 1), 62, "**one pair takes half, truncated**");
+    assert_eq!(share(125, 3), 20, "three pairs spread it over six parts");
+    assert_eq!(share(0, 1), 0, "no blow, nothing to share");
+    assert_eq!(share(125, 0), 0, "and no pairs is nothing, not a division");
+}

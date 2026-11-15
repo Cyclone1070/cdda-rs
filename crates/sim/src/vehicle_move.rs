@@ -634,3 +634,18 @@ pub fn collision_factor(delta_v: f64) -> f64 {
         0.1
     }
 }
+
+/// What one colliding part pair takes of a vehicle-vehicle collision.
+///
+/// Reference: `map.cpp:1157-1169` - the damage is halved (`dmg_veh1 = dmg * 0.5f`) and then divided by the number of part pairs the two vehicles share
+/// (`dmg1_part = dmg_veh1 / coll_parts_cnt`), so a collision across three pairs spreads one blow over six parts. Zero pairs is the reference's "bugs in the code" case and
+/// answers nothing here rather than dividing by zero.
+#[must_use]
+pub fn collision_share(damage: i32, pairs: i32) -> i32 {
+    if pairs <= 0 || damage <= 0 {
+        return 0;
+    }
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let share = (f64::from(damage) * 0.5 / f64::from(pairs)) as i32;
+    share
+}
