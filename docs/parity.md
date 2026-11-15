@@ -36858,3 +36858,19 @@ against the reference's 41), and **more than one part** is dented, which is the 
 
 `move_step` keeps its old signature and delegates with a fresh stream, so the tests and the inspection tools that only move a vehicle do not carry randomness they
 have no business owning. The turn loop will pass its own stream through `move_step_with_rolls` when it drives vehicles.
+
+## Bashing the obstacle (`vehicle_move.cpp:1063-1093`)
+
+The split `k` divides the blow between the vehicle and the obstacle: **`obj_dmg = dmg * ( 100 - k ) / 100`**, next to the part's `dmg * k / 100`. A bashable terrain is
+then hit with that strength and only counts as smashed when all three hold:
+
+1. `is_bashable_ter_furn( pos, false )` - bashable with the floor excluded;
+2. `bash_resistance( pos, bash_floor ) <= obj_dmg` - the resistance check comes **before** the bash, and is a comparison, not a subtraction;
+3. `here.bash( pos, obj_dmg, false, false, false, this ).success`.
+
+After a smash the square is re-read: new bashable terrain continues the loop with fresh `mass2`/`part_dens`/`e`; impassable terrain that is not bashable turns the
+collision into `veh_coll_other`. Everything else leaves `smashed` true and ends the loop.
+
+The port has `bash::bash` as a pure function taking exactly this strength, and the collision record already carries the square and its `bashable` flag, so this is a
+connection plus the two map queries (`is_bashable`, `bash_resistance`) - neither of which the port's map data exposes yet as a function. That is the next round's
+first piece: the two queries, gated on the tiles already recorded in `corpus/`.
