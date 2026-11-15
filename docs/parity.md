@@ -36893,3 +36893,8 @@ places without saying which is which, which is the second source of truth the ar
 **Reconciled by naming.** The guard is `bash::accepts_bash` and the presence test stays `SquareData::bashable`: one says whether a square has a bash block, the other
 whether a hit is allowed through it. The collision keeps asking `bashable` (presence), and `accepts_bash` runs when a hit is actually made - which is the reference's
 own division (`is_bashable_ter_furn` for presence, `bash_ter_furn`'s first line for the guard), now spelled with two names that cannot be confused.
+
+**The guard is gated on the reference's own data.** `the_real_data_says_which_tiles_a_bash_gets_through` loads the reference's terrain set through
+`mapdata::load_paths` - the same load the field-by-field content test uses - and asserts what the obstacle branch needs: `t_wall` has a block with a real `str_min` and
+`destroy_only` false, `t_open_air` has none at all, and `t_vitrified_wall` is a block the guard refuses. So the two records that confused the crash dumps are now the
+test's fixtures, and the rule is checked against the data rather than against my own arithmetic.

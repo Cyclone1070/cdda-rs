@@ -4018,3 +4018,46 @@ fn a_square_resists_with_what_stands_on_it_first() {
         "a destroy-only block does not answer, so the terrain's does"
     );
 }
+
+/// **A wall can be bashed and open air cannot: the real data says so.**
+///
+/// The crash's obstacle branch needs a bash block on the tiles it hits, and the collision fixtures build theirs by hand. This reads the reference's own terrain data
+/// and checks the shapes the rule distinguishes: a wooden wall with a real `str_min`, open air with no block at all, and a vitrified wall the data does not let an
+/// ordinary bash through.
+#[test]
+fn the_real_data_says_which_tiles_a_bash_gets_through() {
+    use cdda_content::mapdata::MapDataKind;
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/Cataclysm-DDA");
+    let loaded =
+        cdda_content::mapdata::load_paths(&[&root.join("data/core"), &root.join("data/json")])
+            .expect("loads the content set");
+    let tile = |id: &str| {
+        loaded
+            .iter()
+            .find(|prototype| prototype.id == id && prototype.kind == MapDataKind::Terrain)
+            .unwrap_or_else(|| panic!("{id} is in the data"))
+    };
+
+    let wall = tile("t_wall");
+    let block = wall.bash.as_ref().expect("**a wall has a bash block**");
+    assert!(block.str_min > 0, "its str_min is real: {}", block.str_min);
+    assert!(!block.destroy_only, "and an ordinary bash reaches it");
+    assert!(
+        cdda_sim::bash::accepts_bash(wall.bash.as_ref()),
+        "so the guard lets a hit through"
+    );
+
+    let air = tile("t_open_air");
+    assert!(
+        air.bash.is_none(),
+        "**open air has no block, which is why a car drives into it**"
+    );
+    assert!(!cdda_sim::bash::accepts_bash(air.bash.as_ref()));
+
+    let vitrified = tile("t_vitrified_wall");
+    assert!(
+        !cdda_sim::bash::accepts_bash(vitrified.bash.as_ref()),
+        "**and the vitrified wall is the stone a crash cannot break**"
+    );
+}
