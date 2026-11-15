@@ -36792,3 +36792,7 @@ gives the loader a value instead of a formula. `damage_all` is the next rule to 
 
 The loader now carries a part's **density** (`PartSpec::density`, read from `vpart_dens`), so the crash distribution has somewhere to get it from; the value arrives
 when the vehicle dump records it for every part rather than only for the one a crash names.
+
+**The seam into the store.** `move_step` now calls `dent_on_crash` on the part it stops against: it reads the part's density, the vehicle's mass and its speed, asks
+`crash_impulse` for the blow, and passes it to `vehicles::damage` - the ported reduction. It dents nothing today, because no part carries a density yet, and that is
+deliberate: the moment the vehicle dump records `vpart_dens` per part, the same call starts leaving marks with no code change on the simulation side.

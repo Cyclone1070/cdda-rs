@@ -384,9 +384,12 @@ pub fn move_step(world: &mut World, vehicle: Entity) -> bool {
     // what a part would hit - and `map::move_vehicle` calls `veh.stop()` when a collision leaves the vehicle unable to move (`map.cpp:948-950`): the square is
     // never entered and the speed is gone. Smashing the obstacle, the damage the crash does and the bounce off another vehicle are the collision rounds that
     // follow; this one only refuses to drive through.
-    if let Some(crate::vehicles::Collision::Terrain { .. }) =
+    if let Some(crate::vehicles::Collision::Terrain { part, .. }) =
         crate::vehicles::first_collision(world, vehicle, step)
     {
+        // The crash dents the part that met the obstacle, once the data says what it is made of. Until a part carries a density the blow has no split to compute,
+        // so the vehicle stops exactly as before and nothing is damaged - the recording is what fills the gap, not a guess here.
+        dent_on_crash(world, vehicle, part);
         if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
             built.velocity = 0;
             built.of_turn_carry = 0.0;
@@ -459,4 +462,31 @@ pub fn crash_impulse(mass_g: i64, velocity: i32, vpart_density: f64) -> (i32, i3
     #[allow(clippy::cast_possible_truncation)]
     let left = speed as i32;
     (impulse, left)
+}
+
+/// Dents the part that a crash stopped the vehicle on, when the part says what it is made of.
+///
+/// The impulse comes from [`crash_impulse`], the split from the part's own density; without one the reference's loop has no `k` to compute and the vehicle simply
+/// stops. Nothing else about the crash moves: the recording's eight rows are the gate for the loop, and this is the seam that will carry them into the store.
+fn dent_on_crash(world: &mut World, vehicle: Entity, part: usize) {
+    let Some(density) = part_density(world, vehicle, part) else {
+        return;
+    };
+    let mass = crate::vehicle_mass::mass(world, vehicle);
+    let Some(velocity) = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map(|built| built.velocity)
+    else {
+        return;
+    };
+    let (impulse, _) = crash_impulse(mass, velocity, density);
+    if impulse > 0 {
+        crate::vehicles::damage(world, vehicle, part, impulse, "bash", false);
+    }
+}
+
+/// What a part is made of, per litre, when the loaded data says.
+fn part_density(world: &World, vehicle: Entity, part: usize) -> Option<f64> {
+    let spec = crate::vehicles::part_spec(world, vehicle, part)?;
+    spec.density
 }
