@@ -359,3 +359,13 @@ fn unchanged(target: &BashTarget) -> BashOutcome {
         bashed_solid: false,
     }
 }
+
+/// Whether a tile's bash block lets an ordinary bash through at all.
+///
+/// Reference: `map::bash_ter_furn`'s first test, `if( !bash || ( bash->destroy_only && !params.destroy ) )` (`map.cpp`), which the vehicle collision reaches through
+/// `is_bashable_ter_furn( pos, false )` (`vehicle_move.cpp:1074`). A tile with **no** block cannot be bashed; a `-1` `str_min` is how the data spells "never"; and a
+/// `destroy_only` block answers no unless the hit is a `destroy`. That is the difference between a wall a car goes through and one it does not.
+#[must_use]
+pub fn is_bashable(bash: Option<&cdda_content::mapdata::BashInfo>) -> bool {
+    bash.is_some_and(|block| block.str_min != -1 && !block.destroy_only)
+}

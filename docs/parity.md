@@ -36874,3 +36874,8 @@ collision into `veh_coll_other`. Everything else leaves `smashed` true and ends 
 The port has `bash::bash` as a pure function taking exactly this strength, and the collision record already carries the square and its `bashable` flag, so this is a
 connection plus the two map queries (`is_bashable`, `bash_resistance`) - neither of which the port's map data exposes yet as a function. That is the next round's
 first piece: the two queries, gated on the tiles already recorded in `corpus/`.
+
+`bash::is_bashable` is the query the crash's obstacle branch needs: a block with a real `str_min` gives way, none cannot be bashed, `-1` is the data's "never", and a
+`destroy_only` block answers no to an ordinary hit. Gated on the four cases the reference's own test distinguishes. What it is not yet gated on is **real tile data**:
+the collision fixtures build their tiles by hand, so the next dump must record bash blocks for the tiles the crash tests use before the obstacle branch can consult
+them.

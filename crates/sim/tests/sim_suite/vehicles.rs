@@ -3949,3 +3949,35 @@ fn a_blow_reaches_further_parts_more_weakly() {
         "and never below zero"
     );
 }
+
+/// **The data decides which obstacles give way.** A block with a real `str_min` can be bashed; none cannot; `-1` is the data's word for "never"; and a
+/// `destroy_only` block answers no to an ordinary hit (`map.cpp`'s `bash_ter_furn` test, which the collision calls with `destroy` false).
+#[test]
+fn the_data_says_which_obstacles_can_be_bashed() {
+    use cdda_content::mapdata::BashInfo;
+    let block = |str_min: i32, destroy_only: bool| BashInfo {
+        str_min,
+        destroy_only,
+        ..BashInfo::default()
+    };
+
+    let wall = block(20, false);
+    assert!(
+        cdda_sim::bash::is_bashable(Some(&wall)),
+        "**a wall gives way**"
+    );
+    assert!(
+        !cdda_sim::bash::is_bashable(None),
+        "**open air has no block, so nothing to break**"
+    );
+    let never = block(-1, false);
+    assert!(
+        !cdda_sim::bash::is_bashable(Some(&never)),
+        "a -1 str_min is the data's never"
+    );
+    let only_destroy = block(20, true);
+    assert!(
+        !cdda_sim::bash::is_bashable(Some(&only_destroy)),
+        "a destroy-only block answers no to a bash"
+    );
+}
