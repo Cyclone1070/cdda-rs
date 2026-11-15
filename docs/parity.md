@@ -36796,3 +36796,8 @@ when the vehicle dump records it for every part rather than only for the one a c
 **The seam into the store.** `move_step` now calls `dent_on_crash` on the part it stops against: it reads the part's density, the vehicle's mass and its speed, asks
 `crash_impulse` for the blow, and passes it to `vehicles::damage` - the ported reduction. It dents nothing today, because no part carries a density yet, and that is
 deliberate: the moment the vehicle dump records `vpart_dens` per part, the same call starts leaving marks with no code change on the simulation side.
+
+**Every part carries its density.** The vehicle dump now writes `vpart_dens` per part - the base item's materials weighted by portion, the same arithmetic the crash
+dump used - and the loader reads it into `PartSpec::density`. A steel frame is 8, a glass windshield 2.5, and those are the two numbers the crash rows already
+needed. `dent_on_crash` is no longer a seam that returns early: a vehicle that stops against a wall now has a density to hand `crash_impulse`, which is the last
+piece the damage needed.

@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-15 12:25:07
-@@ -0,0 +1,9121 @@
++++ oracle/src/src/harness.cpp	2026-11-15 14:26:32
+@@ -0,0 +1,9133 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1107,6 +1107,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        // not an engine.
 +        bool has_engine_info = false;
 +        double damaged_power_factor = 0;
++        // Version 10: what the part's material weighs per litre, from the base item's materials (`item::find_type( base_item )->materials`). The crash rule divides
++        // this by the obstacle's density, so it is a data fact the loader carries rather than a formula the rule invents.
++        double density = 0;
 +    };
 +    struct dumped_prototype {
 +        std::string id;
@@ -1121,6 +1124,15 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        entry.durability = part.durability;
 +        entry.damage_modifier = part.dmg_mod;
 +        entry.item = part.base_item.str();
++        if( const itype *base = item::find_type( part.base_item ) ) {
++            const auto &mats = base->materials;
++            const float mat_total = base->mat_portion_total == 0 ? 1 : base->mat_portion_total;
++            double sum = 0;
++            for( const std::pair<const material_id, int> &mat_id : mats ) {
++                sum += mat_id.first->density() * ( static_cast<double>( mat_id.second ) / mat_total );
++            }
++            entry.density = mats.empty() ? 0 : sum / static_cast<double>( mats.size() );
++        }
 +        entry.location = part.location;
 +        entry.size = static_cast<int>( units::to_milliliter( part.size ) );
 +        entry.cargo_weight_modifier = part.cargo_weight_modifier;
@@ -1181,7 +1193,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out, "\"%s\"", escaped( part.id ).c_str() );
 +        std::fprintf( out, ",\"name\":" );
 +        std::fprintf( out, "\"%s\"", escaped( part.name ).c_str() );
-+        std::fprintf( out, ",\"durability\":%d,\"damage_modifier\":%d,\"item\":", part.durability,
++        std::fprintf( out, ",\"vpart_dens\":%.9g,\"durability\":%d,\"damage_modifier\":%d,\"item\":", part.density, part.durability,
 +                      part.damage_modifier );
 +        std::fprintf( out, "\"%s\"", escaped( part.item ).c_str() );
 +        std::fprintf( out, ",\"location\":" );

@@ -165,3 +165,28 @@ fn the_one_empty_blueprint_is_kept_and_named() {
         "and the part store is untouched by it"
     );
 }
+
+/// **A part says what its material weighs.** The crash rule divides the colliding part's density by the obstacle's, and the recording only named the part that took
+/// the hit; the dump now carries the figure for every part. A steel frame is 8 per litre, a glass windshield 2.5 - the two densities the crash rows already used, now
+/// in the store rather than in a formula.
+#[test]
+fn a_part_carries_its_material_density() {
+    let dump = dump();
+    let density_of = |id: &str| {
+        dump.parts
+            .iter()
+            .find(|part| part.id == id)
+            .and_then(|part| part.density)
+            .unwrap_or_else(|| panic!("{id} has a density"))
+    };
+    assert_eq!(density_of("frame"), 8.0, "a steel frame");
+    assert_eq!(density_of("windshield"), 2.5, "glass");
+    assert!(
+        dump.parts
+            .iter()
+            .filter(|part| part.density.is_none())
+            .count()
+            < dump.parts.len(),
+        "and not every part is empty"
+    );
+}
