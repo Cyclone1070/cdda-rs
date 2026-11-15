@@ -36959,3 +36959,6 @@ it becomes. Three causes had to be cleared, and each was a real fact about the p
 2. **A fresh world has no map data table.** `bash_square` reads the square through `mapsquare::table`, so a test must install it with `mapsquare::set_data`.
 3. **A bash block that names no rubble changes nothing.** `BashInfo::set` is what the square becomes; with it empty the hit succeeds and leaves the terrain as it was,
    which reads exactly like a hit that never happened.
+
+**Mutation-checked.** Passing a strength of zero instead of the obstacle's share makes `a_fast_crash_breaks_the_wall_it_hits` fail, and restoring it makes the test pass -
+so the gate is watching the branch rather than watching nothing.
