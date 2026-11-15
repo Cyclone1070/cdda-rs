@@ -4416,11 +4416,11 @@ fn fill_own_tanks(world: &mut World, car: Entity) {
         if !is_tank {
             continue;
         }
-        if let Some(mut built) = world.get_mut::<cdda_sim::vehicles::Vehicle>(car) {
-            if let Some(part) = built.parts.get_mut(index) {
-                part.fuel.clone_from(&fuel);
-                part.charges = 100;
-            }
+        if let Some(mut built) = world.get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            && let Some(part) = built.parts.get_mut(index)
+        {
+            part.fuel.clone_from(&fuel);
+            part.charges = 100;
         }
     }
 }
