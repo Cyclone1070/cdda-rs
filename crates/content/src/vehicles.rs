@@ -67,6 +67,9 @@ pub struct PartSpec {
     /// Reference: `vpart_info::engine_info::damaged_power_factor` (`src/veh_type.h:128`), a float - 0.25 for a combustion engine, which keeps a quarter of its
     /// power even when it is nearly wrecked. The reference scales an engine by `dpf + ( 1 - dpf ) * health_percent` (`vehicle.cpp:1181-1186`).
     pub damaged_power_factor: Option<f32>,
+    /// Reference: `vpart_info::engine_info::m2c` (`src/veh_type.h:125`), the motor-to-crankshaft ratio the safe branch multiplies an engine's power by - 65 for a
+    /// diesel I6, so safe mode lets it give 65% of what it makes. `None` for everything that is not an engine.
+    pub m2c: Option<i32>,
     /// What this wheel resists rolling with, and `None` for a part that is not a wheel.
     ///
     /// Reference: `vpart_info::wheel_info::rolling_resistance` (`src/veh_type.h:142`), a float that defaults to 1 - a bicycle wheel is 0.45. Only a part with
@@ -261,6 +264,17 @@ fn part_of(entry: &Value) -> Result<PartSpec, String> {
             }
             Some(Value::Null) | None => None,
             _ => return Err("a part's damaged_power_factor is not a number".to_owned()),
+        },
+        m2c: match object.get("m2c") {
+            // **-1 is the dump's "not an engine"**, the same sentinel the reference uses everywhere a number is optional.
+            Some(Value::Int(value)) => i32::try_from(*value).ok().filter(|value| *value >= 0),
+            Some(Value::Float(value)) => {
+                #[allow(clippy::cast_possible_truncation)]
+                let value = *value as i32;
+                Some(value).filter(|value| *value >= 0)
+            }
+            Some(Value::Null) | None => None,
+            _ => return Err("a part's m2c is not a number".to_owned()),
         },
         density: match object.get("vpart_dens") {
             Some(Value::Float(value)) => Some(*value),

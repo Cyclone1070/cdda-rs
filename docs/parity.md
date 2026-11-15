@@ -37041,3 +37041,12 @@ a constant, and the safe speed is not a second formula: `safe_ground_velocity` (
 
 **Not yet wired:** the per-engine `m2c` is not read from the part data, so nothing calls `safe_power` from a vehicle yet; and `engine_fuel_left` - the "is it fueled" half of
 the engine filter - is still unported, so every engine counts as running.
+
+## The engine's own ratio, dumped and loaded (round 86)
+
+`corpus/vehicles.json` is version **11**: every part now carries `m2c`, the motor-to-crankshaft ratio the safe branch multiplies an engine by, straight from
+`vpart_info::engine_info::m2c` (`veh_type.h:125`). The I6 diesel makes 223,800 W and may give **65%** of it in safe mode; a frame answers -1, which the loader reads as
+"not an engine" rather than as a ratio of minus one.
+
+The dump was rebuilt from the pinned reference with the new field, the patch regenerated and verified byte for byte, and the loader gated against a value that came from the
+reference rather than from a transcription.

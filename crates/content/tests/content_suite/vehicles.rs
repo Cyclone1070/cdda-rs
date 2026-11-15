@@ -196,3 +196,23 @@ fn a_part_carries_its_material_density() {
         "and not every part is empty"
     );
 }
+
+/// **An engine carries the share of its power that safe mode allows.** Reference: `vpart_info::engine_info::m2c` (`veh_type.h:125`), read from the reference's own dump:
+/// the 6 L I6 diesel makes 223,800 W and may give 65% of it in safe mode.
+#[test]
+fn an_engine_carries_its_motor_to_crankshaft_ratio() {
+    let store = dump();
+    let part = store
+        .parts
+        .iter()
+        .find(|part| part.id == "diesel_engine_i6")
+        .expect("the I6 diesel is in the corpus");
+    assert_eq!(part.m2c, Some(65), "**65% of its power in safe mode**");
+    assert_eq!(part.power, 223_800, "and it makes 223,800 W");
+    let body = store
+        .parts
+        .iter()
+        .find(|part| part.id == "frame")
+        .expect("a frame");
+    assert_eq!(body.m2c, None, "a frame is not an engine");
+}
