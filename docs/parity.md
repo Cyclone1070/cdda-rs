@@ -36784,3 +36784,8 @@ print inside `part_collision`. The gate for the ported loop is a comparison agai
 the car at 1,000 and **247** at 2,000. That blow is what the loop produces; what a part *loses* is smaller, and the difference is `map::move_vehicle`'s
 distribution (`map.cpp:859-870`), `damage` plus `damage_all( coll_dmg / 2, ... )`, which spreads it over the neighbouring parts. That distribution is the next
 rule, and the recording's hit points are its gate.
+
+**What the distribution needs first.** `map::move_vehicle`'s spread (`map.cpp:859-870`) needs two things the port does not have: a part's **density** in the store -
+`crash_impulse` takes it as an argument now, but nothing in the data supplies it - and `damage_all`, the reference's rule for hitting every part around a point.
+The density is the cheap one: the dump already computes `vpart_dens` for the part that takes the hit, so recording it for **every** part (`dump_vehicle_parts`)
+gives the loader a value instead of a formula. `damage_all` is the next rule to read, and `vehicle::damage` - already ported - is what each of its hits calls.

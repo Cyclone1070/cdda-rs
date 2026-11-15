@@ -36,9 +36,9 @@ now runs where the lint runs, proved with a deliberate probe.
 
 ## The next cycle
 
-1. Collisions that do something: the crash dump exists (`corpus/vehicle_crash.json`, eight rows) but still lacks the four numbers the split needs - `mass2`, `e`,
-   `part_dens` and `k`, all derived from bashable terrain. Extend `dump_vehicle_crash` to write them, rebuild, then port `part_collision`'s impulse loop
-   (`vehicle_move.cpp:1030-1165`) against the completed rows.
+1. The crash **impulse** is ported and gated (`vehicle_move::crash_impulse`, against the recording's `imp` column: 61 and 247). What is left is the
+   **distribution**: `map::move_vehicle`'s `damage` plus `damage_all( coll_dmg / 2, coll_dmg, collision_point )` (`map.cpp:859-870`), which is why a part loses 44
+   where the impulse is 247. It needs a part's density in the store (record `vpart_dens` for every part in `dump_vehicle_parts`) and `damage_all` ported.
 2. `vehicle::strain` / `safe_velocity` and the engine damage they feed.
 3. Fuel burn per step (`consume_fuel`).
 
