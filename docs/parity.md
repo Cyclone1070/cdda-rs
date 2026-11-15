@@ -37096,3 +37096,17 @@ own arithmetic and not a coincidence of the data. Thirty parts in the corpus dra
 
 That closes the first of the two missing inputs for `consume_fuel`. **Still missing: energy per charge of each fuel**, which turns joules into charges when `drain_energy`
 walks the tanks.
+
+### Where a fuel's energy actually lives (round 93)
+
+`item::fuel_energy` (`item.cpp:10427-10431`) is not a per-item number:
+
+```
+fuel_energy = base_material.get_fuel_data().energy * to_milliliter( base_volume() ) / 1000
+```
+
+So the joules in one charge come from **the material's `fuel_data.energy`** - a property of the liquid's material, per millilitre - times the item's own volume, divided by
+1,000 to keep integer rounding out. Diesel's number therefore lives on the material `diesel`, not on the item that carries it.
+
+**The dump to take next** must carry, for every material that has fuel data, its `energy`, and for every fuel item its charge volume. Neither the vehicles dump nor the
+items dump the port already reads contains either number, so `drain_energy` cannot be ported until they exist.
