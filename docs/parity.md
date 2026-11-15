@@ -37031,3 +37031,13 @@ here rather than left to be discovered.
 **Mutation-checked.** Setting the share to zero leaves both cars at full hit points and `two_cars_that_meet_exchange_speed_and_damage` fails on exactly that assertion ("one
 of them loses hit points: 18033 and 18033 from 18033 and 18033"); restoring it passes. The speed exchange is unaffected by the mutation, which is right - the exchange and the
 damage are separate rules, and the test holds them apart.
+
+## Safe power (round 85)
+
+`vehicle_drive::safe_power` is `vehicle::total_power`'s `safe` branch (`vehicle.cpp:4052-4079`): each running engine contributes `vpower * m2c / 100`, the total is floored at
+zero, and then the same `pwr * 4 / ( 4 + count - 1 )` sharing applies as for full power. `m2c` is the engine's own motor-to-crankshaft ratio, so the cap is data rather than
+a constant, and the safe speed is not a second formula: `safe_ground_velocity` (`vehicle.cpp:4302-4310`) is the top-speed cubic asked with less power, which is why
+`top_speed_vmiph` serves both.
+
+**Not yet wired:** the per-engine `m2c` is not read from the part data, so nothing calls `safe_power` from a vehicle yet; and `engine_fuel_left` - the "is it fueled" half of
+the engine filter - is still unported, so every engine counts as running.

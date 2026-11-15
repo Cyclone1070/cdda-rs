@@ -4383,3 +4383,17 @@ fn two_cars_that_meet_exchange_speed_and_damage() {
         before.1
     );
 }
+
+/// **Safe mode caps each engine at its own ratio, then shares the total.** Reference: `vehicle.cpp:4052-4079`.
+#[test]
+fn safe_power_caps_every_engine_at_its_own_ratio() {
+    let power = cdda_sim::vehicle_drive::safe_power;
+    assert_eq!(power(&[(1000, 100)]), 1000, "a full ratio takes nothing");
+    assert_eq!(power(&[(1000, 60)]), 600, "**60% is 600 watts**");
+    assert_eq!(
+        power(&[(1000, 60), (1000, 60)]),
+        960,
+        "two capped engines are 1,200 shared by 4/5"
+    );
+    assert_eq!(power(&[]), 0, "no engines, no power");
+}

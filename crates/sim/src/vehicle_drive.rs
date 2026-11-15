@@ -262,3 +262,29 @@ pub fn battery_engine(world: &World, vehicle: Entity) -> bool {
         spec.flags.contains("ENGINE") && spec.fuel_type == "battery"
     })
 }
+
+/// What a vehicle's engines make in **safe** mode, in watts.
+///
+/// Reference: `vehicle::total_power`'s `safe` branch (`vehicle.cpp:4052-4079`): each running engine contributes `vpower * m2c / 100` instead of its full `vpower` - and then
+/// the same `pwr * 4 / ( 4 + count - 1 )` applies. `m2c` is the engine's own motor-to-crankshaft ratio, so the cap is data, not a constant.
+///
+/// `safe_ground_velocity` (`vehicle.cpp:4302-4310`) is then the top-speed cubic with this power: the safe speed is not a different formula, it is the same one asked
+/// with less power. That is why one function serves both.
+#[must_use]
+pub fn safe_power(engines: &[(i32, i32)]) -> i32 {
+    let mut power = 0_i64;
+    let mut count = 0_i64;
+    for &(watts, m2c) in engines {
+        power += i64::from(watts) * i64::from(m2c) / 100;
+        count += 1;
+    }
+    let power = power.max(0);
+    let power = if count > 1 {
+        power * 4 / (4 + count - 1)
+    } else {
+        power
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let power = power.clamp(0, i64::from(i32::MAX)) as i32;
+    power
+}
