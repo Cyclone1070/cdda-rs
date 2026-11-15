@@ -154,6 +154,10 @@ def main() -> int:
         # clippy ran over there - so the files cargo looked at kept their old mtimes and a cached clean
         # result was reported for code that had just changed. Three rounds in a row reached CI with a
         # lint the gate said was clean: `float_cmp` twice and `collapsible_if`.
+        # **Sync again, immediately before linting.** The gate has twice reported clean on a tree that CI then failed: one case was a stale
+        # artifact (fixed by the touch below), the other had no explanation, and a second idempotent sync costs a no-op rsync and removes the
+        # possibility that the clippy job linted a tree that was copied before the last edit landed.
+        sync()
         run(
             "find crates -name '*.rs' -exec touch {} +",
             "touch every source file on the build machine",
