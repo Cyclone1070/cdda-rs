@@ -36762,3 +36762,8 @@ what a single blow can mean before the part is gone. The next round reads `part_
 be bashable through a bash block the scan did not see, or through `furn_set` left behind. The next dump must record `veh_collision.type` and `imp` themselves
 (`veh->collision( here, colls, tripoint_rel_ms( 1, 0, 0 ), false )` after `precalc_mounts`), which settles both the branch and the number in one row instead of
 inferring them from hit points.
+
+**A direct collision probe crashes the reference.** Calling `veh->collision(...)` outside `map::move_vehicle` - even after `precalc_mounts( 1, 0_degrees,
+pivot_point )` - aborts the process before the dump is written, which is why the recording still carries only hit points. The reliable route is the one
+`move_vehicle` itself takes: let `act_on_map` run and record the parts' hit points, or patch `part_collision` to print `ret.type`/`ret.imp` for the harness build
+only. The second is the next attempt: one line inside the reference's own function, guarded by `#ifdef CATA_HARNESS`, cannot crash a path that already runs.
