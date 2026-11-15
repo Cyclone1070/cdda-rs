@@ -4353,8 +4353,7 @@ fn two_cars_that_meet_exchange_speed_and_damage() {
     let hp_before = |world: &World, car: Entity| {
         world
             .get::<cdda_sim::vehicles::Vehicle>(car)
-            .map(|built| built.parts.iter().map(|part| part.hp).sum::<i32>())
-            .unwrap_or(0)
+            .map_or(0, |built| built.parts.iter().map(|part| part.hp).sum())
     };
     let before = (hp_before(&world, mover), hp_before(&world, standing));
 
