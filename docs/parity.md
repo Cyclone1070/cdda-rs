@@ -36801,3 +36801,7 @@ deliberate: the moment the vehicle dump records `vpart_dens` per part, the same 
 dump used - and the loader reads it into `PartSpec::density`. A steel frame is 8, a glass windshield 2.5, and those are the two numbers the crash rows already
 needed. `dent_on_crash` is no longer a seam that returns early: a vehicle that stops against a wall now has a density to hand `crash_impulse`, which is the last
 piece the damage needed.
+
+**The seam does not fire yet.** A car driven into a wall at 1,000 vmiph stops, and no part loses a hit point: `dent_on_crash` is called with the part the collision
+blames, and either that part's `part_spec` does not resolve or its density is still `None` in the test's store. The next round prints those two values inside the
+seam rather than guessing which; the test that would have gated it is written in this round's log and comes back with the answer.
