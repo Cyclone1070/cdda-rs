@@ -4415,3 +4415,30 @@ fn safe_mode_asks_for_less_power_than_full() {
         "**safe mode asks for less: {safe} W against {full} W**"
     );
 }
+
+/// **A switched-off engine makes nothing.** The reference's `is_engine_on` (`vehicle.cpp:1061-1064`): an engine that is not enabled contributes no power, so safe power
+/// falls to zero when every engine is off.
+#[test]
+fn safe_power_needs_the_engine_switched_on() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+
+    let running = cdda_sim::vehicle_drive::safe_power_of(&world, car);
+    assert!(running > 0, "**running engines make {running} W**");
+
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        for part in &mut built.parts {
+            part.enabled = false;
+        }
+    }
+    assert_eq!(
+        cdda_sim::vehicle_drive::safe_power_of(&world, car),
+        0,
+        "**nothing on, nothing made**"
+    );
+}

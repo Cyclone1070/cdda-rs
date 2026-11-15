@@ -303,7 +303,13 @@ pub fn safe_power_of(world: &World, vehicle: Entity) -> i32 {
         let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
             continue;
         };
-        if let Some(m2c) = spec.m2c {
+        // **On only**: the reference's `is_engine_on` (`vehicle.cpp:1061-1064`) is `enabled && !removed && ENGINE`, and a switched-off engine makes nothing. The port
+        // reads the part's own `enabled` component; `removed` and the fuel test (`engine_fuel_left`) are not ported yet, and are named as gaps.
+        let switched_on = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(index))
+            .is_some_and(|part| part.enabled);
+        if let Some(m2c) = spec.m2c.filter(|_| switched_on) {
             engines.push((spec.power, m2c));
         }
     }

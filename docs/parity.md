@@ -37056,3 +37056,7 @@ which is the reference's `engine_info` filter without the pointer. The car's tot
 
 **Still open in the same function:** the reference also requires the engine to be **on** and to have **fuel** (`is_engine_on`, `engine_fuel_left`); the port counts every
 engine part it finds. That makes safe power an over-estimate for a car with its engine off, and it is the next rule in the chain.
+
+**An engine has to be switched on (round 88).** `safe_power_of` now skips any part whose `enabled` component is false, which is the reference's `is_engine_on`
+(`vehicle.cpp:1061-1064`) minus the two clauses the port cannot answer yet: `removed`, and `engine_fuel_left` - there are no fuel tanks holding contents and no removal
+flag on a part. With every switch off the safe total is zero; with them on it is positive.
