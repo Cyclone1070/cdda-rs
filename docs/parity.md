@@ -37027,3 +37027,7 @@ observable consequences - the parked car is shoved and one of them loses hit poi
 **Named as not yet ported:** the perpendicular component passes through the exchange untouched in the reference, the collision axis is the line between the two hulls rather
 than a single facing direction, `ARMOR` substitution is skipped, and the count of part pairs is taken as one. Each is a real difference from the rule, and each is written
 here rather than left to be discovered.
+
+**Mutation-checked.** Setting the share to zero leaves both cars at full hit points and `two_cars_that_meet_exchange_speed_and_damage` fails on exactly that assertion ("one
+of them loses hit points: 18033 and 18033 from 18033 and 18033"); restoring it passes. The speed exchange is unaffected by the mutation, which is right - the exchange and the
+damage are separate rules, and the test holds them apart.
