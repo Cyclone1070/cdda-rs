@@ -38,7 +38,17 @@ pub fn bash_square(
     strength: i32,
     silent: bool,
 ) -> Option<BashOutcome> {
+    eprintln!(
+        "BSQ at={at:?} table={}",
+        crate::mapsquare::table(world).is_some()
+    );
     let data = crate::mapsquare::table(world)?.0;
+    eprintln!(
+        "BSQ terrain_at={:?} name={:?}",
+        crate::square::terrain_at(world, at),
+        crate::square::terrain_at(world, at)
+            .and_then(|code| crate::terrain_types::name_of(world, code))
+    );
     let ground = crate::square::terrain_at(world, at)
         .and_then(|code| crate::terrain_types::name_of(world, code))?;
     let furniture = crate::square::furniture_at(world, at)

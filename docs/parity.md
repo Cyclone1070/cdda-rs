@@ -36943,3 +36943,8 @@ reaches. The next print goes **inside** `bash_square` at each of its four `?` op
 `(103, 99, 0)` - and the square is still `t_wall`, so nothing broke and nothing was damaged. Of its four `?` operators, three now have named counter-evidence; what is
 left is `square::terrain_at` answering for that square, which is the one thing not yet observed directly. The next print goes there, inside `bash_square`, and it
 names the answer in one run.
+
+**The table and the terrain are fine; the dice are the wall.** Printing `bash_square`'s steps: `table=true`, `terrain_at=Some(2)`, `name=Some("t_wall")` - both good,
+and the print after them never appears, so the function stops at `take_rolls`. A world with no dice makes `bash_square` answer `None` silently, which is correct
+behaviour but invisible: the print in the test that *did* install dice showed the same `None`, so the install either did not take or was consumed before the bash. The
+next step prints whether the dice are present **at that moment**, which distinguishes the two.
