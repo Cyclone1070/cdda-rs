@@ -315,3 +315,28 @@ pub fn safe_power_of(world: &World, vehicle: Entity) -> i32 {
     }
     safe_power(&engines)
 }
+
+/// Whether an engine has any fuel of the kind it wants.
+///
+/// Reference: `vehicle::engine_fuel_left` (`vehicle.cpp`), which is `fuel_left( vp.fuel_current() )` - and `fuel_current` answers the part's chosen fuel
+/// (`vehicle_part::ammo_pref`) when it has one, else the first of its `fuel_opts` that the vehicle actually holds. A tank with no charges holds nothing, so an engine
+/// fed from it is dry.
+#[must_use]
+pub fn engine_fuel_left(world: &World, vehicle: Entity, index: usize) -> bool {
+    let Some(part) = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+    else {
+        return false;
+    };
+    let preferred = part.fuel_preference.clone();
+    if !preferred.is_empty() {
+        return crate::vehicles::fuel_left(world, vehicle, &preferred) > 0;
+    }
+    let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
+        return false;
+    };
+    spec.fuel_opts
+        .iter()
+        .any(|fuel| crate::vehicles::fuel_left(world, vehicle, fuel) > 0)
+}

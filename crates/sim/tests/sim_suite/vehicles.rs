@@ -4442,3 +4442,47 @@ fn safe_power_needs_the_engine_switched_on() {
         "**nothing on, nothing made**"
     );
 }
+
+/// **An engine is dry until a tank holds its fuel.** Reference: `engine_fuel_left` asking `fuel_left` for the engine's own fuel. A car off the blueprint carries empty
+/// tanks, so its engines have nothing; filling the tank it feeds from makes them fuelled.
+#[test]
+fn an_engine_is_dry_until_a_tank_holds_its_fuel() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+
+    let engine = (0..world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .expect("a vehicle")
+        .parts
+        .len())
+        .find(|index| {
+            cdda_sim::vehicles::part_spec(&world, car, *index)
+                .is_some_and(|spec| !spec.fuel_opts.is_empty())
+        })
+        .expect("the car has an engine");
+    let fuel = cdda_sim::vehicles::part_spec(&world, car, engine)
+        .expect("a spec")
+        .fuel_opts
+        .first()
+        .cloned()
+        .expect("the engine names a fuel");
+
+    assert!(
+        !cdda_sim::vehicle_drive::engine_fuel_left(&world, car, engine),
+        "**a fresh car has empty tanks**"
+    );
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        let tank = built.parts.len() - 1;
+        built.parts[tank].fuel.clone_from(&fuel);
+        built.parts[tank].charges = 10;
+    }
+    assert!(
+        cdda_sim::vehicle_drive::engine_fuel_left(&world, car, engine),
+        "**ten charges of {fuel} feed it**"
+    );
+}

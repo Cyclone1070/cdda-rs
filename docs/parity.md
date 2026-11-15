@@ -37060,3 +37060,10 @@ engine part it finds. That makes safe power an over-estimate for a car with its 
 **An engine has to be switched on (round 88).** `safe_power_of` now skips any part whose `enabled` component is false, which is the reference's `is_engine_on`
 (`vehicle.cpp:1061-1064`) minus the two clauses the port cannot answer yet: `removed`, and `engine_fuel_left` - there are no fuel tanks holding contents and no removal
 flag on a part. With every switch off the safe total is zero; with them on it is positive.
+
+**An engine is dry until a tank holds its fuel (round 89).** `vehicle_drive::engine_fuel_left` is the reference's `engine_fuel_left`: the engine's chosen fuel if it has one
+(`fuel_preference`), otherwise the first of its `fuel_opts` the vehicle actually holds, asked of `vehicles::fuel_left`. A car off the blueprint has empty tanks and answers
+dry; ten charges of the engine's own fuel make it fuelled.
+
+**Not wired yet:** `safe_power` does not consult it, so safe power still counts a dry engine. Wiring it changes what every existing engine test means - a car off the
+blueprint would make no safe power at all - so it is a round of its own, with the fixture's fuel stated rather than assumed.
