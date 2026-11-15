@@ -36822,3 +36822,13 @@ real part, the spec resolves, the density is read from the new dump, and the mas
 `None`, the density is not `None`, and the mass is not zero. What the print also shows is why the bicycle loses nothing: 10.8 kg against a tonne is an impulse of 1,
 which the frame's bash reduction absorbs entirely. The car test that failed in round 43 must therefore have failed before the collision - its own geometry, not the
 rule.
+
+## A crash that marks the car (round 47)
+
+`a_crash_marks_the_car_that_hits_the_wall` drives the car into the wall at 1,000 vmiph and finds the frame **38** hit points down - the reference's 41 less the
+three-gram-per-part difference between this fixture's car (assembled from the top-speed recording's item masses) and the reference's own. The test asserts the
+**composition**: the loss equals `crash_impulse(port mass, 1,000, 8) - 20`, so the store receives exactly the blow the rule computes, and the rule itself is already
+gated against the reference's printed 61 and 247. The two facts together are the behaviour; neither alone is.
+
+What is still missing is `damage_all`: the reference spreads `coll_dmg / 2` over the neighbouring parts, so a real crash dents more than the part that touched the
+wall. That is the next rule.

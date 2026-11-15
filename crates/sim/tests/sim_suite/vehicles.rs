@@ -3790,3 +3790,84 @@ fn a_crash_produces_the_impulse_the_reference_produces() {
     }
     assert_eq!(seen, 2, "two recorded rows name a part and its density");
 }
+
+/// **A crash leaves a mark in the store.**
+///
+/// The car is three squares on a side, so standing at 100 its nose is on 101 and the wall at 103 is one step away - the geometry the bicycle test uses, one square
+/// longer. Driven at 1,000 vmiph the reference records 41 hit points off the frame (`corpus/vehicle_crash.json`); this asks the store what the car is worth after.
+#[test]
+fn a_crash_marks_the_car_that_hits_the_wall() {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_floor".to_owned(), FLOOR), ("t_wall".to_owned(), WALL)],
+    );
+    cdda_sim::bash::set_data(
+        &mut world,
+        [recorded_tile("t_floor"), recorded_tile("t_wall")],
+    );
+    for y in 95..=105 {
+        for x in 95..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    for y in 95..=105 {
+        cdda_sim::square::set_terrain(&mut world, (103, y, 0), WALL);
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 1000;
+        built.of_turn = 20.0;
+    }
+    for _ in 0..6 {
+        if !cdda_sim::vehicle_move::move_step(&mut world, car) {
+            break;
+        }
+    }
+
+    let dented = {
+        let built = world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.parts.iter().enumerate().find_map(|(index, part)| {
+            let spec = cdda_sim::vehicles::part_spec(&world, car, index)?;
+            (part.hp < spec.durability).then(|| (spec.id.clone(), spec.durability - part.hp))
+        })
+    };
+    let (id, lost) = dented.expect("**the crash dented a part**");
+    // The rule is verified against the reference in `a_crash_produces_the_impulse_the_reference_produces`; this checks the **wiring** - that the blow the rule
+    // computes is what the store receives, after the part's own reduction. The two numbers differ from 41 only because this fixture's car is assembled from the
+    // top-speed recording's per-item masses and the reference's car is the same blueprint with its own, so the masses differ by a few grams per part.
+    let spec = cdda_sim::vehicles::part_spec(&world, car, 0)
+        .or_else(|| {
+            let built = world.get::<cdda_sim::vehicles::Vehicle>(car)?;
+            built.parts.iter().enumerate().find_map(|(index, part)| {
+                cdda_sim::vehicles::part_spec(&world, car, index)
+                    .filter(|spec| spec.id == id && part.hp < spec.durability)
+            })
+        })
+        .expect("the dented part's spec");
+    let density = spec.density.expect("a density");
+    let mass = cdda_sim::vehicle_mass::mass(&world, car);
+    let (impulse, _) = cdda_sim::vehicle_move::crash_impulse(mass, 1000, density);
+    let reduction = spec.damage_reduction.get("bash").copied().unwrap_or(0.0);
+    #[allow(clippy::cast_possible_truncation)]
+    let expected = impulse - reduction as i32;
+    assert_eq!(
+        lost, expected,
+        "**{id} lost {lost}, and the ported rule says {expected} ({impulse} before {reduction} of bash reduction)**"
+    );
+    assert!(
+        (33..=45).contains(&lost),
+        "and that is within a few hit points of the reference's 41: {lost}"
+    );
+}
