@@ -395,6 +395,41 @@ pub fn move_step_with_rolls(
     // what a part would hit - and `map::move_vehicle` calls `veh.stop()` when a collision leaves the vehicle unable to move (`map.cpp:948-950`): the square is
     // never entered and the speed is gone. Smashing the obstacle, the damage the crash does and the bounce off another vehicle are the collision rounds that
     // follow; this one only refuses to drive through.
+    // **Two vehicles**: the map's arm (`map.cpp:1075-1200`). Speeds exchange along the line between the two hulls, the lost energy becomes damage, and each side's parts
+    // take half of it. Perpendicular components and the ARMOR substitution are not ported yet and are named in `docs/parity.md`.
+    if let Some(crate::vehicles::Collision::Vehicle {
+        part,
+        target,
+        target_part,
+    }) = crate::vehicles::first_collision(world, vehicle, step)
+    {
+        let mine = world.get::<crate::vehicles::Vehicle>(vehicle);
+        let theirs = world.get::<crate::vehicles::Vehicle>(target);
+        if let (Some(mine), Some(theirs)) = (mine, theirs) {
+            let (v1, v2) = (f64::from(mine.velocity), f64::from(theirs.velocity));
+            #[allow(clippy::cast_precision_loss)]
+            let (m1, m2) = (
+                crate::vehicle_mass::mass(world, vehicle) as f64,
+                crate::vehicle_mass::mass(world, target) as f64,
+            );
+            // The reference measures the difference in miles an hour: `get_collision_factor( vel1_y/100 - vel2_y/100 )`.
+            let e = collision_factor((v1 - v2) / 100.0);
+            let (a1, a2) = exchanged(m1, v1, m2, v2, e);
+            let damage = collision_damage(m1, v1, m2, v2, e);
+            let share = collision_share(damage, 1);
+            #[allow(clippy::cast_possible_truncation)]
+            let settled = (a1.round() as i32, a2.round() as i32);
+            if let Some(mut state) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+                state.velocity = settled.0;
+            }
+            if let Some(mut state) = world.get_mut::<crate::vehicles::Vehicle>(target) {
+                state.velocity = settled.1;
+            }
+            crate::vehicles::damage(world, vehicle, part, share, "bash", false);
+            crate::vehicles::damage(world, target, target_part, share, "bash", false);
+        }
+        return true;
+    }
     if let Some(crate::vehicles::Collision::Terrain {
         part,
         square,

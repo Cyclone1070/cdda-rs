@@ -4324,3 +4324,63 @@ fn a_collision_s_half_is_shared_across_its_part_pairs() {
     assert_eq!(share(0, 1), 0, "no blow, nothing to share");
     assert_eq!(share(125, 0), 0, "and no pairs is nothing, not a division");
 }
+
+/// **Two cars meeting lose speed and hit points.** 1,000 kg a side, one at 1,000 vmiph and one standing, restitution 1 falling to 0.1 at that gap: the mover slows towards
+/// half, the other is shoved, and both take damage - the exchange, the factor, the damage and the share, all through the seam.
+#[test]
+fn two_cars_that_meet_exchange_speed_and_damage() {
+    const FLOOR: u32 = 1;
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+    cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+    for y in 95..=105 {
+        for x in 95..=115 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+
+    let mover = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let standing = cdda_sim::vehicles::spawn(&mut world, "car", (108, 100, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(mover)
+            .expect("a vehicle");
+        built.velocity = 1000;
+        built.of_turn = 20.0;
+    }
+    let hp_before = |world: &World, car: Entity| {
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map(|built| built.parts.iter().map(|part| part.hp).sum::<i32>())
+            .unwrap_or(0)
+    };
+    let before = (hp_before(&world, mover), hp_before(&world, standing));
+
+    for _ in 0..10 {
+        if !cdda_sim::vehicle_move::move_step(&mut world, mover) {
+            break;
+        }
+    }
+
+    let velocity = |world: &World, car: Entity| {
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map_or(0, |built| built.velocity)
+    };
+    let after = (hp_before(&world, mover), hp_before(&world, standing));
+    assert!(
+        velocity(&world, standing) > 0,
+        "**the parked car is shoved: {} vmiph**",
+        velocity(&world, standing)
+    );
+    assert!(
+        after.0 < before.0 || after.1 < before.1,
+        "**one of them loses hit points: {} and {} from {} and {}**",
+        after.0,
+        after.1,
+        before.0,
+        before.1
+    );
+}

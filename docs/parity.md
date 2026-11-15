@@ -37017,3 +37017,13 @@ own form. What is still missing before the collision can be wired is the perpend
 **The blow is shared out.** `vehicle_move::collision_share` is `map.cpp:1157-1169`: half the damage, divided by the number of colliding part pairs, truncated - 125 over one
 pair is 62, over three pairs it is 20 each, so one blow across three pairs lands on six parts. Zero pairs answers nothing rather than dividing by zero. The remaining piece
 before the seam can be wired is the `ARMOR` substitution: each colliding part is replaced by an ARMOR part on its mount when it has one.
+
+## Two vehicles collide (round 83)
+
+`move_step` now handles `Collision::Vehicle`: it reads both hulls' velocities and masses, takes the restitution from the speed difference in miles an hour, exchanges the
+speeds along the line between them, turns the lost energy into damage, and gives each side's part half of it. `two_cars_that_meet_exchange_speed_and_damage` checks the
+observable consequences - the parked car is shoved and one of them loses hit points - rather than the intermediate numbers, which have their own gates.
+
+**Named as not yet ported:** the perpendicular component passes through the exchange untouched in the reference, the collision axis is the line between the two hulls rather
+than a single facing direction, `ARMOR` substitution is skipped, and the count of part pairs is taken as one. Each is a real difference from the rule, and each is written
+here rather than left to be discovered.
