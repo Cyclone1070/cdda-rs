@@ -36832,3 +36832,12 @@ gated against the reference's printed 61 and 247. The two facts together are the
 
 What is still missing is `damage_all`: the reference spreads `coll_dmg / 2` over the neighbouring parts, so a real crash dents more than the part that touched the
 wall. That is the next rule.
+
+**`damage_all` is a random spread, and that changes how it is gated.** The reference's loop (`vehicle.cpp:7663-7690`):
+
+- `dmg1`/`dmg2` are swapped into order, and nothing happens below 1;
+- for **every** part, `distance = 1 + square_dist( vp.mount, impact )`, and each part further than one square takes `rng( dmg1, dmg2 ) / ( distance * distance )`;
+- a part that is not structure and not a `PROTRUSION` has its damage cut by any `SHOCK_ABSORBER` on the same mount (`bonus` points), floored at zero;
+- each hit goes through `damage_direct`.
+
+So the spread is **random** and the recording cannot pin it row by row the way the impulse could. Two ways to gate it, and the port must pick one explicitly: give the harness a fixed world seed and record the damage each part takes, or port it as a deterministic sum (the expectation) and say so. The first is a real gate; the second is a weaker one and belongs in `parity.md` as weaker if it is chosen.
