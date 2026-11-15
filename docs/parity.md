@@ -36928,3 +36928,8 @@ damage it broke. The vehicle side and the map side of a collision are one path n
 **Not yet gated by a test of its own**: the existing wall tests assert that the car stops and dents, and the prediction test asserts the comparison the branch makes,
 but nothing drives a car into a wall whose `str_min` the port's fixture actually records and checks the terrain changed. The fixtures' tiles carry placeholder blocks,
 so that gate needs the bash-block dump - the same one still owed for the tiles the crash tests use.
+
+**The obstacle branch runs and changes nothing, so far.** With dice installed (`put_rolls`) and a wall whose `str_min` is 10, a car at 2,000 leaves the square with no
+bash damage and the same terrain. The part damage proves the seam is reached with a real impulse and density; so the gap is inside `bash_square`'s read of the square,
+its decision, or the identity of the square the collision reports. The next step prints that square and the `BashOutcome` it returns, rather than another hypothesis -
+the round that answered the impulse question in one run.
