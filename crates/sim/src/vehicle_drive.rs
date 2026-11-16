@@ -639,3 +639,44 @@ pub fn engine_strain(strain: f64) -> i32 {
     let combined = (strain * strain * 100.0) as i32;
     combined.min(25)
 }
+
+/// Wears the engines a vehicle has been straining, drawing the dice the reference draws.
+///
+/// Reference: `do_engine_damage` (`vehicle.cpp:6031-6044`) - for each engine that is **on**, **fuelled** and **not perpetual**, a `rng( 1, 100 ) < strain` decides whether this
+/// step hurts it, and `rng( 0, strain * 4 )` how much. The dice are the caller's, because the turn owns one stream and a rule that reached for its own would make the same
+/// seed answer differently depending on what ran before it.
+pub fn wear_engines(
+    world: &mut World,
+    vehicle: Entity,
+    strain: f64,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let combined = engine_strain(strain);
+    if combined <= 0 {
+        return;
+    }
+    let count = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    for index in 0..count {
+        let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
+            continue;
+        };
+        if spec.fuel_opts.is_empty() || !engine_fuel_left(world, vehicle, index) {
+            continue;
+        }
+        let perpetual = spec.fuel_opts.iter().any(|fuel| {
+            crate::item_registry::kind_by_name(world, fuel)
+                .is_some_and(|kind| crate::item_registry::kind_has_flag(world, kind, "PERPETUAL"))
+        });
+        if perpetual {
+            continue;
+        }
+        if rolls.rng(1, 100) < combined {
+            let damage = rolls.rng(0, combined * 4);
+            if damage > 0 {
+                crate::vehicles::damage(world, vehicle, index, damage, "bash", false);
+            }
+        }
+    }
+}

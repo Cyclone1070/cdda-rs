@@ -37280,3 +37280,11 @@ in a turn.
 
 **The damage roll itself is not ported:** `do_engine_damage` then draws `rng(1,100) < strain` to decide whether an engine is hurt this turn, and `rng(0, strain*4)` for how
 much. Those are dice, and the port's dice belong to the turn, so the roll belongs with the caller that owns the stream rather than inside this function.
+
+**The wear roll, drawn from the caller's dice (round 114).** `vehicle_drive::wear_engines` is `do_engine_damage` (`vehicle.cpp:6031-6044`): for each engine that is **on**,
+**fuelled** and **not perpetual**, `rng(1,100) < strain` decides whether the step hurts it and `rng(0, strain*4)` how much. The dice arrive as an argument, because the turn
+owns one stream and a rule that reached for its own would make the same seed answer differently depending on what ran before it.
+
+Gated two ways on the same seeded stream: 200 draws at zero strain leave every hit point in place, 200 at full strain wear the engines down.
+
+**Not yet called from the drive step:** `thrust` has no stream to hand it. The caller that does - `move_step_with_rolls` - is the seam, and that is the next cut.

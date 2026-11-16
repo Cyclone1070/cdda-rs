@@ -4949,3 +4949,39 @@ fn engine_strain_is_the_square_capped_at_twenty_five() {
         "**and the top of the band is capped there too**"
     );
 }
+
+/// **Strain wears engines, and no strain wears nothing.** Reference: `do_engine_damage` (`vehicle.cpp:6031-6044`) - a `rng(1,100) < strain` decides whether an engine is hurt
+/// this step. At zero strain the dice never matter; at full strain they do, over enough draws.
+#[test]
+fn strain_wears_engines_and_no_strain_does_not() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+
+    let engine_hp = |world: &World| {
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map_or(0, |built| {
+                built.parts.iter().map(|part| part.hp).sum::<i32>()
+            })
+    };
+    let before = engine_hp(&world);
+
+    let mut calm = cdda_core_types::rng::Rolls::new(7);
+    for _ in 0..200 {
+        cdda_sim::vehicle_drive::wear_engines(&mut world, car, 0.0, &mut calm);
+    }
+    assert_eq!(engine_hp(&world), before, "**no strain, no wear**");
+
+    let mut strained = cdda_core_types::rng::Rolls::new(7);
+    for _ in 0..200 {
+        cdda_sim::vehicle_drive::wear_engines(&mut world, car, 1.0, &mut strained);
+    }
+    assert!(
+        engine_hp(&world) < before,
+        "**full strain wears it down: {before} hit points became {}**",
+        engine_hp(&world)
+    );
+}
