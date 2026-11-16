@@ -4544,3 +4544,26 @@ fn strain_is_zero_inside_the_safe_band_and_one_at_the_top() {
         "**a maximum of 500 does not divide by zero**"
     );
 }
+
+/// **Engines burning the same fuel add up; different fuels stay apart.** Reference: `vehicle::fuel_usage` (`vehicle.cpp:5196-5207`) - one entry per fuel, the sum of the
+/// running engines that burn it. An engine with no fuel named, or one that draws nothing, contributes nothing.
+#[test]
+fn engines_burning_the_same_fuel_add_up() {
+    let usage = cdda_sim::vehicle_drive::fuel_usage;
+    let diesel = "diesel".to_owned();
+    let gasoline = "gasoline".to_owned();
+    let sum = usage(&[(diesel.clone(), 559_500), (diesel.clone(), 100_000)]);
+    assert_eq!(
+        sum.get(&diesel),
+        Some(&659_500),
+        "**one fuel, both engines**"
+    );
+    assert_eq!(sum.len(), 1, "and no second entry");
+    let split = usage(&[(diesel.clone(), 559_500), (gasoline.clone(), 250_000)]);
+    assert_eq!(split.get(&diesel), Some(&559_500), "diesel keeps its own");
+    assert_eq!(split.get(&gasoline), Some(&250_000), "and gasoline its own");
+    assert!(
+        usage(&[(String::new(), 500), (diesel, 0)]).is_empty(),
+        "nothing named, nothing drawn"
+    );
+}

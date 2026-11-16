@@ -364,3 +364,21 @@ pub fn strain(velocity: i32, safe: i32, maximum: i32) -> f64 {
     }
     f64::from(velocity.abs() - safe_speed) / f64::from(fastest - safe_speed)
 }
+
+/// What a vehicle burns per fuel type, in watts, from the engines that are running.
+///
+/// Reference: `vehicle::fuel_usage` (`vehicle.cpp:5196-5207`) - for every engine, the fuel it currently burns (`fuel_current`) collects that engine's
+/// `energy_consumption`. Perpetual engines - muscle, wind, sunlight - are skipped by `is_perpetual_type` (`vehicle.cpp:5189-5195`), because they burn nothing.
+///
+/// Takes `(fuel, watts)` pairs rather than a vehicle, so the rule is arithmetic: the caller decides which engines are running, this sums them by fuel.
+#[must_use]
+pub fn fuel_usage(engines: &[(String, i32)]) -> std::collections::BTreeMap<String, i32> {
+    let mut usage = std::collections::BTreeMap::new();
+    for (fuel, watts) in engines {
+        if fuel.is_empty() || *watts <= 0 {
+            continue;
+        }
+        *usage.entry(fuel.clone()).or_insert(0) += watts;
+    }
+    usage
+}

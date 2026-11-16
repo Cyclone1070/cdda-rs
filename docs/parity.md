@@ -37146,3 +37146,9 @@ backwards, halfway, at the top, and on the guard.
 
 **With this and round 97, every input `consume_fuel` needs exists**: `fuel_usage` per fuel, the joules in a charge, the remainder rule and `strain`. What is left is the
 rule itself - `fuel_usage` → `drain_energy` → `consume_fuel`, in that order, each gated on its own numbers.
+
+**Fuel usage, ported (round 99).** `vehicle_drive::fuel_usage` is `vehicle::fuel_usage` (`vehicle.cpp:5196-5207`): one entry per fuel, the sum of the `energy_consumption` of
+the running engines that burn it. It takes `(fuel, watts)` pairs rather than a vehicle, because the rule is arithmetic - the caller decides which engines are running, the
+function adds. Gated on two engines sharing a fuel (659,500 W), two fuels staying apart, and an engine with no fuel or no draw contributing nothing.
+
+**Named:** the reference's `is_perpetual_type` skip (muscle, wind, sunlight) is not ported; the store side will have to know a perpetual engine burns nothing.
