@@ -382,3 +382,39 @@ pub fn fuel_usage(engines: &[(String, i32)]) -> std::collections::BTreeMap<Strin
     }
     usage
 }
+
+/// Burns fuel until it has given `wanted_j`, answering the energy it actually gave.
+///
+/// Reference: `vehicle::drain_energy` (`vehicle.cpp:5209-5224`) walks **every** part and lets each take what it can of the fuel asked for, stopping when the want is
+/// met. It works in energy, not charges, so a part can give up a charge's worth or part of one; the port's tanks hold whole charges, so it takes them whole and reports
+/// the energy those charges held - the same walk, with the granularity the store actually has.
+#[must_use]
+pub fn drain_energy(
+    tanks: &mut [(String, i32)],
+    fuel: &str,
+    per_charge_j: f64,
+    wanted_j: f64,
+) -> f64 {
+    if per_charge_j <= 0.0 || wanted_j <= 0.0 {
+        return 0.0;
+    }
+    let mut given = 0.0;
+    for (kind, charges) in tanks.iter_mut() {
+        if *charges <= 0 || kind != fuel {
+            continue;
+        }
+        let needed = (wanted_j - given) / per_charge_j;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let whole = needed.ceil() as i32;
+        let taken = whole.min(*charges);
+        *charges -= taken;
+        #[allow(clippy::cast_precision_loss)]
+        {
+            given += f64::from(taken) * per_charge_j;
+        }
+        if given >= wanted_j {
+            break;
+        }
+    }
+    given
+}

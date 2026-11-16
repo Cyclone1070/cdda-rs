@@ -4567,3 +4567,25 @@ fn engines_burning_the_same_fuel_add_up() {
         "nothing named, nothing drawn"
     );
 }
+
+/// **Draining stops when the want is met, and takes whole charges.** Reference: `vehicle::drain_energy` (`vehicle.cpp:5209-5224`) - a walk over the parts that stops once
+/// the energy wanted has been given. Diesel holds 28,640 J a charge, so 30,000 J takes two charges (57,280 J) and leaves three of the five; a tank of another fuel is not
+/// touched.
+#[test]
+fn draining_takes_whole_charges_of_the_fuel_asked_for() {
+    let diesel = "diesel".to_owned();
+    let gasoline = "gasoline".to_owned();
+    let mut tanks = [(diesel.clone(), 5), (gasoline.clone(), 5)];
+    let given = cdda_sim::vehicle_drive::drain_energy(&mut tanks, &diesel, 28_640.0, 30_000.0);
+    assert!(
+        (given - 57_280.0).abs() < 1e-6,
+        "**two charges is 57,280 J: {given}**"
+    );
+    assert_eq!(tanks[0].1, 3, "three charges left in the diesel tank");
+    assert_eq!(tanks[1].1, 5, "and the gasoline tank is untouched");
+    let mut empty = [(diesel.clone(), 0)];
+    assert!(
+        cdda_sim::vehicle_drive::drain_energy(&mut empty, &diesel, 28_640.0, 1_000.0).abs() < 1e-9,
+        "an empty tank gives nothing"
+    );
+}

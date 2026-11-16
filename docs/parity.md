@@ -37152,3 +37152,10 @@ the running engines that burn it. It takes `(fuel, watts)` pairs rather than a v
 function adds. Gated on two engines sharing a fuel (659,500 W), two fuels staying apart, and an engine with no fuel or no draw contributing nothing.
 
 **Named:** the reference's `is_perpetual_type` skip (muscle, wind, sunlight) is not ported; the store side will have to know a perpetual engine burns nothing.
+
+**Draining, ported (round 100).** `vehicle_drive::drain_energy` is `vehicle::drain_energy` (`vehicle.cpp:5209-5224`): walk the tanks, take what the fuel asked for can give,
+stop when the want is met, answer what was actually given. Diesel at 28,640 J a charge: 30,000 J wanted takes two charges and gives 57,280 J, leaving three of five, and
+a tank of a different fuel is untouched.
+
+**Named difference:** the reference works in energy, so a part can give up part of a charge; the port's tanks hold whole charges, so it takes them whole. That is the
+granularity the store has, not a rounding convenience - when tanks carry millilitres the function can give the reference's finer answer.
