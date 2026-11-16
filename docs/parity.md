@@ -37257,3 +37257,17 @@ where the reference has the player's hand on the pedal.
 
 Gated on full, half, none, braking above and below the brake's share, and the no-acceleration-figure case. **Still not wired:** `thrust` does not call it yet, so the load
 reaches the fuel rule only when something asks.
+
+## Driving burns fuel (round 112)
+
+The seam is cut: `vehicle_move::thrust` computes the load from the increment it is about to make and burns it through `burn_fuel` before it writes the new velocity - which is
+where the reference spends it too (`vehicle_move.cpp:587`, inside `vehicle::thrust`).
+
+**Two things the failing test taught, both real:**
+
+1. *A car only burns when it is being driven somewhere.* The load is the share of the **increment towards the cruise velocity**, so a car with `cruise_velocity = 0` asks for
+   nothing and burns nothing - the reference's own behaviour, which the first version of the test read as a bug. The test now sets a cruise velocity, as a driver would.
+2. The probe printed `load=0 usage={"gasoline": 311000}`, which named both facts in one run: the demand was real (311,000 W of gasoline) and the load was the zero. Guessing
+   between "no demand" and "no load" would have cost two more rounds.
+
+Gated end to end: five thrusts spend charges on a fuelled car.

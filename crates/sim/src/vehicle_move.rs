@@ -192,6 +192,13 @@ pub fn thrust(world: &mut World, vehicle: Entity, direction: i32) -> bool {
         battery_engine,
     };
     let next = thrust_velocity(&inputs);
+    // **The engine's work is what it costs in fuel**, and the reference spends it right here (`vehicle_move.cpp:587`): the load this step asked for, plus whatever the
+    // alternator drew, burned through the tanks. The alternator load is not ported, so it is zero here rather than a guess.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let accel = (acceleration as f32 * inputs.traction) as i32;
+    let vel_inc = next - velocity;
+    let load = drive_load(vel_inc, accel, 20 * 100, inputs.direction * vel_inc > 0);
+    crate::vehicle_drive::burn_fuel(world, vehicle, load);
     if next == velocity {
         return false;
     }

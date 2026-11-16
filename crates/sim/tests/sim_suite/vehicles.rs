@@ -4888,3 +4888,50 @@ fn the_drive_load_is_the_share_of_acceleration_the_engine_supplies() {
         "no acceleration figure, full load"
     );
 }
+
+/// **Driving burns fuel.** The seam the whole chain was built for: a fuelled car that is told to go spends charges as it does, and a car with no engine demand does not.
+#[test]
+fn driving_a_car_burns_its_fuel() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+    let fuel = {
+        let count = world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map_or(0, |built| built.parts.len());
+        (0..count)
+            .filter_map(|index| cdda_sim::vehicles::part_spec(&world, car, index))
+            .find_map(|spec| spec.fuel_opts.first().cloned())
+            .expect("the car names a fuel")
+    };
+    cdda_sim::vehicle_drive::set_fuel_energies(&mut world, &[(fuel, 28_640.0)]);
+    // **A car only drives when it is told where to go**: the load comes from the increment towards the cruise velocity, so a car with none would ask for nothing and burn
+    // nothing - which is the reference's own behaviour, not a gap.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.cruise_velocity = 1_000;
+    }
+    let charges = |world: &World| {
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map_or(0, |built| {
+                built.parts.iter().map(|part| part.charges).sum::<i32>()
+            })
+    };
+    let before = charges(&world);
+    assert!(before > 0, "**the car starts fuelled: {before} charges**");
+
+    for _ in 0..5 {
+        cdda_sim::vehicle_move::thrust(&mut world, car, 1);
+    }
+
+    let after = charges(&world);
+    assert!(
+        after < before,
+        "**driving spends fuel: {before} charges became {after}**"
+    );
+}
