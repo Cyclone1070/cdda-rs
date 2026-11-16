@@ -4647,3 +4647,37 @@ fn a_turn_burns_what_it_needs_and_carries_the_fraction_forward() {
         "and 500 J comes off it: {left}"
     );
 }
+
+/// **A fuelled, switched-on engine is what asks for fuel.** The store half of `fuel_usage`: the car's engine contributes its own draw under its own fuel, and switching it
+/// off takes the demand away entirely.
+#[test]
+fn a_running_engine_is_what_asks_for_fuel() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+
+    let usage = cdda_sim::vehicle_drive::fuel_usage_of(&world, car);
+    assert!(
+        !usage.is_empty(),
+        "**a fuelled car with its engines on asks for something**"
+    );
+    assert!(
+        usage.values().all(|watts| *watts > 0),
+        "and every demand is a real draw: {usage:?}"
+    );
+
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        for part in &mut built.parts {
+            part.enabled = false;
+        }
+    }
+    assert!(
+        cdda_sim::vehicle_drive::fuel_usage_of(&world, car).is_empty(),
+        "everything off, nothing asked for"
+    );
+}

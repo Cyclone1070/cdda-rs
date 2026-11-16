@@ -457,3 +457,38 @@ pub fn consume_fuel(
     }
     carried
 }
+
+/// What a vehicle's running engines ask for, per fuel, read from the store.
+///
+/// The store half of [`fuel_usage`]: an engine contributes when it is **on** and **fuelled** (`is_engine_on` and `engine_fuel_left`), burns the fuel it chose or the first
+/// of its options, and asks for its `energy_consumption_w`. A part with no fuel options is not an engine and contributes nothing.
+#[must_use]
+pub fn fuel_usage_of(world: &World, vehicle: Entity) -> std::collections::BTreeMap<String, i32> {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return std::collections::BTreeMap::new();
+    };
+    let count = built.parts.len();
+    let mut engines = Vec::new();
+    for index in 0..count {
+        let Some(part) = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(index))
+        else {
+            continue;
+        };
+        if !part.enabled || !engine_fuel_left(world, vehicle, index) {
+            continue;
+        }
+        let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
+            continue;
+        };
+        let fuel = if part.fuel_preference.is_empty() {
+            spec.fuel_opts.first().cloned()
+        } else {
+            Some(part.fuel_preference.clone())
+        };
+        let Some(fuel) = fuel else { continue };
+        engines.push((fuel, spec.energy_consumption_w));
+    }
+    fuel_usage(&engines)
+}

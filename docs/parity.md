@@ -37177,3 +37177,10 @@ no charge, leaving 27,640 J. That carry is why a car does not lose fuel to round
 
 **Still not wired to a vehicle:** no system calls it yet, `load` is the caller's to supply, and `is_perpetual_type` is unported, so a muscle or wind engine would be counted
 as burning. Each is named rather than assumed.
+
+**The store asks for fuel now (round 103).** `vehicle_drive::fuel_usage_of` is the store half of `fuel_usage`: a part contributes only when it is **on** and **fuelled**, burns
+the fuel it chose (`fuel_preference`) or the first of its options, and asks for its `energy_consumption_w`. A car with its engines off asks for nothing, and every demand the
+car does make is a real draw.
+
+**Still open in this function:** the reference skips perpetual engines (muscle, wind, sunlight) through `is_perpetual_type`; the port has no such filter, so a muscle engine
+would be counted. That is the last named gap before `consume_fuel` can be driven from a turn.
