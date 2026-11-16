@@ -37419,3 +37419,12 @@ press of 500 leaves 500 in the store **after `run_turn`**.
 
 The red half was watched first: the test failed with `left: 0, right: 500` before the stage called the system, which is the only evidence that it tests the schedule rather
 than the function.
+
+**The steering press reaches the wheels (round 127).** `vehicle_move::Wheels` carries `vehicle::turn_dir`: the wheel direction in degrees, always a multiple of the 15 degree
+increment, a component because most vehicles never set one. `apply_controls` now applies the `steer` half through `steered_direction`, so a press of 23 degrees leaves the
+wheels at 30 - the press the previous round counted and dropped is applied.
+
+TDD order: the test failed to **compile** first (`wheel_direction` did not exist), which is a red of a kind worth naming - a missing function is not a passing test.
+
+**Still not ported:** turning the hull. The reference's `face` follows `turn_dir` through the map's direction and the pivot sweep, and that sweep moves every part through the
+index - the one vehicle behaviour with no ported rule yet.

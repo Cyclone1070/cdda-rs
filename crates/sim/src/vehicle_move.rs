@@ -903,8 +903,32 @@ pub fn apply_controls(world: &mut World) -> usize {
             heard += 1;
         }
         if controls.steer != 0 {
+            let velocity = world
+                .get::<crate::vehicles::Vehicle>(vehicle)
+                .map_or(0, |built| built.velocity);
+            let current = wheel_direction(world, vehicle);
+            let next = steered_direction(current, controls.steer, velocity);
+            world.entity_mut(vehicle).insert(Wheels { turn_dir: next });
             heard += 1;
         }
     }
     heard
+}
+
+/// Where a vehicle's wheels point, in degrees from forward.
+///
+/// Reference: `vehicle::turn_dir` (`vehicle.h`) - kept beside the hull's facing because **the wheel turns before the hull does**, and the steering rule rounds it to a multiple
+/// of `steer_increment`. It is a component rather than a field on [`crate::vehicles::Vehicle`] because most vehicles never have one set.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, bevy_ecs::component::Component)]
+pub struct Wheels {
+    /// The wheel direction in degrees, always a multiple of [`STEER_INCREMENT_DEGREES`].
+    pub turn_dir: i32,
+}
+
+/// Where a vehicle's wheels point, reading zero when they have never been turned.
+#[must_use]
+pub fn wheel_direction(world: &bevy_ecs::world::World, vehicle: Entity) -> i32 {
+    world
+        .get::<Wheels>(vehicle)
+        .map_or(0, |wheels| wheels.turn_dir)
 }
