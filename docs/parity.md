@@ -37522,3 +37522,9 @@ moving" rule to port here; the facing changes because the *next* precalc used th
 
 **What is still missing, named precisely:** which call site sets `vehicle::face` from `turn_dir` during movement. That is what the next round reads - one grep in
 `map::move_vehicle`'s body - rather than another guess about a function whose body is now known.
+
+**Which way the hull faces after a step (round 136).** `vehicle_move::facing_after_move` is `map::move_vehicle`'s acceptance (`map.cpp:934-939`): on a successful move
+`veh.face = facing` - the direction the step travelled - and only a **skidding** vehicle takes `turn_dir` instead, because a skid carries the hull where the wheels point rather
+than where the driver aimed it. That closes the question round 135 left open: the hull's facing follows the **step**, not the wheel, except in a skid.
+
+Gated on both halves and on the case that separates them: not skidding ignores the wheels (0 vs 270), skidding takes them (90).

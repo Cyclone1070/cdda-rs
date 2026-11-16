@@ -942,3 +942,17 @@ pub fn wheel_direction(world: &bevy_ecs::world::World, vehicle: Entity) -> i32 {
 pub fn is_diagonal_turn(degrees: i32) -> bool {
     degrees.rem_euclid(360) % 90 == 45
 }
+
+/// Which way a vehicle faces once its step has been accepted.
+///
+/// Reference: `map::move_vehicle` (`map.cpp:934-939`): on a successful move `veh.face = facing` - the direction the step travelled - and only a **skidding** vehicle takes
+/// `veh.turn_dir` instead, because a skid carries the hull where the wheels point rather than where the driver aimed it. Both numbers are headings in degrees, normalised,
+/// and the answer is the heading the hull now has.
+#[must_use]
+pub fn facing_after_move(skidding: bool, turn_dir: i32, travel_dir: i32) -> i32 {
+    if skidding {
+        turn_dir.rem_euclid(360)
+    } else {
+        travel_dir.rem_euclid(360)
+    }
+}

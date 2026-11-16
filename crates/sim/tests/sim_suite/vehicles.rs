@@ -5476,3 +5476,17 @@ fn a_diagonal_turn_is_one_between_the_axes() {
     );
     assert!(diagonal(-45), "the rule holds in reverse too");
 }
+
+/// **A moving vehicle faces where it went; a skidding one faces where its wheels point.** Reference: `map::move_vehicle` (`map.cpp:934-939`) - on a successful move the
+/// facing becomes the travel direction, unless the vehicle is skidding, in which case it takes `turn_dir`.
+#[test]
+fn a_moving_vehicle_faces_where_it_went() {
+    let facing = cdda_sim::vehicle_move::facing_after_move;
+    assert_eq!(
+        facing(false, 90, 0),
+        0,
+        "**not skidding: the facing follows the step**"
+    );
+    assert_eq!(facing(false, 90, 270), 270, "and ignores the wheels");
+    assert_eq!(facing(true, 90, 0), 90, "**skidding: the wheels decide**");
+}
