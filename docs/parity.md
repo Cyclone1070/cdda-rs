@@ -37341,3 +37341,18 @@ Gated on both halves: a parked car with its engine on idles and spends fuel; the
 
 **What the failing test caught:** my first version set the cruise without seating a driver, and the pass still burned - correctly, because the rule needs a driver *and* a
 cruise. The test now seats one on the `CONTROLS` part, and says in a comment that a car with no such part cannot be driven at all.
+
+## Vehicles take their turn (round 120)
+
+`TurnStage::Vehicles` sits between `Falling` and `Fields`, which is where the reference runs it: `do_turn.cpp:653-655` calls `m.process_falling()`, then `m.vehmove()`, then
+`m.process_fields()` - a vehicle moves **after** the ground settles under it and **before** the fields it sits in act. The stage runs `idle_vehicles`, so a car nobody is
+driving burns its idle fuel every turn, at the 1% floor, while a car being driven burns in its own thrust step.
+
+**Three mistakes this round made, each caught by a gate rather than by reading:**
+
+1. The test file `turn.rs` is **not in the suite's module list**, so the first test written there was never compiled - it passed by not existing. Moved into `turn_schedule.rs`,
+   where the existing order tests live, and the dead file deleted.
+2. `stage_order()` was added as a second order list beside `TurnStage::order()`, which already existed. Deleted; `order()` grew to eight entries.
+3. The hand-written order test is the one that noticed the new stage at all: it is written out by hand **because** that is the assertion a reordering has to break.
+
+The order list and the schedule are still one source: `STAGES` feeds both the schedule and the trace, and `TurnStage::order()` is the declared order the tests pin.

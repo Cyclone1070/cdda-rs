@@ -34,6 +34,8 @@ fn the_declared_order_is_the_one_the_reference_names() {
             // made it.
             TurnStage::Sounds,
             TurnStage::Falling,
+            // Vehicles move after the ground has settled under them and before the fields act: `do_turn.cpp:653-655` runs `process_falling`, `vehmove`, `process_fields`.
+            TurnStage::Vehicles,
             TurnStage::Fields,
             TurnStage::Creatures,
             TurnStage::Light,
@@ -57,5 +59,28 @@ fn a_turn_does_not_rebuild_its_schedule() {
         cdda_sim::turn::schedules_built(),
         after_first,
         "**five more turns built no more schedules**"
+    );
+}
+
+/// **Vehicles take their turn between the falling ground and the fields.** Reference: `do_turn.cpp:653-655` runs `process_falling`, then `vehmove`, then `process_fields`.
+#[test]
+fn the_vehicles_take_their_turn_between_falling_and_fields() {
+    let order = TurnStage::order();
+    let falling = order
+        .iter()
+        .position(|stage| *stage == cdda_sim::turn::TurnStage::Falling)
+        .expect("falling runs");
+    let vehicles = order
+        .iter()
+        .position(|stage| *stage == cdda_sim::turn::TurnStage::Vehicles)
+        .expect("**the vehicles have a stage of their own**");
+    let fields = order
+        .iter()
+        .position(|stage| *stage == cdda_sim::turn::TurnStage::Fields)
+        .expect("fields run");
+    assert!(falling < vehicles, "**the ground settles first**");
+    assert!(
+        vehicles < fields,
+        "**and the fields act after the vehicles**"
     );
 }

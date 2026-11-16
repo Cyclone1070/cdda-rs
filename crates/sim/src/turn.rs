@@ -29,6 +29,11 @@ pub enum TurnStage {
     Sounds,
     /// Everything whose support went away falls.
     Falling,
+    /// The vehicles take their turn: the ones nobody is driving burn their idle fuel here.
+    ///
+    /// Reference: `do_turn.cpp:653-655` runs `m.process_falling()`, then `m.vehmove()`, then `m.process_fields()` - a vehicle moves **after** the ground has settled under
+    /// it and **before** the fields it sits in act, which is the order the port keeps.
+    Vehicles,
     /// Every field takes its turn: fires, incendiaries, gases, then ageing.
     Fields,
     /// Every creature banks its speed and takes its step.
@@ -117,6 +122,7 @@ const STAGES: &[Stage] = &[
     ("needs", needs_stage, TurnStage::Creatures),
     ("digest", digest_stage, TurnStage::Creatures),
     ("falling", falling_stage, TurnStage::Falling),
+    ("vehicles", vehicles_stage, TurnStage::Vehicles),
     ("fields", fields_stage, TurnStage::Fields),
     ("creatures", creatures_stage, TurnStage::Creatures),
     ("light", light_stage, TurnStage::Light),
@@ -144,6 +150,7 @@ pub fn environment_schedule() -> Schedule {
             TurnStage::Scent,
             TurnStage::Sounds,
             TurnStage::Falling,
+            TurnStage::Vehicles,
             TurnStage::Fields,
             TurnStage::Creatures,
             TurnStage::Light,
@@ -439,6 +446,12 @@ fn falling_stage(world: &mut World) {
     crate::process_falling_turn(world);
 }
 
+fn vehicles_stage(world: &mut World) {
+    note(world, TurnStage::Vehicles);
+    // **A vehicle nobody is driving burns its idle fuel here**, at the 1% floor; one that is being driven burns in its own thrust step instead.
+    crate::vehicle_drive::idle_vehicles(world);
+}
+
 fn fields_stage(world: &mut World) {
     note(world, TurnStage::Fields);
     let windpower = crate::weather::wind_of(world, 0);
@@ -511,12 +524,13 @@ fn light_stage(world: &mut World) {
 impl TurnStage {
     /// The stages in the order they run, for a reader that wants to check the schedule.
     #[must_use]
-    pub fn order() -> [Self; 7] {
+    pub fn order() -> [Self; 8] {
         [
             Self::Scheduled,
             Self::Scent,
             Self::Sounds,
             Self::Falling,
+            Self::Vehicles,
             Self::Fields,
             Self::Creatures,
             Self::Light,
