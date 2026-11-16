@@ -5033,3 +5033,12 @@ fn driving_at_the_top_of_the_band_wears_the_engines() {
         hp(&world)
     );
 }
+
+/// **An idling engine still burns, at a minimum of a hundredth of full throttle.** Reference: `vehicle::idle` (`vehicle.cpp:6050-6062`) floors the idle rate at 10.
+#[test]
+fn an_idling_engine_burns_a_hundredth_of_full_throttle() {
+    let idle = cdda_sim::vehicle_drive::idle_load;
+    assert_eq!(idle(0), 10, "**nothing bolted on still burns 1%**");
+    assert_eq!(idle(4), 10, "below the floor is the floor");
+    assert_eq!(idle(250), 250, "an alternator drawing more sets the rate");
+}

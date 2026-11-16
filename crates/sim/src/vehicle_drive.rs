@@ -680,3 +680,30 @@ pub fn wear_engines(
         }
     }
 }
+
+/// The load an idling engine works at: whatever the alternator draws, but never less than a hundredth of full throttle.
+///
+/// Reference: `vehicle::idle` (`vehicle.cpp:6050-6062`) - `idle_rate = alternator_load`, then `if( idle_rate < 10 ) idle_rate = 10;  // minimum idle is 1% of full throttle`.
+/// The floor is the reference's own: an engine with nothing bolted to it still burns a little, which is why a car left running empties its tank.
+#[must_use]
+pub fn idle_load(alternator_load: i32) -> i32 {
+    alternator_load.max(10)
+}
+
+/// Burns a turn of fuel for a vehicle that is **running but not driving**, and answers whether it did.
+///
+/// Reference: `vehicle::idle` (`vehicle.cpp:6046-6062`): the burn happens only when the engine is on and making power, and the caller has already established that the
+/// vehicle is not thrusting. Perpetual engines are skipped by the fuel rule itself, and a vehicle with no demand burns nothing.
+pub fn idle(world: &mut World, vehicle: Entity) -> bool {
+    let engine_on = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .is_some_and(|built| built.parts.iter().any(|part| part.enabled));
+    if !engine_on || total_power(world, vehicle) <= 0 {
+        return false;
+    }
+    if fuel_usage_of(world, vehicle).is_empty() {
+        return false;
+    }
+    burn_fuel(world, vehicle, idle_load(0));
+    true
+}

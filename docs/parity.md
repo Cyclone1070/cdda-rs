@@ -37295,3 +37295,14 @@ The engine chain is closed: `move_step_with_rolls` reads the strain against the 
 `wear_engines` - the position the reference gives it (`vehicle_move.cpp:588-594`), straight after the step that burned the fuel.
 
 Gated end to end: a car held above its safe speed for 300 steps loses hit points it would have kept at rest.
+
+## A car left running (round 116)
+
+`vehicle_drive::idle_load` is the floor in `vehicle::idle` (`vehicle.cpp:6050-6062`): the rate is the alternator's draw, but **never below 10** - the reference's own comment
+says "minimum idle is 1% of full throttle". `vehicle_drive::idle` is the frame around it: only a vehicle whose engine is on and making power, and whose fuel rule finds a
+demand, burns anything; then it burns at that floor.
+
+Gated on the floor: nothing bolted on still burns 10, a small draw is raised to it, a large one sets the rate.
+
+**Two gaps named, not guessed:** the alternator's draw is unported, so the floor is what the port passes (10) - which is exactly what the reference does when there is no
+alternator; and `idle` is not called from a turn yet, because "not thrusting" is a driver state the port has not built.
