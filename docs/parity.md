@@ -37471,3 +37471,10 @@ two mistakes the compiler caught: printing a `units::angle` with `%d`, and calli
 
 **What this round cost and why it is worth recording:** the build failed three times before these fixes, and each failure was a fact about the machine rather than about the
 port. A round spent here is a round not spent guessing at a recording.
+
+**Two mistakes the oracle's own argv table caught (round 132).** The new dump was registered without its `--` prefix and then without its `"<file>"` parameter slot, so the whole
+table failed to convert to `std::vector<arg_handler>` - the compiler refused the list rather than the one entry, which is why the error looked like a wall. Both fixed; the
+remaining build blockers were the ones round 131 named.
+
+**And the reason those kept coming back:** `tools/oracle_sync.sh` **edits `src/CMakeLists.txt` on the server** to drop `-Werror`, and the manual `rsync` of `oracle/src/` puts the
+unmodified copy back. A hand-run build has to re-apply that `sed` after every sync, or gcc 16's warnings become errors again. Recorded so the next hand-run does not rediscover it.
