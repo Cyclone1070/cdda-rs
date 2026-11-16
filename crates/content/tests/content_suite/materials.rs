@@ -226,3 +226,25 @@ fn a_fuel_s_energy_is_a_number_and_a_unit() {
     );
     assert_eq!(energy("1000"), None, "and neither is a bare number");
 }
+
+/// **A charge of diesel carries 28,640 joules.** Reference: `item::fuel_energy` - the material's energy per millilitre times one charge's share of the item's volume,
+/// divided by 1,000 last. Diesel's item is `200ml` over `count: 250`, so a charge is 0.8 ml and 35,800,000 J/ml × 0.8 / 1,000 is 28,640.
+#[test]
+fn a_charge_of_diesel_carries_the_energy_of_eight_tenths_of_a_ml() {
+    let per_charge = cdda_content::materials::fuel_energy_per_charge;
+    let energy = per_charge(35_800_000.0, 200, 250).expect("diesel is a fuel");
+    assert!(
+        (energy - 28_640.0).abs() < 1e-6,
+        "**35,800,000 J/ml times 0.8 ml is 28,640 J a charge: {energy}**"
+    );
+    assert_eq!(
+        per_charge(35_800_000.0, 0, 250),
+        None,
+        "no volume, no charge"
+    );
+    assert_eq!(
+        per_charge(35_800_000.0, 200, 0),
+        None,
+        "no count, no charge"
+    );
+}

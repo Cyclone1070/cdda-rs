@@ -37124,3 +37124,11 @@ data needs a corpus assertion, which is the next step before `drain_energy`.
 
 Round 94 had put the field on the burn entry by matching the wrong `fuel:` line, which the compiler caught from two directions at once (no such field on `Material`, missing
 field in `BurnData`). The lesson is the one this project keeps paying for: **read the struct before editing it**.
+
+**A charge of diesel is 28,640 joules (round 96).** `materials::fuel_energy_per_charge` is `item::fuel_energy`'s arithmetic: the material's energy per millilitre times one
+charge's share of the item's volume, with the division by 1,000 kept to the end because the reference says it is there to avoid integer rounding. Diesel's item is `200ml`
+over a `count` of `250`, so a charge is 0.8 ml and the energy is 28,640 J.
+
+**Both halves are now gated on the reference's own data:** 35,800,000 J/ml from `materials.json`, 200 ml and 250 charges from `items/fuel.json`, and the product asserted.
+What is still missing is the *plumbing* - the item registry has a volume but the port does not yet read a fuel item's `count` into it - and `strain`, without which
+`consume_fuel`'s scale factor is incomplete.

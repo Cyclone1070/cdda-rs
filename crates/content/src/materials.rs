@@ -417,3 +417,18 @@ pub fn fuel_energy_j(text: &str) -> Option<f64> {
     };
     Some(value * factor)
 }
+
+/// The energy one **charge** of a fuel carries, from its material's energy per millilitre and the item's own volume.
+///
+/// Reference: `item::fuel_energy` (`item.cpp:10427-10431`) - `material.get_fuel_data().energy * to_milliliter( base_volume() ) / 1000`, with the division left to the
+/// end on purpose, "to avoid integer rounding errors". `base_volume()` is one charge's share of the item's volume, so diesel's `200ml` over a `count` of `250` is
+/// 0.8 ml a charge, and 35,800,000 J/ml times that is 28,640 J.
+#[must_use]
+pub fn fuel_energy_per_charge(material_energy_j: f64, volume_ml: i64, count: i64) -> Option<f64> {
+    if count <= 0 || volume_ml <= 0 {
+        return None;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let charge_ml = volume_ml as f64 / count as f64;
+    Some(material_energy_j * charge_ml / 1000.0)
+}
