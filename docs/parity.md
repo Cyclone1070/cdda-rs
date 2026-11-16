@@ -37478,3 +37478,24 @@ remaining build blockers were the ones round 131 named.
 
 **And the reason those kept coming back:** `tools/oracle_sync.sh` **edits `src/CMakeLists.txt` on the server** to drop `-Werror`, and the manual `rsync` of `oracle/src/` puts the
 unmodified copy back. A hand-run build has to re-apply that `sed` after every sync, or gcc 16's warnings become errors again. Recorded so the next hand-run does not rediscover it.
+
+## The rotation dump answers the question, and the answer is the useful part (round 133)
+
+`--dump-vehicle-turn` now builds and runs. Recorded on a placed bicycle, at +90 and -90 degrees:
+
+| Case | Parts | Moved | face | turn_dir |
+|---|---|---|---|---|
+| bicycle, +90 | 11 | **0** | 0 → 0 | 90 |
+| bicycle, -90 | 11 | **0** | 0 → 0 | 270 |
+
+**Turning a vehicle in place moves nothing.** `vehicle::turn` sets `turn_dir` and rounds it to fifteen degrees, and `precalc_mounts` re-expresses the mounts about the pivot -
+but every part lands where it was, and the hull's `face` does not change at all. The hull only turns when it **moves**, through `advance_precalc_mounts` in the move path, which
+is a different function and a different round.
+
+**So the index swap round 128 feared is not needed for a steering press.** `apply_controls` already writes `Wheels.turn_dir`, which is exactly what the reference's `turn()` does;
+the pivot sweep belongs to movement, where the vehicle already moves through the index square by square. The gap that looked like the largest piece of unported vehicle
+behaviour shrank to what it is: a field the port already has.
+
+**How it was built:** the dump needed three compiler fixes (gcc 16's `-Werror` diagnostics, the tree's own `-Werror` needing the script's `sed` after every hand-run sync, and two
+mistakes in my argv entry - a missing `--` and a missing `"<file>"` slot). The `2seater` cases were replaced by the **bicycle**, the only vehicle the harness's other dumps place
+reliably at the avatar's square.
