@@ -5171,3 +5171,29 @@ fn the_idle_pass_skips_a_car_that_is_being_driven() {
         "and its charges are untouched"
     );
 }
+
+/// **A car under way takes its step in one pass.** `move_vehicles` is the turn's version of `map::vehmove`: a vehicle with velocity takes its step, a parked one is skipped.
+#[test]
+fn a_pass_moves_the_cars_that_are_under_way() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let moving = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let parked = cdda_sim::vehicles::spawn(&mut world, "car", (140, 140, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(moving)
+            .expect("a vehicle");
+        built.velocity = 1_000;
+        built.of_turn = 5.0;
+    }
+    assert_eq!(
+        cdda_sim::vehicle_move::move_vehicles(&mut world),
+        1,
+        "**one car was under way, and exactly one moved**"
+    );
+    let parked_velocity = world
+        .get::<cdda_sim::vehicles::Vehicle>(parked)
+        .map_or(-1, |built| built.velocity);
+    assert_eq!(parked_velocity, 0, "the parked car was left alone");
+}

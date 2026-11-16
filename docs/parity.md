@@ -37356,3 +37356,11 @@ driving burns its idle fuel every turn, at the 1% floor, while a car being drive
 3. The hand-written order test is the one that noticed the new stage at all: it is written out by hand **because** that is the assertion a reordering has to break.
 
 The order list and the schedule are still one source: `STAGES` feeds both the schedule and the trace, and `TurnStage::order()` is the declared order the tests pin.
+
+## Cars go somewhere (round 121)
+
+`vehicle_move::move_vehicles` is the turn's `map::vehmove`: one pass over the vehicles, a vehicle with velocity takes its step through `move_step_with_rolls`, a parked one is
+skipped. The dice are taken once for the whole pass and put back, so the stream a replay sees is the stream the turn used. The vehicles stage runs it **before** the idle pass,
+because moving comes first and only what stayed put burns idle fuel.
+
+Gated: one car under way and one parked - exactly one moves, and the parked car keeps its zero velocity.

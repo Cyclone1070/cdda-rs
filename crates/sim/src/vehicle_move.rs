@@ -726,3 +726,27 @@ pub fn drive_load(vel_inc: i32, accel: i32, max_brake: i32, thrusting: bool) -> 
         load.clamp(0, 1000)
     }
 }
+
+/// Moves every vehicle that is under way, on the turn's dice, and answers how many moved.
+///
+/// Reference: `map::vehmove` (`map.cpp:1090`) - one pass over the vehicles, each taking its own step. The port keeps that shape: a vehicle with no velocity is skipped rather
+/// than stepped, and the dice are taken once for the whole pass and put back, so the stream a replay sees is the stream the turn used.
+pub fn move_vehicles(world: &mut World) -> usize {
+    let mut vehicles = Vec::new();
+    let mut query = world.query::<(Entity, &crate::vehicles::Vehicle)>();
+    for (entity, built) in query.iter(world) {
+        if built.velocity != 0 {
+            vehicles.push(entity);
+        }
+    }
+    let mut rolls =
+        crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
+    let mut moved = 0;
+    for vehicle in vehicles {
+        if move_step_with_rolls(world, vehicle, &mut rolls) {
+            moved += 1;
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    moved
+}

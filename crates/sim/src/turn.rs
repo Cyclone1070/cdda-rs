@@ -448,7 +448,8 @@ fn falling_stage(world: &mut World) {
 
 fn vehicles_stage(world: &mut World) {
     note(world, TurnStage::Vehicles);
-    // **A vehicle nobody is driving burns its idle fuel here**, at the 1% floor; one that is being driven burns in its own thrust step instead.
+    // **Moving comes first**: a vehicle under way takes its step, and only then do the ones that stayed put burn their idle fuel.
+    crate::vehicle_move::move_vehicles(world);
     crate::vehicle_drive::idle_vehicles(world);
 }
 
