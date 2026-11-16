@@ -627,3 +627,15 @@ pub fn burn_vehicles(world: &mut World, load: i32) {
         burn_fuel(world, vehicle, load);
     }
 }
+
+/// How much strain a step's combined strain figure reports, capped the way the reference caps it.
+///
+/// Reference: `vehicle_move.cpp:591-594` builds `strain * strain * 100` as an integer and hands it to every engine's `do_engine_damage`, which caps it at **25**
+/// (`vehicle.cpp:6033`). So a vehicle at the top of its safe band tries to damage its engines at 25, and the cap is what keeps a badly built car from grinding itself to
+/// nothing in a turn.
+#[must_use]
+pub fn engine_strain(strain: f64) -> i32 {
+    #[allow(clippy::cast_possible_truncation)]
+    let combined = (strain * strain * 100.0) as i32;
+    combined.min(25)
+}

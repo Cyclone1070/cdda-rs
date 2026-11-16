@@ -4935,3 +4935,17 @@ fn driving_a_car_burns_its_fuel() {
         "**driving spends fuel: {before} charges became {after}**"
     );
 }
+
+/// **Strain squared, a hundred times, capped at 25.** Reference: `vehicle_move.cpp:591-594` builds `strain^2 * 100` and `do_engine_damage` (`vehicle.cpp:6033`) caps it.
+#[test]
+fn engine_strain_is_the_square_capped_at_twenty_five() {
+    let strain = cdda_sim::vehicle_drive::engine_strain;
+    assert_eq!(strain(0.0), 0, "no strain, no damage figure");
+    assert_eq!(strain(0.3), 9, "0.3 squared is 0.09, times a hundred is 9");
+    assert_eq!(strain(0.5), 25, "half strain is already 25");
+    assert_eq!(
+        strain(1.0),
+        25,
+        "**and the top of the band is capped there too**"
+    );
+}

@@ -37271,3 +37271,12 @@ where the reference spends it too (`vehicle_move.cpp:587`, inside `vehicle::thru
    between "no demand" and "no load" would have cost two more rounds.
 
 Gated end to end: five thrusts spend charges on a fuelled car.
+
+## Engine wear from strain (round 113)
+
+`vehicle_drive::engine_strain` is the figure the reference hands to every engine after it burns fuel (`vehicle_move.cpp:591-594`): `strain^2 * 100`, **capped at 25** by
+`do_engine_damage` (`vehicle.cpp:6033`). Gated on none, a ninth at 0.3, and 25 at both half and full strain - the cap is what stops a badly built car grinding itself away
+in a turn.
+
+**The damage roll itself is not ported:** `do_engine_damage` then draws `rng(1,100) < strain` to decide whether an engine is hurt this turn, and `rng(0, strain*4)` for how
+much. Those are dice, and the port's dice belong to the turn, so the roll belongs with the caller that owns the stream rather than inside this function.
