@@ -37229,3 +37229,19 @@ two fuelled cars that have never moved: a single pass spends charges on both.
 
 **Named, not wired:** it is not yet a stage in the turn schedule (`turn.rs`'s `STAGES`). Adding it means giving the schedule a stage of its own and stating where it sits
 relative to movement - which is a decision about the turn, not about fuel. `load` is likewise the caller's, because the port has no driver-input path yet.
+
+## Where fuel burns (round 110)
+
+The placement question round 109 left open is settled by the reference, in two places and with different rates:
+
+| Where | Rate | Reference |
+|---|---|---|
+| a vehicle **thrusting** | the driver's `load` + alternator, 200-1,000 | `vehicle_move.cpp:587` inside `vehicle::thrust` |
+| a vehicle **idling** with its engine on | `alternator_load`, **minimum 10** - "1% of full throttle" | `vehicle.cpp:6050-6062` inside `vehicle::idle` |
+
+So it is **not a stage of its own**: it is called from the drive step, once per vehicle, with the load that step computed. A separate turn stage would have burned every
+vehicle at one rate, which is neither of the reference's two numbers.
+
+**What the port lacks to wire it:** `thrust` computes no `load` (the driver's throttle is not a system yet), so there is nothing truthful to pass. The idle branch has no
+`alternator_load` either - alternators are named unported in `total_power`'s doc. Both are inputs the port has not built, and inventing either would put a made-up number
+where the reference has the player's hand on the pedal.
