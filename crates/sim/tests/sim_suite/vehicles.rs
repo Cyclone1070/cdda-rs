@@ -4985,3 +4985,51 @@ fn strain_wears_engines_and_no_strain_does_not() {
         engine_hp(&world)
     );
 }
+
+/// **A car held at the top of its speed wears itself out.** The seam, end to end: drive above the safe speed for many steps and the engines lose hit points they would have
+/// kept at zero strain.
+#[test]
+fn driving_at_the_top_of_the_band_wears_the_engines() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+    let fuel = {
+        let count = world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map_or(0, |built| built.parts.len());
+        (0..count)
+            .filter_map(|index| cdda_sim::vehicles::part_spec(&world, car, index))
+            .find_map(|spec| spec.fuel_opts.first().cloned())
+            .expect("the car names a fuel")
+    };
+    cdda_sim::vehicle_drive::set_fuel_energies(&mut world, &[(fuel, 28_640.0)]);
+    let top = cdda_sim::vehicle_drive::max_ground_velocity(&world, car).expect("a top speed");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        // Well above the safe speed and inside the top one, with a cruise to match so the step actually drives.
+        built.velocity = top.max(100);
+        built.cruise_velocity = top.max(100);
+        built.of_turn = 10_000.0;
+    }
+    let hp = |world: &World| {
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map_or(0, |built| {
+                built.parts.iter().map(|part| part.hp).sum::<i32>()
+            })
+    };
+    let before = hp(&world);
+    let mut rolls = cdda_core_types::rng::Rolls::new(11);
+    for _ in 0..300 {
+        cdda_sim::vehicle_move::move_step_with_rolls(&mut world, car, &mut rolls);
+    }
+    assert!(
+        hp(&world) < before,
+        "**the engines wore: {before} hit points became {}**",
+        hp(&world)
+    );
+}

@@ -37288,3 +37288,10 @@ owns one stream and a rule that reached for its own would make the same seed ans
 Gated two ways on the same seeded stream: 200 draws at zero strain leave every hit point in place, 200 at full strain wear the engines down.
 
 **Not yet called from the drive step:** `thrust` has no stream to hand it. The caller that does - `move_step_with_rolls` - is the seam, and that is the next cut.
+
+## Driving hard wears the engine out (round 115)
+
+The engine chain is closed: `move_step_with_rolls` reads the strain against the safe and top speeds after the step, and spends it on the caller's dice through
+`wear_engines` - the position the reference gives it (`vehicle_move.cpp:588-594`), straight after the step that burned the fuel.
+
+Gated end to end: a car held above its safe speed for 300 steps loses hit points it would have kept at rest.

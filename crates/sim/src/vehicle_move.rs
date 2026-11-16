@@ -453,7 +453,19 @@ pub fn move_step_with_rolls(
         return false;
     }
 
-    crate::vehicles::move_vehicle(world, vehicle, step)
+    let moved = crate::vehicles::move_vehicle(world, vehicle, step);
+    // **Straining wears the engines**, straight after the step, which is where the reference does it (`vehicle_move.cpp:588-594`): the strain is read against the safe and
+    // top speeds, turned into the capped figure, and spent on the caller's dice.
+    let velocity_now = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.velocity);
+    let safe = crate::vehicle_drive::safe_ground_velocity(world, vehicle).unwrap_or(0);
+    let top = crate::vehicle_drive::max_ground_velocity(world, vehicle).unwrap_or(0);
+    let strained = crate::vehicle_drive::strain(velocity_now, safe, top);
+    if strained > 0.0 {
+        crate::vehicle_drive::wear_engines(world, vehicle, strained, rolls);
+    }
+    moved
 }
 
 /// The obstacle an unbreakable crash lands on: `veh_coll_other` (`vehicle_move.cpp:961-967`).
