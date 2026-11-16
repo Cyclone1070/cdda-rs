@@ -4515,3 +4515,32 @@ fn an_engine_is_dry_until_a_tank_holds_its_fuel() {
         "**ten charges of {fuel} feed it**"
     );
 }
+
+/// **Strain is zero inside the safe band and grows to one at the top.** Reference: `vehicle::strain` (`vehicle.cpp:4967-4982`) - nothing at rest, nothing below the safe
+/// speed in either direction, and the share of the way from safe to maximum beyond it.
+#[test]
+fn strain_is_zero_inside_the_safe_band_and_one_at_the_top() {
+    let strain = cdda_sim::vehicle_drive::strain;
+    assert!((strain(0, 500, 1000) - 0.0).abs() < 1e-12, "at rest, none");
+    assert!(
+        (strain(400, 500, 1000) - 0.0).abs() < 1e-12,
+        "**inside the band, none**"
+    );
+    assert!(
+        (strain(-400, 500, 1000) - 0.0).abs() < 1e-12,
+        "and the same going backwards"
+    );
+    assert!(
+        (strain(750, 500, 1000) - 0.5).abs() < 1e-12,
+        "**halfway from safe to maximum is 0.5**"
+    );
+    assert!(
+        (strain(1000, 500, 1000) - 1.0).abs() < 1e-12,
+        "at the maximum it is one"
+    );
+    // The reference's own guard: a maximum at or below the safe speed still divides.
+    assert!(
+        strain(600, 500, 500).is_finite(),
+        "**a maximum of 500 does not divide by zero**"
+    );
+}

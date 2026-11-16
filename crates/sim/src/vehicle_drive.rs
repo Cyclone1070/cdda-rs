@@ -343,3 +343,24 @@ pub fn engine_fuel_left(world: &World, vehicle: Entity, index: usize) -> bool {
         .iter()
         .any(|fuel| crate::vehicles::fuel_left(world, vehicle, fuel) > 0)
 }
+
+/// How hard a vehicle is working past its safe speed, from 0 to 1.
+///
+/// Reference: `vehicle::strain` (`vehicle.cpp:4967-4982`): nothing at a standstill, zero while it is inside its safe speed **in either direction**, and beyond that the
+/// share of the way from the safe speed to the maximum - `( |v| - sv ) / ( mv - sv )`, with `mv` nudged one above `sv` when the two coincide so the division always has a
+/// slope. That nudge is the reference's own guard, not a port invention.
+#[must_use]
+pub fn strain(velocity: i32, safe: i32, maximum: i32) -> f64 {
+    if velocity == 0 {
+        return 0.0;
+    }
+    let safe_speed = safe;
+    let mut fastest = maximum;
+    if fastest <= safe_speed {
+        fastest = safe_speed + 1;
+    }
+    if velocity < safe_speed && velocity > -safe_speed {
+        return 0.0;
+    }
+    f64::from(velocity.abs() - safe_speed) / f64::from(fastest - safe_speed)
+}

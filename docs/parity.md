@@ -37138,3 +37138,11 @@ carries `default_charges` from `"count"` and `volume` in millilitres. The test f
 asserts diesel's **28,640 J** a charge, so the number is the store's rather than a test's.
 
 `drain_energy` now has every input it needs to turn joules into charges. What `consume_fuel` still lacks is `strain`.
+
+**Strain, ported (round 98).** `vehicle_drive::strain` is `vehicle::strain` (`vehicle.cpp:4967-4982`): zero at a standstill, zero anywhere inside the safe speed in
+either direction, and beyond it the share of the way from safe to maximum - `( |v| - sv ) / ( mv - sv )`. When the maximum is at or below the safe speed the reference
+nudges it one above, so the division always has a slope; the port keeps that guard rather than special-casing the result. Gated at rest, inside the band forwards and
+backwards, halfway, at the top, and on the guard.
+
+**With this and round 97, every input `consume_fuel` needs exists**: `fuel_usage` per fuel, the joules in a charge, the remainder rule and `strain`. What is left is the
+rule itself - `fuel_usage` → `drain_energy` → `consume_fuel`, in that order, each gated on its own numbers.
