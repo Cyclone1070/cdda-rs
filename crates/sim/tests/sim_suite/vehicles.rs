@@ -4759,3 +4759,61 @@ fn the_safe_speed_is_below_the_top_speed() {
         "**safe is below top: {safe} against {top}**"
     );
 }
+
+/// **A turn of burning spends a charge and remembers the rest.** The whole chain through the store: the fuelled car's engine asks for energy, one charge of diesel is
+/// burned, the leftover carries on the vehicle, and a fuel the store knows no energy for is not burned at all.
+#[test]
+fn burning_a_turn_spends_a_charge_and_carries_the_rest() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+    let fuel = {
+        let count = world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .map_or(0, |built| built.parts.len());
+        (0..count)
+            .filter_map(|index| cdda_sim::vehicles::part_spec(&world, car, index))
+            .find_map(|spec| spec.fuel_opts.first().cloned())
+            .expect("the car names a fuel")
+    };
+    cdda_sim::vehicle_drive::set_fuel_energies(&mut world, &[(fuel.clone(), 28_640.0)]);
+    let charges_before: i32 = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map_or(0, |built| built.parts.iter().map(|part| part.charges).sum());
+
+    cdda_sim::vehicle_drive::burn_fuel(&mut world, car, 500);
+
+    let charges_after: i32 = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map_or(0, |built| built.parts.iter().map(|part| part.charges).sum());
+    assert!(
+        charges_after < charges_before,
+        "**fuel was spent: {charges_before} charges became {charges_after}**"
+    );
+    let carried = cdda_sim::vehicles::fuel_remainder_of(&world, car);
+    assert!(
+        carried.of(&fuel) > 0.0,
+        "**and the fraction carries: {} J**",
+        carried.of(&fuel)
+    );
+
+    // A fuel the store knows nothing about is not burned on a guess.
+    let mut blind = World::new();
+    install_part_weights(&mut blind, "car");
+    cdda_sim::vehicles::set_store(&mut blind, store());
+    let second = cdda_sim::vehicles::spawn(&mut blind, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut blind, second);
+    let before: i32 = blind
+        .get::<cdda_sim::vehicles::Vehicle>(second)
+        .map_or(0, |built| built.parts.iter().map(|part| part.charges).sum());
+    cdda_sim::vehicle_drive::burn_fuel(&mut blind, second, 500);
+    let after: i32 = blind
+        .get::<cdda_sim::vehicles::Vehicle>(second)
+        .map_or(0, |built| built.parts.iter().map(|part| part.charges).sum());
+    assert_eq!(
+        before, after,
+        "**an unknown fuel is not burned on a guess**"
+    );
+}

@@ -37211,3 +37211,14 @@ same cubic as `max_ground_velocity`, asked with `safe_power_of`'s capped power. 
 fuelled car: the top speed is positive and the safe speed is positive **and below it**.
 
 **With this, `strain` has both numbers it compares.** The remaining gap before a turn can burn fuel is the per-charge energy crossing from content into the sim.
+
+## Fuel is spent now (round 108)
+
+`vehicle_drive::burn_fuel` is the whole chain driven through the store for one turn: the demand comes from `fuel_usage_of`, the strain from `strain` against the safe and top
+speeds, each fuel burns through `consume_fuel` with the energy a charge holds, and the result lands in the parts' `charges` and the vehicle's `FuelRemainder`.
+
+The energy a charge holds is **installed**, not recomputed: `set_fuel_energies` puts what the content crate worked out (`materials::fuel_energy_per_charge`) into the store,
+because the sim holds no item or material registry. **A fuel with no entry is not burned** - the test proves it by burning a car whose fuel nobody priced and checking every
+charge came back.
+
+Gated: charges fall, the leftover carries, and an unpriced fuel is left alone.

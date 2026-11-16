@@ -518,3 +518,97 @@ pub fn fuel_usage_of(world: &World, vehicle: Entity) -> std::collections::BTreeM
 pub fn is_perpetual(fuel_flags: &[String]) -> bool {
     fuel_flags.iter().any(|flag| flag == "PERPETUAL")
 }
+
+/// The energy one charge of each fuel holds, in joules.
+///
+/// The number comes from the content crate - a material's energy per millilitre times a charge's share of the item's volume (`materials::fuel_energy_per_charge`) - and is
+/// **installed** here rather than recomputed, because the sim holds no item or material registry of its own. A fuel with no entry cannot be burned, and answers `None`
+/// rather than zero: a zero would let an engine run forever on nothing.
+#[derive(Debug, Clone, Default, PartialEq, bevy_ecs::component::Component)]
+pub struct FuelEnergies(pub std::collections::BTreeMap<String, f64>);
+
+/// Marks the entity holding [`FuelEnergies`].
+#[derive(Debug, Clone, Copy, Default, bevy_ecs::component::Component)]
+pub struct TheFuelEnergies;
+
+/// Installs what a charge of each fuel holds.
+pub fn set_fuel_energies(world: &mut World, energies: &[(String, f64)]) {
+    let holder = crate::singletons::singleton::<FuelEnergies, TheFuelEnergies>(world);
+    let table = energies.iter().cloned().collect();
+    world.entity_mut(holder).insert(FuelEnergies(table));
+}
+
+/// What one charge of a fuel holds, when the store knows.
+#[must_use]
+pub fn fuel_energy_of(world: &World, fuel: &str) -> Option<f64> {
+    let holder = crate::singletons::holder::<TheFuelEnergies>(world)?;
+    world
+        .get::<FuelEnergies>(holder)?
+        .0
+        .get(fuel)
+        .copied()
+        .filter(|energy| *energy > 0.0)
+}
+
+/// Burns one turn of fuel for a vehicle, writing the charges and leftovers back.
+///
+/// Reference: `vehicle::consume_fuel` (`vehicle.cpp:5226-5246`) driven from the turn. The frame is the port's own: the demand comes from [`fuel_usage_of`], the strain from
+/// [`strain`] against [`safe_ground_velocity`] and [`max_ground_velocity`], each fuel burns through [`consume_fuel`] with the energy a charge holds, and the result lands
+/// in the parts' `charges` and the vehicle's [`crate::vehicles::FuelRemainder`]. A fuel with no known energy is left alone rather than burned as if it were free.
+pub fn burn_fuel(world: &mut World, vehicle: Entity, load: i32) {
+    let usage = fuel_usage_of(world, vehicle);
+    if usage.is_empty() {
+        return;
+    }
+    let velocity = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.velocity);
+    let safe = safe_ground_velocity(world, vehicle).unwrap_or(0);
+    let top = max_ground_velocity(world, vehicle).unwrap_or(0);
+    let strain = strain(velocity, safe, top);
+    let mut carried = crate::vehicles::fuel_remainder_of(world, vehicle);
+
+    let Some(tank_count) = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map(|built| built.parts.len())
+    else {
+        return;
+    };
+    let mut tanks: Vec<(String, i32)> = Vec::new();
+    let mut tank_parts: Vec<usize> = Vec::new();
+    for index in 0..tank_count {
+        let Some(part) = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(index))
+        else {
+            continue;
+        };
+        if part.fuel.is_empty() {
+            continue;
+        }
+        tanks.push((part.fuel.clone(), part.charges));
+        tank_parts.push(index);
+    }
+
+    for (fuel, watts) in &usage {
+        let Some(per_charge) = fuel_energy_of(world, fuel) else {
+            continue;
+        };
+        let mut single = std::collections::BTreeMap::new();
+        single.insert(fuel.clone(), *watts);
+        let leftovers = consume_fuel(&single, load, strain, &carried.0, &mut tanks, per_charge);
+        for (kind, energy) in leftovers {
+            carried.0.insert(kind, energy);
+        }
+    }
+
+    for (slot, index) in tank_parts.iter().enumerate() {
+        if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
+            && let Some(part) = built.parts.get_mut(*index)
+            && let Some((_, charges)) = tanks.get(slot)
+        {
+            part.charges = *charges;
+        }
+    }
+    crate::vehicles::set_fuel_remainder(world, vehicle, carried);
+}
