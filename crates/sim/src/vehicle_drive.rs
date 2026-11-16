@@ -492,3 +492,12 @@ pub fn fuel_usage_of(world: &World, vehicle: Entity) -> std::collections::BTreeM
     }
     fuel_usage(&engines)
 }
+
+/// Whether a fuel is one that never runs out - the reference's `is_perpetual_type` (`vehicle.cpp:1056-1059`).
+///
+/// It is a property of the **fuel item**, not of the engine: `item( vp.info().fuel_type ).has_flag( flag_PERPETUAL )`. Muscle, wind, sunlight and water carry it, so an
+/// engine burning them asks for no fuel at all. The port takes the flags rather than a world, so the rule is a question about data and the caller decides where it looks.
+#[must_use]
+pub fn is_perpetual(fuel_flags: &[String]) -> bool {
+    fuel_flags.iter().any(|flag| flag == "PERPETUAL")
+}

@@ -4681,3 +4681,19 @@ fn a_running_engine_is_what_asks_for_fuel() {
         "everything off, nothing asked for"
     );
 }
+
+/// **A perpetual fuel is a flag on the fuel, not on the engine.** Reference: `is_perpetual_type` (`vehicle.cpp:1056-1059`) asks the fuel item for `PERPETUAL`; muscle, wind,
+/// sunlight and water carry it, and diesel does not.
+#[test]
+fn a_perpetual_fuel_carries_the_flag() {
+    let perpetual = cdda_sim::vehicle_drive::is_perpetual;
+    assert!(
+        perpetual(&["PERPETUAL".to_owned()]),
+        "**the flag is what makes it perpetual**"
+    );
+    assert!(
+        !perpetual(&["E_COMBUSTION".to_owned(), "ENGINE".to_owned()]),
+        "a combustion engine's fuel is not"
+    );
+    assert!(!perpetual(&[]), "and no flags is not perpetual either");
+}

@@ -37184,3 +37184,10 @@ car does make is a real draw.
 
 **Still open in this function:** the reference skips perpetual engines (muscle, wind, sunlight) through `is_perpetual_type`; the port has no such filter, so a muscle engine
 would be counted. That is the last named gap before `consume_fuel` can be driven from a turn.
+
+**Perpetual fuels, ported (round 104).** `vehicle_drive::is_perpetual` is `is_perpetual_type` (`vehicle.cpp:1056-1059`), and the reference settles a question the port had been
+guessing at: it is a property of the **fuel item**, not of the engine - `item( fuel_type ).has_flag( flag_PERPETUAL )`. Muscle, wind, sunlight and water carry it, so an
+engine burning them asks for nothing.
+
+The port takes the flags rather than a world, so the rule stays a question about data. **Not yet consulted by `fuel_usage_of`:** the flag table is in the store
+(`ItemFlags`, keyed by item kind) but no accessor reaches it from the sim yet, so that wiring is the next step.
