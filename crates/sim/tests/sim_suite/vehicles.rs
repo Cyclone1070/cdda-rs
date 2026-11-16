@@ -5293,3 +5293,35 @@ fn a_press_of_the_cruise_control_steps_and_stops_on_the_safe_speed() {
         "the deepest reverse is a cap too"
     );
 }
+
+/// **The wheel clicks in fifteens and a reversing car steers the other way.** Reference: `vehicle::turn` (`vehicle_move.cpp:678-685`).
+#[test]
+fn the_wheel_clicks_in_fifteens() {
+    let steer = cdda_sim::vehicle_move::steered_direction;
+    assert_eq!(steer(0, 30, 100), 30, "**two clicks**");
+    assert_eq!(
+        steer(0, 20, 100),
+        15,
+        "**a third of the way rounds to one click**"
+    );
+    assert_eq!(
+        steer(0, 20, 100),
+        15,
+        "a third of the way rounds down to one"
+    );
+    assert_eq!(
+        steer(0, 23, 100),
+        30,
+        "**and past the halfway click it rounds to two**"
+    );
+    assert_eq!(
+        steer(350, 20, 100),
+        15,
+        "370 normalises to 10, then clicks to 15"
+    );
+    assert_eq!(
+        steer(0, 20, -100),
+        345,
+        "**reversing steers the other way: -20 is 340, and 340 clicks to 345**"
+    );
+}

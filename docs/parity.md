@@ -37389,3 +37389,14 @@ limit moves one first so the rounding lands on the step rather than sticking, th
 2. A step **up** from just below the top lands on the top (`1,950 + 100 → 2,000`), because the cap applies after the step, not instead of it.
 
 Both corrections are now comments in the test, so the next reader learns the rule rather than the assumption.
+
+## The wheel clicks in fifteens (round 124)
+
+`vehicle_move::steered_direction` is `vehicle::turn` (`vehicle_move.cpp:678-685`): the wheel is kept on a multiple of `steer_increment = 15_degrees`
+(`vehicle.h:88`), the direction wraps to one full turn, and **a reversing vehicle steers the other way** unless the `REVERSE_STEERING` option is on - the option is not
+ported, and its default is off, which is the behaviour here.
+
+Gated on the four cases that matter: two clicks, a third of a click (rounds down), past the halfway click (rounds up), and a wrap past 360 that lands on 15. Plus the
+reverse case: pressing 20 degrees while rolling backwards lands on 345.
+
+**Not wired yet:** the store's `rotation` is still only read, never turned, because steering needs driver input - `steered_direction` is the rule an input path will call.

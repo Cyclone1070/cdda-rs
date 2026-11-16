@@ -834,3 +834,23 @@ pub fn cruise_thrust(
     }
     cruise.clamp(max_reverse_velocity, max_velocity)
 }
+
+/// How far a steering step moves the wheel, in degrees.
+///
+/// Reference: `vehicles::steer_increment = 15_degrees` (`vehicle.h:88`) - the direction is only ever kept on a multiple of it.
+pub const STEER_INCREMENT_DEGREES: i32 = 15;
+
+/// Where the wheels point after a steering step.
+///
+/// Reference: `vehicle::turn` (`vehicle_move.cpp:678-685`): a reversing vehicle steers the other way unless the `REVERSE_STEERING` option is on (the option is not ported;
+/// its default is off, which is the behaviour here), the result is normalised into one full turn, and then **rounded to a multiple of fifteen degrees** so the wheel is
+/// never left between clicks.
+#[must_use]
+pub fn steered_direction(current_degrees: i32, degrees: i32, velocity: i32) -> i32 {
+    let step = if velocity < 0 { -degrees } else { degrees };
+    let turned = (current_degrees + step).rem_euclid(360);
+    let increment = f64::from(turned) / f64::from(STEER_INCREMENT_DEGREES);
+    #[allow(clippy::cast_possible_truncation)]
+    let clicks = increment.round() as i32;
+    (clicks * STEER_INCREMENT_DEGREES).rem_euclid(360)
+}
