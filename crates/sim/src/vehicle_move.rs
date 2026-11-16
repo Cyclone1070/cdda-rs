@@ -932,3 +932,13 @@ pub fn wheel_direction(world: &bevy_ecs::world::World, vehicle: Entity) -> i32 {
         .get::<Wheels>(vehicle)
         .map_or(0, |wheels| wheels.turn_dir)
 }
+
+/// Whether a turn direction lands between the four axes rather than on one.
+///
+/// Reference: `vehicle::precalculate_vehicle_turning` (`vehicle_move.cpp:1655`) - `std::lround( to_degrees( new_turn_dir ) ) % 90 == 45`. The reference asks it to know
+/// whether the vehicle's movement this step is diagonal, which decides how the wheels meet a rail; the port keeps the rule and will use it for the same reason when rails
+/// arrive. The modulo is on the **normalised** angle, so a negative heading answers the same as its positive twin.
+#[must_use]
+pub fn is_diagonal_turn(degrees: i32) -> bool {
+    degrees.rem_euclid(360) % 90 == 45
+}

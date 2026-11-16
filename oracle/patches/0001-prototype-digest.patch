@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-17 01:50:29
-@@ -0,0 +1,9208 @@
++++ oracle/src/src/harness.cpp	2026-11-17 06:11:23
+@@ -0,0 +1,9210 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1351,7 +1351,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            std::fputc( ',', out );
 +        }
 +        first_case = false;
-+        std::fprintf( out, "{\"name\":\"%s\",\"degrees\":%d,\"face\":%d,\"parts\":[", name, degrees, veh->face.dir() );
++        std::fprintf( out, "{\"name\":\"%s\",\"degrees\":%d,\"face\":%d,\"parts\":[", name, degrees,
++                      static_cast<int>( units::to_degrees( veh->face.dir() ) ) );
 +        // Before the turn: what the vehicle was built as.
 +        for( int p = 0; p < veh->part_count(); p++ ) {
 +            const point_rel_ms mount = veh->part( p ).mount;
@@ -1370,11 +1371,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            }
 +            std::fprintf( out, "{\"index\":%d,\"x\":%d,\"y\":%d}", p, mount.x(), mount.y() );
 +        }
-+        std::fprintf( out, "],\"turn_dir\":%d,\"face_after\":%d}", veh->turn_dir.normalize().to_degrees(), veh->face.dir() );
++        std::fprintf( out, "],\"turn_dir\":%d,\"face_after\":%d}", static_cast<int>( units::to_degrees( veh->turn_dir ) ),
++                      static_cast<int>( units::to_degrees( veh->face.dir() ) ) );
 +        here.destroy_vehicle( veh );
 +    };
-+    dump_case( "2seater", vproto_id( "2seater" ), 90 );
-+    dump_case( "2seater_reverse", vproto_id( "2seater" ), -90 );
++    dump_case( "bicycle", vproto_id( "bicycle" ), 90 );
++    dump_case( "bicycle_reverse", vproto_id( "bicycle" ), -90 );
 +    std::fprintf( out, "]}\n" );
 +    std::fclose( out );
 +}
@@ -1547,7 +1549,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      "\"power_w\":%d,\"max_ground_velocity\":%d}",
 +                      static_cast<long long>( units::to_gram( veh->total_mass( here ) ) ),
 +                      veh->coeff_rolling_drag( here ), units::to_watt( veh->total_power( here, false ) ),
-+                      veh->max_ground_velocity( here, false ) );
++                      static_cast<int>( veh->max_ground_velocity( here, false ) ) );
 +        here.destroy_vehicle( veh );
 +    };
 +
@@ -10305,7 +10307,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-17 01:50:46
++++ oracle/src/src/main.cpp	2026-11-17 05:43:16
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10500,7 +10502,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +480,1599 @@
+@@ -300,6 +480,1600 @@
                  }
              },
              {
@@ -10683,7 +10685,8 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                    return 1;
 +                }
 +            }, {
-+                "dump-vehicle-turn",
++                "--dump-vehicle-turn",
++                "<file>",
 +                translate_marker( "Dump where every part of a vehicle lands after a quarter turn" ),
 +                section_default,
 +                1,
@@ -12100,7 +12103,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2559,963 @@
+@@ -786,6 +2560,963 @@
      // depend on the mods.
      try {
          g->load_static_data();

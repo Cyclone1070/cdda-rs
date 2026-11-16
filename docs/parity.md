@@ -37499,3 +37499,10 @@ behaviour shrank to what it is: a field the port already has.
 **How it was built:** the dump needed three compiler fixes (gcc 16's `-Werror` diagnostics, the tree's own `-Werror` needing the script's `sed` after every hand-run sync, and two
 mistakes in my argv entry - a missing `--` and a missing `"<file>"` slot). The `2seater` cases were replaced by the **bicycle**, the only vehicle the harness's other dumps place
 reliably at the avatar's square.
+
+**A diagonal turn is one between the axes (round 134).** `vehicle_move::is_diagonal_turn` is the reference's test from `vehicle::precalculate_vehicle_turning`
+(`vehicle_move.cpp:1655`): `lround( to_degrees( new_turn_dir ) ) % 90 == 45`. Gated on the four axes, both diagonals, a fifteen degree wheel that stays on its axis, and a
+negative heading - the modulo is on the normalised angle, so `-45` answers like `135`.
+
+The reference asks it to know whether the step is diagonal, which decides how wheels meet a rail. Rails are not ported; the rule is, so the rail round finds it here rather than
+reinventing the arithmetic.

@@ -5460,3 +5460,19 @@ fn a_steering_press_reaches_the_wheels() {
     let wheels = cdda_sim::vehicle_move::wheel_direction(&world, car);
     assert_eq!(wheels, 30, "**23 degrees is one click past the halfway**");
 }
+
+/// **A diagonal turn is one that lands between the four axes.** Reference: `vehicle::precalculate_vehicle_turning` (`vehicle_move.cpp:1655`) calls a direction diagonal when
+/// `lround( to_degrees( new_turn_dir ) ) % 90 == 45`, which is why a fifteen degree wheel can still travel axis-aligned but a forty-five degree one cannot.
+#[test]
+fn a_diagonal_turn_is_one_between_the_axes() {
+    let diagonal = cdda_sim::vehicle_move::is_diagonal_turn;
+    assert!(!diagonal(0), "north is an axis");
+    assert!(!diagonal(90), "east is an axis");
+    assert!(diagonal(45), "**north-east is between them**");
+    assert!(diagonal(135), "and so is south-east");
+    assert!(
+        !diagonal(15),
+        "a fifteen degree wheel is still on the axis it started on"
+    );
+    assert!(diagonal(-45), "the rule holds in reverse too");
+}
