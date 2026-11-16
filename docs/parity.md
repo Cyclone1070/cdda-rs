@@ -37463,3 +37463,11 @@ the parts, which was the one thing round 129 would not guess. Patches regenerate
 
 **One correction to how dumps come back:** `tools/oracle_sync.sh` prints the dump on **stdout**; it does not write the destination file or copy it home. The next round captures it
 with a redirect (`> /tmp/vehicle_turn.json` on the Mac side) rather than passing a path and expecting a file.
+
+**Building the reference on gcc 16 takes three flags (round 131).** The pinned tree trips three diagnostics that are newer than it, and the oracle only has to run, not to be
+warning-clean: `-Wno-sfinae-incomplete` (gcc 16's own advice), and `-Wno-maybe-uninitialized` for a false positive inside libstdc++'s `stl_algobase.h`. The dump itself had
+two mistakes the compiler caught: printing a `units::angle` with `%d`, and calling `.normalize()` on it, which the type does not have - both now a `static_cast<int>` of
+`to_degrees()`.
+
+**What this round cost and why it is worth recording:** the build failed three times before these fixes, and each failure was a fact about the machine rather than about the
+port. A round spent here is a round not spent guessing at a recording.
