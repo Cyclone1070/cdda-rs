@@ -37506,3 +37506,19 @@ negative heading - the modulo is on the normalised angle, so `-45` answers like 
 
 The reference asks it to know whether the step is diagonal, which decides how wheels meet a rail. Rails are not ported; the rule is, so the rail round finds it here rather than
 reinventing the arithmetic.
+
+## What `advance_precalc_mounts` actually does (round 135, investigation)
+
+Read in full (`vehicle.cpp:8663-8728`). For a normal horizontal move (`parts_to_move` empty) it does one thing per part: `prt.precalc[0] = prt.precalc[1]` - the position
+computed for the next step becomes the current one - and the pivot advances the same way (`pivot_anchor[0] = pivot_anchor[1]`, `pivot_rotation[0] = pivot_rotation[1]`), then
+`pos = new_pos`.
+
+**No part is rotated here, and no facing is changed.** The rotation happened when `precalc[1]` was *computed* (`precalc_mounts`, which the port already has as
+`rotation::coord_translate`); this function only promotes the answer. The ramp and z-level branches - the bulk of the body - move parts up and down, which the port has no
+z-movement for yet.
+
+**So the port's model already matches this piece:** `Wheels.turn_dir` changes what the next precalc would be, and a step promotes it. There is no separate "hull turns while
+moving" rule to port here; the facing changes because the *next* precalc used the new direction.
+
+**What is still missing, named precisely:** which call site sets `vehicle::face` from `turn_dir` during movement. That is what the next round reads - one grep in
+`map::move_vehicle`'s body - rather than another guess about a function whose body is now known.
