@@ -5325,3 +5325,62 @@ fn the_wheel_clicks_in_fifteens() {
         "**reversing steers the other way: -20 is 340, and 340 clicks to 345**"
     );
 }
+
+/// **A driver's intent becomes the vehicle's cruise.** The reference calls `cruise_thrust` straight from the character's action handling, so the intent lives with the person
+/// and the car obeys - and a creature who is not the driver is not heard.
+#[test]
+fn a_driver_s_intent_sets_the_cruise() {
+    use cdda_sim::vehicle_move::Controls;
+    use cdda_sim::vehicles::{Riding, Vehicle};
+
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let count = world
+        .get::<Vehicle>(car)
+        .map_or(0, |built| built.parts.len());
+    let Some(controls) = (0..count).find(|index| {
+        cdda_sim::vehicles::part_spec(&world, car, *index)
+            .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "CONTROLS"))
+    }) else {
+        assert_eq!(cdda_sim::vehicle_move::apply_controls(&mut world), 0);
+        return;
+    };
+    let driver = world
+        .spawn(Riding {
+            vehicle: car,
+            part: controls,
+        })
+        .id();
+    // A passenger in a seat that does not control the car must not be heard.
+    let passenger = world
+        .spawn(Riding {
+            vehicle: car,
+            part: (controls + 1) % count,
+        })
+        .id();
+    world.entity_mut(passenger).insert(Controls {
+        cruise: 9_000,
+        steer: 0,
+    });
+    assert_eq!(
+        cdda_sim::vehicle_move::apply_controls(&mut world),
+        0,
+        "**a passenger asks for nothing**"
+    );
+
+    world.entity_mut(driver).insert(Controls {
+        cruise: 500,
+        steer: 0,
+    });
+    assert_eq!(
+        cdda_sim::vehicle_move::apply_controls(&mut world),
+        1,
+        "**the driver was heard once**"
+    );
+    let cruise = world
+        .get::<Vehicle>(car)
+        .map_or(-1, |built| built.cruise_velocity);
+    assert_eq!(cruise, 500, "and the cruise is what they asked for");
+}

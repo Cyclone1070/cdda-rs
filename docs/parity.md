@@ -37400,3 +37400,15 @@ Gated on the four cases that matter: two clicks, a third of a click (rounds down
 reverse case: pressing 20 degrees while rolling backwards lands on 345.
 
 **Not wired yet:** the store's `rotation` is still only read, never turned, because steering needs driver input - `steered_direction` is the rule an input path will call.
+
+## The driver's intent (round 125)
+
+`vehicle_move::Controls` is what a driver asks for this turn - a cruise press and a wheel turn - and it sits on the **creature**, not the car, because the reference calls
+`cruise_thrust` and `turn` straight from the character's action handling (`vehicle_move.cpp:1330-1340`, `1530-1550`). `apply_controls` is the turn's reader: it asks the store
+who is driving, and applies the press through `cruise_thrust`.
+
+Gated on both directions: a **passenger** asking for a 9,000 vmiph cruise is not heard at all, and the driver asking for 500 gets exactly 500 in the store. That negative case
+is the one that makes the gate mean something - an implementation that applied every intent it found would pass the positive half alone.
+
+**Namely not wired:** the `steer` half is counted as heard but not applied, because turning the hull means rotating a multi-tile vehicle through the index, which is
+`rotation`'s problem and not this rule's.

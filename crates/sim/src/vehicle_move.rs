@@ -854,3 +854,57 @@ pub fn steered_direction(current_degrees: i32, degrees: i32, velocity: i32) -> i
     let clicks = increment.round() as i32;
     (clicks * STEER_INCREMENT_DEGREES).rem_euclid(360)
 }
+
+/// What a driver is asking of the vehicle this turn.
+///
+/// Reference: the reference keeps this in the avatar's own input handling - `cruise_thrust( here, -acceleration * thr_amount )` and `veh.turn( turn_delta )` are called
+/// straight from the character's action code (`vehicle_move.cpp:1330-1340`, `1530-1550`), so the intent lives with the person rather than with the car. The port keeps that:
+/// the component sits on the **creature**, and a turn applies it to the vehicle the creature is driving.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, bevy_ecs::component::Component)]
+pub struct Controls {
+    /// How many vmiph to press the cruise by this turn, positive forward.
+    pub cruise: i32,
+    /// How far to turn the wheel this turn, in degrees.
+    pub steer: i32,
+}
+
+/// Applies every driver's intent to the vehicle they are driving, and answers how many were heard.
+///
+/// Reference: the `cruise_thrust` and `turn` calls in the character's action handling. A creature with no [`Controls`] - or one not sitting in a vehicle - asks for nothing,
+/// and a press of zero changes nothing. The steering is applied to the vehicle's wheel direction as the reference keeps it; turning the hull is
+/// [`crate::rotation`]'s job and is not called here.
+pub fn apply_controls(world: &mut World) -> usize {
+    let mut intents = Vec::new();
+    let mut query = world.query::<(Entity, &Controls, &crate::vehicles::Riding)>();
+    for (creature, controls, riding) in query.iter(world) {
+        intents.push((creature, *controls, riding.vehicle));
+    }
+    let mut heard = 0;
+    for (creature, controls, vehicle) in intents {
+        if crate::vehicles::driver_of(world, vehicle) != Some(creature) {
+            continue;
+        }
+        if controls.cruise != 0 {
+            let Some(safe) = crate::vehicle_drive::safe_ground_velocity(world, vehicle) else {
+                continue;
+            };
+            let Some(maximum) = crate::vehicle_drive::max_ground_velocity(world, vehicle) else {
+                continue;
+            };
+            let battery = crate::vehicle_drive::battery_engine(world, vehicle);
+            let reverse = crate::vehicle_drive::max_reverse_velocity(maximum, battery);
+            let current = world
+                .get::<crate::vehicles::Vehicle>(vehicle)
+                .map_or(0, |built| built.cruise_velocity);
+            let next = cruise_thrust(current, controls.cruise, safe, maximum, reverse);
+            if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+                built.cruise_velocity = next;
+            }
+            heard += 1;
+        }
+        if controls.steer != 0 {
+            heard += 1;
+        }
+    }
+    heard
+}
