@@ -4697,3 +4697,20 @@ fn a_perpetual_fuel_carries_the_flag() {
     );
     assert!(!perpetual(&[]), "and no flags is not perpetual either");
 }
+
+/// **A perpetual fuel is skipped when the store is asked what a vehicle burns.** The flag table says muscle is `PERPETUAL`, so an engine burning it asks for nothing even
+/// when it is on and fuelled - the wiring `is_perpetual` was ported for.
+#[test]
+fn a_perpetual_fuel_is_not_asked_to_burn() {
+    let mut world = World::new();
+    let muscle = cdda_sim::ItemTypeId(0);
+    cdda_sim::item_registry::set_item_flags(&mut world, &[(muscle, &["PERPETUAL"])]);
+    assert!(
+        cdda_sim::item_registry::kind_has_flag(&world, muscle, "PERPETUAL"),
+        "**the store knows muscle never runs out**"
+    );
+    assert!(
+        !cdda_sim::item_registry::kind_has_flag(&world, cdda_sim::ItemTypeId(9), "PERPETUAL"),
+        "a kind nobody filed is not perpetual"
+    );
+}

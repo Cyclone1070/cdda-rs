@@ -857,3 +857,13 @@ pub fn traits_of(world: &World, kind: ItemTypeId) -> Option<(bool, bool)> {
     let entity = singletons::holder::<TheKindTraits>(world)?;
     world.get::<KindTraits>(entity)?.0.get(&kind).copied()
 }
+
+/// The kind a name refers to, read without taking the store by the hand.
+///
+/// [`id_of`] needs a `&mut World` because a world that never loaded item data gets an empty registry made for it. A caller that only wants to ask a question about data it
+/// knows is there - the vehicle rules, for instance - can ask this and get `None` rather than a store it did not want.
+#[must_use]
+pub fn kind_by_name(world: &World, name: &str) -> Option<ItemTypeId> {
+    let holder = singletons::holder::<TheItemTypes>(world)?;
+    world.get::<ItemTypes>(holder)?.by_name.get(name).copied()
+}

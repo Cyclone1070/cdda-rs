@@ -488,6 +488,12 @@ pub fn fuel_usage_of(world: &World, vehicle: Entity) -> std::collections::BTreeM
             Some(part.fuel_preference.clone())
         };
         let Some(fuel) = fuel else { continue };
+        // **A perpetual fuel never runs out**, so its engine never asks to burn any - the reference's `is_perpetual_type`, asked of the fuel item's flags.
+        let perpetual = crate::item_registry::kind_by_name(world, &fuel)
+            .is_some_and(|kind| crate::item_registry::kind_has_flag(world, kind, "PERPETUAL"));
+        if perpetual {
+            continue;
+        }
         engines.push((fuel, spec.energy_consumption_w));
     }
     fuel_usage(&engines)

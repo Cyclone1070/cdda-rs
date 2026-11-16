@@ -37191,3 +37191,10 @@ engine burning them asks for nothing.
 
 The port takes the flags rather than a world, so the rule stays a question about data. **Not yet consulted by `fuel_usage_of`:** the flag table is in the store
 (`ItemFlags`, keyed by item kind) but no accessor reaches it from the sim yet, so that wiring is the next step.
+
+**A perpetual fuel is skipped now (round 105).** `fuel_usage_of` asks the store whether the fuel carries `PERPETUAL`, and drops the engine when it does - so a muscle or wind
+engine no longer counts as burning. Gated against a hand-installed flag table: the store knows muscle never runs out, and a kind nobody filed is not perpetual.
+
+**A duplication worth recording:** I added `kind_by_name` and `has_flag` before checking, and `kind_has_flag` already existed (`item_registry.rs:183`). The new `has_flag` was
+deleted and the vehicle rule uses the existing accessor. `kind_by_name` stayed because there was none - but the check should have come first: **search before adding an
+accessor** is the same lesson as "read the struct before editing it".
