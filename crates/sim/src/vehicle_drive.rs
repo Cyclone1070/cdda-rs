@@ -707,3 +707,30 @@ pub fn idle(world: &mut World, vehicle: Entity) -> bool {
     burn_fuel(world, vehicle, idle_load(0));
     true
 }
+
+/// What a vehicle's engine is doing this turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Drive {
+    /// The engine is off: it burns nothing and wears nothing.
+    Off,
+    /// Someone is driving and the cruise is set, so the engine works to reach it - `vehicle::thrust`'s path.
+    Thrust,
+    /// The engine is on but nothing is asked of it - `vehicle::idle`'s path, at the idle rate.
+    Idle,
+}
+
+/// Which of the reference's two burning paths a vehicle takes.
+///
+/// Reference: the condition around `vehicle::idle` (`vehicle.cpp:6050-6058`) - fuel is consumed at idle **only** when the vehicle is not thrusting, and thrusting means
+/// someone is in control **and** `cruise_velocity != 0`. An engine that is off does neither.
+#[must_use]
+pub fn drive_state(engine_on: bool, driven: bool, cruise_velocity: i32) -> Drive {
+    if !engine_on {
+        return Drive::Off;
+    }
+    if driven && cruise_velocity != 0 {
+        Drive::Thrust
+    } else {
+        Drive::Idle
+    }
+}

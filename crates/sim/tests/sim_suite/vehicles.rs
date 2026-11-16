@@ -5042,3 +5042,31 @@ fn an_idling_engine_burns_a_hundredth_of_full_throttle() {
     assert_eq!(idle(4), 10, "below the floor is the floor");
     assert_eq!(idle(250), 250, "an alternator drawing more sets the rate");
 }
+
+/// **Which way a vehicle burns, decided before it burns.** Reference: `vehicle::idle` (`vehicle.cpp:6050-6058`) - fuel burns at idle only when the vehicle is not thrusting,
+/// and thrusting means a driver is in control **and** the cruise is set.
+#[test]
+fn a_vehicle_thrusts_only_with_a_driver_and_a_cruise() {
+    use cdda_sim::vehicle_drive::Drive;
+    let state = cdda_sim::vehicle_drive::drive_state;
+    assert_eq!(
+        state(false, true, 1_000),
+        Drive::Off,
+        "**engine off, nothing**"
+    );
+    assert_eq!(
+        state(true, true, 1_000),
+        Drive::Thrust,
+        "a driver with a cruise thrusts"
+    );
+    assert_eq!(
+        state(true, true, 0),
+        Drive::Idle,
+        "**a driver with no cruise is only idling**"
+    );
+    assert_eq!(
+        state(true, false, 1_000),
+        Drive::Idle,
+        "and so is a parked car"
+    );
+}

@@ -37306,3 +37306,18 @@ Gated on the floor: nothing bolted on still burns 10, a small draw is raised to 
 
 **Two gaps named, not guessed:** the alternator's draw is unported, so the floor is what the port passes (10) - which is exactly what the reference does when there is no
 alternator; and `idle` is not called from a turn yet, because "not thrusting" is a driver state the port has not built.
+
+## Which way a vehicle burns (round 117)
+
+`vehicle_drive::drive_state` is the decision the two burning paths hang on, taken from the condition around `vehicle::idle` (`vehicle.cpp:6050-6058`): fuel burns at idle
+**only** when the vehicle is not thrusting, and thrusting means someone is in control **and** `cruise_velocity != 0`.
+
+| Engine | Driver | Cruise | Path |
+|---|---|---|---|
+| off | either | either | **Off** — nothing burns or wears |
+| on | yes | set | **Thrust** — the driver's load |
+| on | yes | zero | **Idle** — the 1% floor |
+| on | no | any | **Idle** |
+
+Gated on all four. **It is a pure decision, not a component:** the port has no driver entity yet, so the caller says whether anyone is in control rather than the rule
+inventing who that is.
