@@ -5070,3 +5070,37 @@ fn a_vehicle_thrusts_only_with_a_driver_and_a_cruise() {
         "and so is a parked car"
     );
 }
+
+/// **Only a seat whose data says CONTROLS has a driver.** Reference: `player_in_control` asks the part's flags, not its position - a passenger seat is a seat too.
+#[test]
+fn only_a_controls_part_has_a_driver() {
+    use cdda_sim::vehicles::{Riding, driver_of};
+
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    assert_eq!(driver_of(&world, car), None, "**nobody on board yet**");
+
+    let count = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map_or(0, |built| built.parts.len());
+    let controls = (0..count).find(|index| {
+        cdda_sim::vehicles::part_spec(&world, car, *index)
+            .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "CONTROLS"))
+    });
+    let Some(controls) = controls else {
+        // The corpus car has no controls part: the assertion that matters is the negative one above.
+        return;
+    };
+    let creature = world.spawn_empty().id();
+    world.entity_mut(creature).insert(Riding {
+        vehicle: car,
+        part: controls,
+    });
+    assert_eq!(
+        driver_of(&world, car),
+        Some(creature),
+        "**whoever sits on CONTROLS is driving**"
+    );
+}

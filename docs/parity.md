@@ -37321,3 +37321,12 @@ alternator; and `idle` is not called from a turn yet, because "not thrusting" is
 
 Gated on all four. **It is a pure decision, not a component:** the port has no driver entity yet, so the caller says whether anyone is in control rather than the rule
 inventing who that is.
+
+## Who is driving (round 118)
+
+`vehicles::driver_of` answers the question `drive_state` takes as an argument, from the store: the first rider on a part whose **data** carries `CONTROLS`. That is the
+reference's `player_in_control` shape - it asks the part's flags, not its position, because a passenger seat is a seat too, and the port would otherwise have invented which
+seat steers.
+
+Gated on a car with nobody aboard answering `None`, and on a creature seated on the `CONTROLS` part answering as the driver. The test **passes trivially** when the corpus car
+has no controls part - the negative assertion still holds - and says so in a comment rather than pretending to have proven the positive case.

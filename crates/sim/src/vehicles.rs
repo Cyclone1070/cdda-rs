@@ -1072,3 +1072,28 @@ pub fn set_fuel_remainder(
 ) {
     world.entity_mut(vehicle).insert(remainder);
 }
+
+/// The creature steering a vehicle, if anyone is.
+///
+/// Reference: `veh_utils::player_in_control` / `vehicle::player_in_control` asks the square the creature stands on for a part with the `CONTROLS` flag - a seat is only the
+/// driver's seat if its data says so, which is why the port asks the part's flags rather than its position. The first rider on such a part answers, and a creature riding
+/// anything else is a passenger.
+#[must_use]
+pub fn driver_of(world: &World, vehicle: Entity) -> Option<Entity> {
+    let mut query = world.try_query::<(Entity, &Riding)>()?;
+    let riders: Vec<(Entity, Riding)> = query
+        .iter(world)
+        .filter(|(_, riding)| riding.vehicle == vehicle)
+        .map(|(entity, riding)| (entity, *riding))
+        .collect();
+    drop(query);
+    for (creature, riding) in riders {
+        let Some(spec) = part_spec(world, vehicle, riding.part) else {
+            continue;
+        };
+        if spec.flags.iter().any(|flag| flag == "CONTROLS") {
+            return Some(creature);
+        }
+    }
+    None
+}
