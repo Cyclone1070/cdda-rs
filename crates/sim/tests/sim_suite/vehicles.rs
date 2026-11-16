@@ -4612,3 +4612,38 @@ fn a_second_of_running_asks_for_its_energy_less_the_leftover() {
         "no load, nothing burned"
     );
 }
+
+/// **A turn burns what it needs and carries the fraction forward.** Reference: `consume_fuel` (`vehicle.cpp:5226-5246`) - the ask, less the leftover, drained from the
+/// tanks, with `drained - asked` carried to the next turn. Diesel at 28,640 J a charge, 1,000 W at load 500 asks 500 J: one charge gives 28,640 J, so 28,140 J carries.
+#[test]
+fn a_turn_burns_what_it_needs_and_carries_the_fraction_forward() {
+    let diesel = "diesel".to_owned();
+    let mut usage = std::collections::BTreeMap::new();
+    usage.insert(diesel.clone(), 1000);
+    let mut tanks = [(diesel.clone(), 5)];
+
+    let carried = cdda_sim::vehicle_drive::consume_fuel(
+        &usage,
+        500,
+        0.0,
+        &std::collections::BTreeMap::new(),
+        &mut tanks,
+        28_640.0,
+    );
+    assert_eq!(tanks[0].1, 4, "**one charge burned**");
+    let left = carried.get(&diesel).copied().unwrap_or(0.0);
+    assert!(
+        (left - 28_140.0).abs() < 1e-6,
+        "**28,640 given less 500 asked leaves 28,140 for the next turn: {left}**"
+    );
+
+    // The next turn asks the same 500 J and the leftover more than covers it, so no charge is burned.
+    let carried =
+        cdda_sim::vehicle_drive::consume_fuel(&usage, 500, 0.0, &carried, &mut tanks, 28_640.0);
+    assert_eq!(tanks[0].1, 4, "the leftover pays for this turn");
+    let left = carried.get(&diesel).copied().unwrap_or(0.0);
+    assert!(
+        (left - 27_640.0).abs() < 1e-6,
+        "and 500 J comes off it: {left}"
+    );
+}

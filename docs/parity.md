@@ -37166,3 +37166,14 @@ granularity the store has, not a rounding convenience - when tanks carry millili
 
 **The strain term is the whole point of the rule:** squared and multiplied by a hundred, it turns a gentle cruise into a hundredfold burn at the top of the safe band. A
 port that used strain linearly would be wrong by a factor that only shows up when someone drives fast.
+
+## A turn of burning, assembled (round 102)
+
+`vehicle_drive::consume_fuel` is `vehicle::consume_fuel` (`vehicle.cpp:5226-5246`), built from the four gated parts: the per-fuel ask ([`fuel_to_consume`]), the leftover
+carried from last turn, the drain ([`drain_energy`]), and the new leftover (`drained - asked`, or `-to_consume` when the leftover already covered the ask).
+
+Gated on two turns in a row: 1,000 W at load 500 asks 500 J, one 28,640 J charge is burned, and **28,140 J carries**; the second turn is paid for by the leftover and burns
+no charge, leaving 27,640 J. That carry is why a car does not lose fuel to rounding every turn.
+
+**Still not wired to a vehicle:** no system calls it yet, `load` is the caller's to supply, and `is_perpetual_type` is unported, so a muscle or wind engine would be counted
+as burning. Each is named rather than assumed.

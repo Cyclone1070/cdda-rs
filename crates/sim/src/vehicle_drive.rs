@@ -429,3 +429,31 @@ pub fn fuel_to_consume(usage_w: i32, load: i32, strain: f64, remainder_j: f64) -
     let asked = f64::from(usage_w) * f64::from(load) * (1.0 + strain * strain * 100.0) / 1000.0;
     asked - remainder_j
 }
+
+/// One turn of burning for every fuel the vehicle uses.
+///
+/// Reference: `vehicle::consume_fuel` (`vehicle.cpp:5226-5246`): for each fuel, the energy asked for is [`fuel_to_consume`]; the leftover from the last turn comes off; if
+/// there is energy to give, [`drain_energy`] gives it and the shortfall **becomes** the new leftover (`drained - asked`), and if the leftover was already more than the
+/// ask, the unused part carries forward unchanged (`-to_consume`). Both branches keep the fraction a turn could not burn, which is why a car does not lose fuel to rounding.
+#[must_use]
+pub fn consume_fuel(
+    usage: &std::collections::BTreeMap<String, i32>,
+    load: i32,
+    strain: f64,
+    remainder: &std::collections::BTreeMap<String, f64>,
+    tanks: &mut [(String, i32)],
+    per_charge_j: f64,
+) -> std::collections::BTreeMap<String, f64> {
+    let mut carried = std::collections::BTreeMap::new();
+    for (fuel, watts) in usage {
+        let leftover = remainder.get(fuel).copied().unwrap_or(0.0);
+        let asked = fuel_to_consume(*watts, load, strain, leftover);
+        if asked > 0.0 {
+            let drained = drain_energy(tanks, fuel, per_charge_j, asked);
+            carried.insert(fuel.clone(), drained - asked);
+        } else {
+            carried.insert(fuel.clone(), -asked);
+        }
+    }
+    carried
+}
