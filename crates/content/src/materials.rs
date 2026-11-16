@@ -60,6 +60,9 @@ pub struct BurnData {
     pub volume_per_turn: f64,
     /// Fuel contributed to the fire.
     pub fuel: f64,
+    /// The energy in one millilitre when this material is burned as fuel, in joules - the reference's `fuel_data::energy` (`material.h`), which the JSON writes as a
+    /// string such as `"1000 kJ"`. `None` for a material that is not a fuel. **This is where diesel's energy lives**, not on the item that carries it.
+    pub fuel_energy_j: Option<f64>,
     /// Smoke produced.
     pub smoke: f64,
     /// Fraction of the material destroyed per turn.
@@ -279,6 +282,12 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
                 immune: matches!(fields.get("immune"), Some(Value::Bool(true))),
                 volume_per_turn: volume.unwrap_or(0.0),
                 fuel: number(fields, "fuel").unwrap_or(0.0),
+                fuel_energy_j: match fields.get("fuel_data") {
+                    Some(Value::Object(data)) => {
+                        string(data, "energy").and_then(|text| fuel_energy_j(&text))
+                    }
+                    _ => None,
+                },
                 smoke: number(fields, "smoke").unwrap_or(0.0),
                 burn: number(fields, "burn").unwrap_or(0.0),
             });
@@ -387,4 +396,23 @@ fn volume_in_ml(text: &str) -> Option<f64> {
         "L" => Some(value * 1000.0),
         _ => None,
     }
+}
+
+/// Turns the JSON's `"1000 kJ"` into joules.
+///
+/// Reference: `fuel_data::energy` is loaded with `assign( jo, "energy", energy )` (`material.cpp`), which reads a `units::energy` - a number and a unit. The units the
+/// data uses are `J`, `kJ` and `MJ`; a string with any other unit, or none, is not a number this rule can read and answers `None` rather than a guess.
+#[must_use]
+pub fn fuel_energy_j(text: &str) -> Option<f64> {
+    let trimmed = text.trim();
+    let split = trimmed.find(|character: char| character.is_alphabetic())?;
+    let (number, unit) = trimmed.split_at(split);
+    let value: f64 = number.trim().parse().ok()?;
+    let factor = match unit.trim() {
+        "J" => 1.0,
+        "kJ" => 1_000.0,
+        "MJ" => 1_000_000.0,
+        _ => return None,
+    };
+    Some(value * factor)
 }

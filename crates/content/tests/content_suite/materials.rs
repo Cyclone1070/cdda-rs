@@ -203,3 +203,26 @@ fn burn_products_are_read_for_the_materials_that_have_them() {
         .expect("wood");
     assert_eq!(wood.burn_products.first(), Some(&("ash".to_owned(), 0.018)));
 }
+
+/// **The fuel's energy comes as a string with a unit.** Reference: `fuel_data::energy` is a `units::energy` loaded by `assign`, and the data writes `"1000 kJ"`.
+#[test]
+fn a_fuel_s_energy_is_a_number_and_a_unit() {
+    let energy = cdda_content::materials::fuel_energy_j;
+    assert_eq!(
+        energy("1000 kJ"),
+        Some(1_000_000.0),
+        "**1,000 kJ is a megajoule**"
+    );
+    assert_eq!(energy("2 MJ"), Some(2_000_000.0), "and MJ is a million");
+    assert_eq!(
+        energy(" 500 J "),
+        Some(500.0),
+        "and J is a joule, spaces trimmed"
+    );
+    assert_eq!(
+        energy("1000 furlongs"),
+        None,
+        "an unknown unit is not guessed"
+    );
+    assert_eq!(energy("1000"), None, "and neither is a bare number");
+}

@@ -37110,3 +37110,10 @@ So the joules in one charge come from **the material's `fuel_data.energy`** - a 
 
 **The dump to take next** must carry, for every material that has fuel data, its `energy`, and for every fuel item its charge volume. Neither the vehicles dump nor the
 items dump the port already reads contains either number, so `drain_energy` cannot be ported until they exist.
+
+**A fuel's energy is a string with a unit (round 94).** `materials::fuel_energy_j` reads the JSON's `"1000 kJ"` into joules and `Material::fuel_energy_j` carries it, `None` for
+a material that is not a fuel. Gated on kJ, MJ, J, whitespace, an unknown unit and a bare number - the last two answer `None` rather than a guess, because a made-up factor
+is exactly what this corpus rule exists to prevent.
+
+**Named, not yet proven against the reference:** no test asserts a real material's energy yet. The parser is gated on its own arithmetic; the loader's wiring to the real
+data needs a corpus assertion, which is the next step before `drain_energy`.
