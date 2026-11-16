@@ -37446,3 +37446,13 @@ So a hull turn is not a new rule - it is that rule applied to every part at once
 
 Recorded rather than started: the next round should extend the oracle with a rotated-vehicle dump **first**, then port, per the corpus rule. Code written against a torn index
 would be exactly the sort of thing the architecture gates exist to catch, and catching it there costs a round rather than a rewrite.
+
+**The fixture the rotation dump will copy (round 129).** `oracle/src/src/harness.cpp:955-1000` is the template: `dump_vehicle_top_speed` lays a floor 20 squares around the avatar
+(so terrain can never be the reason a vehicle refuses to place), calls `here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true )`, and records per case what the reference
+built. A rotation dump is that same fixture plus a turn between two recordings of every part's mount and square.
+
+**Why the harness edit was not written this round:** the turn call itself is the one line I could not confirm from the source in hand - `vehicle::turn` sets `turn_dir`, but the
+parts' squares only move when the mounts are recalculated, and guessing which call does that would put a wrong recording in the corpus, which is worse than a missing one. The
+rebuild on `cyc@elitedesk` is 13-16 minutes, so a wrong guess costs a rebuild and teaches nothing.
+
+Next round: read `vehicle::turn`'s caller in `map::move_vehicle` to find the recalculation, write the dump, `--regen`, rebuild, dump, `scp`, then port.
