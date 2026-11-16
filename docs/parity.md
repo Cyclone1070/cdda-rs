@@ -37132,3 +37132,9 @@ over a `count` of `250`, so a charge is 0.8 ml and the energy is 28,640 J.
 **Both halves are now gated on the reference's own data:** 35,800,000 J/ml from `materials.json`, 200 ml and 250 charges from `items/fuel.json`, and the product asserted.
 What is still missing is the *plumbing* - the item registry has a volume but the port does not yet read a fuel item's `count` into it - and `strain`, without which
 `consume_fuel`'s scale factor is incomplete.
+
+**The energy comes out of the registries now (round 97).** The claim left open last round - that the port could not reach a fuel item's `count` - was wrong: `ItemType` already
+carries `default_charges` from `"count"` and `volume` in millilitres. The test feeds `fuel_energy_per_charge` from the two loaded registries instead of from constants, and
+asserts diesel's **28,640 J** a charge, so the number is the store's rather than a test's.
+
+`drain_energy` now has every input it needs to turn joules into charges. What `consume_fuel` still lacks is `strain`.

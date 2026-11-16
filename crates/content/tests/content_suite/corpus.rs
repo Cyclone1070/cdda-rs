@@ -183,3 +183,33 @@ fn a_fuel_material_carries_its_energy_and_a_non_fuel_carries_none() {
         "flesh does not burn as fuel in an engine"
     );
 }
+
+/// **Diesel's charge carries 28,640 J, from the store rather than from a test constant.** This is [`materials::fuel_energy_per_charge`] fed by the two registries: the
+/// material's energy per millilitre (35,800,000) and the item's own `200ml` over a `count` of `250`. `item::fuel_energy` is exactly that product, and `drain_energy`
+/// converts joules into charges with it.
+#[test]
+fn a_fuel_item_and_its_material_give_the_energy_of_one_charge() {
+    let items = items_loaded();
+    let materials = materials_loaded();
+    let diesel = items
+        .iter()
+        .find(|item| item.id == "diesel")
+        .expect("the diesel item is defined");
+    assert_eq!(diesel.volume, 200, "200 ml in the stack");
+    assert_eq!(diesel.default_charges, 250, "over 250 charges");
+    let material = materials
+        .iter()
+        .find(|material| material.id == "diesel")
+        .expect("the diesel material is defined");
+    let per_ml = material.fuel_energy_j.expect("**diesel burns**");
+    let per_charge = cdda_content::materials::fuel_energy_per_charge(
+        per_ml,
+        diesel.volume,
+        i64::from(diesel.default_charges),
+    )
+    .expect("a charge has a volume");
+    assert!(
+        (per_charge - 28_640.0).abs() < 1e-6,
+        "**35,800,000 J/ml over 0.8 ml is 28,640 J: {per_charge}**"
+    );
+}
