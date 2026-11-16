@@ -1038,3 +1038,37 @@ pub fn part_spec(
         .map(|part| part.part.clone())?;
     world.get::<VehicleStore>(store)?.parts.get(&name).cloned()
 }
+
+/// The fraction of a charge a vehicle could not burn, by fuel.
+///
+/// Reference: `vehicle::fuel_remainder` (`vehicle.h:520`), a map from fuel to energy that carries a turn's unburnt fraction into the next one - which is why a car does not
+/// lose fuel to rounding every turn. Kept as a component on the vehicle rather than a field inside [`Vehicle`], because it is state about burning that most vehicles never
+/// have any of, and a component an entity does not carry is absent rather than zero.
+#[derive(Debug, Clone, Default, PartialEq, bevy_ecs::component::Component)]
+pub struct FuelRemainder(pub std::collections::BTreeMap<String, f64>);
+
+impl FuelRemainder {
+    /// What is left over for a fuel, or nothing when the vehicle has never burned it.
+    #[must_use]
+    pub fn of(&self, fuel: &str) -> f64 {
+        self.0.get(fuel).copied().unwrap_or(0.0)
+    }
+}
+
+/// A vehicle's fuel leftovers, read from the store.
+#[must_use]
+pub fn fuel_remainder_of(world: &bevy_ecs::world::World, vehicle: Entity) -> FuelRemainder {
+    world
+        .get::<FuelRemainder>(vehicle)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Writes a vehicle's fuel leftovers back into the store.
+pub fn set_fuel_remainder(
+    world: &mut bevy_ecs::world::World,
+    vehicle: Entity,
+    remainder: FuelRemainder,
+) {
+    world.entity_mut(vehicle).insert(remainder);
+}

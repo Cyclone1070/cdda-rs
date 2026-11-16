@@ -4714,3 +4714,29 @@ fn a_perpetual_fuel_is_not_asked_to_burn() {
         "a kind nobody filed is not perpetual"
     );
 }
+
+/// **A vehicle that has never burned anything has no leftovers**, and one that has carries them by fuel. The component is absent until something writes it, so "never burned"
+/// and "burned and owes nothing" stay different facts.
+#[test]
+fn a_fresh_vehicle_owes_no_fuel_leftovers() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+
+    let none = cdda_sim::vehicles::fuel_remainder_of(&world, car);
+    assert!(none.0.is_empty(), "**nothing has been burned yet**");
+    assert!(
+        (none.of("diesel") - 0.0).abs() < 1e-12,
+        "so diesel owes nothing"
+    );
+
+    let mut carried = cdda_sim::vehicles::FuelRemainder::default();
+    carried.0.insert("diesel".to_owned(), 28_140.0);
+    cdda_sim::vehicles::set_fuel_remainder(&mut world, car, carried);
+    let back = cdda_sim::vehicles::fuel_remainder_of(&world, car);
+    assert!(
+        (back.of("diesel") - 28_140.0).abs() < 1e-9,
+        "**28,140 J carries to the next turn**"
+    );
+}

@@ -37198,3 +37198,10 @@ engine no longer counts as burning. Gated against a hand-installed flag table: t
 **A duplication worth recording:** I added `kind_by_name` and `has_flag` before checking, and `kind_has_flag` already existed (`item_registry.rs:183`). The new `has_flag` was
 deleted and the vehicle rule uses the existing accessor. `kind_by_name` stayed because there was none - but the check should have come first: **search before adding an
 accessor** is the same lesson as "read the struct before editing it".
+
+**The leftovers have somewhere to live (round 106).** `vehicles::FuelRemainder` is `vehicle::fuel_remainder` (`vehicle.h:520`) as a component: the fraction of a charge a
+vehicle could not burn, by fuel. It is a component rather than a field on `Vehicle` because it is state most vehicles never have, and **an entity that does not carry it is
+absent rather than zero** - so "never burned anything" and "burned and owes nothing" stay different facts. A fresh car owes nothing; 28,140 J written back reads back.
+
+**Still missing before a turn can burn:** `safe_velocity` is not ported (only `safe_power_of` is), so `strain` has no safe speed to compare against, and the per-charge energy
+lives in the content crate while the burn runs in the sim. Both are the next step, in that order.
