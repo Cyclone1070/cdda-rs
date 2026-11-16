@@ -37428,3 +37428,21 @@ TDD order: the test failed to **compile** first (`wheel_direction` did not exist
 
 **Still not ported:** turning the hull. The reference's `face` follows `turn_dir` through the map's direction and the pivot sweep, and that sweep moves every part through the
 index - the one vehicle behaviour with no ported rule yet.
+
+## What a hull turn costs (round 128, investigation)
+
+Round 127 named the pivot sweep as the one unported vehicle rule. This round read what it would take before writing it, and found the arithmetic **already here**:
+`rotation::coord_translate` (`vehicle.cpp:3598-3615`) is exactly the rule that lands a mount when the hull faces a direction, and `TileRay` beside it is the reference's ray.
+So a hull turn is not a new rule - it is that rule applied to every part at once, plus a change to `Vehicle::rotation`.
+
+**What is genuinely missing, and why it is not a five-line job:**
+
+1. **Every part must move through the derived index in one step.** Rotating offsets one at a time leaves squares that are neither the old occupancy nor the new one; the index
+   would hold a torn vehicle for however many iterations it takes. Whatever function does this has to compute the whole new set first and swap it whole.
+2. **The pivot is a mounted part, not the origin.** `coord_translate` takes a pivot; `map::add_vehicle` anchors at the origin, but a turn pivots about the part the vehicle
+   turns around, and the port has no notion of that part yet.
+3. **The oracle does not dump a rotated vehicle.** No dump pins part squares before and after a quarter turn, so a test would have to be transcribed from the reference's
+   code rather than from a recording - the weaker of the two gates `docs/14` allows, and the one to use only when the dump cannot be made.
+
+Recorded rather than started: the next round should extend the oracle with a rotated-vehicle dump **first**, then port, per the corpus rule. Code written against a torn index
+would be exactly the sort of thing the architecture gates exist to catch, and catching it there costs a round rather than a rewrite.
