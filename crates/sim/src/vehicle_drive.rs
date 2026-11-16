@@ -612,3 +612,18 @@ pub fn burn_fuel(world: &mut World, vehicle: Entity, load: i32) {
     }
     crate::vehicles::set_fuel_remainder(world, vehicle, carried);
 }
+
+/// Burns one turn of fuel for **every** vehicle in the store.
+///
+/// The turn's frame around [`burn_fuel`]: the reference does this per vehicle inside `map::move_vehicle`'s turn handling (`vehicle.cpp:5226`), and the port keeps the same
+/// shape - one pass over the vehicles, each burning what it asked for. `load` is the driver's demand, which the port has no input path for yet, so the caller states it.
+pub fn burn_vehicles(world: &mut World, load: i32) {
+    let mut vehicles = Vec::new();
+    let mut query = world.query::<(bevy_ecs::entity::Entity, &crate::vehicles::Vehicle)>();
+    for (entity, _) in query.iter(world) {
+        vehicles.push(entity);
+    }
+    for vehicle in vehicles {
+        burn_fuel(world, vehicle, load);
+    }
+}

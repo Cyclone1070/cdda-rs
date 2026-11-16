@@ -4817,3 +4817,49 @@ fn burning_a_turn_spends_a_charge_and_carries_the_rest() {
         "**an unknown fuel is not burned on a guess**"
     );
 }
+
+/// **A turn's burning reaches every vehicle, not just the one somebody asked about.** Two fuelled cars that have never moved still burn their engines' demand, and a car
+/// whose fuel nobody priced is left alone in the same pass.
+#[test]
+fn a_turn_of_burning_reaches_every_vehicle() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let first = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let second = cdda_sim::vehicles::spawn(&mut world, "car", (110, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, first);
+    fill_own_tanks(&mut world, second);
+    let fuel = {
+        let count = world
+            .get::<cdda_sim::vehicles::Vehicle>(first)
+            .map_or(0, |built| built.parts.len());
+        (0..count)
+            .filter_map(|index| cdda_sim::vehicles::part_spec(&world, first, index))
+            .find_map(|spec| spec.fuel_opts.first().cloned())
+            .expect("the car names a fuel")
+    };
+    cdda_sim::vehicle_drive::set_fuel_energies(&mut world, &[(fuel, 28_640.0)]);
+    let before: i32 = [first, second]
+        .iter()
+        .map(|car| {
+            world
+                .get::<cdda_sim::vehicles::Vehicle>(*car)
+                .map_or(0, |built| built.parts.iter().map(|part| part.charges).sum())
+        })
+        .sum();
+
+    cdda_sim::vehicle_drive::burn_vehicles(&mut world, 500);
+
+    let after: i32 = [first, second]
+        .iter()
+        .map(|car| {
+            world
+                .get::<cdda_sim::vehicles::Vehicle>(*car)
+                .map_or(0, |built| built.parts.iter().map(|part| part.charges).sum())
+        })
+        .sum();
+    assert!(
+        after < before,
+        "**a pass over the store burns both cars: {before} charges became {after}**"
+    );
+}

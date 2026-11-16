@@ -37222,3 +37222,10 @@ because the sim holds no item or material registry. **A fuel with no entry is no
 charge came back.
 
 Gated: charges fall, the leftover carries, and an unpriced fuel is left alone.
+
+**A pass over the store, not one car (round 109).** `vehicle_drive::burn_vehicles` is the turn's frame around `burn_fuel`: the reference does this per vehicle inside
+`map::move_vehicle`'s turn handling (`vehicle.cpp:5226`), and the port keeps that shape - one pass over every vehicle in the store, each burning what it asked for. Gated on
+two fuelled cars that have never moved: a single pass spends charges on both.
+
+**Named, not wired:** it is not yet a stage in the turn schedule (`turn.rs`'s `STAGES`). Adding it means giving the schedule a stage of its own and stating where it sits
+relative to movement - which is a decision about the turn, not about fuel. `load` is likewise the caller's, because the port has no driver-input path yet.
