@@ -37456,3 +37456,10 @@ parts' squares only move when the mounts are recalculated, and guessing which ca
 rebuild on `cyc@elitedesk` is 13-16 minutes, so a wrong guess costs a rebuild and teaches nothing.
 
 Next round: read `vehicle::turn`'s caller in `map::move_vehicle` to find the recalculation, write the dump, `--regen`, rebuild, dump, `scp`, then port.
+
+**The rotation dump exists (round 130).** `--dump-vehicle-turn` adds a case to the harness that places a vehicle, records every part's mount, turns it, recalculates the mounts the
+way `map::move_vehicle` does (`map.cpp:808`), and records them again with the turn direction and facing after. The two halves are the point: they pin **which call** moves
+the parts, which was the one thing round 129 would not guess. Patches regenerated and verified byte for byte against the pinned checkout.
+
+**One correction to how dumps come back:** `tools/oracle_sync.sh` prints the dump on **stdout**; it does not write the destination file or copy it home. The next round captures it
+with a redirect (`> /tmp/vehicle_turn.json` on the Mac side) rather than passing a path and expecting a file.

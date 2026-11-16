@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-16 09:39:44
-@@ -0,0 +1,9143 @@
++++ oracle/src/src/harness.cpp	2026-11-17 01:50:29
+@@ -0,0 +1,9208 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1314,6 +1314,71 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +
 +/// A vehicle the reference itself places, with everything a later behaviour dump needs pinned beside it - `--dump-vehicle-placement`.
 +///
++/// A vehicle turned in place: where every part lands after a quarter turn, and what the hull faces.
++///
++/// The fixture is `dump_vehicle_top_speed`'s own - floor 20 squares around the avatar so terrain cannot refuse the placement, the vehicle added at the origin - and the turn is
++/// the reference's: `vehicle::turn` adds to `turn_dir` and rounds it to the steer increment (`vehicle_move.cpp:678-685`), and the parts only move when the mounts are
++/// recalculated, which `map::move_vehicle` does with `veh.precalc_mounts( 1, veh.skidding ? veh.turn_dir : facing.dir(), veh.pivot_point( *this ) )` (`map.cpp:808`).
++/// Recording both halves is the point: it pins **which** call moves the parts, not just what a turn computes.
++void dump_vehicle_turn( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -20; dx <= 20; dx++ ) {
++        for( int dy = -20; dy <= 20; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"vehicle_turn\",\"version\":1,\"origin\":[%d,%d,%d],\"cases\":[",
++                  origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++    const auto dump_case = [&]( const char *name, const vproto_id &type, int degrees ) {
++        vehicle *veh = here.add_vehicle( type, origin, 0_degrees, 0, 0, false, true );
++        if( veh == nullptr ) {
++            std::fprintf( stderr, "harness: %s did not place\n", type.str().c_str() );
++            return;
++        }
++        if( !first_case ) {
++            std::fputc( ',', out );
++        }
++        first_case = false;
++        std::fprintf( out, "{\"name\":\"%s\",\"degrees\":%d,\"face\":%d,\"parts\":[", name, degrees, veh->face.dir() );
++        // Before the turn: what the vehicle was built as.
++        for( int p = 0; p < veh->part_count(); p++ ) {
++            const point_rel_ms mount = veh->part( p ).mount;
++            if( p > 0 ) {
++                std::fputc( ',', out );
++            }
++            std::fprintf( out, "{\"index\":%d,\"x\":%d,\"y\":%d}", p, mount.x(), mount.y() );
++        }
++        std::fprintf( out, "],\"turned\":[" );
++        veh->turn( units::from_degrees( degrees ) );
++        veh->precalc_mounts( 1, veh->face.dir(), veh->pivot_point( here ) );
++        for( int p = 0; p < veh->part_count(); p++ ) {
++            const point_rel_ms mount = veh->part( p ).mount;
++            if( p > 0 ) {
++                std::fputc( ',', out );
++            }
++            std::fprintf( out, "{\"index\":%d,\"x\":%d,\"y\":%d}", p, mount.x(), mount.y() );
++        }
++        std::fprintf( out, "],\"turn_dir\":%d,\"face_after\":%d}", veh->turn_dir.normalize().to_degrees(), veh->face.dir() );
++        here.destroy_vehicle( veh );
++    };
++    dump_case( "2seater", vproto_id( "2seater" ), 90 );
++    dump_case( "2seater_reverse", vproto_id( "2seater" ), -90 );
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +/// The rotation dump exercises `tileray` without a map; this one proves the **placement path** works in the harness, which every later vehicle behaviour needs: `map::add_vehicle`
 +/// (`mapgen.cpp:7523-7560`) refuses a vehicle whose structural squares hit deep water or another vehicle, and it needs the dynamic data loaded (`check_mod_data`) or the prototype id
 +/// does not exist. It lays floor around the avatar first so terrain cannot be the reason, places the 2-seater helicopter at the avatar's own square, and records what the reference
@@ -9505,8 +9570,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-15 08:32:46
-@@ -0,0 +1,445 @@
++++ oracle/src/src/harness.h	2026-11-17 01:50:46
+@@ -0,0 +1,446 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9665,6 +9730,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
 +void dump_vehicle_top_speed( const std::string &path );
++void dump_vehicle_turn( const std::string &path );
 +
 +// `--dump-flags <file>`: every flag id the game knows, which is what `foreach` with `target: "flag"` walks.
 +void dump_flags( const std::string &path );
@@ -10239,7 +10305,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-15 08:32:46
++++ oracle/src/src/main.cpp	2026-11-17 01:50:46
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10250,7 +10316,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,182 @@
+@@ -272,6 +275,183 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10424,6 +10490,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_move;
 +    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
++    std::string dump_vehicle_turn;
 +    std::string dump_fields;
 +    std::string dump_items;
 +    std::string dump_monsters;
@@ -10433,7 +10500,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +479,1590 @@
+@@ -300,6 +480,1599 @@
                  }
              },
              {
@@ -10613,6 +10680,15 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_top_speed = params[0];
++                    return 1;
++                }
++            }, {
++                "dump-vehicle-turn",
++                translate_marker( "Dump where every part of a vehicle lands after a quarter turn" ),
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_turn = params[0];
 +                    return 1;
 +                }
 +            },
@@ -12024,7 +12100,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2549,951 @@
+@@ -786,6 +2559,963 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -12287,6 +12363,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_top_speed( cli.dump_vehicle_top_speed );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_turn.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_turn( cli.dump_vehicle_turn );
 +            exit_handler( 0 );
 +        }
 +
