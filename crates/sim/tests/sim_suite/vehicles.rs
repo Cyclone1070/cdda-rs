@@ -4863,3 +4863,28 @@ fn a_turn_of_burning_reaches_every_vehicle() {
         "**a pass over the store burns both cars: {before} charges became {after}**"
     );
 }
+
+/// **The load is the share of the acceleration the engine supplies.** Reference: `vehicle::thrust` (`vehicle_move.cpp:528-542`) - full acceleration asks a thousand, no
+/// acceleration asks nothing, and braking leaves the first `max_brake` to the brakes.
+#[test]
+fn the_drive_load_is_the_share_of_acceleration_the_engine_supplies() {
+    let load = cdda_sim::vehicle_move::drive_load;
+    assert_eq!(load(100, 100, 20, true), 1000, "**all of it: 1,000**");
+    assert_eq!(
+        load(50, 100, 20, true),
+        500,
+        "half the acceleration, half the load"
+    );
+    assert_eq!(load(0, 100, 20, true), 0, "nothing to do, no load");
+    assert_eq!(
+        load(50, 100, 20, false),
+        300,
+        "**braking: 500 less the 200 the brakes take**"
+    );
+    assert_eq!(load(10, 100, 20, false), 0, "the brakes cover it entirely");
+    assert_eq!(
+        load(50, 0, 20, true),
+        1000,
+        "no acceleration figure, full load"
+    );
+}

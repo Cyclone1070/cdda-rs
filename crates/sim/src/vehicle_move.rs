@@ -684,3 +684,26 @@ pub fn collision_share(damage: i32, pairs: i32) -> i32 {
     let share = (f64::from(damage) * 0.5 / f64::from(pairs)) as i32;
     share
 }
+
+/// How hard the engine works for one step, as the percentage the fuel rule takes.
+///
+/// Reference: `vehicle::thrust` (`vehicle_move.cpp:528-542`) - the load is the share of the acceleration the engine has to supply:
+/// `1000 * |vel_inc| / accel` while thrusting, and `1000 * max(0, |vel_inc| - max_brake) / accel` while braking, because the brakes take the first 20 mph/s and the
+/// engine takes only what is left. When there is no slope to fight (`desired_velocity` unknown) it is simply **1000 thrusting, 0 coasting**.
+///
+/// `vel_inc` is the speed change this step will try to make, already clamped to the effective cruise velocity by the caller.
+#[must_use]
+pub fn drive_load(vel_inc: i32, accel: i32, max_brake: i32, thrusting: bool) -> i32 {
+    if accel <= 0 {
+        return if thrusting { 1000 } else { 0 };
+    }
+    if thrusting {
+        #[allow(clippy::cast_possible_truncation)]
+        let load = 1000 * vel_inc.abs() / accel;
+        load.clamp(0, 1000)
+    } else {
+        #[allow(clippy::cast_possible_truncation)]
+        let load = 1000 * (vel_inc.abs() - max_brake).max(0) / accel;
+        load.clamp(0, 1000)
+    }
+}

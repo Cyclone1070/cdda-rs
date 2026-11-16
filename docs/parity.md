@@ -37245,3 +37245,15 @@ vehicle at one rate, which is neither of the reference's two numbers.
 **What the port lacks to wire it:** `thrust` computes no `load` (the driver's throttle is not a system yet), so there is nothing truthful to pass. The idle branch has no
 `alternator_load` either - alternators are named unported in `total_power`'s doc. Both are inputs the port has not built, and inventing either would put a made-up number
 where the reference has the player's hand on the pedal.
+
+## The load the driver asks for (round 111)
+
+`vehicle_move::drive_load` is the number the fuel rule has been waiting for, from `vehicle::thrust` (`vehicle_move.cpp:528-542`):
+
+- **thrusting**: `1000 * |vel_inc| / accel` - the share of the acceleration the engine supplies, so full throttle is 1,000 and a gentle touch is small;
+- **braking**: `1000 * max(0, |vel_inc| - max_brake) / accel` - the brakes take the first 20 mph/s and the engine only what is left, which is why coasting down costs
+  almost nothing;
+- **no slope to fight**: simply 1,000 thrusting and 0 coasting.
+
+Gated on full, half, none, braking above and below the brake's share, and the no-acceleration-figure case. **Still not wired:** `thrust` does not call it yet, so the load
+reaches the fuel rule only when something asks.
