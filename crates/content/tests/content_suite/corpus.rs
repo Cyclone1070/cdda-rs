@@ -159,3 +159,27 @@ pub fn traps_loaded() -> Vec<traps::Trap> {
     ONCE.get_or_init(|| traps::load_paths(&paths()).expect("traps load"))
         .clone()
 }
+
+/// **Diesel carries its energy, and a material that is not a fuel carries none.** Reference: `materials.json` writes `"fuel_data": { "energy": "35800 kJ" }` for diesel, which
+/// is `35,800,000 J` per millilitre - the number `item::fuel_energy` multiplies by the item's volume. Flesh has no fuel data, so it answers `None` rather than zero.
+#[test]
+fn a_fuel_material_carries_its_energy_and_a_non_fuel_carries_none() {
+    let materials = materials_loaded();
+    let diesel = materials
+        .iter()
+        .find(|material| material.id == "diesel")
+        .expect("diesel is defined");
+    let energy = diesel.fuel_energy_j.expect("**diesel is a fuel**");
+    assert!(
+        (energy - 35_800_000.0).abs() < 1.0,
+        "**35,800 kJ is 35,800,000 J: {energy}**"
+    );
+    let flesh = materials
+        .iter()
+        .find(|material| material.id == "flesh")
+        .expect("flesh is defined");
+    assert_eq!(
+        flesh.fuel_energy_j, None,
+        "flesh does not burn as fuel in an engine"
+    );
+}

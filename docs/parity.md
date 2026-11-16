@@ -37117,3 +37117,10 @@ is exactly what this corpus rule exists to prevent.
 
 **Named, not yet proven against the reference:** no test asserts a real material's energy yet. The parser is gated on its own arithmetic; the loader's wiring to the real
 data needs a corpus assertion, which is the next step before `drain_energy`.
+
+**Diesel's energy, from the reference's own file (round 95).** `Material::fuel_energy_j` is now filled where a material is applied and gated on the real data: diesel's
+`"fuel_data": { "energy": "35800 kJ" }` reads as **35,800,000 J per millilitre**, and flesh - not a fuel - answers `None` rather than zero. Both numbers come from
+`data/json/materials.json` at the pinned commit.
+
+Round 94 had put the field on the burn entry by matching the wrong `fuel:` line, which the compiler caught from two directions at once (no such field on `Material`, missing
+field in `BurnData`). The lesson is the one this project keeps paying for: **read the struct before editing it**.

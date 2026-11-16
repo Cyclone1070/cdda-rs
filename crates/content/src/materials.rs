@@ -41,6 +41,9 @@ pub struct Material {
     pub burn_products: Vec<(String, f64)>,
     /// Whether things made of it are soft (`material.h:95`, loaded from `"soft"`). Read by `item::is_soft`, which decides whether an item has a length at all.
     pub soft: bool,
+    /// The energy in one millilitre when this material is burned as fuel, in joules - the reference's `fuel_data::energy` (`material.h`), which the JSON writes as a
+    /// string such as `"1000 kJ"`. `None` for a material that is not a fuel. **This is where diesel's energy lives**, not on the item that carries it.
+    pub fuel_energy_j: Option<f64>,
     /// How much of each vitamin one unit of the material carries, as `material_type::vitamin` answers it.
     ///
     /// Reference: `"vitamins"` in the material's own data (`src/material.cpp`), a list of `[vitamin, amount]` pairs whose amounts are **fractional** (`0.5` for
@@ -60,9 +63,6 @@ pub struct BurnData {
     pub volume_per_turn: f64,
     /// Fuel contributed to the fire.
     pub fuel: f64,
-    /// The energy in one millilitre when this material is burned as fuel, in joules - the reference's `fuel_data::energy` (`material.h`), which the JSON writes as a
-    /// string such as `"1000 kJ"`. `None` for a material that is not a fuel. **This is where diesel's energy lives**, not on the item that carries it.
-    pub fuel_energy_j: Option<f64>,
     /// Smoke produced.
     pub smoke: f64,
     /// Fraction of the material destroyed per turn.
@@ -92,6 +92,7 @@ fn defaults(id: &str) -> Material {
         burn: Vec::new(),
         burn_products: Vec::new(),
         soft: false,
+        fuel_energy_j: None,
         vitamins: std::collections::BTreeMap::new(),
     }
 }
@@ -238,6 +239,12 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
     if let Some(density) = number(object, "density") {
         material.density = density;
     }
+    // **The fuel's energy lives here**, on the material, not on the item that carries it: `"fuel_data": { "energy": "35800 kJ" }` is diesel's 35,800,000 J per millilitre.
+    if let Some(Value::Object(data)) = object.get("fuel_data")
+        && let Some(text) = string(data, "energy")
+    {
+        material.fuel_energy_j = fuel_energy_j(&text);
+    }
     if let Some(chip) = integer(object, "chip_resist") {
         material.chip_resist = chip;
     }
@@ -282,12 +289,6 @@ fn apply(material: &mut Material, object: &Object) -> Result<(), LoadError> {
                 immune: matches!(fields.get("immune"), Some(Value::Bool(true))),
                 volume_per_turn: volume.unwrap_or(0.0),
                 fuel: number(fields, "fuel").unwrap_or(0.0),
-                fuel_energy_j: match fields.get("fuel_data") {
-                    Some(Value::Object(data)) => {
-                        string(data, "energy").and_then(|text| fuel_energy_j(&text))
-                    }
-                    _ => None,
-                },
                 smoke: number(fields, "smoke").unwrap_or(0.0),
                 burn: number(fields, "burn").unwrap_or(0.0),
             });
