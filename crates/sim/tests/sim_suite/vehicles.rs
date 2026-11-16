@@ -5384,3 +5384,42 @@ fn a_driver_s_intent_sets_the_cruise() {
         .map_or(-1, |built| built.cruise_velocity);
     assert_eq!(cruise, 500, "and the cruise is what they asked for");
 }
+
+/// **A turn hears the driver.** The intent is a component, so the schedule - not a test - has to be what applies it: after one turn, the car's cruise is what the driver asked
+/// for.
+#[test]
+fn a_turn_hears_the_driver() {
+    use cdda_sim::vehicle_move::Controls;
+    use cdda_sim::vehicles::{Riding, Vehicle};
+
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let count = world
+        .get::<Vehicle>(car)
+        .map_or(0, |built| built.parts.len());
+    let Some(controls) = (0..count).find(|index| {
+        cdda_sim::vehicles::part_spec(&world, car, *index)
+            .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "CONTROLS"))
+    }) else {
+        return;
+    };
+    world.spawn((
+        Riding {
+            vehicle: car,
+            part: controls,
+        },
+        Controls {
+            cruise: 500,
+            steer: 0,
+        },
+    ));
+
+    cdda_sim::turn::run_turn(&mut world);
+
+    let cruise = world
+        .get::<Vehicle>(car)
+        .map_or(-1, |built| built.cruise_velocity);
+    assert_eq!(cruise, 500, "**the schedule applied the driver's intent**");
+}

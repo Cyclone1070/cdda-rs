@@ -37412,3 +37412,10 @@ is the one that makes the gate mean something - an implementation that applied e
 
 **Namely not wired:** the `steer` half is counted as heard but not applied, because turning the hull means rotating a multi-tile vehicle through the index, which is
 `rotation`'s problem and not this rule's.
+
+**The turn hears the driver (round 126).** `apply_controls` is the first thing the vehicles stage runs, so the chain is now the reference's own: **the press sets the cruise,
+the cruise sets the throttle, the throttle burns fuel and the car moves.** Gated by driving a turn, not by calling the system: a creature on the `CONTROLS` part with a cruise
+press of 500 leaves 500 in the store **after `run_turn`**.
+
+The red half was watched first: the test failed with `left: 0, right: 500` before the stage called the system, which is the only evidence that it tests the schedule rather
+than the function.

@@ -448,7 +448,8 @@ fn falling_stage(world: &mut World) {
 
 fn vehicles_stage(world: &mut World) {
     note(world, TurnStage::Vehicles);
-    // **A driver's hand acts first**, then the vehicle under way takes its step, and only then do the ones that stayed put burn their idle fuel.
+    // **The driver's intent, then their hand, then the step**: the press sets the cruise, the cruise sets the throttle, the throttle burns fuel and the car moves.
+    crate::vehicle_move::apply_controls(world);
     crate::vehicle_move::drive_vehicles(world);
     crate::vehicle_move::move_vehicles(world);
     crate::vehicle_drive::idle_vehicles(world);
