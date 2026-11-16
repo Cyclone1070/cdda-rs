@@ -695,17 +695,40 @@ pub fn idle_load(alternator_load: i32) -> i32 {
 /// Reference: `vehicle::idle` (`vehicle.cpp:6046-6062`): the burn happens only when the engine is on and making power, and the caller has already established that the
 /// vehicle is not thrusting. Perpetual engines are skipped by the fuel rule itself, and a vehicle with no demand burns nothing.
 pub fn idle(world: &mut World, vehicle: Entity) -> bool {
+    let cruise = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.cruise_velocity);
     let engine_on = world
         .get::<crate::vehicles::Vehicle>(vehicle)
         .is_some_and(|built| built.parts.iter().any(|part| part.enabled));
-    if !engine_on || total_power(world, vehicle) <= 0 {
+    let driven = crate::vehicles::driver_of(world, vehicle).is_some();
+    // **The decision comes from the store**, not from the caller: a vehicle that is thrusting burns its fuel in the drive step, and only a vehicle that is not gets here.
+    if drive_state(engine_on, driven, cruise) != Drive::Idle {
         return false;
     }
-    if fuel_usage_of(world, vehicle).is_empty() {
+    if total_power(world, vehicle) <= 0 || fuel_usage_of(world, vehicle).is_empty() {
         return false;
     }
     burn_fuel(world, vehicle, idle_load(0));
     true
+}
+
+/// Idles every vehicle that is running but not being driven, and answers how many burned.
+///
+/// The turn's counterpart to [`burn_vehicles`]: a vehicle whose driver has the cruise set is thrusting and burns in the drive step, so this must not charge it a second time.
+pub fn idle_vehicles(world: &mut World) -> usize {
+    let mut vehicles = Vec::new();
+    let mut query = world.query::<(bevy_ecs::entity::Entity, &crate::vehicles::Vehicle)>();
+    for (entity, _) in query.iter(world) {
+        vehicles.push(entity);
+    }
+    let mut burned = 0;
+    for vehicle in vehicles {
+        if idle(world, vehicle) {
+            burned += 1;
+        }
+    }
+    burned
 }
 
 /// What a vehicle's engine is doing this turn.

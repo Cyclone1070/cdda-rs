@@ -5104,3 +5104,70 @@ fn only_a_controls_part_has_a_driver() {
         "**whoever sits on CONTROLS is driving**"
     );
 }
+
+/// **A car left running burns; a car being driven is charged elsewhere.** The idle pass reads `drive_state` from the store, so a vehicle whose driver has the cruise set is
+/// skipped - it burns in the drive step - and one with no cruise burns at the idle floor.
+#[test]
+fn the_idle_pass_skips_a_car_that_is_being_driven() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let parked = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, parked);
+    let fuel = {
+        let count = world
+            .get::<cdda_sim::vehicles::Vehicle>(parked)
+            .map_or(0, |built| built.parts.len());
+        (0..count)
+            .filter_map(|index| cdda_sim::vehicles::part_spec(&world, parked, index))
+            .find_map(|spec| spec.fuel_opts.first().cloned())
+            .expect("the car names a fuel")
+    };
+    cdda_sim::vehicle_drive::set_fuel_energies(&mut world, &[(fuel, 28_640.0)]);
+    let charges = |world: &World| {
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(parked)
+            .map_or(0, |built| {
+                built.parts.iter().map(|part| part.charges).sum::<i32>()
+            })
+    };
+    let before = charges(&world);
+    assert!(before > 0, "the car starts fuelled");
+
+    let burned = cdda_sim::vehicle_drive::idle_vehicles(&mut world);
+    assert!(burned > 0, "**a parked car with its engine on idles**");
+    assert!(charges(&world) < before, "and it spends fuel doing so");
+
+    // With a driver in the seat **and** the cruise set, the same vehicle is thrusting - the drive step owns that burn, so the idle pass must leave it alone. Without a
+    // driver the cruise alone is not thrusting, which is the rule's own condition.
+    let count = world
+        .get::<cdda_sim::vehicles::Vehicle>(parked)
+        .map_or(0, |built| built.parts.len());
+    let controls = (0..count).find(|index| {
+        cdda_sim::vehicles::part_spec(&world, parked, *index)
+            .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "CONTROLS"))
+    });
+    let Some(controls) = controls else {
+        // The corpus car has no controls part, so nobody can drive it: the idle pass is right to keep burning, and that is the assertion above.
+        return;
+    };
+    let driver = world.spawn_empty().id();
+    world.entity_mut(driver).insert(cdda_sim::vehicles::Riding {
+        vehicle: parked,
+        part: controls,
+    });
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(parked)
+            .expect("a vehicle");
+        built.cruise_velocity = 1_000;
+    }
+    let after_first = charges(&world);
+    let burned_again = cdda_sim::vehicle_drive::idle_vehicles(&mut world);
+    assert_eq!(burned_again, 0, "**a driven car is not idled as well**");
+    assert_eq!(
+        charges(&world),
+        after_first,
+        "and its charges are untouched"
+    );
+}

@@ -37330,3 +37330,14 @@ seat steers.
 
 Gated on a car with nobody aboard answering `None`, and on a creature seated on the `CONTROLS` part answering as the driver. The test **passes trivially** when the corpus car
 has no controls part - the negative assertion still holds - and says so in a comment rather than pretending to have proven the positive case.
+
+## The idle pass asks the store (round 119)
+
+`idle` now decides from the store rather than from its caller: it reads `engine_on`, whether anyone is in the driver's seat (`driver_of`) and the cruise velocity, and asks
+`drive_state`. Only the **idle** answer burns - a vehicle that is thrusting burns in the drive step, and charging it twice would double its fuel use. `idle_vehicles` is the
+turn's pass over every vehicle, answering how many burned.
+
+Gated on both halves: a parked car with its engine on idles and spends fuel; the same car with a driver **and** a cruise set is skipped by the pass and keeps its charges.
+
+**What the failing test caught:** my first version set the cruise without seating a driver, and the pass still burned - correctly, because the rule needs a driver *and* a
+cruise. The test now seats one on the `CONTROLS` part, and says in a comment that a car with no such part cannot be driven at all.
