@@ -5197,3 +5197,61 @@ fn a_pass_moves_the_cars_that_are_under_way() {
         .map_or(-1, |built| built.velocity);
     assert_eq!(parked_velocity, 0, "the parked car was left alone");
 }
+
+/// **The throttle points at the cruise, not at the heading.** Reference: `vehicle::gain_moves` thrusts by `sgn( cruise_velocity - velocity )`, so a car over its cruise is told
+/// to slow by thrusting the other way, and a car exactly at it is told nothing.
+#[test]
+fn the_throttle_points_at_the_cruise() {
+    let direction = cdda_sim::vehicle_move::cruise_direction;
+    assert_eq!(direction(1_000, 0), 1, "**below the cruise, accelerate**");
+    assert_eq!(direction(1_000, 400), 1, "still below, still forward");
+    assert_eq!(direction(1_000, 1_000), 0, "at the cruise, no throttle");
+    assert_eq!(
+        direction(1_000, 1_500),
+        -1,
+        "**over the cruise, thrust the other way**"
+    );
+}
+
+/// **A driver's hand turns into speed inside a turn.** With a creature on the `CONTROLS` part and a cruise set, the driving pass thrusts towards the cruise, the car gains
+/// velocity, and its fuel is spent doing it.
+#[test]
+fn a_driver_turns_a_cruise_into_speed() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+    let count = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map_or(0, |built| built.parts.len());
+    let Some(controls) = (0..count).find(|index| {
+        cdda_sim::vehicles::part_spec(&world, car, *index)
+            .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "CONTROLS"))
+    }) else {
+        // No controls part in the corpus car: nobody can drive it, which the negative assertion below still shows.
+        assert_eq!(cdda_sim::vehicle_move::drive_vehicles(&mut world), 0);
+        return;
+    };
+    let driver = world.spawn_empty().id();
+    world.entity_mut(driver).insert(cdda_sim::vehicles::Riding {
+        vehicle: car,
+        part: controls,
+    });
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.cruise_velocity = 1_000;
+        built.of_turn = 5.0;
+    }
+    assert_eq!(
+        cdda_sim::vehicle_move::drive_vehicles(&mut world),
+        1,
+        "**the driver was heard**"
+    );
+    let velocity = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map_or(0, |built| built.velocity);
+    assert!(velocity > 0, "**and the car is moving: {velocity}**");
+}

@@ -37364,3 +37364,15 @@ skipped. The dice are taken once for the whole pass and put back, so the stream 
 because moving comes first and only what stayed put burns idle fuel.
 
 Gated: one car under way and one parked - exactly one moves, and the parked car keeps its zero velocity.
+
+## The driver's hand on the wheel (round 122)
+
+`vehicle_move::drive_vehicles` is the driving half of `vehicle::gain_moves`: a vehicle whose driver is in control **and** whose cruise is set thrusts towards the cruise;
+everything else does nothing there and either burns idle fuel or sleeps. The direction is `cruise_direction` - the reference's `sgn( cruise_velocity - velocity )`, so a car
+**over** its cruise is told to slow by thrusting the other way, and one exactly at it is told nothing.
+
+The vehicles stage now runs, in order: **drive** → **move** → **idle**. Each step is the reference's own: the hand acts, the car under way takes its step, and only what
+stayed put burns idle fuel.
+
+Gated twice: the direction's four cases (below, still below, at, over), and a driver on a `CONTROLS` part whose cruise turns into real velocity in the store. A car with no
+controls part exits early with its own assertion, named rather than silent.

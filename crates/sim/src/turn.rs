@@ -448,7 +448,8 @@ fn falling_stage(world: &mut World) {
 
 fn vehicles_stage(world: &mut World) {
     note(world, TurnStage::Vehicles);
-    // **Moving comes first**: a vehicle under way takes its step, and only then do the ones that stayed put burn their idle fuel.
+    // **A driver's hand acts first**, then the vehicle under way takes its step, and only then do the ones that stayed put burn their idle fuel.
+    crate::vehicle_move::drive_vehicles(world);
     crate::vehicle_move::move_vehicles(world);
     crate::vehicle_drive::idle_vehicles(world);
 }

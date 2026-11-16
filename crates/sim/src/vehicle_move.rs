@@ -750,3 +750,47 @@ pub fn move_vehicles(world: &mut World) -> usize {
     crate::singletons::put_rolls(world, rolls);
     moved
 }
+
+/// Which way the throttle is held, given where the driver wants to be and where the car is.
+///
+/// Reference: `vehicle::gain_moves` (`vehicle.cpp`) calls `thrust( here, sgn( cruise_velocity - velocity ) )` for a vehicle in control with a cruise set, so the throttle
+/// points at the **cruise**, not at the current heading: a car that is over its cruise is told to slow by thrusting the other way. Equal speeds mean no throttle at all.
+#[must_use]
+pub fn cruise_direction(cruise_velocity: i32, velocity: i32) -> i32 {
+    (cruise_velocity - velocity).signum()
+}
+
+/// Lets every driver's hand act on the wheel, and answers how many vehicles were driven.
+///
+/// Reference: `vehicle::gain_moves` - a vehicle with a driver in control **and** a cruise set thrusts towards the cruise; everything else does nothing here and either
+/// burns idle fuel or sleeps. The port asks the store who is driving ([`crate::vehicles::driver_of`]) and which way the throttle points, and leaves the thrust itself to
+/// [`thrust`], which is where the fuel burns.
+pub fn drive_vehicles(world: &mut World) -> usize {
+    let mut vehicles = Vec::new();
+    let mut query = world.query::<(Entity, &crate::vehicles::Vehicle)>();
+    for (entity, built) in query.iter(world) {
+        if built.cruise_velocity != 0 {
+            vehicles.push(entity);
+        }
+    }
+    let mut driven = 0;
+    for vehicle in vehicles {
+        if crate::vehicles::driver_of(world, vehicle).is_none() {
+            continue;
+        }
+        let velocity = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .map_or(0, |built| built.velocity);
+        let cruise = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .map_or(0, |built| built.cruise_velocity);
+        let direction = cruise_direction(cruise, velocity);
+        if direction == 0 {
+            continue;
+        }
+        if thrust(world, vehicle, direction) {
+            driven += 1;
+        }
+    }
+    driven
+}
