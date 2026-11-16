@@ -794,3 +794,43 @@ pub fn drive_vehicles(world: &mut World) -> usize {
     }
     driven
 }
+
+/// One press of the cruise control, and where the cruise ends up.
+///
+/// Reference: `vehicle::cruise_thrust` (`vehicle_move.cpp:635-675`), transplanted rule for rule:
+///
+/// - **The safe speed wins if the step crosses it**: stepping past `safe` stops exactly on it, so the driver cannot tap past the speed the engine is happy with.
+/// - **Stepping down from a limit moves one first**, so the rounding below lands on a multiple of the step instead of sticking at the limit.
+/// - **The cruise rounds down to a multiple of the step**, always towards zero - the reference's own comment says the result is "always equal to the original or closer to
+///   zero, even if negative".
+/// - **And the caps apply last**: no cruise above the top speed, none below the deepest reverse.
+#[must_use]
+pub fn cruise_thrust(
+    cruise_velocity: i32,
+    amount: i32,
+    safe_velocity: i32,
+    max_velocity: i32,
+    max_reverse_velocity: i32,
+) -> i32 {
+    if amount == 0 {
+        return cruise_velocity;
+    }
+    let step = amount.abs();
+    let mut cruise = cruise_velocity;
+    let next = cruise.saturating_add(amount);
+    if (cruise < safe_velocity && safe_velocity < next)
+        || (cruise > safe_velocity && safe_velocity > next)
+    {
+        cruise = safe_velocity;
+    } else {
+        if (amount < 0 && (cruise == safe_velocity || cruise == max_velocity))
+            || (amount > 0 && cruise == max_reverse_velocity)
+        {
+            cruise += if amount < 0 { -1 } else { 1 };
+        } else {
+            cruise = next;
+        }
+        cruise = cruise / step * step;
+    }
+    cruise.clamp(max_reverse_velocity, max_velocity)
+}

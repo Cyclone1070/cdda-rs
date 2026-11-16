@@ -5255,3 +5255,41 @@ fn a_driver_turns_a_cruise_into_speed() {
         .map_or(0, |built| built.velocity);
     assert!(velocity > 0, "**and the car is moving: {velocity}**");
 }
+
+/// **A press of the cruise control steps, stops on the safe speed, and never leaves the caps.** Reference: `vehicle::cruise_thrust` (`vehicle_move.cpp:635-675`).
+#[test]
+fn a_press_of_the_cruise_control_steps_and_stops_on_the_safe_speed() {
+    let press = cdda_sim::vehicle_move::cruise_thrust;
+    assert_eq!(press(0, 0, 1_000, 2_000, -500), 0, "no press, no change");
+    assert_eq!(press(0, 100, 1_000, 2_000, -500), 100, "**one step up**");
+    assert_eq!(
+        press(1_000, 100, 1_000, 2_000, -500),
+        1_100,
+        "**pressing at the safe speed does not stop you: only a step that crosses it does** - which is what strain is for"
+    );
+    assert_eq!(
+        press(1_950, 100, 1_000, 2_000, -500),
+        2_000,
+        "**a step up lands on the top and stops there**"
+    );
+    assert_eq!(
+        press(900, 200, 950, 2_000, -500),
+        950,
+        "**a step across the safe speed stops on it**"
+    );
+    assert_eq!(
+        press(2_000, -100, 1_000, 2_000, -500),
+        1_900,
+        "stepping down from the top moves first, then rounds"
+    );
+    assert_eq!(
+        press(2_000, 100, 1_000, 2_000, -500),
+        2_000,
+        "and no press goes past the top"
+    );
+    assert_eq!(
+        press(-500, -100, 1_000, 2_000, -500),
+        -500,
+        "the deepest reverse is a cap too"
+    );
+}

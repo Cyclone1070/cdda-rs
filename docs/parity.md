@@ -37376,3 +37376,16 @@ stayed put burns idle fuel.
 
 Gated twice: the direction's four cases (below, still below, at, over), and a driver on a `CONTROLS` part whose cruise turns into real velocity in the store. A car with no
 controls part exits early with its own assertion, named rather than silent.
+
+## The cruise control (round 123)
+
+`vehicle_move::cruise_thrust` is `vehicle::cruise_thrust` (`vehicle_move.cpp:635-675`), rule for rule: the safe speed wins **if the step crosses it**, stepping down from a
+limit moves one first so the rounding lands on the step rather than sticking, the cruise rounds toward zero to a multiple of the step, and the caps apply last.
+
+**Two expectations in my test were wrong, and the reference was right both times:**
+
+1. Pressing **at** the safe speed does not stop you - it takes you over it (`1,000 + 100 = 1,100`). Only a step that *crosses* the safe speed stops on it. That is exactly
+   what the strain and wear rules exist for: the safe speed is advice, not a wall.
+2. A step **up** from just below the top lands on the top (`1,950 + 100 → 2,000`), because the cap applies after the step, not instead of it.
+
+Both corrections are now comments in the test, so the next reader learns the rule rather than the assumption.
