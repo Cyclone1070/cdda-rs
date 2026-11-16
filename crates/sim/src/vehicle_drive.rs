@@ -418,3 +418,14 @@ pub fn drain_energy(
     }
     given
 }
+
+/// The energy a vehicle wants to burn for one second of running.
+///
+/// Reference: `vehicle::consume_fuel` (`vehicle.cpp:5235-5240`) - `usage * 1s * load * ( 1 + strain^2 * 100 ) / 1000`, then the leftover from the previous turn is
+/// subtracted, because a turn cannot burn part of a charge and the rest carries over. Powers are watts and one second of watts is joules, so the product is the energy the
+/// engines ask for.
+#[must_use]
+pub fn fuel_to_consume(usage_w: i32, load: i32, strain: f64, remainder_j: f64) -> f64 {
+    let asked = f64::from(usage_w) * f64::from(load) * (1.0 + strain * strain * 100.0) / 1000.0;
+    asked - remainder_j
+}

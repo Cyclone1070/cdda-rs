@@ -37159,3 +37159,10 @@ a tank of a different fuel is untouched.
 
 **Named difference:** the reference works in energy, so a part can give up part of a charge; the port's tanks hold whole charges, so it takes them whole. That is the
 granularity the store has, not a rounding convenience - when tanks carry millilitres the function can give the reference's finer answer.
+
+**What a second of running asks for (round 101).** `vehicle_drive::fuel_to_consume` is the scale factor inside `consume_fuel` (`vehicle.cpp:5235-5240`):
+`usage * load * ( 1 + strain^2 * 100 ) / 1000`, less the previous turn's leftover. Gated on 1,000 W at load 500 asking 500 J, the same engine at full strain asking
+**a hundred times more** (50,500 J), a 120 J leftover coming off, and no load burning nothing.
+
+**The strain term is the whole point of the rule:** squared and multiplied by a hundred, it turns a gentle cruise into a hundredfold burn at the top of the safe band. A
+port that used strain linearly would be wrong by a factor that only shows up when someone drives fast.

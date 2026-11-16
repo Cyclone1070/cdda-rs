@@ -4589,3 +4589,26 @@ fn draining_takes_whole_charges_of_the_fuel_asked_for() {
         "an empty tank gives nothing"
     );
 }
+
+/// **What one second of running asks for.** Reference: `consume_fuel` (`vehicle.cpp:5235-5240`) - usage times the load, scaled by strain, over a thousand, with the
+/// previous turn's leftover taken off.
+#[test]
+fn a_second_of_running_asks_for_its_energy_less_the_leftover() {
+    let ask = cdda_sim::vehicle_drive::fuel_to_consume;
+    assert!(
+        (ask(1000, 500, 0.0, 0.0) - 500.0).abs() < 1e-9,
+        "**1,000 W at load 500 is 500 J**"
+    );
+    assert!(
+        (ask(1000, 500, 1.0, 0.0) - 50_500.0).abs() < 1e-9,
+        "**at full strain the same engine asks a hundred times more**"
+    );
+    assert!(
+        (ask(1000, 500, 0.0, 120.0) - 380.0).abs() < 1e-9,
+        "the leftover of 120 J comes off"
+    );
+    assert!(
+        ask(1000, 0, 0.0, 0.0).abs() < 1e-9,
+        "no load, nothing burned"
+    );
+}
