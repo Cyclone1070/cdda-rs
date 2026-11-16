@@ -232,6 +232,17 @@ pub fn max_ground_velocity(world: &World, vehicle: Entity) -> Option<i32> {
     Some(top_speed_vmiph(air, rolling, total_power(world, vehicle)))
 }
 
+/// The fastest a vehicle can go **without straining**, in hundredths of a mile per hour.
+///
+/// Reference: `vehicle::safe_ground_velocity` (`vehicle.cpp:4302-4310`) - the same cubic as [`max_ground_velocity`], asked with the engines capped at their own `m2c`
+/// ratio ([`safe_power_of`]) instead of their full power. It is not a second formula: the safe speed is the top speed of a weaker engine.
+#[must_use]
+pub fn safe_ground_velocity(world: &World, vehicle: Entity) -> Option<i32> {
+    let air = crate::vehicle_air::coeff_air_drag(world, vehicle)?;
+    let rolling = rolling_drag(world, vehicle)?;
+    Some(top_speed_vmiph(air, rolling, safe_power_of(world, vehicle)))
+}
+
 /// The slowest a vehicle may roll backwards, in hundredths of a mile per hour.
 ///
 /// Reference: `vehicle::max_reverse_velocity` (`vehicle.cpp:4289-4299`): an electric motor reverses as fast as it drives forward, and everything else manages a

@@ -4740,3 +4740,22 @@ fn a_fresh_vehicle_owes_no_fuel_leftovers() {
         "**28,140 J carries to the next turn**"
     );
 }
+
+/// **The safe speed is the top speed of a weaker engine.** Reference: `safe_ground_velocity` (`vehicle.cpp:4302-4310`) - the same cubic as `max_ground_velocity` with the
+/// engines capped at their `m2c` ratio, so it must come out positive and **below** the full top speed for an engine whose ratio is under 100.
+#[test]
+fn the_safe_speed_is_below_the_top_speed() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+
+    let top = cdda_sim::vehicle_drive::max_ground_velocity(&world, car).expect("a top speed");
+    let safe = cdda_sim::vehicle_drive::safe_ground_velocity(&world, car).expect("a safe speed");
+    assert!(top > 0, "**the car can move: {top} vmiph**");
+    assert!(
+        safe > 0 && safe < top,
+        "**safe is below top: {safe} against {top}**"
+    );
+}

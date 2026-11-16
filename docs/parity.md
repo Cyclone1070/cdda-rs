@@ -37205,3 +37205,9 @@ absent rather than zero** - so "never burned anything" and "burned and owes noth
 
 **Still missing before a turn can burn:** `safe_velocity` is not ported (only `safe_power_of` is), so `strain` has no safe speed to compare against, and the per-charge energy
 lives in the content crate while the burn runs in the sim. Both are the next step, in that order.
+
+**The safe speed (round 107).** `vehicle_drive::safe_ground_velocity` is `vehicle::safe_ground_velocity` (`vehicle.cpp:4302-4310`), and it needed no new arithmetic: the
+same cubic as `max_ground_velocity`, asked with `safe_power_of`'s capped power. It is not a second formula - the safe speed is the top speed of a weaker engine. Gated on a
+fuelled car: the top speed is positive and the safe speed is positive **and below it**.
+
+**With this, `strain` has both numbers it compares.** The remaining gap before a turn can burn fuel is the per-charge energy crossing from content into the sim.
