@@ -157,3 +157,22 @@ fn a_short_range_teleport_spell_moves_its_caster() {
         "**a range of four and no area is a jump of exactly four squares**"
     );
 }
+
+/// **A target above the world or below it is refused.** Reference: `teleport::teleport_to_point` answers `false` when the absolute z is beyond `OVERMAP_HEIGHT` or
+/// `-OVERMAP_DEPTH` (`teleport.cpp:181-186`), before any landing rule runs - so a target off the top of the world cannot be "landed on" at all.
+#[test]
+fn a_target_outside_the_world_s_height_is_refused() {
+    let (mut world, who) = a_world();
+    let too_high = cdda_sim::falling::OVERMAP_HEIGHT + 1;
+    assert_eq!(
+        cdda_sim::teleport::to_point(&mut world, who, (0, 0, too_high), false),
+        cdda_sim::teleport::Teleport::Refused,
+        "**above the world is refused, not landed on**"
+    );
+    let too_deep = -cdda_sim::falling::OVERMAP_DEPTH - 1;
+    assert_eq!(
+        cdda_sim::teleport::to_point(&mut world, who, (0, 0, too_deep), false),
+        cdda_sim::teleport::Teleport::Refused,
+        "and so is below it"
+    );
+}

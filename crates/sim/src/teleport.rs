@@ -104,6 +104,11 @@ pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: b
     if origin == target {
         return Teleport::Unchanged;
     }
+    // Reference: a target above `OVERMAP_HEIGHT` or below `-OVERMAP_DEPTH` is refused before any landing rule (`teleport.cpp:181-186`). The port asks the same bounds the
+    // falling rules use, so the world has one height rather than two.
+    if target.2 > crate::falling::OVERMAP_HEIGHT || target.2 < -crate::falling::OVERMAP_DEPTH {
+        return Teleport::Refused;
+    }
     if !standable(world, target) {
         if safe {
             return Teleport::Refused;

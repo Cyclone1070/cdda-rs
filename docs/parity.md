@@ -37652,3 +37652,11 @@ cheap half of TDD that this round skipped; the red was real, and it was red abou
 
 **Still open on the teleport table:** guard 2 (z outside the depth/height range) has **not** been located in `to_point` - the port's function is a short-range landing rule, and
 the z guard may live in the caller. That is the next thing to read, not to write.
+
+**Guard 2 lands: a target outside the world's height is refused (round 149).** `teleport::to_point` now answers `Refused` when the target's z is above `OVERMAP_HEIGHT` or
+below `-OVERMAP_DEPTH`, which is `teleport.cpp:181-186`, and it asks the **same constants the falling rules use** - the world has one height, not two.
+
+Gated red-first: a target one square above the ceiling and one below the floor both refuse, and the existing teleport tests still pass alongside them (4 passed).
+
+**Where the guard sits matters and was chosen deliberately:** after the same-square check, so "nothing to do" still beats "off the world", and before the landing rules, so a
+square that does not exist cannot be asked whether it is standable.
