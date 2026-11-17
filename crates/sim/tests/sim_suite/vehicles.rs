@@ -6005,8 +6005,8 @@ fn a_steering_press_leaves_a_turn_that_the_hull_spends() {
     );
     assert_eq!(
         world.get::<Vehicle>(car).expect("a vehicle").last_turn,
-        30,
-        "**and the hull has thirty degrees left to spend**"
+        23,
+        "**and the hull owes the press as it was made, not the click the wheels landed on** - `vehicle::turn` rounds `turn_dir`, never `last_turn`"
     );
 
     // One accepted move spends one degree of it, whatever the step's size.
@@ -6022,7 +6022,7 @@ fn a_steering_press_leaves_a_turn_that_the_hull_spends() {
     );
     assert_eq!(
         world.get::<Vehicle>(car).expect("a vehicle").last_turn,
-        29,
+        22,
         "**a step walks the leftover turn back by a degree**"
     );
 
@@ -6560,5 +6560,68 @@ fn thrusting_past_the_safe_speed_wears_the_engines() {
     assert!(
         worn,
         "**a car held at its top speed grinds its engines**, and no seed in sixty did it"
+    );
+}
+
+/// **Reversing flips the wheel the other way, and a press sets what the hull owes.** Reference: `vehicle::turn` (`vehicle_move.cpp:676-685`): a zero press does nothing at all, a
+/// vehicle moving backwards turns the opposite way unless `REVERSE_STEERING` is on, `last_turn` is set to the press **after** that flip, and the wheel direction is rounded to a
+/// fifteen-degree click.
+#[test]
+fn a_turn_press_sets_the_wheel_and_the_turn_owed() {
+    use cdda_sim::vehicles::Vehicle;
+
+    fn a_car(velocity: i32) -> (World, Entity) {
+        let mut world = World::new();
+        install_part_weights(&mut world, "car");
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+        fill_own_tanks(&mut world, car);
+        {
+            let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+            built.velocity = velocity;
+        }
+        (world, car)
+    }
+
+    // Forward: the wheel goes the way it was asked, and the hull owes that much.
+    let (mut world, car) = a_car(300);
+    cdda_sim::vehicle_move::turn(&mut world, car, 22);
+    assert_eq!(
+        cdda_sim::vehicle_move::wheel_direction(&world, car),
+        15,
+        "twenty-two degrees rounds back to a fifteen click"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").last_turn,
+        22,
+        "**the hull owes the press as it was made**, not the rounded wheel"
+    );
+
+    // Backwards: the same press turns the wheels the other way, and the hull owes the flipped amount.
+    let (mut world, car) = a_car(-300);
+    cdda_sim::vehicle_move::turn(&mut world, car, 22);
+    assert_eq!(
+        cdda_sim::vehicle_move::wheel_direction(&world, car),
+        345,
+        "**reverse turns the other way**"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").last_turn,
+        -22,
+        "and what the hull owes is flipped with it"
+    );
+
+    // Nothing asked is nothing changed.
+    let (mut world, car) = a_car(300);
+    cdda_sim::vehicle_move::turn(&mut world, car, 0);
+    assert_eq!(
+        cdda_sim::vehicle_move::wheel_direction(&world, car),
+        0,
+        "a zero press leaves the wheel alone"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").last_turn,
+        0,
+        "and owes nothing"
     );
 }

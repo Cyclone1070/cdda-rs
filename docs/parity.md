@@ -37925,3 +37925,16 @@ The strain arrives from the port's `safe_ground_velocity`, which was already the
 Gated both ways on one seeded stream: a car at a standstill driven twenty times loses nothing, and a car held at its top speed loses engine hit points on some seed in sixty.
 
 **This closes the engine-wear chain** that rounds 113 and 114 built in pieces: the strain figure, the wear roll, and now the call site with the turn's dice.
+
+## `vehicle::turn` is the rule, and a test of mine was pinning an invention (round 168)
+
+`vehicle_move::turn(world, vehicle, degrees)` is `vehicle::turn` (`vehicle_move.cpp:676-685`) rule for rule: zero does nothing, a reversing vehicle flips the press unless
+`REVERSE_STEERING` (not loaded, default off), `last_turn = deg`, and `turn_dir` normalised then rounded to a fifteen-degree click. `apply_controls` now calls it instead of
+carrying its own copy of the rule.
+
+**The correction this round paid for:** round 162 wrote `last_turn` as *the change the wheels actually made* - the rounded leftover, so a 23-degree press left 30 owed. The
+reference sets `last_turn = deg`, the press **as it was made**, and never rounds it; only `turn_dir` is rounded. The round-162 test was asserting my reading of the comment
+rather than the code, and it went green because nothing else read the field. It now asserts 23 and says why.
+
+**The lesson is not "read more carefully".** The field had **no reader** when it was written, so its value was unverifiable by anything but a test I wrote in the same breath.
+A rule gains its meaning when something consumes it, and until then its test only pins my reading. Extraction this round is what made the difference visible.

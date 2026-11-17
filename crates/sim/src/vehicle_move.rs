@@ -1084,6 +1084,36 @@ pub fn cruise_thrust(
 /// Reference: `vehicles::steer_increment = 15_degrees` (`vehicle.h:88`) - the direction is only ever kept on a multiple of it.
 pub const STEER_INCREMENT_DEGREES: i32 = 15;
 
+/// One press of the wheel, on the vehicle itself.
+///
+/// Reference: `vehicle::turn` (`vehicle_move.cpp:676-685`), rule for rule:
+///
+/// ```text
+/// if deg == 0: return
+/// if velocity < 0 and not REVERSE_STEERING: deg = -deg
+/// last_turn = deg
+/// turn_dir = normalize( turn_dir + deg )
+/// turn_dir = round_to_multiple_of( turn_dir, steer_increment )
+/// ```
+///
+/// **`last_turn` is the press, not the rounded wheel**: the hull still owes what the driver asked for, and spends it a degree at a time as it moves. `REVERSE_STEERING` is
+/// an option the port has not loaded, so the reference's default - off, which flips a press made in reverse - is what this does.
+pub fn turn(world: &mut World, vehicle: Entity, degrees: i32) {
+    if degrees == 0 {
+        return;
+    }
+    let velocity = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.velocity);
+    let press = if velocity < 0 { -degrees } else { degrees };
+    let current = wheel_direction(world, vehicle);
+    let next = steered_direction(current, press, 0);
+    world.entity_mut(vehicle).insert(Wheels { turn_dir: next });
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        built.last_turn = press;
+    }
+}
+
 /// Where the wheels point after a steering step.
 ///
 /// Reference: `vehicle::turn` (`vehicle_move.cpp:678-685`): a reversing vehicle steers the other way unless the `REVERSE_STEERING` option is on (the option is not ported;
@@ -1147,23 +1177,7 @@ pub fn apply_controls(world: &mut World) -> usize {
             heard += 1;
         }
         if controls.steer != 0 {
-            let velocity = world
-                .get::<crate::vehicles::Vehicle>(vehicle)
-                .map_or(0, |built| built.velocity);
-            let current = wheel_direction(world, vehicle);
-            let next = steered_direction(current, controls.steer, velocity);
-            world.entity_mut(vehicle).insert(Wheels { turn_dir: next });
-            // Reference: `vehicle::turn` sets `last_turn` beside `turn_dir` (`vehicle_move.cpp:676-685`), and the turn is what the hull still owes **after** the wheels have
-            // been rounded to a click - so the leftover is the change the press actually made, not the number the driver asked for.
-            let applied = (next - current).rem_euclid(360);
-            let applied = if applied > 180 {
-                applied - 360
-            } else {
-                applied
-            };
-            if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
-                built.last_turn = applied;
-            }
+            turn(world, vehicle, controls.steer);
             heard += 1;
         }
     }
