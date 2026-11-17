@@ -681,11 +681,6 @@ pub fn wear_engines(
     }
 }
 
-/// The load an idling engine works at: whatever the alternator draws, but never less than a hundredth of full throttle.
-///
-/// Reference: `vehicle::idle` (`vehicle.cpp:6050-6062`) - `idle_rate = alternator_load`, then `if( idle_rate < 10 ) idle_rate = 10;  // minimum idle is 1% of full throttle`.
-/// The floor is the reference's own: an engine with nothing bolted to it still burns a little, which is why a car left running empties its tank.
-#[must_use]
 /// The load an alternator puts on the engines that turn it, in the same units as the idle rate.
 ///
 /// Reference: `vehicle::update_alternator_load`'s last line (`vehicle.cpp:5601`): `std::abs( 1000 * alternators_power / engine_vpower )`, both powers in watts and the
@@ -745,6 +740,11 @@ pub fn alternator_load(world: &World, vehicle: Entity) -> i32 {
     alternator_load_of(engine, alternators)
 }
 
+/// The load an idling engine works at: whatever the alternator draws, but never less than a hundredth of full throttle.
+///
+/// Reference: `vehicle::idle` (`vehicle.cpp:6050-6062`) - `idle_rate = alternator_load`, then `if( idle_rate < 10 ) idle_rate = 10;  // minimum idle is 1% of full throttle`.
+/// The floor is the reference's own: an engine with nothing bolted to it still burns a little, which is why a car left running empties its tank.
+#[must_use]
 pub fn idle_load(alternator_load: i32) -> i32 {
     alternator_load.max(10)
 }
