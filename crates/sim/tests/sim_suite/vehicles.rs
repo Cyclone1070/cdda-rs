@@ -5935,3 +5935,84 @@ fn a_skidding_vehicle_faces_its_wheels() {
         "**a skid faces the wheels, not the path**: {facing}"
     );
 }
+
+/// **A steering press leaves a turn to spend, and the hull spends it a degree at a time.** Reference: `vehicle::turn` (`vehicle_move.cpp:676-685`) sets `last_turn = deg` beside
+/// `turn_dir`, and `map::move_vehicle` (`map.cpp:917-928`) walks it back to zero by one degree a step - which is what keeps a car curving for a moment after the wheel is centred.
+/// `vehicle::stop` (`:693`) clears it, so a stopped car is not still mid-turn.
+#[test]
+fn a_steering_press_leaves_a_turn_that_the_hull_spends() {
+    use cdda_sim::vehicle_move::Controls;
+    use cdda_sim::vehicles::{Riding, Vehicle};
+
+    const FLOOR: u32 = 1;
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+    cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+    for y in 90..=110 {
+        for x in 90..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let count = world
+        .get::<Vehicle>(car)
+        .map_or(0, |built| built.parts.len());
+    let Some(controls) = (0..count).find(|index| {
+        cdda_sim::vehicles::part_spec(&world, car, *index)
+            .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "CONTROLS"))
+    }) else {
+        return;
+    };
+    let driver = world
+        .spawn((
+            Riding {
+                vehicle: car,
+                part: controls,
+            },
+            Controls {
+                cruise: 0,
+                steer: 23,
+            },
+        ))
+        .id();
+
+    cdda_sim::vehicle_move::apply_controls(&mut world);
+    assert_eq!(
+        cdda_sim::vehicle_move::wheel_direction(&world, car),
+        30,
+        "the press rounds to two clicks"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").last_turn,
+        30,
+        "**and the hull has thirty degrees left to spend**"
+    );
+
+    // One accepted move spends one degree of it, whatever the step's size.
+    {
+        let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+        built.velocity = 2_000;
+        built.of_turn = 20.0;
+    }
+    world.entity_mut(driver).remove::<Controls>();
+    assert!(
+        cdda_sim::vehicle_move::move_step(&mut world, car),
+        "it moves"
+    );
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").last_turn,
+        29,
+        "**a step walks the leftover turn back by a degree**"
+    );
+
+    // Stopping clears what is left.
+    cdda_sim::vehicle_move::stop_vehicle(&mut world, car);
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").last_turn,
+        0,
+        "and a stopped car has no turn left in it"
+    );
+}

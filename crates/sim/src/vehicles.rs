@@ -111,6 +111,9 @@ pub struct Vehicle {
     /// The turn a collision has lined up for the **next** move, in degrees - the reference's `coll_turn`, which `part_smash` sets and `move_vehicle` spends when the
     /// vehicle can move again (`map.cpp:938-941`). A vehicle that is stopped clears it, because a stopped vehicle cannot be mid-skid.
     pub coll_turn: i32,
+    /// How much steering is still owed to the hull, in degrees - the reference's `last_turn` (`vehicle.h`). A steering press sets it, every accepted step walks it back a
+    /// degree (`map.cpp:917-928`), and `stop` clears it (`vehicle_move.cpp:693`).
+    pub last_turn: i32,
     /// Whether the vehicle is sliding rather than steering - the reference's `skidding` (`vehicle.h`). While it is set the hull's facing follows `turn_dir` instead of
     /// the direction of travel (`map.cpp:934-937`), which is the whole difference a skid makes.
     pub skidding: bool,
@@ -163,6 +166,7 @@ pub fn spawn_facing(
                 of_turn_carry: 0.0,
                 coll_turn: 0,
                 skidding: false,
+                last_turn: 0,
                 rotation,
                 velocity: 0,
             },

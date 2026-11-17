@@ -480,6 +480,11 @@ pub fn move_step_with_rolls(
         wheels.turn_dir = (wheels.turn_dir + coll_turn).rem_euclid(360);
     }
     let moved = crate::vehicles::move_vehicle(world, vehicle, step);
+    // **The leftover turn decays a degree a step.** Reference: `map.cpp:917-928`, which runs before the move is accepted, so the decay happens whether or not the square is
+    // taken - and `decayed_turn` is the same rule the port already had and nothing called.
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        built.last_turn = decayed_turn(built.last_turn, 1);
+    }
     // **The hull faces where the step went, unless it is skidding.** Reference: `map.cpp:934-939` sets `veh.face` to the direction of travel on an accepted move and takes
     // `veh.turn_dir` while skidding. A backwards step is covered by this rather than by a flip of its own: the step already points the way the vehicle travels, so the heading of
     // that step is the answer in both directions.
@@ -992,6 +997,17 @@ pub fn apply_controls(world: &mut World) -> usize {
             let current = wheel_direction(world, vehicle);
             let next = steered_direction(current, controls.steer, velocity);
             world.entity_mut(vehicle).insert(Wheels { turn_dir: next });
+            // Reference: `vehicle::turn` sets `last_turn` beside `turn_dir` (`vehicle_move.cpp:676-685`), and the turn is what the hull still owes **after** the wheels have
+            // been rounded to a click - so the leftover is the change the press actually made, not the number the driver asked for.
+            let applied = (next - current).rem_euclid(360);
+            let applied = if applied > 180 {
+                applied - 360
+            } else {
+                applied
+            };
+            if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+                built.last_turn = applied;
+            }
             heard += 1;
         }
     }
@@ -1089,6 +1105,7 @@ pub fn stop_vehicle(world: &mut World, vehicle: Entity) {
         // **A stop clears the skid but not the turn it lined up.** Reference: `vehicle::stop` sets `skidding = false` (`vehicle_move.cpp:691`) and says nothing about
         // `coll_turn`, which the next accepted move still spends - a car that stopped against a wall is not a car that forgot being shoved aside.
         built.skidding = false;
+        built.last_turn = 0;
         built.rotation
     };
     #[allow(clippy::cast_possible_truncation)]

@@ -37826,3 +37826,18 @@ local lint job can see a fresh mistake in a file it has just synced.
 **What that leaves unexplained:** two lints - `float_cmp` and an `unused_variables` on a match binding - reached CI through a full local gate that reported green, and the same
 command caught a third probe. The difference between those runs is not yet identified. **The practice that follows is cheap and does not require the explanation:** run
 `--clippy` once more after the full gate, immediately before committing, rather than trusting the aggregate run alone.
+
+## `last_turn` is state now, and `decayed_turn` finally has a caller (round 162)
+
+`Vehicle` gained the reference's `last_turn`: the steering the hull still owes. A press sets it to **the change the wheels actually made** - the rounded click, not the degrees the
+driver asked for - every accepted step walks it back a degree (`map.cpp:917-928`), and `stop` clears it (`vehicle_move.cpp:693`).
+
+**`decayed_turn` was ported rounds ago and had no caller**; it is the decay rule, and the gate's dead-rule check is what kept it visible instead of letting it rot. Now the move
+path uses it.
+
+Gated red-first on one case that pins all three behaviours: a 23-degree press rounds the wheels to 30 and leaves 30 owed, one move spends exactly one degree of it, and stopping
+leaves none.
+
+**What reads it next:** `possibly_recover_from_skid` (`vehicle_move.cpp:1563-1590`), which returns early when `last_turn > 13` and otherwise recovers on `|dot| * 100 > dice(9,20)`
+- where `dot` is the angle between the direction the vehicle is moving and the direction it faces. **The port cannot express that yet**: it has one rotation, and the rule needs
+`move` and `face` as two headings. That is the next structural piece, and it is the honest reason the recovery rule is not in this round.
