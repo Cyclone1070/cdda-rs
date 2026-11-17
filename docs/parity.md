@@ -37671,3 +37671,17 @@ within five squares, on the same level, and not the wall.
 **The intra-ring order is the port's own choice and is documented as such:** by distance, then x, then y. `closest_points_first` in the reference spirals, and which square of a
 ring comes first is not something the dump or the source states, so the test asserts the properties that are observable - distance bound, level, not the target - rather than
 an order the reference does not specify.
+
+## Guard 3 needs a query the port does not have (round 152)
+
+The anchored-teleport guard (`teleport.cpp:191-201`) asks three things: a **worn item** with `DIMENSIONAL_ANCHOR`, an **active effect** with `DIMENSIONAL_ANCHOR`, or an active
+effect with `TELEPORT_LOCK`. The flags exist in the corpus (`corpus/flags.json`, and on real items such as `dimensional_anchor_on`), so the data is not the gap.
+
+**The gap is the effect-side query.** `effects.rs` offers intensity, duration, merge and percentage - there is no "does this creature have an effect carrying flag X", because
+nothing has needed one until now. `item_registry::kind_has_flag` answers the item side, but wearing is a separate question the port has also not built (no worn-item list).
+
+So guard 3 is **blocked on two small pieces, both named**: an effect-flag query over the effect registry, and a worn-item lookup. Neither is large; both are the kind of thing
+that should be written red-first from the question a caller actually asks, not invented as a general-purpose API.
+
+**Recorded rather than started**, because writing either one at the tail of a round would be a guess about the shape a future caller wants, and this project has paid for that
+mistake more than once.
