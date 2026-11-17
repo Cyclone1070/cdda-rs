@@ -463,22 +463,35 @@ pub fn move_step_with_rolls(
 
     // **A lined-up turn is spent on the move, not before it.** Reference: `map.cpp:938-941` sets `skidding` and turns the hull only on an accepted move, which is why a vehicle
     // held still by another wall keeps its `coll_turn` for the attempt that succeeds.
+    let mut coll_turn_just_spent = None;
     if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
         && built.coll_turn != 0
     {
         let lined_up = built.coll_turn;
+        coll_turn_just_spent = Some(lined_up);
         built.coll_turn = 0;
         built.skidding = true;
         built.rotation = (built.rotation + f64::from(lined_up)).rem_euclid(360.0);
     }
-    let moved = crate::vehicles::move_vehicle(world, vehicle, step);
-    // **The hull faces where the step went.** A backwards step travels the opposite way, so the facing turns around: the reference sets `veh.face = facing` on an accepted
-    // move (`map.cpp:934-939`), and its `facing` is the direction of travel rather than the direction the nose was pointing.
-    if moved
-        && velocity < 0
-        && let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
+    // Reference: `vehicle::turn` moves `turn_dir` with the hull, so the wheels a skid is following are the wheels the crash turned.
+    if let Some(coll_turn) = coll_turn_just_spent
+        && let Some(mut wheels) = world.get_mut::<Wheels>(vehicle)
     {
-        built.rotation = (built.rotation + 180.0).rem_euclid(360.0);
+        wheels.turn_dir = (wheels.turn_dir + coll_turn).rem_euclid(360);
+    }
+    let moved = crate::vehicles::move_vehicle(world, vehicle, step);
+    // **The hull faces where the step went, unless it is skidding.** Reference: `map.cpp:934-939` sets `veh.face` to the direction of travel on an accepted move and takes
+    // `veh.turn_dir` while skidding. A backwards step is covered by this rather than by a flip of its own: the step already points the way the vehicle travels, so the heading of
+    // that step is the answer in both directions.
+    if moved {
+        let skidding = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .is_some_and(|built| built.skidding);
+        let wheel = wheel_direction(world, vehicle);
+        let travel = heading_of_step(step.0, step.1);
+        if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+            built.rotation = f64::from(facing_after_move(skidding, wheel, travel));
+        }
     }
     // **Straining wears the engines**, straight after the step, which is where the reference does it (`vehicle_move.cpp:588-594`): the strain is read against the safe and
     // top speeds, turned into the capped figure, and spent on the caller's dice.
@@ -1011,6 +1024,29 @@ pub fn wheel_direction(world: &bevy_ecs::world::World, vehicle: Entity) -> i32 {
 #[must_use]
 pub fn is_diagonal_turn(degrees: i32) -> bool {
     degrees.rem_euclid(360) % 90 == 45
+}
+
+/// The heading a step travels in: degrees clockwise from east, the same sense the hull's rotation uses.
+///
+/// The four cardinal steps are the only ones a vehicle move produces, so this is a match rather than an angle - and a diagonal step, which the reference never produces for a
+/// vehicle, answers the heading of its dominant axis.
+#[must_use]
+pub fn heading_of_step(dx: i32, dy: i32) -> i32 {
+    match (dx.signum(), dy.signum()) {
+        (1, 0) => 0,
+        (0, 1) => 90,
+        (-1, 0) => 180,
+        (0, -1) => 270,
+        (dx, dy) if dx != 0 => {
+            if dx > 0 {
+                0
+            } else {
+                180
+            }
+        }
+        (0, dy) if dy > 0 => 90,
+        _ => 270,
+    }
 }
 
 /// Which way a vehicle faces once its step has been accepted.

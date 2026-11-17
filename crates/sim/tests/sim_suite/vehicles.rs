@@ -5862,3 +5862,76 @@ fn a_crash_lines_up_the_next_turn() {
         after.rotation
     );
 }
+
+/// **A skidding vehicle faces where its wheels point, not where it went.** Reference: `map::move_vehicle` (`map.cpp:934-939`) sets `veh.face` to the direction of travel on an
+/// accepted move - **unless the vehicle is skidding**, when it takes `veh.turn_dir` instead, because a skid carries the hull where the wheels point rather than where the driver
+/// aimed it.
+#[test]
+fn a_skidding_vehicle_faces_its_wheels() {
+    const FLOOR: u32 = 1;
+
+    fn an_open_car() -> (World, Entity) {
+        let mut world = World::new();
+        cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+        cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+        for y in 90..=110 {
+            for x in 90..=110 {
+                cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+            }
+        }
+        install_part_weights(&mut world, "car");
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+        (world, car)
+    }
+
+    // **Rolling forward, the hull faces its path**: the step goes east and so does the nose.
+    let (mut world, car) = an_open_car();
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 2_000;
+        built.of_turn = 20.0;
+    }
+    assert!(
+        cdda_sim::vehicle_move::move_step(&mut world, car),
+        "the car moves"
+    );
+    assert!(
+        (world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle")
+            .rotation
+            - 0.0)
+            .abs()
+            < 1e-9,
+        "**an ordinary step leaves the nose on its path**"
+    );
+
+    // **Skidding, the hull follows the wheels**: the wheels are turned forty-five degrees but the step still goes east, and the hull comes round to the wheels.
+    let (mut world, car) = an_open_car();
+    world
+        .entity_mut(car)
+        .insert(cdda_sim::vehicle_move::Wheels { turn_dir: 45 });
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 2_000;
+        built.of_turn = 20.0;
+        built.skidding = true;
+    }
+    assert!(
+        cdda_sim::vehicle_move::move_step(&mut world, car),
+        "the skidding car still moves"
+    );
+    let facing = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .expect("a vehicle")
+        .rotation;
+    assert!(
+        (facing - 45.0).abs() < 1e-9,
+        "**a skid faces the wheels, not the path**: {facing}"
+    );
+}

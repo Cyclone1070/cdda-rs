@@ -37806,3 +37806,15 @@ refused it under `-D warnings` - in CI, after fifty-seven seconds, while `python
 
 **The discrepancy is not explained and is recorded as such** rather than waved away. Either the build machine's clippy differs from CI's, or the local run did not re-lint the
 edited test target - and until one of those is proven, a local green on a *test* file is one guess weaker than a local green on a source file.
+
+**The skid is whole (round 161).** The facing rule now reads it: on an accepted move the hull takes the heading of the step it took, and **a skidding vehicle takes the wheel's
+direction instead** (`map.cpp:934-939`). The crash's lined-up turn rotates the wheels along with the hull, as `vehicle::turn` does, so the wheels a skid follows are the wheels the
+crash turned rather than the ones the car had before it.
+
+**A byproduct worth naming:** the reverse case is no longer its own flip. The step already points the way the vehicle travels - a backwards step is a step west - so
+`heading_of_step` answers the same thing for both directions, and the special case that turned the hull 180 degrees is gone. Behaviour is unchanged; the rule that produced it is.
+
+Gated red-first: a car rolling east faces 0, and the same car with its wheels at 45 and `skidding` set comes round to 45 - which it did not before the change.
+
+**What is still not ported about skidding:** recovery (`possibly_recover_from_skid`), the rolling-resistance penalty at right angles (`vehicle_move.cpp:124`), and the `last_turn`
+decay that curves a car for a moment after the wheel is centred. All three are named in the roadmap's P8 section.
