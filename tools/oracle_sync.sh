@@ -79,7 +79,7 @@ echo "oracle: the session that started this build is gone; stopping the compiler
 kill -TERM -- "-$2" 2>/dev/null || true
 sleep 3
 kill -KILL -- "-$2" 2>/dev/null || true
-' _ "$session" "$build" __WATCH_POLL__ > /tmp/oracle-watchdog.log 2>&1 &
+' _ "$session" "$build" __WATCH_POLL__ > /tmp/oracle-watchdog.log 2>&1 < /dev/null &
 guard=$!
 
 rc=0

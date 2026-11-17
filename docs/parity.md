@@ -37987,3 +37987,26 @@ never been explained, and **the honest position is that the local clippy result 
 **The pattern is now three rounds deep** - `last_turn` (162), the diagonal heading (169), reversing (138) - and it is always the same shape: a rule written with no consumer, and a
 test written in the same breath that pins the author's reading. **The recording is what broke each one.** That is the argument for keeping the oracle ahead of the loader: not
 coverage, but the only thing in the tree that disagrees with me.
+
+## The leak guard held, and one attempt was thrown away (round 171)
+
+**A fix the guard needed that the test could not see.** The watchdog inherited the SSH channel on stdin, so the client stayed connected for as long as the watchdog lived - which
+turned a two-minute build into a sixteen-minute hang the first time a compile failed. Its stdin is now `/dev/null`, and the leak test still passes: `PASS - the far side stopped
+by itself after 1s`.
+
+**A two-vehicle impact dump was written, measured, and removed.** It placed a car five squares from another and recorded both speeds and every part that lost hit points. What it
+measured was not usable:
+
+| Case | Mover after | Target after | Part damage |
+|---|---|---|---|
+| car into car, head on | **gone** | -377 | none on either side |
+| car into car, from the side | **gone** | 376 | none on either side |
+| car into bicycle | **gone** | -746 | none on either side |
+
+Every case destroyed the mover on contact and left both hulls' hit points untouched, which contradicts the reference's own damage model - so the fault is in the harness, not in
+the finding: either placing the second hull five squares away puts it inside the first one's swept area at the moment of placement, or `act_on_map` returning null means something
+other than "this vehicle was destroyed". **Committing a generator whose output I cannot explain would be worse than not having it**, so the harness is back to what it was and the
+patch verifies byte for byte.
+
+**What that costs, honestly:** this round produced a one-line fix to the guard and no port progress. The impact dump is the prerequisite for the port's last unnamed P8 gap, and it
+needs the displacement path read before it is written again - `act_on_map`'s null return, `displace_vehicle`, and what happens to a hull that is standing where another one is.
