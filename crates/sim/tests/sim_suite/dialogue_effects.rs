@@ -2492,7 +2492,6 @@ fn the_global_message_member_says_a_line() {
 fn a_locked_creature_is_not_moved_by_a_teleport_effect() {
     use cdda_sim::dialogue_effects::{Applied, run_effects};
     use cdda_sim::dialogue_values::{self, Value};
-    use cdda_sim::messages;
 
     let mut world = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
