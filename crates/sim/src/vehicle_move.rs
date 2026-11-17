@@ -256,10 +256,32 @@ pub fn slowdown_of(
     at_velocity: i32,
     engine_running: bool,
 ) -> i32 {
+    slowdown_with_skid(
+        air_drag,
+        rolling_drag,
+        mass_g,
+        at_velocity,
+        engine_running,
+        1.0,
+    )
+}
+
+/// The same rule with the skid factor at hand: [`skid_drag_factor`] multiplies the **rolling** drag, so a sliding hull scrubs speed off without changing its air resistance.
+///
+/// Reference: `vehicle::slowdown` (`vehicle_move.cpp:112-153`), whose literal is `f_rolling_drag * skid_factor`.
+#[must_use]
+pub fn slowdown_with_skid(
+    air_drag: f64,
+    rolling_drag: f64,
+    mass_g: i64,
+    at_velocity: i32,
+    engine_running: bool,
+    skid_factor: f64,
+) -> i32 {
     let mps = vmiph_to_mps(at_velocity.abs());
     let mut drag = air_drag * mps * mps;
     if mass_g > 0 {
-        drag += rolling_drag * (ROLLING_CONSTANT_TO_VARIABLE + mps);
+        drag += rolling_drag * (ROLLING_CONSTANT_TO_VARIABLE + mps) * skid_factor;
     }
     #[allow(clippy::cast_precision_loss)]
     let kilograms = mass_g as f64 / 1000.0;
@@ -277,6 +299,18 @@ pub fn slowdown_of(
     slowdown.max(1)
 }
 
+/// How much harder the rolling drag bites when the hull is sliding rather than rolling.
+///
+/// Reference: `vehicle::slowdown` (`vehicle_move.cpp:123-126`): `skid_factor = 1 + 24 * std::abs( units::sin( face.dir() - move.dir() ) )`. It multiplies the **rolling** drag
+/// and nothing else - air resistance does not care which way the hull is pointing - which is why a side-on skid scrubs speed off while a straight one costs no more than usual.
+///
+/// The factor is one at nought and a hundred and eighty degrees, and twenty-five when the vehicle is travelling at right angles to its nose.
+#[must_use]
+pub fn skid_drag_factor(face_dir: i32, move_dir: i32) -> f64 {
+    let between = f64::from((face_dir - move_dir).rem_euclid(360)).to_radians();
+    1.0 + 24.0 * between.sin().abs()
+}
+
 /// How much speed a vehicle in the store loses this turn, from its own body and wheels.
 ///
 /// Reference: `vehicle::slowdown` (`vehicle_move.cpp:112-153`) with the coefficients the vehicle's parts give. `None` when the vehicle is not in the store.
@@ -290,7 +324,23 @@ pub fn slowdown(
     let air = crate::vehicle_air::coeff_air_drag(world, vehicle)?;
     let rolling = crate::vehicle_drive::rolling_drag(world, vehicle)?;
     let mass = crate::vehicle_mass::mass(world, vehicle);
-    Some(slowdown_of(air, rolling, mass, at_velocity, engine_running))
+    // Reference: the factor is built from the hull's facing and the direction it last moved, which the store keeps apart precisely so this angle can be asked for.
+    let skid = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(1.0, |built| {
+            skid_drag_factor(
+                crate::vehicles::floor_to_heading(built.rotation),
+                built.move_dir,
+            )
+        });
+    Some(slowdown_with_skid(
+        air,
+        rolling,
+        mass,
+        at_velocity,
+        engine_running,
+        skid,
+    ))
 }
 
 /// One turn of coasting: the speed drag leaves, before anything is asked of the engine.

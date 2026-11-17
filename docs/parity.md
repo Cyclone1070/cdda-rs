@@ -37865,3 +37865,15 @@ door that rounds a rotation to a whole heading so the places that compare the tw
 
 **The practice from round 161 paid for itself:** running `--clippy` again after the aggregate gate is what caught both, one commit late. The lesson is narrower than "run the
 gate again" - **the aggregate gate's clippy job is the one that has come back green twice with lints CI then refused**, so it is the job worth running on its own.
+
+**A sideways skid scrubs speed (round 164).** `vehicle_move::skid_drag_factor` is `slowdown`'s own literal (`vehicle_move.cpp:123-126`):
+`1 + 24 * |sin( face - move )|` - **multiplying the rolling drag and nothing else**, because air resistance does not care which way the hull is pointing. The factor is one at
+nought and a hundred and eighty degrees and twenty-five at right angles, and `slowdown_with_skid` is the door the store-side `slowdown` now goes through, reading both headings
+`Vehicle` keeps apart.
+
+Gated red-first on the four factors and on the difference they make: the same mass, drag and speed lose more pace sideways than forward.
+
+**`slowdown_of` keeps its signature** and delegates with a factor of one, so the rules that were written before the skid existed still say what they meant.
+
+**Still absent from `slowdown`:** the watercraft term, the falling and flying exemptions, the towing recursion and the plow term - all of them zero on every recorded vehicle,
+and all of them named here rather than silently folded into one.

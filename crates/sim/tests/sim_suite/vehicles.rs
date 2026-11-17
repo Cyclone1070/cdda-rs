@@ -6186,3 +6186,38 @@ fn a_skidding_car_stops_skidding_when_it_recovers() {
         "**a skid that is driving straight can be recovered**, and no seed in sixty did it"
     );
 }
+
+/// **A skid at right angles to the nose drags up to twenty-five times as hard.** Reference: `vehicle::slowdown` (`vehicle_move.cpp:123-126`):
+/// `skid_factor = 1 + 24 * std::abs( units::sin( face.dir() - move.dir() ) )`, applied to the rolling drag alone - so a vehicle sliding sideways scrubs its speed off while one
+/// sliding straight keeps its rolling resistance unchanged.
+#[test]
+fn a_sidways_skid_drags_harder() {
+    let factor = cdda_sim::vehicle_move::skid_drag_factor;
+    assert!(
+        (factor(0, 0) - 1.0).abs() < 1e-9,
+        "**travelling where you point drags once**"
+    );
+    assert!(
+        (factor(0, 180) - 1.0).abs() < 1e-9,
+        "and so does travelling backwards down the same line"
+    );
+    assert!(
+        (factor(0, 90) - 25.0).abs() < 1e-9,
+        "**a right-angle skid drags twenty-five times**"
+    );
+    let diagonal = 1.0 + 24.0 * std::f64::consts::FRAC_1_SQRT_2;
+    assert!(
+        (factor(0, 45) - diagonal).abs() < 1e-9,
+        "and a forty-five degree one in between: {diagonal}"
+    );
+
+    // **The factor reaches the slowdown**: the same vehicle sliding sideways loses far more speed than one rolling forward.
+    let straight =
+        cdda_sim::vehicle_move::slowdown_with_skid(0.0, 40.0, 1_000_000, 2_000, true, 1.0);
+    let sideways =
+        cdda_sim::vehicle_move::slowdown_with_skid(0.0, 40.0, 1_000_000, 2_000, true, 25.0);
+    assert!(
+        sideways > straight,
+        "**a sideways skid slows down faster**: {sideways} against {straight}"
+    );
+}
