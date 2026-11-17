@@ -21,8 +21,8 @@ Usage:
 """
 
 import argparse
-import pathlib
 import os
+import pathlib
 import subprocess
 import sys
 
@@ -80,16 +80,35 @@ def sync() -> None:
         # `crates/content` rather than `crates/crates/content`. This is the form that behaves the same on the old
         # rsync this machine ships and the new one on the server.
         if source.is_dir():
-            subprocess.run(["ssh", REMOTE, f"mkdir -p {remote_path}"], check=True)
+            subprocess.run([*ssh_args(), f"mkdir -p {remote_path}"], check=True)
             source_arg = f"{source}/"
             destination = f"{REMOTE}:{remote_path}/"
         else:
             parent = pathlib.PurePosixPath(remote_path).parent
-            subprocess.run(["ssh", REMOTE, f"mkdir -p {parent}"], check=True)
+            subprocess.run([*ssh_args(), f"mkdir -p {parent}"], check=True)
             source_arg = str(source)
             destination = f"{REMOTE}:{remote_path}"
         print(f"  {path}", flush=True)
         subprocess.run([*args, source_arg, destination], check=True)
+
+
+def ssh_args() -> list[str]:
+    """How to reach the build machine: with keepalives, so a dropped connection fails instead of hanging.
+
+    A gate that blocks forever is worse than a gate that fails: two rounds were lost to an ssh that had gone quiet with nothing running on the far side. The keepalives make
+    the client notice, and the timeout bounds the wait.
+    """
+    return [
+        "ssh",
+        "-o", "ServerAliveInterval=10",
+        "-o", "ServerAliveCountMax=3",
+        "-o", "ConnectTimeout=20",
+        REMOTE,
+    ]
+
+
+#: How long one remote command may take before it is given up on. The slowest job (the whole suite) is under ten minutes when the machine is quiet.
+GATE_TIMEOUT = int(os.environ.get("GATE_TIMEOUT", "2400"))
 
 
 def run(command: str, label: str, jobs: int) -> int:
@@ -97,9 +116,14 @@ def run(command: str, label: str, jobs: int) -> int:
     command = command.replace("{jobs}", str(jobs))
     print(f"\n=== {label} on {REMOTE}\n$ {command}\n", flush=True)
     # The rustup toolchain lives in the user's home and is newer than the distribution's, so it must come first.
-    return subprocess.run(
-        ["ssh", REMOTE, f"cd {REMOTE_DIR} && export PATH=$HOME/.cargo/bin:$PATH && {command}"]
-    ).returncode
+    try:
+        return subprocess.run(
+            [*ssh_args(), f"cd {REMOTE_DIR} && export PATH=$HOME/.cargo/bin:$PATH && {command}"],
+            timeout=GATE_TIMEOUT,
+        ).returncode
+    except subprocess.TimeoutExpired:
+        print(f"\n=== {label}: gave up after {GATE_TIMEOUT}s", flush=True)
+        return 124
 
 
 def main() -> int:
@@ -126,7 +150,7 @@ def main() -> int:
 
     jobs = options.jobs
     if jobs <= 0:
-        cores = subprocess.run(["ssh", REMOTE, "nproc"], capture_output=True, text=True, check=True)
+        cores = subprocess.run([*ssh_args(), "nproc"], capture_output=True, text=True, check=True)
         jobs = max(1, min(6, int(cores.stdout.strip()) - 1))
 
     failed = []

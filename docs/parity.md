@@ -38010,3 +38010,29 @@ patch verifies byte for byte.
 
 **What that costs, honestly:** this round produced a one-line fix to the guard and no port progress. The impact dump is the prerequisite for the port's last unnamed P8 gap, and it
 needs the displacement path read before it is written again - `act_on_map`'s null return, `displace_vehicle`, and what happens to a hull that is standing where another one is.
+
+## A null from a move is not a death, and the gate stops hanging (round 172)
+
+**Round 171's unusable numbers had one cause, and it was a line.** `map::move_vehicle` returns `nullptr` **on purpose** after a vehicle-vehicle hit - `map.cpp:898-901`, "Break here
+to let the hit vehicle move away" - so reading that null as "the car was destroyed" made every case record `mover_gone`. The recording keeps its pointer now, and the same five cases
+give numbers that make sense:
+
+| Case | Mover | Target | Parts damaged |
+|---|---|---|---|
+| car into car, head on, 4 mph | 400 → 23 | 0 → −377 | none |
+| car into car, from the side, 4 mph | 400 → 24 | 0 → 378 | none |
+| car into car, head on, 40 mph | 4000 → 1790 | 0 → −2190 | 3 and 43 |
+| car into bicycle, 10 mph | 1000 → 982 | 0 → −1692 | none |
+| bicycle into car, 10 mph | 1000 → −692 | 0 → −16 | none |
+
+**The rule is read and recorded but not yet ported.** `map::vehicle_vehicle_collision` (`map.cpp:1014-1200`) projects both velocity vectors onto the line between the two **rotated
+centres of mass**, exchanges only that component with a restitution `e = get_collision_factor( Δv )`, keeps the perpendicular component, then normalises both vehicles' movement
+points (`0.9 × avg` and `1.1 × avg`, floor `0.1`). The dump records every input that exchange divides by - both masses in kilograms, both rotated centres, both facings - so a port
+that disagrees is disagreeing about a rule and not about a car's weight.
+
+**But a hand check of that formula gives 82 where the reference recorded 23**, so at least one term is still unread: the enclosing loop retries collisions up to ten times
+(`map.cpp:830-877`), and each retry exchanges again with the velocities the previous one left. **Porting it now would be another transcription**, so it waits for that loop to be
+read.
+
+**The gate itself was the round's other finding.** `tools/remote_test.py` had no keepalive and no timeout, so an ssh that went quiet blocked a round instead of failing it - twice.
+It now sends keepalives, bounds each connection, and gives up after `GATE_TIMEOUT` seconds with exit 124.

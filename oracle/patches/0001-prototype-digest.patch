@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 02:14:03
-@@ -0,0 +1,9318 @@
++++ oracle/src/src/harness.cpp	2026-11-18 07:25:08
+@@ -0,0 +1,9459 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1737,6 +1737,147 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            }
 +            first_case = false;
 +            here.destroy_vehicle( veh );
++        }
++    }
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++/// **Two vehicles hitting each other**, which is the one collision the port has never had ground truth for.
++///
++/// `map::move_vehicle`'s vehicle branch (`map.cpp:1075-1200`) splits the closing speed into the component along the line between the hulls, exchanges that, and turns the rest
++/// into damage on both sides. **A null return from `act_on_map` is not a death**: `map.cpp:898-901` returns null on purpose after a vehicle-vehicle hit, "to let the hit vehicle
++/// move away" - so the recording keeps its pointer and stops its loop when that happens. Reading that null as destruction is what made round 171's draft record `mover_gone`
++/// in every case.
++void dump_vehicle_impact( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dy = -20; dy <= 20; dy++ ) {
++        for( int dx = -20; dx <= 20; dx++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"vehicle_impact\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    struct impact_case {
++        const char *name;
++        const char *mover;
++        const char *target;
++        int speed;
++        int target_facing;
++    };
++    // Speeds in vehicle miles per hour hundredths: 400 is four miles an hour, 4000 is forty.
++    const impact_case cases[] = {
++        { "car_into_car_head_on", "car", "car", 400, 180 },
++        { "car_into_car_side", "car", "car", 400, 90 },
++        { "car_into_car_fast", "car", "car", 4000, 180 },
++        { "car_into_bicycle", "car", "bicycle", 1000, 180 },
++        { "bicycle_into_car", "bicycle", "car", 1000, 180 },
++    };
++
++    for( const impact_case &one : cases ) {
++        const tripoint_bub_ms start = origin + tripoint_rel_ms( 0, 10, 0 );
++        vehicle *mover = here.add_vehicle( vproto_id( one.mover ), start, 0_degrees, 100, 0, false, true );
++        // Six squares east: far enough that neither hull overlaps the other when placed, and reached in one step at speed four hundred.
++        const tripoint_bub_ms target_at = start + tripoint_rel_ms( 6, 0, 0 );
++        vehicle *target = here.add_vehicle( vproto_id( one.target ), target_at,
++                                            units::from_degrees( one.target_facing ), 100, 0, false, true );
++        if( mover == nullptr || target == nullptr ) {
++            std::fprintf( stderr, "harness: %s hit %s did not place\n", one.mover, one.target );
++            for( const wrapped_vehicle &left : here.get_vehicles() ) {
++                here.destroy_vehicle( left.v );
++            }
++            continue;
++        }
++        mover->velocity = one.speed;
++        mover->cruise_velocity = one.speed;
++        mover->of_turn = 20.0f;
++        target->velocity = 0;
++
++        const int mover_before = mover->velocity;
++        const int target_before = target->velocity;
++        std::vector<std::pair<int, int>> mover_hp;
++        std::vector<std::pair<int, int>> target_hp;
++        for( int index = 0; index < mover->part_count(); index++ ) {
++            mover_hp.emplace_back( index, mover->part( index ).hp() );
++        }
++        for( int index = 0; index < target->part_count(); index++ ) {
++            target_hp.emplace_back( index, target->part( index ).hp() );
++        }
++
++        bool hit_a_vehicle = false;
++        int steps_taken = 0;
++        for( int step = 0; step < 12; step++ ) {
++            const int before = mover->velocity;
++            vehicle *after = mover->act_on_map( here );
++            steps_taken++;
++            if( after == nullptr ) {
++                // **The vehicle is still there**; the null says the step met another hull and the next turn lets it move away.
++                hit_a_vehicle = true;
++                break;
++            }
++            mover = after;
++            if( mover->velocity != before ) {
++                break;
++            }
++        }
++
++        // **The inputs the exchange divides by are recorded with the answer**, because a port whose car weighs something else would be red for a data reason and
++        // look like a rule that does not match: the two masses in kilogram, both rotated centres of mass, and both hull facings.
++        const point_rel_ms mover_cof = mover->rotated_center_of_mass( here );
++        const point_rel_ms target_cof = target->rotated_center_of_mass( here );
++        std::fprintf( out,
++                      "%s{\"name\":\"%s\",\"mover\":\"%s\",\"target\":\"%s\",\"speed\":%d,"
++                      "\"steps\":%d,\"hit_a_vehicle\":%s,\"mover_before\":%d,\"mover_after\":%d,"
++                      "\"target_before\":%d,\"target_after\":%d,"
++                      "\"mover_mass\":%.1f,\"target_mass\":%.1f,"
++                      "\"mover_cof\":[%d,%d],\"target_cof\":[%d,%d],"
++                      "\"mover_face\":%.1f,\"target_face\":%.1f,",
++                      first_case ? "" : ",", one.name, one.mover, one.target, one.speed, steps_taken,
++                      hit_a_vehicle ? "true" : "false", mover_before, mover->velocity, target_before,
++                      target->velocity,
++                      to_kilogram( mover->total_mass( here ) ), to_kilogram( target->total_mass( here ) ),
++                      mover_cof.x(), mover_cof.y(), target_cof.x(), target_cof.y(),
++                      units::to_degrees( mover->face.dir() ), units::to_degrees( target->face.dir() ) );
++        first_case = false;
++
++        std::fprintf( out, "\"mover_damage\":[");
++        bool first = true;
++        for( const std::pair<int, int> &entry : mover_hp ) {
++            const int after = mover->part( entry.first ).hp();
++            if( after != entry.second ) {
++                std::fprintf( out, "%s{\"part\":%d,\"before\":%d,\"after\":%d}", first ? "" : ",",
++                              entry.first, entry.second, after );
++                first = false;
++            }
++        }
++        std::fprintf( out, "],\"target_damage\":[");
++        first = true;
++        for( const std::pair<int, int> &entry : target_hp ) {
++            const int after = target->part( entry.first ).hp();
++            if( after != entry.second ) {
++                std::fprintf( out, "%s{\"part\":%d,\"before\":%d,\"after\":%d}", first ? "" : ",",
++                              entry.first, entry.second, after );
++                first = false;
++            }
++        }
++        std::fprintf( out, "]}" );
++
++        for( const wrapped_vehicle &left : here.get_vehicles() ) {
++            here.destroy_vehicle( left.v );
 +        }
 +    }
 +
@@ -9680,8 +9821,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-17 23:23:50
-@@ -0,0 +1,447 @@
++++ oracle/src/src/harness.h	2026-11-18 06:40:02
+@@ -0,0 +1,448 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9837,6 +9978,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_thrust( const std::string &path );
 +void dump_vehicle_slowdown( const std::string &path );
 +void dump_vehicle_move( const std::string &path );
++void dump_vehicle_impact( const std::string &path );
 +void dump_vehicle_drive( const std::string &path );
 +void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
@@ -10416,7 +10558,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-17 23:23:50
++++ oracle/src/src/main.cpp	2026-11-18 06:40:02
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10427,7 +10569,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,184 @@
+@@ -272,6 +275,185 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10599,6 +10741,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_thrust;
 +    std::string dump_vehicle_slowdown;
 +    std::string dump_vehicle_move;
++    std::string dump_vehicle_impact;
 +    std::string dump_vehicle_drive;
 +    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
@@ -10612,7 +10755,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +481,1610 @@
+@@ -300,6 +482,1620 @@
                  }
              },
              {
@@ -10842,6 +10985,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_drive = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-impact", "<file>",
++                "Writes what happens when two vehicles hit each other: both speeds and every part that loses hit points",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_impact = params[0];
 +                    return 1;
 +                }
 +            },
@@ -12223,7 +12376,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2571,975 @@
+@@ -786,6 +2582,987 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -12534,6 +12687,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_drive( cli.dump_vehicle_drive );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_impact.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_impact( cli.dump_vehicle_impact );
 +            exit_handler( 0 );
 +        }
 +
