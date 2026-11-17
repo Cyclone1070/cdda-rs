@@ -5566,3 +5566,53 @@ fn stopping_clears_the_motion_the_carry_and_the_wheel() {
         "**the wheel is back on the hull's facing**"
     );
 }
+
+/// **A crash straightens the wheel.** A characterisation test written after `stop_vehicle` took over the crash path: the fixture is the wall crash above, and the claim is that
+/// the wheel a steer left at 45 degrees comes back to the hull's facing when the wall stops the car - which is what `veh.stop()` does in the reference (`map.cpp:948-950`).
+#[test]
+fn a_crash_straightens_the_wheel() {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_floor".to_owned(), FLOOR), ("t_wall".to_owned(), WALL)],
+    );
+    cdda_sim::mapsquare::set_data(
+        &mut world,
+        [recorded_tile("t_floor"), recorded_tile("t_wall")],
+    );
+    for y in 95..=105 {
+        for x in 95..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    for y in 95..=105 {
+        cdda_sim::square::set_terrain(&mut world, (103, y, 0), WALL);
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    world
+        .entity_mut(car)
+        .insert(cdda_sim::vehicle_move::Wheels { turn_dir: 45 });
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 2_000;
+        built.of_turn = 20.0;
+    }
+    for _ in 0..6 {
+        if !cdda_sim::vehicle_move::move_step(&mut world, car) {
+            break;
+        }
+    }
+
+    assert_eq!(
+        cdda_sim::vehicle_move::wheel_direction(&world, car),
+        0,
+        "**the wheel is back on the facing after the wall stopped it**"
+    );
+}

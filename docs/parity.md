@@ -37564,3 +37564,10 @@ vehicle comes to rest" is gone.
 The existing crash tests cover the change - they assert the car stops where it stands, and the gate passes with them. **A test for the straightened wheel was written and
 removed**: it needed a wall placed on a square, and the helper I reached for did not exist, so writing it would have meant inventing one mid-round. It is the next round's
 first red test, with the corpus helper read first.
+
+**The wheel test is real, and mutation-checked (round 142).** `a_crash_straightens_the_wheel` reuses the wall-crash fixture (floor around, a wall at x=103), leaves the wheel at
+45 degrees, drives until the wall stops the car, and asserts the wheel is back on the facing.
+
+**It was written after the change, so it was mutation-checked rather than merely watched:** changing `stop_vehicle` to write `turn_dir: 45` instead of the facing makes it fail
+(`rc=101`, 1 failed); restoring the rule makes the whole gate green again. That is the evidence a test written after the fact has to produce, and it is now the standing
+requirement for every characterisation test in this file.
