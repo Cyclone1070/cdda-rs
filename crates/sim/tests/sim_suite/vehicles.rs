@@ -5732,3 +5732,35 @@ fn the_idle_rate_is_the_alternator_load_floored_at_ten() {
         "**so the engine falls back to the reference's floor of ten**"
     );
 }
+
+/// **A smashed part can turn the vehicle aside, and that is what a skid is.** Reference: `vehicle::part_smash` `map.cpp`-side (`vehicle_move.cpp:1208-1226`): after a part is
+/// smashed and the collision was not vertical, the reference draws `turn_amount = rng( 1, 3 ) * sqrt( part_dmg )`, divides by fifteen, floors it at one step, multiplies by fifteen
+/// and caps it at 120 degrees; then it draws `turn_roll = rng( 0, 100 )` and skids when that is under `| delta_v / 100 * 2 |` - so a fifty mph loss always skids and a
+/// twenty-five mph loss skids half the time.
+#[test]
+fn a_smashed_part_turns_the_vehicle_aside() {
+    // **A collision with no change in speed cannot skid**, whatever the dice say: the threshold is zero and nothing draws under it.
+    let mut steady = cdda_core_types::rng::Rolls::new(7);
+    assert_eq!(
+        cdda_sim::vehicle_move::skid_turn(1_000, 1_000, 400, &mut steady),
+        None,
+        "**no change in speed, no skid**"
+    );
+
+    // A big enough loss skids every time, and the turn is a whole number of fifteen-degree steps within the cap.
+    for seed in 1..=16 {
+        let mut rolls = cdda_core_types::rng::Rolls::new(seed);
+        let turned = cdda_sim::vehicle_move::skid_turn(10_000, 0, 400, &mut rolls)
+            .expect("a hundred mph of loss is far past the threshold");
+        assert_ne!(turned, 0, "the vehicle turns somewhere: {turned}");
+        assert_eq!(
+            turned % 15,
+            0,
+            "**the turn is a whole number of fifteen-degree steps**: {turned}"
+        );
+        assert!(
+            (15..=120).contains(&turned.abs()),
+            "and it is between one step and the cap: {turned}"
+        );
+    }
+}

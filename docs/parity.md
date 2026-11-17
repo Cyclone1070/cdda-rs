@@ -37769,3 +37769,15 @@ without the load. `idle` burns at that rate.
 comparing the carried remainder read zero on both cars; and running each car dry at ~30 ms a turn was minutes of test time for a difference of a few hundred turns. **The
 observable that costs a fraction of a second and cannot pass by accident is the rate itself**, which is what a caller passes to the burn - so that is what is tested, and the
 one-line call site is left to review rather than to a ten-minute test.
+
+**The skid turn is ported, and its draw order is the rule (round 159).** `vehicle_move::skid_turn` is `vehicle_move.cpp:1208-1226`: the amount is `rng(1,3) * sqrt(part_dmg)`, divided
+by fifteen, floored at one step, multiplied back by fifteen and capped at 120 degrees; then `rng(0,100)` decides against `|delta_v / 100 * 2|`, and only when it decides does
+`one_in(2)` pick the side.
+
+**Three details are load-bearing and each is pinned:** the amount is a whole number of fifteen-degree steps, the cap is 120, and **the direction is not drawn unless the skid
+happens** - so a collision that cannot skid leaves the dice where the reference leaves them, which matters for every later roll in the same turn.
+
+Gated red-first on two cases that need no seed: a collision with no change in speed cannot skid (the threshold is zero), and a hundred mph of loss skids every time, with the
+magnitude a multiple of fifteen inside the cap across sixteen seeds. Mutation-checked by changing the step from fifteen to ten, which the test catches.
+
+**Not yet wired:** nothing calls `skid_turn` from the crash path, and the `skidding` flag it implies is still absent from `Vehicle`. Both are named here rather than implied.

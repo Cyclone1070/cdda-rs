@@ -639,6 +639,49 @@ pub fn damage_around(
     touched
 }
 
+/// The turn a smashed part gives the vehicle, and whether the collision was a skid.
+///
+/// Reference: `vehicle_move.cpp:1208-1226`, in the reference's own order:
+///
+/// ```text
+/// turn_amount = rng( 1, 3 ) * sqrt( part_dmg ); turn_amount /= 15; if < 1 then 1; *= 15; if > 120 then 120
+/// turn_roll   = rng( 0, 100 )
+/// skid        = turn_roll < | ( prev_velocity - coll_velocity ) / 100.0f * 2.0f |
+/// direction   = one_in( 2 ) ? turn_amount : -turn_amount
+/// ```
+///
+/// **The order of the draws is the rule**, not an implementation detail: the amount, then the roll that decides, then the direction - and the direction is only drawn when the
+/// roll says the vehicle skids, which is why a collision that cannot skid leaves the dice where the reference leaves them.
+///
+/// `None` is "this was a collision, not a skid"; `Some(degrees)` is the turn to add, signed.
+#[must_use]
+pub fn skid_turn(
+    prev_velocity: i32,
+    coll_velocity: i32,
+    part_dmg: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<i32> {
+    let raw = f64::from(rolls.rng(1, 3)) * f64::from(part_dmg.max(0)).sqrt();
+    #[allow(clippy::cast_possible_truncation)]
+    let mut amount = raw as i32;
+    amount /= 15;
+    if amount < 1 {
+        amount = 1;
+    }
+    amount *= 15;
+    if amount > 120 {
+        amount = 120;
+    }
+    let roll = rolls.rng(0, 100);
+    let lost = f64::from(prev_velocity - coll_velocity) / 100.0 * 2.0;
+    if f64::from(roll) < lost.abs() {
+        // Reference: `one_in( 2 )` picks the side, and it is drawn **after** the roll that decided the skid.
+        let side = if rolls.rng(1, 2) == 1 { 1 } else { -1 };
+        return Some(side * amount);
+    }
+    None
+}
+
 /// The two speeds after two vehicles collide along one axis.
 ///
 /// The two speeds after two vehicles collide along one axis.
