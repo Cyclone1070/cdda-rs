@@ -37622,3 +37622,23 @@ from the census: one function, a small set of guards, and the dialogue layer aro
 
 **Next round reads `teleport_to_point` and writes its guards as a table** - impassable ground, occupancy, a vehicle in the way, out of bounds - before any code, because the
 seven programs' refusals are exactly that list and guessing at one of them would put a made-up rule in the dialogue.
+
+## The teleport guard list, read whole (round 147)
+
+`teleport::teleport_to_point` (`teleport.cpp:172-215+`), in the order the reference tests them:
+
+| # | Guard | What it answers | Forces |
+|---|---|---|---|
+| 1 | same square | `false` without trying | - |
+| 2 | z outside `OVERMAP_DEPTH..OVERMAP_HEIGHT` | `false`, with a debug message | - |
+| 3 | worn `DIMENSIONAL_ANCHOR`, effect `DIMENSIONAL_ANCHOR` or `TELEPORT_LOCK` | `false` - "you feel a strange, inwards force" | **not** when `force` or `force_safe` |
+| 4 | in a vehicle | unboards first, then continues | always |
+| 5 | target out of bounds | avatar: moves the bubble; monster: loads a temporary map and spawns monsters there | - |
+| 6 | impassable target | with `force`/`force_safe`: nearest open square within 5; otherwise `false` | partly |
+
+**Two things this table settles before any code.** First, the guards are **not uniform about `force`**: `force` bypasses the anchor and the impassable square, but never the
+same-square or z guards - a forced teleport still refuses to land on top of itself or off the map. Second, guard 5 is a **bubble move**, not a refusal: teleporting far is
+allowed, and the difference between the avatar and a monster is which map is loaded, not whether the teleport happens.
+
+**Not yet ported, and now precisely named:** the flag names need to exist as flags in the item/effect registries, and the bubble move needs the overmap move the port already
+has for the player. The next round takes guards 1 and 2, which need neither: they are pure numbers on a target.
