@@ -37537,3 +37537,9 @@ the way it went, which is why backing up swaps its nose and tail.
 
 TDD, watched in order: red at `0 degrees became 0`, implemented, green, then the full gate - which first failed on **formatting** (my edit's line breaks), a reminder that the
 gate checks more than behaviour.
+
+**A turn fades after it is made (round 139).** `vehicle_move::decayed_turn` is `map::move_vehicle`'s `last_turn` decay (`map.cpp:922-928`): subtract the decrement after an
+accepted step, and clear the turn once what is left is smaller than the decrement. That is what makes a car keep curving for a moment after the wheel is centred, and why a
+small correction is gone in one step while a big one is spent over several.
+
+Gated on no turn, one step's worth, more than one, and the boundary where the remainder vanishes.

@@ -964,3 +964,13 @@ pub fn facing_after_move(skidding: bool, turn_dir: i32, travel_dir: i32) -> i32 
         travel_dir.rem_euclid(360)
     }
 }
+
+/// How much of a turn is left in the hull after one accepted step.
+///
+/// Reference: `map::move_vehicle` (`map.cpp:922-928`): `last_turn -= last_turn_dec` after the step, and `if( last_turn < last_turn_dec ) last_turn = 0`. So a turn smaller than
+/// one decrement is gone in a single step, and a bigger one is spent over several - which is what makes a car keep curving for a moment after the wheel is centred.
+#[must_use]
+pub fn decayed_turn(last_turn: i32, decrement: i32) -> i32 {
+    let left = last_turn - decrement;
+    if left < decrement { 0 } else { left }
+}

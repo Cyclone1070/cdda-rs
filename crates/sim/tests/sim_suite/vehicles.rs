@@ -5517,3 +5517,18 @@ fn reversing_turns_the_hull_around() {
         "**backing up faces the other way: 0 degrees became {rotation}**"
     );
 }
+
+/// **A turn fades away after it has been made.** Reference: `map::move_vehicle` (`map.cpp:922-928`) subtracts `last_turn_dec` from `last_turn` after each accepted step, and
+/// clears it once it is smaller than the decrement - so a small turn is gone after one step and a big one takes several.
+#[test]
+fn a_turn_fades_after_it_is_made() {
+    let decay = cdda_sim::vehicle_move::decayed_turn;
+    assert_eq!(decay(0, 15), 0, "no turn to fade");
+    assert_eq!(
+        decay(20, 15),
+        0,
+        "**five left is less than the step, so it is gone**"
+    );
+    assert_eq!(decay(60, 15), 45, "a bigger turn keeps the rest");
+    assert_eq!(decay(30, 15), 15, "and exactly one step's worth stays");
+}
