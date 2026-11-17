@@ -37900,3 +37900,17 @@ to move, it stops. Mutation-checked by skipping the check in the drive step, whi
 
 **Named, not guessed:** `sufficient_wheel_config` counts structure parts by the `structure` location on the part's spec; the reference counts `part_location_structure` the same
 way. The boarding weight the reference adds to a `BOARDABLE` part's mass is still absent from the centre of mass, and is written here rather than folded in.
+
+**A hull on its belly wears its speed off and chews the ground (round 166).** `vehicle_move::drag_without_wheels` is `map.cpp:909`'s own literal,
+`velocity - clamp(velocity, -2000, 2000)` - twenty miles an hour off anything faster, a dead stop for anything slower - and `wheelless_drag` is the rule around it: when the
+vehicle cannot stand on its wheels and is at ground level, the speed takes that drag and **every square it covers that is dirt or grass becomes a dirt mound**, by terrain code
+asked of the name table rather than guessed.
+
+**Placed where the reference places it:** at the top of `map::move_vehicle` (`map.cpp:903-914`), so the speed a step is planned with is already the dragged speed. That is why
+the wiring test can assert the speed after a single `move_step` rather than after a drag function called by hand.
+
+**The three tile ids came from the corpus, not from memory:** `t_dirt` and `t_grass` are move cost 2 and `t_dirtmound` is 3, with the flags `mapdata.json` records, and the
+test's tile helper now knows all three.
+
+**Named, not assumed:** the reference's vertical, watercraft and flying exemptions are not ported - the store has no vertical travel, no floating hull and no flight - so the rule
+here answers "not vertical, not floating, not flying" by the store simply not having those states yet.

@@ -1724,6 +1724,24 @@ fn recorded_tile(id: &str) -> cdda_content::mapdata::MapData {
         "t_floor" => (2, &["FLAT", "ROAD"], true),
         "t_open_air" => (2, &["NO_FLOOR"], false),
         "t_underbrush" => (6, &["SHORT", "SHRUB"], true),
+        // The three the wheel-less drag needs, with the numbers and flags `corpus/mapdata.json` records for them.
+        "t_dirt" => (2, &["DIGGABLE", "FLAT", "PLOWABLE", "TRANSPARENT"], true),
+        "t_grass" => (
+            2,
+            &["DIGGABLE", "FLAT", "GRAZABLE", "PLOWABLE", "TRANSPARENT"],
+            true,
+        ),
+        "t_dirtmound" => (
+            3,
+            &[
+                "DIGGABLE",
+                "MOUNTABLE",
+                "NOCOLLIDE",
+                "PLANTABLE",
+                "TRANSPARENT",
+            ],
+            true,
+        ),
         other => panic!("the recording names a tile the gate does not know: {other}"),
     };
     cdda_content::mapdata::MapData {
@@ -6319,5 +6337,153 @@ fn a_wheel_less_vehicle_does_not_move() {
         world.get::<Vehicle>(car).expect("a vehicle").velocity,
         0,
         "**the hull stops instead of moving**"
+    );
+}
+
+/// **A hull dragged on its belly loses its speed and chews the ground under it.** Reference: `map::move_vehicle` (`map.cpp:903-914`): a vehicle that cannot stand on its wheels,
+/// not vertical, not floating and at ground level has `velocity -= std::clamp( velocity, -2000, 2000 )` - which stops anything under twenty mph dead and takes exactly twenty
+/// mph off anything faster - and every square it covers that is **dirt or grass becomes a dirt mound**.
+#[test]
+fn a_wheel_less_hull_scrubs_speed_and_the_ground() {
+    const FLOOR: u32 = 1;
+    const DIRT: u32 = 2;
+    const GRASS: u32 = 3;
+    const MOUND: u32 = 4;
+
+    // The speed rule, on its own numbers: twenty mph is the clamp, so it is what comes off.
+    assert_eq!(
+        cdda_sim::vehicle_move::drag_without_wheels(1_500),
+        0,
+        "**slower than twenty mph stops dead**"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::drag_without_wheels(2_000),
+        0,
+        "and so does exactly twenty"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::drag_without_wheels(4_500),
+        2_500,
+        "**faster than twenty loses exactly twenty**"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::drag_without_wheels(-4_500),
+        -2_500,
+        "and reversing loses the same"
+    );
+
+    // The ground rule, in a world that has dirt, grass and a floor.
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_floor".to_owned(), FLOOR),
+            ("t_dirt".to_owned(), DIRT),
+            ("t_grass".to_owned(), GRASS),
+            ("t_dirtmound".to_owned(), MOUND),
+        ],
+    );
+    cdda_sim::mapsquare::set_data(
+        &mut world,
+        [
+            recorded_tile("t_floor"),
+            recorded_tile("t_dirt"),
+            recorded_tile("t_grass"),
+            recorded_tile("t_dirtmound"),
+        ],
+    );
+    for y in 95..=105 {
+        for x in 95..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    for x in 95..=110 {
+        cdda_sim::square::set_terrain(&mut world, (x, 100, 0), DIRT);
+        cdda_sim::square::set_terrain(&mut world, (x, 101, 0), GRASS);
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    // Lame it: every wheel broken, so it cannot stand on them.
+    let wheels = cdda_sim::vehicles::wheels(&world, car);
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        for index in wheels {
+            if let Some(part) = built.parts.get_mut(index) {
+                part.broken = true;
+            }
+        }
+    }
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 4_500;
+    }
+    cdda_sim::vehicle_move::wheelless_drag(&mut world, car);
+
+    assert_eq!(
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle")
+            .velocity,
+        2_500,
+        "**the hull lost its twenty miles an hour**"
+    );
+    let chewed = cdda_sim::vehicles::occupied_squares(&world, car)
+        .into_iter()
+        .filter(|square| cdda_sim::square::terrain_at(&world, *square) == Some(MOUND))
+        .count();
+    assert!(
+        chewed > 0,
+        "**the dirt and grass under it are mounds now**, and the floor is not"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (100, 99, 0)),
+        Some(FLOOR),
+        "a square away from the car is untouched"
+    );
+}
+
+/// **The wheel-less drag runs on the move itself, not only when it is asked for.** Reference: `map::move_vehicle` (`map.cpp:903-914`) puts it at the top of the move, so a hull
+/// that has lost its wheels loses its speed on the very step it tries to take.
+#[test]
+fn a_move_drags_a_wheel_less_hull() {
+    use cdda_sim::vehicles::{Vehicle, wheels};
+
+    const FLOOR: u32 = 1;
+
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+    cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+    for y in 90..=110 {
+        for x in 90..=110 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let all = wheels(&world, car);
+    {
+        let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+        for index in all {
+            if let Some(part) = built.parts.get_mut(index) {
+                part.broken = true;
+            }
+        }
+        built.velocity = 4_500;
+        built.of_turn = 20.0;
+    }
+
+    cdda_sim::vehicle_move::move_step(&mut world, car);
+
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").velocity,
+        2_500,
+        "**the step itself took the twenty miles an hour off**"
     );
 }

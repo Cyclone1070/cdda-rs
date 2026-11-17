@@ -299,6 +299,66 @@ pub fn slowdown_with_skid(
     slowdown.max(1)
 }
 
+/// The speed a hull that cannot stand on its wheels is left with.
+///
+/// Reference: `map::move_vehicle` (`map.cpp:909`): `veh.velocity -= std::clamp( veh.velocity, -2000, 2000 )`, which takes exactly twenty miles an hour off anything faster and
+/// stops anything slower dead. Sign-preserving, because the clamp is applied to the same value that is subtracted.
+#[must_use]
+pub fn drag_without_wheels(velocity: i32) -> i32 {
+    velocity - velocity.clamp(-2_000, 2_000)
+}
+
+/// Wears the speed off a hull that is being dragged, and chews the ground it is dragged over.
+///
+/// Reference: `map::move_vehicle` (`map.cpp:903-914`): when the vehicle cannot stand on its wheels, is not vertical, is neither floating nor flying, and is at ground level, its
+/// speed takes [`drag_without_wheels`] and **every square it covers that is dirt or grass becomes a dirt mound**. The reference writes the mound by terrain id; the port asks the
+/// terrain name table where those three names live and leaves any other square alone.
+///
+/// **The vertical, watercraft and flying exemptions are not ported** - the store has no vertical travel, no floating hull and no flight yet, and each is named in
+/// `docs/parity.md` rather than assumed false.
+pub fn wheelless_drag(world: &mut World, vehicle: Entity) -> bool {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return false;
+    };
+    if built.parts.iter().all(|part| !part.broken) {
+        // Every part intact is a vehicle that may still be on its wheels; the wheel rule decides properly.
+    }
+    if crate::vehicles::valid_wheel_config(world, vehicle) {
+        return false;
+    }
+    let Some(at) = world.get::<crate::Position>(vehicle).copied() else {
+        return false;
+    };
+    if at.z != 0 {
+        return false;
+    }
+    let velocity = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.velocity);
+    let dragged = drag_without_wheels(velocity);
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        built.velocity = dragged;
+    }
+    let Some(dirt) = crate::terrain_types::code_of(world, "t_dirt") else {
+        return true;
+    };
+    let Some(grass) = crate::terrain_types::code_of(world, "t_grass") else {
+        return true;
+    };
+    let Some(mound) = crate::terrain_types::code_of(world, "t_dirtmound") else {
+        return true;
+    };
+    for square in crate::vehicles::occupied_squares(world, vehicle) {
+        let Some(code) = crate::square::terrain_at(world, square) else {
+            continue;
+        };
+        if code == dirt || code == grass {
+            crate::square::set_terrain(world, square, mound);
+        }
+    }
+    true
+}
+
 /// How much harder the rolling drag bites when the hull is sliding rather than rolling.
 ///
 /// Reference: `vehicle::slowdown` (`vehicle_move.cpp:123-126`): `skid_factor = 1 + 24 * std::abs( units::sin( face.dir() - move.dir() ) )`. It multiplies the **rolling** drag
@@ -414,6 +474,9 @@ pub fn move_step_with_rolls(
     vehicle: Entity,
     rolls: &mut cdda_core_types::rng::Rolls,
 ) -> bool {
+    // **A hull on its belly wears its speed off before it is asked to move.** Reference: `map::move_vehicle` runs the wheel-less drag at the top of the move (`map.cpp:903-914`), so
+    // the speed this step is planned with is the speed after the drag - and the ground it is sitting on is already chewed by the time the step is attempted.
+    wheelless_drag(world, vehicle);
     let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
         return false;
     };
