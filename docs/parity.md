@@ -37571,3 +37571,15 @@ first red test, with the corpus helper read first.
 **It was written after the change, so it was mutation-checked rather than merely watched:** changing `stop_vehicle` to write `turn_dir: 45` instead of the facing makes it fail
 (`rc=101`, 1 failed); restoring the rule makes the whole gate green again. That is the evidence a test written after the fact has to produce, and it is now the standing
 requirement for every characterisation test in this file.
+
+## Mutation pass over the turn rules (round 143)
+
+Each rule below was broken on purpose and its test watched fail, then the rule restored. The tree is clean at the restored state, so the last green gate still stands.
+
+| Rule | Mutation | Result |
+|---|---|---|
+| `decayed_turn` | `left.max(0)` instead of clearing a small turn | test failed, `1 failed` |
+| `stop_vehicle`'s wheel | `turn_dir: 45` instead of the facing | test failed (round 142) |
+
+**Why this is a round's work:** the vehicle module grew quickly, and a test that has only ever passed is a claim. Two rules now have a demonstrated failure mode; the rest of
+the module's tests were written red-first, which is the same evidence obtained earlier.
