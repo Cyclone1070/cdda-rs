@@ -37966,3 +37966,24 @@ test reads it - the QA gate refuses a corpus file nobody compares against, and i
 `-D warnings` refuses. The local `--clippy` run reported all green in the same minute. Two rounds have now recorded this; the difference between the local clippy job and CI's has
 never been explained, and **the honest position is that the local clippy result is weaker evidence than it looks** - so a change that touches the movement path gets its own
 `--clippy` run before the commit, and the CI poll still decides.
+
+## The driving session is green, and it killed two of the port's own inventions (round 170)
+
+`corpus/vehicle_drive.json` now has six cases - straight, one press, two presses, a bicycle, and two reversing - and all **72 rows** replay against the reference: `face`,
+`turn_dir`, `last_turn`, velocity and movement points. Getting there needed three corrections, and **two of them were mine**:
+
+| Was | Is | Reference |
+|---|---|---|
+| the step came from the hull | from the **wheels**, or from `move_dir` while skidding | `vehicle_move.cpp:1969-1983` picks one of three vectors |
+| the facing was the *square* stepped | the **travelling heading** | `veh.face = facing`, a tileray: 330 faces 330 even on the step that lands one square east |
+| `decayed_turn` walked only positive turns | walks both ways | `map.cpp:916-928` adds for a negative turn |
+
+**Two tests of the port's own making had to go**, and both had passed for rounds because nothing else read what they asserted:
+
+- `heading_of_step` answered one of four axes for a diagonal step, with a comment claiming a vehicle move never produces one. The recording says otherwise on its second row.
+- `reversing_turns_the_hull_around` (round 138) asserted that backing up flips the hull. The reference's reversing rows show `face` unchanged: `mdir.advance( -1 )` takes the step
+  backwards **from the same heading**, so the nose keeps pointing where it pointed. The test was written from a reading of `map.cpp:934-939`, not from a measurement.
+
+**The pattern is now three rounds deep** - `last_turn` (162), the diagonal heading (169), reversing (138) - and it is always the same shape: a rule written with no consumer, and a
+test written in the same breath that pins the author's reading. **The recording is what broke each one.** That is the argument for keeping the oracle ahead of the loader: not
+coverage, but the only thing in the tree that disagrees with me.

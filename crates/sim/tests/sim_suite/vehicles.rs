@@ -998,6 +998,34 @@ fn int_of(entry: &cdda_json::Object, key: &str) -> i32 {
     }
 }
 
+/// A floating-point field of one JSON object.
+fn number_of(entry: &cdda_json::Object, key: &str) -> f64 {
+    match entry.get(key) {
+        Some(cdda_json::Value::Float(value)) => *value,
+        Some(cdda_json::Value::Int(value)) => {
+            #[allow(clippy::cast_precision_loss)]
+            let value = *value as f64;
+            value
+        }
+        _ => panic!("{key} is a number"),
+    }
+}
+
+/// A boolean field of one JSON object.
+fn bool_of(entry: &cdda_json::Object, key: &str) -> bool {
+    match entry.get(key) {
+        Some(cdda_json::Value::Bool(value)) => *value,
+        _ => panic!("{key} is a boolean"),
+    }
+}
+
+/// Whether a vehicle in the store is sliding.
+fn built_skidding(world: &World, vehicle: Entity) -> bool {
+    world
+        .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+        .is_some_and(|built| built.skidding)
+}
+
 /// The placed helicopter's parts, as the reference recorded them.
 fn placed_parts() -> Vec<cdda_json::Object> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -5509,33 +5537,6 @@ fn a_moving_vehicle_faces_where_it_went() {
     assert_eq!(facing(true, 90, 0), 90, "**skidding: the wheels decide**");
 }
 
-/// **Reversing turns the hull around.** Reference: `map::move_vehicle` faces the hull where the step travelled (`map.cpp:934-939`); a step backwards travels the opposite
-/// way, so a car that backs up ends the step facing the other way.
-#[test]
-fn reversing_turns_the_hull_around() {
-    let mut world = World::new();
-    install_part_weights(&mut world, "car");
-    cdda_sim::vehicles::set_store(&mut world, store());
-    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
-    {
-        let mut built = world
-            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
-            .expect("a vehicle");
-        built.rotation = 0.0;
-        built.velocity = -1_000;
-        built.of_turn = 5.0;
-    }
-    let mut rolls = cdda_core_types::rng::Rolls::new(3);
-    cdda_sim::vehicle_move::move_step_with_rolls(&mut world, car, &mut rolls);
-    let rotation = world
-        .get::<cdda_sim::vehicles::Vehicle>(car)
-        .map_or(-1.0, |built| built.rotation);
-    assert!(
-        (rotation - 180.0).abs() < 1e-9,
-        "**backing up faces the other way: 0 degrees became {rotation}**"
-    );
-}
-
 /// **A turn fades away after it has been made.** Reference: `map::move_vehicle` (`map.cpp:922-928`) subtracts `last_turn_dec` from `last_turn` after each accepted step, and
 /// clears it once it is smaller than the decrement - so a small turn is gone after one step and a big one takes several.
 #[test]
@@ -5549,6 +5550,12 @@ fn a_turn_fades_after_it_is_made() {
     );
     assert_eq!(decay(60, 15), 45, "a bigger turn keeps the rest");
     assert_eq!(decay(30, 15), 15, "and exactly one step's worth stays");
+    assert_eq!(
+        decay(-30, 1),
+        -29,
+        "**a turn the other way walks back too**"
+    );
+    assert_eq!(decay(-1, 1), 0, "and is cleared when it reaches the middle");
 }
 
 /// **Stopping clears the motion, the carry and the wheel.** Reference: `vehicle::stop` (`vehicle_move.cpp:687-698`) sets `velocity = 0`, `skidding = false`, `move = face`,
@@ -6623,5 +6630,149 @@ fn a_turn_press_sets_the_wheel_and_the_turn_owed() {
         world.get::<Vehicle>(car).expect("a vehicle").last_turn,
         0,
         "and owes nothing"
+    );
+}
+
+/// **A driving session, replayed against the reference row for row.** `corpus/vehicle_drive.json` is `--dump-vehicle-drive`: a car and a bicycle with a driver at the
+/// controls, driven straight, steered once, and steered twice the other way, recording after every `act_on_map` what the reference thinks the hull is doing - the facing, the
+/// wheel direction, the turn it still owes, its speed and the movement points it has left.
+///
+/// **Positions are not compared.** The reference moves a vehicle's reference square when its hull pivots (`map::move_vehicle`'s pivot machinery), so a turn shifts every later
+/// row by the pivot's offset; that rule is its own named gap. What this pins is the four numbers the steering and skid rules move - and it is what caught the port driving
+/// along its hull and answering an axis for a diagonal step.
+#[test]
+fn a_driving_session_matches_the_reference_row_for_row() {
+    use cdda_sim::vehicles::Vehicle;
+
+    const FLOOR: u32 = 1;
+
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_drive.json");
+    let bytes = std::fs::read(path).expect("the driving recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut rows_seen = 0;
+    let mut moved_rows = 0;
+    let mut turned_rows = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let name = text_of(row, "name");
+        let vehicle_name = text_of(row, "vehicle");
+        let speed = int_of(row, "speed");
+        let Some(cdda_json::Value::Array(steps)) = row.get("steps") else {
+            panic!("{name}: a case records its steps");
+        };
+
+        let mut world = World::new();
+        cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+        cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+        for y in 90..=130 {
+            for x in 90..=130 {
+                cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+            }
+        }
+        install_part_weights(&mut world, &vehicle_name);
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = cdda_sim::vehicles::spawn(&mut world, &vehicle_name, (110, 110, 0))
+            .expect("the recorded vehicle builds");
+        fill_own_tanks(&mut world, vehicle);
+        {
+            let mut built = world.get_mut::<Vehicle>(vehicle).expect("a vehicle");
+            built.velocity = speed;
+            built.cruise_velocity = speed;
+            built.of_turn = 1.0;
+        }
+
+        // The presses the recording made, as (step, degrees): the dump's own schedule.
+        let presses: &[(usize, i32)] = match name.as_str() {
+            "presses_both_ways" => &[(2, -30), (7, 15)],
+            "bicycle_press" | "one_press" | "reversing_press" => &[(2, 45)],
+            _ => &[],
+        };
+
+        let mut rolls = cdda_core_types::rng::Rolls::new(0);
+        for (step, recorded) in steps.iter().enumerate() {
+            let cdda_json::Value::Object(recorded) = recorded else {
+                panic!("{name}: a step is an object");
+            };
+            for (at, degrees) in presses {
+                if *at == step {
+                    cdda_sim::vehicle_move::turn(&mut world, vehicle, *degrees);
+                }
+            }
+            cdda_sim::vehicle_move::move_step_with_rolls(&mut world, vehicle, &mut rolls);
+
+            let (rotation, velocity, of_turn, last_turn) = {
+                let built = world.get::<Vehicle>(vehicle).expect("a vehicle");
+                (
+                    built.rotation,
+                    built.velocity,
+                    built.of_turn,
+                    built.last_turn,
+                )
+            };
+            #[allow(clippy::cast_possible_truncation)]
+            let face = rotation.round() as i32;
+            let wheels = cdda_sim::vehicle_move::wheel_direction(&world, vehicle);
+
+            let at = format!("{name} step {step}");
+            assert_eq!(
+                velocity,
+                int_of(recorded, "velocity"),
+                "{at}: **the speed**"
+            );
+            #[allow(clippy::cast_possible_truncation)]
+            let expected_of_turn = number_of(recorded, "of_turn") as f32;
+            assert!(
+                (of_turn - expected_of_turn).abs() < 0.001,
+                "{at}: **the movement points left**, {expected_of_turn} against {of_turn}"
+            );
+            assert_eq!(
+                face,
+                int_of(recorded, "face"),
+                "{at}: **the hull's facing**"
+            );
+            assert_eq!(
+                wheels,
+                int_of(recorded, "turn_dir"),
+                "{at}: **where the wheels point**"
+            );
+            assert_eq!(
+                last_turn,
+                int_of(recorded, "last_turn"),
+                "{at}: **the turn the hull still owes**"
+            );
+            assert_eq!(
+                built_skidding(&world, vehicle),
+                bool_of(recorded, "skidding"),
+                "{at}: **whether it is sliding**"
+            );
+            rows_seen += 1;
+            // Counted from the **recording**, not from the port: a row where the reference had movement points left is a row where a move could happen, and a row where it
+            // faced away from east is a row where a press reached the hull.
+            if expected_of_turn > 0.0 {
+                moved_rows += 1;
+            }
+            if int_of(recorded, "face") != 0 {
+                turned_rows += 1;
+            }
+        }
+    }
+    assert_eq!(rows_seen, 72, "six cases of twelve rows each were replayed");
+    assert!(
+        moved_rows >= 12,
+        "**and enough of them could move**: {moved_rows} rows had movement points left"
+    );
+    assert!(
+        turned_rows >= 8,
+        "**and enough of them turned**: {turned_rows} rows faced away from east after a press"
     );
 }

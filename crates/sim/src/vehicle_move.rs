@@ -507,6 +507,8 @@ pub fn move_step_with_rolls(
     };
     let velocity = built.velocity;
     let of_turn = built.of_turn;
+    let skidding = built.skidding;
+    let move_dir = built.move_dir;
 
     // **Too slow to move**: the reference stops the vehicle outright, spends 0.321 of the turn, and leaves it where it is.
     if velocity.abs() < 20 {
@@ -532,9 +534,14 @@ pub fn move_step_with_rolls(
     if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
         built.of_turn -= cost;
     }
-    // **A vehicle travels where its wheels point, not where its hull points.** Reference: `map::move_vehicle` is handed the vehicle's `turn_dir` and steps along it
-    // (`map.cpp:808-830`), and only afterwards does the hull face the way it went (`:934-939`) - which is why a steering press turns the *next* step, not the current one.
-    let heading = f64::from(wheel_direction(world, vehicle));
+    // **Where a vehicle travels depends on whether it is sliding.** Reference: `vehicle::act_on_map` (`vehicle_move.cpp:1969-1983`) picks the move vector from three
+    // cases - a skidding vehicle keeps going along its last move, a turning one steps along its **wheels**, and a straight one along its hull - and only afterwards does
+    // the hull face the way it went (`map.cpp:934-939`), which is why a steering press turns the *next* step and not the current one.
+    let heading = f64::from(if skidding {
+        move_dir
+    } else {
+        wheel_direction(world, vehicle)
+    });
     let (dx, dy) = crate::rotation::coord_translate(heading, (0, 0), (1, 0));
     let step = if velocity < 0 { (-dx, -dy) } else { (dx, dy) };
 
@@ -633,7 +640,11 @@ pub fn move_step_with_rolls(
             .get::<crate::vehicles::Vehicle>(vehicle)
             .is_some_and(|built| built.skidding);
         let wheel = wheel_direction(world, vehicle);
-        let travel = heading_of_step(step.0, step.1);
+        // **The facing is the direction the vehicle was travelling, not the square it landed on.** Reference: `map::move_vehicle` assigns `veh.face = facing`,
+        // and `facing` is the `tileray` the step was taken from (`map.cpp:934-937`) - so a hull pointed at 330 degrees faces 330 even on the step where the
+        // tileray's own rounding takes it one square east. The discrete step and the heading are two different numbers.
+        #[allow(clippy::cast_possible_truncation)]
+        let travel = heading.round() as i32;
         if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
             built.rotation = f64::from(facing_after_move(skidding, wheel, travel));
             // **`move` is the direction travelled, `face` is the hull.** Reference: `map.cpp:942` sets `veh.move = facing` on every accepted move, and the two are different
@@ -1282,30 +1293,6 @@ fn recover_from_skid(world: &mut World, vehicle: Entity, rolls: &mut cdda_core_t
     }
 }
 
-/// The heading a step travels in: degrees clockwise from east, the same sense the hull's rotation uses.
-///
-/// The four cardinal steps are the only ones a vehicle move produces, so this is a match rather than an angle - and a diagonal step, which the reference never produces for a
-/// vehicle, answers the heading of its dominant axis.
-#[must_use]
-pub fn heading_of_step(dx: i32, dy: i32) -> i32 {
-    match (dx.signum(), dy.signum()) {
-        (1, 0) => 0,
-        (0, 1) => 90,
-        (-1, 0) => 180,
-        (0, -1) => 270,
-        // A step with a diagonal component is not something a vehicle move produces; the dominant axis is answered rather than refused, so the rule stays total.
-        _ if dx != 0 => {
-            if dx > 0 {
-                0
-            } else {
-                180
-            }
-        }
-        _ if dy > 0 => 90,
-        _ => 270,
-    }
-}
-
 /// Which way a vehicle faces once its step has been accepted.
 ///
 /// Reference: `map::move_vehicle` (`map.cpp:934-939`): on a successful move `veh.face = facing` - the direction the step travelled - and only a **skidding** vehicle takes
@@ -1326,8 +1313,23 @@ pub fn facing_after_move(skidding: bool, turn_dir: i32, travel_dir: i32) -> i32 
 /// one decrement is gone in a single step, and a bigger one is spent over several - which is what makes a car keep curving for a moment after the wheel is centred.
 #[must_use]
 pub fn decayed_turn(last_turn: i32, decrement: i32) -> i32 {
-    let left = last_turn - decrement;
-    if left < decrement { 0 } else { left }
+    // **A turn left in either direction walks back towards zero**, and is cleared the moment it would cross it: the reference adds the decrement to a negative turn and
+    // subtracts it from a positive one, with its own guard on each side.
+    if last_turn == 0 {
+        return 0;
+    }
+    let walks_back = last_turn < 0;
+    let walked = if walks_back {
+        last_turn + decrement
+    } else {
+        last_turn - decrement
+    };
+    let crossed = if walks_back {
+        walked > -decrement
+    } else {
+        walked < decrement
+    };
+    if crossed { 0 } else { walked }
 }
 
 /// Brings a vehicle to a full stop, and puts its wheel back where the hull points.
