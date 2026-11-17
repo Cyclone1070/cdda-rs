@@ -5616,3 +5616,56 @@ fn a_crash_straightens_the_wheel() {
         "**the wheel is back on the facing after the wall stopped it**"
     );
 }
+
+/// **The alternator's load is what the engines turning it can spare.** Reference: `vehicle::update_alternator_load` (`vehicle.cpp:5573-5601`): with the engine off, or with
+/// no `E_ALTERNATOR` engine making power, the load is zero; otherwise it is `|1000 * alternators_power / engine_vpower|`.
+///
+/// The numbers are worked out from the formula the reference writes, not read from a dump: 1,500 W of alternator against 37,300 W of engine is 1000 * 1500 / 37300 = 40 by
+/// the integer division the reference does in milliwatts, and a load bigger than the engine is a magnitude, not a negative.
+#[test]
+fn an_alternator_loads_the_engine_that_turns_it() {
+    assert_eq!(
+        cdda_sim::vehicle_drive::alternator_load_of(37_300, 1_500),
+        40,
+        "**1,500 W over 37,300 W is 40**"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_drive::alternator_load_of(37_300, 0),
+        0,
+        "an alternator that draws nothing loads nothing"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_drive::alternator_load_of(0, 1_500),
+        0,
+        "and an engine that makes no power carves out nothing"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_drive::alternator_load_of(1_000, 2_500),
+        2_500,
+        "a load larger than the engine is still a magnitude"
+    );
+}
+
+/// **A car with everything switched off puts no load on anything.** Reference: `vehicle::update_alternator_load` returns zero at its first branch when the engine is off
+/// (`vehicle.cpp:5575-5579`); this is the store-level half of the formula test, so the wiring is pinned as well as the arithmetic.
+#[test]
+fn a_switched_off_car_loads_no_alternator() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        for part in &mut built.parts {
+            part.enabled = false;
+        }
+    }
+    assert_eq!(
+        cdda_sim::vehicle_drive::alternator_load(&world, car),
+        0,
+        "**nothing running, nothing loading**"
+    );
+}

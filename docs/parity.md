@@ -37748,3 +37748,12 @@ Gated red-first: a creature with a `Riding` link teleports and comes out of the 
 map** (`teleport.cpp:208-220`). The port has no bubble loading at all: `overmap.rs` stores tiles and their terrain, and nothing turns an overmap tile into a loaded level. So the
 nine `u_teleport` refusals in the built world are blocked on **mapgen and bubble loading**, which the roadmap already orders later - not on the teleport code. Recorded so the
 next attempt does not look for the gap in the wrong file.
+
+**The alternator's load, and what it does to idle (round 157).** `vehicle_drive::alternator_load_of` is `update_alternator_load`'s last line (`vehicle.cpp:5601`):
+`|1000 * alternators_power / engine_vpower|`, integer division in watts, with the reference's own early return for a zero engine. `alternator_load(world, vehicle)` adds the part
+walk: engines that are on and carry `E_ALTERNATOR` divide, alternators that are on contribute their `power`, and `part_power` scales an engine by its damage - the same rule the
+drivetrain uses, so a wrecked engine turns its alternator less.
+
+`idle` now burns at `idle_load(alternator_load(...))` instead of `idle_load(0)`. **The wired half is not yet observed by a test**: the formula is pinned on four cases and the
+early return is pinned on a switched-off car, but nothing yet asserts that a car with a load above ten burns more than the floor. That is the next test, and it needs a vehicle
+whose alternator load is known to exceed the floor - so it starts by asking the corpus which prototype has one.

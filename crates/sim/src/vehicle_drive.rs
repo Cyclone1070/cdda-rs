@@ -686,6 +686,65 @@ pub fn wear_engines(
 /// Reference: `vehicle::idle` (`vehicle.cpp:6050-6062`) - `idle_rate = alternator_load`, then `if( idle_rate < 10 ) idle_rate = 10;  // minimum idle is 1% of full throttle`.
 /// The floor is the reference's own: an engine with nothing bolted to it still burns a little, which is why a car left running empties its tank.
 #[must_use]
+/// The load an alternator puts on the engines that turn it, in the same units as the idle rate.
+///
+/// Reference: `vehicle::update_alternator_load`'s last line (`vehicle.cpp:5601`): `std::abs( 1000 * alternators_power / engine_vpower )`, both powers in watts and the
+/// division the reference's integer power units give - so a load larger than the engine is a magnitude and not a sign, and everything truncates toward zero.
+///
+/// A zero engine is answered zero before the division, which is the reference's own early return rather than a guard invented here.
+#[must_use]
+pub fn alternator_load_of(engine_vpower: i32, alternators_power: i32) -> i32 {
+    if engine_vpower == 0 {
+        return 0;
+    }
+    let scaled = i64::from(1000) * i64::from(alternators_power) / i64::from(engine_vpower);
+    #[allow(clippy::cast_possible_truncation)]
+    let load = scaled.unsigned_abs() as i32;
+    load
+}
+
+/// The alternator load of a vehicle, worked out from the parts that are running.
+///
+/// Reference: `vehicle::update_alternator_load` (`vehicle.cpp:5573-5601`): the engines that are on and carry `E_ALTERNATOR` make the power the alternators are divided into, and
+/// the alternators that are on contribute their own `power`. A vehicle with nothing on, or with no engine making power, answers zero.
+///
+/// `part_power` is the same damage-scaled power the drivetrain uses, so a wrecked engine turns its alternator less - the reference asks `part_vpower_w` here too.
+#[must_use]
+pub fn alternator_load(world: &World, vehicle: Entity) -> i32 {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return 0;
+    };
+    let count = built.parts.len();
+    let mut engine_vpower = 0_i64;
+    let mut alternators_power = 0_i64;
+    for index in 0..count {
+        let Some(part) = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(index))
+        else {
+            continue;
+        };
+        if !part.enabled || part.broken {
+            continue;
+        }
+        let Some(spec) = crate::vehicles::part_spec(world, vehicle, index) else {
+            continue;
+        };
+        // **An alternator needs an engine that carries its own alternator to be turned**, which is the reference's `E_ALTERNATOR` test on the engine part.
+        if spec.flags.contains("E_ALTERNATOR") {
+            engine_vpower += i64::from(part_power(&spec, part.hp));
+        }
+        if spec.flags.contains("ALTERNATOR") {
+            alternators_power += i64::from(spec.power);
+        }
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let engine = engine_vpower as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let alternators = alternators_power as i32;
+    alternator_load_of(engine, alternators)
+}
+
 pub fn idle_load(alternator_load: i32) -> i32 {
     alternator_load.max(10)
 }
@@ -709,7 +768,9 @@ pub fn idle(world: &mut World, vehicle: Entity) -> bool {
     if total_power(world, vehicle) <= 0 || fuel_usage_of(world, vehicle).is_empty() {
         return false;
     }
-    burn_fuel(world, vehicle, idle_load(0));
+    // **The idle rate is the alternator's load, floored at ten.** Reference: `vehicle::idle` (`vehicle.cpp:6052-6056`) reads `alternator_load` and then floors it - so a
+    // car whose alternators are all off still idles at the floor, and one running a big alternator idles higher.
+    burn_fuel(world, vehicle, idle_load(alternator_load(world, vehicle)));
     true
 }
 
