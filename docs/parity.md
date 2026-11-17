@@ -37608,3 +37608,17 @@ test fail (`1 failed`), and each was restored from a saved copy with the tree co
 | `stop_vehicle`'s wheel | writes 45 instead of the facing | failed (round 142) |
 
 **Five rules have a demonstrated failure mode**, and the mutation pass over the turn family is complete.
+
+## Where the next forward cut goes: `u_teleport` (round 146)
+
+The roadmap's frontier (`docs/05-roadmap.md`, "What the next round should pick up") names `u_teleport` - seven programs, one rule. Read this round:
+
+`talk_effect_fun::f_teleport` (`npctalk.cpp:7816-7845`) is a **thin wrapper**: it reads three things from the JSON - a target variable, an optional `force` and `force_safe` -
+and then delegates the whole decision to `teleport::teleport_to_point( creature, point, true, false, false, force, force_safe )`, messaging the player with the success or
+failure text it was given.
+
+**So the port target is not the dialogue effect at all; it is `teleport::teleport_to_point`**, which is where the refusals live. That is a much better-shaped cut than it looked
+from the census: one function, a small set of guards, and the dialogue layer around it is three lines of plumbing.
+
+**Next round reads `teleport_to_point` and writes its guards as a table** - impassable ground, occupancy, a vehicle in the way, out of bounds - before any code, because the
+seven programs' refusals are exactly that list and guessing at one of them would put a made-up rule in the dialogue.
