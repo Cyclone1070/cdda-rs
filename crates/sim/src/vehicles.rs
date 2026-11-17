@@ -122,6 +122,17 @@ pub struct Vehicle {
     pub skidding: bool,
 }
 
+/// A hull's rotation as a whole heading, which is the units the reference keeps `move` and `turn_dir` in.
+///
+/// Rotations are multiples of fifteen degrees once they come from the wheels, so this is a round rather than a truncation - and it is one function so the places that compare a
+/// rotation with a heading agree about the conversion.
+#[must_use]
+pub fn floor_to_heading(rotation: f64) -> i32 {
+    #[allow(clippy::cast_possible_truncation)]
+    let heading = rotation.round() as i32;
+    heading.rem_euclid(360)
+}
+
 /// Builds a vehicle facing east, standing at a square.
 ///
 /// The reference's own default: a mapgen entry that names no rotation places the vehicle at 0 degrees (`mapgen.cpp:3316-3320`).
@@ -170,7 +181,7 @@ pub fn spawn_facing(
                 coll_turn: 0,
                 skidding: false,
                 last_turn: 0,
-                move_dir: rotation.round() as i32,
+                move_dir: floor_to_heading(rotation),
                 rotation,
                 velocity: 0,
             },

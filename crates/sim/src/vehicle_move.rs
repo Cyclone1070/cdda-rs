@@ -502,28 +502,7 @@ pub fn move_step_with_rolls(
         }
         // **And a skid may end here.** Reference: `map::move_vehicle` calls `possibly_recover_from_skid` right after an accepted move (`map.cpp:958-961`), which is the only
         // moment the two headings have just been written - so the recovery sees the step that was taken, not the one before it.
-        let skidding_now = world
-            .get::<crate::vehicles::Vehicle>(vehicle)
-            .is_some_and(|built| built.skidding);
-        if skidding_now {
-            let (last_turn, move_dir, face_dir, velocity) = world
-                .get::<crate::vehicles::Vehicle>(vehicle)
-                .map_or((0, 0, 0, 0), |built| {
-                    (
-                        built.last_turn,
-                        built.move_dir,
-                        built.rotation.round() as i32,
-                        built.velocity,
-                    )
-                });
-            if let Some(recovered) = skid_recovery(last_turn, move_dir, face_dir, velocity, rolls)
-                && let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
-            {
-                built.velocity = recovered;
-                built.skidding = false;
-                built.move_dir = built.rotation.round() as i32;
-            }
-        }
+        recover_from_skid(world, vehicle, rolls);
     }
     // **Straining wears the engines**, straight after the step, which is where the reference does it (`vehicle_move.cpp:588-594`): the strain is read against the safe and
     // top speeds, turned into the capped figure, and spent on the caller's dice.
@@ -1112,6 +1091,29 @@ pub fn skid_recovery(
         return Some(recovered);
     }
     None
+}
+
+/// Ends a skid that the dice allow, after an accepted move.
+///
+/// Reference: `map::move_vehicle`'s call (`map.cpp:958-961`) - the recovery runs once per moved step, on the headings the step has just written, so it measures the move that
+/// happened rather than the one before it. A vehicle that is not skidding is left alone, and one that stays sliding keeps its speed.
+fn recover_from_skid(world: &mut World, vehicle: Entity, rolls: &mut cdda_core_types::rng::Rolls) {
+    let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return;
+    };
+    if !built.skidding {
+        return;
+    }
+    let (last_turn, move_dir, velocity) = (built.last_turn, built.move_dir, built.velocity);
+    let face_dir = crate::vehicles::floor_to_heading(built.rotation);
+    let Some(recovered) = skid_recovery(last_turn, move_dir, face_dir, velocity, rolls) else {
+        return;
+    };
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        built.velocity = recovered;
+        built.skidding = false;
+        built.move_dir = crate::vehicles::floor_to_heading(built.rotation);
+    }
 }
 
 /// The heading a step travels in: degrees clockwise from east, the same sense the hull's rotation uses.

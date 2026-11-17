@@ -37858,3 +37858,10 @@ never calling the recovery.
 
 **Where the skid stands:** drawn turn, `coll_turn`, facing by the wheels, `last_turn` decay, and recovery are all ported. Still absent: the right-angle rolling-resistance
 penalty (`vehicle_move.cpp:124`) and the low-wheel-count drag that chews the ground (`map.cpp:905-914`).
+
+**Two lints caught by the second clippy run, after the commit had already gone out (round 163).** The rule added two `as i32` casts on a rotation and pushed
+`move_step_with_rolls` to 139 lines against the file's 130-line ceiling. Both are fixed properly rather than silenced: the conversion is now `vehicles::floor_to_heading`, one
+door that rounds a rotation to a whole heading so the places that compare the two agree, and the recovery moved out into `recover_from_skid`, which is where it read best anyway.
+
+**The practice from round 161 paid for itself:** running `--clippy` again after the aggregate gate is what caught both, one commit late. The lesson is narrower than "run the
+gate again" - **the aggregate gate's clippy job is the one that has come back green twice with lints CI then refused**, so it is the job worth running on its own.
