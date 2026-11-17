@@ -5764,3 +5764,98 @@ fn a_smashed_part_turns_the_vehicle_aside() {
         );
     }
 }
+
+/// **A crash can line up a skid, and the next move spends it.** Reference: `part_smash` sets `skidding` and turns the hull by the drawn amount (`vehicle_move.cpp:1219-1225`), and
+/// `map::move_vehicle` reads that turn back when the vehicle can move again (`map.cpp:938-941`) - so a car that hits a wall at speed does not simply stop: the collision is
+/// carried into the next move as a `coll_turn`.
+///
+/// **A skid is a dice roll**, so the test sweeps seeds until one crashes hard enough to line a turn up, and fails if none of them ever does - otherwise a crash that quietly
+/// stopped producing skids would leave this test passing on the early return.
+#[test]
+fn a_crash_lines_up_the_next_turn() {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
+
+    fn a_car_facing_a_wall() -> (World, Entity) {
+        let mut world = World::new();
+        cdda_sim::terrain_types::set_types(
+            &mut world,
+            [("t_floor".to_owned(), FLOOR), ("t_wall".to_owned(), WALL)],
+        );
+        cdda_sim::mapsquare::set_data(
+            &mut world,
+            [recorded_tile("t_floor"), recorded_tile("t_wall")],
+        );
+        for y in 95..=105 {
+            for x in 95..=110 {
+                cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+            }
+        }
+        for y in 95..=105 {
+            cdda_sim::square::set_terrain(&mut world, (103, y, 0), WALL);
+        }
+        install_part_weights(&mut world, "car");
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+        (world, car)
+    }
+
+    let mut crashed = None;
+    for seed in 1..=40 {
+        let (mut world, car) = a_car_facing_a_wall();
+        {
+            let mut built = world
+                .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+                .expect("a vehicle");
+            built.velocity = 2_000;
+            built.of_turn = 20.0;
+        }
+        let mut rolls = cdda_core_types::rng::Rolls::new(seed);
+        for _ in 0..6 {
+            if !cdda_sim::vehicle_move::move_step_with_rolls(&mut world, car, &mut rolls) {
+                break;
+            }
+        }
+        let lined_up = world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle")
+            .coll_turn;
+        if lined_up != 0 {
+            crashed = Some((world, car, lined_up));
+            break;
+        }
+    }
+    let Some((mut world, car, lined_up)) = crashed else {
+        panic!("**no seed in forty produced a skid**, so the crash rule stopped lining turns up");
+    };
+
+    let before = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .expect("a vehicle")
+        .rotation;
+    // The wall is taken away, so the next move is a move and not another crash.
+    for y in 95..=105 {
+        cdda_sim::square::set_terrain(&mut world, (103, y, 0), FLOOR);
+    }
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 2_000;
+        built.of_turn = 20.0;
+    }
+    let moved = cdda_sim::vehicle_move::move_step(&mut world, car);
+    let after = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .expect("a vehicle");
+    assert!(moved, "the car moves with the wall gone");
+    assert_eq!(
+        after.coll_turn, 0,
+        "**the lined-up turn is spent by the move**"
+    );
+    assert_eq!(
+        after.rotation,
+        (before + f64::from(lined_up)).rem_euclid(360.0),
+        "and the hull turned by exactly what the crash lined up"
+    );
+}

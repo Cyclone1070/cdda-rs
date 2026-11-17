@@ -445,12 +445,32 @@ pub fn move_step_with_rolls(
     {
         // The crash dents the part that met the obstacle, once the data says what it is made of. Until a part carries a density the blow has no split to compute,
         // so the vehicle stops exactly as before and nothing is damaged - the recording is what fills the gap, not a guess here.
-        dent_on_crash(world, vehicle, part, square, bashable, rolls);
+        let prev_velocity = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .map_or(0, |built| built.velocity);
+        let part_dmg = dent_on_crash(world, vehicle, part, square, bashable, rolls);
+        // **A hard enough blow lines a turn up for the next move** - the reference's `coll_turn` (`vehicle_move.cpp:1208-1225`), spent in `map.cpp:938-941` when the vehicle
+        // can move again. A crash that cannot skid draws nothing, which is why the dice are asked here and not later.
+        if let Some(degrees) = skid_turn(prev_velocity, 0, part_dmg, rolls)
+            && let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
+        {
+            built.coll_turn = degrees;
+        }
         // **The wall stops the car the way the reference's `veh.stop()` does** (`map.cpp:948-950`), which includes putting the wheel back on the hull's facing.
         stop_vehicle(world, vehicle);
         return false;
     }
 
+    // **A lined-up turn is spent on the move, not before it.** Reference: `map.cpp:938-941` sets `skidding` and turns the hull only on an accepted move, which is why a vehicle
+    // held still by another wall keeps its `coll_turn` for the attempt that succeeds.
+    if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
+        && built.coll_turn != 0
+    {
+        let lined_up = built.coll_turn;
+        built.coll_turn = 0;
+        built.skidding = true;
+        built.rotation = (built.rotation + f64::from(lined_up)).rem_euclid(360.0);
+    }
     let moved = crate::vehicles::move_vehicle(world, vehicle, step);
     // **The hull faces where the step went.** A backwards step travels the opposite way, so the facing turns around: the reference sets `veh.face = facing` on an accepted
     // move (`map.cpp:934-939`), and its `facing` is the direction of travel rather than the direction the nose was pointing.
@@ -553,16 +573,16 @@ fn dent_on_crash(
     square: (i32, i32, i32),
     bashable: bool,
     rolls: &mut cdda_core_types::rng::Rolls,
-) {
+) -> i32 {
     let Some(density) = part_density(world, vehicle, part) else {
-        return;
+        return 0;
     };
     let mass = crate::vehicle_mass::mass(world, vehicle);
     let Some(velocity) = world
         .get::<crate::vehicles::Vehicle>(vehicle)
         .map(|built| built.velocity)
     else {
-        return;
+        return 0;
     };
     let (impulse, obstacle, _) = crash_impulse(mass, velocity, density);
     if impulse > 0 {
@@ -580,6 +600,7 @@ fn dent_on_crash(
             crate::bash::bash_square_with_rolls(world, square, obstacle, true, rolls);
         }
     }
+    impulse
 }
 
 /// What a part is made of, per litre, when the loaded data says.
@@ -1028,6 +1049,9 @@ pub fn stop_vehicle(world: &mut World, vehicle: Entity) {
         };
         built.velocity = 0;
         built.of_turn_carry = 0.0;
+        // **A stop clears the skid but not the turn it lined up.** Reference: `vehicle::stop` sets `skidding = false` (`vehicle_move.cpp:691`) and says nothing about
+        // `coll_turn`, which the next accepted move still spends - a car that stopped against a wall is not a car that forgot being shoved aside.
+        built.skidding = false;
         built.rotation
     };
     #[allow(clippy::cast_possible_truncation)]

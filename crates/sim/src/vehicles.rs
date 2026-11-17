@@ -108,6 +108,12 @@ pub struct Vehicle {
     /// What was left over when a turn ended mid-square - the reference's `of_turn_carry` (`vehicle.h`). `gain_moves` starts the next turn with `1 + carry`, so a
     /// slow vehicle does not lose the fraction it could not spend.
     pub of_turn_carry: f32,
+    /// The turn a collision has lined up for the **next** move, in degrees - the reference's `coll_turn`, which `part_smash` sets and `move_vehicle` spends when the
+    /// vehicle can move again (`map.cpp:938-941`). A vehicle that is stopped clears it, because a stopped vehicle cannot be mid-skid.
+    pub coll_turn: i32,
+    /// Whether the vehicle is sliding rather than steering - the reference's `skidding` (`vehicle.h`). While it is set the hull's facing follows `turn_dir` instead of
+    /// the direction of travel (`map.cpp:934-937`), which is the whole difference a skid makes.
+    pub skidding: bool,
 }
 
 /// Builds a vehicle facing east, standing at a square.
@@ -155,6 +161,8 @@ pub fn spawn_facing(
                 cruise_velocity: 0,
                 of_turn: 0.0,
                 of_turn_carry: 0.0,
+                coll_turn: 0,
+                skidding: false,
                 rotation,
                 velocity: 0,
             },

@@ -37781,3 +37781,19 @@ Gated red-first on two cases that need no seed: a collision with no change in sp
 magnitude a multiple of fifteen inside the cap across sixteen seeds. Mutation-checked by changing the step from fifteen to ten, which the test catches.
 
 **Not yet wired:** nothing calls `skid_turn` from the crash path, and the `skidding` flag it implies is still absent from `Vehicle`. Both are named here rather than implied.
+
+## The skid is carried between moves now (round 160)
+
+`Vehicle` gained the two pieces of state the reference keeps and the port did not: **`coll_turn`**, the turn a collision lines up for the next move, and **`skidding`**, whether
+the vehicle is sliding rather than steering. The crash arm asks `skid_turn` for the blow it just dealt, the move spends it - `rotation += coll_turn`, `skidding = true`,
+`coll_turn = 0` - and `stop_vehicle` clears the skid but **not** the lined-up turn, which is what `vehicle::stop` does (`vehicle_move.cpp:687-698`: `skidding = false`, and nothing
+about `coll_turn`).
+
+**Gated on a seed sweep, and the sweep is the point.** A skid is a dice roll, so the test tries forty seeds until one crash lines a turn up, and **fails if none of them does**.
+The first version of this test passed on the early return - a crash that quietly stopped producing skids would have left it green - which is exactly the shape of test this
+project keeps having to catch.
+
+Mutation-checked: dropping the rotation in the spend makes it fail.
+
+**Still not wired:** `skidding` is set and cleared but nothing reads it yet - the facing rule takes it as a parameter and the move passes the travel direction. That is the next
+red test, and it is the last piece of the skid.
