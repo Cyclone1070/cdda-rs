@@ -196,3 +196,29 @@ fn a_forced_landing_takes_the_nearest_open_square() {
     );
     assert!((x, y) != (3, 3), "**and it is not the wall itself**");
 }
+
+/// **A creature wearing a teleport lock cannot be teleported.** Reference: `teleport::teleport_to_point` refuses when the teleportee wears an item or carries an effect with
+/// `DIMENSIONAL_ANCHOR`, or an effect with `TELEPORT_LOCK` (`teleport.cpp:191-201`) - the "strange, inwards force".
+#[test]
+fn a_teleport_lock_refuses_the_jump() {
+    let (mut world, who) = a_world();
+    let mut kind = cdda_sim::effect_registry::bare("effect_teleport_lock");
+    kind.flags.insert("TELEPORT_LOCK".to_owned());
+    cdda_sim::effect_registry::set_effect_types(&mut world, &[kind]);
+    cdda_sim::applied_effects::add(
+        &mut world,
+        who,
+        cdda_sim::effects::ActiveEffect {
+            id: "effect_teleport_lock".to_owned(),
+            intensity: 1,
+            duration: 10,
+            permanent: false,
+        },
+    );
+
+    assert_eq!(
+        cdda_sim::teleport::to_point(&mut world, who, (5, 5, 0), false),
+        cdda_sim::teleport::Teleport::Refused,
+        "**the lock holds: nothing happens**"
+    );
+}

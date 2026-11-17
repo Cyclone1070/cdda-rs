@@ -37695,3 +37695,17 @@ flag X", asked over the installed effect types and the creature's applied effect
 three sources are within reach.
 
 **The lesson is the same one this record keeps paying for:** a struct read through `head` is not a struct read. Twenty lines of fields looked complete and were not.
+
+## Guard 3's effect half is ported (round 153)
+
+`applied_effects::has_flag` answers "is this creature wearing an effect whose **type** carries flag X", asking the effect registry through the read-only door
+(`effect_registry::kind_named`) - the flags live on the type, not on the worn copy. `teleport::to_point` now refuses a teleportee carrying `DIMENSIONAL_ANCHOR` or
+`TELEPORT_LOCK` (`teleport.cpp:191-201`).
+
+Gated red-first: a locked creature's teleport to an open square is refused, and the other five teleport tests still pass.
+
+**Still missing, and named:** the **worn-item** half of the same guard. The reference asks both `worn_with_flag( DIMENSIONAL_ANCHOR )` and the two effect checks; the port has no
+worn-item list yet, so an anchored *item* does not stop anything. That is a real gap in behaviour, not a stylistic one, and it is written here rather than implied.
+
+**Where the six teleport guards stand:** same-square (ported), z outside the world (ported), effect half of the anchor guard (ported this round), worn-item half (absent),
+unboard-first (absent with vehicles-in-dialogue), out-of-bounds bubble move (absent), impassable with forced landing (ported).

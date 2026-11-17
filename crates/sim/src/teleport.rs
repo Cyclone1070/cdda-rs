@@ -109,6 +109,13 @@ pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: b
     if target.2 > crate::falling::OVERMAP_HEIGHT || target.2 < -crate::falling::OVERMAP_DEPTH {
         return Teleport::Refused;
     }
+    // **A locked creature does not move.** Reference: `teleport.cpp:191-201` refuses a teleportee wearing an item or carrying an effect with `DIMENSIONAL_ANCHOR`, or an effect
+    // with `TELEPORT_LOCK`. The worn-item half is not ported - there is no worn-item list - and the effect half is, which is the half the data actually puts on creatures.
+    if crate::applied_effects::has_flag(world, who, "DIMENSIONAL_ANCHOR")
+        || crate::applied_effects::has_flag(world, who, "TELEPORT_LOCK")
+    {
+        return Teleport::Refused;
+    }
     if !standable(world, target) {
         if safe {
             return Teleport::Refused;

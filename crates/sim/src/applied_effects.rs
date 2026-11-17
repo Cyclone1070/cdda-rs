@@ -60,6 +60,21 @@ pub fn has(world: &World, creature: Entity, id: &str) -> bool {
         .is_some_and(|worn| worn.0.iter().any(|worn| worn.id == id))
 }
 
+/// Whether a creature is wearing an effect whose **type** carries a flag.
+///
+/// Reference: the anchored-teleport guard asks for `has_effect_with_flag( json_flag_DIMENSIONAL_ANCHOR )` and
+/// `has_effect_with_flag( json_flag_TELEPORT_LOCK )` (`teleport.cpp:191-201`), which is a question about the effect's type rather than the worn copy: a worn effect carries an id
+/// and its numbers, and the flags are what the data said about that id.
+#[must_use]
+pub fn has_flag(world: &World, creature: Entity, flag: &str) -> bool {
+    world.get::<AppliedEffects>(creature).is_some_and(|worn| {
+        worn.0.iter().any(|worn| {
+            crate::effect_registry::kind_named(world, &worn.id)
+                .is_some_and(|kind| kind.flags.iter().any(|own| own == flag))
+        })
+    })
+}
+
 /// How strong an effect is on a creature, or nothing when it is not wearing it.
 #[must_use]
 pub fn intensity_of(world: &World, creature: Entity, id: &str) -> Option<i32> {

@@ -147,3 +147,30 @@ fn an_effect_runs_out_as_the_turns_pass() {
             .is_some_and(|worn| worn.0.is_empty())
     );
 }
+
+/// **An effect can be asked what flags its type carries.** Reference: the anchored-teleport guard asks whether a creature has an effect with `DIMENSIONAL_ANCHOR` or
+/// `TELEPORT_LOCK` (`teleport.cpp:191-201`). The flags live on the **type**, not on the worn copy, so the question is a lookup of the type the id names.
+#[test]
+fn an_effect_carries_the_flags_of_its_type() {
+    let mut world = World::new();
+    let mut kind = cdda_sim::effect_registry::bare("effect_anchored");
+    kind.flags.insert("TELEPORT_LOCK".to_owned());
+    cdda_sim::effect_registry::set_effect_types(&mut world, &[kind]);
+
+    let anchored = world.spawn_empty().id();
+    let free = world.spawn_empty().id();
+    applied_effects::add(&mut world, anchored, an_effect("effect_anchored", 10));
+
+    assert!(
+        applied_effects::has_flag(&world, anchored, "TELEPORT_LOCK"),
+        "**the anchored creature carries the lock**"
+    );
+    assert!(
+        !applied_effects::has_flag(&world, anchored, "DIMENSIONAL_ANCHOR"),
+        "but not a flag its type does not have"
+    );
+    assert!(
+        !applied_effects::has_flag(&world, free, "TELEPORT_LOCK"),
+        "and an unanchored creature does not"
+    );
+}
