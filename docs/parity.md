@@ -37556,3 +37556,11 @@ Gated on a moving car with a carry and a turned wheel: all three come back clear
 started before the source did. The fix is not an allow: the borrow is **scoped** so it ends where the data is read, which is what the `drop` was trying to say.
 
 **Fifth instance of the local-green/CI-red race**, and the same lesson every time: after a red-on-green CI result, re-run `--clippy` locally before believing the gate.
+
+**A crash stops the car through one rule (round 141).** The terrain-collision arm used to zero the speed and the carry itself; it now calls `stop_vehicle`, which is what the
+reference does (`map.cpp:948-950` calls `veh.stop()`), and the car therefore also gets its wheel put back on the hull's facing. One rule, one place: the second copy of "how a
+vehicle comes to rest" is gone.
+
+The existing crash tests cover the change - they assert the car stops where it stands, and the gate passes with them. **A test for the straightened wheel was written and
+removed**: it needed a wall placed on a square, and the helper I reached for did not exist, so writing it would have meant inventing one mid-round. It is the next round's
+first red test, with the corpus helper read first.

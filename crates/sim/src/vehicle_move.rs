@@ -446,10 +446,8 @@ pub fn move_step_with_rolls(
         // The crash dents the part that met the obstacle, once the data says what it is made of. Until a part carries a density the blow has no split to compute,
         // so the vehicle stops exactly as before and nothing is damaged - the recording is what fills the gap, not a guess here.
         dent_on_crash(world, vehicle, part, square, bashable, rolls);
-        if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
-            built.velocity = 0;
-            built.of_turn_carry = 0.0;
-        }
+        // **The wall stops the car the way the reference's `veh.stop()` does** (`map.cpp:948-950`), which includes putting the wheel back on the hull's facing.
+        stop_vehicle(world, vehicle);
         return false;
     }
 
