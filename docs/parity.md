@@ -37914,3 +37914,14 @@ test's tile helper now knows all three.
 
 **Named, not assumed:** the reference's vertical, watercraft and flying exemptions are not ported - the store has no vertical travel, no floating hull and no flight - so the rule
 here answers "not vertical, not floating, not flying" by the store simply not having those states yet.
+
+**The throttle wears the engines, and the turn's dice decide it (round 167).** `vehicle::thrust` (`vehicle_move.cpp:591-595`) burns the fuel and then hands
+`int( strain * strain * 100 )` to `do_engine_damage` for every engine. `thrust_with_rolls` is that function with the stream passed in; `thrust` keeps its signature and takes a
+fresh stream, the same door `move_step` uses. **`drive_vehicles` now takes the game's own stream and puts it back** (`singletons::take_rolls`/`put_rolls`), exactly as
+`move_vehicles` does, so a hard run's wear is decided by the turn rather than by whichever vehicle was visited first.
+
+The strain arrives from the port's `safe_ground_velocity`, which was already there: the safe speed is the top speed of a weaker engine, so the rule is one cubic asked twice.
+
+Gated both ways on one seeded stream: a car at a standstill driven twenty times loses nothing, and a car held at its top speed loses engine hit points on some seed in sixty.
+
+**This closes the engine-wear chain** that rounds 113 and 114 built in pieces: the strain figure, the wear roll, and now the call site with the turn's dice.

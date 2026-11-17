@@ -170,6 +170,26 @@ fn max_velocity_with_traction(inputs: &ThrustInputs) -> i32 {
 /// **The cruise comes from the vehicle**, not the caller: `cruise_velocity` is the speed the driver asked for, and it is what makes a thrust step stop at a chosen
 /// speed instead of at the top speed.
 pub fn thrust(world: &mut World, vehicle: Entity, direction: i32) -> bool {
+    // **The caller owns randomness**, the same way [`move_step`] leaves it to its turn: this entry point takes a fresh stream so a thrust still wears an engine,
+    // deterministically, for the tests and the inspection tools.
+    thrust_with_rolls(
+        world,
+        vehicle,
+        direction,
+        &mut cdda_core_types::rng::Rolls::new(0),
+    )
+}
+
+/// One press of the accelerator, drawing from the game's own stream for the damage a hard run does to the engines.
+///
+/// Reference: `vehicle::thrust` (`vehicle_move.cpp:470-600`): the engines that are on and fuelled burn, and then `strn = int( strain * strain * 100 )` goes to
+/// `do_engine_damage` for **every** engine (`:591-595`). The dice arrive as an argument so the turn's one stream decides, exactly like the wear rule itself.
+pub fn thrust_with_rolls(
+    world: &mut World,
+    vehicle: Entity,
+    direction: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> bool {
     let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
         return false;
     };
@@ -199,6 +219,11 @@ pub fn thrust(world: &mut World, vehicle: Entity, direction: i32) -> bool {
     let vel_inc = next - velocity;
     let load = drive_load(vel_inc, accel, 20 * 100, inputs.direction * vel_inc > 0);
     crate::vehicle_drive::burn_fuel(world, vehicle, load);
+    // **Then the engines wear, if the throttle asked too much of them.** Reference: `vehicle_move.cpp:591-595`, where the strain is squared, scaled by a hundred,
+    // truncated, and handed to every engine; the port's `wear_engines` draws the same two dice per engine from the stream the turn owns.
+    let safe = crate::vehicle_drive::safe_ground_velocity(world, vehicle).unwrap_or(max_velocity);
+    let strain = crate::vehicle_drive::strain(next, safe, max_velocity);
+    crate::vehicle_drive::wear_engines(world, vehicle, strain, rolls);
     if next == velocity {
         return false;
     }
@@ -980,6 +1005,10 @@ pub fn drive_vehicles(world: &mut World) -> usize {
             vehicles.push(entity);
         }
     }
+    // **The game's own stream, taken and put back**, exactly as `move_vehicles` does: a hard run wears engines, and the dice that decide it belong to the turn rather than
+    // to whichever subsystem asked first.
+    let mut rolls =
+        crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     let mut driven = 0;
     for vehicle in vehicles {
         if crate::vehicles::driver_of(world, vehicle).is_none() {
@@ -1002,10 +1031,11 @@ pub fn drive_vehicles(world: &mut World) -> usize {
         if direction == 0 {
             continue;
         }
-        if thrust(world, vehicle, direction) {
+        if thrust_with_rolls(world, vehicle, direction, &mut rolls) {
             driven += 1;
         }
     }
+    crate::singletons::put_rolls(world, rolls);
     driven
 }
 

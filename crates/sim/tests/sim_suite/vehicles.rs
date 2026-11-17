@@ -6487,3 +6487,78 @@ fn a_move_drags_a_wheel_less_hull() {
         "**the step itself took the twenty miles an hour off**"
     );
 }
+
+/// **Driving past the safe speed wears the engines out.** Reference: `vehicle::thrust` (`vehicle_move.cpp:591-595`) burns the fuel, then computes
+/// `strn = int( strain * strain * 100 )` and hands it to `do_engine_damage` for **every** engine - so the wear is a consequence of the throttle, not of a separate system.
+#[test]
+fn thrusting_past_the_safe_speed_wears_the_engines() {
+    use cdda_sim::vehicles::{Vehicle, part_spec};
+
+    fn engine_hit_points(world: &World, car: Entity) -> i64 {
+        let count = world
+            .get::<Vehicle>(car)
+            .map_or(0, |built| built.parts.len());
+        (0..count)
+            .filter(|index| {
+                part_spec(world, car, *index)
+                    .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "ENGINE"))
+            })
+            .filter_map(|index| {
+                world
+                    .get::<Vehicle>(car)
+                    .and_then(|built| built.parts.get(index))
+                    .map(|part| i64::from(part.hp))
+            })
+            .sum()
+    }
+
+    fn a_driven_car(velocity: i32) -> (World, Entity) {
+        let mut world = World::new();
+        install_part_weights(&mut world, "car");
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+        fill_own_tanks(&mut world, car);
+        {
+            let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+            built.velocity = velocity;
+            built.cruise_velocity = velocity;
+        }
+        (world, car)
+    }
+
+    // **Inside the safe speed nothing is strained**, so nothing wears - however many times it is driven.
+    let (mut world, car) = a_driven_car(0);
+    let before = engine_hit_points(&world, car);
+    for seed in 1..=20 {
+        let mut rolls = cdda_core_types::rng::Rolls::new(seed);
+        cdda_sim::vehicle_move::thrust_with_rolls(&mut world, car, 1, &mut rolls);
+    }
+    assert_eq!(
+        engine_hit_points(&world, car),
+        before,
+        "**a car at a standstill strains nothing**"
+    );
+
+    // **At the top of its speed it does**, and the dice find a hurt engine inside sixty seeds.
+    let mut worn = false;
+    for seed in 1..=60 {
+        let (mut world, car) = a_driven_car(0);
+        let top = cdda_sim::vehicle_drive::max_ground_velocity(&world, car).expect("a top speed");
+        {
+            let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+            built.velocity = top;
+            built.cruise_velocity = top;
+        }
+        let before = engine_hit_points(&world, car);
+        let mut rolls = cdda_core_types::rng::Rolls::new(seed);
+        cdda_sim::vehicle_move::thrust_with_rolls(&mut world, car, 1, &mut rolls);
+        if engine_hit_points(&world, car) < before {
+            worn = true;
+            break;
+        }
+    }
+    assert!(
+        worn,
+        "**a car held at its top speed grinds its engines**, and no seed in sixty did it"
+    );
+}
