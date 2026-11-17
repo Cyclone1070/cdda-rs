@@ -37737,3 +37737,14 @@ the out-of-bounds bubble move - is why the built world refuses them, and that is
 **Two fixtures had to gain a floor**, because a teleport now asks what is under the target: `probe.rs`'s two teleport tests load terrain and never say which code is passable.
 While fixing them the level's third argument turned out to be the **terrain code**, not the level index - two squares were being raised to z=1 instead of given a floor. A test
 that loads a level without a terrain table is a world with nothing to stand on, which nothing noticed until a rule started asking.
+
+**Guard 4 lands: a rider is put down before the teleport (round 156).** `teleport::to_point_with` calls `vehicles::unboard` before the landing rules, which is
+`teleport.cpp:203-206`. The port needed no new state for it: `Riding` on the creature is the only record of being in a seat, so a teleported driver stops driving because the link
+is gone rather than because a second flag was cleared alongside it.
+
+Gated red-first: a creature with a `Riding` link teleports and comes out of the vehicle, with the move still happening.
+
+**Guard 5 is not a teleport rule, and this round established that.** The reference's out-of-bounds branch calls `place_player_overmap`, which **loads a different bubble of the
+map** (`teleport.cpp:208-220`). The port has no bubble loading at all: `overmap.rs` stores tiles and their terrain, and nothing turns an overmap tile into a loaded level. So the
+nine `u_teleport` refusals in the built world are blocked on **mapgen and bubble loading**, which the roadmap already orders later - not on the teleport code. Recorded so the
+next attempt does not look for the gap in the wrong file.

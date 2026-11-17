@@ -139,6 +139,9 @@ pub fn to_point_with(
         crate::creature::hurt(world, who, 9_999.0);
         return Teleport::Died;
     }
+    // **A rider is put down first.** Reference: `teleport.cpp:203-206` unboards a character in a vehicle before the landing rules run, so the teleportee is not left sitting in a
+    // seat that stayed behind. The port's `unboard` is the same link the vehicle system reads, so a teleported driver stops driving without a second flag to keep in step.
+    crate::vehicles::unboard(world, who);
     if let Some(mut place) = world.get_mut::<crate::Position>(who) {
         place.x = target.0;
         place.y = target.1;

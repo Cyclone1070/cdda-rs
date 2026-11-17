@@ -239,3 +239,27 @@ fn a_worn_dimensional_anchor_refuses_the_jump() {
         "**the anchor holds: nothing happens**"
     );
 }
+
+/// **A rider is put down before the teleport happens.** Reference: `teleport_to_point` unboards a character who is in a vehicle before it looks at the landing square
+/// (`teleport.cpp:203-206`), so a teleported driver is no longer sitting in a seat that stayed behind.
+#[test]
+fn a_teleport_unboards_the_rider_first() {
+    let (mut world, who) = a_world();
+    let car = world.spawn_empty().id();
+    world.entity_mut(who).insert(cdda_sim::vehicles::Riding {
+        vehicle: car,
+        part: 0,
+    });
+
+    assert!(
+        matches!(
+            cdda_sim::teleport::to_point(&mut world, who, (5, 5, 0), true),
+            cdda_sim::teleport::Teleport::Moved { .. }
+        ),
+        "the teleport still happens"
+    );
+    assert!(
+        world.get::<cdda_sim::vehicles::Riding>(who).is_none(),
+        "**and the rider is out of the vehicle**"
+    );
+}
