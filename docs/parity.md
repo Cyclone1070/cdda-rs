@@ -37685,3 +37685,13 @@ that should be written red-first from the question a caller actually asks, not i
 
 **Recorded rather than started**, because writing either one at the tail of a round would be a guess about the shape a future caller wants, and this project has paid for that
 mistake more than once.
+
+**Correction: effects already carry their flags (round 153).** Round 152 said the effect-flag query had no data behind it. That was wrong, and reading the loader rather than the
+struct's first twenty lines shows it: `content::effects::EffectType` has `pub flags: BTreeSet<String>` (`effects.rs:125-126`) and the loader fills it from the prototype
+(`effects.rs:531`), and the corpus already carries them (`corpus/effects.json`).
+
+**So guard 3's effect half is one query away, not one subsystem away.** What is missing is only a sim-side rule: "does this creature have an active effect whose **type** carries
+flag X", asked over the installed effect types and the creature's applied effects. The worn-item half remains genuinely absent - the port has no worn-item list - but two of the
+three sources are within reach.
+
+**The lesson is the same one this record keeps paying for:** a struct read through `head` is not a struct read. Twenty lines of fields looked complete and were not.
