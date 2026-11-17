@@ -128,3 +128,29 @@ pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: b
         to: target,
     }
 }
+
+/// The square a forced teleport lands on when the target itself cannot be stood on.
+///
+/// Reference: `teleport::teleport_to_point` (`teleport.cpp:215-223`) - for a `force` or `force_safe` teleport into a solid square, the reference walks
+/// `closest_points_first( target, 5 )`, drops the target itself, and takes the first square that is `passable_through`. When none of the forty-eight squares within five is
+/// passable it keeps the solid target, which is why this answers `None` rather than inventing somewhere further away.
+///
+/// The port searches the same rings in the same order - by distance, then by x, then by y - and asks the port's own standability rule, so a forced landing and a walked step
+/// agree about which squares are open.
+#[must_use]
+pub fn forced_landing(world: &mut World, target: (i32, i32, i32)) -> Option<(i32, i32, i32)> {
+    for distance in 1..=5_i32 {
+        for dy in -distance..=distance {
+            for dx in -distance..=distance {
+                if dx.abs().max(dy.abs()) != distance {
+                    continue;
+                }
+                let square = (target.0 + dx, target.1 + dy, target.2);
+                if standable(world, square) {
+                    return Some(square);
+                }
+            }
+        }
+    }
+    None
+}

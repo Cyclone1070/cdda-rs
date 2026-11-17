@@ -37660,3 +37660,14 @@ Gated red-first: a target one square above the ceiling and one below the floor b
 
 **Where the guard sits matters and was chosen deliberately:** after the same-square check, so "nothing to do" still beats "off the world", and before the landing rules, so a
 square that does not exist cannot be asked whether it is standable.
+
+**The forced landing search (round 150).** `teleport::forced_landing` is `teleport_to_point`'s `force` branch (`teleport.cpp:215-223`): walk the rings out to five squares,
+drop the target itself, and take the first square that can be stood on; when none of them can, answer `None` rather than inventing somewhere further away - the reference keeps
+the solid target, and a caller that must land somewhere is a different rule.
+
+It asks the port's own standability rule, so a forced landing and a walked step agree about which squares are open. Gated on a wall in the middle of open floor: the landing is
+within five squares, on the same level, and not the wall.
+
+**The intra-ring order is the port's own choice and is documented as such:** by distance, then x, then y. `closest_points_first` in the reference spirals, and which square of a
+ring comes first is not something the dump or the source states, so the test asserts the properties that are observable - distance bound, level, not the target - rather than
+an order the reference does not specify.

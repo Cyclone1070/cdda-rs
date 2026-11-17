@@ -176,3 +176,23 @@ fn a_target_outside_the_world_s_height_is_refused() {
         "and so is below it"
     );
 }
+
+/// **A forced landing takes the nearest square it can stand on.** Reference: `teleport::teleport_to_point` (`teleport.cpp:215-223`) takes `closest_points_first( target, 5 )`,
+/// drops the target itself, and picks the first square that is `passable_through`. When nothing within five squares is passable it keeps the solid target.
+#[test]
+fn a_forced_landing_takes_the_nearest_open_square() {
+    let (mut world, _who) = a_world();
+    // A wall in the middle of open floor: every neighbour within one square is open, so the nearest landing is one step away.
+    cdda_sim::square::set_terrain(&mut world, (3, 3, 0), 2);
+    let landing = cdda_sim::teleport::forced_landing(&mut world, (3, 3, 0));
+    let Some((x, y, z)) = landing else {
+        panic!("**there are open squares within five, so one is chosen**");
+    };
+    assert_eq!(z, 0, "the landing stays on the same level");
+    let distance = (x - 3).abs().max((y - 3).abs());
+    assert!(
+        (1..=5).contains(&distance),
+        "**the landing is within five squares: {distance}**"
+    );
+    assert!((x, y) != (3, 3), "**and it is not the wall itself**");
+}
