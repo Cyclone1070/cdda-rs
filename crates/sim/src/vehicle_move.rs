@@ -1037,14 +1037,15 @@ pub fn heading_of_step(dx: i32, dy: i32) -> i32 {
         (0, 1) => 90,
         (-1, 0) => 180,
         (0, -1) => 270,
-        (dx, dy) if dx != 0 => {
+        // A step with a diagonal component is not something a vehicle move produces; the dominant axis is answered rather than refused, so the rule stays total.
+        _ if dx != 0 => {
             if dx > 0 {
                 0
             } else {
                 180
             }
         }
-        (0, dy) if dy > 0 => 90,
+        _ if dy > 0 => 90,
         _ => 270,
     }
 }

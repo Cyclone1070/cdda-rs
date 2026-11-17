@@ -37818,3 +37818,11 @@ Gated red-first: a car rolling east faces 0, and the same car with its wheels at
 
 **What is still not ported about skidding:** recovery (`possibly_recover_from_skid`), the rolling-resistance penalty at right angles (`vehicle_move.cpp:124`), and the `last_turn`
 decay that curves a car for a moment after the wheel is centred. All three are named in the roadmap's P8 section.
+
+**The gate was probed, and it is not blind (round 161).** Round 160 recorded that `clippy::float_cmp` reached CI through a local gate that reported all green. This round added a
+deliberate unused local to `vehicle_move.rs`, ran `--clippy`, and the gate **did** report it (`error: unused variable: probe`, exit non-zero, with the line and column). So the
+local lint job can see a fresh mistake in a file it has just synced.
+
+**What that leaves unexplained:** two lints - `float_cmp` and an `unused_variables` on a match binding - reached CI through a full local gate that reported green, and the same
+command caught a third probe. The difference between those runs is not yet identified. **The practice that follows is cheap and does not require the explanation:** run
+`--clippy` once more after the full gate, immediately before committing, rather than trusting the aggregate run alone.
