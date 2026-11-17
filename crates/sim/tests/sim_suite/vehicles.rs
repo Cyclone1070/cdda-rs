@@ -5853,9 +5853,12 @@ fn a_crash_lines_up_the_next_turn() {
         after.coll_turn, 0,
         "**the lined-up turn is spent by the move**"
     );
-    assert_eq!(
-        after.rotation,
-        (before + f64::from(lined_up)).rem_euclid(360.0),
-        "and the hull turned by exactly what the crash lined up"
+    let expected = (before + f64::from(lined_up)).rem_euclid(360.0);
+    // The rotation is a float, so the comparison is a tolerance rather than equality: the arithmetic is exact for these values, but a strict float comparison is the kind of
+    // assertion that passes today and fails when the sum happens to land differently.
+    assert!(
+        (after.rotation - expected).abs() < 1e-9,
+        "**the hull turned by exactly what the crash lined up**: {} against {expected}",
+        after.rotation
     );
 }

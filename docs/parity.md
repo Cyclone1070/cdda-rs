@@ -37797,3 +37797,12 @@ Mutation-checked: dropping the rotation in the spend makes it fail.
 
 **Still not wired:** `skidding` is set and cleared but nothing reads it yet - the facing rule takes it as a parameter and the move passes the travel direction. That is the next
 red test, and it is the last piece of the skid.
+
+**A float compared strictly, and CI caught what the local clippy did not (round 160).** The new skid test asserted `after.rotation == expected` and `clippy::float_cmp`
+refused it under `-D warnings` - in CI, after fifty-seven seconds, while `python3 tools/remote_test.py --clippy` had just reported all green with the same flags and
+`--all-targets`.
+
+**The comparison is now a tolerance**, which is what it should have been: exact equality on a float passes today and fails the day the sum lands differently.
+
+**The discrepancy is not explained and is recorded as such** rather than waved away. Either the build machine's clippy differs from CI's, or the local run did not re-lint the
+edited test target - and until one of those is proven, a local green on a *test* file is one guess weaker than a local green on a source file.
