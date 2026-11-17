@@ -37709,3 +37709,14 @@ worn-item list yet, so an anchored *item* does not stop anything. That is a real
 
 **Where the six teleport guards stand:** same-square (ported), z outside the world (ported), effect half of the anchor guard (ported this round), worn-item half (absent),
 unboard-first (absent with vehicles-in-dialogue), out-of-bounds bubble move (absent), impassable with forced landing (ported).
+
+**Guard 3 is whole (round 154).** The worn-item half was not missing after all: `creature::wears_flag` walks the items that name the wearer, and `WornFlags` carries the type's
+flags on the item. So `teleport::to_point` now refuses on **all three** sources the reference names - a worn `DIMENSIONAL_ANCHOR`, an effect `DIMENSIONAL_ANCHOR`, or an effect
+`TELEPORT_LOCK` (`teleport.cpp:191-201`) - and the red test for the worn half failed before the clause was added, which is its proof.
+
+**Two rounds were spent saying this half was absent.** Round 152 said effects had no flags (wrong: the field is there). Round 153 said there was no worn-item list (wrong: `WornBy`
+and `WornFlags` exist and are tested). Both times the search was for a *concept* - "an equipment system", "an effect-flag query" - and the port's answer was a differently named,
+smaller thing that already worked. **Search for the question, not the subsystem.**
+
+**What the guard does not do:** `force`/`force_safe` bypass it, and this rule has no force parameter - that belongs to the caller that has one. Recorded so the bypass is not
+forgotten when the dialogue effect is wired.

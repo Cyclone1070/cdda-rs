@@ -110,8 +110,9 @@ pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: b
         return Teleport::Refused;
     }
     // **A locked creature does not move.** Reference: `teleport.cpp:191-201` refuses a teleportee wearing an item or carrying an effect with `DIMENSIONAL_ANCHOR`, or an effect
-    // with `TELEPORT_LOCK`. The worn-item half is not ported - there is no worn-item list - and the effect half is, which is the half the data actually puts on creatures.
-    if crate::applied_effects::has_flag(world, who, "DIMENSIONAL_ANCHOR")
+    // with `TELEPORT_LOCK`. Three sources, one bypass: all three are tested here, and the bypass (`force`/`force_safe`) belongs to the caller that has one, which this rule does not.
+    if crate::creature::wears_flag(world, who, "DIMENSIONAL_ANCHOR")
+        || crate::applied_effects::has_flag(world, who, "DIMENSIONAL_ANCHOR")
         || crate::applied_effects::has_flag(world, who, "TELEPORT_LOCK")
     {
         return Teleport::Refused;

@@ -222,3 +222,20 @@ fn a_teleport_lock_refuses_the_jump() {
         "**the lock holds: nothing happens**"
     );
 }
+
+/// **A creature wearing an anchored item cannot be teleported either.** Reference: the same guard asks `worn_with_flag( json_flag_DIMENSIONAL_ANCHOR )` beside the two effect
+/// checks (`teleport.cpp:191-201`), so the anchor works whether it is a thing you wear or a thing that has been done to you.
+#[test]
+fn a_worn_dimensional_anchor_refuses_the_jump() {
+    let (mut world, who) = a_world();
+    world.spawn((
+        cdda_sim::creature::WornBy(who),
+        cdda_sim::creature::WornFlags(vec!["DIMENSIONAL_ANCHOR".to_owned()]),
+    ));
+
+    assert_eq!(
+        cdda_sim::teleport::to_point(&mut world, who, (5, 5, 0), false),
+        cdda_sim::teleport::Teleport::Refused,
+        "**the anchor holds: nothing happens**"
+    );
+}
