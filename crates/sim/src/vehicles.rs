@@ -111,6 +111,9 @@ pub struct Vehicle {
     /// The turn a collision has lined up for the **next** move, in degrees - the reference's `coll_turn`, which `part_smash` sets and `move_vehicle` spends when the
     /// vehicle can move again (`map.cpp:938-941`). A vehicle that is stopped clears it, because a stopped vehicle cannot be mid-skid.
     pub coll_turn: i32,
+    /// The direction of the hull's **last accepted move**, in degrees clockwise from east - the reference's `move` (`vehicle.h`), which is set to the direction of travel on
+    /// every accepted step (`map.cpp:942`) and is what makes a skid measurable: the angle between where a vehicle is going and where it points is `move` against `face`.
+    pub move_dir: i32,
     /// How much steering is still owed to the hull, in degrees - the reference's `last_turn` (`vehicle.h`). A steering press sets it, every accepted step walks it back a
     /// degree (`map.cpp:917-928`), and `stop` clears it (`vehicle_move.cpp:693`).
     pub last_turn: i32,
@@ -167,6 +170,7 @@ pub fn spawn_facing(
                 coll_turn: 0,
                 skidding: false,
                 last_turn: 0,
+                move_dir: rotation.round() as i32,
                 rotation,
                 velocity: 0,
             },

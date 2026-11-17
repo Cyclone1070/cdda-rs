@@ -6016,3 +6016,173 @@ fn a_steering_press_leaves_a_turn_that_the_hull_spends() {
         "and a stopped car has no turn left in it"
     );
 }
+
+/// **Where a vehicle is going and where it points are two headings, and a skid is the angle between them.** Reference: `map.cpp:942` sets `veh.move = facing` on every accepted
+/// move while `veh.face` follows the travel direction - or the wheels, while skidding - so the pair is the same on a normal step and different on a skid, which is what
+/// `possibly_recover_from_skid` measures.
+#[test]
+fn a_move_records_the_direction_travelled() {
+    const FLOOR: u32 = 1;
+
+    fn an_open_car() -> (World, Entity) {
+        let mut world = World::new();
+        cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+        cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+        for y in 90..=110 {
+            for x in 90..=110 {
+                cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+            }
+        }
+        install_part_weights(&mut world, "car");
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+        (world, car)
+    }
+
+    // **A normal step: the direction travelled and the hull agree.**
+    let (mut world, car) = an_open_car();
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 2_000;
+        built.of_turn = 20.0;
+    }
+    assert!(
+        cdda_sim::vehicle_move::move_step(&mut world, car),
+        "it moves"
+    );
+    let built = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .expect("a vehicle");
+    assert_eq!(built.move_dir, 0, "the car went east");
+    assert!(
+        (built.rotation - 0.0).abs() < 1e-9,
+        "and it faces east, so the two headings are the same"
+    );
+
+    // **A skid: the hull is dragged round to the wheels while the travel direction stays put**, and that difference is the skid.
+    let (mut world, car) = an_open_car();
+    world
+        .entity_mut(car)
+        .insert(cdda_sim::vehicle_move::Wheels { turn_dir: 45 });
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 2_000;
+        built.of_turn = 20.0;
+        built.skidding = true;
+    }
+    assert!(
+        cdda_sim::vehicle_move::move_step(&mut world, car),
+        "the skidding car moves"
+    );
+    let built = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .expect("a vehicle");
+    assert_eq!(built.move_dir, 0, "**it still travelled east**");
+    assert!(
+        (built.rotation - 45.0).abs() < 1e-9,
+        "and its hull is on the wheels, which is the angle a recovery would measure"
+    );
+}
+
+/// **A skid can be recovered, and recovery is a comparison of headings against dice.** Reference: `vehicle::possibly_recover_from_skid` (`vehicle_move.cpp:1563-1590`):
+/// a vehicle that turned more than thirteen degrees on this skid gets no chance at all; otherwise the hull recovers when `|dot| * 100` beats `dice( 9, 20 )`, where `dot` is the
+/// angle between the direction it is moving and the direction it faces. Recovering stops the skid, scales the speed by `dot`, and reverses it when the vehicle was pointed more
+/// than four fifths of the way backwards.
+#[test]
+fn a_skid_can_be_recovered() {
+    // **A hard turn gets no chance**, whatever the dice: the reference returns before drawing anything, which is also why the stream is untouched.
+    let mut rolls = cdda_core_types::rng::Rolls::new(11);
+    assert_eq!(
+        cdda_sim::vehicle_move::skid_recovery(15, 0, 45, 2_000, &mut rolls),
+        None,
+        "**more than thirteen degrees of turn is not a skid to recover from**"
+    );
+
+    // **A perpendicular skid never recovers**: the dot is zero and the dice are never under it.
+    let mut rolls = cdda_core_types::rng::Rolls::new(12);
+    assert_eq!(
+        cdda_sim::vehicle_move::skid_recovery(0, 0, 90, 2_000, &mut rolls),
+        None,
+        "**travelling ninety degrees off the nose cannot be recovered**"
+    );
+
+    // **A skid straight ahead recovers on the right dice**, and the speed is the hull's: the dot is one, so nothing is scaled away.
+    let mut recovered = None;
+    for seed in 1..=60 {
+        let mut rolls = cdda_core_types::rng::Rolls::new(seed);
+        if let Some(velocity) = cdda_sim::vehicle_move::skid_recovery(0, 0, 0, 2_000, &mut rolls) {
+            recovered = Some(velocity);
+            break;
+        }
+    }
+    let velocity = recovered
+        .expect("**dice( 9, 20 ) lands under a hundred often enough** for sixty seeds to find one");
+    assert_eq!(velocity, 2_000, "the dot is one, so the speed is kept");
+
+    // **A backwards skid comes out the other way.** The speed is scaled by the dot and then reversed, because a vehicle pointing more than four fifths of the way backwards is
+    // travelling one way and facing the other.
+    let mut recovered = None;
+    for seed in 1..=60 {
+        let mut rolls = cdda_core_types::rng::Rolls::new(seed);
+        if let Some(velocity) = cdda_sim::vehicle_move::skid_recovery(0, 0, 180, 2_000, &mut rolls)
+        {
+            recovered = Some(velocity);
+            break;
+        }
+    }
+    assert!(
+        recovered.is_some_and(|velocity| velocity > 0),
+        "a backwards skid that recovers travels towards its nose: {recovered:?}"
+    );
+}
+
+/// **A sliding car stops sliding once it recovers.** Reference: `map::move_vehicle` calls `possibly_recover_from_skid` right after an accepted move (`map.cpp:958-961`), so the
+/// recovery reads the headings the step has just written. This is the wiring test for that call: with the hull on its wheels and no turn outstanding, the skid ends on the right
+/// dice - and it must end on at least one of sixty seeds, or the call is not being made at all.
+#[test]
+fn a_skidding_car_stops_skidding_when_it_recovers() {
+    const FLOOR: u32 = 1;
+
+    let mut recovered = false;
+    for seed in 1..=60 {
+        let mut world = World::new();
+        cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+        cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+        for y in 90..=110 {
+            for x in 90..=110 {
+                cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+            }
+        }
+        install_part_weights(&mut world, "car");
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+        {
+            let mut built = world
+                .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+                .expect("a vehicle");
+            built.velocity = 2_000;
+            built.of_turn = 20.0;
+            built.skidding = true;
+        }
+        let mut rolls = cdda_core_types::rng::Rolls::new(seed);
+        if !cdda_sim::vehicle_move::move_step_with_rolls(&mut world, car, &mut rolls) {
+            continue;
+        }
+        if !world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle")
+            .skidding
+        {
+            recovered = true;
+            break;
+        }
+    }
+    assert!(
+        recovered,
+        "**a skid that is driving straight can be recovered**, and no seed in sixty did it"
+    );
+}

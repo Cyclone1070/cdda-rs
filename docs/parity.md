@@ -37841,3 +37841,20 @@ leaves none.
 **What reads it next:** `possibly_recover_from_skid` (`vehicle_move.cpp:1563-1590`), which returns early when `last_turn > 13` and otherwise recovers on `|dot| * 100 > dice(9,20)`
 - where `dot` is the angle between the direction the vehicle is moving and the direction it faces. **The port cannot express that yet**: it has one rotation, and the rule needs
 `move` and `face` as two headings. That is the next structural piece, and it is the honest reason the recovery rule is not in this round.
+
+## The two headings exists now, and the skid can end (round 163)
+
+`Vehicle.move_dir` is the reference's `move` - the direction of the last accepted step (`map.cpp:942`) - beside `rotation`, which is `face`. The pair is the same on a normal
+step and different exactly while a skid drags the hull round to the wheels, which is the angle recovery measures.
+
+`vehicle_move::skid_recovery` is `possibly_recover_from_skid` (`vehicle_move.cpp:1563-1590`), wired right after an accepted move (`map.cpp:958-961`): a turn over thirteen
+degrees gets no chance **and draws nothing**, otherwise `|dot| * 100 > dice( 9, 20 )` decides. **`dice( 9, 20 )` is nine twenty-sided dice summed**, a bell around 94.5 - not a
+flat range - so a skid straight down the nose beats it about half the time; drawing it as one number would make recovery far too likely. Recovering clears `skidding`, scales the
+speed by the dot, and reverses it when the hull was pointed more than four fifths of the way backwards.
+
+Gated on cases that need no luck: a hard turn and a perpendicular skid both refuse; sixty seeds find a straight-ahead recovery that keeps its speed, and a backwards one that
+comes out travelling towards the nose. **The wiring is its own test** - sixty seeds of a sliding car, failing unless at least one recovers - and it was mutation-checked by
+never calling the recovery.
+
+**Where the skid stands:** drawn turn, `coll_turn`, facing by the wheels, `last_turn` decay, and recovery are all ported. Still absent: the right-angle rolling-resistance
+penalty (`vehicle_move.cpp:124`) and the low-wheel-count drag that chews the ground (`map.cpp:905-914`).

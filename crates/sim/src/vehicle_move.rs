@@ -496,6 +496,33 @@ pub fn move_step_with_rolls(
         let travel = heading_of_step(step.0, step.1);
         if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
             built.rotation = f64::from(facing_after_move(skidding, wheel, travel));
+            // **`move` is the direction travelled, `face` is the hull.** Reference: `map.cpp:942` sets `veh.move = facing` on every accepted move, and the two are different
+            // exactly while a skid carries the hull where the wheels point - which is the angle `possibly_recover_from_skid` measures.
+            built.move_dir = travel;
+        }
+        // **And a skid may end here.** Reference: `map::move_vehicle` calls `possibly_recover_from_skid` right after an accepted move (`map.cpp:958-961`), which is the only
+        // moment the two headings have just been written - so the recovery sees the step that was taken, not the one before it.
+        let skidding_now = world
+            .get::<crate::vehicles::Vehicle>(vehicle)
+            .is_some_and(|built| built.skidding);
+        if skidding_now {
+            let (last_turn, move_dir, face_dir, velocity) = world
+                .get::<crate::vehicles::Vehicle>(vehicle)
+                .map_or((0, 0, 0, 0), |built| {
+                    (
+                        built.last_turn,
+                        built.move_dir,
+                        built.rotation.round() as i32,
+                        built.velocity,
+                    )
+                });
+            if let Some(recovered) = skid_recovery(last_turn, move_dir, face_dir, velocity, rolls)
+                && let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
+            {
+                built.velocity = recovered;
+                built.skidding = false;
+                built.move_dir = built.rotation.round() as i32;
+            }
         }
     }
     // **Straining wears the engines**, straight after the step, which is where the reference does it (`vehicle_move.cpp:588-594`): the strain is read against the safe and
@@ -1040,6 +1067,51 @@ pub fn wheel_direction(world: &bevy_ecs::world::World, vehicle: Entity) -> i32 {
 #[must_use]
 pub fn is_diagonal_turn(degrees: i32) -> bool {
     degrees.rem_euclid(360) % 90 == 45
+}
+
+/// The speed a skid recovers to, or `None` when the hull stays sliding.
+///
+/// Reference: `vehicle::possibly_recover_from_skid` (`vehicle_move.cpp:1563-1590`), in the reference's order:
+///
+/// ```text
+/// if last_turn > 13_degrees: return                       // the initial skid is not recoverable
+/// dot = move_vec().dot_product( face_vec() )
+/// if fabs( dot ) * 100 > dice( 9, 20 ):
+///     skidding = false
+///     velocity *= dot
+///     if dot < -0.8: velocity *= -1                       // pointed backwards: travel towards the nose
+/// ```
+///
+/// **`dice( 9, 20 )` is nine twenty-sided dice, not a uniform range**: the reference's `dice( number, sides )` sums that many rolls, so the threshold is a bell around 94.5 and
+/// a skid straight down the nose - a hundred - beats it about half the time. Drawing it as one flat number would make recovery far too likely.
+///
+/// The nine draws happen **only** when the turn is small enough to allow a chance at all, which is why the guard comes first: an unrecoverable skid must not move the stream.
+#[must_use]
+pub fn skid_recovery(
+    last_turn: i32,
+    move_dir: i32,
+    face_dir: i32,
+    velocity: i32,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<i32> {
+    if last_turn > 13 {
+        return None;
+    }
+    let between = f64::from((move_dir - face_dir).rem_euclid(360));
+    let dot = between.to_radians().cos();
+    let mut threshold = 0;
+    for _ in 0..9 {
+        threshold += rolls.rng(1, 20);
+    }
+    if dot.abs() * 100.0 > f64::from(threshold) {
+        #[allow(clippy::cast_possible_truncation)]
+        let mut recovered = (f64::from(velocity) * dot) as i32;
+        if dot < -0.8 {
+            recovered *= -1;
+        }
+        return Some(recovered);
+    }
+    None
 }
 
 /// The heading a step travels in: degrees clockwise from east, the same sense the hull's rotation uses.
