@@ -37961,3 +37961,8 @@ and a step is planned from `turn_dir` (`map.cpp:808-830`) with the hull facing t
 **The replay is red on one thing, and it is not that.** At a forty-five degree press the reference travels diagonally and the port still steps one cardinal square, so `face` differs
 where the two disagree about what a diagonal step *is*. That is the next round: the diagonal step, then the replay lands with the recording, which is kept out of the tree until a
 test reads it - the QA gate refuses a corpus file nobody compares against, and it is right to.
+
+**The gate said clippy was green and CI disagreed, for the third time.** Removing the hull's old facing from the step left `let rotation = built.rotation;` unused, which
+`-D warnings` refuses. The local `--clippy` run reported all green in the same minute. Two rounds have now recorded this; the difference between the local clippy job and CI's has
+never been explained, and **the honest position is that the local clippy result is weaker evidence than it looks** - so a change that touches the movement path gets its own
+`--clippy` run before the commit, and the CI poll still decides.

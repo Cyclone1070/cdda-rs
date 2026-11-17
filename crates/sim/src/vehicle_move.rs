@@ -506,7 +506,6 @@ pub fn move_step_with_rolls(
         return false;
     };
     let velocity = built.velocity;
-    let rotation = built.rotation;
     let of_turn = built.of_turn;
 
     // **Too slow to move**: the reference stops the vehicle outright, spends 0.321 of the turn, and leaves it where it is.
