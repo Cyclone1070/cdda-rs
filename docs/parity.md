@@ -37595,3 +37595,16 @@ test fail (`1 failed`), and each was restored from a saved copy with the tree co
 | `stop_vehicle`'s wheel | writes 45 instead of the facing | failed (round 142) |
 
 **Four rules now have a demonstrated failure mode.** The rest of the turn family was written red-first; `cruise_thrust` is next in the pass.
+
+**The safe-speed crossing has a failure mode (round 145).** Making `cruise_thrust`'s crossing branch dead (`if false && ...`) makes
+`a_press_of_the_cruise_control_steps_and_stops_on_the_safe_speed` fail: a 900 -> 1,100 press would sail past the safe 950 instead of stopping on it.
+
+| Rule | Mutation | Result |
+|---|---|---|
+| `cruise_thrust` crossing | branch made dead | failed |
+| `facing_after_move` | branches swapped | failed (round 144) |
+| `steered_direction` | truncates instead of rounding | failed (round 144) |
+| `decayed_turn` | keeps a sub-decrement turn | failed (round 143) |
+| `stop_vehicle`'s wheel | writes 45 instead of the facing | failed (round 142) |
+
+**Five rules have a demonstrated failure mode**, and the mutation pass over the turn family is complete.
