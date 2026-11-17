@@ -974,3 +974,23 @@ pub fn decayed_turn(last_turn: i32, decrement: i32) -> i32 {
     let left = last_turn - decrement;
     if left < decrement { 0 } else { left }
 }
+
+/// Brings a vehicle to a full stop, and puts its wheel back where the hull points.
+///
+/// Reference: `vehicle::stop` (`vehicle_move.cpp:687-698`) zeroes the speed, clears the skid, drops the turn and the carried movement, and aligns `move` with `face`; the
+/// stopped branch of `vehicle::thrust` (`vehicle_move.cpp:455-458`) additionally puts `turn_dir` back on the facing, which is why a parked car's wheel is straight even if it
+/// was left mid-turn.
+pub fn stop_vehicle(world: &mut World, vehicle: Entity) {
+    let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) else {
+        return;
+    };
+    built.velocity = 0;
+    built.of_turn_carry = 0.0;
+    let facing = built.rotation;
+    drop(built);
+    #[allow(clippy::cast_possible_truncation)]
+    let facing_degrees = facing.round() as i32;
+    world.entity_mut(vehicle).insert(Wheels {
+        turn_dir: facing_degrees.rem_euclid(360),
+    });
+}

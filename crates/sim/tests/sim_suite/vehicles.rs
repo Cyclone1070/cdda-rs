@@ -5532,3 +5532,37 @@ fn a_turn_fades_after_it_is_made() {
     assert_eq!(decay(60, 15), 45, "a bigger turn keeps the rest");
     assert_eq!(decay(30, 15), 15, "and exactly one step's worth stays");
 }
+
+/// **Stopping clears the motion, the carry and the wheel.** Reference: `vehicle::stop` (`vehicle_move.cpp:687-698`) sets `velocity = 0`, `skidding = false`, `move = face`,
+/// `last_turn = 0` and `of_turn_carry = 0`, and puts the wheel back on the hull's facing (`turn_dir = face.dir()` in `vehicle::thrust`'s stopped branch).
+#[test]
+fn stopping_clears_the_motion_the_carry_and_the_wheel() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 1_000;
+        built.of_turn_carry = 0.42;
+        built.rotation = 90.0;
+    }
+    world
+        .entity_mut(car)
+        .insert(cdda_sim::vehicle_move::Wheels { turn_dir: 45 });
+
+    cdda_sim::vehicle_move::stop_vehicle(&mut world, car);
+
+    let built = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .expect("still a vehicle");
+    assert_eq!(built.velocity, 0, "**the speed is gone**");
+    assert!((built.of_turn_carry - 0.0).abs() < 1e-12, "and the carry");
+    assert_eq!(
+        cdda_sim::vehicle_move::wheel_direction(&world, car),
+        90,
+        "**the wheel is back on the hull's facing**"
+    );
+}

@@ -37543,3 +37543,10 @@ accepted step, and clear the turn once what is left is smaller than the decremen
 small correction is gone in one step while a big one is spent over several.
 
 Gated on no turn, one step's worth, more than one, and the boundary where the remainder vanishes.
+
+**Stopping clears the motion, the carry and the wheel (round 140).** `vehicle_move::stop_vehicle` is `vehicle::stop` (`vehicle_move.cpp:687-698`) plus the stopped branch of
+`vehicle::thrust` (`455-458`): speed to zero, carried movement to zero, and the wheel back on the hull's facing - which is why a parked car's wheel is straight even if it
+was left mid-turn. The reference also clears `skidding` and `last_turn`; the port has no skid state and `last_turn` is not stored yet, and both are named here rather than
+silently dropped.
+
+Gated on a moving car with a carry and a turned wheel: all three come back cleared.
