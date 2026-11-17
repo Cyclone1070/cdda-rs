@@ -745,6 +745,15 @@ pub fn alternator_load(world: &World, vehicle: Entity) -> i32 {
 /// Reference: `vehicle::idle` (`vehicle.cpp:6050-6062`) - `idle_rate = alternator_load`, then `if( idle_rate < 10 ) idle_rate = 10;  // minimum idle is 1% of full throttle`.
 /// The floor is the reference's own: an engine with nothing bolted to it still burns a little, which is why a car left running empties its tank.
 #[must_use]
+/// The rate a vehicle's idling engine burns at: its alternator's load, floored at ten.
+///
+/// Reference: `vehicle::idle` (`vehicle.cpp:6052-6056`) reads `alternator_load` into `idle_rate` and then floors it. The two steps are one function here so a rule that asks
+/// "what does this engine burn standing still" cannot pick up the load without the floor, or the floor without the load.
+#[must_use]
+pub fn idle_rate(world: &World, vehicle: Entity) -> i32 {
+    idle_load(alternator_load(world, vehicle))
+}
+
 pub fn idle_load(alternator_load: i32) -> i32 {
     alternator_load.max(10)
 }
@@ -770,7 +779,7 @@ pub fn idle(world: &mut World, vehicle: Entity) -> bool {
     }
     // **The idle rate is the alternator's load, floored at ten.** Reference: `vehicle::idle` (`vehicle.cpp:6052-6056`) reads `alternator_load` and then floors it - so a
     // car whose alternators are all off still idles at the floor, and one running a big alternator idles higher.
-    burn_fuel(world, vehicle, idle_load(alternator_load(world, vehicle)));
+    burn_fuel(world, vehicle, idle_rate(world, vehicle));
     true
 }
 

@@ -5669,3 +5669,66 @@ fn a_switched_off_car_loads_no_alternator() {
         "**nothing running, nothing loading**"
     );
 }
+
+/// **The rate an idling engine burns at is its alternator's load, floored at ten.** Reference: `vehicle::idle` (`vehicle.cpp:6052-6056`) reads `alternator_load` and then floors
+/// it, and this is the door that rule is behind - so the wiring cannot fall back to the floor without this test saying so.
+///
+/// The `car` prototype is used because it is one of the recorded vehicles and its numbers make the two answers different: a 93,250 W engine with 1,492 W of alternator is a load
+/// of 16 by `|1000 * -1492 / 93250|`, well above the floor. The second car differs in **nothing but which parts are switched on**.
+#[test]
+fn the_idle_rate_is_the_alternator_load_floored_at_ten() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let loaded = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    let quiet = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, loaded);
+    fill_own_tanks(&mut world, quiet);
+
+    let count = world
+        .get::<cdda_sim::vehicles::Vehicle>(quiet)
+        .expect("a vehicle")
+        .parts
+        .len();
+    let alternators: Vec<usize> = (0..count)
+        .filter(|index| {
+            cdda_sim::vehicles::part_spec(&world, quiet, *index)
+                .is_some_and(|spec| spec.flags.contains("ALTERNATOR"))
+        })
+        .collect();
+    assert!(
+        !alternators.is_empty(),
+        "**the car has alternators to switch off**, or this test proves nothing"
+    );
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(quiet)
+            .expect("a vehicle");
+        for index in &alternators {
+            if let Some(part) = built.parts.get_mut(*index) {
+                part.enabled = false;
+            }
+        }
+    }
+
+    assert_eq!(
+        cdda_sim::vehicle_drive::alternator_load(&world, loaded),
+        16,
+        "**the running alternator is a load of sixteen**"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_drive::idle_rate(&world, loaded),
+        16,
+        "and the idle rate is that load"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_drive::alternator_load(&world, quiet),
+        0,
+        "with the alternators off there is no load"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_drive::idle_rate(&world, quiet),
+        10,
+        "**so the engine falls back to the reference's floor of ten**"
+    );
+}

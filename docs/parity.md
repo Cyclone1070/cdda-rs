@@ -37757,3 +37757,15 @@ drivetrain uses, so a wrecked engine turns its alternator less.
 `idle` now burns at `idle_load(alternator_load(...))` instead of `idle_load(0)`. **The wired half is not yet observed by a test**: the formula is pinned on four cases and the
 early return is pinned on a switched-off car, but nothing yet asserts that a car with a load above ten burns more than the floor. That is the next test, and it needs a vehicle
 whose alternator load is known to exceed the floor - so it starts by asking the corpus which prototype has one.
+
+**The idle rate is its own rule now, and it is pinned on corpus numbers (round 158).** `vehicle_drive::idle_rate` is
+`idle_load(alternator_load(..))` - the two steps of `vehicle::idle` (`vehicle.cpp:6052-6056`) in one door, so a caller cannot pick up the load without the floor or the floor
+without the load. `idle` burns at that rate.
+
+**Pinned on the recorded `car`:** a 93,250 W engine with 1,492 W of alternator is a load of 16, and the same car with only its alternators switched off falls back to the floor of
+10. Both numbers come from the corpus and the reference's own formula; neither is a value read out of the port.
+
+**Two attempts at a fuel-burn test were thrown away, and the reason is worth keeping.** Idling is a *fraction of a fuel charge* per turn, so 500 turns moved no whole charge;
+comparing the carried remainder read zero on both cars; and running each car dry at ~30 ms a turn was minutes of test time for a difference of a few hundred turns. **The
+observable that costs a fraction of a second and cannot pass by accident is the rate itself**, which is what a caller passes to the burn - so that is what is tested, and the
+one-line call site is left to review rather than to a ten-minute test.
