@@ -454,6 +454,14 @@ pub fn move_step_with_rolls(
     }
 
     let moved = crate::vehicles::move_vehicle(world, vehicle, step);
+    // **The hull faces where the step went.** A backwards step travels the opposite way, so the facing turns around: the reference sets `veh.face = facing` on an accepted
+    // move (`map.cpp:934-939`), and its `facing` is the direction of travel rather than the direction the nose was pointing.
+    if moved
+        && velocity < 0
+        && let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
+    {
+        built.rotation = (built.rotation + 180.0).rem_euclid(360.0);
+    }
     // **Straining wears the engines**, straight after the step, which is where the reference does it (`vehicle_move.cpp:588-594`): the strain is read against the safe and
     // top speeds, turned into the capped figure, and spent on the caller's dice.
     let velocity_now = world

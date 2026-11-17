@@ -5490,3 +5490,30 @@ fn a_moving_vehicle_faces_where_it_went() {
     assert_eq!(facing(false, 90, 270), 270, "and ignores the wheels");
     assert_eq!(facing(true, 90, 0), 90, "**skidding: the wheels decide**");
 }
+
+/// **Reversing turns the hull around.** Reference: `map::move_vehicle` faces the hull where the step travelled (`map.cpp:934-939`); a step backwards travels the opposite
+/// way, so a car that backs up ends the step facing the other way.
+#[test]
+fn reversing_turns_the_hull_around() {
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.rotation = 0.0;
+        built.velocity = -1_000;
+        built.of_turn = 5.0;
+    }
+    let mut rolls = cdda_core_types::rng::Rolls::new(3);
+    cdda_sim::vehicle_move::move_step_with_rolls(&mut world, car, &mut rolls);
+    let rotation = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map_or(-1.0, |built| built.rotation);
+    assert!(
+        (rotation - 180.0).abs() < 1e-9,
+        "**backing up faces the other way: 0 degrees became {rotation}**"
+    );
+}

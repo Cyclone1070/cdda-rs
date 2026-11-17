@@ -37528,3 +37528,12 @@ moving" rule to port here; the facing changes because the *next* precalc used th
 than where the driver aimed it. That closes the question round 135 left open: the hull's facing follows the **step**, not the wheel, except in a skid.
 
 Gated on both halves and on the case that separates them: not skidding ignores the wheels (0 vs 270), skidding takes them (90).
+
+## Backing up turns the hull around (round 138)
+
+`move_step_with_rolls` now re-faces the vehicle when a step is accepted and the step went **backwards**: `rotation` turns 180 degrees. The reference sets `veh.face = facing`
+on an accepted move (`map.cpp:934-939`), and its `facing` is the direction of travel, not the direction the nose was pointing - so a car that reverses ends the step facing
+the way it went, which is why backing up swaps its nose and tail.
+
+TDD, watched in order: red at `0 degrees became 0`, implemented, green, then the full gate - which first failed on **formatting** (my edit's line breaks), a reminder that the
+gate checks more than behaviour.
