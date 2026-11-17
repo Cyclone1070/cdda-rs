@@ -599,6 +599,93 @@ pub fn unboard(world: &mut World, creature: Entity) -> bool {
     world.entity_mut(creature).take::<Riding>().is_some()
 }
 
+/// Every unbroken part that is a wheel, by index - the reference's `wheelcache` (`vehicle.cpp:6738-6740`).
+#[must_use]
+pub fn wheels(world: &World, vehicle: Entity) -> Vec<usize> {
+    let count = world
+        .get::<Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    (0..count)
+        .filter(|index| {
+            world
+                .get::<Vehicle>(vehicle)
+                .and_then(|built| built.parts.get(*index))
+                .is_some_and(|part| !part.broken)
+                && part_spec(world, vehicle, *index)
+                    .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "WHEEL"))
+        })
+        .collect()
+}
+
+/// Whether the vehicle has enough wheels to be moved at all.
+///
+/// Reference: `vehicle::sufficient_wheel_config` (`vehicle.cpp:4984-4997`): no wheels is no; **one** wheel is only enough when it is `STABLE` and the hull is a three-tile
+/// vehicle at most; anything more is enough. The reference counts the structure parts for that second test, which is the `structure` location on the part's spec.
+#[must_use]
+pub fn sufficient_wheel_config(world: &World, vehicle: Entity) -> bool {
+    let wheels = wheels(world, vehicle);
+    if wheels.is_empty() {
+        return false;
+    }
+    if wheels.len() != 1 {
+        return true;
+    }
+    let Some(only) = wheels.first().copied() else {
+        return false;
+    };
+    let stable = part_spec(world, vehicle, only)
+        .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "STABLE"));
+    let count = world
+        .get::<Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    let structure = (0..count)
+        .filter(|index| {
+            part_spec(world, vehicle, *index).is_some_and(|spec| spec.location == "structure")
+        })
+        .count();
+    stable && structure <= 3
+}
+
+/// Whether the weight of the vehicle sits over its wheels.
+///
+/// Reference: `vehicle::balanced_wheel_config` (`vehicle.cpp:5104-5121`): the bounding box of the wheel mounts must contain the centre of mass. A vehicle with no wheels has no box
+/// to contain anything, which the reference's own `point::max`/`point::min` sentinels make false; here it is answered directly.
+#[must_use]
+pub fn balanced_wheel_config(world: &World, vehicle: Entity) -> bool {
+    let wheels = wheels(world, vehicle);
+    let Some(first) = wheels.first().copied() else {
+        return false;
+    };
+    let Some(entry) = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(first))
+    else {
+        return false;
+    };
+    let (mut min_x, mut max_x) = (entry.x, entry.x);
+    let (mut min_y, mut max_y) = (entry.y, entry.y);
+    for index in wheels {
+        let Some(part) = world
+            .get::<Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(index))
+        else {
+            continue;
+        };
+        min_x = min_x.min(part.x);
+        max_x = max_x.max(part.x);
+        min_y = min_y.min(part.y);
+        max_y = max_y.max(part.y);
+    }
+    let (com_x, com_y) = crate::vehicle_mass::center_of_mass(world, vehicle);
+    (min_x..=max_x).contains(&com_x) && (min_y..=max_y).contains(&com_y)
+}
+
+/// Whether the vehicle's wheels can carry it at all - `vehicle::valid_wheel_config` (`vehicle.cpp:5123-5126`).
+#[must_use]
+pub fn valid_wheel_config(world: &World, vehicle: Entity) -> bool {
+    sufficient_wheel_config(world, vehicle) && balanced_wheel_config(world, vehicle)
+}
+
 /// The creature sitting on one part of a vehicle, if one is.
 #[must_use]
 pub fn rider_at(world: &World, vehicle: Entity, part: usize) -> Option<Entity> {

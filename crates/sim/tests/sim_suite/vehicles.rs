@@ -6221,3 +6221,103 @@ fn a_sidways_skid_drags_harder() {
         "**a sideways skid slows down faster**: {sideways} against {straight}"
     );
 }
+
+/// **A vehicle needs enough wheels under its weight to move.** Reference: `vehicle::valid_wheel_config` (`vehicle.cpp:5123-5126`) is
+/// `sufficient_wheel_config && balanced_wheel_config` - no wheels is no, one wheel is only enough when it is `STABLE` and the hull is three tiles at most, and the bounding box of
+/// the wheel mounts has to contain the centre of mass (`:5104-5121`).
+#[test]
+fn a_vehicle_needs_its_wheels_under_it() {
+    use cdda_sim::vehicles::{
+        Vehicle, balanced_wheel_config, sufficient_wheel_config, valid_wheel_config, wheels,
+    };
+
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+
+    assert!(
+        wheels(&world, car).len() >= 4,
+        "**a car stands on its wheels**: {:?}",
+        wheels(&world, car)
+    );
+    assert!(sufficient_wheel_config(&world, car), "and that is enough");
+    assert!(
+        valid_wheel_config(&world, car),
+        "its weight is over them, so it can move"
+    );
+
+    // Take every wheel off and it is a hull on the ground.
+    let all = wheels(&world, car);
+    {
+        let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+        for index in all {
+            if let Some(part) = built.parts.get_mut(index) {
+                part.broken = true;
+            }
+        }
+    }
+    assert!(
+        !sufficient_wheel_config(&world, car),
+        "**no wheels is not enough wheels**"
+    );
+    assert!(
+        !balanced_wheel_config(&world, car),
+        "and nothing to balance on"
+    );
+    assert!(!valid_wheel_config(&world, car), "so it cannot move");
+}
+
+/// **A hull with no wheels does not move, however hard it is driven.** Reference: `vehicle::thrust` (`vehicle_move.cpp:473-479`) stops it and says so before asking for power.
+#[test]
+fn a_wheel_less_vehicle_does_not_move() {
+    use cdda_sim::vehicles::{Vehicle, wheels};
+
+    let mut world = World::new();
+    install_part_weights(&mut world, "car");
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (100, 100, 0)).expect("it builds");
+    fill_own_tanks(&mut world, car);
+    let all = wheels(&world, car);
+    {
+        let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+        for index in all {
+            if let Some(part) = built.parts.get_mut(index) {
+                part.broken = true;
+            }
+        }
+    }
+    // A driver asking for speed.
+    let count = world
+        .get::<Vehicle>(car)
+        .map_or(0, |built| built.parts.len());
+    let Some(controls) = (0..count).find(|index| {
+        cdda_sim::vehicles::part_spec(&world, car, *index)
+            .is_some_and(|spec| spec.flags.iter().any(|flag| flag == "CONTROLS"))
+    }) else {
+        return;
+    };
+    world.spawn((
+        cdda_sim::vehicles::Riding {
+            vehicle: car,
+            part: controls,
+        },
+        cdda_sim::vehicle_move::Controls {
+            cruise: 100,
+            steer: 0,
+        },
+    ));
+    {
+        let mut built = world.get_mut::<Vehicle>(car).expect("a vehicle");
+        built.cruise_velocity = 500;
+        built.velocity = 500;
+    }
+    cdda_sim::vehicle_move::drive_vehicles(&mut world);
+
+    assert_eq!(
+        world.get::<Vehicle>(car).expect("a vehicle").velocity,
+        0,
+        "**the hull stops instead of moving**"
+    );
+}

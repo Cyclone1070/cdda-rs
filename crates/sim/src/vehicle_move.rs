@@ -928,6 +928,13 @@ pub fn drive_vehicles(world: &mut World) -> usize {
         let cruise = world
             .get::<crate::vehicles::Vehicle>(vehicle)
             .map_or(0, |built| built.cruise_velocity);
+        // **A vehicle that cannot stand on its wheels does not move at all.** Reference: `vehicle::thrust` (`vehicle_move.cpp:473-479`) stops the vehicle and says so before it
+        // asks for any power, so a hull with no wheels, one wheel that is not stable, or its weight off its wheels stays where it is however hard the driver asks.
+        if !crate::vehicles::valid_wheel_config(world, vehicle) {
+            stop_vehicle(world, vehicle);
+            crate::messages::push(world, "The vehicle doesn't have enough wheels to move!");
+            continue;
+        }
         let direction = cruise_direction(cruise, velocity);
         if direction == 0 {
             continue;

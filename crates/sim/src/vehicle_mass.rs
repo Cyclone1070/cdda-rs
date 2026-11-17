@@ -37,6 +37,47 @@ pub fn part_mass(world: &World, vehicle: Entity, part: usize) -> i64 {
     base + items * spec.cargo_weight_modifier / 100
 }
 
+/// Where the vehicle's weight sits, in mount coordinates - the reference's `local_center_of_mass`.
+///
+/// Reference: `vehicle::calc_mass_center` (`vehicle.cpp:8484-8547`) with `use_precalc` false: each part contributes its mass at its mount, the sum is divided by the total, and the
+/// answer is **rounded** to a whole mount. A vehicle whose parts weigh nothing answers the origin rather than dividing by zero, which is the reference's own guard.
+#[must_use]
+pub fn center_of_mass(world: &World, vehicle: Entity) -> (i32, i32) {
+    let count = world
+        .get::<Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    let mut weighted_x = 0.0;
+    let mut weighted_y = 0.0;
+    let mut total = 0_i64;
+    for part in 0..count {
+        let Some(entry) = world
+            .get::<Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(part))
+        else {
+            continue;
+        };
+        let mass = part_mass(world, vehicle, part);
+        if mass == 0 {
+            continue;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let mass_f = mass as f64;
+        weighted_x += f64::from(entry.x) * mass_f;
+        weighted_y += f64::from(entry.y) * mass_f;
+        total += mass;
+    }
+    if total == 0 {
+        return (0, 0);
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let total_f = total as f64;
+    #[allow(clippy::cast_possible_truncation)]
+    let x = (weighted_x / total_f).round() as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let y = (weighted_y / total_f).round() as i32;
+    (x, y)
+}
+
 /// What the whole vehicle weighs, in grams - the reference's `total_mass` cache.
 ///
 /// **Named:** the reference skips a part that is `removed` or a fake part, and its cache can be modified by enchantments. The port has neither removed parts, fake parts nor

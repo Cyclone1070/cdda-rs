@@ -37877,3 +37877,26 @@ Gated red-first on the four factors and on the difference they make: the same ma
 
 **Still absent from `slowdown`:** the watercraft term, the falling and flying exemptions, the towing recursion and the plow term - all of them zero on every recorded vehicle,
 and all of them named here rather than silently folded into one.
+
+## A vehicle needs its wheels under it (round 165)
+
+Three rules the reference keeps apart and the port had none of:
+
+| Rule | Reference | What it decides |
+|---|---|---|
+| `wheels` | `wheelcache` (`vehicle.cpp:6738-6740`) | every unbroken part carrying `WHEEL` |
+| `sufficient_wheel_config` | `:4984-4997` | none is no; **one** is only enough when it is `STABLE` and the hull is three structure tiles at most |
+| `balanced_wheel_config` | `:5104-5121` | the bounding box of the wheel mounts must contain the centre of mass |
+| `valid_wheel_config` | `:5123-5126` | both of the above |
+
+`vehicle_mass::center_of_mass` is `calc_mass_center`'s non-precalc branch (`:8484-8547`): each part's mass at its mount, divided by the total and **rounded**, with a zero-weight
+vehicle answering the origin instead of dividing by zero.
+
+**Wired where the reference wires it:** `vehicle::thrust` (`vehicle_move.cpp:473-479`) stops a vehicle whose wheels cannot carry it and says so *before* asking for power, so the drive
+step now does the same - a hull on its belly cannot be driven off, however hard the driver asks.
+
+Gated on two cases: a car stands on four wheels and is valid, and the same car with every wheel broken is neither sufficient nor balanced nor valid - and when a driver asks it
+to move, it stops. Mutation-checked by skipping the check in the drive step, which the second test catches.
+
+**Named, not guessed:** `sufficient_wheel_config` counts structure parts by the `structure` location on the part's spec; the reference counts `part_location_structure` the same
+way. The boarding weight the reference adds to a `BOARDABLE` part's mass is still absent from the centre of mass, and is written here rather than folded in.
