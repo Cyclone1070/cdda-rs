@@ -527,7 +527,7 @@ fn move_creature(
         listener: about_listener,
         fail_message,
         success_message,
-        ..
+        force,
     } = effect
     else {
         return Applied::CannotAnswer;
@@ -549,14 +549,18 @@ fn move_creature(
         show(world, speaker, listener, fail_message.as_ref());
         return Applied::CannotAnswer;
     };
-    if let Some(mut position) = world.get_mut::<crate::Position>(actor) {
-        position.x = x;
-        position.y = y;
-        position.z = z;
+    // **The move is the teleport rule, not a write to the position.** Reference: `f_teleport` calls `teleport::teleport_to_point( ..., force, force_safe )` (`npctalk.cpp:7836-7845`),
+    // so a worn dimensional anchor, a teleport lock, a square off the world or a solid landing refuses here exactly as it does for a spell - and `force` is the flag the data uses to
+    // overrule the anchor.
+    let outcome = crate::teleport::to_point_with(world, actor, (x, y, z), true, *force);
+    if matches!(outcome, crate::teleport::Teleport::Moved { .. }) {
+        // Reference: `f_teleport` shows `success_message` after a move that happened, and an absent one says nothing.
+        show(world, speaker, listener, success_message.as_ref());
+        return Applied::Done;
     }
-    // Reference: `f_teleport` shows `success_message` after a move that happened, and an absent one says nothing.
-    show(world, speaker, listener, success_message.as_ref());
-    Applied::Done
+    // Reference: and `fail_message` when `teleport_to_point` answers `false`, which includes the same-square case.
+    show(world, speaker, listener, fail_message.as_ref());
+    Applied::CannotAnswer
 }
 
 /// Shows a line the data gave beside an effect, when it gave one.

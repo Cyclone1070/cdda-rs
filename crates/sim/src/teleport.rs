@@ -95,6 +95,20 @@ fn standable_refused(world: &mut World, square: (i32, i32, i32)) -> bool {
 /// landing **refuses** when the teleport is safe (`"You cannot teleport safely."`); and a solid landing without safety kills the creature outright - `apply_damage` of
 /// 9,999 to the torso, which is the reference's way of saying "there is no body left to find".
 pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: bool) -> Teleport {
+    to_point_with(world, who, target, safe, false)
+}
+
+/// The same rule with the reference's `force` at hand.
+///
+/// Reference: `teleport_to_point` takes `force` and `force_safe` (`teleport.cpp:172-180`), and the only thing they change early is the anchor guard: a forced teleport ignores a
+/// worn or applied `DIMENSIONAL_ANCHOR` and a `TELEPORT_LOCK` (`:191-201`). The dialogue's `u_teleport` is where the flag comes from.
+pub fn to_point_with(
+    world: &mut World,
+    who: Entity,
+    target: (i32, i32, i32),
+    safe: bool,
+    force: bool,
+) -> Teleport {
     let Some(origin) = world
         .get::<crate::Position>(who)
         .map(|at| (at.x, at.y, at.z))
@@ -111,9 +125,10 @@ pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: b
     }
     // **A locked creature does not move.** Reference: `teleport.cpp:191-201` refuses a teleportee wearing an item or carrying an effect with `DIMENSIONAL_ANCHOR`, or an effect
     // with `TELEPORT_LOCK`. Three sources, one bypass: all three are tested here, and the bypass (`force`/`force_safe`) belongs to the caller that has one, which this rule does not.
-    if crate::creature::wears_flag(world, who, "DIMENSIONAL_ANCHOR")
-        || crate::applied_effects::has_flag(world, who, "DIMENSIONAL_ANCHOR")
-        || crate::applied_effects::has_flag(world, who, "TELEPORT_LOCK")
+    if !force
+        && (crate::creature::wears_flag(world, who, "DIMENSIONAL_ANCHOR")
+            || crate::applied_effects::has_flag(world, who, "DIMENSIONAL_ANCHOR")
+            || crate::applied_effects::has_flag(world, who, "TELEPORT_LOCK"))
     {
         return Teleport::Refused;
     }

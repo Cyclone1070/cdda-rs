@@ -2485,3 +2485,53 @@ fn the_global_message_member_says_a_line() {
     );
     assert_eq!(cdda_sim::messages::lines(&world).len(), 2);
 }
+
+/// **A locked creature is not moved by a teleport effect.** Reference: `f_teleport` (`npctalk.cpp:7836-7845`) hands the move to `teleport::teleport_to_point` and shows
+/// `fail_message` when it answers `false` - so the guard that holds a spell's teleport holds a dialogue's too, and the failure is visible to the player.
+#[test]
+fn a_locked_creature_is_not_moved_by_a_teleport_effect() {
+    use cdda_sim::dialogue_effects::{Applied, run_effects};
+    use cdda_sim::dialogue_values::{self, Value};
+    use cdda_sim::messages;
+
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let mut kind = cdda_sim::effect_registry::bare("effect_lock");
+    kind.flags.insert("TELEPORT_LOCK".to_owned());
+    cdda_sim::effect_registry::set_effect_types(&mut world, &[kind]);
+    cdda_sim::applied_effects::add(
+        &mut world,
+        survivor,
+        cdda_sim::effects::ActiveEffect {
+            id: "effect_lock".to_owned(),
+            intensity: 1,
+            duration: 10,
+            permanent: false,
+        },
+    );
+    let holder = dialogue_values::holder_for(&mut world, survivor, false);
+    dialogue_values::set(
+        &mut world,
+        holder,
+        "dest",
+        Value::Position { x: 5, y: 5, z: 0 },
+    );
+
+    let effect = cdda_content::dialogue::Effect::Teleport {
+        scope: "u_val".to_owned(),
+        name: "dest".to_owned(),
+        listener: false,
+        fail_message: None,
+        success_message: None,
+        force: false,
+    };
+    assert_eq!(
+        run_effects(&mut world, survivor, None, &[effect]),
+        Applied::CannotAnswer,
+        "**the guard refused, and the effect says so**"
+    );
+    let at = world
+        .get::<cdda_sim::Position>(survivor)
+        .map(|at| (at.x, at.y, at.z));
+    assert_eq!(at, Some((0, 0, 0)), "the locked creature did not move");
+}

@@ -37720,3 +37720,20 @@ smaller thing that already worked. **Search for the question, not the subsystem.
 
 **What the guard does not do:** `force`/`force_safe` bypass it, and this rule has no force parameter - that belongs to the caller that has one. Recorded so the bypass is not
 forgotten when the dialogue effect is wired.
+
+## The dialogue's teleport is the teleport rule (round 155)
+
+`u_teleport` used to write the position directly, which made it the one teleport in the game that ignored every guard. It now calls `teleport::to_point_with` - the reference's
+own arrangement, since `f_teleport` hands the move to `teleport_to_point( ..., force, force_safe )` and messages on its answer (`npctalk.cpp:7836-7845`). A worn
+`DIMENSIONAL_ANCHOR`, an applied `TELEPORT_LOCK`, a target off the world, or a solid landing now refuses the dialogue's teleport as it refuses a spell's, and `force` is the
+data's own bypass.
+
+Gated red-first: a locked creature running a teleport effect does not move and the effect answers `CannotAnswer`.
+
+**The census moved, and the movement is the point.** `ran` fell 481 -> 479 and the built world's 486 -> 484, and `u_teleport` now appears nine times in the built world's
+refusals. Before this round those programs "ran" by writing a position onto a square nothing could stand on. **The count was measuring the bypass, not the port.** Guard 5 -
+the out-of-bounds bubble move - is why the built world refuses them, and that is now a named gap with a number attached instead of an invisible one.
+
+**Two fixtures had to gain a floor**, because a teleport now asks what is under the target: `probe.rs`'s two teleport tests load terrain and never say which code is passable.
+While fixing them the level's third argument turned out to be the **terrain code**, not the level index - two squares were being raised to z=1 instead of given a floor. A test
+that loads a level without a terrain table is a world with nothing to stand on, which nothing noticed until a rule started asking.

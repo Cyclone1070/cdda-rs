@@ -129,10 +129,22 @@ fn programs_run_on_the_people_the_filters_leave() {
 #[test]
 fn a_teleport_moves_to_the_stored_square() {
     let mut world = bevy_ecs::prelude::World::new();
+    // **A floor is what lets the teleport land.** The effect now goes through the landing rule (`teleport_to_point`), which asks whether the square is passable - so the fixture
+    // has to say which terrain code is floor, the same way a loaded map does.
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
     let mut level = cdda_core_types::level::Level::new();
     for x in -8..24 {
         for y in -8..24 {
-            level.set_terrain(x, y, 0, 0);
+            level.set_terrain(x, y, 1, 0);
         }
     }
     cdda_sim::load_level(&mut world, &level);
@@ -2223,6 +2235,24 @@ fn a_finished_mission_leaves_the_list() {
 #[test]
 fn a_teleport_shows_one_message_of_two() {
     let mut world = bevy_ecs::prelude::World::new();
+    // The same floor as above: the success half of this test needs a square to land on, because the effect asks the landing rule rather than writing a position.
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    terrain.insert(1, true);
+    terrain.insert_move_cost(1, 2);
+    cdda_sim::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
+    let mut level = cdda_core_types::level::Level::new();
+    for x in -8..24 {
+        for y in -8..24 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
     let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
     let globals = cdda_sim::dialogue_values::holder_for(&mut world, survivor, true);
 
