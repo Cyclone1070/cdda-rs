@@ -37550,3 +37550,9 @@ was left mid-turn. The reference also clears `skidding` and `last_turn`; the por
 silently dropped.
 
 Gated on a moving car with a carry and a turned wheel: all three come back cleared.
+
+**`drop()` on a borrow is not a lint dodge (round 140, CI red then green).** The stop rule first ended its borrow with `drop(built)`, and CI's `-D warnings` failed on
+`clippy::drop_non_drop` within forty seconds - the local gate had passed, because the test file and the source arrive on the build machine at different moments and clippy
+started before the source did. The fix is not an allow: the borrow is **scoped** so it ends where the data is read, which is what the `drop` was trying to say.
+
+**Fifth instance of the local-green/CI-red race**, and the same lesson every time: after a red-on-green CI result, re-run `--clippy` locally before believing the gate.
