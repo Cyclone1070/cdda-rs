@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-17 06:11:23
-@@ -0,0 +1,9210 @@
++++ oracle/src/src/harness.cpp	2026-11-18 01:18:12
+@@ -0,0 +1,9314 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -367,6 +367,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +#include "martialarts.h"
 +
 +#include "units.h"
++#include <cmath>
 +#include <tuple>
 +#include "weather.h"
 +#include "weather_gen.h"
@@ -1802,6 +1803,109 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            first_case = false;
 +            here.destroy_vehicle( veh );
 +        }
++    }
++
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
++/// A **driving session**: a vehicle driven straight, steered, and forced into a skid, recording after every `act_on_map` what the reference thinks the hull is doing.
++///
++/// The other vehicle dumps answer one question each - what a square costs, what a crash dents, what a plate absorbs. This one answers the *combination*: a steering press sets
++/// the wheel and the turn the hull owes (`vehicle::turn`, `vehicle_move.cpp:676-685`), every accepted move spends a degree of it (`map.cpp:917-928`), and the hull's facing is
++/// the travel direction - or the wheels, while skidding. `face`, `turn_dir`, `last_turn` and `skidding` are the four numbers those rules move, and they are what a port has to
++/// agree about.
++void dump_vehicle_drive( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -24; dx <= 24; dx++ ) {
++        for( int dy = -24; dy <= 24; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"vehicle_drive\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++
++    struct drive_case {
++        const char *name;
++        const char *type;
++        int speed;
++        // Presses, as (step to press before, degrees).
++        std::vector<std::pair<int, int>> presses;
++        // A forced skid: the step it is set before, and the wheel direction it is set to.
++        int skid_at;
++        int skid_wheel;
++    };
++    // **Speeds a square can be afforded at**: below about a thousand vmiph a square costs the whole turn, so `act_on_map` carries the movement points instead of
++    // moving and nothing about the hull changes. Every case drives, so every case is above that line.
++    const drive_case cases[] = {
++        { "straight", "car", 1000, {}, -1, 0 },
++        { "one_press", "car", 2000, { { 2, 45 } }, -1, 0 },
++        { "presses_both_ways", "car", 2000, { { 2, -30 }, { 7, 15 } }, -1, 0 },
++        { "bicycle_press", "bicycle", 1000, { { 2, 45 } }, -1, 0 },
++    };
++
++    for( const drive_case &one : cases ) {
++        const tripoint_bub_ms start = origin + tripoint_rel_ms( 0, 10, 0 );
++        vehicle *veh = here.add_vehicle( vproto_id( one.type ), start, 0_degrees, 100, 0, false, true );
++        if( veh == nullptr ) {
++            std::fprintf( stderr, "harness: %s did not place\n", one.type );
++            continue;
++        }
++        // **A driver at the controls.** A vehicle with nobody aboard is given a one-in-ten chance per step to break into a skid
++        // (`vehicle_move.cpp:1925-1943`), which would make every row of this dump depend on how many dice the previous row drew. Boarding the avatar keeps the session
++        // about steering and movement, which is what the dump is for; the skid rules are recorded elsewhere. The avatar has to stand on the vehicle first, or the
++        // boarding moves the hull to wherever they are and every row records the wrong square.
++        Character &driver = get_player_character();
++        driver.setpos( here, start );
++        here.board_vehicle( start, &driver );
++        veh->velocity = one.speed;
++        veh->cruise_velocity = one.speed;
++        veh->of_turn = 1.0f;
++        std::fprintf( out, "%s{\"name\":\"%s\",\"vehicle\":\"%s\",\"speed\":%d,\"steps\":[",
++                      first_case ? "" : ",", one.name, one.type, one.speed );
++        bool first_step = true;
++        for( int step = 0; step < 12; step++ ) {
++            for( const std::pair<int, int> &press : one.presses ) {
++                if( press.first == step ) {
++                    veh->turn( units::from_degrees( press.second ) );
++                }
++            }
++            if( one.skid_at == step ) {
++                veh->skidding = true;
++                veh->turn_dir = units::from_degrees( one.skid_wheel );
++            }
++            veh = veh->act_on_map( here );
++            if( veh == nullptr ) {
++                std::fprintf( out, "%s{\"gone\":true}", first_step ? "" : "," );
++                break;
++            }
++            std::fprintf( out,
++                          "%s{\"x\":%d,\"y\":%d,\"velocity\":%d,\"of_turn\":%.9g,\"face\":%d,"
++                          "\"turn_dir\":%d,\"last_turn\":%d,\"skidding\":%s}",
++                          first_step ? "" : ",",
++                          veh->pos_bub( here ).x() - start.x(), veh->pos_bub( here ).y() - start.y(),
++                          veh->velocity, static_cast<double>( veh->of_turn ),
++                          static_cast<int>( std::lround( units::to_degrees( veh->face.dir() ) ) ),
++                          static_cast<int>( std::lround( units::to_degrees( veh->turn_dir ) ) ),
++                          static_cast<int>( std::lround( units::to_degrees( veh->last_turn ) ) ),
++                          veh->skidding ? "true" : "false" );
++            first_step = false;
++        }
++        std::fprintf( out, "]}" );
++        first_case = false;
++        here.destroy_vehicle( veh );
 +    }
 +
 +    std::fprintf( out, "]}\n" );
@@ -9572,8 +9676,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-17 01:50:46
-@@ -0,0 +1,446 @@
++++ oracle/src/src/harness.h	2026-11-17 23:23:50
+@@ -0,0 +1,447 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9729,6 +9833,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_thrust( const std::string &path );
 +void dump_vehicle_slowdown( const std::string &path );
 +void dump_vehicle_move( const std::string &path );
++void dump_vehicle_drive( const std::string &path );
 +void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
 +void dump_vehicle_top_speed( const std::string &path );
@@ -10307,7 +10412,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-17 05:43:16
++++ oracle/src/src/main.cpp	2026-11-17 23:23:50
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10318,7 +10423,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,183 @@
+@@ -272,6 +275,184 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10490,6 +10595,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_thrust;
 +    std::string dump_vehicle_slowdown;
 +    std::string dump_vehicle_move;
++    std::string dump_vehicle_drive;
 +    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
 +    std::string dump_vehicle_turn;
@@ -10502,7 +10608,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +480,1600 @@
+@@ -300,6 +481,1610 @@
                  }
              },
              {
@@ -10722,6 +10828,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_crash = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-drive", "<file>",
++                "Writes a driving session: what the hull faces, where its wheels point and what turn it owes after every step",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_drive = params[0];
 +                    return 1;
 +                }
 +            },
@@ -12103,7 +12219,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2560,963 @@
+@@ -786,6 +2571,975 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -12402,6 +12518,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_crash( cli.dump_vehicle_crash );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_drive.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_drive( cli.dump_vehicle_drive );
 +            exit_handler( 0 );
 +        }
 +

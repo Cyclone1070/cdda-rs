@@ -37938,3 +37938,26 @@ rather than the code, and it went green because nothing else read the field. It 
 
 **The lesson is not "read more carefully".** The field had **no reader** when it was written, so its value was unverifiable by anything but a test I wrote in the same breath.
 A rule gains its meaning when something consumes it, and until then its test only pins my reading. Extraction this round is what made the difference visible.
+
+## A build cannot outlive the call that started it, and driving found a real gap (round 169)
+
+**The leak is closed by construction.** Round 169 left two compiler trees running on the build machine, each re-parented to init because a killed wrapper and an aborted tool call end
+the *client*, not the *build*. `tools/oracle_sync.sh` now has three layers, and `tools/oracle_leak_test.sh` proves the hardest one:
+
+| Layer | Covers |
+|---|---|
+| remote watchdog in its own session | the SSH session dies: the build's process group is torn down |
+| local `trap` on `EXIT`/`INT`/`TERM`/`HUP` | an ordinary interrupt or a killed job |
+| `timeout` ceiling + a preflight that reaps orphans | a client killed so hard that nothing local runs |
+
+The proof is a command with an answer: the leak test starts a real build, waits until the compiler is running, then **SIGKILLs the wrapper's whole process group** - the abort case,
+where no local trap can run. It reports `PASS - the far side stopped by itself after 2s`. (macOS has no `setsid(1)`, so the test makes its session with Perl's `setsid(2)`.)
+
+**The driving session itself found what it was built to find.** `--dump-vehicle-drive` records a car and a bicycle with a driver aboard, steered and pressed, twelve `act_on_map`
+steps each: `face`, `turn_dir`, `last_turn`, velocity, movement points. Replaying it exposed that **the port drove along the hull instead of the wheels**: a steering press changed
+`Wheels.turn_dir` and nothing else, so a car could not be turned at all. Two changes follow the reference now: a spawned vehicle's wheels start on its hull (`mapgen.cpp:7543-7550`),
+and a step is planned from `turn_dir` (`map.cpp:808-830`) with the hull facing the way it went afterwards (`:934-939`).
+
+**The replay is red on one thing, and it is not that.** At a forty-five degree press the reference travels diagonally and the port still steps one cardinal square, so `face` differs
+where the two disagree about what a diagonal step *is*. That is the next round: the diagonal step, then the replay lands with the recording, which is kept out of the tree until a
+test reads it - the QA gate refuses a corpus file nobody compares against, and it is right to.

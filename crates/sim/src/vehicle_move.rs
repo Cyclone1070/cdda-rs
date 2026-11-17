@@ -533,7 +533,10 @@ pub fn move_step_with_rolls(
     if let Some(mut built) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
         built.of_turn -= cost;
     }
-    let (dx, dy) = crate::rotation::coord_translate(rotation, (0, 0), (1, 0));
+    // **A vehicle travels where its wheels point, not where its hull points.** Reference: `map::move_vehicle` is handed the vehicle's `turn_dir` and steps along it
+    // (`map.cpp:808-830`), and only afterwards does the hull face the way it went (`:934-939`) - which is why a steering press turns the *next* step, not the current one.
+    let heading = f64::from(wheel_direction(world, vehicle));
+    let (dx, dy) = crate::rotation::coord_translate(heading, (0, 0), (1, 0));
     let step = if velocity < 0 { (-dx, -dy) } else { (dx, dy) };
 
     // **Anything in the way stops the vehicle where it stands.** The detection is the port's own [`crate::vehicles::first_collision`] - the rule that answers

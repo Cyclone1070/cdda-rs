@@ -192,6 +192,13 @@ pub fn spawn_facing(
             },
         ))
         .id();
+    // **The wheels start where the hull points** - the reference's `add_vehicle` gives the vehicle a `turn_dir` beside its facing (`mapgen.cpp:7543-7550`), and a
+    // vehicle's step is planned from the wheels, so a hull with no wheel direction would travel north whatever way it was placed.
+    world
+        .entity_mut(entity)
+        .insert(crate::vehicle_move::Wheels {
+            turn_dir: floor_to_heading(rotation),
+        });
     // A vehicle stands on every square its parts occupy, so the index holds it there as it is built; a rebuild derives the same entries from the same rule.
     let squares = occupied_squares(world, entity);
     let mut index = crate::singletons::index_mut(world);
