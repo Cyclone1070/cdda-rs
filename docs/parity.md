@@ -37583,3 +37583,15 @@ Each rule below was broken on purpose and its test watched fail, then the rule r
 
 **Why this is a round's work:** the vehicle module grew quickly, and a test that has only ever passed is a claim. Two rules now have a demonstrated failure mode; the rest of
 the module's tests were written red-first, which is the same evidence obtained earlier.
+
+**Two more rules given a failure mode (round 144).** `facing_after_move` with its two branches swapped, and `steered_direction` rounding replaced by truncation, each made its
+test fail (`1 failed`), and each was restored from a saved copy with the tree confirmed clean.
+
+| Rule | Mutation | Result |
+|---|---|---|
+| `facing_after_move` | the skidding and travel branches swapped | failed |
+| `steered_direction` | truncates the click count instead of rounding | failed |
+| `decayed_turn` | keeps a sub-decrement turn | failed (round 143) |
+| `stop_vehicle`'s wheel | writes 45 instead of the facing | failed (round 142) |
+
+**Four rules now have a demonstrated failure mode.** The rest of the turn family was written red-first; `cruise_thrust` is next in the pass.
