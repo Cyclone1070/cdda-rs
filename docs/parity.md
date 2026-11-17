@@ -37642,3 +37642,13 @@ allowed, and the difference between the avatar and a monster is which map is loa
 
 **Not yet ported, and now precisely named:** the flag names need to exist as flags in the item/effect registries, and the bubble move needs the overmap move the port already
 has for the player. The next round takes guards 1 and 2, which need neither: they are pure numbers on a target.
+
+**Guard 1 of the teleport table was already ported, and my new test was a duplicate (round 148).** `teleport::to_point` refuses a same-square teleport at its first line
+(`teleport.rs:105`), and `teleport.rs`'s existing suite already asserts it - with a deliberate choice the reference does not make explicit: it answers `Unchanged`, not
+`Refused`, because the port distinguishes "the rule said no" from "there was nothing to do".
+
+**The test I wrote failed because it disagreed with a decision already on record, not because the code was wrong.** Reading the existing suite before writing a new test is the
+cheap half of TDD that this round skipped; the red was real, and it was red about my assumption.
+
+**Still open on the teleport table:** guard 2 (z outside the depth/height range) has **not** been located in `to_point` - the port's function is a short-range landing rule, and
+the z guard may live in the caller. That is the next thing to read, not to write.
