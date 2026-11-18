@@ -38559,3 +38559,29 @@ Mutation-checked: paying the battery once per burst instead of once per shot ans
 
 **Named gap**: the reference also clears the mounted gun's magazine wells - a flamethrower's spent pressurized tanks - and swaps the tank's fluid into the gun's magazine before
 firing. The port has no magazine-well model on a mounted gun, so nothing is cleared; what the shots cost is ported, what they leave behind is not.
+
+## A firearm's range lives in its round (round 201)
+
+`item::gun_range( with_ammo )` (`item.cpp:11282-11300`) is: the gun's own range plus every gunmod's, times the gunmods' multipliers; then, if the gun has ammunition, **plus the round's
+range**, with its multiplier; then clamped to `[0, 792]` - `RANGE_HARD_CAP` is `MAX_VIEW_DISTANCE`, `SEEX × HALF_MAPSIZE`.
+
+That ordering is the whole reason the rule needed a new recording. The `--dump-guns` table says **zero** for the M249, the .22 pistol and the chemical thrower, because in this
+baseline a firearm's reach is stated by its **cartridge**:
+
+| Gun | Own range | Round | Round's range | Reach |
+|---|---|---|---|---|
+| `m249` | 0 | `223` | **36** | 36 |
+| `1911_22` | 0 | `22_lr` | 13 | 13 |
+| `flamethrower` | 6 | `napalm` | 6 | 12, and only because its mount feeds from the tanks |
+
+So `--dump-ammo` gained a `range` member and its version went from 5 to 6, `cdda_content::ammo::AmmoType` gained `range`, and `cdda_content::guns::gun_range` ports the arithmetic.
+A version-5 recording still loads: a round with no recorded range answers zero rather than failing the loader, and the version marker says which kind of file it is.
+
+`turret_data::range()` (`turret.cpp:213-224`) is the second piece, and it is **not** the same sum: `part->base.gun_range()` is taken first, and the round's range is added
+**afterwards and only for a tank-fed mount**, because such a mount's gun holds no ammunition of its own and `gun_range` would never see the round. `turret_in_range` is the reference's
+`range >= rl_dist(..., target)`, edges included.
+
+Mutation-checked: dropping the round's range from `gun_range` makes the M249 reach zero squares.
+
+**Named gap**: gunmods are a parameter, not a model - the port has no gunmod list on an item yet, so every caller passes an empty slice and the multiplier stays one. The arithmetic is
+ported so that the day a gun carries a sight, the sight's range is already in the right place.

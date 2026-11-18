@@ -130,3 +130,43 @@ fn number(object: &Object, key: &str, fallback: i32) -> Result<i32, String> {
         None => Ok(fallback),
     }
 }
+
+/// **How far a gun carries** - the reference's `item::gun_range( bool with_ammo )` (`item.cpp:11282-11300`).
+///
+/// The arithmetic is: the gun's own range, plus every gunmod's, all multiplied by the gunmods' range multipliers; then, when the gun has ammunition, the round's own range is **added**
+/// and its multiplier multiplied in; the result is clamped to `[0, cap]`.
+///
+/// **This is where a firearm's range lives in this baseline.** The guns' own `range` is zero for almost every firearm - an M249 states none - and the cartridge states it: 36 for a
+/// .223, 14 for a 9mm, 18 for 00 shot, 13 for a .22 long rifle. A port that read only the gun would believe every firearm had a range of nothing.
+#[must_use]
+pub fn gun_range(base: i32, mods: &[RangeBonus], ammo: Option<RangeBonus>, cap: i32) -> i32 {
+    let mut total = base;
+    let mut multiplier = 1.0_f32;
+    for each in mods {
+        total += each.range;
+        multiplier *= each.multiplier;
+    }
+    if let Some(round) = ammo {
+        total += round.range;
+        multiplier *= round.multiplier;
+    }
+    let scaled = total.saturating_add(range_share(total, multiplier));
+    scaled.clamp(0, cap)
+}
+
+/// The floating-point share of the multiplier, kept as its own step so the integer cast is one place with one reason.
+fn range_share(total: i32, multiplier: f32) -> i32 {
+    // The reference multiplies in `float` and truncates; a range that overflows an `i32` cannot be reached by any data this port carries, and the clamp above bounds the answer.
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let share = (total as f32 * multiplier) as i32 - total;
+    share
+}
+
+/// **A range bonus**: a gunmod's, or a round's own - `gunmod::range` and `gunmod::range_multiplier`, `ammo::range` and `ammo::range_multiplier`.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct RangeBonus {
+    /// How many squares it adds.
+    pub range: i32,
+    /// What it multiplies the whole by.
+    pub multiplier: f32,
+}

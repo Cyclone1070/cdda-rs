@@ -1467,3 +1467,20 @@ pub fn turret_pay_for_shots(
     let paid_power = drain(world, vehicle, "battery", power_cost);
     (paid_fuel, paid_power)
 }
+
+/// **How far a turret carries** - the reference's `turret_data::range()` (`turret.cpp:213-224`): the base gun's `gun_range()`, **plus** the round's own range when the mount feeds from
+/// the vehicle's tanks, because then the gun itself holds no ammunition and `gun_range` never sees the round.
+#[must_use]
+pub fn turret_range(base_gun_range: i32, tank_fed: bool, ammo_range: Option<i32>) -> i32 {
+    let mut total = base_gun_range;
+    if let Some(range) = ammo_range.filter(|_| tank_fed) {
+        total += range;
+    }
+    total
+}
+
+/// **Whether a target is inside a turret's reach** - the reference's `turret_data::in_range` (`turret.cpp:226-235`): `range >= rl_dist( part, target )`.
+#[must_use]
+pub fn turret_in_range(range: i32, distance: i32) -> bool {
+    range >= distance
+}

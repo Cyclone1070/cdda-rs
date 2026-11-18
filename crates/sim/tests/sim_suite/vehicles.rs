@@ -7982,3 +7982,107 @@ fn a_turret_pays_for_its_shots() {
         "to the last charge"
     );
 }
+
+/// **A turret's reach, and the reach of the gun under it.** Reference: `turret_data::range()` (`turret.cpp:213-224`) over `item::gun_range( with_ammo )` (`item.cpp:11282-11300`).
+///
+/// The numbers are the recordings': `corpus/items/guns.json` states the guns' own ranges - **zero for the M249 and the .22 pistol**, six for the flamethrower - and
+/// `corpus/items/ammo.json` (version 6, which is when the round's range was recorded) states the cartridges': **36 for a .223**, 13 for a .22 long rifle, 6 for napalm. A firearm's
+/// reach is the sum, which is why a port that read the gun alone would see zero.
+#[test]
+fn a_turret_reaches_as_far_as_its_gun_and_its_round() {
+    use cdda_content::guns::{RangeBonus, gun_range};
+
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/guns.json");
+    let bytes = std::fs::read(path).expect("the guns recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let guns = cdda_content::guns::load_dump(&value).expect("the guns load");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo.json");
+    let bytes = std::fs::read(path).expect("the ammo recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let rounds = cdda_content::ammo::load_dump(&value).expect("the rounds load");
+
+    let gun_of = |id: &str| guns.iter().find(|gun| gun.id == id).cloned();
+    let round_of = |id: &str| rounds.iter().find(|round| round.id == id).cloned();
+
+    // **The M249's own range is nothing and its cartridge carries 36 squares.**
+    let m249 = gun_of("m249").expect("the machine gun");
+    assert_eq!(m249.range, 0, "the gun states no range of its own");
+    let round = round_of("223").expect("the .223 round");
+    assert_eq!(round.range, 36, "the cartridge states thirty-six");
+    assert_eq!(
+        gun_range(
+            m249.range,
+            &[],
+            Some(RangeBonus {
+                range: round.range,
+                multiplier: 1.0
+            }),
+            792
+        ),
+        36,
+        "**so the gun reaches thirty-six squares loaded**"
+    );
+    assert_eq!(
+        gun_range(m249.range, &[], None, 792),
+        0,
+        "and nothing at all unloaded"
+    );
+
+    // **A flamethrower's mount feeds from the tanks**, so `gun_range` never sees the round and the turret adds it: six stated by the gun, six by napalm.
+    let flamer = gun_of("flamethrower").expect("the flamethrower");
+    assert_eq!(flamer.range, 6, "the flamethrower states six");
+    let napalm = round_of("napalm").expect("napalm");
+    assert_eq!(
+        cdda_sim::vehicles::turret_range(flamer.range, true, Some(napalm.range)),
+        12,
+        "**twelve squares when the round's range is added**, which is the tank-fed branch"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::turret_range(flamer.range, false, Some(napalm.range)),
+        6,
+        "and six when the port is told the mount does not feed from them"
+    );
+
+    // **A gunmod's bonus applies to the whole, then the round is added and the result clamped** - `ret *= multiplier` after the sum (`item.cpp:11297-11299`).
+    assert_eq!(
+        gun_range(
+            6,
+            &[RangeBonus {
+                range: 2,
+                multiplier: 2.0
+            }],
+            Some(RangeBonus {
+                range: 3,
+                multiplier: 1.0
+            }),
+            792
+        ),
+        22,
+        "**six plus two plus three, all doubled**"
+    );
+    assert_eq!(
+        gun_range(
+            0,
+            &[RangeBonus {
+                range: 900,
+                multiplier: 1.0
+            }],
+            None,
+            792
+        ),
+        792,
+        "and the cap holds at the reference's own"
+    );
+
+    // **Reach is a distance test, edges included**: 36 squares reaches 36 and not 37.
+    assert!(
+        cdda_sim::vehicles::turret_in_range(36, 36),
+        "the edge is in range"
+    );
+    assert!(
+        !cdda_sim::vehicles::turret_in_range(36, 37),
+        "one square past it is not"
+    );
+}

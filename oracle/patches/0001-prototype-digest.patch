@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-19 00:40:15
-@@ -0,0 +1,9869 @@
++++ oracle/src/src/harness.cpp	2026-11-19 08:05:18
+@@ -0,0 +1,9870 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -7297,7 +7297,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
 +        return;
 +    }
-+    std::fprintf( out, "{\"harness\":\"ammo\",\"version\":5,\n\"ammo\":[\n" );
++    std::fprintf( out, "{\"harness\":\"ammo\",\"version\":6,\n\"ammo\":[\n" );
 +    bool first = true;
 +    for( const itype *type : item_controller->all() ) {
 +        if( type == nullptr || !type->ammo ) {
@@ -7324,7 +7324,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            }
 +        }
 +        std::fprintf( out, "%s\n{\"id\":\"%s\",\"damage\":%.6g,\"damage_bash\":%d,\"damage_cut\":%d,\"damage_stab\":%d,"
-+                      "\"damage_bullet\":%d,\"count\":%d,\"shot_spread\":%d,\"recovery_chance\":%d,\"shot_damage\":%.6g,\"recoil\":%d,\"ammo_types\":\"%s\",\"loudness\":%d,\"effects\":\"%s\"}",
++                      "\"damage_bullet\":%d,\"count\":%d,\"shot_spread\":%d,\"recovery_chance\":%d,\"shot_damage\":%.6g,\"recoil\":%d,\"ammo_types\":\"%s\",\"loudness\":%d,\"range\":%d,\"effects\":\"%s\"}",
 +                      first ? "" : ",",
 +                      harness_escape( type->get_id().str() ).c_str(),
 +                      dam_total, dam_bash, dam_cut, dam_stab, dam_bullet,
@@ -7335,6 +7335,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                      type->ammo->recoil,
 +                      harness_ammo_type( *type->ammo ).c_str(),
 +                      type->ammo->loudness,
++                      type->ammo->range,
 +                      harness_effects( type->ammo->ammo_effects ).c_str() );
 +        first = false;
 +    }

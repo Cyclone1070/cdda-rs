@@ -36,6 +36,10 @@ pub struct AmmoType {
     /// The **ammunition type** the round belongs to - `islot_ammo::type` (`itype.h:1063`), one a round. A gun names a type (`"shot"`); the rounds that fit it are keyed by their own ids
     /// (`shot_bird`, `shot_00`), so the two namespaces must not be confused.
     pub ammo_type: String,
+    /// **How far the round carries**: `islot_ammo::range` (`itype.h`), which `item::gun_range` adds to a gun's own range when the gun has ammunition
+    /// (`item.cpp:11293-11296`). It is where a firearm's range actually lives in this baseline: the guns' own `range` is zero for almost every firearm, and the
+    /// ammunition states 36 for a .223 or 3 for a thrown rock.
+    pub range: i32,
     /// How loud the round is: `islot_ammo::loudness` (`itype.h:1111`), which the factory fills from the round's damage when the data leaves it unstated.
     pub loudness: i32,
     /// The round's ammunition effects, by name: `islot_ammo::ammo_effects` (`itype.h:1100`). **These change what a shot does to the world**, not to its target: `BLACKPOWDER` fouls a gun
@@ -62,6 +66,11 @@ pub fn read_one(id: &str, object: &Object) -> Result<AmmoType, String> {
         shot_damage: float(object, "shot_damage")?,
         recoil: number(object, "recoil")?,
         loudness: number(object, "loudness")?,
+        // **Absent in a version-5 recording**, which is how the port reads a dump made before the field existed: a round whose range was never recorded answers zero rather
+        // than failing the whole loader, and the version marker says which it is.
+        range: object
+            .get("range")
+            .map_or(Ok(0), |_| number(object, "range"))?,
         effects: match object.get("effects") {
             Some(Value::Str(joined)) => joined
                 .split(',')
