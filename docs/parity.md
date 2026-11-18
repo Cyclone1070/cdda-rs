@@ -38065,3 +38065,25 @@ weighing `0 kg`. It is `install_weights_for( &[names] )` now, and the replay ins
 **Named gap, stated in the test rather than hidden:** the port's cars weigh **1016.9 kg against the reference's 1071.8** - five to seven per cent light, because fuel and battery
 weight are not counted. The exchange depends on the mass **ratio**, and both hulls are light together, so the speeds match within a per cent; the deformation energy does not, which
 is why **damage is not asserted** in this replay. Counting carried weight is the next piece of the mass rule.
+
+## The car is missing its doors (round 174)
+
+The impact replay's named mass gap - **1016.9 kg against the reference's 1071.8** - is not fuel, and it is not a rounding. The port's car is built from
+`corpus/vehicles.json`'s blueprint, and a **placed** car has twelve more parts than the blueprint does:
+
+| Part | Blueprint | A placed car |
+|---|---|---|
+| halfboard | 8 | **14** |
+| door | 4 | **8** |
+| windshield | 4 | **6** |
+| every other part | same | same |
+
+So the port is not missing weight from parts it has; **it is missing parts**. The direction of the difference matters: the instance has *more* parts than the prototype the dump
+writes, so the loss is in the generator's view of a prototype rather than in a rule the port applies.
+
+`map::add_vehicle` (`mapgen.cpp:7523-7586`) does not add parts: it constructs `vehicle veh( type )`, so the extra twelve come from what `vproto_id( "car" )` resolves to at load
+time - a prototype that has been merged with `copy-from` / `extend` - while `vehicles::get_all_prototypes()` is being asked for something narrower. **That is the next round's
+question**, and it is a data-fidelity question that touches every vehicle prototype the port has: part count, mass, part squares and collisions all ride on it.
+
+Nothing in this round is ported code: the scratch diagnostic that found this is removed, and the finding is recorded here rather than in a passing test that would pin a wrong
+blueprint.
