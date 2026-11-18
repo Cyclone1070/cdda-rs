@@ -1044,6 +1044,28 @@ interaction, turrets, vehicle groups, appliance forms.
 
 **Exit gate (M4b).** Replay equality on driving, collision, boarding and turret sessions.
 
+#### P8 status at round 196
+
+| Area | State | Witness |
+|---|---|---|
+| Prototypes and parts | **ported** | `corpus/vehicles.json`, 249 prototypes, parts and spawn lists |
+| Mass and centre of mass | **ported** | 1,029,567 g for a spawned car, loot included |
+| Rolling drag, power, top speed | **ported** | `corpus/vehicle_rolling.json`, `vehicle_top_speed.json` |
+| Acceleration and braking | **ported** | `corpus/vehicle_acceleration.json` |
+| Impact along centres of mass | **ported** | `corpus/vehicle_impact.json` |
+| Boarding, the driver's exit skid | **ported** | `corpus/vehicle_boarding.json` |
+| A step taken from a vehicle | **ported** | `sim_suite/vehicles.rs`, `walk::a_walk_step...` |
+| Spawn list and loot placement | **ported** (rounds 192-195) | `vehicle_spawn`, `corpus/vehicles.json`'s spawns |
+| Turrets | **not started** | nothing aims; the part data carries `TURRET` |
+| Towing | **not started** | no link between two vehicles |
+| z-movement, ramps, rails | **not started** | one z level |
+| Perpendicular damage per part pair | **not started** | impact is along the centres of mass |
+| Pivot displacement | **not started** | parts do not shift while turning |
+| `engine_fuel_left`'s `removed` clause | **not needed** | the port deletes a removed part; there is no slot left to filter |
+
+The walk that happens on a vehicle is ported with its price: `combined_movecost` → `run_cost` with the limb blend, flat ground, the diagonal's √2 round trip and stamina, and the
+tank burns and refills around it. That belongs to P6 but was needed here, because a step from a vehicle is a step.
+
 ---
 
 ### P9 — Overmap, world generation, factions, missions (43 files, 47,547 LOC)

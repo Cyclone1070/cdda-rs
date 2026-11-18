@@ -38455,3 +38455,17 @@ where it belongs instead of going through the survivor-facing rule, and says why
 Mutation-checked: destroying on any damage at all empties the trunk where a rock should survive.
 
 **Still open:** the item's damage has no consequence yet - a marked rock is still a rock. Damage levels, repair and the effects of wear are their own round.
+
+## Round 196: the record catches up, and one gap was never a gap
+
+Two documents were stale: `docs/HANDOFF.md` described the port as it stood at round 184 - before the price of a step, the tank, the body, the vehicle's loot - and it is now rewritten
+to the current edge and **tracked**, because a handoff nobody can read in a fresh clone is not a handoff. `docs/05-roadmap.md`'s P8 section gained the status table the roadmap asks for:
+what is ported (prototypes, mass, rolling drag, power, top speed, acceleration, impact, boarding, the step from a vehicle, the spawn list and its placement) and what is not
+(turrets, towing, z-movement, perpendicular damage, pivot displacement).
+
+**And one item on that list was wrong.** `engine_fuel_left`'s "`removed` clause" was recorded as a gap for several rounds. The reference needs it because a removed part stays in its
+`parts` vector with a flag, so `fuel_containers` has to be filtered; **the port deletes the part from the vector** (`built.parts.remove( index )` in `remove_one_part`), so a removed
+tank is not in the list to be summed. The clause has no port equivalent because the structure it guards against does not exist here - which is the architecture rule working as intended:
+ids and a store, not a slot that lies.
+
+That is worth writing down precisely because it is easy to mistake for an omission: a port that faithfully reproduced the flag would have been *less* faithful to the behaviour.
