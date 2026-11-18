@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 14:01:04
-@@ -0,0 +1,9535 @@
++++ oracle/src/src/harness.cpp	2026-11-18 15:09:50
+@@ -0,0 +1,9539 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1807,13 +1807,17 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const int mass_before = static_cast<int>( units::to_gram( veh->total_mass( here ) ) );
 +        here.board_vehicle( seat, &you );
 +        const int mass_after = static_cast<int>( units::to_gram( veh->total_mass( here ) ) );
++        const bool boarded = you.in_vehicle;
++
 +        std::fprintf( out,
 +                      "%s{\"vehicle\":\"%s\",\"part\":%d,\"mount\":[%d,%d],\"square\":[%d,%d,0],"
 +                      "\"weight_g\":%d,\"mass_before_g\":%d,\"mass_after_g\":%d,\"in_vehicle\":%s}",
 +                      first_case ? "" : ",", type, part, mount.x(), mount.y(), seat.x(), seat.y(), weight,
-+                      mass_before, mass_after, you.in_vehicle ? "true" : "false" );
++                      mass_before, mass_after, boarded ? "true" : "false" );
 +        first_case = false;
-+        here.unboard_vehicle( seat );
++        // **Unboarding through the part is a rule of its own and is not recorded here yet.** Two attempts to record it in this dump both left the hull unchanged - the
++        // `veh_at` lookup behind it did not find the part the boarding had just used - so the dump keeps only what it can state exactly, and the unboarding rule is ported from
++        // the source with a transcribed case instead (`map.cpp:1420-1440`).
 +        you.setpos( here, origin );
 +        here.destroy_vehicle( veh );
 +    }

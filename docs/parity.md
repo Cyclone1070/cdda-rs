@@ -38152,3 +38152,18 @@ says so in its own comment. Mutation-checked: dropping the rider term fails at `
 
 **`Weight` is a seam, not a rule.** The reference's `Character::get_weight()` is body weight plus everything carried; the port has no carried-weight model yet, so the component holds
 the total and the value is installed where a creature is made. That is honest for now and is the next thing the loot work has to build on either way.
+
+## A driver leaving leaves the machine sliding (round 178)
+
+`map::unboard_vehicle` (`map.cpp:1432-1440`) does more than clear a flag: when the character leaving was **controlling** the vehicle, it stops autodriving and sets `skidding = true`.
+The port's `unboard` now does the same, and asks who was in the **controls** seat rather than inventing a `controlling_vehicle` flag - sitting there is what being in control means in
+this store, and `driver_of` already answers it from the part's own data.
+
+A passenger's exit changes nothing about the hull, and the test pins both halves: the driver's exit skids, the passenger's does not. Mutation-checked by turning the skid into a
+no-op, which fails at `**the machine keeps going sideways**`.
+
+**Named, not guessed:** the reference also clears its autodrive target, and the port has no autodrive to clear. The skid is the whole of the rule the port can carry today.
+
+**And a recording that would not work was thrown away rather than kept.** Two attempts to capture this through `map::unboard_vehicle` in the boarding dump left the reference's own
+hull unchanged - the `veh_at` lookup behind it did not find the part the boarding had just used - so the dump keeps only what it states exactly, and this rule is a transcribed
+upstream case instead (`map.cpp:1420-1440`), which is what [14-test-porting.md](14-test-porting.md) allows when a dump cannot be made to say the thing.

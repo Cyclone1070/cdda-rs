@@ -7003,3 +7003,122 @@ fn a_boarding_session_matches_the_reference() {
     }
     assert_eq!(seen, 3, "all three recorded boardings were replayed");
 }
+
+/// **A driver who climbs out leaves the machine sliding, and a passenger does not.** Reference: `map::unboard_vehicle` (`map.cpp:1432-1440`) - when the character who leaves was
+/// controlling the vehicle, it stops autodriving and sets `skidding = true`; anyone else leaving changes nothing about the hull.
+///
+/// A transcribed upstream case rather than a dump: two attempts to record it through `map::unboard_vehicle` left the reference's own hull untouched, which is a fault in that
+/// recording and not a fact about the rule.
+#[test]
+fn a_driver_leaving_sets_the_hull_sliding() {
+    const FLOOR: u32 = 1;
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+    cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+    for y in 90..=130 {
+        for x in 90..=130 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    install_weights_for(&mut world, &["car"]);
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (110, 110, 0)).expect("a car");
+    let seats = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .map_or(0, |built| built.parts.len());
+
+    // The driver's seat is the first one whose data says `CONTROLS`; the port asks the flag, so the test finds it the same way.
+    let mut driver_seat = None;
+    let mut passenger_seat = None;
+    for index in 0..seats {
+        let probe = world
+            .spawn((
+                cdda_sim::Position {
+                    x: 110,
+                    y: 110,
+                    z: 0,
+                },
+                cdda_sim::vehicles::Riding {
+                    vehicle: car,
+                    part: index,
+                },
+            ))
+            .id();
+        if cdda_sim::vehicles::driver_of(&world, car) == Some(probe) {
+            driver_seat = Some(index);
+        } else if passenger_seat.is_none() {
+            passenger_seat = Some(index);
+        }
+        world.despawn(probe);
+        if driver_seat.is_some() && passenger_seat.is_some() {
+            break;
+        }
+    }
+    let driver_seat = driver_seat.expect("the car has a driver's seat");
+    let passenger_seat = passenger_seat.expect("the car has a passenger seat");
+
+    let driver = world
+        .spawn((
+            cdda_sim::Position {
+                x: 110,
+                y: 110,
+                z: 0,
+            },
+            cdda_sim::vehicles::Riding {
+                vehicle: car,
+                part: driver_seat,
+            },
+        ))
+        .id();
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.velocity = 500;
+        built.skidding = false;
+    }
+    assert_eq!(
+        cdda_sim::vehicles::driver_of(&world, car),
+        Some(driver),
+        "the creature on the controls seat is the driver"
+    );
+    assert!(
+        cdda_sim::vehicles::unboard(&mut world, driver),
+        "the driver climbs out"
+    );
+    let after_driver = world
+        .get::<cdda_sim::vehicles::Vehicle>(car)
+        .is_some_and(|built| built.skidding);
+    assert!(
+        after_driver,
+        "**and the machine keeps going sideways**: a moving vehicle with nobody at the wheel skids"
+    );
+
+    // Now a passenger: the hull must be left exactly as it was.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        built.skidding = false;
+    }
+    let passenger = world
+        .spawn((
+            cdda_sim::Position {
+                x: 110,
+                y: 110,
+                z: 0,
+            },
+            cdda_sim::vehicles::Riding {
+                vehicle: car,
+                part: passenger_seat,
+            },
+        ))
+        .id();
+    assert!(cdda_sim::vehicles::unboard(&mut world, passenger));
+    assert!(
+        !world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .is_some_and(|built| built.skidding),
+        "**a passenger getting out does not disturb the hull**"
+    );
+}

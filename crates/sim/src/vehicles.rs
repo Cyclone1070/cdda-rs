@@ -603,7 +603,20 @@ pub fn board(world: &mut World, vehicle: Entity, creature: Entity) -> Option<usi
 /// Reference: `map::unboard_vehicle` (`map.cpp:1420-1440`). The reference also clears `controlling_vehicle` and stops autodriving; the port has no driving yet, and names that in
 /// `docs/parity.md` rather than pretending the rest is the whole rule.
 pub fn unboard(world: &mut World, creature: Entity) -> bool {
-    world.entity_mut(creature).take::<Riding>().is_some()
+    let Some(riding) = world.get::<Riding>(creature).copied() else {
+        return false;
+    };
+    // **A driver who climbs out leaves the machine sliding.** Reference: `map::unboard_vehicle` (`map.cpp:1432-1440`): when the character leaving *was* controlling the vehicle, it
+    // stops autodriving and sets `skidding = true` - a vehicle with nobody at the wheel does not politely pull over. A passenger's exit changes nothing about the hull.
+    //
+    // The port has no autodrive target to clear yet, so the skid is the whole of the rule here; and it asks who was in the **controls** seat rather than a `controlling_vehicle`
+    // flag, because sitting in that seat is what being in control means in this store.
+    let was_driver = driver_of(world, riding.vehicle) == Some(creature);
+    let had_one = world.entity_mut(creature).take::<Riding>().is_some();
+    if was_driver && let Some(mut built) = world.get_mut::<Vehicle>(riding.vehicle) {
+        built.skidding = true;
+    }
+    had_one
 }
 
 /// Every unbroken part that is a wheel, by index - the reference's `wheelcache` (`vehicle.cpp:6738-6740`).
