@@ -38131,3 +38131,24 @@ trunk, and the port's car is 1016.9 kg because the port has no loot to spawn. **
 **Three rounds on this question produced one correction and no porting.** The generator change is reverted: it produced a byte-identical store, cost a game start, and would have added a
 dependency on `get_all_parts()` to a dump that does not need one. The next round returns to the vehicle feature queue, and the mass gap stays named in the impact test until vehicle
 spawn items are ported on their own terms.
+
+## A boarding session, and the first thing a hull ever weighed besides itself (round 177)
+
+`--dump-vehicle-boarding` places a car, a bicycle and a helicopter, stands the avatar on the first boardable part, and records the part it was put in, the character's weight, and the
+hull's mass either side. The three answers are the same: the character weighs **76,850 g** and every hull gains exactly that.
+
+The port now does the same. `map::board_vehicle` (`map.cpp:1385-1418`) marks the part and invalidates the mass cache; the weight is added back in `vehicle::calc_mass_center`
+(`vehicle.cpp:8514-8520`), so the rule is **a part weighs its rider**. The port keeps the pair where it already lived - a `Riding` on the creature naming its vehicle and seat - and
+a new `Weight` on the creature, and `part_mass` adds it after the cargo modifier, because the modifier scales **cargo** and a passenger is not cargo.
+
+| Case | Part chosen | Character | Mass before | Mass after |
+|---|---|---|---|---|
+| car | 1 | 76,850 g | 1,029,567 g | 1,106,417 g |
+| bicycle | 1 | 76,850 g | 10,817 g | 87,667 g |
+| 2-seater helicopter | 1 | 76,850 g | 1,531,884 g | 1,608,734 g |
+
+**The absolute masses carry the loot gap from round 176** - a placed hull spawns with items the port does not have - so the replay compares the **difference**, which is the rule, and
+says so in its own comment. Mutation-checked: dropping the rider term fails at `0 against 76,850`.
+
+**`Weight` is a seam, not a rule.** The reference's `Character::get_weight()` is body weight plus everything carried; the port has no carried-weight model yet, so the component holds
+the total and the value is installed where a creature is made. That is honest for now and is the next thing the loot work has to build on either way.

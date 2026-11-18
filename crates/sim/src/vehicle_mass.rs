@@ -22,8 +22,10 @@ use crate::vehicles::{Vehicle, part_spec};
 /// monster's weight. The port has none of those inputs yet.
 #[must_use]
 pub fn part_mass(world: &World, vehicle: Entity, part: usize) -> i64 {
+    // **The rider weighs even on a part the data has no spec for**, so its weight is added whether or not the part's own numbers are known.
+    let rider = rider_mass(world, vehicle, part);
     let Some(spec) = part_spec(world, vehicle, part) else {
-        return 0;
+        return rider;
     };
     let base = crate::item_registry::id_in(world, &spec.item)
         .map_or(0, |kind| crate::item_registry::weight_in(world, kind));
@@ -34,7 +36,9 @@ pub fn part_mass(world: &World, vehicle: Entity, part: usize) -> i64 {
             crate::item_registry::weight_in(world, item.kind) * i64::from(item.charges.max(1))
         })
         .sum();
-    base + items * spec.cargo_weight_modifier / 100
+    // The cargo modifier scales the **carried items only**, and the rider is not cargo: `m_part = base + m_part_items * modifier`, then the passenger is added to that
+    // (`vehicle.cpp:8495-8520`).
+    base + items * spec.cargo_weight_modifier / 100 + rider
 }
 
 /// Where the vehicle's weight sits, in mount coordinates - the reference's `local_center_of_mass`.
@@ -79,6 +83,30 @@ pub fn center_of_mass(world: &World, vehicle: Entity) -> (i32, i32) {
 }
 
 /// What the whole vehicle weighs, in grams - the reference's `total_mass` cache.
+///
+/// **Named:** the reference skips a part that is `removed` or a fake part, and its cache can be modified by enchantments. The port has neither removed parts, fake parts nor
+/// enchantments on a vehicle yet, so every part counts.
+/// **A creature sitting in a part weighs on it.** Reference: `vehicle::calc_mass_center` adds `p->get_weight()` for every part with the boardable feature that has a passenger
+/// (`vehicle.cpp:8514-8520`), which is put there by `map::board_vehicle` (`map.cpp:1409-1411`). The port keeps the pair on the creature - a [`crate::vehicles::Riding`] naming its
+/// vehicle and seat - and a [`crate::creature::Weight`] on what it weighs, so the rule is one lookup and the store stays the only place the pair lives.
+#[must_use]
+pub fn rider_mass(world: &World, vehicle: Entity, part: usize) -> i64 {
+    world
+        .iter_entities()
+        .filter(|entity| {
+            entity
+                .get::<crate::vehicles::Riding>()
+                .is_some_and(|riding| riding.vehicle == vehicle && riding.part == part)
+        })
+        .map(|entity| {
+            entity
+                .get::<crate::creature::Weight>()
+                .map_or(0, |w| w.grams)
+        })
+        .sum()
+}
+
+/// The whole vehicle's weight: every part's own mass, its cargo, and whoever is sitting in it.
 ///
 /// **Named:** the reference skips a part that is `removed` or a fake part, and its cache can be modified by enchantments. The port has neither removed parts, fake parts nor
 /// enchantments on a vehicle yet, so every part counts.

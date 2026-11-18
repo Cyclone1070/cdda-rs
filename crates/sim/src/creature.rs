@@ -17,6 +17,17 @@ use crate::CreatureSize;
 use crate::Position;
 use bevy_ecs::prelude::*;
 
+/// **What a creature weighs**, in grams, which is what a hull gains when it climbs aboard.
+///
+/// Reference: `Character::get_weight()` (`character.cpp`) - the body's weight plus everything it carries - which `vehicle::calc_mass_center` adds to a boarded part
+/// (`vehicle.cpp:8514-8520`). The port carries the total as one number on the creature; what composes it is the carried-weight rule's own business and not yet ported, so the
+/// value is installed where a creature is made.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Weight {
+    /// The whole creature, in grams.
+    pub grams: i64,
+}
+
 /// A living thing: what it is called, and how big it is.
 ///
 /// Reference: `Creature::disp_name`, and `Creature::get_size`, which `monster` and `npc` each answer

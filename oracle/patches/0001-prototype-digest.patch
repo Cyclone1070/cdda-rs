@@ -1,6 +1,6 @@
 diff -ruN references/Cataclysm-DDA/src/calendar.cpp oracle/src/src/calendar.cpp
 --- references/Cataclysm-DDA/src/calendar.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/calendar.cpp	2026-11-13 15:35:45
++++ oracle/src/src/calendar.cpp	2026-11-18 13:51:36
 @@ -183,6 +183,26 @@
      return L0 + L1 * days_since_epoch + longitude;
  }
@@ -30,7 +30,7 @@ diff -ruN references/Cataclysm-DDA/src/calendar.cpp oracle/src/src/calendar.cpp
  {
 diff -ruN references/Cataclysm-DDA/src/calendar.h oracle/src/src/calendar.h
 --- references/Cataclysm-DDA/src/calendar.h	2026-10-19 18:15:04
-+++ oracle/src/src/calendar.h	2026-11-13 15:35:45
++++ oracle/src/src/calendar.h	2026-11-18 13:51:36
 @@ -629,6 +629,10 @@
  float default_daylight_level();
  /* Irradiance (W/m2) on clear day when sun is at 90 degrees */
@@ -44,7 +44,7 @@ diff -ruN references/Cataclysm-DDA/src/calendar.h oracle/src/src/calendar.h
   *  weather.
 diff -ruN references/Cataclysm-DDA/src/character.h oracle/src/src/character.h
 --- references/Cataclysm-DDA/src/character.h	2026-10-19 18:15:04
-+++ oracle/src/src/character.h	2026-11-13 15:35:45
++++ oracle/src/src/character.h	2026-11-18 13:51:36
 @@ -682,6 +682,11 @@
  
          /** Getter for need values exclusive to characters */
@@ -59,7 +59,7 @@ diff -ruN references/Cataclysm-DDA/src/character.h oracle/src/src/character.h
          float get_kcal_percent() const;
 diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
 --- references/Cataclysm-DDA/src/debug.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/debug.cpp	2026-11-13 15:35:45
++++ oracle/src/src/debug.cpp	2026-11-18 13:51:36
 @@ -1,4 +1,7 @@
  #include "debug.h"
 +#ifdef CATA_HARNESS
@@ -80,7 +80,7 @@ diff -ruN references/Cataclysm-DDA/src/debug.cpp oracle/src/src/debug.cpp
      if( excess_repetition ) {
 diff -ruN references/Cataclysm-DDA/src/effect.h oracle/src/src/effect.h
 --- references/Cataclysm-DDA/src/effect.h	2026-10-19 18:15:04
-+++ oracle/src/src/effect.h	2026-11-13 15:35:45
++++ oracle/src/src/effect.h	2026-11-18 13:51:36
 @@ -106,6 +106,9 @@
          friend void load_effect_type( const JsonObject &jo, std::string_view src );
          friend class effect;
@@ -93,7 +93,7 @@ diff -ruN references/Cataclysm-DDA/src/effect.h oracle/src/src/effect.h
              male,
 diff -ruN references/Cataclysm-DDA/src/explosion.cpp oracle/src/src/explosion.cpp
 --- references/Cataclysm-DDA/src/explosion.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/explosion.cpp	2026-11-13 15:35:45
++++ oracle/src/src/explosion.cpp	2026-11-18 13:51:36
 @@ -6,6 +6,9 @@
  #include <cmath>
  #include <cstddef>
@@ -201,7 +201,7 @@ diff -ruN references/Cataclysm-DDA/src/explosion.cpp oracle/src/src/explosion.cp
  fragment_cloud &fragment_cloud::operator=( const float &value )
 diff -ruN references/Cataclysm-DDA/src/fault.cpp oracle/src/src/fault.cpp
 --- references/Cataclysm-DDA/src/fault.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/fault.cpp	2026-11-13 15:35:45
++++ oracle/src/src/fault.cpp	2026-11-18 13:51:36
 @@ -25,6 +25,24 @@
  
  } // namespace
@@ -229,7 +229,7 @@ diff -ruN references/Cataclysm-DDA/src/fault.cpp oracle/src/src/fault.cpp
      const auto &typed = faults_by_type.find( type );
 diff -ruN references/Cataclysm-DDA/src/fault.h oracle/src/src/fault.h
 --- references/Cataclysm-DDA/src/fault.h	2026-10-19 18:15:04
-+++ oracle/src/src/fault.h	2026-11-13 15:35:45
++++ oracle/src/src/fault.h	2026-11-18 13:51:36
 @@ -34,6 +34,12 @@
  
  std::vector<fault_id> all_of_type( const std::string &type );
@@ -245,7 +245,7 @@ diff -ruN references/Cataclysm-DDA/src/fault.h oracle/src/src/fault.h
  } // namespace faults
 diff -ruN references/Cataclysm-DDA/src/field.cpp oracle/src/src/field.cpp
 --- references/Cataclysm-DDA/src/field.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/field.cpp	2026-11-13 15:35:45
++++ oracle/src/src/field.cpp	2026-11-18 13:51:36
 @@ -85,7 +85,11 @@
      } else {
          std::exponential_distribution<> d( 1.0f / ( M_LOG2E * to_turns<float>
@@ -276,7 +276,7 @@ diff -ruN references/Cataclysm-DDA/src/field.cpp oracle/src/src/field.cpp
          if( type == STATIC( field_type_str_id( "fd_fire" ) ) ) {
 diff -ruN references/Cataclysm-DDA/src/field.h oracle/src/src/field.h
 --- references/Cataclysm-DDA/src/field.h	2026-10-19 18:15:04
-+++ oracle/src/src/field.h	2026-11-13 15:35:45
++++ oracle/src/src/field.h	2026-11-18 13:51:36
 @@ -80,6 +80,14 @@
          void initialize_decay();
          void do_decay();
@@ -294,7 +294,7 @@ diff -ruN references/Cataclysm-DDA/src/field.h oracle/src/src/field.h
      private:
 diff -ruN references/Cataclysm-DDA/src/game.h oracle/src/src/game.h
 --- references/Cataclysm-DDA/src/game.h	2026-10-19 18:15:04
-+++ oracle/src/src/game.h	2026-11-13 15:35:45
++++ oracle/src/src/game.h	2026-11-18 13:51:36
 @@ -236,6 +236,16 @@
          void load_mod_interaction_data_from_dir( const cata_path &path, const std::string &src );
      public:
@@ -314,7 +314,7 @@ diff -ruN references/Cataclysm-DDA/src/game.h oracle/src/src/game.h
          void unserialize( std::istream &fin, const cata_path &path ); // for load
 diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_factory.h
 --- references/Cataclysm-DDA/src/generic_factory.h	2026-10-19 18:15:04
-+++ oracle/src/src/generic_factory.h	2026-11-13 15:35:45
++++ oracle/src/src/generic_factory.h	2026-11-18 13:51:36
 @@ -19,6 +19,9 @@
  #include <utility>
  #include <vector>
@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 10:57:19
-@@ -0,0 +1,9464 @@
++++ oracle/src/src/harness.cpp	2026-11-18 14:01:04
+@@ -0,0 +1,9535 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1750,6 +1750,77 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// into damage on both sides. **A null return from `act_on_map` is not a death**: `map.cpp:898-901` returns null on purpose after a vehicle-vehicle hit, "to let the hit vehicle
 +/// move away" - so the recording keeps its pointer and stops its loop when that happens. Reading that null as destruction is what made round 171's draft record `mover_gone`
 +/// in every case.
++/// **A boarding session**: who sits where, and what that does to the hull's mass.
++///
++/// `map::board_vehicle` (`map.cpp:1385-1418`) takes the BOARDABLE part under the character, marks it with the passenger flag and invalidates the mass cache; the weight itself is
++/// added back in `calc_mass_center` (`vehicle.cpp:8514-8520`), which counts a boarded character's `get_weight()` against its part. The dump records the part that was chosen, the
++/// square it stands on, the character's weight, and the vehicle's mass either side of the boarding - **the difference** is the rule, and it is the one number a port can compare
++/// without also having to reproduce the loot a hull spawns with.
++void dump_vehicle_boarding( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++
++    map &here = get_map();
++    const tripoint_bub_ms origin = get_player_character().pos_bub( here );
++    for( int dx = -20; dx <= 20; dx++ ) {
++        for( int dy = -20; dy <= 20; dy++ ) {
++            const tripoint_bub_ms square = origin + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++
++    std::fprintf( out, "{\"harness\":\"vehicle_boarding\",\"version\":1,\"origin\":[%d,%d,%d],"
++                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
++    bool first_case = true;
++    for( const char *type : { "car", "bicycle", "2seater2" } ) {
++        const tripoint_bub_ms start = origin + tripoint_rel_ms( 0, 8, 0 );
++        vehicle *veh = here.add_vehicle( vproto_id( type ), start, 0_degrees, 0, 0, false, true );
++        if( veh == nullptr ) {
++            std::fprintf( stderr, "harness: %s did not place\n", type );
++            continue;
++        }
++        int part = -1;
++        tripoint_bub_ms seat = start;
++        point_rel_ms mount( 0, 0 );
++        for( const vpart_reference &vpr : veh->get_all_parts() ) {
++            if( !vpr.has_feature( VPFLAG_BOARDABLE ) ) {
++                continue;
++            }
++            part = vpr.part_index();
++            mount = vpr.mount_pos();
++            seat = vpr.pos_bub( here );
++            break;
++        }
++        if( part < 0 ) {
++            std::fprintf( stderr, "harness: %s has no boardable part\n", type );
++            here.destroy_vehicle( veh );
++            continue;
++        }
++        Character &you = get_player_character();
++        you.setpos( here, seat );
++        const int weight = static_cast<int>( units::to_gram( you.get_weight() ) );
++        const int mass_before = static_cast<int>( units::to_gram( veh->total_mass( here ) ) );
++        here.board_vehicle( seat, &you );
++        const int mass_after = static_cast<int>( units::to_gram( veh->total_mass( here ) ) );
++        std::fprintf( out,
++                      "%s{\"vehicle\":\"%s\",\"part\":%d,\"mount\":[%d,%d],\"square\":[%d,%d,0],"
++                      "\"weight_g\":%d,\"mass_before_g\":%d,\"mass_after_g\":%d,\"in_vehicle\":%s}",
++                      first_case ? "" : ",", type, part, mount.x(), mount.y(), seat.x(), seat.y(), weight,
++                      mass_before, mass_after, you.in_vehicle ? "true" : "false" );
++        first_case = false;
++        here.unboard_vehicle( seat );
++        you.setpos( here, origin );
++        here.destroy_vehicle( veh );
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_vehicle_impact( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -9826,8 +9897,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-18 06:40:02
-@@ -0,0 +1,448 @@
++++ oracle/src/src/harness.h	2026-11-18 14:01:04
+@@ -0,0 +1,449 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -9984,6 +10055,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_slowdown( const std::string &path );
 +void dump_vehicle_move( const std::string &path );
 +void dump_vehicle_impact( const std::string &path );
++void dump_vehicle_boarding( const std::string &path );
 +void dump_vehicle_drive( const std::string &path );
 +void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
@@ -10278,7 +10350,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +#endif
 diff -ruN references/Cataclysm-DDA/src/harness_event_order.inc oracle/src/src/harness_event_order.inc
 --- references/Cataclysm-DDA/src/harness_event_order.inc	1970-01-01 10:00:00
-+++ oracle/src/src/harness_event_order.inc	2026-11-13 15:35:45
++++ oracle/src/src/harness_event_order.inc	2026-11-18 13:51:36
 @@ -0,0 +1,109 @@
 +// Generated from the `event_type` enum in `event.h`: one line per type, so the harness can ask each type for its fields **in order**.
 +// The order is what an `args` list fills, and `get_fields` hands back an unordered map, so a map alone cannot say which argument means what.
@@ -10391,7 +10463,7 @@ diff -ruN references/Cataclysm-DDA/src/harness_event_order.inc oracle/src/src/ha
 +HARNESS_EVENT_ORDER( character_butchered_corpse )
 diff -ruN references/Cataclysm-DDA/src/iexamine.cpp oracle/src/src/iexamine.cpp
 --- references/Cataclysm-DDA/src/iexamine.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/iexamine.cpp	2026-11-13 15:35:45
++++ oracle/src/src/iexamine.cpp	2026-11-18 13:51:36
 @@ -7738,7 +7738,7 @@
   * @param function_name The name of the function to get.
   * @return A function pointer to the specified function.
@@ -10421,7 +10493,7 @@ diff -ruN references/Cataclysm-DDA/src/iexamine.cpp oracle/src/src/iexamine.cpp
          "harvest_furn_nectar",
 diff -ruN references/Cataclysm-DDA/src/iexamine.h oracle/src/src/iexamine.h
 --- references/Cataclysm-DDA/src/iexamine.h	2026-10-19 18:15:04
-+++ oracle/src/src/iexamine.h	2026-11-13 15:35:45
++++ oracle/src/src/iexamine.h	2026-11-18 13:51:36
 @@ -6,6 +6,7 @@
  #include <list>
  #include <memory>
@@ -10441,7 +10513,7 @@ diff -ruN references/Cataclysm-DDA/src/iexamine.h oracle/src/src/iexamine.h
  #endif // CATA_SRC_IEXAMINE_H
 diff -ruN references/Cataclysm-DDA/src/itype.h oracle/src/src/itype.h
 --- references/Cataclysm-DDA/src/itype.h	2026-10-19 18:15:04
-+++ oracle/src/src/itype.h	2026-11-13 15:35:45
++++ oracle/src/src/itype.h	2026-11-18 13:51:36
 @@ -152,6 +152,25 @@
          bool was_loaded = false;
          void deserialize( const JsonObject &jo );
@@ -10470,7 +10542,7 @@ diff -ruN references/Cataclysm-DDA/src/itype.h oracle/src/src/itype.h
  
 diff -ruN references/Cataclysm-DDA/src/iuse_actor.h oracle/src/src/iuse_actor.h
 --- references/Cataclysm-DDA/src/iuse_actor.h	2026-10-19 18:15:04
-+++ oracle/src/src/iuse_actor.h	2026-11-13 15:35:45
++++ oracle/src/src/iuse_actor.h	2026-11-18 13:51:36
 @@ -119,6 +119,10 @@
          std::string get_name() const override;
          void finalize( const itype_id &my_item_type ) override;
@@ -10484,7 +10556,7 @@ diff -ruN references/Cataclysm-DDA/src/iuse_actor.h oracle/src/src/iuse_actor.h
  };
 diff -ruN references/Cataclysm-DDA/src/lightmap.cpp oracle/src/src/lightmap.cpp
 --- references/Cataclysm-DDA/src/lightmap.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/lightmap.cpp	2026-11-13 15:35:45
++++ oracle/src/src/lightmap.cpp	2026-11-18 13:51:36
 @@ -440,10 +440,25 @@
      }
  }
@@ -10543,7 +10615,7 @@ diff -ruN references/Cataclysm-DDA/src/lightmap.cpp oracle/src/src/lightmap.cpp
      cata::mdarray<float, point_bub_ms> &sm = cache.sm;
 diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.cpp
 --- references/Cataclysm-DDA/src/loading_ui.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/loading_ui.cpp	2026-11-13 15:35:45
++++ oracle/src/src/loading_ui.cpp	2026-11-18 13:51:36
 @@ -1,4 +1,7 @@
  #include "loading_ui.h"
 +#ifdef CATA_HARNESS
@@ -10563,7 +10635,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-18 06:40:02
++++ oracle/src/src/main.cpp	2026-11-18 14:01:04
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10574,7 +10646,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,185 @@
+@@ -272,6 +275,186 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10747,6 +10819,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_slowdown;
 +    std::string dump_vehicle_move;
 +    std::string dump_vehicle_impact;
++    std::string dump_vehicle_boarding;
 +    std::string dump_vehicle_drive;
 +    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
@@ -10760,7 +10833,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +482,1620 @@
+@@ -300,6 +483,1630 @@
                  }
              },
              {
@@ -10990,6 +11063,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_drive = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-vehicle-boarding", "<file>",
++                "Writes a boarding session: the part a character sits in, its weight, and the hull's mass either side",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_vehicle_boarding = params[0];
 +                    return 1;
 +                }
 +            },
@@ -12381,7 +12464,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2582,987 @@
+@@ -786,6 +2593,999 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -12692,6 +12775,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_drive( cli.dump_vehicle_drive );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_vehicle_boarding.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_vehicle_boarding( cli.dump_vehicle_boarding );
 +            exit_handler( 0 );
 +        }
 +
@@ -13371,7 +13466,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
          }
 diff -ruN references/Cataclysm-DDA/src/map.cpp oracle/src/src/map.cpp
 --- references/Cataclysm-DDA/src/map.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/map.cpp	2026-11-13 15:35:46
++++ oracle/src/src/map.cpp	2026-11-18 13:51:36
 @@ -4237,6 +4237,32 @@
      }
  }
@@ -13407,7 +13502,7 @@ diff -ruN references/Cataclysm-DDA/src/map.cpp oracle/src/src/map.cpp
                         const vehicle *bashing_vehicle, bool repair_missing_ground )
 diff -ruN references/Cataclysm-DDA/src/map.h oracle/src/src/map.h
 --- references/Cataclysm-DDA/src/map.h	2026-10-19 18:15:04
-+++ oracle/src/src/map.h	2026-11-13 15:35:46
++++ oracle/src/src/map.h	2026-11-18 13:51:36
 @@ -1167,6 +1167,14 @@
                            const vehicle *bashing_vehicle = nullptr,
                            bool repair_missing_ground = true );
@@ -13438,7 +13533,7 @@ diff -ruN references/Cataclysm-DDA/src/map.h oracle/src/src/map.h
          // if we're not in z-levels mode or if we're at lowest level
 diff -ruN references/Cataclysm-DDA/src/map_field.cpp oracle/src/src/map_field.cpp
 --- references/Cataclysm-DDA/src/map_field.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/map_field.cpp	2026-11-13 15:35:46
++++ oracle/src/src/map_field.cpp	2026-11-18 13:51:36
 @@ -334,10 +334,33 @@
          }
      }
@@ -13640,7 +13735,7 @@ diff -ruN references/Cataclysm-DDA/src/map_field.cpp oracle/src/src/map_field.cp
  static void field_processor_fd_last_known( const tripoint_bub_ms &p, field_entry &cur,
 diff -ruN references/Cataclysm-DDA/src/map_memory.h oracle/src/src/map_memory.h
 --- references/Cataclysm-DDA/src/map_memory.h	2026-10-19 18:15:04
-+++ oracle/src/src/map_memory.h	2026-11-13 15:35:46
++++ oracle/src/src/map_memory.h	2026-11-18 13:51:36
 @@ -120,6 +120,15 @@
  
          /** Load memorized submaps around given global map square pos. */
@@ -13659,7 +13754,7 @@ diff -ruN references/Cataclysm-DDA/src/map_memory.h oracle/src/src/map_memory.h
          bool save( const tripoint_abs_ms &pos );
 diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
 --- references/Cataclysm-DDA/src/mapdata.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapdata.cpp	2026-11-13 15:35:46
++++ oracle/src/src/mapdata.cpp	2026-11-18 13:51:36
 @@ -1,4 +1,8 @@
  #include "mapdata.h"
 +#ifdef CATA_HARNESS
@@ -13760,7 +13855,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.cpp oracle/src/src/mapdata.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/mapdata.h oracle/src/src/mapdata.h
 --- references/Cataclysm-DDA/src/mapdata.h	2026-10-19 18:15:04
-+++ oracle/src/src/mapdata.h	2026-11-13 15:35:46
++++ oracle/src/src/mapdata.h	2026-11-18 13:51:36
 @@ -511,6 +511,14 @@
      public:
          ter_str_id curtain_transform;
@@ -13778,7 +13873,7 @@ diff -ruN references/Cataclysm-DDA/src/mapdata.h oracle/src/src/mapdata.h
          }
 diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapgen_functions.cpp
 --- references/Cataclysm-DDA/src/mapgen_functions.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/mapgen_functions.cpp	2026-11-13 15:35:46
++++ oracle/src/src/mapgen_functions.cpp	2026-11-18 13:51:36
 @@ -5,6 +5,7 @@
  #include <cmath>
  #include <cstdint>
@@ -13897,7 +13992,7 @@ diff -ruN references/Cataclysm-DDA/src/mapgen_functions.cpp oracle/src/src/mapge
  
 diff -ruN references/Cataclysm-DDA/src/mtype.h oracle/src/src/mtype.h
 --- references/Cataclysm-DDA/src/mtype.h	2026-10-19 18:15:05
-+++ oracle/src/src/mtype.h	2026-11-13 15:35:46
++++ oracle/src/src/mtype.h	2026-11-18 13:51:36
 @@ -566,6 +566,12 @@
          bool has_flag( const mon_flag_id &flag ) const {
              return flags.contains( flag );
@@ -13913,7 +14008,7 @@ diff -ruN references/Cataclysm-DDA/src/mtype.h oracle/src/src/mtype.h
          bool made_of_any( const std::set<material_id> &materials ) const;
 diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_def.cpp
 --- references/Cataclysm-DDA/src/ncurses_def.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/ncurses_def.cpp	2026-11-13 15:35:46
++++ oracle/src/src/ncurses_def.cpp	2026-11-18 13:51:36
 @@ -30,6 +30,9 @@
  #include "catacharset.h"
  #include "color.h"
@@ -13976,7 +14071,7 @@ diff -ruN references/Cataclysm-DDA/src/ncurses_def.cpp oracle/src/src/ncurses_de
  #if defined(_WIN32)
 diff -ruN references/Cataclysm-DDA/src/popup.cpp oracle/src/src/popup.cpp
 --- references/Cataclysm-DDA/src/popup.cpp	2026-10-19 16:28:49
-+++ oracle/src/src/popup.cpp	2026-11-13 15:35:46
++++ oracle/src/src/popup.cpp	2026-11-18 13:51:36
 @@ -1,4 +1,7 @@
  #include "popup.h"
 +#ifdef CATA_HARNESS
@@ -13998,12 +14093,12 @@ diff -ruN references/Cataclysm-DDA/src/popup.cpp oracle/src/src/popup.cpp
      result res;
 diff -ruN references/Cataclysm-DDA/src/prefix.h oracle/src/src/prefix.h
 --- references/Cataclysm-DDA/src/prefix.h	1970-01-01 10:00:00
-+++ oracle/src/src/prefix.h	2026-11-13 15:35:46
++++ oracle/src/src/prefix.h	2026-11-18 13:51:36
 @@ -0,0 +1 @@
 +#define PREFIX "/usr/local"
 diff -ruN references/Cataclysm-DDA/src/proficiency.h oracle/src/src/proficiency.h
 --- references/Cataclysm-DDA/src/proficiency.h	2026-10-19 18:15:05
-+++ oracle/src/src/proficiency.h	2026-11-13 15:35:46
++++ oracle/src/src/proficiency.h	2026-11-18 13:51:36
 @@ -93,6 +93,14 @@
  
          static const std::vector<proficiency> &get_all();
@@ -14021,7 +14116,7 @@ diff -ruN references/Cataclysm-DDA/src/proficiency.h oracle/src/src/proficiency.
          bool is_teachable() const;
 diff -ruN references/Cataclysm-DDA/src/requirements.cpp oracle/src/src/requirements.cpp
 --- references/Cataclysm-DDA/src/requirements.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/requirements.cpp	2026-11-13 15:35:46
++++ oracle/src/src/requirements.cpp	2026-11-18 13:51:36
 @@ -107,6 +107,16 @@
      quality_factory.reset();
  }
@@ -14041,7 +14136,7 @@ diff -ruN references/Cataclysm-DDA/src/requirements.cpp oracle/src/src/requireme
      quality_factory.load( jo, src );
 diff -ruN references/Cataclysm-DDA/src/requirements.h oracle/src/src/requirements.h
 --- references/Cataclysm-DDA/src/requirements.h	2026-10-19 18:15:05
-+++ oracle/src/src/requirements.h	2026-11-13 15:35:46
++++ oracle/src/src/requirements.h	2026-11-18 13:51:36
 @@ -53,6 +53,8 @@
  
      static void reset();
@@ -14053,7 +14148,7 @@ diff -ruN references/Cataclysm-DDA/src/requirements.h oracle/src/src/requirement
  struct component {
 diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
 --- references/Cataclysm-DDA/src/rng.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/rng.cpp	2026-11-13 15:35:46
++++ oracle/src/src/rng.cpp	2026-11-18 13:51:36
 @@ -1,8 +1,12 @@
  #include "rng.h"
  
@@ -14182,7 +14277,7 @@ diff -ruN references/Cataclysm-DDA/src/rng.cpp oracle/src/src/rng.cpp
      return 0;
 diff -ruN references/Cataclysm-DDA/src/rng.h oracle/src/src/rng.h
 --- references/Cataclysm-DDA/src/rng.h	2026-10-19 18:15:05
-+++ oracle/src/src/rng.h	2026-11-13 15:35:46
++++ oracle/src/src/rng.h	2026-11-18 13:51:36
 @@ -32,6 +32,16 @@
  cata_default_random_engine &rng_get_engine();
  unsigned int rng_bits();
@@ -14202,7 +14297,7 @@ diff -ruN references/Cataclysm-DDA/src/rng.h oracle/src/src/rng.h
  
 diff -ruN references/Cataclysm-DDA/src/scent_map.cpp oracle/src/src/scent_map.cpp
 --- references/Cataclysm-DDA/src/scent_map.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/scent_map.cpp	2026-11-13 15:35:46
++++ oracle/src/src/scent_map.cpp	2026-11-18 13:51:36
 @@ -247,6 +247,9 @@
                      this_diffusivity = diffusivity / 5; //less air movement for REDUCE_SCENT square
                  }
@@ -14233,7 +14328,7 @@ diff -ruN references/Cataclysm-DDA/src/scent_map.cpp oracle/src/src/scent_map.cp
                  scent_here = 0;
 diff -ruN references/Cataclysm-DDA/src/shadowcasting.cpp oracle/src/src/shadowcasting.cpp
 --- references/Cataclysm-DDA/src/shadowcasting.cpp	2026-10-19 18:15:05
-+++ oracle/src/src/shadowcasting.cpp	2026-11-13 15:35:46
++++ oracle/src/src/shadowcasting.cpp	2026-11-18 13:51:36
 @@ -305,6 +305,18 @@
                      if( !floor_block ) {
                          ( *output_caches[z_index] )[current.x()][current.y()] =
@@ -14274,7 +14369,7 @@ diff -ruN references/Cataclysm-DDA/src/shadowcasting.cpp oracle/src/src/shadowca
                      if( !started_span ) {
 diff -ruN references/Cataclysm-DDA/src/trap.cpp oracle/src/src/trap.cpp
 --- references/Cataclysm-DDA/src/trap.cpp	2026-10-19 18:15:06
-+++ oracle/src/src/trap.cpp	2026-11-13 15:35:46
++++ oracle/src/src/trap.cpp	2026-11-18 13:51:36
 @@ -40,7 +40,37 @@
  
  generic_factory<trap> trap_factory( "trap" );
@@ -14315,7 +14410,7 @@ diff -ruN references/Cataclysm-DDA/src/trap.cpp oracle/src/src/trap.cpp
  template<>
 diff -ruN references/Cataclysm-DDA/src/trap.h oracle/src/src/trap.h
 --- references/Cataclysm-DDA/src/trap.h	2026-10-19 18:15:06
-+++ oracle/src/src/trap.h	2026-11-13 15:35:46
++++ oracle/src/src/trap.h	2026-11-18 13:51:36
 @@ -161,6 +161,18 @@
          std::vector<std::tuple<itype_id, int, int>> components;
      public:
@@ -14337,7 +14432,7 @@ diff -ruN references/Cataclysm-DDA/src/trap.h oracle/src/src/trap.h
          std::vector<effect_on_condition_id> eocs;
 diff -ruN references/Cataclysm-DDA/src/vehicle_move.cpp oracle/src/src/vehicle_move.cpp
 --- references/Cataclysm-DDA/src/vehicle_move.cpp	2026-10-19 18:15:06
-+++ oracle/src/src/vehicle_move.cpp	2026-11-15 12:38:21
++++ oracle/src/src/vehicle_move.cpp	2026-11-18 13:51:36
 @@ -1228,6 +1228,12 @@
      }
  
@@ -14353,13 +14448,13 @@ diff -ruN references/Cataclysm-DDA/src/vehicle_move.cpp oracle/src/src/vehicle_m
  
 diff -ruN references/Cataclysm-DDA/src/version.h oracle/src/src/version.h
 --- references/Cataclysm-DDA/src/version.h	1970-01-01 10:00:00
-+++ oracle/src/src/version.h	2026-11-13 15:35:46
++++ oracle/src/src/version.h	2026-11-18 13:51:36
 @@ -0,0 +1,2 @@
 +// NOLINT(cata-header-guard)
 +#define VERSION "4569e96-dirty"
 diff -ruN references/Cataclysm-DDA/src/weather_gen.cpp oracle/src/src/weather_gen.cpp
 --- references/Cataclysm-DDA/src/weather_gen.cpp	2026-10-19 18:15:06
-+++ oracle/src/src/weather_gen.cpp	2026-11-13 15:35:46
++++ oracle/src/src/weather_gen.cpp	2026-11-18 13:51:36
 @@ -104,11 +104,42 @@
          dayv * daily_magnitude_K +
          seasonality * seasonality_magnitude_K );
@@ -14441,7 +14536,7 @@ diff -ruN references/Cataclysm-DDA/src/weather_gen.cpp oracle/src/src/weather_ge
      }
 diff -ruN references/Cataclysm-DDA/src/weather_gen.h oracle/src/src/weather_gen.h
 --- references/Cataclysm-DDA/src/weather_gen.h	2026-10-19 18:15:06
-+++ oracle/src/src/weather_gen.h	2026-11-13 15:35:46
++++ oracle/src/src/weather_gen.h	2026-11-18 13:51:36
 @@ -76,4 +76,13 @@
          void load( const JsonObject &jo, bool was_loaded );
  };

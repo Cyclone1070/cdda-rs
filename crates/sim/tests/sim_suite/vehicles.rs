@@ -6914,3 +6914,92 @@ fn a_vehicle_impact_matches_the_reference() {
     }
     assert_eq!(seen, 6, "all six recorded impacts were replayed");
 }
+
+/// **A boarding session, replayed against the reference.** `corpus/vehicle_boarding.json` is `--dump-vehicle-boarding`: a car, a bicycle and a helicopter, each with the avatar
+/// standing on its first boardable part, and the hull's mass either side of the boarding.
+///
+/// **The difference is the rule.** The absolute masses include the loot a hull spawns with, which the port does not have; the *gain* is the character's own weight, exactly
+/// (`map::board_vehicle` marks the part, `vehicle::calc_mass_center` adds `get_weight()` against it), and that is what this compares.
+#[test]
+fn a_boarding_session_matches_the_reference() {
+    use cdda_sim::creature::Weight;
+
+    const FLOOR: u32 = 1;
+
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_boarding.json");
+    let bytes = std::fs::read(path).expect("the boarding recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let name = text_of(row, "vehicle");
+        let part = int_of(row, "part");
+        let weight = int_of(row, "weight_g");
+        let Some(cdda_json::Value::Array(square)) = row.get("square") else {
+            panic!("{name}: a square");
+        };
+        let at = (
+            match square.first() {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).expect("x"),
+                _ => panic!("x"),
+            },
+            match square.get(1) {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).expect("y"),
+                _ => panic!("y"),
+            },
+        );
+
+        let mut world = World::new();
+        cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+        cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+        for y in 60..=95 {
+            for x in 60..=95 {
+                cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+            }
+        }
+        install_weights_for(&mut world, &[&name]);
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let vehicle = cdda_sim::vehicles::spawn(&mut world, &name, (71, 79, 0))
+            .expect("the recorded vehicle builds");
+        fill_own_tanks(&mut world, vehicle);
+        let rider = world
+            .spawn((
+                cdda_sim::Position {
+                    x: at.0,
+                    y: at.1,
+                    z: 0,
+                },
+                Weight {
+                    grams: i64::from(weight),
+                },
+            ))
+            .id();
+
+        let before = cdda_sim::vehicle_mass::mass(&world, vehicle);
+        let seat = cdda_sim::vehicles::board(&mut world, vehicle, rider);
+        let after = cdda_sim::vehicle_mass::mass(&world, vehicle);
+
+        assert_eq!(
+            seat,
+            Some(usize::try_from(part).expect("an index")),
+            "{name}: **the part the reference sat the character in**"
+        );
+        assert_eq!(
+            after - before,
+            i64::from(weight),
+            "{name}: **the hull gains the character's weight**, {weight} g"
+        );
+        seen += 1;
+    }
+    assert_eq!(seen, 3, "all three recorded boardings were replayed");
+}
