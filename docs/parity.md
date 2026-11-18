@@ -38232,12 +38232,19 @@ and the charge. Unloaded and loaded past carrying capacity it is the same table,
 |---|---|---|
 | a score becomes a multiplier | `1 / score`: 0.553607 → 1.806336, 0.467213 → 2.140351 | same, exactly |
 | the blend | `(footing + move_speed * 2) / 3` = 1.917674 | same, exactly |
-| the charge | **163** for a base of a hundred | **not ported** |
+| the flat-ground multiplier | **0.85** - `FLEET`, "15% speed bonus on sure footing" | same |
+| the charge | **163** for a base of a hundred | **163** |
 
-The charge is the honest part: 1.917674 × 100 is 191, not 163, and the difference is one factor of about **0.85** that the port has not found. It is not the road (the floor's
-`ROAD` flag is asked and only the skate branches use it), not the terrain (the floor costs 2), not the diagonal (the recording's diagonal charge is identical) and not the skates
-(they are not worn). So `run_cost.rs` states the two transformations the dump proves and **does not claim to compute `run_cost`**, and the test compares only the layers it
-understands - mutation-checked by weighting footing and speed equally, which the recording kills at 1.9733434 against 1.917674.
+**The 0.85 took two rounds and the answer was in the reference's own mouth.** `run_cost_effects` returns the chain it applied, so the dump now prints it, and the second entry reads
+`Flat Ground Mut. × 0.85`. That is the `FLEET` starting trait (`data/json/mutations/mutations.json:331`, enchantment `MOVECOST_FLATGROUND_MOD multiply -0.15`), which the cache
+answers as `1 + (-0.15)`. Whether the ground is flat is decided **before** the limb factor runs (`flatground = movecost < 105`, `character.cpp:10396`), which is why the loaded
+survivor pays exactly what the empty one pays.
+
+`run_cost::run_cost(base, limb_modifier, flat_ground)` now reproduces the charge: 100 × 1.917674 × 0.85 = 163.002 → **163**. Mutation-checked: dropping the flat-ground term
+leaves 191 against the recording's 163, and weighting footing and speed equally fails the blend at 1.9733434 against 1.917674.
+
+**Named, not invented:** the port takes the flat-ground multiplier as an input because it has no enchantment cache or mutation list yet; when those arrive, this is the number they
+feed.
 
 **Named:** the reference clamps a multiplier at `max_move_cost`; the recording's own footing multiplier is 2.14, above the usual cap of 2, so that data was not reached and is recorded
 as a name rather than a guess.

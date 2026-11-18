@@ -33,6 +33,7 @@ fn a_limb_score_becomes_a_multiplier_and_the_multipliers_blend() {
     };
 
     let mut seen = 0;
+    let mut charged = 0;
     for case in cases {
         let name = {
             let Value::Object(row) = case else {
@@ -74,7 +75,62 @@ fn a_limb_score_becomes_a_multiplier_and_the_multipliers_blend() {
             close(blend, recorded_blend),
             "{name}: **footing once and speed twice, over three** - {blend} against {recorded_blend}"
         );
+        // **And the charge itself**, from the two layers the reference's own chain names: the limb blend and the flat-ground multiplier.
+        let mut limb_modifier = 1.0_f32;
+        let mut flat_ground = 1.0_f32;
+        let chain = match case {
+            Value::Object(row) => row.get("effects"),
+            _ => None,
+        };
+        if let Some(Value::Array(effects)) = chain {
+            for effect in effects {
+                let Value::Object(entry) = effect else {
+                    continue;
+                };
+                let what = match entry.get("what") {
+                    Some(Value::Str(text)) => text.as_str(),
+                    _ => "",
+                };
+                let times = match entry.get("times") {
+                    Some(Value::Float(value)) => {
+                        #[expect(
+                            clippy::cast_possible_truncation,
+                            reason = "a multiplier is single precision in the reference too"
+                        )]
+                        let narrowed = *value as f32;
+                        narrowed
+                    }
+                    _ => 1.0,
+                };
+                if what.contains("Encum") {
+                    limb_modifier = times;
+                } else if what.contains("Flat Ground") {
+                    flat_ground = times;
+                }
+            }
+        }
+        let ours = cdda_sim::run_cost::run_cost(100.0, limb_modifier, flat_ground);
+        let recorded_charge = match case {
+            Value::Object(row) => match row.get("run_cost_100") {
+                Some(Value::Int(value)) => i32::try_from(*value).expect("a charge"),
+                _ => panic!("{name}: a charge"),
+            },
+            _ => panic!("a case"),
+        };
+        assert_eq!(
+            ours, recorded_charge,
+            "{name}: **the charge**, from the limb blend {limb_modifier} and flat ground {flat_ground}"
+        );
+        charged += 1;
+
         seen += 1;
     }
+    // **`FLEET`'s enchantment is `multiply: -0.15`**, which the cache answers as 1 + that, and it is the only contributor on a bare survivor
+    // (`data/json/mutations/mutations.json:331`).
+    assert!(
+        (cdda_sim::run_cost::flat_ground_multiplier(-0.15) - 0.85).abs() < 1e-6,
+        "**a -0.15 enchantment is a 0.85 multiplier**"
+    );
     assert_eq!(seen, 2, "both recorded loads were replayed");
+    assert_eq!(charged, 2, "and both charges were computed");
 }

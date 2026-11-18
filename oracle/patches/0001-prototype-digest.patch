@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 17:58:20
-@@ -0,0 +1,9596 @@
++++ oracle/src/src/harness.cpp	2026-11-18 18:55:21
+@@ -0,0 +1,9607 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1789,13 +1789,24 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const float footing_mod =
 +            you.get_modifier( character_modifier_id( "limb_footing_movecost_mod" ) );
 +        const float run_mod = you.get_modifier( character_modifier_id( "limb_run_cost_mod" ) );
++        // **The reference's own list of what it did to the base cost.** `run_cost_effects` (`character.cpp:10376`) returns one entry per modifier it applied and the caller's
++        // `movecost` comes back changed, so the dump can print the chain instead of guessing at it from the total.
++        float probe = 100.0f;
++        const std::vector<run_cost_effect> chain = you.run_cost_effects( probe );
++        std::fprintf( out, "%s{\"case\":\"%s\",\"effects\":[", first_case ? "" : ",", name );
++        bool first_effect = true;
++        for( const run_cost_effect &effect : chain ) {
++            std::fprintf( out, "%s{\"what\":\"%s\",\"times\":%f,\"plus\":%f}",
++                          first_effect ? "" : ",", effect.description.c_str(), effect.times, effect.plus );
++            first_effect = false;
++        }
++        std::fprintf( out, "],\"probe\":%f,", probe );
 +        std::fprintf( out,
-+                      "%s{\"case\":\"%s\",\"weight_g\":%d,\"capacity_g\":%d,"
++                      "\"weight_g\":%d,\"capacity_g\":%d,"
 +                      "\"other_weight_g\":%d,\"move_speed\":%f,\"footing\":%f,"
 +                      "\"move_speed_mod\":%f,\"footing_mod\":%f,\"run_cost_mod\":%f,"
 +                      "\"run_cost_100\":%d,\"run_cost_100_diagonal\":%d,"
 +                      "\"floor_cost\":%d}",
-+                      first_case ? "" : ",", name,
 +                      static_cast<int>( units::to_gram( you.get_weight() ) ),
 +                      static_cast<int>( units::to_gram( you.weight_capacity() ) ),
 +                      static_cast<int>( units::to_gram( you.weight_carried() ) ), move_speed, footing,

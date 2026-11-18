@@ -8,9 +8,10 @@
 //! The port has the limb-score **arithmetic** ([`crate::limbs`]) but no body parts to feed it, so this module states the two transformations that sit between a score and a step
 //! price, and nothing else. `corpus/run_cost.json` is `--dump-run-cost`: a survivor's scores, both multipliers and the blended one, unloaded and loaded past capacity.
 //!
-//! **Named, not guessed:** the recording's final charge is **163** for a base of a hundred, and the blend above gives **1.917674**, which is 191. So one more factor of about
-//! **0.85** sits between the blend and the charge and the port has not found it - it is not the road, the terrain, the skates or the diagonal, all of which were checked. Until it
-//! is found, the port states the two layers it can prove and does **not** claim to compute `run_cost` itself.
+//! The last layer is **flat ground**, and the recording named it: `run_cost_effects` returns its own chain, and the second entry is `Flat Ground Mut.` at **0.85**. That is the
+//! `FLEET` mutation - a starting trait, "15% speed bonus on sure footing" (`data/json/mutations/mutations.json:331`), whose enchantment is `MOVECOST_FLATGROUND_MOD multiply -0.15`.
+//! Flat ground is decided **before** the limb multiplier runs (`flatground = movecost < 105`, `character.cpp:10396`), and the multiplication happens after it, which is why a loaded
+//! survivor and an empty one pay the same for the same step.
 
 /// A limb score as a multiplier: the reciprocal.
 ///
@@ -32,4 +33,37 @@ pub fn limb_cost_modifier(score: f32) -> f32 {
 #[must_use]
 pub fn limb_run_cost_modifier(footing_mod: f32, move_speed_mod: f32) -> f32 {
     (footing_mod + move_speed_mod * 2.0) / 3.0
+}
+
+/// A summed enchantment `multiply` as the multiplier the cache answers: one plus the sum.
+///
+/// Reference: `enchantment_cache->modify_value( MOVECOST_FLATGROUND_MOD, 1 )` (`character.cpp:10444-10445`) - the cache starts from the argument and every contributing
+/// enchantment adds its `multiply`. `FLEET` contributes `-0.15`, which is the 0.85 the recording shows.
+#[must_use]
+pub fn flat_ground_multiplier(multiply_sum: f32) -> f32 {
+    1.0 + multiply_sum
+}
+
+/// **What a step costs**, given the limb blend and the flat-ground multiplier.
+///
+/// Reference: `Character::run_cost` (`character.cpp:10363-10374`) with the two effects that bind for a survivor on open ground: "Encum./Wounds" multiplies by the limb blend
+/// (`:10436-10441`) and, **when the ground was flat before that multiply**, "Flat Ground Mut." multiplies again (`:10443-10446`). The result is truncated toward zero and floored at
+/// one (`:10523`), because a step never costs nothing.
+///
+/// `flat` is decided from the **base**, not from the multiplied cost: `const bool flatground = movecost < 105` sits above the whole chain (`:10396`), so whether the ground is flat is
+/// a fact about the square, not about the walker.
+#[must_use]
+pub fn run_cost(base: f32, limb_modifier: f32, flat_ground: f32) -> i32 {
+    let flat = base < 105.0;
+    let mut movecost = base * limb_modifier;
+    if flat {
+        movecost *= flat_ground;
+    }
+    let floored = movecost.max(1.0);
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the reference returns static_cast<int>( movecost ), a truncation"
+    )]
+    let charge = floored as i32;
+    charge
 }
