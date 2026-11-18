@@ -7301,6 +7301,47 @@ fn a_walk_step_lands_refuses_and_boards() {
             .map(|at| (at.x, at.y))
     };
 
+    // **The price the square sets, before the body is asked**: a floor beside a floor is the reference's hundred, and a diagonal is its 71% multiplier - `(2 + 2) * 71 / 2`.
+    assert_eq!(
+        cdda_sim::walk::step_cost(&world, (100, 100, 0), (101, 100, 0)),
+        Some(100),
+        "**a floor step is a hundred**"
+    );
+    assert_eq!(
+        cdda_sim::walk::step_cost(&world, (100, 100, 0), (101, 99, 0)),
+        Some(142),
+        "**and a diagonal one is 142**"
+    );
+
+    // **A walker with a body pays what the body costs.** The recorded survivor's scores make a floor step 163, and a step spends exactly that - the wiring from the square's cost
+    // through the price to the movement points, which no other test reaches.
+    let priced = world
+        .spawn((
+            cdda_sim::Position {
+                x: 108,
+                y: 96,
+                z: 0,
+            },
+            cdda_sim::creature::Moves { left: 10_000 },
+            cdda_sim::walk::LimbCost {
+                move_speed: 0.553_607,
+                footing: 0.467_213,
+                flat_ground: 0.85,
+            },
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::walk::walk(&mut world, priced, 1, 0),
+        cdda_sim::creature::StepOutcome::Moved
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Moves>(priced)
+            .map(|m| m.left),
+        Some(10_000 - 163),
+        "**a floor step by that body costs 163 movement points**"
+    );
+
     // **East**: one square, whatever the terrain price turns out to be.
     assert_eq!(
         cdda_sim::walk::walk(&mut world, walker, 1, 0),

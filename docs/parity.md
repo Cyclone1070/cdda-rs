@@ -38248,3 +38248,25 @@ feed.
 
 **Named:** the reference clamps a multiplier at `max_move_cost`; the recording's own footing multiplier is 2.14, above the usual cap of 2, so that data was not reached and is recorded
 as a name rather than a guess.
+
+## A step is priced by the square and the body (round 185)
+
+`game::walk_move` charges `u.run_cost( mcost, diag )` (`game.cpp:10809`), where `mcost` is `map::combined_movecost` - both squares' costs, halved and scaled by how many axes differ
+(`map.cpp:2466-2479`). So a floor step is **100** and the charge is that hundred through the body's factors, which is now what the port does: `walk` computes the square's cost,
+`price_of_step` runs it through [`run_cost`], and the movement points come off.
+
+`corpus/walk.json` is `--dump-walk` rebuilt to price the session: both squares' costs, the map's combined cost, the charge, and the survivor's scores and flat-ground multiplier.
+
+| Case | Combined | Charge | Port |
+|---|---|---|---|
+| east floor | 100 | 163 | 163 |
+| north floor | 100 | 163 | 163 |
+| north-east diagonal | 142 | **232** | **231** |
+
+**The diagonal is one short and that is recorded, not smoothed.** The straight steps match to the point; the diagonal's own handling divides by √2 before the effects and multiplies
+back after (`character.cpp:10366-10372`), which is now ported, and still answers 231 where the recording says 232. The test asserts the difference is **exactly one** so that the day
+someone finds the missing movement point, the assertion that is wrong is the one that says it is fine.
+
+`LimbCost` is the seam: the port has no body parts to compute the two scores from and no enchantment cache to gather the flat-ground multiplier from, so a creature carries them
+where it is made. A creature without one pays the square's own cost, which is what perfect limbs on broken ground would pay. Mutation-checked: wiring `walk` back to the square's raw
+cost spends 9900 instead of 9837.

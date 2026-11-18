@@ -53,11 +53,20 @@ pub fn flat_ground_multiplier(multiply_sum: f32) -> f32 {
 /// `flat` is decided from the **base**, not from the multiplied cost: `const bool flatground = movecost < 105` sits above the whole chain (`:10396`), so whether the ground is flat is
 /// a fact about the square, not about the walker.
 #[must_use]
-pub fn run_cost(base: f32, limb_modifier: f32, flat_ground: f32) -> i32 {
-    let flat = base < 105.0;
-    let mut movecost = base * limb_modifier;
+pub fn run_cost(base: f32, limb_modifier: f32, flat_ground: f32, diagonal: bool) -> i32 {
+    // **The diagonal is divided out before the effects run and multiplied back after** (`character.cpp:10366-10372`), because the effect arithmetic assumes a hundred-point base. The
+    // flat-ground question is asked of the **divided** cost (`:10396`), so a diagonal step can be flat ground when a straight one of the same squares is not.
+    let mut movecost = base;
+    if diagonal {
+        movecost /= std::f32::consts::SQRT_2;
+    }
+    let flat = movecost < 105.0;
+    movecost *= limb_modifier;
     if flat {
         movecost *= flat_ground;
+    }
+    if diagonal {
+        movecost *= std::f32::consts::SQRT_2;
     }
     let floored = movecost.max(1.0);
     #[expect(

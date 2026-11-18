@@ -281,3 +281,4 @@ mod underwater;
 mod vehicle_damage;
 mod vehicle_mass;
 mod vehicles;
+mod walk;

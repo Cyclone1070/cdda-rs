@@ -45,6 +45,42 @@ pub fn step_cost(world: &World, from: (i32, i32, i32), to: (i32, i32, i32)) -> O
     Some(combined_move_cost(leaving, entering, 0, axes))
 }
 
+/// **What a creature's own body does to the price of a step**: its two movement limb scores and the flat-ground multiplier from its enchantments.
+///
+/// Reference: `Character::run_cost` reads all three (`character.cpp:10396-10446`) - "Footing", "Movement" and "Flat Ground Mut." - and the port has no body parts to compute the
+/// scores from and no enchantment cache to gather the multiplier from yet, so they are installed where a creature is made. A creature without this component pays the square's own
+/// cost, which is what a body in perfect repair on broken ground would pay.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct LimbCost {
+    /// The `move_speed` limb score, near one for sound legs and lower as they are hurt or laden.
+    pub move_speed: f32,
+    /// The `footing` limb score, which counts for a third of the blend.
+    pub footing: f32,
+    /// The summed `MOVECOST_FLATGROUND_MOD` as a multiplier: one plus the enchantments' multiplies.
+    pub flat_ground: f32,
+}
+
+/// What this creature pays to enter a square whose entry costs `combined`.
+///
+/// Reference: `game::walk_move` charges `u.run_cost( mcost, diag )` (`game.cpp:10809`), where `mcost` is the map's combined cost - a floor step is a hundred - so the price of a
+/// step is the square's own number through the body's two factors. A creature with no [`LimbCost`] pays the square's number unchanged.
+#[must_use]
+pub fn price_of_step(world: &World, creature: Entity, combined: i32) -> i32 {
+    let Some(limbs) = world.get::<LimbCost>(creature) else {
+        return combined;
+    };
+    let blend = crate::run_cost::limb_run_cost_modifier(
+        crate::run_cost::limb_cost_modifier(limbs.footing),
+        crate::run_cost::limb_cost_modifier(limbs.move_speed),
+    );
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a square's combined cost is a small count of movement points"
+    )]
+    let base = combined as f32;
+    crate::run_cost::run_cost(base, blend, limbs.flat_ground, false)
+}
+
 /// **One step in a direction.** Answers whether the creature moved.
 ///
 /// This is the port's whole walk loop: a direction, a destination, a price, and [`crate::vehicles::step_from_vehicle`], which owns the riding part of the rule - unboard before the
@@ -58,7 +94,9 @@ pub fn walk(world: &mut World, creature: Entity, dx: i32, dy: i32) -> StepOutcom
     let Some(cost) = step_cost(world, from, to) else {
         return StepOutcome::TooSlow;
     };
-    crate::vehicles::step_from_vehicle(world, creature, to, cost)
+    // **The square's cost, then the body's.** The reference charges `run_cost(mcost)`, not `mcost`, so a step is never simply what the map would charge.
+    let charge = price_of_step(world, creature, cost);
+    crate::vehicles::step_from_vehicle(world, creature, to, charge)
 }
 
 /// **A creature that has been told to step, and has not yet.** The port's own seam between input and simulation: the reference's UI calls `avatar_action::move` directly from

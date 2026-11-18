@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 18:55:21
-@@ -0,0 +1,9607 @@
++++ oracle/src/src/harness.cpp	2026-11-18 19:29:26
+@@ -0,0 +1,9674 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1760,6 +1760,73 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// "Encum./Wounds" term is `limb_run_cost_modifier` - `(footing_mod + move_speed_mod * 2) / 3` (`character_modifier.cpp:302-306`) - and each of those is a limb score turned into a
 +/// multiplier by its data entry (`character_modifiers.json`: `{"limb_score": ..., "max": "max_move_cost", "nominator": 1.0}`). The dump records **each layer separately**, unloaded and
 +/// loaded past capacity, so a port can be checked link by link instead of against one unexplained number.
++/// **A walking session priced by the reference**: one step at a time, what it landed on, and what it charged.
++///
++/// `game::walk_move` charges `u.run_cost( mcost, diag )` (`game.cpp:10809`) where `mcost` is `map::combined_movecost` - both squares' costs, halved and scaled by how many axes
++/// differ (`map.cpp:2466-2479`) - so a floor step is a hundred and the charge is that hundred through the character's own limb and flat-ground factors. The dump records the
++/// survivor's scores and the whole `run_cost` chain, so a port can follow the same road from a square's cost to the moves it pays.
++void dump_walk( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    map &here = get_map();
++    Character &you = get_player_character();
++    for( int dx = -6; dx <= 6; dx++ ) {
++        for( int dy = -6; dy <= 6; dy++ ) {
++            const tripoint_bub_ms square = you.pos_bub( here ) + tripoint_rel_ms( dx, dy, 0 );
++            here.ter_set( square, ter_id( "t_floor" ) );
++            here.furn_set( square, furn_str_id::NULL_ID() );
++        }
++    }
++    const float move_speed = you.get_limb_score( limb_score_id( "move_speed" ) );
++    const float footing = you.get_limb_score( limb_score_id( "footing" ) );
++    float probe = 100.0f;
++    const std::vector<run_cost_effect> chain = you.run_cost_effects( probe );
++    float flat_ground = 1.0f;
++    for( const run_cost_effect &effect : chain ) {
++        if( effect.description.find( "Flat Ground" ) != std::string::npos ) {
++            flat_ground = effect.times;
++        }
++    }
++
++    struct walk_case {
++        const char *name;
++        int dx;
++        int dy;
++    };
++    const walk_case cases[] = {
++        { "east_floor", 1, 0 },
++        { "north_floor", 0, -1 },
++        { "northeast_diagonal", 1, -1 },
++    };
++
++    std::fprintf( out, "{\"harness\":\"walk\",\"version\":1,\"move_speed\":%f,\"footing\":%f,"
++                  "\"flat_ground\":%f,\"cases\":[", move_speed, footing, flat_ground );
++    bool first_case = true;
++    for( const walk_case &entry : cases ) {
++        // **Each case starts where the character stands**, because a step can shift the reality bubble; the destination is computed from that square, and the terrain under both
++        // squares is floor by the clearing above.
++        const tripoint_bub_ms stand = you.pos_bub( here );
++        const tripoint_bub_ms dest = stand + tripoint_rel_ms( entry.dx, entry.dy, 0 );
++        const int cost_from = here.move_cost( stand );
++        const int cost_to = here.move_cost( dest );
++        you.set_moves( 1000 );
++        const int before = you.get_moves();
++        g->walk_move( dest );
++        std::fprintf( out,
++                      "%s{\"case\":\"%s\",\"dx\":%d,\"dy\":%d,\"cost_from\":%d,\"cost_to\":%d,"
++                      "\"combined\":%d,\"charge\":%d}",
++                      first_case ? "" : ",", entry.name, entry.dx, entry.dy, cost_from, cost_to,
++                      here.combined_movecost( stand, dest ), before - you.get_moves() );
++        first_case = false;
++    }
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_run_cost( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -9969,8 +10036,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-18 17:48:35
-@@ -0,0 +1,450 @@
++++ oracle/src/src/harness.h	2026-11-18 19:29:26
+@@ -0,0 +1,451 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -10129,6 +10196,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_impact( const std::string &path );
 +void dump_vehicle_boarding( const std::string &path );
 +void dump_run_cost( const std::string &path );
++void dump_walk( const std::string &path );
 +void dump_vehicle_drive( const std::string &path );
 +void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
@@ -10708,7 +10776,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-18 18:11:02
++++ oracle/src/src/main.cpp	2026-11-18 19:29:26
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10719,7 +10787,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,187 @@
+@@ -272,6 +275,188 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10894,6 +10962,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_impact;
 +    std::string dump_vehicle_boarding;
 +    std::string dump_run_cost;
++    std::string dump_walk;
 +    std::string dump_vehicle_drive;
 +    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
@@ -10907,7 +10976,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +484,1640 @@
+@@ -300,6 +485,1650 @@
                  }
              },
              {
@@ -11137,6 +11206,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_drive = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-walk", "<file>",
++                "Writes a walking session: what each step charged and what it crossed",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_walk = params[0];
 +                    return 1;
 +                }
 +            },
@@ -12548,7 +12627,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2604,1011 @@
+@@ -786,6 +2615,1023 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -12859,6 +12938,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_drive( cli.dump_vehicle_drive );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_walk.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_walk( cli.dump_walk );
 +            exit_handler( 0 );
 +        }
 +
