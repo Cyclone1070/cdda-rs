@@ -124,6 +124,9 @@ const STAGES: &[Stage] = &[
     ("falling", falling_stage, TurnStage::Falling),
     ("vehicles", vehicles_stage, TurnStage::Vehicles),
     ("fields", fields_stage, TurnStage::Fields),
+    // **Steps happen before the monsters act**, and inside the creatures stage, because `do_turn.cpp`'s creature phase is where every creature spends its turn - a survivor's
+    // step is not an environment stage of its own.
+    ("walk", walk_stage, TurnStage::Creatures),
     ("creatures", creatures_stage, TurnStage::Creatures),
     ("light", light_stage, TurnStage::Light),
 ];
@@ -147,6 +150,9 @@ pub fn environment_schedule() -> Schedule {
     let mut schedule = Schedule::default();
     schedule.configure_sets(
         (
+            // **`Scheduled` is part of the chain**, not a set that happens to run first: it was missing here, so the due events floated free and the executor was within its
+            // rights to run the scent before them - which it did the moment a system was added to the creatures stage.
+            TurnStage::Scheduled,
             TurnStage::Scent,
             TurnStage::Sounds,
             TurnStage::Falling,
@@ -375,6 +381,10 @@ fn digest_stage(world: &mut World) {
 fn sounds_stage(world: &mut World) {
     note(world, TurnStage::Sounds);
     crate::hearing::hear_sounds(world);
+}
+
+fn walk_stage(world: &mut World) {
+    crate::walk::take_steps(world);
 }
 
 fn creatures_stage(world: &mut World) {

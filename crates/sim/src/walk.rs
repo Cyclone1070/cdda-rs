@@ -60,3 +60,34 @@ pub fn walk(world: &mut World, creature: Entity, dx: i32, dy: i32) -> StepOutcom
     };
     crate::vehicles::step_from_vehicle(world, creature, to, cost)
 }
+
+/// **A creature that has been told to step, and has not yet.** The port's own seam between input and simulation: the reference's UI calls `avatar_action::move` directly from
+/// the key handler, and an ECS cannot - input arrives as data, a system reads it, and the step happens inside the turn where the schedule can order it.
+///
+/// One step per turn: the system takes the component out, walks, and does not put it back, so a held key is a new component each frame rather than a creature that runs.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WantsToStep {
+    /// Which way, along the columns.
+    pub dx: i32,
+    /// Which way, along the rows.
+    pub dy: i32,
+}
+
+/// **Takes every pending step.** Runs in the creatures stage of the turn, before the monsters act.
+///
+/// The order is the entity's own, sorted, so two creatures wanting the same square resolve the same way in every replay; the reference's turn order is by speed and is not
+/// ported, which is why this says what it does instead of claiming to be it.
+pub fn take_steps(world: &mut World) {
+    let mut wanting: Vec<Entity> = world
+        .iter_entities()
+        .filter(|entity| entity.get::<WantsToStep>().is_some())
+        .map(|entity| entity.id())
+        .collect();
+    wanting.sort();
+    for entity in wanting {
+        let Some(intent) = world.entity_mut(entity).take::<WantsToStep>() else {
+            continue;
+        };
+        walk(world, entity, intent.dx, intent.dy);
+    }
+}

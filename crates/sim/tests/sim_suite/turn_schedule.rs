@@ -84,3 +84,49 @@ fn the_vehicles_take_their_turn_between_falling_and_fields() {
         "**and the fields act after the vehicles**"
     );
 }
+
+/// **A step asked for before a turn happens inside that turn.** The port's input seam is a component - `WantsToStep` - and the creatures stage consumes it, which is what
+/// makes a scripted playtest able to walk at all: nothing outside a turn has to call the walk function by hand.
+#[test]
+fn a_step_asked_for_before_a_turn_is_taken_during_it() {
+    const FLOOR: u32 = 1;
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    terrain.insert(FLOOR, true);
+    terrain.insert_move_cost(FLOOR, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::new(),
+        },
+    );
+    for y in 0..=10 {
+        for x in 0..=10 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    let walker = world
+        .spawn((
+            cdda_sim::Position { x: 4, y: 4, z: 0 },
+            cdda_sim::creature::Moves { left: 1000 },
+            cdda_sim::walk::WantsToStep { dx: 1, dy: 0 },
+        ))
+        .id();
+
+    run_turn(&mut world);
+
+    let at = world
+        .get::<cdda_sim::Position>(walker)
+        .map(|at| (at.x, at.y));
+    assert_eq!(
+        at,
+        Some((5, 4)),
+        "**the step asked for happened in the turn**"
+    );
+    assert!(
+        world.get::<cdda_sim::walk::WantsToStep>(walker).is_none(),
+        "and the wish is spent, so a turn does not repeat it"
+    );
+}

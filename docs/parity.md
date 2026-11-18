@@ -38195,3 +38195,15 @@ the terrain. Both refusals are pinned, because they arrive by different roads - 
 recording came back with the step "landing" eleven squares west of where it started. Absolute coordinates fixed the direction but not the price: the reference charges
 `Character::run_cost`, which starts at a hundred and adds what the survivor carries and wears, so its own floor step reads **163**. The port has no carried weight - `Weight` is one
 number with no composition - so the price is a named gap, and the rule is a transcribed upstream case instead. The dump is worth building again once carried weight exists.
+
+## A step asked for before a turn happens inside it (round 181)
+
+The port's input seam is a component. `walk::WantsToStep { dx, dy }` is what a key press leaves in the store, and the creatures stage consumes it: the intent is taken, the step is
+taken, the intent is not put back. That makes a scripted playtest able to walk - `run_turn` on a world with one walker takes the step and moves it a square - and it keeps the walk
+inside the schedule, where the order can be reasoned about, instead of a key handler reaching into the simulation.
+
+**Adding it exposed a real defect in the schedule.** The trace test failed the moment a system joined the creatures stage: the due events ran *after* the scent. `TurnStage::Scheduled`
+was never in the `configure_sets` chain - the declared order named it, the chain forgot it, and the executor was free to float it. It floated. The chain now starts with the due events,
+which is what `do_turn.cpp` does, and the mutation that removes it from the chain puts the executed order back to `[Scent, Scheduled, ...]`.
+
+Two mutations, both caught: remove the walk stage and the step never happens; remove `Scheduled` from the chain and the declared order stops being the executed one.
