@@ -38353,3 +38353,22 @@ So the tank is now closed in both directions: `walk` burns `moves × 15/100 × s
 ceiling - and the **same** modifier scales both, in opposite directions.
 
 Mutation-checked: doubling the rest rate answers 40 against 20.
+
+## The car's missing fifty kilos are loot (round 191)
+
+`place_spawn_items` (`vehicle.cpp:6379-6450`) rolls items into a vehicle's cargo parts when it is placed. The rolls are dice - `roll_remainder( chance * ITEM_SPAWNRATE / 100 )`
+and `rng_float( 0, 1 ) < spawn_rate` - and this port does not replay the reference's random stream, so the *selection* stays out of scope. But the **list it produced** is an
+observation, and `corpus/vehicle_rolling.json` now records it: the car the reference placed, with each stack's part, id, count and weight, and the vehicle's whole weight.
+
+| | Port | Reference |
+|---|---|---|
+| car without loot | 1,016,912 g | - |
+| car with the recorded loot | **1,029,567 g** | **1,029,567 g** |
+
+So the gap was never the parts or the mass rule: it was twelve and a half kilos of spawned loot that the port had never put in the trunk. The dump now also records
+`cargo_mass_g`, so a port that spawns nothing can still check the bare vehicle against `total_mass_g - cargo_mass_g`, and the two older rolling tests do exactly that and skip
+the looted car's coefficient and top speed - those belong to the mass the loot gives it, which is now pinned instead of approximated. The test re-stows the recording's own
+stacks and checks the total, and mutation-checking it (carried items weigh nothing) answers 1,016,912 against 1,029,567.
+
+**Two numberings, one name.** The reference's `part_count()` counts the fake parts its indexing needs, so its part 61 is not the port's part 61. The recording is therefore keyed by
+part **name**, and the port translates - which is also why the earlier "the car is missing twelve parts" reading was wrong: the definitions match, only the indices do not.

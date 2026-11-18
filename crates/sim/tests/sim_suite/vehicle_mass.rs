@@ -209,3 +209,150 @@ fn a_parts_cargo_can_be_weighted_down() {
         "**a part that halves its cargo's weight adds half**"
     );
 }
+
+/// **A spawned car's loot is part of its weight.** `place_spawn_items` (`vehicle.cpp:6379-6450`) rolls items into the cargo parts when a vehicle is placed; the rolls are dice and
+/// cannot be replayed, but the list they produced can - and the list is what the port owes. `corpus/vehicle_rolling.json` records the car the reference placed: seventeen stacks in two
+/// cargo parts with the weight of each, and the vehicle's whole weight including them.
+///
+/// **The two numberings differ**: the reference's `part_count()` counts the fake parts its indexing needs, while the port keeps one part per definition. The recording is therefore
+/// matched by part **name**, not by index.
+/// The port's own name for a part, so a recording's reference indices can be translated.
+fn port_name(world: &World, vehicle: Entity, index: usize) -> String {
+    world
+        .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+        .map(|part| part.part.clone())
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_spawned_cars_cargo_is_part_of_its_weight() {
+    let bytes = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_rolling.json"),
+    )
+    .expect("the vehicle recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(origin)) = root.get("origin") else {
+        panic!("an origin");
+    };
+    let here = (
+        coordinate(origin, 0),
+        coordinate(origin, 1),
+        coordinate(origin, 2),
+    );
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+    let Some(cdda_json::Value::Object(car)) = cases.iter().find(|case| {
+        matches!(case, cdda_json::Value::Object(row) if matches!(row.get("name"), Some(cdda_json::Value::Str(name)) if name == "car"))
+    }) else {
+        panic!("the car case");
+    };
+
+    // The recording's two lists: each reference index's part name and base weight, and each stack of loot.
+    let mut reference_parts: Vec<(i64, String, i64)> = Vec::new();
+    let Some(cdda_json::Value::Array(recorded_parts)) = car.get("parts") else {
+        panic!("parts");
+    };
+    for entry in recorded_parts {
+        let cdda_json::Value::Object(row) = entry else {
+            panic!("a part");
+        };
+        reference_parts.push((
+            i64::from(int_of(row, "index")),
+            text_of(row, "part"),
+            i64::from(int_of(row, "base_mass_g")),
+        ));
+    }
+    let Some(cdda_json::Value::Array(cargo)) = car.get("cargo") else {
+        panic!("cargo");
+    };
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let vehicle = spawn_facing(&mut world, "car", here, 0.0).expect("the car builds");
+    let count = world
+        .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+
+    // **The registry, weighted from the recording**: every part's base item at the reference's own weight, and every piece of loot at its stack's weight per unit.
+    let mut kinds: Vec<(String, i64)> = Vec::new();
+    let mut remember = |id: &str, weight: i64| {
+        if let Some(slot) = kinds.iter_mut().find(|(name, _)| name == id) {
+            slot.1 = weight;
+        } else {
+            kinds.push((id.to_owned(), weight));
+        }
+    };
+    for index in 0..count {
+        let Some(spec) = part_spec(&world, vehicle, index) else {
+            continue;
+        };
+        let name = port_name(&world, vehicle, index);
+        let weight = reference_parts
+            .iter()
+            .find(|(_, part, _)| *part == name)
+            .map_or(0, |(_, _, weight)| *weight);
+        remember(&spec.item, weight);
+    }
+    for entry in cargo {
+        let cdda_json::Value::Object(row) = entry else {
+            panic!("a cargo entry");
+        };
+        let per_unit = i64::from(int_of(row, "mass_g")) / i64::from(int_of(row, "count")).max(1);
+        remember(&text_of(row, "id"), per_unit);
+    }
+    let specs: Vec<Kind<'_>> = kinds
+        .iter()
+        .map(|(id, weight)| Kind {
+            id,
+            volume_ml: 0,
+            weight_g: *weight,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -1,
+        })
+        .collect();
+    set_item_types(&mut world, &specs);
+
+    // **The recording's own list, put back where it was found**, by part name.
+    let mut stowed = 0;
+    for entry in cargo {
+        let cdda_json::Value::Object(row) = entry else {
+            panic!("a cargo entry");
+        };
+        let reference_index = i64::from(int_of(row, "part"));
+        let Some((_, name, _)) = reference_parts
+            .iter()
+            .find(|(index, _, _)| *index == reference_index)
+        else {
+            panic!("reference part {reference_index}");
+        };
+        let Some(part) = (0..count).find(|index| port_name(&world, vehicle, *index) == *name)
+        else {
+            panic!("the port has no part called {name}");
+        };
+        let kind = id_in(&world, &text_of(row, "id")).expect("the loot's kind");
+        let charges = int_of(row, "count").max(1);
+        if stow_item(&mut world, vehicle, part, kind, charges).is_some() {
+            stowed += 1;
+        }
+    }
+    assert_eq!(
+        stowed,
+        cargo.len(),
+        "**the port stowed every stack the reference's spawn produced**"
+    );
+
+    assert_eq!(
+        mass(&world, vehicle),
+        i64::from(int_of(car, "total_mass_g")),
+        "**the car weighs what the reference says, loot and all**"
+    );
+}

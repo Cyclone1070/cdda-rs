@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 22:58:32
-@@ -0,0 +1,9788 @@
++++ oracle/src/src/harness.cpp	2026-11-19 00:06:42
+@@ -0,0 +1,9816 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1500,7 +1500,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    }
 +
 +    // Version 2 carries the parts' base item weights, so a reader can install the reference's own registry and check the coefficient rather than a guess at it.
-+    std::fprintf( out, "{\"harness\":\"vehicle_rolling\",\"version\":3,\"origin\":[%d,%d,%d],"
++    std::fprintf( out, "{\"harness\":\"vehicle_rolling\",\"version\":4,\"origin\":[%d,%d,%d],"
 +                  "\"cases\":[", origin.x(), origin.y(), origin.z() );
 +    bool first_case = true;
 +
@@ -1544,16 +1544,44 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +                          static_cast<long long>( units::to_gram( vp.get_base().weight() ) ) );
 +            first_part = false;
 +        }
++        // **What the spawn put in the cargo** (version 4): `place_spawn_items` (`vehicle.cpp:6379-6450`) rolls items into the cargo parts, and their weight is most of the gap
++        // between a port's car and the reference's. The rolls themselves are the dice and cannot be replayed; the list they produced can.
++        std::fprintf( out, "],\"cargo\":[" );
++        bool first_cargo = true;
++        for( int p = 0; p < veh->part_count(); p++ ) {
++            const vehicle_part &vp = veh->part( p );
++            if( vp.removed ) {
++                continue;
++            }
++            for( const item &held : veh->get_items( vp ) ) {
++                std::fprintf( out, "%s{\"part\":%d,\"id\":\"%s\",\"count\":%d,\"mass_g\":%lld}",
++                              first_cargo ? "" : ",", p, held.typeId().str().c_str(), held.count(),
++                              static_cast<long long>( units::to_gram( held.weight() ) ) );
++                first_cargo = false;
++            }
++        }
 +        // Version 3: the two numbers this coefficient feeds, so a port can check the whole chain - wheels, engines and the cubic - on the vehicles whose mass it
 +        // reproduces exactly.
-+        std::fprintf( out, "],\"total_mass_g\":%lld,\"coeff_rolling_drag\":%.12g,"
++        // **The loot's own weight**, so a port that has not spawned anything can still check the bare vehicle: `total_mass_g - cargo_mass_g` is what the same car weighs empty.
++        long long cargo_mass = 0;
++        for( int p = 0; p < veh->part_count(); p++ ) {
++            const vehicle_part &vp = veh->part( p );
++            if( vp.removed ) {
++                continue;
++            }
++            for( const item &held : veh->get_items( vp ) ) {
++                cargo_mass += units::to_gram( held.weight() );
++            }
++        }
++        std::fprintf( out, "],\"cargo_mass_g\":%lld,\"total_mass_g\":%lld,\"coeff_rolling_drag\":%.12g,"
 +                      "\"power_w\":%d,\"max_ground_velocity\":%d}",
-+                      static_cast<long long>( units::to_gram( veh->total_mass( here ) ) ),
++                      cargo_mass, static_cast<long long>( units::to_gram( veh->total_mass( here ) ) ),
 +                      veh->coeff_rolling_drag( here ), units::to_watt( veh->total_power( here, false ) ),
 +                      static_cast<int>( veh->max_ground_velocity( here, false ) ) );
 +        here.destroy_vehicle( veh );
 +    };
 +
++    dump_case( "car", vproto_id( "car" ), false );
 +    dump_case( "bicycle", vproto_id( "bicycle" ), false );
 +    dump_case( "quad_bike", vproto_id( "quad_bike" ), false );
 +    dump_case( "a_bicycle_with_no_usable_wheel", vproto_id( "bicycle" ), true );
