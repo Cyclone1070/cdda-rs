@@ -27,6 +27,29 @@ pub struct Prototype {
     pub name: String,
     /// The parts it is built from, in the data's order.
     pub parts: Vec<Placement>,
+    /// What a placed vehicle gets in its cargo.
+    pub spawns: Vec<Spawn>,
+}
+
+/// **What a placed vehicle gets in its cargo.**
+///
+/// Reference: `vehicle_item_spawn` (`src/veh_type.h:470-481`) as `--dump-vehicles` reports it. A spawn is per square: `chance` is the chance of a batch (a percentage, scaled by the
+/// `ITEM_SPAWNRATE` option at placement), and `items` is the list a batch draws from one at a time. The port keeps the data in this shape because the placement rule
+/// (`vehicle::place_spawn_items`, `vehicle.cpp:6379-6450`) reads exactly these three numbers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Spawn {
+    /// The square the items land in, as an offset from the vehicle's origin.
+    pub x: i32,
+    /// The square the items land in, as an offset from the vehicle's origin.
+    pub y: i32,
+    /// The chance of a batch, as a percentage.
+    pub chance: i32,
+    /// The items a batch may produce.
+    pub items: Vec<String>,
+    /// Items with a variant named, as `(item, variant)`.
+    pub variants: Vec<(String, String)>,
+    /// Item groups a batch may draw from.
+    pub groups: Vec<String>,
 }
 
 /// One part a prototype puts in one square.
@@ -171,10 +194,58 @@ fn prototype_of(entry: &Value) -> Result<Prototype, String> {
         }
         _ => return Err("a prototype has no parts".to_owned()),
     }
+    let mut spawns = Vec::new();
+    if let Some(Value::Array(listed)) = object.get("spawns") {
+        for entry in listed {
+            let Value::Object(spawn) = entry else {
+                return Err("a spawn is not an object".to_owned());
+            };
+            let number = |key: &str| match spawn.get(key) {
+                Some(Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+                _ => 0,
+            };
+            let strings = |key: &str| -> Vec<String> {
+                match spawn.get(key) {
+                    Some(Value::Array(items)) => items
+                        .iter()
+                        .filter_map(|item| match item {
+                            Value::Str(text) => Some(text.clone()),
+                            _ => None,
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                }
+            };
+            let variants = match spawn.get("variants") {
+                Some(Value::Array(items)) => items
+                    .iter()
+                    .filter_map(|item| match item {
+                        Value::Array(pair) => match (pair.first(), pair.get(1)) {
+                            (Some(Value::Str(item)), Some(Value::Str(variant))) => {
+                                Some((item.clone(), variant.clone()))
+                            }
+                            _ => None,
+                        },
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            spawns.push(Spawn {
+                x: number("x"),
+                y: number("y"),
+                chance: number("chance"),
+                items: strings("items"),
+                variants,
+                groups: strings("groups"),
+            });
+        }
+    }
     Ok(Prototype {
         id: text("id")?,
         name: text("name")?,
         parts,
+        spawns,
     })
 }
 

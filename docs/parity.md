@@ -38372,3 +38372,20 @@ stacks and checks the total, and mutation-checking it (carried items weigh nothi
 
 **Two numberings, one name.** The reference's `part_count()` counts the fake parts its indexing needs, so its part 61 is not the port's part 61. The recording is therefore keyed by
 part **name**, and the port translates - which is also why the earlier "the car is missing twelve parts" reading was wrong: the definitions match, only the indices do not.
+
+## A vehicle's spawn list is now data the port holds (round 192)
+
+`place_spawn_items` (`vehicle.cpp:6379-6450`) needs three numbers per spawn and the lists behind them, so `--dump-vehicles` now reports each prototype's `item_spawns`
+(`src/veh_type.h:470-481`): the square, the chance of a batch, the items a batch lists, the variants and the **item groups** it draws from. The loader reads them, and the car's five
+are pinned: `car_misc` and `car_kit` at **90%**, snacks at **5**, fast food at **2**, the spare tyre kit at **40** — and every one of them draws from a group rather than naming
+loose items, which is why the placement rule cannot be finished without the group draws the port already has.
+
+`vehicle_spawn::roll_remainder` is ported with the reference's shape (`rng.cpp:136-147`): the whole part, plus one when a die falls inside the fraction, **and no roll at all when
+there is no fraction** - the reference guards with `value > integ`, and a port that drew there would be one die ahead of the reference for the rest of the session.
+`batch_count` scales a chance by `max( ITEM_SPAWNRATE, 1.0 )` before rounding, so a ninety per cent spawn is 0.9 of a batch and the option doubles it to 1.8 rather than being
+silently floored.
+
+Mutation-checked: ignoring the spawn rate answers 1 batch where 2 are due.
+
+**Still open:** the stowing loop itself - a batch draws from its group a variable number of times, items spawn at `rng_float( 0, 1 ) < spawn_rate`, a broken part halves them and
+damages what it lets through. That is the next round, and the recorded car from round 191 is its witness.

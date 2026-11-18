@@ -110,6 +110,7 @@ pub mod turn;
 pub mod vehicle_cargo;
 pub mod vehicle_damage;
 pub mod vehicle_mass;
+pub mod vehicle_spawn;
 pub mod vehicles;
 pub mod vomit;
 pub mod walk;

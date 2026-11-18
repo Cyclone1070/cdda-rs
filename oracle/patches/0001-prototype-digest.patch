@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-19 00:06:42
-@@ -0,0 +1,9816 @@
++++ oracle/src/src/harness.cpp	2026-11-19 00:40:15
+@@ -0,0 +1,9869 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1118,10 +1118,21 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        // fuel type, and `consume_fuel` is that sum scaled by load and strain.
 +        int energy_consumption_w = 0;
 +    };
++    // **What a placed vehicle gets in its cargo** (`vehicle_prototype::item_spawns`, `veh_type.h:470-481`): the square, the chance of a batch, and the items that turn up
++    // one at a time. The port needs the list to place loot at all, and the list is data rather than dice.
++    struct dumped_spawn {
++        int x = 0;
++        int y = 0;
++        int chance = 0;
++        std::vector<std::string> item_ids;
++        std::vector<std::pair<std::string, std::string>> variant_ids;
++        std::vector<std::string> item_groups;
++    };
 +    struct dumped_prototype {
 +        std::string id;
 +        std::string name;
 +        std::vector<std::tuple<std::string, int, int, std::string, int>> parts;
++        std::vector<dumped_spawn> spawns;
 +    };
 +    std::vector<dumped_part> parts;
 +    for( const vpart_info &part : vehicles::parts::get_all() ) {
@@ -1185,6 +1196,22 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        dumped_prototype entry;
 +        entry.id = proto.id.str();
 +        entry.name = proto.name.translated();
++        for( const vehicle_item_spawn &spawn : proto.item_spawns ) {
++            dumped_spawn listed;
++            listed.x = spawn.pos.x();
++            listed.y = spawn.pos.y();
++            listed.chance = spawn.chance;
++            for( const itype_id &id : spawn.item_ids ) {
++                listed.item_ids.push_back( id.str() );
++            }
++            for( const std::pair<itype_id, std::string> &variant : spawn.variant_ids ) {
++                listed.variant_ids.emplace_back( variant.first.str(), variant.second );
++            }
++            for( const item_group_id &group : spawn.item_groups ) {
++                listed.item_groups.push_back( group.str() );
++            }
++            entry.spawns.push_back( listed );
++        }
 +        for( const vehicle_prototype::part_def &part : proto.parts ) {
 +            entry.parts.emplace_back( part.part.str(), part.pos.x(), part.pos.y(), part.variant,
 +                                      part.with_ammo );
@@ -1268,6 +1295,32 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +            std::fprintf( out, "\"%s\"", escaped( std::get<3>( part ) ).c_str() );
 +            std::fprintf( out, ",\"with_ammo\":%d}", std::get<4>( part ) );
 +            first_part = false;
++        }
++        std::fprintf( out, "],\"spawns\":[" );
++        bool first_spawn = true;
++        for( const dumped_spawn &spawn : proto.spawns ) {
++            std::fprintf( out, "%s{\"x\":%d,\"y\":%d,\"chance\":%d,\"items\":[", first_spawn ? "" : ",",
++                          spawn.x, spawn.y, spawn.chance );
++            bool first_item = true;
++            for( const std::string &id : spawn.item_ids ) {
++                std::fprintf( out, "%s\"%s\"", first_item ? "" : ",", escaped( id ).c_str() );
++                first_item = false;
++            }
++            std::fprintf( out, "],\"variants\":[" );
++            bool first_variant = true;
++            for( const std::pair<std::string, std::string> &variant : spawn.variant_ids ) {
++                std::fprintf( out, "%s[\"%s\",\"%s\"]", first_variant ? "" : ",",
++                              escaped( variant.first ).c_str(), escaped( variant.second ).c_str() );
++                first_variant = false;
++            }
++            std::fprintf( out, "],\"groups\":[" );
++            bool first_group = true;
++            for( const std::string &group : spawn.item_groups ) {
++                std::fprintf( out, "%s\"%s\"", first_group ? "" : ",", escaped( group ).c_str() );
++                first_group = false;
++            }
++            std::fprintf( out, "]}" );
++            first_spawn = false;
 +        }
 +        std::fprintf( out, "]}" );
 +        first = false;
