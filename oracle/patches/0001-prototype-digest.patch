@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 19:29:26
-@@ -0,0 +1,9674 @@
++++ oracle/src/src/harness.cpp	2026-11-18 20:25:39
+@@ -0,0 +1,9690 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1816,11 +1816,27 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        you.set_moves( 1000 );
 +        const int before = you.get_moves();
 +        g->walk_move( dest );
++        // **What `run_cost` itself answers**, recorded beside what the walk charged, so a port can tell the price from whatever is added to it on the way to the moves.
++        const int combined = here.combined_movecost( stand, dest );
++        const bool diagonal = entry.dx != 0 && entry.dy != 0;
++        // **The chain for this very square**, not for a hundred: the effect list differs either side of the `movecost > 105` branch, and printing it is how that gets settled
++        // instead of guessed at from a total.
++        float probe_here = static_cast<float>( combined );
++        const std::vector<run_cost_effect> chain_here = you.run_cost_effects( probe_here );
 +        std::fprintf( out,
 +                      "%s{\"case\":\"%s\",\"dx\":%d,\"dy\":%d,\"cost_from\":%d,\"cost_to\":%d,"
-+                      "\"combined\":%d,\"charge\":%d}",
-+                      first_case ? "" : ",", entry.name, entry.dx, entry.dy, cost_from, cost_to,
-+                      here.combined_movecost( stand, dest ), before - you.get_moves() );
++                      "\"combined\":%d,\"run_cost_direct\":%d,\"run_cost_diag\":%d,\"charge\":%d,"
++                      "\"stamina\":%d,\"stamina_max\":%d,\"probe_here\":%f,\"effects\":[",
++                      first_case ? "" : ",", entry.name, entry.dx, entry.dy, cost_from, cost_to, combined,
++                      you.run_cost( combined, false ), you.run_cost( combined, true ),
++                      before - you.get_moves(), you.get_stamina(), you.get_stamina_max(), probe_here );
++        bool first_effect = true;
++        for( const run_cost_effect &effect : chain_here ) {
++            std::fprintf( out, "%s{\"what\":\"%s\",\"times\":%f,\"plus\":%f}",
++                          first_effect ? "" : ",", effect.description.c_str(), effect.times, effect.plus );
++            first_effect = false;
++        }
++        std::fprintf( out, "]}" );
 +        first_case = false;
 +    }
 +    std::fprintf( out, "]}\n" );

@@ -38261,11 +38261,14 @@ as a name rather than a guess.
 |---|---|---|---|
 | east floor | 100 | 163 | 163 |
 | north floor | 100 | 163 | 163 |
-| north-east diagonal | 142 | **232** | **231** |
+| north-east diagonal | 142 | **232** | **232** |
 
-**The diagonal is one short and that is recorded, not smoothed.** The straight steps match to the point; the diagonal's own handling divides by √2 before the effects and multiplies
-back after (`character.cpp:10366-10372`), which is now ported, and still answers 231 where the recording says 232. The test asserts the difference is **exactly one** so that the day
-someone finds the missing movement point, the assertion that is wrong is the one that says it is fine.
+**The diagonal's missing movement point was stamina, and asking the reference for the chain again found it.** The dump now records `run_cost_effects`' list *for the square being
+stepped on*, not for a hundred, and the third entry is `Stamina × 1.004847`: `run_cost_effects` multiplies by `1.0 / get_modifier( stamina_move_cost_mod )` (`character.cpp:10527`),
+whose modifier is `( stamina / stamina_max + 1 ) / 2` (`character_modifier.cpp:295-300`). The reciprocal is **above one** while any stamina remains, which is why the diagonal - one
+step further into the session, one step tireder - was a point dearer than a straight step and why the earlier dump, taken on a full tank, showed no such term at all.
+
+All three cases now replay **exactly**, and each carries its own stamina because it falls with every step. Mutation-checked: pricing stamina at nothing answers 231 against 232.
 
 `LimbCost` is the seam: the port has no body parts to compute the two scores from and no enchantment cache to gather the flat-ground multiplier from, so a creature carries them
 where it is made. A creature without one pays the square's own cost, which is what perfect limbs on broken ground would pay. Mutation-checked: wiring `walk` back to the square's raw

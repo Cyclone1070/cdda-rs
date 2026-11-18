@@ -72,25 +72,20 @@ fn a_walk_step_is_priced_by_the_square_and_the_body() {
         )]
         let base = combined as f32;
         let diagonal = row.get("dx").is_some() && int("dx") != 0 && int("dy") != 0;
-        let ours = cdda_sim::run_cost::run_cost(base, blend, flat_ground, diagonal);
-        if diagonal {
-            // **Named, not hidden:** the recording charges a diagonal step **one more** than `run_cost` answers from the same numbers. The straight steps match to the point, so
-            // the difference is in the diagonal's own handling on the way to `mod_moves` and not in the price; it is recorded here rather than papered over with a wide tolerance.
-            assert!(
-                (ours - charge).abs() <= 1,
-                "{name}: a diagonal charge within one - {ours} against {charge}"
-            );
-            assert_eq!(
-                charge - ours,
-                1,
-                "{name}: and exactly one over, as recorded"
-            );
-        } else {
-            assert_eq!(
-                ours, charge,
-                "{name}: **the charge**, from the combined cost {combined} and the body's {blend}"
-            );
-        }
+        // **Stamina, from the recording**: it falls with every step, so each case carries its own ratio and the charge moves with it.
+        let stamina = match (row.get("stamina"), row.get("stamina_max")) {
+            (Some(Value::Int(have)), Some(Value::Int(cap))) => {
+                let have = f64::from(i32::try_from(*have).expect("stamina"));
+                let cap = f64::from(i32::try_from(*cap).expect("its maximum"));
+                narrow(have / cap)
+            }
+            _ => panic!("{name}: stamina"),
+        };
+        let ours = cdda_sim::run_cost::run_cost(base, blend, flat_ground, diagonal, stamina);
+        assert_eq!(
+            ours, charge,
+            "{name}: **the charge**, from the combined cost {combined}, the body's {blend}, flat ground {flat_ground} and {stamina} stamina"
+        );
         seen += 1;
     }
     assert_eq!(seen, 3, "all three recorded steps were priced");
@@ -117,6 +112,7 @@ fn a_walk_step_is_priced_by_the_square_and_the_body() {
                 move_speed,
                 footing,
                 flat_ground,
+                stamina: 1.0,
             },
         ))
         .id();

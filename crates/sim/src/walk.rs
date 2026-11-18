@@ -58,6 +58,8 @@ pub struct LimbCost {
     pub footing: f32,
     /// The summed `MOVECOST_FLATGROUND_MOD` as a multiplier: one plus the enchantments' multiplies.
     pub flat_ground: f32,
+    /// How much stamina the creature has, from zero to one. The reference takes `stamina / stamina_max` and prices the step by `2 / ( ratio + 1 )`.
+    pub stamina: f32,
 }
 
 /// What this creature pays to enter a square whose entry costs `combined`.
@@ -78,7 +80,7 @@ pub fn price_of_step(world: &World, creature: Entity, combined: i32) -> i32 {
         reason = "a square's combined cost is a small count of movement points"
     )]
     let base = combined as f32;
-    crate::run_cost::run_cost(base, blend, limbs.flat_ground, false)
+    crate::run_cost::run_cost(base, blend, limbs.flat_ground, false, limbs.stamina)
 }
 
 /// **One step in a direction.** Answers whether the creature moved.

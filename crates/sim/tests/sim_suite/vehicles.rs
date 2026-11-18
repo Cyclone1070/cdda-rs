@@ -7327,6 +7327,7 @@ fn a_walk_step_lands_refuses_and_boards() {
                 move_speed: 0.553_607,
                 footing: 0.467_213,
                 flat_ground: 0.85,
+                stamina: 1.0,
             },
         ))
         .id();

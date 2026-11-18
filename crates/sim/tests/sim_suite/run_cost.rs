@@ -109,7 +109,7 @@ fn a_limb_score_becomes_a_multiplier_and_the_multipliers_blend() {
                 }
             }
         }
-        let ours = cdda_sim::run_cost::run_cost(100.0, limb_modifier, flat_ground, false);
+        let ours = cdda_sim::run_cost::run_cost(100.0, limb_modifier, flat_ground, false, 1.0);
         let recorded_charge = match case {
             Value::Object(row) => match row.get("run_cost_100") {
                 Some(Value::Int(value)) => i32::try_from(*value).expect("a charge"),

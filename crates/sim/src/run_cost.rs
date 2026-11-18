@@ -44,16 +44,29 @@ pub fn flat_ground_multiplier(multiply_sum: f32) -> f32 {
     1.0 + multiply_sum
 }
 
-/// **What a step costs**, given the limb blend and the flat-ground multiplier.
+/// **Tiredness prices a step**: the reciprocal of the reference's stamina modifier.
 ///
-/// Reference: `Character::run_cost` (`character.cpp:10363-10374`) with the two effects that bind for a survivor on open ground: "Encum./Wounds" multiplies by the limb blend
-/// (`:10436-10441`) and, **when the ground was flat before that multiply**, "Flat Ground Mut." multiplies again (`:10443-10446`). The result is truncated toward zero and floored at
-/// one (`:10523`), because a step never costs nothing.
-///
-/// `flat` is decided from the **base**, not from the multiplied cost: `const bool flatground = movecost < 105` sits above the whole chain (`:10396`), so whether the ground is flat is
-/// a fact about the square, not about the walker.
+/// Reference: `run_cost_effects` multiplies by `1.0 / get_modifier( character_modifier_stamina_move_cost_mod )` (`character.cpp:10527-10528`), and that modifier is
+/// `( stamina / stamina_max + 1 ) / 2` (`character_modifier.cpp:295-300`) - half speed with the tank empty, full speed full. So the applied factor is `2 / ( ratio + 1 )`, which is
+/// **above one** while any stamina remains: the reference's modifier is a divisor, and a fresh survivor pays a hair more than the base until the arithmetic cancels.
 #[must_use]
-pub fn run_cost(base: f32, limb_modifier: f32, flat_ground: f32, diagonal: bool) -> i32 {
+pub fn stamina_cost_modifier(stamina_ratio: f32) -> f32 {
+    2.0 / (stamina_ratio + 1.0)
+}
+
+/// **What a step costs**, given the body's factors and the shape of the step.
+///
+/// Reference: `Character::run_cost` (`character.cpp:10363-10374`) with the effects that bind for a survivor walking on open ground, in the reference's own order: the limb blend
+/// (`:10436-10441`), flat ground when the ground was flat **before** that blend (`:10443-10446`), and stamina (`:10527-10528`); the diagonal is divided out before all of it and
+/// multiplied back after (`:10366-10372`). The result is floored at one (`:10523`), because a step never costs nothing.
+#[must_use]
+pub fn run_cost(
+    base: f32,
+    limb_modifier: f32,
+    flat_ground: f32,
+    diagonal: bool,
+    stamina_ratio: f32,
+) -> i32 {
     // **The diagonal is divided out before the effects run and multiplied back after** (`character.cpp:10366-10372`), because the effect arithmetic assumes a hundred-point base. The
     // flat-ground question is asked of the **divided** cost (`:10396`), so a diagonal step can be flat ground when a straight one of the same squares is not.
     let mut movecost = base;
@@ -65,6 +78,7 @@ pub fn run_cost(base: f32, limb_modifier: f32, flat_ground: f32, diagonal: bool)
     if flat {
         movecost *= flat_ground;
     }
+    movecost *= stamina_cost_modifier(stamina_ratio);
     if diagonal {
         movecost *= std::f32::consts::SQRT_2;
     }
