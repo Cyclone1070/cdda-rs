@@ -1432,3 +1432,38 @@ pub fn turret_status(
     }
     TurretStatus::Ready
 }
+
+/// **What a turret's shots cost the vehicle** - the reference's `turret_data::post_fire` (`turret.cpp:286-330`), which drains the mount's ammunition by `ammo_required × shots` and the
+/// battery by the shot's energy, `energy_drain × shots`, one kilojoule a charge.
+///
+/// Both drains happen **unconditionally**, in that order, and both go through [`drain`]: a liquid-fired mount pays from its tanks, and every mount pays its battery even when the
+/// energy is zero, because a drain of nothing is a drain of nothing. The answer is what actually came out of each store - a mount can fire fewer shots than asked for when the tank
+/// runs dry, and the reference's `drain` answers what it took rather than what was asked.
+///
+/// **Named, not guessed:** the reference also clears the base item's magazine wells (the flamethrower's spent pressurized tanks) and swaps the shot's fuel into the gun's magazine
+/// before firing. The port has no magazine-well model on a mounted gun, so nothing is cleared.
+pub fn turret_pay_for_shots(
+    world: &mut World,
+    vehicle: Entity,
+    index: usize,
+    ammo_required: i32,
+    energy_drain_kj: i32,
+    shots: i32,
+) -> (i64, i64) {
+    let Some(part) = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+    else {
+        return (0, 0);
+    };
+    let fuel = part.fuel.clone();
+    let fuel_cost = i64::from(ammo_required) * i64::from(shots);
+    let paid_fuel = if fuel.is_empty() {
+        0
+    } else {
+        drain(world, vehicle, &fuel, fuel_cost)
+    };
+    let power_cost = i64::from(energy_drain_kj) * i64::from(shots);
+    let paid_power = drain(world, vehicle, "battery", power_cost);
+    (paid_fuel, paid_power)
+}

@@ -7887,3 +7887,98 @@ fn a_turret_passes_its_ammunition_then_its_power() {
         "a broken turret has no status"
     );
 }
+
+/// **What a turret's shots cost the vehicle.** Reference: `turret_data::post_fire` (`turret.cpp:286-330`) - the mount's ammunition by `ammo_required × shots`, then the battery by
+/// `energy_drain × shots`, both through `drain`, and both paying what the stores actually held.
+#[test]
+fn a_turret_pays_for_its_shots() {
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![
+                cdda_content::vehicles::PartSpec {
+                    id: "thrower_mount".to_owned(),
+                    flags: ["TURRET".to_owned(), "USE_TANKS".to_owned()]
+                        .into_iter()
+                        .collect(),
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+                cdda_content::vehicles::PartSpec {
+                    id: "tank".to_owned(),
+                    fuel_store: true,
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+                cdda_content::vehicles::PartSpec {
+                    id: "battery".to_owned(),
+                    battery: true,
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+            ],
+            prototypes: Vec::new(),
+        },
+    );
+    let vehicle = world
+        .spawn((
+            cdda_sim::vehicles::Vehicle {
+                parts: vec![
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "thrower_mount".to_owned(),
+                        fuel: "chemical_spray".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "tank".to_owned(),
+                        charges: 400,
+                        fuel: "chemical_spray".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "battery".to_owned(),
+                        charges: 30,
+                        fuel: "battery".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                ],
+                ..cdda_sim::vehicles::Vehicle::default()
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+
+    // **Three shots of fifty a shot and four kilojoules each**: 150 out of the tank, 12 out of the battery.
+    let paid = cdda_sim::vehicles::turret_pay_for_shots(&mut world, vehicle, 0, 50, 4, 3);
+    assert_eq!(
+        paid,
+        (150, 12),
+        "**the tank pays a hundred and fifty and the battery twelve**"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::fuel_left(&world, vehicle, "chemical_spray"),
+        250,
+        "four hundred less a hundred and fifty"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::fuel_left(&world, vehicle, "battery"),
+        18,
+        "thirty less twelve"
+    );
+
+    // **A shot that costs more than the tank holds** pays what is there and says so.
+    let paid = cdda_sim::vehicles::turret_pay_for_shots(&mut world, vehicle, 0, 100, 20, 10);
+    assert_eq!(
+        paid,
+        (250, 18),
+        "**the tank gives its last two hundred and fifty, the battery its last eighteen**"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::fuel_left(&world, vehicle, "chemical_spray"),
+        0,
+        "and both are empty"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::fuel_left(&world, vehicle, "battery"),
+        0,
+        "to the last charge"
+    );
+}

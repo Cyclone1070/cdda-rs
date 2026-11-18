@@ -38544,3 +38544,18 @@ can make it fail - a rule preserved as provenance, not as behaviour.
 
 **Named gaps**: `Invalid` covers a missing vehicle, a non-turret part and a broken one at once, because the port's callers only ever ask about a part they already found; and there is
 still no firing, aiming, recoil or `ammo_capacity` - this is the gate a shot would pass through, not the shot.
+
+## A turret pays for its shots (round 200)
+
+`turret_data::post_fire` (`turret.cpp:286-330`) charges the vehicle twice, in this order and unconditionally: the mount's ammunition by `ammo_required × shots`, then the battery by
+`energy_drain × shots`, one kilojoule a charge. Both go through `vehicle::drain`, so both pay **what the stores actually held** rather than what the shots asked for.
+
+| Fired | Tank before | Battery before | Paid | Tank after | Battery after |
+|---|---|---|---|---|---|
+| 3 shots of 50, 4 kJ each | 400 | 30 | **(150, 12)** | 250 | 18 |
+| 10 shots of 100, 20 kJ each | 250 | 18 | **(250, 18)** | 0 | 0 |
+
+Mutation-checked: paying the battery once per burst instead of once per shot answers `(150, 4)` where the reference says 12.
+
+**Named gap**: the reference also clears the mounted gun's magazine wells - a flamethrower's spent pressurized tanks - and swaps the tank's fluid into the gun's magazine before
+firing. The port has no magazine-well model on a mounted gun, so nothing is cleared; what the shots cost is ported, what they leave behind is not.
