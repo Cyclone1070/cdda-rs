@@ -38332,3 +38332,24 @@ The tired case is the one that earns its keep: the same floor square costs **291
 dropped. Mutation-checked twice - `modifier = 1.0` answers 43, and removing the burn from `walk` leaves the tank at 8500.
 
 `Stamina` already existed as a component (`cur`/`max` in points, 3,500 by default from the cardio-fitness base); what was missing was anyone taking anything out of it.
+
+## Breath comes back (round 190)
+
+`Character::update_stamina` (`character.cpp:7020-7086`) was **already ported** - `regeneration::wind_back_per_turn` and `recover_wind`, wired into the turn - and this round found that
+out the hard way: a second recovery stage made a winded survivor get 22 a turn instead of 2 and turned twenty into forty. The duplicate is gone, and what is new is the other half of
+the tank: **the burn**, which now lives beside the recovery in `crates/sim/src/regeneration.rs` so that the two cannot drift apart.
+
+`corpus/stamina.json` is `--dump-stamina`, and it states its case before asserting anything: `cardiofit / cardio_acc_base` is **1000 / 1000 = 1** and the breathing modifier is
+**1.0**, so the whole rule really is the option - `PLAYER_BASE_STAMINA_REGEN_RATE = 20` per turn (`data/core/external_options.json:32-36`).
+
+| Case | Recorded | Port |
+|---|---|---|
+| rest, turn 1 | 1020 | 1020 |
+| rest, turn 5 | 1100 | 1100 |
+| two turns at once | 1040 | 1040 |
+| five short of the cap | 8500 | 8500 |
+
+So the tank is now closed in both directions: `walk` burns `moves × 15/100 × stamina_move_cost_mod` on every step it lands, and the turn puts `ceil( 20 × turns )` back, clamped at the
+ceiling - and the **same** modifier scales both, in opposite directions.
+
+Mutation-checked: doubling the rest rate answers 40 against 20.

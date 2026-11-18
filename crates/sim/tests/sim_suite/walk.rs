@@ -103,11 +103,7 @@ fn a_walk_step_is_priced_by_the_square_and_the_body() {
         );
         // **And the breath it costs**: `burn_move_stamina` with the data's own fifteen per hundred moves
         // (`data/core/external_options.json:39-43`), through the same modifier the price divides by.
-        let burn = cdda_sim::run_cost::stamina_burn(
-            charge,
-            cdda_sim::walk::BASE_STAMINA_BURN_RATE,
-            stamina,
-        );
+        let burn = cdda_sim::regeneration::burn_for(charge, stamina);
         assert_eq!(
             before - i64::from(burn),
             after,

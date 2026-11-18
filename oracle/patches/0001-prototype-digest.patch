@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 22:15:41
-@@ -0,0 +1,9739 @@
++++ oracle/src/src/harness.cpp	2026-11-18 22:58:32
+@@ -0,0 +1,9788 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1770,6 +1770,55 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// `Character::get_limb_score` (`character_modifier.cpp:222-266`) adds each part's adjusted figure - the adjustment being wounds and encumbrance, applied per part - and floors the sum at
 +/// zero. The dump records the parts, their hit points, their contribution to the two movement scores, and the totals, so a port can check its own addition against the reference's instead
 +/// of against itself.
++/// **How fast breath comes back.** `Character::update_stamina( turns )` (`character.cpp:7020-7086`): the recovery is
++/// `stamina_multiplier * max( 1, effective_regen_rate * breathing_mod ) + stim terms`, `effective_regen_rate` being the `PLAYER_BASE_STAMINA_REGEN_RATE` option times
++/// `cardiofit / cardio_acc_base`; the amount is `ceil( recovery * turns )`, added and then capped at the maximum.
++///
++/// The dump records the two cardio figures and the breathing modifier beside the observed recovery, because a port without cardio fitness needs to know which of them is doing the
++/// work: if the ratio is one and the modifier is one, the whole rule is the option.
++void dump_stamina( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    Character &you = get_player_character();
++    const int original = you.get_stamina();
++
++    std::fprintf( out, "{\"harness\":\"stamina\",\"version\":1,\"cardiofit\":%d,\"cardio_acc_base\":%d,"
++                  "\"breathing_mod\":%f,\"max\":%d,\"cases\":[",
++                  you.get_cardiofit(), you.get_cardio_acc_base(),
++                  you.get_modifier( character_modifier_id( "stamina_recovery_breathing_mod" ) ),
++                  you.get_stamina_max() );
++    bool first_case = true;
++
++    // **A rest from empty-ish**: the recovery per turn, whatever it is, repeated.
++    you.set_stamina( 1000 );
++    int values[6] = { you.get_stamina() };
++    for( int turn = 1; turn < 6; turn++ ) {
++        you.update_stamina( 1 );
++        values[turn] = you.get_stamina();
++    }
++    for( int turn = 0; turn < 6; turn++ ) {
++        std::fprintf( out, "%s{\"case\":\"rest\",\"turn\":%d,\"stamina\":%d}", first_case ? "" : ",", turn,
++                      values[turn] );
++        first_case = false;
++    }
++
++    // **Two turns at once**, which is what a long action asks for, and **a rest that runs into the cap**.
++    you.set_stamina( 1000 );
++    you.update_stamina( 2 );
++    std::fprintf( out, ",{\"case\":\"two_turns\",\"stamina\":%d}", you.get_stamina() );
++    you.set_stamina( you.get_stamina_max() - 5 );
++    you.update_stamina( 1 );
++    std::fprintf( out, ",{\"case\":\"at_the_cap\",\"stamina\":%d}", you.get_stamina() );
++
++    you.set_stamina( original );
++    std::fprintf( out, "]}\n" );
++    std::fclose( out );
++}
++
 +void dump_limb_scores( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -10101,8 +10150,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-18 20:58:41
-@@ -0,0 +1,452 @@
++++ oracle/src/src/harness.h	2026-11-18 22:53:37
+@@ -0,0 +1,453 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -10263,6 +10312,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_run_cost( const std::string &path );
 +void dump_walk( const std::string &path );
 +void dump_limb_scores( const std::string &path );
++void dump_stamina( const std::string &path );
 +void dump_vehicle_drive( const std::string &path );
 +void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
@@ -10842,7 +10892,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-18 20:58:41
++++ oracle/src/src/main.cpp	2026-11-18 22:53:37
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10853,7 +10903,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,189 @@
+@@ -272,6 +275,190 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -11030,6 +11080,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_run_cost;
 +    std::string dump_walk;
 +    std::string dump_limb_scores;
++    std::string dump_stamina;
 +    std::string dump_vehicle_drive;
 +    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
@@ -11043,7 +11094,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +486,1660 @@
+@@ -300,6 +487,1670 @@
                  }
              },
              {
@@ -11273,6 +11324,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_drive = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-stamina", "<file>",
++                "Writes observed stamina recovery over turns, with the figures that set it",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_stamina = params[0];
 +                    return 1;
 +                }
 +            },
@@ -12704,7 +12765,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2626,1035 @@
+@@ -786,6 +2637,1047 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -13015,6 +13076,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_drive( cli.dump_vehicle_drive );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_stamina.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_stamina( cli.dump_stamina );
 +            exit_handler( 0 );
 +        }
 +

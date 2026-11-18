@@ -187,6 +187,67 @@ pub fn ready_to_revive(
     rez_factor <= 0 || rolls.one_in(rez_factor)
 }
 
+/// The burn ratio the data ships: "base stamina burn per 100 moves of the walking player" (`data/core/external_options.json:39-43`).
+pub const BASE_STAMINA_BURN_RATE: i32 = 15;
+
+/// How full the creature's tank is, from zero to one - and one when it has no [`Stamina`] of its own, because a creature that never tires pays as a rested one does.
+#[must_use]
+pub fn stamina_ratio(world: &World, creature: Entity) -> f32 {
+    let Some(stamina) = world.get::<crate::creature::Stamina>(creature) else {
+        return 1.0;
+    };
+    if stamina.max <= 0.0 {
+        return 1.0;
+    }
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a ratio of two stamina figures is single precision in the reference too"
+    )]
+    let shrunk = (stamina.cur / stamina.max).clamp(0.0, 1.0) as f32;
+    shrunk
+}
+
+/// **What a step of `moves` takes out of a creature**, and how much it was.
+///
+/// Reference: `burn_ratio` starts at [`BASE_STAMINA_BURN_RATE`], gains a percentage for being overburdened and for swimming (neither is ported), and is multiplied by the movement mode's
+/// stamina multiplier (one for walking). The burn is `moves * ratio / 100` times `stamina_move_cost_mod` - which is `( ratio + 1 ) / 2`, **the reciprocal of what the price divides
+/// by** (`character.cpp:7006-7008`). Truncated, and floored at zero: a creature cannot owe stamina.
+pub fn burn(world: &mut World, creature: Entity, moves: i32) -> i32 {
+    if world.get::<crate::creature::Stamina>(creature).is_none() {
+        return 0;
+    }
+    let burn = burn_for(moves, stamina_ratio(world, creature));
+    if let Some(mut tank) = world.get_mut::<crate::creature::Stamina>(creature) {
+        tank.cur = (tank.cur - f64::from(burn)).max(0.0);
+    }
+    burn
+}
+
+/// **The burn itself, without a store**: what a step of `moves` takes out of a creature whose tank stands at `ratio`.
+///
+/// The modifier is the **reciprocal** of the one the price divides by: `stamina_move_cost_mod` is `( ratio + 1 ) / 2` and the burn multiplies by it, so a tired creature pays more
+/// per step and each step costs it less. Truncated.
+#[must_use]
+pub fn burn_for(moves: i32, ratio: f32) -> i32 {
+    let modifier = crate::run_cost::stamina_cost_modifier(ratio);
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a step's movement points are a small count"
+    )]
+    let spent = moves as f32;
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the burn ratio is a small percentage"
+    )]
+    let share = BASE_STAMINA_BURN_RATE as f32;
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the reference burns a whole number of stamina points"
+    )]
+    let burn = (spent * share / 100.0 * modifier.recip()) as i32;
+    burn.max(0)
+}
+
 /// How much wind a character gets back in a turn at rest: `PLAYER_BASE_STAMINA_REGEN_RATE` (`data/core/external_options.json`).
 pub const BASE_WIND_BACK_PER_TURN: f64 = 20.0;
 

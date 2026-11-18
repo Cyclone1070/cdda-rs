@@ -275,6 +275,7 @@ mod program_effect_shapes;
 mod run_cost;
 mod run_eocs_bare;
 mod sell_item;
+mod stamina;
 mod switch_effect;
 mod transform_line;
 mod underwater;
