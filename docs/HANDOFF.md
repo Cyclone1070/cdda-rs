@@ -1,53 +1,21 @@
 # Handoff
 
-Last round: 48. State at hand-off: **CI green**, gate green, tree clean.
+Updated every round. Untracked by design; the record that ships is [parity.md](parity.md).
 
-## Where the work stands
+## Where the port stands
 
-Alignment (phase 1) is done apart from terrain, furniture and traps, which are still per-square arrays
-inside the level (`crates/core-types/src/submap.rs`). Everything else in the store: one `World`, one
-derived index, systems in a declared schedule, no `Resource`.
+- Gate green: **1,596 sim / 547 content / 32 cli / 40 json**, clippy quiet, docs 3,690+ citations, oracle patch verifies byte for byte, CI green.
+- The store is one `bevy_ecs::World`; the index is derived; no globals; no per-square arrays. Architecture gates in `sim_suite/architecture.rs`.
+- Vehicle stores: `corpus/vehicles.json` (definition parts) is correct - `get_all_parts()` and the definition agree for all 249 prototypes.
 
-The audit of round 41 is in `plan-audit.md` (untracked). Two of its items landed this round and the
-turn loop's own costs were found and fixed on the way:
+## The current edge
 
-| Item | State |
-|---|---|
-| clippy/format in the default gate | done — one command, one exit status |
-| parse memo process-wide | done — content suite 135 s → 73 s, sim suite 275 s → 232 s |
-| turn-loop costs | done — butchery scenario 173 s → 1.6 s in release; the gate's playtest test 1,070 s → ~170 s |
-| process-wide state ledger | done — nine entries, exact-set, shrink-only |
-| CI parity with the build machine | done — the runner fetches the reference's data and links it where the binary looks |
-| `#[expect]` + allow ledger (622 allows) | not started |
-| `lib.rs` split (8,738 lines) | not started — deliberately, it is a large movement |
-| `snapshot` borrowed view | not started — borrow-checker risk across 21 call sites |
-| `clippy.toml` thresholds + ledgers | not started |
+- **Vehicles (P8).** Driving replay, two-hull impact along centres of mass, boarding (part + mass), the driver's exit skid, and a step taken from a vehicle are ported and gated.
+- **Named gaps.** Vehicle spawn items (loot) → the mass difference in the impact test; carried weight behind `creature::Weight`; autodrive target; turrets; towing; z/ramps/rails.
+- **No walk loop.** `creature::try_step` exists and `vehicles::step_from_vehicle` now calls it, but nothing turns a pressed direction into a step for a walking character. That is the
+  next feature, not a detail: no walking session can be replayed without it.
 
-## Rounds 43 to 47: the vehicle moves
+## Next round
 
-- **43-46**: thrust (the speed a step leaves), the store-level thrust, drag and coasting, and the movement step itself - a square costs `400 / |velocity|` of a turn,
-  a square costing exactly the turn left is not affordable, below 20 vmiph the vehicle stops, the remainder is carried.
-- **47**: `move_step` asks `vehicles::first_collision` before it takes a square and stops on terrain (`map.cpp:948-950`), so a vehicle no longer drives through a
-  wall. Gated by driving a bicycle into a wall in a real world.
-
-**The gate bug worth remembering:** `remote_test.py`'s "touch every source file" step ran on this machine while clippy ran on the build machine, so cargo
-re-reported a cached clean result - three rounds in a row reached CI with a lint the gate had called clean (`float_cmp` twice, `collapsible_if` once). The touch
-now runs where the lint runs, proved with a deliberate probe.
-
-## The next cycle
-
-1. The crash **impulse** is ported and gated (`vehicle_move::crash_impulse`, against the recording's `imp` column: 61 and 247). What is left is the
-   **distribution**: `map::move_vehicle`'s `damage` plus `damage_all( coll_dmg / 2, coll_dmg, collision_point )` (`map.cpp:859-870`), which is why a part loses 44
-   where the impulse is 247. It needs a part's density in the store (record `vpart_dens` for every part in `dump_vehicle_parts`) and `damage_all` ported.
-2. `vehicle::strain` / `safe_velocity` and the engine damage they feed.
-3. Fuel burn per step (`consume_fuel`).
-
-## What must stay true
-
-- `python3 tools/remote_test.py` is the gate: formatting, lints, tests, docs, source ledgers, oracle
-  patch. Read the exit status.
-- `python3 tools/remote_test.py --clippy` alone re-lints; it touches every `.rs` first, because a test
-  target has its own fingerprint and a stale one lies.
-- Push, then poll CI until green. The runner now has the reference's data, so CI and the build machine
-  check the same 2,853 tests.
-- `plan-audit.md` and this file are untracked by design.
+1. The walk loop: direction → destination → `map::move_cost` → `step_from_vehicle`, with a dump of a walking session as the gate.
+2. Then vehicle spawn items, which closes the mass gap and lets the impact damage be asserted.

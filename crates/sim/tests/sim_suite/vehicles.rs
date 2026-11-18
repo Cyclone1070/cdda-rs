@@ -7122,3 +7122,104 @@ fn a_driver_leaving_sets_the_hull_sliding() {
         "**a passenger getting out does not disturb the hull**"
     );
 }
+
+/// **A step taken while riding unboards first, and re-boards if the square it lands on has a seat.** Reference: `avatar_action::move` (`avatar_action.cpp:653-672`): the character
+/// is unboarded before the move, moved, and then boarded again only if the destination has a boardable part - which is how walking seat to seat stays "in the vehicle" and walking
+/// off the hull puts the character on the ground.
+///
+/// It also carries the driver rule with it: unboarding the driver sets the hull skidding, so *walking away from the wheel* is a way to leave a car sliding.
+#[test]
+fn a_step_while_riding_boards_the_square_it_lands_on() {
+    const FLOOR: u32 = 1;
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+    cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+    for y in 90..=130 {
+        for x in 90..=130 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    install_weights_for(&mut world, &["car"]);
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (110, 110, 0)).expect("a car");
+
+    // The car's own squares, in the order the parts are laid down: the first is where a creature stands to board.
+    let squares = cdda_sim::vehicles::part_squares(&world, car);
+    let first = squares.first().copied().expect("the car has squares");
+    // **Another seat**, found the way the game finds one: a part on a different square that takes a rider.
+    let mut other = None;
+    for candidate in squares.iter().copied().filter(|square| *square != first) {
+        let probe = world
+            .spawn((cdda_sim::Position {
+                x: candidate.0,
+                y: candidate.1,
+                z: candidate.2,
+            },))
+            .id();
+        if cdda_sim::vehicles::board(&mut world, car, probe).is_some() {
+            other = Some(candidate);
+        }
+        cdda_sim::vehicles::unboard(&mut world, probe);
+        world.despawn(probe);
+        if other.is_some() {
+            break;
+        }
+    }
+    let other = other.expect("the car has a second seat");
+    let off = (first.0 + 6, first.1 + 6, 0);
+    assert!(
+        !squares.contains(&off),
+        "the square off the hull is not part of it"
+    );
+
+    let rider = world
+        .spawn((
+            cdda_sim::Position {
+                x: first.0,
+                y: first.1,
+                z: 0,
+            },
+            // **Enough for both steps**: a seat costs a hundred movement points and the test takes two.
+            cdda_sim::creature::Moves { left: 1000 },
+        ))
+        .id();
+    let seat = cdda_sim::vehicles::board(&mut world, car, rider);
+    assert!(
+        seat.is_some(),
+        "the creature is put in the car's first boardable part"
+    );
+
+    // **Seat to seat**: the step lands on another part, so the creature is still riding, on that part.
+    let riding = cdda_sim::vehicles::step_from_vehicle(&mut world, rider, other, 100);
+    assert_eq!(
+        riding,
+        cdda_sim::creature::StepOutcome::Moved,
+        "the step is taken"
+    );
+    let on = world
+        .get::<cdda_sim::vehicles::Riding>(rider)
+        .map(|riding| (riding.vehicle, riding.part));
+    assert!(
+        on.is_some(),
+        "**a step onto another seat lands still in the vehicle**"
+    );
+
+    // **Off the hull**: no seat there, so the creature is on the ground and rides nothing.
+    let leaving = cdda_sim::vehicles::step_from_vehicle(&mut world, rider, off, 100);
+    assert_eq!(
+        leaving,
+        cdda_sim::creature::StepOutcome::Moved,
+        "the step is taken"
+    );
+    assert!(
+        world.get::<cdda_sim::vehicles::Riding>(rider).is_none(),
+        "**a step off the hull ends the ride**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(rider)
+            .map(|at| (at.x, at.y, at.z)),
+        Some(off),
+        "and the creature stands where it stepped"
+    );
+}

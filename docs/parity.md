@@ -38167,3 +38167,16 @@ no-op, which fails at `**the machine keeps going sideways**`.
 **And a recording that would not work was thrown away rather than kept.** Two attempts to capture this through `map::unboard_vehicle` in the boarding dump left the reference's own
 hull unchanged - the `veh_at` lookup behind it did not find the part the boarding had just used - so the dump keeps only what it states exactly, and this rule is a transcribed
 upstream case instead (`map.cpp:1420-1440`), which is what [14-test-porting.md](14-test-porting.md) allows when a dump cannot be made to say the thing.
+
+## A step taken from a vehicle (round 179)
+
+`avatar_action::move` (`avatar_action.cpp:653-672`) does three things in one order: it unboards the character **before** the move, moves it, and boards it again only if the destination
+holds a boardable part. That order is the whole rule - walking seat to seat stays "in the vehicle", walking off the hull ends the ride - and it carries the driver rule with it,
+because leaving the controls seat is an unboarding and therefore sets the hull skidding.
+
+`vehicles::step_from_vehicle` is that rule, on top of the existing `creature::try_step`, which stays the owner of what a step costs and where the creature ends up. The test walks the
+car's own squares: a step onto a second seat leaves the creature riding, a step onto the ground ends the ride and leaves it standing where it stepped. Mutation-checked by removing
+the re-boarding, which fails at `**a step onto another seat lands still in the vehicle**`.
+
+**Found while writing it, and worth stating:** the port has `try_step` and square costs, but there was no system that turns a direction into a step - the primitive existed and nothing
+called it. This is the first caller in the vehicle path; the walk loop itself is still unported and is the next thing that has to exist before any walking session can be replayed.

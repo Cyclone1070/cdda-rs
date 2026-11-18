@@ -598,6 +598,33 @@ pub fn board(world: &mut World, vehicle: Entity, creature: Entity) -> Option<usi
     Some(seat)
 }
 
+/// **A step taken from a vehicle**: the rider climbs out, steps, and climbs back in if the square it lands on has a seat.
+///
+/// Reference: `avatar_action::move` (`avatar_action.cpp:653-672`) unboards the character **before** the move and boards it again afterwards, only if the destination holds a
+/// boardable part. That single order is what makes walking seat to seat stay "in the vehicle" while walking off the hull leaves the character standing on the ground - and it
+/// carries the driver rule with it, because unboarding the driver sets the hull skidding (`map::unboard_vehicle`, `map.cpp:1432-1440`).
+///
+/// The cost is the caller's, as with [`crate::creature::try_step`]: what a square costs to enter is the map's answer, and the vehicle only decides who is sitting in it.
+pub fn step_from_vehicle(
+    world: &mut World,
+    creature: Entity,
+    to: (i32, i32, i32),
+    cost: i32,
+) -> crate::creature::StepOutcome {
+    if world.get::<Riding>(creature).is_some() {
+        unboard(world, creature);
+    }
+    let outcome = crate::creature::try_step(world, creature, to, cost);
+    if outcome == crate::creature::StepOutcome::Moved
+        && let Some(vehicle) = at(world, to)
+    {
+        // **A seat that refuses the rider is not an error**: the reference boards only when the part says boardable, and a square the vehicle merely covers leaves the character
+        // standing on it, which is exactly what `veh_at(p).part_with_feature(BOARDABLE)` answering nullopt means.
+        let _ = board(world, vehicle, creature);
+    }
+    outcome
+}
+
 /// Takes a creature out of its seat; answers whether it was in one.
 ///
 /// Reference: `map::unboard_vehicle` (`map.cpp:1420-1440`). The reference also clears `controlling_vehicle` and stops autodriving; the port has no driving yet, and names that in
