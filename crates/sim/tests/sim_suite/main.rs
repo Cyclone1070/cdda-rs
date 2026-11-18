@@ -272,6 +272,7 @@ mod named_conditions;
 mod npc_allies;
 mod open_dialogue;
 mod program_effect_shapes;
+mod run_cost;
 mod run_eocs_bare;
 mod sell_item;
 mod switch_effect;

@@ -18,7 +18,8 @@ Updated every round. Untracked by design; the record that ships is [parity.md](p
 
 ## Next round
 
-1. **Carried weight and the limb-score chain**: `run_cost_effects` (`character.cpp:10376+`) multiplies by `get_modifier(character_modifier_limb_run_cost_mod)`, which comes from
+1. **The missing 0.85**: the step charge is the blend times a factor of about 0.85 that nobody has found yet. Everything obvious has been ruled out (road, terrain, diagonal, skates).
+2. **Carried weight and the limb-score chain**: `run_cost_effects` (`character.cpp:10376+`) multiplies by `get_modifier(character_modifier_limb_run_cost_mod)`, which comes from
    `limb_score_movecost` and therefore from encumbrance. `limbs.rs` has the arithmetic; what is missing is the weight data behind it. That chain turns the walk dump's `cost` column
    into a comparable number.
 2. Vehicle spawn items, which closes the mass gap and lets the impact damage be asserted.

@@ -38222,3 +38222,22 @@ against the code directly beneath it, and it is now a description of what the co
 and the multiplier comes from the survivor's limbs and what they carry - `run_cost_effects` (`character.cpp:10376+`) is a chain of wounds, traits, shoes, skates and encumbrance, and
 `limb_score_movecost` is behind `Character::limb_score`, which the port has the arithmetic for (`limbs.rs`) but no encumbrance data for. That chain is a feature, not a footnote, and
 it is the next thing carried weight has to be shaped by.
+
+## What a step costs, layer by layer (round 183)
+
+`--dump-run-cost` records a survivor's step price **one layer at a time**: the `move_speed` and `footing` limb scores, the multiplier each becomes, the blend the step is charged by,
+and the charge. Unloaded and loaded past carrying capacity it is the same table, because the load is carried in the pack and encumbrance does not reach those two scores in this data.
+
+| Layer | Reference | Port |
+|---|---|---|
+| a score becomes a multiplier | `1 / score`: 0.553607 → 1.806336, 0.467213 → 2.140351 | same, exactly |
+| the blend | `(footing + move_speed * 2) / 3` = 1.917674 | same, exactly |
+| the charge | **163** for a base of a hundred | **not ported** |
+
+The charge is the honest part: 1.917674 × 100 is 191, not 163, and the difference is one factor of about **0.85** that the port has not found. It is not the road (the floor's
+`ROAD` flag is asked and only the skate branches use it), not the terrain (the floor costs 2), not the diagonal (the recording's diagonal charge is identical) and not the skates
+(they are not worn). So `run_cost.rs` states the two transformations the dump proves and **does not claim to compute `run_cost`**, and the test compares only the layers it
+understands - mutation-checked by weighting footing and speed equally, which the recording kills at 1.9733434 against 1.917674.
+
+**Named:** the reference clamps a multiplier at `max_move_cost`; the recording's own footing multiplier is 2.14, above the usual cap of 2, so that data was not reached and is recorded
+as a name rather than a guess.
