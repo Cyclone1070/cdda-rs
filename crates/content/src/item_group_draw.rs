@@ -257,6 +257,33 @@ pub fn draw(
     draw_with_holiday(definitions, id, rolls, None)
 }
 
+/// **Draws at a spawn rate**, which is what a map or a vehicle spawn asks for.
+///
+/// Reference: `item_group::items_from( id, birthday, flags )` with `spawn_flags::use_spawn_rate` - inside `Single_item_creator::create` (`item_group.cpp:285-296`), each item made rolls
+/// `rng_float( 0, 1 )` and is **skipped when that is greater than the rate**. The rate is the `ITEM_SPAWNRATE` option, read one item at a time, so a rate of zero makes a group draw
+/// nothing at all and a rate of one leaves it exactly as it was.
+///
+/// **Named, not guessed:** the reference exempts `MISSION_ITEM`s from the die; the port's draw carries no item flags and exempts nothing.
+#[must_use]
+pub fn draw_at_rate(
+    definitions: &BTreeMap<String, Definition>,
+    id: &str,
+    rolls: &mut Rolls,
+    spawn_rate: f64,
+) -> Vec<(String, i32)> {
+    let mut out = Vec::new();
+    draw_into_at_rate(
+        definitions,
+        id,
+        rolls,
+        &mut out,
+        &mut Vec::new(),
+        None,
+        Some(spawn_rate),
+    );
+    out
+}
+
 /// Draws what a group produces, against the holiday the calendar is in.
 ///
 /// Reference: `Item_group::create` (`src/item_group.cpp:832-864`), which asks `rng( 0, 99 )` per entry of a **collection** and `rng( 0, sum_prob - 1 )` once for a
@@ -306,6 +333,19 @@ fn draw_into(
     chain: &mut Vec<String>,
     holiday: Option<&str>,
 ) {
+    draw_into_at_rate(definitions, id, rolls, out, chain, holiday, None);
+}
+
+/// The same expansion, with the spawn rate the reference reads one item at a time.
+fn draw_into_at_rate(
+    definitions: &BTreeMap<String, Definition>,
+    id: &str,
+    rolls: &mut Rolls,
+    out: &mut Vec<(String, i32)>,
+    chain: &mut Vec<String>,
+    holiday: Option<&str>,
+    spawn_rate: Option<f64>,
+) {
     if chain.iter().any(|inside| inside == id) {
         // The reference reports this and returns; the port has no message sink here, so the branch simply ends. What matters is that it ends **here** and not
         // eight levels down, which is what a depth guard does.
@@ -315,7 +355,15 @@ fn draw_into(
         return;
     };
     chain.push(id.to_owned());
-    expand(definitions, definition, rolls, out, chain, holiday);
+    expand(
+        definitions,
+        definition,
+        rolls,
+        out,
+        chain,
+        holiday,
+        spawn_rate,
+    );
     chain.pop();
 }
 
@@ -327,6 +375,7 @@ fn expand(
     out: &mut Vec<(String, i32)>,
     chain: &mut Vec<String>,
     holiday: Option<&str>,
+    spawn_rate: Option<f64>,
 ) {
     if definition.distribution {
         // `sum_prob` is the sum of the **raw** weights, holiday entries included, and the whole draw is one question
@@ -347,12 +396,14 @@ fn expand(
             }
             match entry {
                 Entry::Item { id, count, .. } => {
-                    let made = count_to_make(*count, rolls);
+                    let made = kept_at_rate(count_to_make(*count, rolls), spawn_rate, rolls);
                     if made > 0 {
                         out.push((id.clone(), i32::try_from(made).unwrap_or(i32::MAX)));
                     }
                 }
-                Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, chain, holiday),
+                Entry::Group { id, .. } => {
+                    draw_into_at_rate(definitions, id, rolls, out, chain, holiday, spawn_rate);
+                }
                 Entry::Nothing { .. } => {}
             }
             return;
@@ -366,13 +417,36 @@ fn expand(
         }
         match entry {
             Entry::Item { id, count, .. } => {
-                let made = count_to_make(*count, rolls);
+                let made = kept_at_rate(count_to_make(*count, rolls), spawn_rate, rolls);
                 if made > 0 {
                     out.push((id.clone(), i32::try_from(made).unwrap_or(i32::MAX)));
                 }
             }
-            Entry::Group { id, .. } => draw_into(definitions, id, rolls, out, chain, holiday),
+            Entry::Group { id, .. } => {
+                draw_into_at_rate(definitions, id, rolls, out, chain, holiday, spawn_rate);
+            }
             Entry::Nothing { .. } => {}
         }
     }
+}
+
+/// **How many of a batch survive the spawn rate**: one die per item, kept unless the die is greater than the rate.
+///
+/// Reference: `item_group.cpp:289-292` - `rng_float( 0, 1 ) > spawn_rate` skips the item, so a rate of one keeps everything and a rate of zero keeps nothing (a die exactly equal to
+/// the rate survives, which is the reference's `>` and not a `<`).
+fn kept_at_rate(made: usize, spawn_rate: Option<f64>, rolls: &mut Rolls) -> usize {
+    // **No rate means no die**, which is `items_from` **without** `spawn_flags::use_spawn_rate`: the reference rolls nothing there, and a port that rolled anyway would be one die
+    // ahead of every replay that uses the plain draw.
+    let Some(rate) = spawn_rate else {
+        return made;
+    };
+    // **The die is rolled even at a rate of one**, because the reference rolls it: `rng_float` can only fail on `> 1.0`, which its range cannot produce, so the answer is always the
+    // whole batch - but the stream has moved by one die per item, and a replay that skipped them would fall out of step for the rest of the session.
+    let mut kept = 0;
+    for _ in 0..made {
+        if rolls.rng_float(0.0, 1.0) <= rate {
+            kept += 1;
+        }
+    }
+    kept
 }

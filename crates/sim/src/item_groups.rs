@@ -34,6 +34,22 @@ pub fn holder(world: &World) -> Option<Entity> {
     query.iter(world).next()
 }
 
+/// Draws what a group produces **at a spawn rate**, which is what a placement asks for.
+///
+/// Reference: `items_from( id, birthday, spawn_flags::use_spawn_rate )` - see [`cdda_content::item_group_draw::draw_at_rate`].
+pub fn draw_at_rate(world: &mut World, id: &str, spawn_rate: f64) -> Option<Vec<(String, i32)>> {
+    let entity = holder(world)?;
+    let definitions = world.get::<ItemGroups>(entity)?.0.clone();
+    let mut dice = crate::singletons::take_rolls(world);
+    let drawn = dice.as_mut().map(|rolls| {
+        cdda_content::item_group_draw::draw_at_rate(&definitions, id, rolls, spawn_rate)
+    });
+    if let Some(dice) = dice.take() {
+        crate::singletons::put_rolls(world, dice);
+    }
+    drawn
+}
+
 /// Draws what a group produces, using the world's own dice.
 ///
 /// Answers `None` when the world holds no groups or the dice are missing - both are states a caller can check rather than a silent empty draw.

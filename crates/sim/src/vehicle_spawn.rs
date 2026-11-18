@@ -111,7 +111,7 @@ pub fn place_spawn_items(
                 }
             }
             for group in &spawn.groups {
-                if let Some(items) = crate::item_groups::draw(world, group) {
+                if let Some(items) = crate::item_groups::draw_at_rate(world, group, spawn_rate) {
                     drawn.extend(items);
                 }
             }

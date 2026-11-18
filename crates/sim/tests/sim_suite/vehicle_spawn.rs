@@ -142,67 +142,9 @@ fn a_chance_becomes_a_count_without_stealing_a_roll() {
 /// every batch happens and every listed item is made.
 #[test]
 fn a_placed_vehicle_is_filled_from_its_spawn_list() {
-    use cdda_content::item_group_draw::{Definition, Entry};
-    use cdda_content::vehicles::{PartSpec, Spawn, Vehicles};
+    use cdda_content::vehicles::Spawn;
 
-    let mut world = World::new();
-    // **A part's cargo weighs what it carries only when the modifier says so**: the data's usual 100, and a default of zero would hide every stowed item from the scale.
-    let cargo_spec = PartSpec {
-        id: "trunk".to_owned(),
-        flags: std::iter::once("CARGO".to_owned()).collect(),
-        cargo_weight_modifier: 100,
-        ..PartSpec::default()
-    };
-    cdda_sim::vehicles::set_store(
-        &mut world,
-        Vehicles {
-            parts: vec![cargo_spec],
-            prototypes: Vec::new(),
-        },
-    );
-    // One item type, weighty enough that a stowed copy shows up in the part's mass.
-    cdda_sim::item_registry::set_item_types(
-        &mut world,
-        &[cdda_sim::item_registry::Kind {
-            id: "rock",
-            volume_ml: 0,
-            weight_g: 657,
-            pockets: &[],
-            thrown_damage: 0.0,
-            melee_bash: 0.0,
-            melee_cut: 0.0,
-            melee_stab: 0.0,
-            to_hit: -1,
-        }],
-    );
-    let mut definitions = std::collections::BTreeMap::new();
-    definitions.insert(
-        "junk".to_owned(),
-        Definition {
-            id: "junk".to_owned(),
-            distribution: false,
-            entries: vec![Entry::Item {
-                id: "rock".to_owned(),
-                probability: 100,
-                count: (1, 1),
-                event: None,
-            }],
-        },
-    );
-    cdda_sim::item_groups::set_groups(&mut world, definitions);
-    cdda_sim::singletons::put_rolls(&mut world, Rolls::fixed(0.0));
-
-    let vehicle = world
-        .spawn(cdda_sim::vehicles::Vehicle {
-            parts: vec![cdda_sim::vehicles::VehiclePart {
-                part: "trunk".to_owned(),
-                x: 0,
-                y: 0,
-                ..cdda_sim::vehicles::VehiclePart::default()
-            }],
-            ..cdda_sim::vehicles::Vehicle::default()
-        })
-        .id();
+    let (mut world, vehicle) = one_trunk_with_one_group();
 
     let spawns = vec![
         // **A group spawn at full chance**: one batch, drawn, stowed.
@@ -268,4 +210,99 @@ fn a_placed_vehicle_is_filled_from_its_spawn_list() {
         0,
         "**a spawn rate of zero makes no listed item**, though the batch was still rolled"
     );
+}
+
+/// **A group draw obeys the spawn rate too**, one die per item. Reference: `items_from( id, birthday, spawn_flags::use_spawn_rate )`, which skips an item when
+/// `rng_float( 0, 1 ) > spawn_rate` (`item_group.cpp:285-296`) - so a zero rate draws nothing even from a group whose only entry is certain, and a rate of one draws it.
+#[test]
+fn a_group_draw_obeys_the_spawn_rate() {
+    let (mut world, vehicle) = one_trunk_with_one_group();
+    let group_only = vec![cdda_content::vehicles::Spawn {
+        x: 0,
+        y: 0,
+        chance: 100,
+        items: Vec::new(),
+        variants: Vec::new(),
+        groups: vec!["junk".to_owned()],
+    }];
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::fixed(0.5));
+    assert_eq!(
+        cdda_sim::vehicle_spawn::place_spawn_items(&mut world, vehicle, &group_only, 0.0),
+        0,
+        "**a spawn rate of zero draws nothing from a group**"
+    );
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::fixed(0.5));
+    assert_eq!(
+        cdda_sim::vehicle_spawn::place_spawn_items(&mut world, vehicle, &group_only, 1.0),
+        1,
+        "and a rate of one draws the group's certain entry"
+    );
+}
+
+/// **A vehicle with one cargo part and one item group.** The part's `cargo_weight_modifier` is the data's own hundred - a default of zero would hide every stowed item from the scale -
+/// and the group holds one certain rock of 657 g, so a placed item is visible in the vehicle's mass.
+fn one_trunk_with_one_group() -> (World, Entity) {
+    use cdda_content::item_group_draw::{Definition, Entry};
+    use cdda_content::vehicles::{PartSpec, Vehicles};
+
+    let mut world = World::new();
+    // **A part's cargo weighs what it carries only when the modifier says so**: the data's usual 100, and a default of zero would hide every stowed item from the scale.
+    let cargo_spec = PartSpec {
+        id: "trunk".to_owned(),
+        flags: std::iter::once("CARGO".to_owned()).collect(),
+        cargo_weight_modifier: 100,
+        ..PartSpec::default()
+    };
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        Vehicles {
+            parts: vec![cargo_spec],
+            prototypes: Vec::new(),
+        },
+    );
+    // One item type, weighty enough that a stowed copy shows up in the part's mass.
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 0,
+            weight_g: 657,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -1,
+        }],
+    );
+    let mut definitions = std::collections::BTreeMap::new();
+    definitions.insert(
+        "junk".to_owned(),
+        Definition {
+            id: "junk".to_owned(),
+            distribution: false,
+            entries: vec![Entry::Item {
+                id: "rock".to_owned(),
+                probability: 100,
+                count: (1, 1),
+                event: None,
+            }],
+        },
+    );
+    cdda_sim::item_groups::set_groups(&mut world, definitions);
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::fixed(0.0));
+
+    let vehicle = world
+        .spawn(cdda_sim::vehicles::Vehicle {
+            parts: vec![cdda_sim::vehicles::VehiclePart {
+                part: "trunk".to_owned(),
+                x: 0,
+                y: 0,
+                ..cdda_sim::vehicles::VehiclePart::default()
+            }],
+            ..cdda_sim::vehicles::Vehicle::default()
+        })
+        .id();
+
+    (world, vehicle)
 }

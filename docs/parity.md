@@ -38414,3 +38414,22 @@ last one is the next bite.
 
 Also worth recording: the first version of this test weighed nothing, because a part's `cargo_weight_modifier` defaults to zero and a part that does not say otherwise carries weight
 for free. The data's own value is 100, and the test now states it.
+
+## The spawn rate reaches inside the group (round 194)
+
+`item_group::items_from( id, birthday, spawn_flags::use_spawn_rate )` applies the rate **one item at a time**, inside `Single_item_creator::create` (`item_group.cpp:285-296`):
+`rng_float( 0, 1 ) > spawn_rate` skips the item, so an item survives when the die is **at or below** the rate. That is the reference's `>` and not a `<`, and it is why a rate of one
+still rolls - the roll can only fail above one, which its range cannot produce, but the stream has moved.
+
+`draw_at_rate` is the flag-carrying draw and `draw` stays the plain one, with **no die at all** in the plain case. That distinction is load-bearing: every existing replay uses the plain
+draw, and a port that rolled the rate die where the reference rolled nothing would be one die ahead for the rest of the session.
+
+| Case | Rate | Dice | Drawn |
+|---|---|---|---|
+| group whose only entry is certain | 0.0 | 0.5 | **nothing** |
+| the same group | 1.0 | 0.5 | one |
+
+Mutation-checked: a group draw that ignores the rate places one where zero should stand.
+
+**Named gap:** the reference exempts `MISSION_ITEM`s from the rate die; the port's draw carries no item flags and exempts nothing. A spawn list cannot reach a mission item today, so the
+exemption has no witness yet.
