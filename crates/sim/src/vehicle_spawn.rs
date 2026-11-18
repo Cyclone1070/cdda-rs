@@ -120,9 +120,44 @@ pub fn place_spawn_items(
             let Some(kind) = crate::item_registry::id_in(world, &id) else {
                 continue;
             };
-            if crate::vehicle_cargo::stow_item(world, vehicle, part, kind, count).is_some() {
-                placed += 1;
+            // **A broken part damages what it lets through** (`vehicle.cpp:6430-6434`): `mod_damage( rng( 1, max_damage ) )`, and the item is **destroyed** when the damage passes
+            // its maximum rather than when it reaches it - `damage + qty > max_damage`. A kind the reference's table does not name is stowed undamaged and the gap is the table's,
+            // not a guess at zero.
+            let mut damage = 0;
+            if let Some(ceiling) = broken
+                .then(|| crate::item_registry::max_damage_in(world, kind))
+                .flatten()
+            {
+                let qty = {
+                    let mut dice = crate::singletons::take_rolls(world);
+                    let rolled = dice
+                        .as_mut()
+                        .map(|rolls| rolls.rng(1_i32.min(ceiling), ceiling.max(1)));
+                    if let Some(dice) = dice.take() {
+                        crate::singletons::put_rolls(world, dice);
+                    }
+                    rolled.unwrap_or(0)
+                };
+                if qty > ceiling {
+                    continue;
+                }
+                damage = qty;
             }
+            // **The stow itself does not ask whether the part is broken**: the reference's `add_item` never does, and a wreck is meant to be lootable - which is why this path
+            // writes the item where it belongs instead of going through `stow_item`, whose refusal belongs to a survivor loading a working vehicle.
+            let _ = crate::vehicle_cargo::items_in_part(world, vehicle, part);
+            world.spawn((
+                crate::GroundItem {
+                    kind,
+                    charges: count,
+                    age: 0,
+                    burnt: 0,
+                    damage,
+                    burn: None,
+                },
+                crate::vehicle_cargo::InVehiclePart { vehicle, part },
+            ));
+            placed += 1;
         }
     }
     placed

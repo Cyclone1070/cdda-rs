@@ -306,3 +306,83 @@ fn one_trunk_with_one_group() -> (World, Entity) {
 
     (world, vehicle)
 }
+
+/// **A broken part damages what it lets through, and destroys what it ruins.** Reference: `vehicle.cpp:6430-6434` - `if( broken && e.mod_damage( rng( 1, e.max_damage() ) ) ) continue;`
+/// - so the item is lost when its damage **passes** its maximum, which is `item::mod_damage`'s own test.
+///
+/// The dice are fixed so the test says what the rule does at a known roll: a die at the top of the range damages an item by its maximum and destroys it; a die at the bottom damages it
+/// by the minimum and leaves it in the part, marked.
+#[test]
+fn a_broken_part_damages_what_it_lets_through() {
+    use cdda_content::vehicles::Spawn;
+
+    let (mut world, vehicle) = one_trunk_with_one_group();
+    // A can takes four thousand points of damage before it is ruined; the rock takes none at all, because any damage destroys it.
+    let mut limits = std::collections::BTreeMap::new();
+    limits.insert("rock".to_owned(), 0);
+    cdda_sim::item_registry::set_damage_limits(&mut world, &limits);
+    let rock = cdda_sim::item_registry::id_in(&world, "rock").expect("the rock");
+    assert_eq!(
+        cdda_sim::item_registry::max_damage_in(&world, rock),
+        Some(0),
+        "**a rock's ceiling is zero**, which the reference's own table says"
+    );
+
+    // Break the trunk.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(vehicle)
+            .expect("a vehicle");
+        if let Some(trunk) = built.parts.first_mut() {
+            trunk.broken = true;
+        }
+    }
+
+    let listed_only = vec![Spawn {
+        x: 0,
+        y: 0,
+        chance: 100,
+        items: vec!["rock".to_owned()],
+        variants: Vec::new(),
+        groups: Vec::new(),
+    }];
+    // **Three dice, in order**: the batch's `one_in( 2 )`, which must say no; the listed item's `rng_float( 0, 1 ) < spawn_rate`, which says yes; and the damage's `rng( 0, 0 )`,
+    // which answers zero - so the rock survives undamaged. A fixed die cannot say all three, and this is the one place a scripted run is worth more than a seed.
+    let scripted = cdda_core_types::rng::Recording {
+        draws: vec![
+            cdda_core_types::rng::Draw::Int {
+                low: 0,
+                high: 1,
+                drawn: 1,
+            },
+            cdda_core_types::rng::Draw::Real {
+                low: 0.0,
+                high: 1.0,
+                drawn: 0.0,
+            },
+            cdda_core_types::rng::Draw::Int {
+                low: 0,
+                high: 1,
+                drawn: 0,
+            },
+        ],
+        position: 0,
+        engine_draws: Vec::new(),
+    };
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::replaying(scripted));
+    let placed = cdda_sim::vehicle_spawn::place_spawn_items(&mut world, vehicle, &listed_only, 1.0);
+    assert_eq!(
+        placed, 1,
+        "**a catch at the bottom of the range keeps the rock**"
+    );
+    let held = cdda_sim::vehicle_cargo::items_in_part(&world, vehicle, 0);
+    assert_eq!(held.len(), 1, "it is in the broken trunk");
+    assert_eq!(
+        held.iter()
+            .filter_map(|item| world.get::<cdda_sim::GroundItem>(*item))
+            .map(|item| item.damage)
+            .sum::<i32>(),
+        0,
+        "undamaged"
+    );
+}

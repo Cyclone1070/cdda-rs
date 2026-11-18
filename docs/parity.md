@@ -38433,3 +38433,25 @@ Mutation-checked: a group draw that ignores the rate places one where zero shoul
 
 **Named gap:** the reference exempts `MISSION_ITEM`s from the rate die; the port's draw carries no item flags and exempts nothing. A spawn list cannot reach a mission item today, so the
 exemption has no witness yet.
+
+## A broken part damages what it lets through (round 195)
+
+`vehicle.cpp:6430-6434` does more than halve a broken part's loot: `if( broken && e.mod_damage( rng( 1, e.max_damage() ) ) ) continue;` - each item takes a die's worth of damage and
+is **destroyed when the damage passes its maximum**, which is `item::mod_damage`'s own test and not "reaches".
+
+The ceiling comes from the reference's own table. `cdda_content::item_damage::from_dump` reads `--dump-damage`'s `max_damage` per type, and the registry keeps it beside the kinds:
+
+| Type | Ceiling | Meaning |
+|---|---|---|
+| `rock` | **0** | any damage destroys it |
+| `can_food` | 4000 | five levels of wear before it goes |
+
+**Zero and absent are different answers**, which is why `max_damage_in` answers `Option<i32>`: a kind the table does not name is stowed undamaged and the gap is named, rather than a
+zero being invented that would destroy everything the port touches.
+
+The stowing path also had to change: `stow_item` refuses a broken part, and the reference's `add_item` never asks - a wreck is *meant* to be lootable. So the spawn path writes the item
+where it belongs instead of going through the survivor-facing rule, and says why.
+
+Mutation-checked: destroying on any damage at all empties the trunk where a rock should survive.
+
+**Still open:** the item's damage has no consequence yet - a marked rock is still a rock. Damage levels, repair and the effects of wear are their own round.

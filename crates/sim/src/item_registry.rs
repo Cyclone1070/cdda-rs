@@ -62,9 +62,23 @@ pub struct ItemTypes {
     melee_stab: Vec<f64>,
     /// How well each kind is balanced for a swing.
     to_hit: Vec<i32>,
+    /// How much damage each kind takes before it is ruined, in registry order, or `None` where the reference's table names no figure.
+    ///
+    /// Reference: `itype::damage_max` (`corpus/items/damage.json`). Kept beside the kinds because destruction is a question about the kind - `damage + qty > max_damage` - and the
+    /// difference between "cannot be damaged" (zero) and "not known" (absent) is one a rule must not blur.
+    damage_limits: Vec<Option<i32>>,
 }
 
 impl ItemTypes {
+    /// How much damage a kind takes before it is ruined, when the reference's table names it.
+    #[must_use]
+    pub fn max_damage_of(&self, kind: ItemTypeId) -> Option<i32> {
+        self.damage_limits
+            .get(usize::try_from(kind.0).ok()?)
+            .copied()
+            .flatten()
+    }
+
     /// The kind a name refers to.
     #[must_use]
     pub fn id_of(&self, name: &str) -> Option<ItemTypeId> {
@@ -225,6 +239,7 @@ pub struct Kind<'a> {
 pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut names = vec![String::new()];
     let mut by_name = BTreeMap::new();
+    let mut damage_limits: Vec<Option<i32>> = vec![None];
     let mut volumes_ml = vec![0];
     let mut weights_g = vec![0];
     let mut holds_ml = vec![0];
@@ -250,6 +265,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         melee_cut.push(each.melee_cut);
         melee_stab.push(each.melee_stab);
         to_hit.push(each.to_hit);
+        damage_limits.push(None);
         // Reference: `item::get_total_capacity` - a thing can hold as much as its pockets can.
         holds_ml.push(each.pockets.iter().map(|pocket| pocket.capacity_ml).sum());
         #[allow(clippy::cast_possible_truncation)]
@@ -273,6 +289,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         melee_cut,
         melee_stab,
         to_hit,
+        damage_limits,
     });
 }
 
@@ -427,6 +444,38 @@ impl ItemNames {
 #[must_use]
 pub fn weight_in(world: &World, kind: ItemTypeId) -> i64 {
     peek(world).map_or(0, |registry| registry.weight_of(kind))
+}
+
+/// **Installs how much damage each kind takes**, from the reference's own table.
+///
+/// Reference: `itype::damage_max`, reported by `--dump-damage`. Kept apart from [`set_item_types`] because the two come from different recordings and a world may install either
+/// alone: a kind with no figure answers `None`, and a rule that needs the figure treats that as "unknown" rather than "cannot be damaged".
+pub fn set_damage_limits(world: &mut World, limits: &std::collections::BTreeMap<String, i32>) {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    let Some(mut types) = world.get_mut::<ItemTypes>(entity) else {
+        return;
+    };
+    for (name, limit) in limits {
+        let Some(slot) = types
+            .by_name
+            .get(name)
+            .and_then(|kind| usize::try_from(kind.0).ok())
+        else {
+            continue;
+        };
+        if let Some(cell) = types.damage_limits.get_mut(slot) {
+            *cell = Some(*limit);
+        }
+    }
+}
+
+/// **How much damage a kind takes before it is ruined**, from the reference's own table.
+///
+/// Reference: `itype::damage_max`, reported by `--dump-damage`. A kind the table does not name answers `None` rather than zero, because a rock's zero means "any damage destroys it"
+/// and an unnamed kind means "the port does not know" - and a rule that conflated them would destroy what the reference keeps.
+#[must_use]
+pub fn max_damage_in(world: &World, kind: ItemTypeId) -> Option<i32> {
+    peek(world).and_then(|registry| registry.max_damage_of(kind))
 }
 
 /// The kind a name refers to, read without a mutable handle.

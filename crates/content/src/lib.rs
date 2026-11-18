@@ -39,6 +39,7 @@ pub mod generated;
 pub mod guns;
 pub mod harvest;
 pub mod harvest_drops;
+pub mod item_damage;
 pub mod item_group_draw;
 pub mod item_groups;
 pub mod items;
