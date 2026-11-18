@@ -7533,3 +7533,145 @@ fn opening_a_door_from_outside_costs_a_turn() {
         "and the opener is charged nothing for trying"
     );
 }
+
+/// **A turret is a mount that can shoot, and its ammunition comes from wherever the data says.**
+///
+/// `corpus/vehicles.json` records all **240** turret parts, their base `item` and their flags; `vehicles::parts::finalize` (`veh_type.cpp:589-597`) is what sets `USE_TANKS` on a
+/// mount whose gun fires liquid and `USE_BATTERIES` on a battery-fed one, so the flags in the recording are the rule's own answer and not a transcription of the data files. The
+/// test counts them, because a gate that sees no turrets would pass while proving nothing.
+#[test]
+fn a_turret_feeds_from_its_tanks_or_its_own_magazine() {
+    let store = store();
+    let turrets: Vec<&cdda_content::vehicles::PartSpec> = store
+        .parts
+        .iter()
+        .filter(|spec| spec.flags.contains("TURRET"))
+        .collect();
+    assert_eq!(
+        turrets.len(),
+        240,
+        "**the recording holds 240 turret mounts**"
+    );
+    let tanks: Vec<&&cdda_content::vehicles::PartSpec> = turrets
+        .iter()
+        .filter(|spec| spec.flags.contains("USE_TANKS"))
+        .collect();
+    assert_eq!(
+        tanks.len(),
+        4,
+        "**four of them feed from the vehicle's tanks**, which is the reference's liquid-ammunition set"
+    );
+    assert!(
+        turrets
+            .iter()
+            .filter(|spec| spec.flags.contains("USE_BATTERIES"))
+            .count()
+            == 0,
+        "and none of this baseline's mounts is battery-fed"
+    );
+    // **Each turret names the gun it carries**, and a turret with no gun is not a turret the reference accepts (`veh_type.cpp:899`).
+    assert!(
+        turrets.iter().all(|spec| !spec.item.is_empty()),
+        "every turret mounts an item"
+    );
+
+    // **A world built from one of them** - the .22 pistol mount - answers the three questions the rule asks: it is a turret, it does not feed from the tanks, and its ammunition is
+    // the charge count its gun was installed with.
+    let mut world = World::new();
+    let mut store = store;
+    store.prototypes.push(cdda_content::vehicles::Prototype {
+        id: "technical".to_owned(),
+        name: "technical".to_owned(),
+        parts: Vec::new(),
+        spawns: Vec::new(),
+    });
+    cdda_sim::vehicles::set_store(&mut world, store);
+    let vehicle = cdda_sim::vehicles::spawn_facing(&mut world, "technical", (0, 0, 0), 0.0)
+        .expect("a vehicle");
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(vehicle)
+            .expect("a vehicle");
+        built.parts.push(cdda_sim::vehicles::VehiclePart {
+            part: "turret_1911_22".to_owned(),
+            x: 0,
+            y: 0,
+            charges: 30,
+            ..cdda_sim::vehicles::VehiclePart::default()
+        });
+    }
+
+    assert_eq!(
+        cdda_sim::vehicles::turrets(&world, vehicle).len(),
+        1,
+        "**the mount is a turret and it is not broken**"
+    );
+    assert!(
+        !cdda_sim::vehicles::uses_vehicle_tanks_or_batteries(&world, vehicle, 0),
+        "a pistol mount does not feed from the tanks"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::turret_ammo_remaining(&world, vehicle, 0),
+        30,
+        "**its ammunition is the thirty rounds in its own magazine**"
+    );
+
+    // **A tank-fed mount draws on the tank, not on its own magazine.** The chemical thrower's mount carries `USE_TANKS`, so its ammunition is the vehicle's `fuel_left` of the
+    // liquid it fires - the reference's `turret_data::ammo_remaining` first branch, and the one that makes the flag worth reading.
+    {
+        let mut built = world
+            .get_mut::<cdda_sim::vehicles::Vehicle>(vehicle)
+            .expect("a vehicle");
+        built.parts.push(cdda_sim::vehicles::VehiclePart {
+            part: "turret_chemical_thrower".to_owned(),
+            x: 0,
+            y: 0,
+            charges: 3,
+            fuel: "chemical_thrower".to_owned(),
+            ..cdda_sim::vehicles::VehiclePart::default()
+        });
+        built.parts.push(cdda_sim::vehicles::VehiclePart {
+            part: "afs_small_roof_external_tank".to_owned(),
+            x: 0,
+            y: 0,
+            charges: 41,
+            fuel: "chemical_thrower".to_owned(),
+            ..cdda_sim::vehicles::VehiclePart::default()
+        });
+    }
+    assert!(
+        cdda_sim::vehicles::uses_vehicle_tanks_or_batteries(&world, vehicle, 1),
+        "**the thrower's mount feeds from the tanks**"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::turret_ammo_remaining(&world, vehicle, 1),
+        41,
+        "**and its ammunition is the tank's forty-one charges, not the three in its magazine**"
+    );
+
+    // **And a break takes it out of the list**, which is the reference's `!e.is_broken()` and its `turret_query` refusal.
+    assert_eq!(
+        cdda_sim::vehicles::turrets(&world, vehicle).len(),
+        2,
+        "**two mounts can shoot now**, the pistol and the thrower"
+    );
+    if let Some(mut built) = world.get_mut::<cdda_sim::vehicles::Vehicle>(vehicle) {
+        for mount in &mut built.parts {
+            mount.broken = true;
+        }
+    }
+    assert!(
+        cdda_sim::vehicles::turrets(&world, vehicle).is_empty(),
+        "a broken turret is not a turret"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::turret_query(&world, vehicle, 0),
+        None,
+        "and the query refuses it"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::turret_query(&world, vehicle, 1),
+        None,
+        "for the thrower too"
+    );
+}

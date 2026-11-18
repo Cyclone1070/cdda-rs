@@ -38469,3 +38469,33 @@ tank is not in the list to be summed. The clause has no port equivalent because 
 ids and a store, not a slot that lies.
 
 That is worth writing down precisely because it is easy to mistake for an omission: a port that faithfully reproduced the flag would have been *less* faithful to the behaviour.
+
+## Turrets: the mount, and where its ammunition comes from (round 197)
+
+The first bite of P8's last large hole. Three rules, each the reference's own:
+
+| Rule | Reference | What it decides |
+|---|---|---|
+| `vehicles::turrets` | `vehicle::turrets`, `turret.cpp:40-51` | the mounts that can shoot - a `TURRET` part that is **not broken** |
+| `vehicles::uses_vehicle_tanks_or_batteries` | `turret_data::uses_vehicle_tanks_or_batteries`, `turret.cpp:92-97` | whether the mount feeds from the vehicle or from its own magazine |
+| `vehicles::turret_ammo_remaining` | `turret_data::ammo_remaining`, `turret.cpp:99-110` | the tank's `fuel_left`, or the base item's rounds |
+| `vehicles::turret_query` | `vehicle::turret_query`, `turret.cpp:53-60` | nothing at all for a mount that is not a turret or is broken |
+
+**The flags are the rule's own answer, not a transcription.** `vehicles::parts::finalize` (`veh_type.cpp:589-597`) generates every turret mount from a generic one and sets
+`USE_TANKS` on a gun that fires liquid and `USE_BATTERIES` on a battery-fed one, so the recording of the 240 turret parts already carries the reference's decision - which is what makes
+a corpus test of this rule possible without a new dump.
+
+| Turret mounts in `corpus/vehicles.json` | Count |
+|---|---|
+| `TURRET` parts | **240** |
+| of which `USE_TANKS` | **4** |
+| of which `USE_BATTERIES` | 0 (none in this baseline's data) |
+
+The test counts them - a gate that saw no turrets would pass while proving nothing - and then, on a spawned vehicle, separates the two branches: a .22 pistol mount answers the
+thirty rounds in its own magazine, and a chemical thrower mount answers **the tank's forty-one charges** rather than the three in its own. Breaking the mounts empties `turrets` and
+makes `turret_query` refuse them.
+
+Mutation-checked: a mount that never feeds from the tanks fails on the thrower's assertion.
+
+**Named gaps in this bite**: there is no aiming, no firing, no turret controls, no automatic target selection and no `turret_data::ammo_capacity`. Those need a shooter - a survivor
+aiming by hand or an NPC running a turret program - and that is the rest of the hole, not a corner of it.

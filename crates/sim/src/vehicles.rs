@@ -1279,3 +1279,71 @@ pub fn driver_of(world: &World, vehicle: Entity) -> Option<Entity> {
     }
     None
 }
+
+/// **The parts that can shoot**: a turret that is not broken - the reference's `vehicle::turrets()` (`turret.cpp:40-51`), which walks `turret_locations` and keeps
+/// `!e.is_broken() && e.is_turret()`.
+///
+/// The port keeps no `turret_locations` cache: the list is derived from the parts, which is what the index does for the ground. Broken turrets are excluded here rather than at
+/// the call site because every caller asks the same question.
+#[must_use]
+pub fn turrets(world: &World, vehicle: Entity) -> Vec<usize> {
+    let Some(built) = world.get::<Vehicle>(vehicle) else {
+        return Vec::new();
+    };
+    (0..built.parts.len())
+        .filter(|index| {
+            let Some(part) = built.parts.get(*index) else {
+                return false;
+            };
+            !part.broken
+                && spec_of(world, &part.part).is_some_and(|spec| spec.flags.contains("TURRET"))
+        })
+        .collect()
+}
+
+/// **Whether a turret draws its ammunition from the vehicle's tanks or batteries** - the reference's `turret_data::uses_vehicle_tanks_or_batteries` (`turret.cpp:92-97`), which is
+/// `has_flag( "USE_TANKS" ) || has_flag( "USE_BATTERIES" )`.
+///
+/// Those flags are not written in the data for ordinary turret mounts: `vehicles::parts::finalize` (`veh_type.cpp:589-597`) copies a generic turret and sets `USE_TANKS` when the
+/// mountable gun's ammunition is a liquid and `USE_BATTERIES` when it is a battery magazine. The recording of the parts therefore carries them, and four of the 240 turret mounts use
+/// tanks.
+#[must_use]
+pub fn uses_vehicle_tanks_or_batteries(world: &World, vehicle: Entity, index: usize) -> bool {
+    world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+        .and_then(|part| spec_of(world, &part.part))
+        .is_some_and(|spec| {
+            spec.flags.contains("USE_TANKS") || spec.flags.contains("USE_BATTERIES")
+        })
+}
+
+/// **How much ammunition a turret has left** - the reference's `turret_data::ammo_remaining` (`turret.cpp:99-110`): a mount that feeds from the vehicle's tanks or batteries answers
+/// the vehicle's `fuel_left` of the ammunition's own type; every other mount answers the ammunition in its base item.
+///
+/// The port's base item is the part's own charge count, because a turret's gun is installed with its ammunition rather than as a container of its own.
+#[must_use]
+pub fn turret_ammo_remaining(world: &World, vehicle: Entity, index: usize) -> i64 {
+    let Some(part) = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+    else {
+        return 0;
+    };
+    if uses_vehicle_tanks_or_batteries(world, vehicle, index) {
+        return fuel_left(world, vehicle, &part.fuel);
+    }
+    i64::from(part.charges)
+}
+
+/// **A turret ready to be used**, or nothing: the reference's `vehicle::turret_query( vehicle_part & )` (`turret.cpp:53-60`) refuses a mount that is not a turret, has been removed,
+/// or is broken.
+#[must_use]
+pub fn turret_query(world: &World, vehicle: Entity, index: usize) -> Option<usize> {
+    let part = world.get::<Vehicle>(vehicle)?.parts.get(index)?;
+    if part.broken || !spec_of(world, &part.part).is_some_and(|spec| spec.flags.contains("TURRET"))
+    {
+        return None;
+    }
+    Some(index)
+}
