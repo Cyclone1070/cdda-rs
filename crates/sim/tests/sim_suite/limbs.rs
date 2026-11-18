@@ -308,3 +308,102 @@ fn a_bigger_body_divides_the_dodge() {
         "no base, no change"
     );
 }
+
+/// **A body's movement scores, from its parts, and the price of a step they make.** `corpus/limb_scores.json` is `--dump-limb-scores`: all twelve parts with their hit points and their
+/// contribution to `move_speed` and `footing`, and the character's totals.
+///
+/// Three things are checked, in the order the reference does them: a part that contributes nothing is still listed (the arms are zero for both scores), the total is the **sum** of
+/// the contributing parts - both legs for movement, both feet for footing - and that total goes on through the two multipliers and the blend to a charge of 163 for a floor step.
+#[test]
+fn a_bodys_parts_add_up_to_the_score_that_prices_a_step() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/limb_scores.json");
+    let bytes = std::fs::read(path).expect("the limb-score recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(parts)) = root.get("parts") else {
+        panic!("parts");
+    };
+
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a limb score is single precision in the reference too"
+    )]
+    let narrow = |value: f64| -> f32 { value as f32 };
+    let mut move_speed_parts: Vec<(f32, f32)> = Vec::new();
+    let mut footing_parts: Vec<(f32, f32)> = Vec::new();
+    for part in parts {
+        let cdda_json::Value::Object(row) = part else {
+            panic!("a part is an object");
+        };
+        let number = |field: &str| -> f64 {
+            match row.get(field) {
+                Some(cdda_json::Value::Float(value)) => *value,
+                Some(cdda_json::Value::Int(value)) => {
+                    f64::from(i32::try_from(*value).expect("an int"))
+                }
+                other => panic!("{field}: {other:?}"),
+            }
+        };
+        // **Every part contributes its own figure with weight one**; the body-type weighting is for a score asked about one limb type, and these two are asked of the whole body.
+        move_speed_parts.push((narrow(number("move_speed")), 1.0));
+        footing_parts.push((narrow(number("footing")), 1.0));
+    }
+    assert_eq!(
+        move_speed_parts.len(),
+        12,
+        "a survivor has twelve parts listed"
+    );
+    assert_eq!(
+        move_speed_parts
+            .iter()
+            .filter(|(figure, _)| *figure > 0.0)
+            .count(),
+        2,
+        "**only the two legs move a body** - the arms, feet and head contribute nothing to movement"
+    );
+    assert_eq!(
+        footing_parts
+            .iter()
+            .filter(|(figure, _)| *figure > 0.0)
+            .count(),
+        2,
+        "and only the two feet hold it up"
+    );
+
+    let total_move = cdda_sim::limbs::limb_score_total(&move_speed_parts);
+    let total_footing = cdda_sim::limbs::limb_score_total(&footing_parts);
+    let recorded = |field: &str| -> f32 {
+        match root.get(field) {
+            Some(cdda_json::Value::Float(value)) => narrow(*value),
+            other => panic!("{field}: {other:?}"),
+        }
+    };
+    assert!(
+        (total_move - recorded("total_move_speed")).abs() < 1e-5,
+        "**the parts add up to the score**: {total_move} against {}",
+        recorded("total_move_speed")
+    );
+    assert!(
+        (total_footing - recorded("total_footing")).abs() < 1e-5,
+        "and so do the feet: {total_footing} against {}",
+        recorded("total_footing")
+    );
+
+    // **And the sum prices a step.** At full stamina and on flat ground a floor step costs 163, which is the charge the walk recording makes.
+    let blend = cdda_sim::run_cost::limb_run_cost_modifier(
+        cdda_sim::run_cost::limb_cost_modifier(total_footing),
+        cdda_sim::run_cost::limb_cost_modifier(total_move),
+    );
+    assert!(
+        (blend - 1.917_674).abs() < 1e-5,
+        "the blend of the two summed scores is the reference's: {blend}"
+    );
+    assert_eq!(
+        cdda_sim::run_cost::run_cost(100.0, blend, 0.85, false, 1.0),
+        163,
+        "**a floor step by this body costs 163**"
+    );
+}

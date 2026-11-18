@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 20:25:39
-@@ -0,0 +1,9690 @@
++++ oracle/src/src/harness.cpp	2026-11-18 20:58:41
+@@ -0,0 +1,9721 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1765,6 +1765,37 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +/// `game::walk_move` charges `u.run_cost( mcost, diag )` (`game.cpp:10809`) where `mcost` is `map::combined_movecost` - both squares' costs, halved and scaled by how many axes
 +/// differ (`map.cpp:2466-2479`) - so a floor step is a hundred and the charge is that hundred through the character's own limb and flat-ground factors. The dump records the
 +/// survivor's scores and the whole `run_cost` chain, so a port can follow the same road from a square's cost to the moves it pays.
++/// **Where a limb score comes from**: every body part's own contribution, and the character's total.
++///
++/// `Character::get_limb_score` (`character_modifier.cpp:222-266`) adds each part's adjusted figure - the adjustment being wounds and encumbrance, applied per part - and floors the sum at
++/// zero. The dump records the parts, their hit points, their contribution to the two movement scores, and the totals, so a port can check its own addition against the reference's instead
++/// of against itself.
++void dump_limb_scores( const std::string &path )
++{
++    std::FILE *out = std::fopen( path.c_str(), "wb" );
++    if( out == nullptr ) {
++        std::fprintf( stderr, "harness: cannot write %s\n", path.c_str() );
++        return;
++    }
++    Character &you = get_player_character();
++    const limb_score_id move_speed( "move_speed" );
++    const limb_score_id footing( "footing" );
++
++    std::fprintf( out, "{\"harness\":\"limb_scores\",\"version\":1,\"parts\":[" );
++    bool first_part = true;
++    for( const std::pair<const bodypart_str_id, bodypart> &entry : you.get_body() ) {
++        const bodypart &part = entry.second;
++        std::fprintf( out,
++                      "%s{\"id\":\"%s\",\"hp\":%d,\"hp_max\":%d,\"move_speed\":%f,\"footing\":%f}",
++                      first_part ? "" : ",", entry.first.c_str(), part.get_hp_cur(), part.get_hp_max(),
++                      part.get_limb_score( you, move_speed ), part.get_limb_score( you, footing ) );
++        first_part = false;
++    }
++    std::fprintf( out, "],\"total_move_speed\":%f,\"total_footing\":%f}\n",
++                  you.get_limb_score( move_speed ), you.get_limb_score( footing ) );
++    std::fclose( out );
++}
++
 +void dump_walk( const std::string &path )
 +{
 +    std::FILE *out = std::fopen( path.c_str(), "wb" );
@@ -10052,8 +10083,8 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +}  // namespace harness
 diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 --- references/Cataclysm-DDA/src/harness.h	1970-01-01 10:00:00
-+++ oracle/src/src/harness.h	2026-11-18 19:29:26
-@@ -0,0 +1,451 @@
++++ oracle/src/src/harness.h	2026-11-18 20:58:41
+@@ -0,0 +1,452 @@
 +#pragma once
 +#ifndef CATA_SRC_HARNESS_H
 +#define CATA_SRC_HARNESS_H
@@ -10213,6 +10244,7 @@ diff -ruN references/Cataclysm-DDA/src/harness.h oracle/src/src/harness.h
 +void dump_vehicle_boarding( const std::string &path );
 +void dump_run_cost( const std::string &path );
 +void dump_walk( const std::string &path );
++void dump_limb_scores( const std::string &path );
 +void dump_vehicle_drive( const std::string &path );
 +void dump_vehicle_crash( const std::string &path );
 +void dump_vehicle_acceleration( const std::string &path );
@@ -10792,7 +10824,7 @@ diff -ruN references/Cataclysm-DDA/src/loading_ui.cpp oracle/src/src/loading_ui.
      update_state( context, step );
 diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 --- references/Cataclysm-DDA/src/main.cpp	2026-10-19 18:15:04
-+++ oracle/src/src/main.cpp	2026-11-18 19:29:26
++++ oracle/src/src/main.cpp	2026-11-18 20:58:41
 @@ -45,6 +45,9 @@
  #include "game_constants.h"
  #include "game_ui.h"
@@ -10803,7 +10835,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
  #include "help.h"
  #include "input.h"
  #include "main_menu.h"
-@@ -272,6 +275,188 @@
+@@ -272,6 +275,189 @@
  struct cli_opts {
      int seed = time( nullptr );
      bool verifyexit = false;
@@ -10979,6 +11011,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +    std::string dump_vehicle_boarding;
 +    std::string dump_run_cost;
 +    std::string dump_walk;
++    std::string dump_limb_scores;
 +    std::string dump_vehicle_drive;
 +    std::string dump_vehicle_crash;
 +    std::string dump_vehicle_top_speed;
@@ -10992,7 +11025,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
      bool noverify = false;
      bool check_mods = false;
      std::vector<std::string> opts;
-@@ -300,6 +485,1650 @@
+@@ -300,6 +486,1660 @@
                  }
              },
              {
@@ -11222,6 +11255,16 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                1,
 +                [&result]( int, const char **params ) -> int {
 +                    result.dump_vehicle_drive = params[0];
++                    return 1;
++                }
++            },
++            {
++                "--dump-limb-scores", "<file>",
++                "Writes every body part's contribution to the movement limb scores, and the totals",
++                section_default,
++                1,
++                [&result]( int, const char **params ) -> int {
++                    result.dump_limb_scores = params[0];
 +                    return 1;
 +                }
 +            },
@@ -12643,7 +12686,7 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
                  "--jsonverify", {},
                  "Checks the CDDA json files and exits",
                  section_default,
-@@ -786,6 +2615,1023 @@
+@@ -786,6 +2626,1035 @@
      // depend on the mods.
      try {
          g->load_static_data();
@@ -12954,6 +12997,18 @@ diff -ruN references/Cataclysm-DDA/src/main.cpp oracle/src/src/main.cpp
 +                exit_handler( 2 );
 +            }
 +            harness::dump_vehicle_drive( cli.dump_vehicle_drive );
++            exit_handler( 0 );
++        }
++
++        if( !cli.dump_limb_scores.empty() ) {
++            std::string error;
++            test_mode = true;
++            g->check_mod_data( { mod_id( "dda" ) } );
++            if( !harness::start_headless_game( "harness-fixed", "", error ) ) {
++                std::fprintf( stderr, "harness: %s\n", error.c_str() );
++                exit_handler( 2 );
++            }
++            harness::dump_limb_scores( cli.dump_limb_scores );
 +            exit_handler( 0 );
 +        }
 +

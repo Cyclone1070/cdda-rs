@@ -38273,3 +38273,21 @@ All three cases now replay **exactly**, and each carries its own stamina because
 `LimbCost` is the seam: the port has no body parts to compute the two scores from and no enchantment cache to gather the flat-ground multiplier from, so a creature carries them
 where it is made. A creature without one pays the square's own cost, which is what perfect limbs on broken ground would pay. Mutation-checked: wiring `walk` back to the square's raw
 cost spends 9900 instead of 9837.
+
+## A body's parts, added up, price a step (round 187)
+
+`--dump-limb-scores` records all twelve parts of a survivor with their hit points and their contribution to `move_speed` and `footing`, plus the character's totals. The recording is a
+clean statement of the rule:
+
+- **only the two legs move a body**: 0.271429 + 0.282178 = **0.553607**, and the other ten parts contribute zero;
+- **only the two feet hold it up**: 0.233607 + 0.233607 = **0.467213**;
+- the total is the **sum** of the parts, each weighted by one, floored at zero - `Character::get_limb_score` (`character_modifier.cpp:222-266`), which the port already implemented
+  and had never checked against the reference's own numbers.
+
+The test then walks the whole chain in port code: parts → sum → `1/score` → `(footing + speed·2)/3` = **1.917674** → `run_cost(100, blend, 0.85, false, 1.0)` = **163**, which is the
+charge the walk recording makes. So the two dumps now hold hands: one says where the scores come from, the other says what they charge.
+
+**The legs differ** - 0.271429 against 0.282178 - which is encumbrance reaching one leg and not the other, and is worth remembering when carried weight is ported: the asymmetry is
+already in the reference's own numbers at rest.
+
+Mutation-checked by averaging the parts instead of adding them, which fails both this test and the older `a_creature_s_score_is_its_parts_added_up`.
