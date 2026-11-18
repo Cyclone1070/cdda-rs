@@ -38087,3 +38087,25 @@ question**, and it is a data-fidelity question that touches every vehicle protot
 
 Nothing in this round is ported code: the scratch diagnostic that found this is removed, and the finding is recorded here rather than in a passing test that would pin a wrong
 blueprint.
+
+## Three answers to "how many parts does a vehicle have" (round 175)
+
+Round 174's finding was that the port's car has 79 parts where a placed car has 91. The obvious suspect was the generator reading the prototype's **definition** instead of its
+**blueprint**, and the blueprint is indeed bigger - but it is not the same thing as what gets placed, and the helicopter proves it:
+
+| Vehicle | Definition (`proto.parts`) | Blueprint (`proto.blueprint`) | Placed instance |
+|---|---|---|---|
+| car | 79 | **91** | **91** |
+| 2-seater helicopter | 71 | **85** | **71** |
+
+So the blueprint matches the car and overshoots the helicopter by fourteen. Dumping the blueprint fixed one and broke the other: with the blueprint store in place, **thirteen
+vehicle tests fail** - and they are right to, because the port would then build helicopters with fourteen parts that a placed helicopter does not have. Both the generator change and
+the store were reverted; the tree is as it was.
+
+**What this says is that none of the three is an answer by itself**, and the question the port actually has is not "which container" but **"what is a placed vehicle"**: the
+blueprint is the thing `add_vehicle` copies (`veh_type.cpp:1561-1655`), and something between the copy and the map takes fourteen parts off a helicopter and none off a car. That is
+`init_state` / `status` / `remove_fake_parts`, and it is the next thing to read.
+
+**The shape of the fix is now clear even though the fix is not:** the store should be dumped from **placed** vehicles - one `add_vehicle` per prototype at a known point, then every
+part's id, mount, weight and flags - because that is the only one of the three the port can be compared against, and it is what `vehicle_placement.json` already does for a single
+prototype.
