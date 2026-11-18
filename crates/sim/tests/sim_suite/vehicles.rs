@@ -7223,3 +7223,169 @@ fn a_step_while_riding_boards_the_square_it_lands_on() {
         "and the creature stands where it stepped"
     );
 }
+
+/// The world the walking test stands in: priced floor everywhere, a car prototype, and a walker with points to spare.
+fn walk_world() -> (World, Entity) {
+    const FLOOR: u32 = 1;
+    const WALL: u32 = 2;
+    const GRASS: u32 = 3;
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_floor".to_owned(), FLOOR),
+            ("t_wall".to_owned(), WALL),
+            ("t_grass".to_owned(), GRASS),
+        ],
+    );
+    cdda_sim::mapsquare::set_data(
+        &mut world,
+        [
+            recorded_tile("t_floor"),
+            recorded_tile("t_wall"),
+            recorded_tile("t_grass"),
+        ],
+    );
+    for y in 60..=120 {
+        for x in 60..=120 {
+            cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+        }
+    }
+    // **The terrain table, not just the tile data**: `square_cost` asks the prototype for the code's move cost, and a table without one makes every square free - which is what the
+    // first version of this gate proved, by refusing every step for the opposite reason.
+    let mut terrain = cdda_sim::terrain_table::TerrainTable::new();
+    for code in [FLOOR, GRASS] {
+        terrain.insert(code, true);
+        terrain.insert_move_cost(code, 2);
+    }
+    terrain.insert(WALL, false);
+    terrain.insert_move_cost(WALL, 0);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain,
+            furniture: cdda_sim::terrain_table::TerrainTable::new(),
+        },
+    );
+    install_weights_for(&mut world, &["car"]);
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let walker = world
+        .spawn((
+            cdda_sim::Position {
+                x: 100,
+                y: 100,
+                z: 0,
+            },
+            cdda_sim::creature::Moves { left: 10_000 },
+        ))
+        .id();
+    let at = |world: &World| {
+        world
+            .get::<cdda_sim::Position>(walker)
+            .map(|at| (at.x, at.y))
+    };
+    let _ = at;
+    (world, walker)
+}
+
+/// **A walking session: where a step lands, when it is refused, and when it boards.** A transcribed upstream case - `game::walk_move` (`game.cpp`) through
+/// `avatar_action::move` (`avatar_action.cpp:653-672`) - because the one thing a dump of it cannot yet give the port is the *price*: the reference charges `Character::run_cost`, which
+/// counts what the survivor carries and wears, and the port has no carried weight. The direction, the refusal and the boarding are the rules, and they are pinned here.
+#[test]
+fn a_walk_step_lands_refuses_and_boards() {
+    const WALL: u32 = 2;
+    let (mut world, walker) = walk_world();
+    let at = |world: &World| {
+        world
+            .get::<cdda_sim::Position>(walker)
+            .map(|at| (at.x, at.y))
+    };
+
+    // **East**: one square, whatever the terrain price turns out to be.
+    assert_eq!(
+        cdda_sim::walk::walk(&mut world, walker, 1, 0),
+        cdda_sim::creature::StepOutcome::Moved,
+        "a step east is taken"
+    );
+    assert_eq!(at(&world), Some((101, 100)), "and lands one square east");
+
+    // **North**, then a **diagonal**, which is the only place the combined cost's multiplier shows.
+    assert_eq!(
+        cdda_sim::walk::walk(&mut world, walker, 0, -1),
+        cdda_sim::creature::StepOutcome::Moved
+    );
+    assert_eq!(at(&world), Some((101, 99)), "north");
+    assert_eq!(
+        cdda_sim::walk::walk(&mut world, walker, 1, -1),
+        cdda_sim::creature::StepOutcome::Moved
+    );
+    assert_eq!(at(&world), Some((102, 98)), "and diagonally east and north");
+
+    // **Into a wall**: the square has no price, so the step is refused and the creature does not move.
+    cdda_sim::square::set_terrain(&mut world, (103, 98, 0), WALL);
+    assert_eq!(
+        cdda_sim::walk::walk(&mut world, walker, 1, 0),
+        cdda_sim::creature::StepOutcome::TooSlow,
+        "**a wall costs nothing, so the step is refused**"
+    );
+    assert_eq!(at(&world), Some((102, 98)), "and the creature stays put");
+
+    // **Onto a car**: a vehicle square is enterable, and landing on a seat boards it - `avatar_action::move` boards at the end of the move.
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (110, 98, 0)).expect("a car");
+    let seats = cdda_sim::vehicles::part_squares(&world, car);
+    let seat = seats
+        .iter()
+        .copied()
+        .find(|square| {
+            let probe = world
+                .spawn((cdda_sim::Position {
+                    x: square.0,
+                    y: square.1,
+                    z: 0,
+                },))
+                .id();
+            let took = cdda_sim::vehicles::board(&mut world, car, probe).is_some();
+            cdda_sim::vehicles::unboard(&mut world, probe);
+            world.despawn(probe);
+            took
+        })
+        .expect("the car has a seat");
+    let beside = (seat.0 - 1, seat.1);
+    {
+        let mut position = world
+            .get_mut::<cdda_sim::Position>(walker)
+            .expect("a position");
+        position.x = beside.0;
+        position.y = beside.1;
+    }
+    assert_eq!(
+        cdda_sim::walk::walk(&mut world, walker, 1, 0),
+        cdda_sim::creature::StepOutcome::Moved,
+        "a vehicle square can be walked onto"
+    );
+    assert!(
+        world.get::<cdda_sim::vehicles::Riding>(walker).is_some(),
+        "**and landing on a seat boards the vehicle**"
+    );
+
+    // **A square the car's own frame fills is an obstacle**: the vehicle answers zero for it before the terrain is ever asked (`map::move_cost` asks the vehicle first), and a
+    // creature walking into it is refused no matter how good the floor under it is. This is the branch the terrain's own zero never reaches.
+    let frame = cdda_sim::vehicles::part_squares(&world, car)
+        .into_iter()
+        .find(|square| cdda_sim::vehicles::move_cost_at(&world, *square) == Some(0))
+        .expect("the car has an obstacle part somewhere");
+    {
+        let mut position = world
+            .get_mut::<cdda_sim::Position>(walker)
+            .expect("a position");
+        position.x = frame.0 - 1;
+        position.y = frame.1;
+        position.z = frame.2;
+    }
+    cdda_sim::vehicles::unboard(&mut world, walker);
+    assert_eq!(
+        cdda_sim::walk::walk(&mut world, walker, 1, 0),
+        cdda_sim::creature::StepOutcome::TooSlow,
+        "**the vehicle's obstacle costs nothing, so the step is refused**"
+    );
+}

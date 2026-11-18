@@ -12,10 +12,11 @@ Updated every round. Untracked by design; the record that ships is [parity.md](p
 
 - **Vehicles (P8).** Driving replay, two-hull impact along centres of mass, boarding (part + mass), the driver's exit skid, and a step taken from a vehicle are ported and gated.
 - **Named gaps.** Vehicle spawn items (loot) → the mass difference in the impact test; carried weight behind `creature::Weight`; autodrive target; turrets; towing; z/ramps/rails.
-- **No walk loop.** `creature::try_step` exists and `vehicles::step_from_vehicle` now calls it, but nothing turns a pressed direction into a step for a walking character. That is the
-  next feature, not a detail: no walking session can be replayed without it.
+- **Walking exists now.** `sim::walk` turns a direction into a square, prices it (vehicle first, then terrain), and steps through `vehicles::step_from_vehicle`.
+- **The price is a named gap.** The reference charges `Character::run_cost` (100 + carried weight); the port charges the terrain's own cost. `corpus/walk.json` cannot be committed
+  until carried weight exists, because its `cost` column is the reference's encumbered answer (163 for a floor step).
 
 ## Next round
 
-1. The walk loop: direction → destination → `map::move_cost` → `step_from_vehicle`, with a dump of a walking session as the gate.
-2. Then vehicle spawn items, which closes the mass gap and lets the impact damage be asserted.
+1. **Carried weight**: what a creature carries plus what it wears, which turns `run_cost` into a number and unlocks the walk dump's `cost` column.
+2. Vehicle spawn items, which closes the mass gap and lets the impact damage be asserted.

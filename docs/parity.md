@@ -38180,3 +38180,18 @@ the re-boarding, which fails at `**a step onto another seat lands still in the v
 
 **Found while writing it, and worth stating:** the port has `try_step` and square costs, but there was no system that turns a direction into a step - the primitive existed and nothing
 called it. This is the first caller in the vehicle path; the walk loop itself is still unported and is the next thing that has to exist before any walking session can be replayed.
+
+## Walking exists (round 180)
+
+The port had a step primitive, square costs, a vehicle-square cost and nothing that joined them. `sim::walk` is the join: a direction becomes a square, the square gets a price, and
+`vehicles::step_from_vehicle` takes the step. That is the spine of `game::walk_move` (`game.cpp`) - not the whole of it, and the module says what is
+missing: fire, fields, monster attacks, running, climbing and the reality bubble.
+
+The price is asked in the reference's order: `map::move_cost` (`map.cpp:1322-1338`) asks the **vehicle standing on the square first**, and zero means "cannot be entered"; only then
+the terrain. Both refusals are pinned, because they arrive by different roads - the terrain's zero is caught by `square_cost` answering `None`, the vehicle's by the port's own
+`entering_cost`. The first version of the test only pinned the wall, and the mutation that let an obstacle be walked into **survived**; the frame square was added and now kills it.
+
+**The dump was built three times and thrown away.** `game::walk_move` moves the reality bubble, so `pos_bub` changes under the character and every bubble-relative square with it; the
+recording came back with the step "landing" eleven squares west of where it started. Absolute coordinates fixed the direction but not the price: the reference charges
+`Character::run_cost`, which starts at a hundred and adds what the survivor carries and wears, so its own floor step reads **163**. The port has no carried weight - `Weight` is one
+number with no composition - so the price is a named gap, and the rule is a transcribed upstream case instead. The dump is worth building again once carried weight exists.

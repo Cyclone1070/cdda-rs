@@ -111,6 +111,7 @@ pub mod vehicle_damage;
 pub mod vehicle_mass;
 pub mod vehicles;
 pub mod vomit;
+pub mod walk;
 pub mod weakpoints;
 pub use square::load_level;
 pub mod shot;
