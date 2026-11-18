@@ -38517,3 +38517,30 @@ Mutation-checked: a part that gives everything it has drains 80 where 40 was ask
 **Named gaps**: the reference sends a **battery** through `discharge_battery`, which follows jumper cables into connected vehicles and applies their cable loss; the port has no
 connected-vehicle network, so a battery drains from its own vehicle like any other fuel at zero loss. The part-index overload of `drain` (`vehicle.cpp:3994`) has no port caller and is
 not ported.
+
+## A turret's status ladder (round 199)
+
+`turret_data::query` (`turret.cpp:250-275`) decides what a mount can do, in this order:
+
+1. no mount, no turret, or broken -> **invalid**;
+2. a mount that feeds from the tanks is short when `fuel_left( ammo ) < ammo_required`; a mount with its own magazine is short when `ammo_required && remaining < ammo_required`;
+3. otherwise, if the shot's `energy_drain` passes the vehicle's battery charges - one kilojoule a charge - it is **no power**;
+4. otherwise **ready**.
+
+| Mount | Held | Needs | Battery | Status |
+|---|---|---|---|---|
+| magazine | 3 | 4 | 0 | `NoAmmo` |
+| magazine | 3 | 2 | 0 | `Ready` |
+| tank-fed | 41 in the tank, 9 in the mount | 50 | 0 | `NoAmmo` |
+| tank-fed | 41 in the tank | 40 | 0 | `Ready` |
+| magazine | 3 | 2 | 2 | `NoPower` at 4 kJ a shot; `Ready` at exactly 2 |
+| broken | any | any | any | `Invalid` |
+
+Mutation-checked on the power boundary: `>=` where the reference has `>` turns "two charges pay for two kilojoules exactly" into `NoPower`.
+
+**One honest note on the reference's own guard.** The magazine branch's `ammo_required &&` looks like a rule, but with a non-negative magazine it decides nothing: `held < 0` and
+`held < required` agree whenever `required` is zero and `held` is not negative, which it never is. The port keeps the guard **because the reference has it**, and records that no test
+can make it fail - a rule preserved as provenance, not as behaviour.
+
+**Named gaps**: `Invalid` covers a missing vehicle, a non-turret part and a broken one at once, because the port's callers only ever ask about a part they already found; and there is
+still no firing, aiming, recoil or `ammo_capacity` - this is the gate a shot would pass through, not the shot.

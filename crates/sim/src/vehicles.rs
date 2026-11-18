@@ -1385,3 +1385,50 @@ pub fn drain(world: &mut World, vehicle: Entity, fuel_type: &str, amount: i64) -
     }
     drained
 }
+
+/// **What a turret can do right now**: the reference's `turret_data::status` (`turret.cpp:250-275`), in its own order - no ammunition first, then no power, then ready.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurretStatus {
+    /// There is no such mount, or it is not a turret, or it is broken - `status::invalid`.
+    Invalid,
+    /// The mount cannot feed a shot - `status::no_ammo`.
+    NoAmmo,
+    /// The mount has ammunition but the batteries cannot pay for the shot - `status::no_power`.
+    NoPower,
+    /// The mount can fire - `status::ready`.
+    Ready,
+}
+
+/// **The ladder a turret passes before it fires** - the reference's `turret_data::query` (`turret.cpp:250-275`).
+///
+/// The order matters and the two ammunition branches are **not** the same test, which is why this is a rule rather than two predicates:
+///
+/// - a mount that feeds from the tanks asks `fuel_left( ammo ) < ammo_required` **unconditionally**, so a gun that spends nothing never runs dry;
+/// - a mount with its own magazine asks `ammo_required && remaining < ammo_required`, and a gun that spends nothing is never short;
+/// - only then does the energy question arise: `energy_drain × qty` against the battery's charges, one kilojoule each, so a gun whose shot costs more than the vehicle's batteries
+///   hold is **no power** even with a full magazine.
+pub fn turret_status(
+    world: &World,
+    vehicle: Entity,
+    index: usize,
+    ammo_required: i32,
+    energy_drain_kj: i32,
+) -> TurretStatus {
+    if turret_query(world, vehicle, index).is_none() {
+        return TurretStatus::Invalid;
+    }
+    let held = turret_ammo_remaining(world, vehicle, index);
+    let short = if uses_vehicle_tanks_or_batteries(world, vehicle, index) {
+        held < i64::from(ammo_required)
+    } else {
+        ammo_required != 0 && held < i64::from(ammo_required)
+    };
+    if short {
+        return TurretStatus::NoAmmo;
+    }
+    let battery = fuel_left(world, vehicle, "battery");
+    if i64::from(energy_drain_kj) > battery {
+        return TurretStatus::NoPower;
+    }
+    TurretStatus::Ready
+}

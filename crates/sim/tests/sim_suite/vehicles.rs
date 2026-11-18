@@ -7761,3 +7761,129 @@ fn fuel_drains_in_part_order() {
         "an empty vehicle drains nothing"
     );
 }
+
+/// **The ladder a turret passes before it fires.** Reference: `turret_data::query` (`turret.cpp:250-275`) - ammunition first, then power, then ready - and the two ammunition
+/// branches are different tests: a tank-fed mount asks unconditionally, a magazine mount only when the gun spends something.
+#[test]
+fn a_turret_passes_its_ammunition_then_its_power() {
+    use cdda_sim::vehicles::{TurretStatus, turret_status};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![
+                cdda_content::vehicles::PartSpec {
+                    id: "pistol_mount".to_owned(),
+                    flags: std::iter::once("TURRET".to_owned()).collect(),
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+                cdda_content::vehicles::PartSpec {
+                    id: "thrower_mount".to_owned(),
+                    flags: ["TURRET".to_owned(), "USE_TANKS".to_owned()]
+                        .into_iter()
+                        .collect(),
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+                cdda_content::vehicles::PartSpec {
+                    id: "tank".to_owned(),
+                    fuel_store: true,
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+                cdda_content::vehicles::PartSpec {
+                    id: "battery".to_owned(),
+                    battery: true,
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+            ],
+            prototypes: Vec::new(),
+        },
+    );
+    let vehicle = world
+        .spawn((
+            cdda_sim::vehicles::Vehicle {
+                parts: vec![
+                    // A magazine mount with three rounds of four needed.
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "pistol_mount".to_owned(),
+                        charges: 3,
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    // A tank-fed mount drawing on a tank of forty-one, spending fifty a shot.
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "thrower_mount".to_owned(),
+                        charges: 9,
+                        fuel: "chemical_spray".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "tank".to_owned(),
+                        charges: 41,
+                        fuel: "chemical_spray".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    // A car battery of two charges.
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "battery".to_owned(),
+                        charges: 2,
+                        fuel: "battery".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                ],
+                ..cdda_sim::vehicles::Vehicle::default()
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+
+    // **A magazine mount short of its rounds**: three held, four needed.
+    assert_eq!(
+        turret_status(&world, vehicle, 0, 4, 0),
+        TurretStatus::NoAmmo,
+        "**three rounds cannot pay for a shot that costs four**"
+    );
+    // **The same mount with two needed** is ready - the magazine holds three.
+    assert_eq!(
+        turret_status(&world, vehicle, 0, 2, 0),
+        TurretStatus::Ready,
+        "three rounds pay for a shot of two"
+    );
+    // **A gun that spends nothing is never short**, which is the magazine branch's `ammo_required &&` guard.
+    assert_eq!(
+        turret_status(&world, vehicle, 0, 0, 0),
+        TurretStatus::Ready,
+        "a free shot never runs dry"
+    );
+    // **A tank-fed mount** with forty-one in the tank and fifty needed has no ammunition, whatever is in its own magazine.
+    assert_eq!(
+        turret_status(&world, vehicle, 1, 50, 0),
+        TurretStatus::NoAmmo,
+        "**forty-one in the tank cannot pay for a shot that costs fifty**, though nine sit in the mount itself"
+    );
+    assert_eq!(
+        turret_status(&world, vehicle, 1, 40, 0),
+        TurretStatus::Ready,
+        "and forty-one pays for a shot of forty"
+    );
+    // **And then the power question**: two battery charges, four kilojoules a shot.
+    assert_eq!(
+        turret_status(&world, vehicle, 0, 2, 4),
+        TurretStatus::NoPower,
+        "**a shot costing four kilojoules cannot be paid by two charges**"
+    );
+    assert_eq!(
+        turret_status(&world, vehicle, 0, 2, 2),
+        TurretStatus::Ready,
+        "two charges pay for two kilojoules exactly"
+    );
+    // **A broken mount answers nothing at all.**
+    let mut held = world.get_mut::<cdda_sim::vehicles::Vehicle>(vehicle);
+    if let Some(mount) = held.as_mut().and_then(|built| built.parts.first_mut()) {
+        mount.broken = true;
+    }
+    assert_eq!(
+        turret_status(&world, vehicle, 0, 2, 0),
+        TurretStatus::Invalid,
+        "a broken turret has no status"
+    );
+}
