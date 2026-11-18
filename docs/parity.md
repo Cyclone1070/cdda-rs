@@ -38310,3 +38310,25 @@ parts all rebuild, with exactly **four contributions in all**: two legs to movem
 the same threshold of six. Encumbrance is per part, it is asymmetric at rest, and it is the last input between carried weight and the price of a step.
 
 Mutation-checked: shifting the threshold by a single point fails at `0.23170732 against 0.233607`.
+
+## A step costs breath (round 189)
+
+Stamina was an input to the price and nothing ever spent it. Now a step does.
+
+`Character::burn_move_stamina` (`character.cpp:6972-7013`): the burn ratio is the `PLAYER_BASE_STAMINA_BURN_RATE` option - **15**, "base stamina burn per 100 moves of the walking
+player" (`data/core/external_options.json:39-43`) - times the movement mode's multiplier (one for walking) and the same `stamina_move_cost_mod` the price *divides* by. **The modifier
+cuts both ways**: a tired creature pays more for a step and tires more slowly, so `stamina_cost_modifier` and the burn cannot be derived from one another.
+
+The walk dump gained a fourth case, a survivor wound down to 1000, because on a full tank the modifier is within a stride of one and no integer can tell it from its absence:
+
+| Case | Stamina before | Charge | Burn | Stamina after |
+|---|---|---|---|---|
+| east floor | 8500 | 163 | 24 | 8476 |
+| north floor | 8476 | 163 | 24 | 8452 |
+| north-east diagonal | 8452 | 232 | 34 | 8418 |
+| **tired east floor** | **1000** | **291** | **24** | **976** |
+
+The tired case is the one that earns its keep: the same floor square costs **291** instead of 163, and the burn is `291 × 0.15 × 0.559 = 24`, which drops to 43 the moment the modifier is
+dropped. Mutation-checked twice - `modifier = 1.0` answers 43, and removing the burn from `walk` leaves the tank at 8500.
+
+`Stamina` already existed as a component (`cur`/`max` in points, 3,500 by default from the cardio-fitness base); what was missing was anyone taking anything out of it.

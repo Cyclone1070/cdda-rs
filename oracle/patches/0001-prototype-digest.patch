@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 21:30:42
-@@ -0,0 +1,9729 @@
++++ oracle/src/src/harness.cpp	2026-11-18 22:15:41
+@@ -0,0 +1,9739 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1835,11 +1835,15 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const char *name;
 +        int dx;
 +        int dy;
++        // **Stamina to set before the step**, or -1 to leave it alone. The burn is multiplied by the stamina modifier, and on a full tank that modifier is within a stride of one, so
++        // a wrecked survivor is the only case that can tell the term from its absence.
++        int set_stamina;
 +    };
 +    const walk_case cases[] = {
-+        { "east_floor", 1, 0 },
-+        { "north_floor", 0, -1 },
-+        { "northeast_diagonal", 1, -1 },
++        { "east_floor", 1, 0, -1 },
++        { "north_floor", 0, -1, -1 },
++        { "northeast_diagonal", 1, -1, -1 },
++        { "tired_east_floor", 1, 0, 1000 },
 +    };
 +
 +    std::fprintf( out, "{\"harness\":\"walk\",\"version\":1,\"move_speed\":%f,\"footing\":%f,"
@@ -1853,7 +1857,11 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const int cost_from = here.move_cost( stand );
 +        const int cost_to = here.move_cost( dest );
 +        you.set_moves( 1000 );
++        if( entry.set_stamina >= 0 ) {
++            you.set_stamina( entry.set_stamina );
++        }
 +        const int before = you.get_moves();
++        const int stamina_before = you.get_stamina();
 +        g->walk_move( dest );
 +        // **What `run_cost` itself answers**, recorded beside what the walk charged, so a port can tell the price from whatever is added to it on the way to the moves.
 +        const int combined = here.combined_movecost( stand, dest );
@@ -1865,10 +1873,12 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        std::fprintf( out,
 +                      "%s{\"case\":\"%s\",\"dx\":%d,\"dy\":%d,\"cost_from\":%d,\"cost_to\":%d,"
 +                      "\"combined\":%d,\"run_cost_direct\":%d,\"run_cost_diag\":%d,\"charge\":%d,"
-+                      "\"stamina\":%d,\"stamina_max\":%d,\"probe_here\":%f,\"effects\":[",
++                      "\"stamina\":%d,\"stamina_before\":%d,\"stamina_max\":%d,\"probe_here\":%f,"
++                      "\"effects\":[",
 +                      first_case ? "" : ",", entry.name, entry.dx, entry.dy, cost_from, cost_to, combined,
 +                      you.run_cost( combined, false ), you.run_cost( combined, true ),
-+                      before - you.get_moves(), you.get_stamina(), you.get_stamina_max(), probe_here );
++                      before - you.get_moves(), you.get_stamina(), stamina_before, you.get_stamina_max(),
++                      probe_here );
 +        bool first_effect = true;
 +        for( const run_cost_effect &effect : chain_here ) {
 +            std::fprintf( out, "%s{\"what\":\"%s\",\"times\":%f,\"plus\":%f}",

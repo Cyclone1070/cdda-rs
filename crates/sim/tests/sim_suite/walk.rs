@@ -72,26 +72,59 @@ fn a_walk_step_is_priced_by_the_square_and_the_body() {
         )]
         let base = combined as f32;
         let diagonal = row.get("dx").is_some() && int("dx") != 0 && int("dy") != 0;
-        // **Stamina, from the recording**: it falls with every step, so each case carries its own ratio and the charge moves with it.
-        let stamina = match (row.get("stamina"), row.get("stamina_max")) {
-            (Some(Value::Int(have)), Some(Value::Int(cap))) => {
-                let have = f64::from(i32::try_from(*have).expect("stamina"));
-                let cap = f64::from(i32::try_from(*cap).expect("its maximum"));
-                narrow(have / cap)
-            }
-            _ => panic!("{name}: stamina"),
+        // **Stamina, from the recording, as it stood when the step was taken**: the price is asked of the creature before it pays, and the burn takes the breath out afterwards. It
+        // falls with every step, which is why the tired case charges 291 where a rested one charges 163.
+        let before = match row.get("stamina_before") {
+            Some(Value::Int(value)) => *value,
+            other => panic!("{name}.stamina_before: {other:?}"),
         };
+        let after = match row.get("stamina") {
+            Some(Value::Int(value)) => *value,
+            other => panic!("{name}.stamina: {other:?}"),
+        };
+        let max = match row.get("stamina_max") {
+            Some(Value::Int(value)) => *value,
+            other => panic!("{name}.stamina_max: {other:?}"),
+        };
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "stamina is a count of points in the thousands"
+        )]
+        let narrow_int = |value: &i64| -> f32 {
+            let points = *value as f64;
+            let ceiling = f64::from(i32::try_from(max).expect("its maximum"));
+            narrow(points / ceiling)
+        };
+        let stamina = narrow_int(&before);
         let ours = cdda_sim::run_cost::run_cost(base, blend, flat_ground, diagonal, stamina);
         assert_eq!(
             ours, charge,
             "{name}: **the charge**, from the combined cost {combined}, the body's {blend}, flat ground {flat_ground} and {stamina} stamina"
         );
+        // **And the breath it costs**: `burn_move_stamina` with the data's own fifteen per hundred moves
+        // (`data/core/external_options.json:39-43`), through the same modifier the price divides by.
+        let burn = cdda_sim::run_cost::stamina_burn(
+            charge,
+            cdda_sim::walk::BASE_STAMINA_BURN_RATE,
+            stamina,
+        );
+        assert_eq!(
+            before - i64::from(burn),
+            after,
+            "{name}: **the breath the step costs**: {burn} out of {before}"
+        );
         seen += 1;
     }
-    assert_eq!(seen, 3, "all three recorded steps were priced");
+    assert_eq!(
+        seen, 4,
+        "**all four recorded steps were priced**, the last one by a wrecked survivor"
+    );
+}
 
-    // **A creature with the recorded body pays the recorded price**, and one without pays the square's own. The map's own half - a floor step being a hundred - is pinned in
-    // `vehicles::a_walk_step_lands_refuses_and_boards`, where the suite's terrain fixtures live.
+/// **What a body does to a price, with no map involved.** A creature with no price factors pays the square's cost; one carrying the recorded survivor's scores pays 163 for the same
+/// hundred. The map's own half - a floor step being a hundred - is pinned in `vehicles::a_walk_step_lands_refuses_and_boards`, where the suite's terrain fixtures live.
+#[test]
+fn a_body_prices_its_own_step() {
     let mut world = World::new();
     let plain = world
         .spawn((
@@ -109,10 +142,13 @@ fn a_walk_step_is_priced_by_the_square_and_the_body() {
             cdda_sim::Position { x: 6, y: 4, z: 0 },
             cdda_sim::creature::Moves { left: 1000 },
             cdda_sim::walk::LimbCost {
-                move_speed,
-                footing,
-                flat_ground,
-                stamina: 1.0,
+                move_speed: 0.553_607,
+                footing: 0.467_213,
+                flat_ground: 0.85,
+            },
+            cdda_sim::creature::Stamina {
+                cur: 8_500.0,
+                max: 8_500.0,
             },
         ))
         .id();

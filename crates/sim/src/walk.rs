@@ -58,8 +58,44 @@ pub struct LimbCost {
     pub footing: f32,
     /// The summed `MOVECOST_FLATGROUND_MOD` as a multiplier: one plus the enchantments' multiplies.
     pub flat_ground: f32,
-    /// How much stamina the creature has, from zero to one. The reference takes `stamina / stamina_max` and prices the step by `2 / ( ratio + 1 )`.
-    pub stamina: f32,
+}
+
+/// How full the creature's tank is, from zero to one - and one when it has no [`crate::creature::Stamina`] of its own, because a creature that never tires pays as a rested one does.
+#[must_use]
+pub fn stamina_ratio(world: &World, creature: Entity) -> f32 {
+    let Some(stamina) = world.get::<crate::creature::Stamina>(creature) else {
+        return 1.0;
+    };
+    if stamina.max <= 0.0 {
+        return 1.0;
+    }
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a ratio of two stamina figures is single precision in the reference too"
+    )]
+    let ratio = (stamina.cur / stamina.max).clamp(0.0, 1.0) as f32;
+    ratio
+}
+
+/// **What a step of `moves` takes out of a creature.** Reference: `Character::burn_move_stamina` (`character.cpp:6972-7013`), called from the walk with the moves the step cost.
+///
+/// The `PLAYER_BASE_STAMINA_BURN_RATE` is the data's own default, **15** (`data/core/external_options.json:39-43`); a scenario that changes the option states its own.
+pub const BASE_STAMINA_BURN_RATE: i32 = 15;
+
+/// Burns the stamina a step of `moves` costs, and answers how much went. Floored at zero: a creature cannot owe stamina.
+pub fn burn_stamina(world: &mut World, creature: Entity, moves: i32) -> i32 {
+    if world.get::<crate::creature::Stamina>(creature).is_none() {
+        return 0;
+    }
+    let burn = crate::run_cost::stamina_burn(
+        moves,
+        BASE_STAMINA_BURN_RATE,
+        stamina_ratio(world, creature),
+    );
+    if let Some(mut tank) = world.get_mut::<crate::creature::Stamina>(creature) {
+        tank.cur = (tank.cur - f64::from(burn)).max(0.0);
+    }
+    burn
 }
 
 /// What this creature pays to enter a square whose entry costs `combined`.
@@ -80,7 +116,13 @@ pub fn price_of_step(world: &World, creature: Entity, combined: i32) -> i32 {
         reason = "a square's combined cost is a small count of movement points"
     )]
     let base = combined as f32;
-    crate::run_cost::run_cost(base, blend, limbs.flat_ground, false, limbs.stamina)
+    crate::run_cost::run_cost(
+        base,
+        blend,
+        limbs.flat_ground,
+        false,
+        stamina_ratio(world, creature),
+    )
 }
 
 /// **One step in a direction.** Answers whether the creature moved.
@@ -98,7 +140,12 @@ pub fn walk(world: &mut World, creature: Entity, dx: i32, dy: i32) -> StepOutcom
     };
     // **The square's cost, then the body's.** The reference charges `run_cost(mcost)`, not `mcost`, so a step is never simply what the map would charge.
     let charge = price_of_step(world, creature, cost);
-    crate::vehicles::step_from_vehicle(world, creature, to, charge)
+    let outcome = crate::vehicles::step_from_vehicle(world, creature, to, charge);
+    if outcome == StepOutcome::Moved {
+        // **A step costs breath as well as movement points** (`game.cpp` calls `u.burn_move_stamina( mcost )` with the moves the step cost).
+        burn_stamina(world, creature, charge);
+    }
+    outcome
 }
 
 /// **A creature that has been told to step, and has not yet.** The port's own seam between input and simulation: the reference's UI calls `avatar_action::move` directly from

@@ -7288,33 +7288,11 @@ fn walk_world() -> (World, Entity) {
     (world, walker)
 }
 
-/// **A walking session: where a step lands, when it is refused, and when it boards.** A transcribed upstream case - `game::walk_move` (`game.cpp`) through
-/// `avatar_action::move` (`avatar_action.cpp:653-672`) - because the one thing a dump of it cannot yet give the port is the *price*: the reference charges `Character::run_cost`, which
-/// counts what the survivor carries and wears, and the port has no carried weight. The direction, the refusal and the boarding are the rules, and they are pinned here.
+/// **A walker with a body pays what the body costs, and breathes for it.** The recorded survivor's scores make a floor step 163 movement points and 24 points of breath; the wiring
+/// from the square's cost through the price to both is what this reaches, and nothing else does.
 #[test]
-fn a_walk_step_lands_refuses_and_boards() {
-    const WALL: u32 = 2;
-    let (mut world, walker) = walk_world();
-    let at = |world: &World| {
-        world
-            .get::<cdda_sim::Position>(walker)
-            .map(|at| (at.x, at.y))
-    };
-
-    // **The price the square sets, before the body is asked**: a floor beside a floor is the reference's hundred, and a diagonal is its 71% multiplier - `(2 + 2) * 71 / 2`.
-    assert_eq!(
-        cdda_sim::walk::step_cost(&world, (100, 100, 0), (101, 100, 0)),
-        Some(100),
-        "**a floor step is a hundred**"
-    );
-    assert_eq!(
-        cdda_sim::walk::step_cost(&world, (100, 100, 0), (101, 99, 0)),
-        Some(142),
-        "**and a diagonal one is 142**"
-    );
-
-    // **A walker with a body pays what the body costs.** The recorded survivor's scores make a floor step 163, and a step spends exactly that - the wiring from the square's cost
-    // through the price to the movement points, which no other test reaches.
+fn a_bodied_step_pays_and_breathes() {
+    let (mut world, _walker) = walk_world();
     let priced = world
         .spawn((
             cdda_sim::Position {
@@ -7327,7 +7305,10 @@ fn a_walk_step_lands_refuses_and_boards() {
                 move_speed: 0.553_607,
                 footing: 0.467_213,
                 flat_ground: 0.85,
-                stamina: 1.0,
+            },
+            cdda_sim::creature::Stamina {
+                cur: 8_500.0,
+                max: 8_500.0,
             },
         ))
         .id();
@@ -7341,6 +7322,39 @@ fn a_walk_step_lands_refuses_and_boards() {
             .map(|m| m.left),
         Some(10_000 - 163),
         "**a floor step by that body costs 163 movement points**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Stamina>(priced)
+            .map(|s| s.cur),
+        Some(8_476.0),
+        "**and 24 points of breath**: a rested survivor burns fifteen per hundred moves"
+    );
+}
+
+/// **A walking session: where a step lands, when it is refused, and when it boards.** A transcribed upstream case - `game::walk_move` (`game.cpp`) through
+/// `avatar_action::move` (`avatar_action.cpp:653-672`) - because the one thing a dump of it cannot yet give the port is the *price*: the reference charges `Character::run_cost`, which
+/// counts what the survivor carries and wears, and the port has no carried weight. The direction, the refusal and the boarding are the rules, and they are pinned here.
+#[test]
+fn a_walk_step_lands_refuses_and_boards() {
+    const WALL: u32 = 2;
+    let (mut world, walker) = walk_world();
+    let at = |world: &World| {
+        world
+            .get::<cdda_sim::Position>(walker)
+            .map(|at| (at.x, at.y))
+    };
+
+    // **The price the square sets**: a floor beside a floor is the reference's hundred; a diagonal is its 71% multiplier.
+    assert_eq!(
+        cdda_sim::walk::step_cost(&world, (100, 100, 0), (101, 100, 0)),
+        Some(100),
+        "**a floor step is a hundred**"
+    );
+    assert_eq!(
+        cdda_sim::walk::step_cost(&world, (100, 100, 0), (101, 99, 0)),
+        Some(142),
+        "**and a diagonal one is 142**"
     );
 
     // **East**: one square, whatever the terrain price turns out to be.

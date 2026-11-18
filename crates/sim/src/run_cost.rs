@@ -90,3 +90,33 @@ pub fn run_cost(
     let charge = floored as i32;
     charge
 }
+
+/// **What a step takes out of a creature**, in the same units the reference keeps stamina in.
+///
+/// Reference: `Character::burn_move_stamina` (`character.cpp:6972-7013`): the burn ratio starts at the `PLAYER_BASE_STAMINA_BURN_RATE` option - **15**, "base stamina burn per 100 moves
+/// of the walking player" (`data/core/external_options.json:39-43`) - gains a percentage for being overburdened and for swimming, is multiplied by the movement mode's stamina
+/// multiplier (one for walking), and the burn itself is `moves * ratio / 100` times `stamina_move_cost_mod`, which is `( ratio + 1 ) / 2` (`character_modifier.cpp:295-300`).
+///
+/// **Note the two different uses of the same modifier**: the *price* of a step divides by it (`:10527`), and the *burn* multiplies by it. A tired creature pays more and tires more
+/// slowly, which is why both are here rather than one being derived from the other.
+#[must_use]
+pub fn stamina_burn(moves: i32, burn_ratio: i32, stamina_ratio: f32) -> i32 {
+    let modifier = stamina_ratio.midpoint(1.0);
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a step's movement points are a small count"
+    )]
+    let spent = moves as f32;
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the burn ratio is a small percentage"
+    )]
+    let ratio = burn_ratio as f32;
+    let burn = spent * ratio / 100.0 * modifier;
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the reference burns a whole number of stamina points"
+    )]
+    let points = burn as i32;
+    points
+}
