@@ -38109,3 +38109,25 @@ blueprint is the thing `add_vehicle` copies (`veh_type.cpp:1561-1655`), and some
 **The shape of the fix is now clear even though the fix is not:** the store should be dumped from **placed** vehicles - one `add_vehicle` per prototype at a known point, then every
 part's id, mount, weight and flags - because that is the only one of the three the port can be compared against, and it is what `vehicle_placement.json` already does for a single
 prototype.
+
+## The store was right, and round 174 was wrong (round 176)
+
+Round 174 said the port's car was missing twelve parts - "it is missing parts, not weight". **That was wrong**, and the proof is a store dumped from placed vehicles: all 249 prototypes
+produced by placing one vehicle each and reading `get_all_parts()` are **identical, part for part and mount for mount**, to the store the port already had. Zero differences.
+
+The ninety-one was never a part count. `--dump-vehicle-top-speed` walks every index with `part_count()`, which includes the hull's **fake** parts; `get_all_parts()` leaves them out, and
+so does the reference's own mass rule (`vehicle.cpp:8491` skips `is_fake`). The car's twelve "missing" halfboards, doors and windshields are fake twins of parts it already has.
+
+| Where the number came from | Car | Helicopter |
+|---|---|---|
+| `part_count()` (every index) | 91 | 85 |
+| `get_all_parts()` (real parts only) | **79** | **71** |
+| the port's store, already | **79** | **71** |
+
+So the mass gap is **not** parts and **not** the prototype: it is what a hull **carries**. `add_vehicle` calls `place_spawn_items` right after `init_state` (`mapgen.cpp:7545`), and
+`calc_mass_center` counts every item in every part (`vehicle.cpp:8498-8503`) - so the reference's car is 1071.8 kg because it spawned with about fifty-five kilograms of loot in its
+trunk, and the port's car is 1016.9 kg because the port has no loot to spawn. **That is a loot rule, not a vehicle rule**, and the impact test's tolerance is the honest place for it.
+
+**Three rounds on this question produced one correction and no porting.** The generator change is reverted: it produced a byte-identical store, cost a game start, and would have added a
+dependency on `get_all_parts()` to a dump that does not need one. The next round returns to the vehicle feature queue, and the mass gap stays named in the impact test until vehicle
+spawn items are ported on their own terms.
