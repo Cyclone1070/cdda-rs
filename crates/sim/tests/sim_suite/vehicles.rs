@@ -7389,3 +7389,74 @@ fn a_walk_step_lands_refuses_and_boards() {
         "**the vehicle's obstacle costs nothing, so the step is refused**"
     );
 }
+
+/// **Opening a door from outside costs the rest of the turn.** Reference: `avatar_action::move` (`avatar_action.cpp:561-566`) - when the square being walked into is a vehicle's
+/// closed door, the game opens it and charges `you.mod_moves( -you.get_speed() )`: a whole turn's speed, not the price of a square. The opener stands still for the turn it opened in.
+#[test]
+fn opening_a_door_from_outside_costs_a_turn() {
+    let (mut world, _walker) = walk_world();
+    cdda_sim::vehicles::set_store(&mut world, store());
+    let car = cdda_sim::vehicles::spawn(&mut world, "car", (110, 110, 0)).expect("a car");
+    let door = {
+        let built = world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        (0..built.parts.len())
+            .find(|index| {
+                cdda_sim::vehicles::part_spec(&world, car, *index).is_some_and(|spec| {
+                    spec.flags.contains("OPENABLE") && spec.flags.contains("OBSTACLE")
+                })
+            })
+            .expect("the car has a door")
+    };
+    let opener = world
+        .spawn((
+            cdda_sim::Position {
+                x: 110,
+                y: 114,
+                z: 0,
+            },
+            cdda_sim::creature::Speed {
+                base: 100,
+                bonus: 0,
+            },
+            cdda_sim::creature::Moves { left: 1000 },
+        ))
+        .id();
+
+    assert!(
+        cdda_sim::vehicles::open_from_outside(&mut world, car, door, opener),
+        "the door opens"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Moves>(opener)
+            .map(|m| m.left),
+        Some(900),
+        "**and the opener pays a turn's speed for it**, not a square's price"
+    );
+
+    // A part that cannot open is not a door: nothing happens and nothing is charged.
+    let wall = {
+        let built = world
+            .get::<cdda_sim::vehicles::Vehicle>(car)
+            .expect("a vehicle");
+        (0..built.parts.len())
+            .find(|index| {
+                !cdda_sim::vehicles::part_spec(&world, car, *index)
+                    .is_some_and(|spec| spec.flags.contains("OPENABLE"))
+            })
+            .expect("the car has a part that does not open")
+    };
+    assert!(
+        !cdda_sim::vehicles::open_from_outside(&mut world, car, wall, opener),
+        "a part that cannot open is not opened"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Moves>(opener)
+            .map(|m| m.left),
+        Some(900),
+        "and the opener is charged nothing for trying"
+    );
+}

@@ -38207,3 +38207,18 @@ was never in the `configure_sets` chain - the declared order named it, the chain
 which is what `do_turn.cpp` does, and the mutation that removes it from the chain puts the executed order back to `[Scent, Scheduled, ...]`.
 
 Two mutations, both caught: remove the walk stage and the step never happens; remove `Scheduled` from the chain and the declared order stops being the executed one.
+
+## Opening a door costs a turn (round 182)
+
+`avatar_action::move` (`avatar_action.cpp:561-566`) does not walk through a vehicle's closed door: it **opens** it and charges `you.mod_moves( -you.get_speed() )` - the opener's whole
+speed for the turn, not the price of a square. `vehicles::open_from_outside` is that rule, and a part that cannot open is not a door: nothing happens and nothing is charged.
+Mutation-checked: making the open free fails at `Some(1000)` against `Some(900)`.
+
+**The round before this one was reconnaissance and this is what it bought.** The open-door *move cost* rule was already ported and gated - `move_cost_at` asks only the first obstacle
+part and lets an openable part left open stop blocking - but the doc comment above it still said "the port carries no open/closed state yet, so every door is closed". That was false
+against the code directly beneath it, and it is now a description of what the code does. A comment that lies about the next twenty lines is worse than no comment.
+
+**What the reconnaissance also settled, and did not pay for:** the walk charge of **163** is not the terrain. `run_cost` is not called from `avatar_action`, the map's floor cost is 2,
+and the multiplier comes from the survivor's limbs and what they carry - `run_cost_effects` (`character.cpp:10376+`) is a chain of wounds, traits, shoes, skates and encumbrance, and
+`limb_score_movecost` is behind `Character::limb_score`, which the port has the arithmetic for (`limbs.rs`) but no encumbrance data for. That chain is a feature, not a footnote, and
+it is the next thing carried weight has to be shaped by.

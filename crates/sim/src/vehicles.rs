@@ -524,8 +524,8 @@ pub fn at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
 /// What a vehicle's square costs a walker to move through - the reference's `vpart_position::get_movecost` (`vehicle.cpp:2871-2881`).
 ///
 /// **0** when an unbroken part on the square is an `OBSTACLE`; **2** when an unbroken part is an `AISLE`; **8** for an open vehicle square. The obstacle is asked first and over every part
-/// on the square, which is the reference's `obstacle_at_part` (`:2857-2869`): a windshield blocks even beside a seat. The reference lets an **open door** stop being an obstacle; the
-/// port carries no open/closed state yet, so every door is closed, which is the reference's own default for a fresh part (`vehicle_part::open` starts false).
+/// on the square, which is the reference's `obstacle_at_part` (`:2857-2869`): a windshield blocks even beside a seat. An **open door** stops being an obstacle (`vehicle_part::open`,
+/// `vehicle.h:519`, which a fresh part starts false), and only the first obstacle part is asked, as the reference asks only it.
 ///
 /// Answers `None` when no vehicle stands on the square - the caller then falls back to the terrain's own cost, which is the reference's `map::move_cost` order.
 #[must_use]
@@ -750,6 +750,27 @@ pub fn rider_at(world: &World, vehicle: Entity, part: usize) -> Option<Entity> {
 /// open is refused with a debug message rather than changed - which is the `false` this answers. The reference's `open_or_close` also unlocks a locked door, mirrors the state onto a
 /// paired fake part, and propagates along a multisquare openable's lines; the port has no locks, fake parts or multisquare openables in its data, and names that in `docs/parity.md`.
 /// The transparency and air caches the reference dirties are derived in the port, not stored.
+///
+/// **Opening a door from outside costs the rest of the turn.** Reference: `avatar_action::move` (`avatar_action.cpp:561-566`): stepping into a vehicle's closed door opens it and
+/// then charges `you.mod_moves( -you.get_speed() )` - the opener's **whole speed for the turn**, not the price of a square, because a door is opened with a hand and a moment rather
+/// than walked through. A part that cannot open is not a door: nothing happens and nothing is charged.
+pub fn open_from_outside(world: &mut World, vehicle: Entity, index: usize, opener: Entity) -> bool {
+    if !open_or_close(world, vehicle, index, true) {
+        return false;
+    }
+    let speed = world
+        .get::<crate::creature::Speed>(opener)
+        .map_or(0, |speed| speed.base + speed.bonus);
+    if let Some(mut moves) = world.get_mut::<crate::creature::Moves>(opener) {
+        moves.left -= speed;
+    }
+    true
+}
+
+/// **Opens or closes one part**, and answers whether the state changed.
+///
+/// Reference: `vehicle::open` and `vehicle::close` (`vehicle_use.cpp:1215-1240`) set the part's `open` state through `vehicle::open_or_close` (`:1327-1370`); a part whose data does
+/// not say `OPENABLE` is refused, which is the `false` this answers.
 pub fn open_or_close(world: &mut World, vehicle: Entity, index: usize, opening: bool) -> bool {
     let openable = {
         let Some(built) = world.get::<Vehicle>(vehicle) else {
