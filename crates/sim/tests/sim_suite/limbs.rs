@@ -407,3 +407,85 @@ fn a_bodys_parts_add_up_to_the_score_that_prices_a_step() {
         "**a floor step by this body costs 163**"
     );
 }
+
+/// **A part's score, rebuilt from the part's own numbers.** `corpus/limb_scores.json` now records everything the adjustment rule reads: the type's raw figure, the part's health, its final
+/// encumbrance, its threshold, and whether it is over the limit - so the port can walk the same road the reference does instead of being handed the answer.
+///
+/// Reference: `bodypart::get_limb_score` (`bodypart.cpp:998-1018`) applies, in this order, the wound adjustment (`:967-976`), then the encumbrance adjustment (`:978-990`), then the skill
+/// adjustment (`:992-996`, inert). Two of those are ported rules; this test is where they meet the reference's own figures.
+#[test]
+fn a_parts_score_is_rebuilt_from_its_health_and_its_load() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/limb_scores.json");
+    let bytes = std::fs::read(path).expect("the limb-score recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(parts)) = root.get("parts") else {
+        panic!("parts");
+    };
+
+    let mut seen = 0;
+    let mut contributing = 0;
+    for part in parts {
+        let cdda_json::Value::Object(row) = part else {
+            panic!("a part is an object");
+        };
+        let integer = |field: &str| -> i32 {
+            match row.get(field) {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).expect("an int"),
+                other => panic!("{field}: {other:?}"),
+            }
+        };
+        let number = |field: &str| -> f32 {
+            match row.get(field) {
+                Some(cdda_json::Value::Float(value)) => {
+                    #[expect(
+                        clippy::cast_possible_truncation,
+                        reason = "a limb score is single precision in the reference too"
+                    )]
+                    let narrowed = *value as f32;
+                    narrowed
+                }
+                other => panic!("{field}: {other:?}"),
+            }
+        };
+        let over = matches!(
+            row.get("over_encumbered"),
+            Some(cdda_json::Value::Bool(true))
+        );
+        let hp = integer("hp");
+        let hp_max = integer("hp_max");
+        let encumbrance = integer("encumbrance");
+        let threshold = integer("threshold");
+        let id = match row.get("id") {
+            Some(cdda_json::Value::Str(text)) => text.clone(),
+            _ => panic!("an id"),
+        };
+
+        for (base_field, score_field) in [
+            ("base_move_speed", "move_speed"),
+            ("base_footing", "footing"),
+        ] {
+            let base = number(base_field);
+            let expected = number(score_field);
+            let wounded = cdda_sim::limbs::wound_adjusted_limb_value(base, hp, hp_max);
+            let ours =
+                cdda_sim::limbs::encumb_adjusted_limb_value(wounded, encumbrance, threshold, over);
+            assert!(
+                (ours - expected).abs() < 1e-5,
+                "{id}.{score_field}: **the part's own road** - base {base}, {hp}/{hp_max} health, load {encumbrance} over a threshold of {threshold} gives {ours}, recorded {expected}"
+            );
+            if expected > 0.0 {
+                contributing += 1;
+            }
+        }
+        seen += 1;
+    }
+    assert_eq!(seen, 12, "all twelve parts were rebuilt");
+    assert_eq!(
+        contributing, 4,
+        "**four contributions in all**: two legs to movement and two feet to footing"
+    );
+}

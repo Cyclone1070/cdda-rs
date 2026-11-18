@@ -38291,3 +38291,22 @@ charge the walk recording makes. So the two dumps now hold hands: one says where
 already in the reference's own numbers at rest.
 
 Mutation-checked by averaging the parts instead of adding them, which fails both this test and the older `a_creature_s_score_is_its_parts_added_up`.
+
+## A part's score, rebuilt from its own numbers (round 188)
+
+The limb-score dump now records everything the adjustment rule reads: each part's type figure for `move_speed` and `footing`, its health, its **final encumbrance**, its **threshold**,
+and whether it is over the limit. That turns the earlier totals into something the port can *derive* rather than repeat:
+
+| Part | Base | Load / threshold | Port | Recorded |
+|---|---|---|---|---|
+| foot | 0.5 footing | 70 / 5 | 0.233607 | 0.233607 |
+| leg (left) | 0.5 movement | 54 / 6 | 0.271429 | 0.271429 |
+| leg (right) | 0.5 movement | 50 / 6 | 0.282178 | 0.282178 |
+
+Two ported rules meet the reference's own numbers through the whole road: the wound adjustment (`bodypart.cpp:967-976`), then the encumbrance adjustment (`:978-990`) - and the twelve
+parts all rebuild, with exactly **four contributions in all**: two legs to movement, two feet to footing.
+
+**And the asymmetry is now explained rather than observed.** The legs differ because of **load**, not because the body is odd: the right leg carries fifty and the left fifty-four, over
+the same threshold of six. Encumbrance is per part, it is asymmetric at rest, and it is the last input between carried weight and the price of a step.
+
+Mutation-checked: shifting the threshold by a single point fails at `0.23170732 against 0.233607`.

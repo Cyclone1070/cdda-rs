@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 20:58:41
-@@ -0,0 +1,9721 @@
++++ oracle/src/src/harness.cpp	2026-11-18 21:30:42
+@@ -0,0 +1,9729 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1785,9 +1785,17 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +    bool first_part = true;
 +    for( const std::pair<const bodypart_str_id, bodypart> &entry : you.get_body() ) {
 +        const bodypart &part = entry.second;
++        // **Everything the adjustment rule reads**, so a port can rebuild the part's score from the part's own numbers instead of being handed the answer: the type's raw figure for
++        // each score (`body_part_type::get_limb_score`, `bodypart.cpp:584`), the part's health, its final encumbrance, its threshold, and whether it is over the limit.
 +        std::fprintf( out,
-+                      "%s{\"id\":\"%s\",\"hp\":%d,\"hp_max\":%d,\"move_speed\":%f,\"footing\":%f}",
++                      "%s{\"id\":\"%s\",\"hp\":%d,\"hp_max\":%d,\"encumbrance\":%d,"
++                      "\"threshold\":%d,\"over_encumbered\":%s,"
++                      "\"base_move_speed\":%f,\"base_footing\":%f,\"move_speed\":%f,\"footing\":%f}",
 +                      first_part ? "" : ",", entry.first.c_str(), part.get_hp_cur(), part.get_hp_max(),
++                      part.get_final_encumbrance( you ), part.get_encumbrance_threshold(),
++                      part.is_limb_overencumbered( you ) ? "true" : "false",
++                      entry.first->get_limb_score( move_speed ),
++                      entry.first->get_limb_score( footing ),
 +                      part.get_limb_score( you, move_speed ), part.get_limb_score( you, footing ) );
 +        first_part = false;
 +    }
