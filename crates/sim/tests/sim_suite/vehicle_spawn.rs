@@ -2,6 +2,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
+use bevy_ecs::prelude::*;
 use cdda_core_types::rng::Rolls;
 
 /// **A spawn list is data, and the car's is read.** `--dump-vehicles` now reports each prototype's `item_spawns` (`src/veh_type.h:470-481`): the square, the chance of a batch, the
@@ -130,5 +131,141 @@ fn a_chance_becomes_a_count_without_stealing_a_roll() {
         cdda_sim::vehicle_spawn::batch_count(90, 2.0, &mut high_rate),
         1,
         "and the fraction still needs the die"
+    );
+}
+
+/// **A placed vehicle is filled from its spawn list, by the dice.** Reference: `vehicle::place_spawn_items` (`vehicle.cpp:6379-6450`) - a chance becomes batches, a batch makes
+/// its listed items when `rng_float( 0, 1 ) < spawn_rate`, and each listed group is **drawn** with the spawn rate inside the draw. Everything made is stowed into the cargo part at
+/// the spawn's own square.
+///
+/// The dice are fixed at zero here so the test says what the rule *does* at a known roll rather than what a seed happened to produce: a die at zero is inside every probability, so
+/// every batch happens and every listed item is made.
+#[test]
+fn a_placed_vehicle_is_filled_from_its_spawn_list() {
+    use cdda_content::item_group_draw::{Definition, Entry};
+    use cdda_content::vehicles::{PartSpec, Spawn, Vehicles};
+
+    let mut world = World::new();
+    // **A part's cargo weighs what it carries only when the modifier says so**: the data's usual 100, and a default of zero would hide every stowed item from the scale.
+    let cargo_spec = PartSpec {
+        id: "trunk".to_owned(),
+        flags: std::iter::once("CARGO".to_owned()).collect(),
+        cargo_weight_modifier: 100,
+        ..PartSpec::default()
+    };
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        Vehicles {
+            parts: vec![cargo_spec],
+            prototypes: Vec::new(),
+        },
+    );
+    // One item type, weighty enough that a stowed copy shows up in the part's mass.
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 0,
+            weight_g: 657,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -1,
+        }],
+    );
+    let mut definitions = std::collections::BTreeMap::new();
+    definitions.insert(
+        "junk".to_owned(),
+        Definition {
+            id: "junk".to_owned(),
+            distribution: false,
+            entries: vec![Entry::Item {
+                id: "rock".to_owned(),
+                probability: 100,
+                count: (1, 1),
+                event: None,
+            }],
+        },
+    );
+    cdda_sim::item_groups::set_groups(&mut world, definitions);
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::fixed(0.0));
+
+    let vehicle = world
+        .spawn(cdda_sim::vehicles::Vehicle {
+            parts: vec![cdda_sim::vehicles::VehiclePart {
+                part: "trunk".to_owned(),
+                x: 0,
+                y: 0,
+                ..cdda_sim::vehicles::VehiclePart::default()
+            }],
+            ..cdda_sim::vehicles::Vehicle::default()
+        })
+        .id();
+
+    let spawns = vec![
+        // **A group spawn at full chance**: one batch, drawn, stowed.
+        Spawn {
+            x: 0,
+            y: 0,
+            chance: 100,
+            items: Vec::new(),
+            variants: Vec::new(),
+            groups: vec!["junk".to_owned()],
+        },
+        // **A listed item at full chance**: made directly.
+        Spawn {
+            x: 0,
+            y: 0,
+            chance: 100,
+            items: vec!["rock".to_owned()],
+            variants: Vec::new(),
+            groups: Vec::new(),
+        },
+        // **A spawn on a square with no cargo**: nothing to fill, so nothing placed.
+        Spawn {
+            x: 9,
+            y: 9,
+            chance: 100,
+            items: vec!["rock".to_owned()],
+            variants: Vec::new(),
+            groups: Vec::new(),
+        },
+    ];
+
+    let placed = cdda_sim::vehicle_spawn::place_spawn_items(&mut world, vehicle, &spawns, 1.0);
+    assert_eq!(
+        placed, 2,
+        "**two stacks went in**: one drawn from the group, one listed outright, and nothing for the square with no cargo"
+    );
+    let in_part = cdda_sim::vehicle_cargo::items_in_part(&world, vehicle, 0);
+    assert_eq!(in_part.len(), 2, "both stacks are in the trunk");
+    assert_eq!(
+        cdda_sim::vehicle_mass::mass(&world, vehicle),
+        2 * 657,
+        "**and they weigh what two rocks weigh**"
+    );
+    assert!(
+        cdda_sim::item_registry::id_in(&world, "rock").is_some(),
+        "the rock is the type the registry read"
+    );
+
+    // **And a listed item is a die of its own**: with the spawn rate at zero a batch still happens - the option is floored at one for the count - but `rng_float( 0, 1 ) < 0.0`
+    // never holds, so nothing listed is made. The group draw is the port's known gap: its rate is applied inside the reference's `items_from`, which the port's draw does not take.
+    let mut world = world;
+    cdda_sim::singletons::put_rolls(&mut world, Rolls::fixed(0.5));
+    let listed_only = vec![Spawn {
+        x: 0,
+        y: 0,
+        chance: 100,
+        items: vec!["rock".to_owned()],
+        variants: Vec::new(),
+        groups: Vec::new(),
+    }];
+    assert_eq!(
+        cdda_sim::vehicle_spawn::place_spawn_items(&mut world, vehicle, &listed_only, 0.0),
+        0,
+        "**a spawn rate of zero makes no listed item**, though the batch was still rolled"
     );
 }

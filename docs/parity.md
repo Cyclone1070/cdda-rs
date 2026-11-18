@@ -38389,3 +38389,28 @@ Mutation-checked: ignoring the spawn rate answers 1 batch where 2 are due.
 
 **Still open:** the stowing loop itself - a batch draws from its group a variable number of times, items spawn at `rng_float( 0, 1 ) < spawn_rate`, a broken part halves them and
 damages what it lets through. That is the next round, and the recorded car from round 191 is its witness.
+
+## The trunk fills itself now (round 193)
+
+`vehicle_spawn::place_spawn_items` is ported from `vehicle.cpp:6379-6450`, in the reference's own order: each spawn entry finds the cargo part at its square, its chance becomes
+[`batch_count`] batches, a broken part skips a batch on one die in two, every listed item is made when `rng_float( 0, 1 ) < spawn_rate`, every listed group is drawn, and everything
+made is stowed into that part.
+
+The test drives it on a one-part vehicle with fixed dice, and the two branches that matter are separated:
+
+| Spawn | Dice | Result |
+|---|---|---|
+| group at 100% | 0.0 | drawn and stowed |
+| listed item at 100% | 0.0 | made and stowed |
+| listed item, rate 0 | 0.5 | **nothing** - the batch happens, the item does not |
+| square with no cargo | any | nothing, and no panic |
+
+Mutation-checked: making listed items without asking the die places one where zero should stand.
+
+**Named gaps in this rule**, all of them reference behaviour rather than invention: a broken part's items are not damaged (`e.mod_damage( rng( 1, e.max_damage() ) )`), tools and guns get
+no ammunition or magazine, nothing is wrapped in its container, the vehicle's owner is not copied onto items - the port has no ammunition, owner or container model - and the **spawn
+rate is not passed into the group draw**, because the reference applies it inside `items_from( group, ..., use_spawn_rate )` and the port's `item_group_draw::draw` takes no rate. That
+last one is the next bite.
+
+Also worth recording: the first version of this test weighed nothing, because a part's `cargo_weight_modifier` defaults to zero and a part that does not say otherwise carries weight
+for free. The data's own value is 100, and the test now states it.
