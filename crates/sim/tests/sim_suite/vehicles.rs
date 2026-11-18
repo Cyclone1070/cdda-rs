@@ -7675,3 +7675,89 @@ fn a_turret_feeds_from_its_tanks_or_its_own_magazine() {
         "for the thrower too"
     );
 }
+
+/// **Fuel comes out in part order, until the amount is met.** Reference: `vehicle::drain` (`vehicle.cpp:3959-3986`) - it walks the parts, takes `min( amount, remaining )` from each
+/// whose current ammunition is the fuel asked for, and answers the total. A drain that spans two tanks therefore empties the first and shortens the second.
+#[test]
+fn fuel_drains_in_part_order() {
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "tank".to_owned(),
+                fuel_store: true,
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    let vehicle = world
+        .spawn((
+            cdda_sim::vehicles::Vehicle {
+                parts: vec![
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "tank".to_owned(),
+                        charges: 30,
+                        fuel: "gasoline".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "tank".to_owned(),
+                        charges: 50,
+                        fuel: "gasoline".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "tank".to_owned(),
+                        charges: 7,
+                        fuel: "diesel".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                ],
+                ..cdda_sim::vehicles::Vehicle::default()
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::vehicles::fuel_left(&world, vehicle, "gasoline"),
+        80,
+        "eighty charges of gasoline to begin with"
+    );
+
+    // **Forty out of two tanks**: thirty from the first, ten from the second.
+    let drained = cdda_sim::vehicles::drain(&mut world, vehicle, "gasoline", 40);
+    assert_eq!(drained, 40, "**forty charges came out**");
+    let held: Vec<i32> = world
+        .get::<cdda_sim::vehicles::Vehicle>(vehicle)
+        .map(|built| built.parts.iter().map(|part| part.charges).collect())
+        .unwrap_or_default();
+    assert_eq!(
+        held,
+        vec![0, 40, 7],
+        "**the first tank is empty and the second is forty**, and the diesel is untouched"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::fuel_left(&world, vehicle, "gasoline"),
+        40,
+        "which is what fuel_left now answers"
+    );
+
+    // **Asking for more than there is** drains everything and answers what was there.
+    assert_eq!(
+        cdda_sim::vehicles::drain(&mut world, vehicle, "gasoline", 500),
+        40,
+        "**the vehicle gives up what it has**, not what was asked"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::fuel_left(&world, vehicle, "gasoline"),
+        0,
+        "and none is left"
+    );
+    assert_eq!(
+        cdda_sim::vehicles::drain(&mut world, vehicle, "gasoline", 5),
+        0,
+        "an empty vehicle drains nothing"
+    );
+}

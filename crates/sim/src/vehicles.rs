@@ -1347,3 +1347,41 @@ pub fn turret_query(world: &World, vehicle: Entity, index: usize) -> Option<usiz
     }
     Some(index)
 }
+
+/// **Takes fuel out of a vehicle's stores**, in part order, and answers how much came out - the reference's `vehicle::drain( map *, itype_id, amount, filter )`
+/// (`vehicle.cpp:3959-3986`).
+///
+/// The reference walks `parts` in order, skips a part whose `ammo_current()` is not the fuel asked for, and takes `min( amount, part.ammo_remaining() )` from each until the amount is
+/// met. The port walks the same list in the same order and takes the same share, so a drain that spans two tanks leaves the first empty and the second short - which is what a
+/// flamethrower on a two-tank vehicle actually does.
+///
+/// **Named, not guessed:** the reference handles a **battery** through `discharge_battery`, which follows jumper cables into connected vehicles and applies their cable loss, and its
+/// part-index overload refuses a part that is not a tank. The port has no connected-vehicle network, so a battery drains from its own vehicle like any other fuel, at zero loss; the
+/// index overload has no port caller.
+pub fn drain(world: &mut World, vehicle: Entity, fuel_type: &str, amount: i64) -> i64 {
+    let mut drained = 0;
+    let mut wanted = amount;
+    let count = world
+        .get::<Vehicle>(vehicle)
+        .map_or(0, |built| built.parts.len());
+    for index in 0..count {
+        if wanted <= 0 {
+            break;
+        }
+        let take = world
+            .get::<Vehicle>(vehicle)
+            .and_then(|built| built.parts.get(index))
+            .filter(|part| part.fuel == fuel_type)
+            .map_or(0, |part| i64::from(part.charges).min(wanted));
+        if take <= 0 {
+            continue;
+        }
+        let mut held = world.get_mut::<Vehicle>(vehicle);
+        if let Some(part) = held.as_mut().and_then(|built| built.parts.get_mut(index)) {
+            part.charges -= i32::try_from(take).unwrap_or(i32::MAX);
+        }
+        drained += take;
+        wanted -= take;
+    }
+    drained
+}

@@ -38499,3 +38499,21 @@ Mutation-checked: a mount that never feeds from the tanks fails on the thrower's
 
 **Named gaps in this bite**: there is no aiming, no firing, no turret controls, no automatic target selection and no `turret_data::ammo_capacity`. Those need a shooter - a survivor
 aiming by hand or an NPC running a turret program - and that is the rest of the hole, not a corner of it.
+
+## Fuel comes out in part order (round 198)
+
+`vehicle::drain( map *, itype_id, amount, filter )` (`vehicle.cpp:3959-3986`) walks the parts in order, skips a part whose current ammunition is not the fuel asked for, takes
+`min( amount, remaining )` from each until the amount is met, and answers the total. The port's `vehicles::drain` does the same, so a flamethrower on a two-tank vehicle empties the
+first tank and shortens the second rather than spreading the draw.
+
+| Action | Tanks before | After | Answers |
+|---|---|---|---|
+| drain 40 gasoline | 30, 50, 7 diesel | 0, 40, 7 | 40 |
+| drain 500 gasoline | 0, 40, 7 diesel | 0, 0, 7 | **40** - what it had, not what was asked |
+| drain 5 on an empty vehicle | 0, 0, 7 diesel | 0, 0, 7 | 0 |
+
+Mutation-checked: a part that gives everything it has drains 80 where 40 was asked.
+
+**Named gaps**: the reference sends a **battery** through `discharge_battery`, which follows jumper cables into connected vehicles and applies their cable loss; the port has no
+connected-vehicle network, so a battery drains from its own vehicle like any other fuel at zero loss. The part-index overload of `drain` (`vehicle.cpp:3994`) has no port caller and is
+not ported.
