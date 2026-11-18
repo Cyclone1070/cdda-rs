@@ -38036,3 +38036,32 @@ read.
 
 **The gate itself was the round's other finding.** `tools/remote_test.py` had no keepalive and no timeout, so an ssh that went quiet blocked a round instead of failing it - twice.
 It now sends keepalives, bounds each connection, and gives up after `GATE_TIMEOUT` seconds with exit 124.
+
+## Two hulls, on the line between their centres of mass (round 173)
+
+**The 23-versus-82 mystery was mine, not the formula's.** Round 172's hand check used the centres of mass the dump recorded - and the dump read them *after* the move, from a
+`precalc` state the collision had already changed. At the moment of impact the axis was exactly `(-1, 0)`, so the one component that survives is the one along the line:
+
+| Quantity | Formula | Reference |
+|---|---|---|
+| mover after | `400 × (1071.8 − 1069.5 × 0.8839) / 2141.3` | **23.63 → 23** ✓ |
+| target after | `1071.8 × 400 × 1.8839 / 2141.3` | **377.15 → 377** ✓ |
+
+`map::vehicle_vehicle_collision` is ported (`vehicle_move::vehicle_impact`): both velocities are projected onto the line between the two **rotated** centres of mass, only that
+component is exchanged (through the same `exchanged` the port already had, which is that algebra multiplied out), the perpendicular component is kept, both speeds are signed by
+whether they still point where the hull faces, the movement points are pooled `0.9`/`1.1` with a `0.1` floor, and the damage is the lost energy `| ΔE / 1000 / 2000 |`.
+
+**Two rules went with it.** The old path exchanged the *speeds* in one dimension - which cannot tell a head-on hit from a side hit and drops the sideways motion that a glancing
+blow carries - and `collision_damage` computed that same one-dimensional energy. The damage rule is now a function of the energy lost, which is what `map.cpp:1144` divides.
+
+**The first test could not fail, and the mutation check is what said so.** Five recorded impacts all put both hulls on the mover's line, where the sideways component is zero and a
+one-dimensional exchange answers the same numbers - dropping the perpendicular axis entirely still passed. So the generator gained a sixth case, `car_into_car_offset`, with the
+second hull **two squares across**: the reference says the mover keeps 391 and the target is thrown to −801, and the mutation that drops the sideways axis now fails at
+`125 against 391`.
+
+**A test helper was silently broken.** `install_part_weights` replaced the whole item registry, so installing a second vehicle's weights wiped the first - which showed up as a car
+weighing `0 kg`. It is `install_weights_for( &[names] )` now, and the replay installs both hulls at once.
+
+**Named gap, stated in the test rather than hidden:** the port's cars weigh **1016.9 kg against the reference's 1071.8** - five to seven per cent light, because fuel and battery
+weight are not counted. The exchange depends on the mass **ratio**, and both hulls are light together, so the speeds match within a per cent; the deformation energy does not, which
+is why **damage is not asserted** in this replay. Counting carried weight is the next piece of the mass rule.

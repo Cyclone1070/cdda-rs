@@ -358,8 +358,8 @@ diff -ruN references/Cataclysm-DDA/src/generic_factory.h oracle/src/src/generic_
           * Getting modifiable objects should be done sparingly!
 diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 --- references/Cataclysm-DDA/src/harness.cpp	1970-01-01 10:00:00
-+++ oracle/src/src/harness.cpp	2026-11-18 07:25:08
-@@ -0,0 +1,9459 @@
++++ oracle/src/src/harness.cpp	2026-11-18 10:57:19
+@@ -0,0 +1,9464 @@
 +#include "ammo_effect.h"
 +#include "harness.h"
 +#include "butchery.h"
@@ -1784,6 +1784,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        { "car_into_car_head_on", "car", "car", 400, 180 },
 +        { "car_into_car_side", "car", "car", 400, 90 },
 +        { "car_into_car_fast", "car", "car", 4000, 180 },
++        // **An offset hit, which is the only case that tells the two rules apart**: with both hulls on the mover's line, the perpendicular component is zero and a one-dimensional
++        // exchange answers the same numbers. Two squares across, and only the rule that keeps the sideways part can land the struck car's speed.
++        { "car_into_car_offset", "car", "car", 1000, 180 },
 +        { "car_into_bicycle", "car", "bicycle", 1000, 180 },
 +        { "bicycle_into_car", "bicycle", "car", 1000, 180 },
 +    };
@@ -1792,7 +1795,9 @@ diff -ruN references/Cataclysm-DDA/src/harness.cpp oracle/src/src/harness.cpp
 +        const tripoint_bub_ms start = origin + tripoint_rel_ms( 0, 10, 0 );
 +        vehicle *mover = here.add_vehicle( vproto_id( one.mover ), start, 0_degrees, 100, 0, false, true );
 +        // Six squares east: far enough that neither hull overlaps the other when placed, and reached in one step at speed four hundred.
-+        const tripoint_bub_ms target_at = start + tripoint_rel_ms( 6, 0, 0 );
++        // The offset case places the second hull two squares across; every other case lines them up, so only this one answers differently under a one-dimensional rule.
++        const bool offset = std::string( one.name ).find( "offset" ) != std::string::npos;
++        const tripoint_bub_ms target_at = start + tripoint_rel_ms( 6, offset ? -2 : 0, 0 );
 +        vehicle *target = here.add_vehicle( vproto_id( one.target ), target_at,
 +                                            units::from_degrees( one.target_facing ), 100, 0, false, true );
 +        if( mover == nullptr || target == nullptr ) {

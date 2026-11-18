@@ -3227,6 +3227,11 @@ fn a_vehicle_in_the_store_takes_the_speed_its_thrust_step_decides() {
 /// A part's base item is what mass is summed from (`vehicle::calc_mass_center`), and the weights are in `corpus/vehicle_top_speed.json` because that dump records them
 /// per part. Without them the registry answers zero grams and a vehicle would weigh nothing.
 fn install_part_weights(world: &mut World, name: &str) {
+    install_weights_for(world, &[name]);
+}
+
+/// The same for several vehicles at once: the registry is replaced by each call, so a test that needs two hulls must install their weights together.
+fn install_weights_for(world: &mut World, names: &[&str]) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../corpus/vehicle_top_speed.json");
     let bytes = std::fs::read(path).expect("the top speed recording");
@@ -3237,25 +3242,27 @@ fn install_part_weights(world: &mut World, name: &str) {
     let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
         panic!("cases");
     };
-    let case = cases
-        .iter()
-        .find_map(|case| match case {
-            cdda_json::Value::Object(row) if text_of(row, "name") == name => Some(row),
-            _ => None,
-        })
-        .expect("the recording has that vehicle");
-    let Some(cdda_json::Value::Array(parts)) = case.get("parts") else {
-        panic!("the case records its parts");
-    };
     let mut kinds: Vec<(String, i64)> = Vec::new();
-    for part in parts {
-        let cdda_json::Value::Object(row) = part else {
-            panic!("a part is an object");
+    for name in names {
+        let case = cases
+            .iter()
+            .find_map(|case| match case {
+                cdda_json::Value::Object(row) if text_of(row, "name") == *name => Some(row),
+                _ => None,
+            })
+            .expect("the recording has that vehicle");
+        let Some(cdda_json::Value::Array(parts)) = case.get("parts") else {
+            panic!("the case records its parts");
         };
-        let item = text_of(row, "item");
-        let mass = int_of(row, "base_mass_g");
-        if !kinds.iter().any(|(id, _)| *id == item) {
-            kinds.push((item, i64::from(mass)));
+        for part in parts {
+            let cdda_json::Value::Object(row) = part else {
+                panic!("a part is an object");
+            };
+            let item = text_of(row, "item");
+            let mass = int_of(row, "base_mass_g");
+            if !kinds.iter().any(|(id, _)| *id == item) {
+                kinds.push((item, i64::from(mass)));
+            }
         }
     }
     let refs: Vec<cdda_sim::item_registry::Kind<'_>> = kinds
@@ -4324,15 +4331,15 @@ fn the_heavier_vehicle_decides_the_speed() {
 /// **The collision's damage comes from the lost energy**, with the rule's own divisors - `| d_E / 1000 / 2000 |` (`map.cpp:1144`).
 #[test]
 fn a_collision_deals_damage_from_the_energy_it_loses() {
-    // 1000 kg at 10 m/s meets 1000 kg at rest, restitution 0: E before 50,000, after 25,000, so 25,000 J lost.
-    let damage = cdda_sim::vehicle_move::collision_damage(1000.0, 1000.0, 1000.0, 0.0, 0.0);
+    // Two tonnes closing at a thousand each with no restitution lose 250,000,000 of the 500,000,000 they carried.
     assert_eq!(
-        damage, 125,
+        cdda_sim::vehicle_move::collision_damage(250_000_000.0),
+        125,
         "**250,000,000 / 1,000 / 2,000 is 125** - the obstacle branch's 400 would have said 625"
     );
     // Nothing lost, nothing dealt: a perfectly elastic pass-through.
     assert_eq!(
-        cdda_sim::vehicle_move::collision_damage(1000.0, 1000.0, 1000.0, 0.0, 1.0),
+        cdda_sim::vehicle_move::collision_damage(0.0),
         0,
         "an elastic exchange loses no energy"
     );
@@ -6775,4 +6782,135 @@ fn a_driving_session_matches_the_reference_row_for_row() {
         turned_rows >= 8,
         "**and enough of them turned**: {turned_rows} rows faced away from east after a press"
     );
+}
+
+/// **Two vehicles meeting, replayed against the reference.** `corpus/vehicle_impact.json` is `--dump-vehicle-impact`: five cases of one vehicle running into another, with both
+/// speeds before and after, both masses, both rotated centres of mass and both hull facings.
+///
+/// **The rule is not one-dimensional.** The reference splits both velocity vectors along the line between the two centres of mass, exchanges only that component, and keeps the
+/// sideways part (`map.cpp:1075-1146`) - which is why a side hit at four miles an hour sends the struck car sideways at 378 instead of stopping it.
+#[test]
+fn a_vehicle_impact_matches_the_reference() {
+    use cdda_sim::vehicles::Vehicle;
+
+    const FLOOR: u32 = 1;
+
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/vehicle_impact.json");
+    let bytes = std::fs::read(path).expect("the impact recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let cdda_json::Value::Object(root) = value else {
+        panic!("the recording is an object");
+    };
+    let Some(cdda_json::Value::Array(cases)) = root.get("cases") else {
+        panic!("cases");
+    };
+
+    let mut seen = 0;
+    for case in cases {
+        let cdda_json::Value::Object(row) = case else {
+            panic!("a case is an object");
+        };
+        let name = text_of(row, "name");
+        let mover_name = text_of(row, "mover");
+        let target_name = text_of(row, "target");
+        let speed = int_of(row, "speed");
+        #[allow(clippy::cast_possible_truncation)]
+        let target_facing = number_of(row, "target_face").round() as i32;
+
+        let mut world = World::new();
+        cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), FLOOR)]);
+        cdda_sim::mapsquare::set_data(&mut world, [recorded_tile("t_floor")]);
+        for y in 90..=130 {
+            for x in 90..=130 {
+                cdda_sim::square::set_terrain(&mut world, (x, y, 0), FLOOR);
+            }
+        }
+        install_weights_for(&mut world, &[&mover_name, &target_name]);
+        cdda_sim::vehicles::set_store(&mut world, store());
+        let mover = cdda_sim::vehicles::spawn(&mut world, &mover_name, (110, 110, 0))
+            .expect("the recorded mover builds");
+        // **The recording's angle is the hull's facing, not a press**: the reference places the second vehicle with `add_vehicle( ..., 180_degrees, ... )`, so the port spawns it
+        // facing that way. Feeding it through `turn` would only set the wheels, because a press turns the hull on its next move.
+        //
+        // The **offset** case is the one that tells a two-dimensional exchange from a one-dimensional one: with both hulls on the mover's line the sideways component is zero,
+        // and only a hit two squares across can answer differently. The generator places that hull the same way, from the same word in the case's name.
+        let across = if name.contains("offset") { -2 } else { 0 };
+        #[allow(clippy::cast_precision_loss)]
+        let target = cdda_sim::vehicles::spawn_facing(
+            &mut world,
+            &target_name,
+            (116, 110 + across, 0),
+            f64::from(target_facing),
+        )
+        .expect("the recorded target builds");
+        {
+            let mut built = world.get_mut::<Vehicle>(mover).expect("a vehicle");
+            built.velocity = speed;
+            built.cruise_velocity = speed;
+            built.of_turn = 20.0;
+        }
+        fill_own_tanks(&mut world, mover);
+        // **The port's car must weigh what the reference's car weighed**, or a disagreement here is a data gap wearing the rule's clothes.
+        for (entity, key, who) in [
+            (mover, "mover_mass", "the mover"),
+            (target, "target_mass", "the target"),
+        ] {
+            #[allow(clippy::cast_precision_loss)]
+            let ours = cdda_sim::vehicle_mass::mass(&world, entity) as f64 / 1000.0;
+            let recorded = number_of(row, key);
+            // **Within eight per cent, because the port's cars weigh five to seven per cent light**: 1016.9 kg against 1071.8 for the same prototype. The exchange only depends on the
+            // mass **ratio**, and both hulls are light by the same amount, so the speeds below still match. What the gap costs is the deformation energy, and so the damage -
+            // which is why damage is not asserted here. Counting the fuel's weight is the named gap.
+            assert!(
+                (ours - recorded).abs() / recorded < 0.08,
+                "{name}: **{who} weighs close to what the reference says**, {ours} kg against {recorded} kg"
+            );
+        }
+
+        let mut rolls = cdda_core_types::rng::Rolls::new(0);
+        let mut hit = false;
+        for _ in 0..12 {
+            cdda_sim::vehicle_move::move_step_with_rolls(&mut world, mover, &mut rolls);
+            let theirs = world
+                .get::<Vehicle>(target)
+                .map_or(0, |built| built.velocity);
+            if theirs != 0 {
+                hit = true;
+                break;
+            }
+        }
+        assert!(
+            hit,
+            "{name}: the mover reached the other hull in twelve steps"
+        );
+
+        let (ours, theirs) = {
+            let mine = world.get::<Vehicle>(mover).expect("a vehicle");
+            let other = world.get::<Vehicle>(target).expect("a vehicle");
+            (mine.velocity, other.velocity)
+        };
+        // **Within two of the reference's figure**: the exchange itself is reproduced, and what is left is the five per cent of mass the port has not counted yet.
+        let expected_mover = int_of(row, "mover_after");
+        let expected_target = int_of(row, "target_after");
+        // One per cent at speed, two at walking pace: the slack is the same five per cent of mass, which matters more the harder the hit.
+        let slack = |expected: i32| (expected.abs() / 100).max(2);
+        assert!(
+            (ours - expected_mover).abs() <= slack(expected_mover),
+            "{name}: **the mover's speed after the hit**, {ours} against {expected_mover}"
+        );
+        assert!(
+            (theirs - expected_target).abs() <= slack(expected_target),
+            "{name}: **the struck vehicle's speed**, {theirs} against {expected_target}"
+        );
+        // **The side hit is the case the one-dimensional rule could not answer**: the struck car is sent sideways, so its speed is large and points across the mover's travel.
+        if name == "car_into_car_side" {
+            assert!(
+                theirs.abs() > 300,
+                "{name}: a side hit throws the struck hull sideways, {theirs}"
+            );
+        }
+        seen += 1;
+    }
+    assert_eq!(seen, 6, "all six recorded impacts were replayed");
 }

@@ -557,31 +557,15 @@ pub fn move_step_with_rolls(
         target_part,
     }) = crate::vehicles::first_collision(world, vehicle, step)
     {
-        let mine = world.get::<crate::vehicles::Vehicle>(vehicle);
-        let theirs = world.get::<crate::vehicles::Vehicle>(target);
-        if let (Some(mine), Some(theirs)) = (mine, theirs) {
-            let (v1, v2) = (f64::from(mine.velocity), f64::from(theirs.velocity));
-            #[allow(clippy::cast_precision_loss)]
-            let (m1, m2) = (
-                crate::vehicle_mass::mass(world, vehicle) as f64,
-                crate::vehicle_mass::mass(world, target) as f64,
-            );
-            // The reference measures the difference in miles an hour: `get_collision_factor( vel1_y/100 - vel2_y/100 )`.
-            let e = collision_factor((v1 - v2) / 100.0);
-            let (a1, a2) = exchanged(m1, v1, m2, v2, e);
-            let damage = collision_damage(m1, v1, m2, v2, e);
-            let share = collision_share(damage, 1);
-            #[allow(clippy::cast_possible_truncation)]
-            let settled = (a1.round() as i32, a2.round() as i32);
-            if let Some(mut state) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
-                state.velocity = settled.0;
-            }
-            if let Some(mut state) = world.get_mut::<crate::vehicles::Vehicle>(target) {
-                state.velocity = settled.1;
-            }
-            crate::vehicles::damage(world, vehicle, part, share, "bash", false);
-            crate::vehicles::damage(world, target, target_part, share, "bash", false);
-        }
+        // **Two hulls meeting, on the line between their centres of mass.** Reference: `map.cpp:1075-1146` - the port used to exchange the *speeds* in one dimension, which
+        // could not tell a head-on hit from a side hit and left a glancing blow's sideways motion out entirely. This is the reference's rule; the pair count is the one part
+        // each the port's collision finds, not the reference's whole list (`map.cpp:1157-1169`), which is its own named gap.
+        let damage = vehicle_impact(world, vehicle, target);
+        let share = collision_share(damage, 1);
+        crate::vehicles::damage(world, vehicle, part, share, "bash", false);
+        crate::vehicles::damage(world, target, target_part, share, "bash", false);
+        // **And the mover stops for this turn**, which is the reference's `return nullptr` "to let the hit vehicle move away" (`map.cpp:898-901`) rather than a destroyed
+        // vehicle - round 172 looked for the cause of that null for a whole round.
         return true;
     }
     if let Some(crate::vehicles::Collision::Terrain {
@@ -905,17 +889,154 @@ pub fn exchanged(m1: f64, v1: f64, m2: f64, v2: f64, e: f64) -> (f64, f64) {
     (first, second)
 }
 
-/// The damage one vehicle-vehicle collision deals, before it is split and shared out.
+/// A vehicle's velocity as a vector: the direction it is travelling in, times its speed.
 ///
-/// Reference: `map.cpp:1141-1146` - the deformation energy `d_E` between the speeds before and after the exchange, then `dmg = | d_E / 1000 / 2000 |`. **Two divisors, and
-/// the second is 2000**, where the obstacle branch divides by 400: the two paths are not the same rule with a different mass.
+/// Reference: `vehicle::velo_vec` (`vehicle_move.cpp:1601-1611`) - a **skidding** vehicle's velocity points along `move`, everything else along `face`. This is what makes the
+/// exchange depend on where the vehicles were pointed rather than only on how fast they were going.
 #[must_use]
-pub fn collision_damage(m1: f64, v1: f64, m2: f64, v2: f64, e: f64) -> i32 {
-    let (a1, a2) = exchanged(m1, v1, m2, v2, e);
-    let before = 0.5 * m1 * v1 * v1 + 0.5 * m2 * v2 * v2;
-    let after = 0.5 * m1 * a1 * a1 + 0.5 * m2 * a2 * a2;
+fn velocity_vector(rotation: f64, move_dir: i32, skidding: bool, velocity: i32) -> (f64, f64) {
+    let degrees = if skidding {
+        f64::from(move_dir)
+    } else {
+        rotation
+    };
+    let radians = degrees.to_radians();
+    (
+        radians.cos() * f64::from(velocity),
+        radians.sin() * f64::from(velocity),
+    )
+}
+
+/// The centre of mass in the vehicle's **rotated** frame, which is what the collision axis is drawn from.
+///
+/// Reference: `vehicle::rotated_center_of_mass` (`vehicle.cpp:3829-3835`) reads `mass_center_precalc`, the centre computed from the parts' precalculated (post-rotation)
+/// positions. The port's [`crate::vehicle_mass::center_of_mass`] is the unrotated one, so it is rotated here through the same `coord_translate` the parts go through.
+#[must_use]
+fn rotated_center_of_mass(world: &World, vehicle: Entity) -> (f64, f64) {
+    let rotation = world
+        .get::<crate::vehicles::Vehicle>(vehicle)
+        .map_or(0.0, |built| built.rotation);
+    let (x, y) = crate::vehicle_mass::center_of_mass(world, vehicle);
+    let (rotated_x, rotated_y) = crate::rotation::coord_translate(rotation, (0, 0), (x, y));
+    (f64::from(rotated_x), f64::from(rotated_y))
+}
+
+/// **Two hulls meeting.** The reference splits both velocities along the line between the two vehicles' centres of mass, exchanges only that component, keeps the sideways
+/// component as it was, and drops both machines' movement points into a shared average.
+///
+/// Reference: `map::vehicle_vehicle_collision` (`map.cpp:1014-1200`). The exchange is a partially elastic collision -
+/// `v1' = ( m2 v2 (1+e) + v1 (m1 - m2 e) ) / (m1 + m2)` - with the restitution `e` from [`collision_factor`]. The **perpendicular component is untouched**, which is why a
+/// glancing hit sends both hulls sideways instead of stopping them, and why this cannot be the one-dimensional exchange the port used to run.
+///
+/// The new speed is the magnitude of the resulting vector, signed by whether it still points the way the hull faces; the reference assigns that float to an `int`, so the
+/// fraction is truncated rather than rounded. Returns the deformation energy as damage, before it is shared out.
+pub fn vehicle_impact(world: &mut World, vehicle: Entity, target: Entity) -> i32 {
+    let (Some(at), Some(them)) = (
+        world.get::<crate::Position>(vehicle).copied(),
+        world.get::<crate::Position>(target).copied(),
+    ) else {
+        return 0;
+    };
+    let Some(mine) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return 0;
+    };
+    let Some(theirs) = world.get::<crate::vehicles::Vehicle>(target) else {
+        return 0;
+    };
+    let (rotation, of_turn, velocity) = (mine.rotation, mine.of_turn, mine.velocity);
+    let (their_rotation, their_of_turn, their_velocity) =
+        (theirs.rotation, theirs.of_turn, theirs.velocity);
+    let move_dir = mine.move_dir;
+    let their_move_dir = theirs.move_dir;
+    let (skidding, their_skidding) = (mine.skidding, theirs.skidding);
+
+    // **Kilogram, not gram**: the reference divides `to_kilogram( total_mass )`, and the energy below is in those units.
+    #[allow(clippy::cast_precision_loss)]
+    let m1 = crate::vehicle_mass::mass(world, vehicle) as f64 / 1000.0;
+    #[allow(clippy::cast_precision_loss)]
+    let m2 = crate::vehicle_mass::mass(world, target) as f64 / 1000.0;
+    if m1 <= 0.0 || m2 <= 0.0 {
+        return 0;
+    }
+
+    let w1 = velocity_vector(rotation, move_dir, skidding, velocity);
+    let w2 = velocity_vector(
+        their_rotation,
+        their_move_dir,
+        their_skidding,
+        their_velocity,
+    );
+    let c1 = rotated_center_of_mass(world, vehicle);
+    let c2 = rotated_center_of_mass(world, target);
+    #[allow(clippy::cast_precision_loss)]
+    let axis = (
+        (f64::from(at.x) + c1.0) - (f64::from(them.x) + c2.0),
+        (f64::from(at.y) + c1.1) - (f64::from(them.y) + c2.1),
+    );
+    let length = axis.0.hypot(axis.1);
+    if length == 0.0 {
+        return 0;
+    }
+    let (ax, ay) = (axis.0 / length, axis.1 / length);
+    // The perpendicular axis is the collision axis turned a quarter turn: `collision_axis_x = collision_axis_y.rotated( M_PI / 2 )`.
+    let (bx, by) = (-ay, ax);
+
+    let first_y = ax * w1.0 + ay * w1.1;
+    let first_x = bx * w1.0 + by * w1.1;
+    let second_y = ax * w2.0 + ay * w2.1;
+    let second_x = bx * w2.0 + by * w2.1;
+    let e = collision_factor(first_y / 100.0 - second_y / 100.0);
+
+    // **The exchange is per axis**, and `exchanged` is that algebra: the reference's `v1' = ( m2 v2 (1+e) + v1 (m1 - m2 e) ) / (m1 + m2)` is the same expression multiplied
+    // out, so one rule serves the head-on case and the along-the-axis case with no duplicate.
+    let (first_y_after, second_y_after) = exchanged(m1, first_y, m2, second_y, e);
+    let final_first = (
+        ax * first_y_after + bx * first_x,
+        ay * first_y_after + by * first_x,
+    );
+    let final_second = (
+        ax * second_y_after + bx * second_x,
+        ay * second_y_after + by * second_x,
+    );
+
+    let speed = |vector: (f64, f64), degrees: f64| {
+        let radians = degrees.to_radians();
+        let magnitude = vector.0.hypot(vector.1);
+        let facing = vector.0 * radians.cos() + vector.1 * radians.sin();
+        let signed = if facing < 0.0 { -magnitude } else { magnitude };
+        #[allow(clippy::cast_possible_truncation)]
+        let whole = signed as i32;
+        whole
+    };
+    let settled = (
+        speed(final_first, rotation),
+        speed(final_second, their_rotation),
+    );
+    // **The movement points are pooled and shared unevenly on purpose**: the vehicle that was hit is given the larger share (`map.cpp:1133-1140`), so the pair does not sit
+    // frozen against each other for a turn.
+    let average = their_of_turn.midpoint(of_turn).max(0.1);
+    if let Some(mut state) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        state.velocity = settled.0;
+        state.of_turn = average * 0.9;
+    }
+    if let Some(mut state) = world.get_mut::<crate::vehicles::Vehicle>(target) {
+        state.velocity = settled.1;
+        state.of_turn = average * 1.1;
+    }
+
+    let before = 0.5 * m1 * (w1.0 * w1.0 + w1.1 * w1.1) + 0.5 * m2 * (w2.0 * w2.0 + w2.1 * w2.1);
+    let after = 0.5 * m1 * (final_first.0 * final_first.0 + final_first.1 * final_first.1)
+        + 0.5 * m2 * (final_second.0 * final_second.0 + final_second.1 * final_second.1);
+    collision_damage(before - after)
+}
+
+/// The deformation energy of a collision, as damage: `| d_E / 1000 / 2000 |`.
+///
+/// Reference: `map.cpp:1144` - **two divisors, and the second is 2000**, where the obstacle branch divides by 400: the two paths are not the same rule with a different mass.
+#[must_use]
+pub fn collision_damage(lost_energy: f64) -> i32 {
     #[allow(clippy::cast_possible_truncation)]
-    let damage = ((before - after).abs() / 1000.0 / 2000.0) as i32;
+    let damage = (lost_energy.abs() / 1000.0 / 2000.0) as i32;
     damage
 }
 
