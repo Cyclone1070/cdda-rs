@@ -377,6 +377,12 @@ pub fn tow_vehicles(world: &mut World) -> usize {
             continue;
         };
         let distance = cdda_core_types::light::rl_dist(drawn_pos, tower_pos, false);
+        // **A cable pulled past twenty-five squares snaps** - `tow_cable_too_far` (`vehicle.cpp:7323-7352`) asked at the end of `map::move_vehicle` (`map.cpp:1000-1003`), which cuts
+        // the pair and says so.
+        if tow_cable_too_far(distance) {
+            invalidate_towing(world, tower);
+            continue;
+        }
         if !no_towing_slack(distance) {
             continue;
         }
@@ -419,4 +425,35 @@ pub fn tow_vehicles(world: &mut World) -> usize {
 fn facing_vector(rotation: f64) -> (f64, f64) {
     let radians = rotation.to_radians();
     (radians.cos(), -radians.sin())
+}
+
+/// **Cuts a cable** - `vehicle::invalidate_towing` (`vehicle.cpp:7265-7320`), with `first_vehicle` set: if this vehicle is towing, or being towed, the **other end is cut first**, then this
+/// end, so neither vehicle is left pointing at the other.
+///
+/// Reference's own order: `other_veh->invalidate_towing( here )` runs before this vehicle's tow part is removed and its data cleared, which is what makes the pair break cleanly rather
+/// than one side at a time.
+///
+/// **Named, not guessed**: the reference also removes the cable's **part** and drops its item on the ground, with the link state recorded on the item so that re-attaching remembers which
+/// end it came from. The port has no tow-cable part and no linked items yet, so the cable's item is not dropped - a cable in the port is a link between two vehicles, and cutting it
+/// clears both ends.
+///
+/// Returns whether there was a cable to cut; a vehicle with no link answers `false` and is untouched.
+pub fn invalidate_towing(world: &mut World, vehicle: Entity) -> bool {
+    let Some(held) = world.get::<Towing>(vehicle).copied() else {
+        return false;
+    };
+    if held.towing.is_none() && held.towed_by.is_none() {
+        return false;
+    }
+    // **The other end first**, exactly as the reference cuts it, and without recursion into a cable that no longer exists: clearing this vehicle's component below already
+    // takes the far side's pointer with it, so one clear is enough.
+    if let Some(other) = held
+        .towing
+        .or(held.towed_by)
+        .filter(|other| world.get::<Towing>(*other).is_some())
+    {
+        clear_towing(world, other);
+    }
+    clear_towing(world, vehicle);
+    true
 }

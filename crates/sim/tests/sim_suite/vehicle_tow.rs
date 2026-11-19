@@ -659,3 +659,99 @@ fn a_turn_pulls_the_towed_hull_behind_its_tower() {
         "**the towed hull is moving by the end of the turn**, and forwards: {pulled}"
     );
 }
+
+/// **Cutting a cable clears both ends, and a cable pulled past twenty-five squares cuts itself.** Reference: `vehicle::invalidate_towing` (`vehicle.cpp:7265-7320`) cuts the other
+/// end **first**, then this one; `tow_cable_too_far` (`:7323-7352`) is asked at the end of `map::move_vehicle` (`map.cpp:1000-1003`).
+#[test]
+fn a_cable_is_cut_from_both_ends_and_snaps_when_it_is_too_long() {
+    use cdda_sim::vehicle_tow::{TowPoint, Towing, invalidate_towing, tow_vehicles};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "hull".to_owned(),
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    let hull = |velocity: i32| cdda_sim::vehicles::Vehicle {
+        parts: vec![cdda_sim::vehicles::VehiclePart {
+            part: "hull".to_owned(),
+            ..cdda_sim::vehicles::VehiclePart::default()
+        }],
+        velocity,
+        ..cdda_sim::vehicles::Vehicle::default()
+    };
+    let drawn = world
+        .spawn((
+            hull(0),
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+            Towing {
+                towing: None,
+                towed_by: Some(Entity::PLACEHOLDER),
+                direction: TowPoint::Front,
+            },
+        ))
+        .id();
+    let tower = world
+        .spawn((
+            hull(200),
+            cdda_sim::Position { x: 0, y: 10, z: 0 },
+            Towing {
+                towing: Some(drawn),
+                towed_by: None,
+                direction: TowPoint::Front,
+            },
+        ))
+        .id();
+    if let Some(mut held) = world.get_mut::<Towing>(drawn) {
+        held.towed_by = Some(tower);
+    }
+
+    // **Cutting from the tower cuts the hull too**, and the second cut finds nothing.
+    assert!(invalidate_towing(&mut world, tower), "there was a cable");
+    assert!(
+        world.get::<Towing>(tower).is_none(),
+        "**the tower's end is clean**"
+    );
+    assert!(
+        world
+            .get::<Towing>(drawn)
+            .is_none_or(|held| held.towed_by.is_none()),
+        "**and so is the hull's**"
+    );
+    assert!(
+        !invalidate_towing(&mut world, tower),
+        "cutting a cut cable does nothing"
+    );
+
+    // **A cable at twenty-five squares snaps on its own turn**, and the hull is not pulled.
+    if let Some(mut held) = world.get_mut::<Towing>(tower) {
+        held.towing = Some(drawn);
+    }
+    world.entity_mut(tower).insert(Towing {
+        towing: Some(drawn),
+        towed_by: None,
+        direction: TowPoint::Front,
+    });
+    world.entity_mut(drawn).insert(Towing {
+        towing: None,
+        towed_by: Some(tower),
+        direction: TowPoint::Front,
+    });
+    if let Some(mut position) = world.get_mut::<cdda_sim::Position>(tower) {
+        position.y = 25;
+    }
+    assert_eq!(
+        tow_vehicles(&mut world),
+        0,
+        "**a snapped cable pulls nothing**"
+    );
+    assert!(
+        world.get::<Towing>(tower).is_none() && world.get::<Towing>(drawn).is_none(),
+        "and both ends are cut"
+    );
+}

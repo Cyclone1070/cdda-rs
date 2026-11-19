@@ -38873,3 +38873,24 @@ Mutation-checked by deleting the call from the stage: the hull stays at rest and
   100-vmiph tower without wheels stands still before the cable is ever asked. The gate now rolls a wheeled hull;
 - a wheel is a part with the **`WHEEL` flag**, not one with `rolling_resistance` set - the two are separate in the reference's data, and only the flag is what `wheels()` reads. A
   one-wheeled hull also has to be `STABLE` to count as a valid wheel config, and the gate says so.
+
+## A cable is cut from both ends (round 215)
+
+`vehicle::invalidate_towing` (`vehicle.cpp:7265-7320`) with `first_vehicle` set cuts the **other end first**, then this one - the order is what makes a pair break cleanly rather than one
+side at a time - and `tow_cable_too_far` (`:7323-7352`) is asked at the end of `map::move_vehicle` (`map.cpp:1000-1003`), which cuts the pair and prints a message.
+
+| Distance | `tow_vehicles` answer | Links afterwards |
+|---|---|---|
+| 10 squares | 1 - pulled | intact |
+| **25 squares** | **0 - nothing pulled** | **both ends cut** |
+
+Cutting by hand answers `true` once and `false` afterwards, and both ends are clean after the first cut.
+
+Mutation-checked: without the snap, an over-long cable still pulls (the row answers 1 instead of 0).
+
+**Named, not guessed**: the reference also removes the cable's **part** and drops its **item** on the ground - with the link state recorded on the item, so re-attaching remembers which end
+it came from. The port has no tow-cable part and no linked items, so nothing is dropped: in the port a cable *is* a link between two vehicles, and cutting it clears both ends and leaves
+no item behind. That is a real difference from the reference and it is recorded here rather than glossed.
+
+The clear is deliberately **not** recursive the way the reference's is: the reference's `other_veh->invalidate_towing( here )` recurses with `first_vehicle` false, and the port's
+`clear_towing` already takes the far side's pointer with it, so one pass is enough. Recursing would remove a component that is already gone.
