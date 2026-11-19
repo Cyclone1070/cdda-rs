@@ -39004,3 +39004,25 @@ dice from the reference's. That was the last cheap explanation for the corner sq
 
 One detail the recording taught: the furniture pick is a **bits** draw, not an `int` range, because the reference's weighted lists are drawn by raw 32-bit ticket
 (`weighted_list::pick` → `rng_bits`). A square with an entry therefore spends **two** draws - the `one_in` and the ticket - and a test recording has to say so explicitly.
+
+## A chunk is generated in columns (round 221)
+
+`mapgen_forest` walks its squares with `for( int x = 0; x < SEEX * 2; x++ ) { for( int y = 0; y < SEEY * 2; y++ ) }` (`mapgen_functions.cpp:1120-1121`) - **columns**, x
+outside and y inside - and the reference's ticket trace is written in that same order. The port walked **rows**.
+
+**It is not cosmetic.** A chunk consumes one stream of dice: the first raffle belongs to `(0,0)`, the second to `(0,1)`. A row-major walk hands the second draw to `(1,0)` and puts
+every later square on a die that was rolled for a different one - which is exactly the shape the corner investigation has been staring at, and it was found by reading the
+reference's own loop beside the trace file's ordering fact recorded two rounds ago.
+
+The measured consequence, on the reference's own 24×24 chunk:
+
+| Walk | Squares agreeing of 576 |
+|---|---|
+| rows (before) | 291 |
+| **columns (now)** | **302** |
+
+Eleven squares, from a loop order. It is not parity - the port is still drawing from its own seed rather than the reference's mid-world state - but it is a rule corrected, and
+the score moved the way the argument said it should.
+
+`forest_visit_order(side)` is that order, named and gated: two squares a side visit `(0,0)`, `(0,1)`, `(1,0)`, `(1,1)`, and a full chunk goes `(0,0)` → `(0,23)` → `(1,0)` →
+`(23,23)`. Mutation-checked by putting the rows back, which the gate catches at the second square.

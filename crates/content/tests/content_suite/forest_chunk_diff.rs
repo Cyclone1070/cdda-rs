@@ -153,7 +153,9 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
         terrains: Vec::new(),
         flags: Vec::new(),
     };
-    // Measured at **291 of 576** with the reference's own chunk, against roughly 64 that chance alone would give. The
+    // Measured at **302 of 576** with the reference's own chunk, against roughly 64 that chance alone would give. The last
+    // four squares of the gain came from the **column order** (`forest_visit_order`): the reference walks `x` outside and
+    // `y` inside, the port walked rows, and with one stream of dice that hands `(1,0)` the die rolled for `(0,1)`. The
     // number moved 122 -> 183 -> 242 -> 285 -> 305 -> 291, from three fixes that each came out of the measurement: resolving
     // the region's **palette chains** rather than stopping at the first name, treating a **furniture** feature as
     // something that does not replace the ground under it, and scaling the four neighbours by the square's own
@@ -206,7 +208,7 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
             best = (agrees, name);
         }
     }
-    // Measured: identity 291, best mirror ("transpose + flip rows") 307. Sixteen squares is not nothing, but it is not
+    // Measured: identity 302, best mirror ("transpose + flip rows") 309. Sixteen squares is not nothing, but it is not
     // the decisive gap an upside-down sample would show either - a transposed chunk would fit far better than this -
     // so the rows run the way the port reads them, and the disagreement is in the rule or the dice. Pinning the
     // comparison means nobody re-opens this question by instinct later.
@@ -257,4 +259,37 @@ fn the_ground_pass_and_the_reference_agree_on_a_share_of_the_chunk() {
         agree < 576,
         "and it cannot be all of them: the feature layers are not written yet"
     );
+}
+
+/// **A chunk's squares are generated in columns, not rows.** Reference: `mapgen_forest`'s own loop (`mapgen_functions.cpp:1120-1121`) - `for( x ) { for( y ) }` - and the
+/// reference's ticket trace is written in that same order. It is not cosmetic: the chunk consumes one stream of dice, so the order decides which square receives which draw,
+/// and a row-major walk hands `(1,0)` the die rolled for `(0,1)`.
+#[test]
+fn a_chunk_is_generated_in_columns() {
+    use cdda_content::overmap_build::forest_visit_order;
+
+    assert_eq!(
+        forest_visit_order(2),
+        vec![(0, 0), (0, 1), (1, 0), (1, 1)],
+        "**two squares a side walks down the first column before touching the second**"
+    );
+    let order = forest_visit_order(24);
+    assert_eq!(order.len(), 576, "a full chunk");
+    assert_eq!(order.first(), Some(&(0, 0)), "it starts at the corner");
+    assert_eq!(
+        order.get(1),
+        Some(&(0, 1)),
+        "**and steps north before east**"
+    );
+    assert_eq!(
+        order.get(23),
+        Some(&(0, 23)),
+        "to the end of the first column"
+    );
+    assert_eq!(
+        order.get(24),
+        Some(&(1, 0)),
+        "before the second column begins"
+    );
+    assert_eq!(order.last(), Some(&(23, 23)), "and the far corner is last");
 }

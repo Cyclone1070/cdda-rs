@@ -320,40 +320,57 @@ fn forest_pass_inner(
         cdda_core_types::overmap::pick_real_ticket(rolls.rng_bits(), &pool)
     };
 
-    for y in 0..side {
-        for x in 0..side {
-            let point = (x, y);
-            // Ticket 4 is this square's own biome; the four neighbour tickets and the empty one fall through to the
-            // ground raffle. A neighbour without a biome is **not** divided by its own depth, because it does not
-            // feather at all.
-            let first = raffle(rolls, point, 0.0);
-            if first == 4
+    // **Columns, not rows** - `for( int x = 0; x < SEEX * 2; x++ ) { for( int y = 0; y < SEEY * 2; y++ )` (`mapgen_functions.cpp:1120-1121`). It matters because the dice are a
+    // single stream: the first raffle belongs to `(0,0)`, the second to `(0,1)`, and a row-major walk hands the second to `(1,0)` instead. A traced world writes its tickets in
+    // this same order, which is how the divergence was found.
+    for point in forest_visit_order(side) {
+        // Ticket 4 is this square's own biome; the four neighbour tickets and the empty one fall through to the
+        // ground raffle. A neighbour without a biome is **not** divided by its own depth, because it does not
+        // feather at all.
+        let first = raffle(rolls, point, 0.0);
+        if first == 4
                 && let Some(feature) = pick_forest_feature(layers, rolls)
                 // A feature can be **furniture** - a boulder, or the region's own forest furniture palette - and
                 // furniture does not replace the ground under it; the reference keeps the ground and sets the
                 // furniture on top.
                 && !feature.starts_with('f')
-            {
-                ground.push(resolve(feature, rolls));
-                continue;
-            }
-            // No terrain yet, so the ground gets its own raffle, stepped back by the ground-cover margin - half the
-            // average depth - so that ground reaches further out than the features standing on it.
-            let second = raffle(rolls, point, MARGIN);
-            let picked = if second == 4 {
-                pick_terrain(self_palette, rolls)
-            } else if let Some(biome) = neighbour_biomes.get(second).copied().flatten() {
-                // A neighbour that owns a biome contributes **its own** ground. Its groundcover is a list of palette
-                // names, so it is drawn from and then resolved to a real terrain.
-                let list = WeightedList::from_entries(biome.groundcover.iter().cloned());
-                list.pick(rolls).cloned().unwrap_or_default()
-            } else {
-                pick_terrain(default_palette, rolls)
-            };
-            ground.push(resolve(picked, rolls));
+        {
+            ground.push(resolve(feature, rolls));
+            continue;
         }
+        // No terrain yet, so the ground gets its own raffle, stepped back by the ground-cover margin - half the
+        // average depth - so that ground reaches further out than the features standing on it.
+        let second = raffle(rolls, point, MARGIN);
+        let picked = if second == 4 {
+            pick_terrain(self_palette, rolls)
+        } else if let Some(biome) = neighbour_biomes.get(second).copied().flatten() {
+            // A neighbour that owns a biome contributes **its own** ground. Its groundcover is a list of palette
+            // names, so it is drawn from and then resolved to a real terrain.
+            let list = WeightedList::from_entries(biome.groundcover.iter().cloned());
+            list.pick(rolls).cloned().unwrap_or_default()
+        } else {
+            pick_terrain(default_palette, rolls)
+        };
+        ground.push(resolve(picked, rolls));
     }
     ground
+}
+
+/// **The order a chunk's squares are generated in** - columns, `x` outside and `y` inside, which is `mapgen_forest`'s own loop (`mapgen_functions.cpp:1120-1121`) and the order
+/// the reference's ticket trace is written in.
+///
+/// The order is not cosmetic: the chunk consumes one stream of dice, so which square receives which draw is decided here. A row-major walk gives `(1,0)` the draw that belongs
+/// to `(0,1)` and puts every later square on a die that was rolled for a different one.
+#[must_use]
+pub fn forest_visit_order(side: i32) -> Vec<(i32, i32)> {
+    let count = side.max(0).saturating_mul(side.max(0));
+    let mut order = Vec::with_capacity(usize::try_from(count).unwrap_or(0));
+    for x in 0..side {
+        for y in 0..side {
+            order.push((x, y));
+        }
+    }
+    order
 }
 
 /// What one of a forest's layers puts on a square, if anything.
