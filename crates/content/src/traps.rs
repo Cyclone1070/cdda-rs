@@ -44,6 +44,8 @@ pub struct Trap {
     pub trigger_u: Option<String>,
     /// What the trap says when anybody else does, with `<npcname>` standing for their name.
     pub trigger_npc: Option<String>,
+    /// The mapgen an `action: "map_regen"` trap rebuilds its tile with (`trap.cpp:154`, `map_regen`).
+    pub map_regen: Option<String>,
 }
 
 impl Trap {
@@ -161,6 +163,7 @@ fn resolve(
             eocs: Vec::new(),
             trigger_u: None,
             trigger_npc: None,
+            map_regen: None,
         },
     };
     seen.pop();
@@ -180,6 +183,10 @@ fn apply(trap: &mut Trap, object: &Object, inherited: bool) -> Result<(), LoadEr
     }
     // **What the trap does.** Reference: `trap::load` (`trap.cpp:150-175`) - `action` names the function, and `eocs` is only allowed beside `action: "eocs"`, which the
     // reference refuses to load without. The port keeps the refusal rather than reading the programs as if the action did not matter.
+    // Reference: `optional( jo, was_loaded, "map_regen", map_regen, update_mapgen_none )` (`trap.cpp:154`) - one of the two actions the data names most often.
+    if let Some(name) = string(object, "map_regen") {
+        trap.map_regen = Some(name);
+    }
     // Reference: `optional( jo, was_loaded, "trigger_message_u", trigger_message_u )` (`trap.cpp:133-134`) - both are optional, and a trap that has only one of them says
     // nothing at all, because `has_trigger_msg` requires the pair (`trap.h:258-260`).
     if let Some(text) = string(object, "trigger_message_u") {

@@ -164,3 +164,65 @@ fn every_trap_matches_the_reference() {
     }
     assert!(mismatches.is_empty(), "{} mismatches", mismatches.len());
 }
+
+/// **What a trap does is part of the trap.** Reference: `trap::load` reads `action` (`trap.cpp:150-175`), `spell_data` only beside `action: "spell"`, `eocs` only beside
+/// `action: "eocs"`, and `map_regen` (`trap.cpp:154`) for the action that rebuilds its tile. The port reads the action, the programs, the two trigger messages and the
+/// mapgen, and refuses a `eocs` list that names no `eocs` action - the reference's own refusal.
+#[test]
+fn a_trap_carries_what_it_does() {
+    let dir = std::env::temp_dir().join("cdda-trap-actions");
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    std::fs::write(
+        dir.join("traps.json"),
+        r#"[
+        { "type": "trap", "id": "tr_regen", "name": "a regen trap", "color": "red",
+          "symbol": "^", "visibility": 0, "avoidance": 0, "difficulty": 0,
+          "action": "map_regen", "map_regen": "some_update" },
+        { "type": "trap", "id": "tr_eoc", "name": "an eoc trap", "color": "red",
+          "symbol": "^", "visibility": 0, "avoidance": 0, "difficulty": 0,
+          "action": "eocs", "eocs": [ "EOC_ONE", "EOC_TWO" ],
+          "trigger_message_u": "You stepped on it!", "trigger_message_npc": "<npcname> stepped on it!" }
+    ]"#,
+    )
+    .expect("write");
+
+    let loaded = traps::load_paths(&[dir.as_path()]).expect("the traps load");
+    let regen = loaded
+        .iter()
+        .find(|one| one.id == "tr_regen")
+        .expect("the regen trap");
+    assert_eq!(regen.action.as_deref(), Some("map_regen"));
+    assert_eq!(regen.map_regen.as_deref(), Some("some_update"));
+    assert!(regen.eocs.is_empty(), "and it runs no programs");
+
+    let eoc = loaded
+        .iter()
+        .find(|one| one.id == "tr_eoc")
+        .expect("the eoc trap");
+    assert_eq!(eoc.action.as_deref(), Some("eocs"));
+    assert_eq!(eoc.eocs, vec!["EOC_ONE".to_owned(), "EOC_TWO".to_owned()]);
+    assert_eq!(eoc.trigger_u.as_deref(), Some("You stepped on it!"));
+    assert_eq!(eoc.trigger_npc.as_deref(), Some("<npcname> stepped on it!"));
+    assert!(eoc.map_regen.is_none(), "and it rebuilds nothing");
+}
+
+/// **An `eocs` list without `action: "eocs"` is refused**, which is what the reference throws for (`trap.cpp:168-171`).
+#[test]
+fn an_eocs_list_without_the_action_is_refused() {
+    let dir = std::env::temp_dir().join("cdda-trap-bad-eocs");
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    std::fs::write(
+        dir.join("traps.json"),
+        r#"[
+        { "type": "trap", "id": "tr_bad", "name": "a bad trap", "color": "red",
+          "symbol": "^", "visibility": 0, "avoidance": 0, "difficulty": 0,
+          "eocs": [ "EOC_ONE" ] }
+    ]"#,
+    )
+    .expect("write");
+    let refused = traps::load_paths(&[dir.as_path()]);
+    assert!(
+        refused.is_err(),
+        "**the loader refuses it**, as the reference does"
+    );
+}

@@ -24,6 +24,7 @@ fn a_trap() -> cdda_content::traps::Trap {
         eocs: vec!["EOC_mark".to_owned()],
         trigger_u: None,
         trigger_npc: None,
+        map_regen: None,
     }
 }
 

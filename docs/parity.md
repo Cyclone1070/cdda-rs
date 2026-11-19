@@ -39422,3 +39422,21 @@ Re-measured: **492 → 501**, and `mapgen_update`'s refusals fell 23 → 14.
 **What the ranking says now, and it is mostly the census talking.** Of the remaining buckets, the two largest are chain links: `run_eocs(EOC_LIXA_UNFOLD_SHIFT)` 32 and `godco_place_*`
 (a `mapgen_update` whose `target_var` is a `context_val` the **caller** fills, so run alone it has no square). The census runs one program at a time and cannot see a conversation
 between two, which is why these are labelled by the effect that happened to be reached rather than by the missing input.
+
+## A trap that rebuilds its tile (round 242)
+
+Reference: `trapfunc::map_regen` (`trapfunc.cpp:1522-1547`), the action **seventeen traps** in the data name - the third most common after `spell` (34) and `none` (33). The rule
+has four parts and the port now does all four:
+
+- only a **character** sets it off: `dynamic_cast<Character *>` answers nothing for a monster, and the port asks whether the creature is a person (an NPC or the avatar);
+- it says **"Your surroundings shift!"**;
+- the trap is removed **before** the mapgen runs, so a mapgen that moves the character leaves no trap behind;
+- the update lands on the character's own **overmap tile**, corner square, and its fields are placed too.
+
+The loader gained the trap's `map_regen` name beside the action it belongs to, and the content suite now pins the three things a trap carries - its action, its programs and its
+mapgen - plus the reference's refusal of an `eocs` list without `action: "eocs"`.
+
+Three mutations, three catches: the person guard removed (a monster rebuilds the map), the removal skipped (the trap stays set), and the message dropped.
+
+**Named gaps in the same action.** The reference reports a mapgen that collides with a vehicle and refuses the update; the port applies what it can and has no vehicle-collision check
+in this path. `set_queued_points` and the two cache invalidations are renderer bookkeeping with no counterpart yet.

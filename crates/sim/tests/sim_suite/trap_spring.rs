@@ -22,6 +22,7 @@ fn a_trap(action: &str, programs: &[&str]) -> cdda_content::traps::Trap {
         eocs: programs.iter().map(|name| (*name).to_owned()).collect(),
         trigger_u: None,
         trigger_npc: None,
+        map_regen: None,
     }
 }
 
@@ -252,4 +253,104 @@ fn a_trap_without_words_says_nothing() {
         vec!["sprung".to_owned()],
         "only the program's line: no trap words were given"
     );
+}
+
+/// **A `map_regen` trap rebuilds the tile it stands on.** Reference: `trapfunc::map_regen` (`trapfunc.cpp:1522-1547`): only a **character** sets it off, it says "Your
+/// surroundings shift!", the trap is removed **before** the mapgen runs (so a mapgen that moves the character leaves no trap behind), and the update runs at the character's
+/// own overmap tile.
+///
+/// The trap ranks third in the data by action - seventeen traps name it - and it is the one that reaches the mapgen layer the census kept blaming.
+#[test]
+fn a_map_regen_trap_rebuilds_the_tile_and_is_removed() {
+    let (mut world, who) = a_world();
+    // A level large enough to hold two tiles, and codes for the terrains the update draws.
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [("t_floor".to_owned(), 1u32), ("t_wall".to_owned(), 2u32)]
+            .into_iter()
+            .collect(),
+    );
+    let mut update = a_mapgen("godco_update");
+    update.terrain.insert('#', "t_wall".to_owned());
+    update.rows = vec!["##".to_owned(), "##".to_owned()];
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("godco_update".to_owned(), update)]);
+
+    let mut trap = a_trap("map_regen", &[]);
+    trap.map_regen = Some("godco_update".to_owned());
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    // The trap stands on the tile's first square, which is where the update lands.
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // A person, which is what the reference's `dynamic_cast<Character *>` accepts - the avatar or an NPC, not a monster.
+    cdda_sim::npcs::make_npc(&mut world, who, "GODCO_WORKER");
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**the trap springs**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(2),
+        "the update's first square is walled"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 1, 0)),
+        Some(2),
+        "and its last, so the whole mapgen landed at the tile's corner"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "and the trap is gone"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "Your surroundings shift!"),
+        "**the character is told the map changed**: {:#?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A `map_regen` trap does nothing to a monster.** Reference: `trapfunc::map_regen` returns false for anything that is not a character (`trapfunc.cpp:1524-1546`).
+#[test]
+fn a_map_regen_trap_ignores_a_monster() {
+    let (mut world, who) = a_world();
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [("t_floor".to_owned(), 1u32), ("t_wall".to_owned(), 2u32)]
+            .into_iter()
+            .collect(),
+    );
+    let mut update = a_mapgen("godco_update");
+    update.terrain.insert('#', "t_wall".to_owned());
+    update.rows = vec!["##".to_owned()];
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("godco_update".to_owned(), update)]);
+    let mut trap = a_trap("map_regen", &[]);
+    trap.map_regen = Some("godco_update".to_owned());
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // What the floor was before anything happened: the claim is that it does **not** change, not that it is any particular terrain.
+    let before = cdda_sim::square::terrain_at(&world, (0, 0, 0));
+    // A monster is a creature the port marks as one, which is what the reference's `dynamic_cast<Character *>` refuses.
+    cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+    assert!(
+        !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**nothing happens to a monster**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        before,
+        "and the floor is untouched"
+    );
+}
+
+/// One mapgen object with the two symbols the tests draw with.
+fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
+    cdda_content::mapgen::MapgenObject {
+        om_terrain: id.to_owned(),
+        rows: vec![".".to_owned()],
+        terrain: [('.', "t_floor".to_owned())].into_iter().collect(),
+        furniture: std::collections::BTreeMap::new(),
+        weight: 100,
+        fields: Vec::new(),
+    }
 }

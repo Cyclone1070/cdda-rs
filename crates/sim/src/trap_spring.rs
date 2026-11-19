@@ -39,6 +39,31 @@ pub fn spring_with(
     let Some(trap) = crate::trap_registry::get(world, &kind) else {
         return false;
     };
+    // **A trap that rebuilds its tile** is a second action, and the one the data names third most often (seventeen traps). Reference: `trapfunc::map_regen`
+    // (`trapfunc.cpp:1522-1547`): only a **character** sets it off - `dynamic_cast<Character *>` answers nothing for a monster - it says "Your surroundings shift!", the
+    // trap is removed **before** the mapgen runs, and the update lands on the character's own overmap tile.
+    if trap.action.as_deref() == Some("map_regen") {
+        if !crate::npcs::is_npc(world, who) && crate::missions::avatar(world) != Some(who) {
+            return false;
+        }
+        let Some(update) = trap.map_regen.clone() else {
+            return false;
+        };
+        crate::messages::push(world, "Your surroundings shift!");
+        crate::square::remove_trap(world, square);
+        let Some(at) = world.get::<crate::Position>(who).copied() else {
+            return false;
+        };
+        let tile = crate::overmap::tile_of(at.x, at.y);
+        let place = (
+            tile.0 * crate::overmap::SQUARES_PER_OMT,
+            tile.1 * crate::overmap::SQUARES_PER_OMT,
+            at.z,
+        );
+        let _written = crate::mapgen_update::apply(world, &update, place);
+        let _fields = crate::mapgen_update::place_fields(world, &update, place);
+        return true;
+    }
     if trap.action.as_deref() != Some("eocs") || trap.eocs.is_empty() {
         return false;
     }
