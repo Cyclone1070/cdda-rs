@@ -8086,3 +8086,110 @@ fn a_turret_reaches_as_far_as_its_gun_and_its_round() {
         "one square past it is not"
     );
 }
+
+/// **Which fuel a tank-fed mount can fire, and which it would.** Reference: `turret_data::ammo_options` and `turret_data::ammo_current` (`turret.cpp:123-170`) - a fuel counts only
+/// when the gun accepts its ammunition **type** and the vehicle holds enough of it to pay for one shot; the current fuel is the first of preference, part default, gun default, first
+/// option that is actually among them.
+#[test]
+fn a_tank_fed_turret_chooses_among_the_fuels_it_can_fire() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/items/ammo.json");
+    let bytes = std::fs::read(path).expect("the ammo recording");
+    let value = cdda_json::parse(&bytes).expect("valid json");
+    let rounds = cdda_content::ammo::load_dump(&value).expect("the rounds load");
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![
+                cdda_content::vehicles::PartSpec {
+                    id: "thrower_mount".to_owned(),
+                    flags: ["TURRET".to_owned(), "USE_TANKS".to_owned()]
+                        .into_iter()
+                        .collect(),
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+                cdda_content::vehicles::PartSpec {
+                    id: "tank".to_owned(),
+                    fuel_store: true,
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+            ],
+            prototypes: Vec::new(),
+        },
+    );
+    let vehicle = world
+        .spawn((
+            cdda_sim::vehicles::Vehicle {
+                parts: vec![
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "thrower_mount".to_owned(),
+                        fuel: "napalm".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    // Forty-one of napalm, and a second tank of gasoline that a flamethrower cannot fire.
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "tank".to_owned(),
+                        charges: 41,
+                        fuel: "napalm".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                    cdda_sim::vehicles::VehiclePart {
+                        part: "tank".to_owned(),
+                        charges: 100,
+                        fuel: "gasoline".to_owned(),
+                        ..cdda_sim::vehicles::VehiclePart::default()
+                    },
+                ],
+                ..cdda_sim::vehicles::Vehicle::default()
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+
+    let napalm = rounds
+        .iter()
+        .find(|round| round.id == "napalm")
+        .expect("napalm");
+    assert_eq!(
+        napalm.ammo_type, "flammable",
+        "**napalm is a flammable round**, which is the type a flamethrower accepts"
+    );
+
+    // **Only napalm is an option**: forty-one pays for one shot of fifty? It does not - so ask with a hundred, then with fifty.
+    assert!(
+        cdda_sim::vehicles::turret_ammo_options(&world, vehicle, "flammable", &rounds, 50)
+            .is_empty(),
+        "**forty-one cannot pay for a shot of fifty**"
+    );
+    let options =
+        cdda_sim::vehicles::turret_ammo_options(&world, vehicle, "flammable", &rounds, 40);
+    assert_eq!(
+        options,
+        vec!["napalm".to_owned()],
+        "**and forty-one pays for forty**, while the hundred of gasoline is still not flammable"
+    );
+
+    // **The preference decides when it is an option.**
+    let wanted = cdda_sim::vehicles::TurretAmmo {
+        gun_ammo_type: "flammable",
+        default_ammo: "",
+        base_default: "",
+        rounds: &rounds,
+        ammo_required: 40,
+    };
+    let napalm_now = cdda_sim::vehicles::turret_ammo_current(&world, vehicle, 0, wanted);
+    assert_eq!(napalm_now, Some("napalm".to_owned()), "the only option");
+
+    let mut held = world.get_mut::<cdda_sim::vehicles::Vehicle>(vehicle);
+    if let Some(mount) = held.as_mut().and_then(|built| built.parts.first_mut()) {
+        mount.fuel_preference = "gasoline".to_owned();
+    }
+    let preferred = cdda_sim::vehicles::turret_ammo_current(&world, vehicle, 0, wanted);
+    assert_eq!(
+        preferred,
+        Some("napalm".to_owned()),
+        "**a preference for a fuel that is not an option is ignored**, not obeyed"
+    );
+}

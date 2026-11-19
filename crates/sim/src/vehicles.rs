@@ -1484,3 +1484,92 @@ pub fn turret_range(base_gun_range: i32, tank_fed: bool, ammo_range: Option<i32>
 pub fn turret_in_range(range: i32, distance: i32) -> bool {
     range >= distance
 }
+
+/// **Which fuels a tank-fed mount can fire** - the reference's `turret_data::ammo_options` (`turret.cpp:148-170`), whose tank branch keeps every fuel the vehicle holds **whose
+/// ammunition type the gun accepts** and **whose amount pays for one shot**: `fuel->ammo && part->base.ammo_types().count( fuel->ammo->type ) && e.second >= part->base.ammo_required()`.
+///
+/// The join is the caller's, because the port holds the round table outside the world: `rounds` is the ammunition recording, and a fuel id is looked up in it to learn which
+/// **type** it belongs to. A fuel the table does not name is not an option - the reference would not find a type for it either.
+///
+/// The answer is **sorted and deduplicated**, as the reference's `std::set` is: two tanks of napalm are one option, not two.
+#[must_use]
+pub fn turret_ammo_options(
+    world: &World,
+    vehicle: Entity,
+    gun_ammo_type: &str,
+    rounds: &[cdda_content::ammo::AmmoType],
+    ammo_required: i64,
+) -> Vec<String> {
+    let Some(built) = world.get::<Vehicle>(vehicle) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = built
+        .parts
+        .iter()
+        .map(|part| part.fuel.clone())
+        .filter(|fuel| !fuel.is_empty())
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+        .into_iter()
+        .filter(|fuel| fuel_left(world, vehicle, fuel) >= ammo_required)
+        .filter(|fuel| {
+            rounds
+                .iter()
+                .find(|round| &round.id == fuel)
+                .is_some_and(|round| round.ammo_type == gun_ammo_type)
+        })
+        .collect()
+}
+
+/// **What a mount is asked to fire from**, gathered so the question reads as one thing: the gun's accepted ammunition type, the two defaults that can stand in for a chosen fuel,
+/// the round recording, and how much one shot costs.
+#[derive(Debug, Clone, Copy)]
+pub struct TurretAmmo<'a> {
+    /// The ammunition type the gun accepts - `item::ammo_types()`, such as `flammable`.
+    pub gun_ammo_type: &'a str,
+    /// The mount type's own default fuel - `part->info().default_ammo`.
+    pub default_ammo: &'a str,
+    /// The base gun's default - `part->base.ammo_default()`.
+    pub base_default: &'a str,
+    /// The round recording, which is where a fuel id learns its ammunition type.
+    pub rounds: &'a [cdda_content::ammo::AmmoType],
+    /// What one shot spends - `item::ammo_required()`.
+    pub ammo_required: i64,
+}
+
+/// **Which fuel a tank-fed mount would fire right now** - the reference's `turret_data::ammo_current` (`turret.cpp:123-146`), whose preference chain is
+/// `part->ammo_pref`, then the part type's `default_ammo`, then the base item's `ammo_default`, then the first option the set offers.
+///
+/// Each candidate is only taken **if it is one of the options**: a preference for a fuel the vehicle does not carry is not an answer, it is a stale choice.
+#[must_use]
+pub fn turret_ammo_current(
+    world: &World,
+    vehicle: Entity,
+    index: usize,
+    wanted: TurretAmmo<'_>,
+) -> Option<String> {
+    let options = turret_ammo_options(
+        world,
+        vehicle,
+        wanted.gun_ammo_type,
+        wanted.rounds,
+        wanted.ammo_required,
+    );
+    let preference = world
+        .get::<Vehicle>(vehicle)
+        .and_then(|built| built.parts.get(index))
+        .map(|part| part.fuel_preference.clone())
+        .unwrap_or_default();
+    for candidate in [
+        preference,
+        wanted.default_ammo.to_owned(),
+        wanted.base_default.to_owned(),
+    ] {
+        if !candidate.is_empty() && options.contains(&candidate) {
+            return Some(candidate);
+        }
+    }
+    options.first().cloned()
+}

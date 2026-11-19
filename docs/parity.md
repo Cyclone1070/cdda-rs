@@ -38585,3 +38585,23 @@ Mutation-checked: dropping the round's range from `gun_range` makes the M249 rea
 
 **Named gap**: gunmods are a parameter, not a model - the port has no gunmod list on an item yet, so every caller passes an empty slice and the multiplier stays one. The arithmetic is
 ported so that the day a gun carries a sight, the sight's range is already in the right place.
+
+## Which fuel a tank-fed turret would fire (round 202)
+
+`turret_data::ammo_options` (`turret.cpp:148-170`) is a join over three facts the port already holds: the vehicle's fuel stores, the round table's **ammunition types**, and the gun's
+accepted type. A fuel is an option when the gun accepts its type **and** the vehicle holds enough to pay for one shot - `e.second >= part->base.ammo_required()`.
+
+`turret_data::ammo_current` (`turret.cpp:123-146`) picks one: the mount's own preference first, then the part type's default, then the gun's default, and if none of those is an
+option, the first one that is. **A preference for a fuel that is not an option is ignored, not obeyed** - that is the part of the chain worth a test.
+
+| Vehicle holds | Gun accepts | Needs | Options |
+|---|---|---|---|
+| 41 napalm, 100 gasoline | flammable | 50 | **none** - forty-one cannot pay |
+| 41 napalm, 100 gasoline | flammable | 40 | `napalm` - gasoline is not flammable |
+| the same, preference set to `gasoline` | flammable | 40 | still `napalm` |
+
+Mutation-checked: dropping the amount check makes forty-one pay for a shot of fifty.
+
+**Named gaps**: the port has no ammunition table inside the world, so the round recording is passed in; a fuel the recording does not name is not an option, which is the reference's
+behaviour too when it cannot find a type. The non-tank branch of `ammo_options` - the one a magazine mount takes, answering its own loaded round - is not ported, because the port's
+mounted gun has no magazine.
