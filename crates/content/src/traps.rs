@@ -40,6 +40,10 @@ pub struct Trap {
     pub action: Option<String>,
     /// The programs `action: "eocs"` runs, in order (`trap.cpp:168-175`).
     pub eocs: Vec<String>,
+    /// What the trap says when the **player** steps on it (`trap.cpp:133`, `trap.h:258-266`).
+    pub trigger_u: Option<String>,
+    /// What the trap says when anybody else does, with `<npcname>` standing for their name.
+    pub trigger_npc: Option<String>,
 }
 
 impl Trap {
@@ -155,6 +159,8 @@ fn resolve(
             flags: BTreeSet::new(),
             action: None,
             eocs: Vec::new(),
+            trigger_u: None,
+            trigger_npc: None,
         },
     };
     seen.pop();
@@ -174,6 +180,14 @@ fn apply(trap: &mut Trap, object: &Object, inherited: bool) -> Result<(), LoadEr
     }
     // **What the trap does.** Reference: `trap::load` (`trap.cpp:150-175`) - `action` names the function, and `eocs` is only allowed beside `action: "eocs"`, which the
     // reference refuses to load without. The port keeps the refusal rather than reading the programs as if the action did not matter.
+    // Reference: `optional( jo, was_loaded, "trigger_message_u", trigger_message_u )` (`trap.cpp:133-134`) - both are optional, and a trap that has only one of them says
+    // nothing at all, because `has_trigger_msg` requires the pair (`trap.h:258-260`).
+    if let Some(text) = string(object, "trigger_message_u") {
+        trap.trigger_u = Some(text);
+    }
+    if let Some(text) = string(object, "trigger_message_npc") {
+        trap.trigger_npc = Some(text);
+    }
     if let Some(Value::Str(action)) = object.get("action") {
         trap.action = Some(action.clone());
     }

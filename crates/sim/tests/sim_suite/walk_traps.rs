@@ -22,6 +22,8 @@ fn a_trap() -> cdda_content::traps::Trap {
         flags: std::collections::BTreeSet::new(),
         action: Some("eocs".to_owned()),
         eocs: vec!["EOC_mark".to_owned()],
+        trigger_u: None,
+        trigger_npc: None,
     }
 }
 

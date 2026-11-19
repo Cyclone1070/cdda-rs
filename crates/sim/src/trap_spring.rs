@@ -68,6 +68,23 @@ pub fn spring_with(
         }
         return false;
     }
+    // **The trap says what happened**, in the words the data gave it. Reference: `map.cpp:9941-9944` - the line is shown when the trap is not `always_invisible` and the data
+    // supplied **both** halves (`has_trigger_msg`, `trap.h:258-260`). The player hears `trigger_message_u`; an NPC or monster hears `trigger_message_npc` with `<npcname>`
+    // replaced by its own name (`Creature::replace_with_npc_name`, `creature.cpp:3408-3412`).
+    if !trap.always_invisible
+        && let (Some(player), Some(other)) =
+            (trap.trigger_u.as_deref(), trap.trigger_npc.as_deref())
+    {
+        let line = if crate::missions::avatar(world) == Some(who) {
+            player.to_owned()
+        } else {
+            let name = world
+                .get::<crate::creature::Creature>(who)
+                .map_or("Someone", |creature| creature.name.as_str());
+            other.replace("<npcname>", name)
+        };
+        crate::messages::push(world, &line);
+    }
     // Reference: `dialogue d( get_talker_for( critter ), nullptr ); write_var_value( var_type::context, "trap_location", &d, trap_location );`
     let previous = crate::dialogue_context::values(world, who);
     let mut context = previous.clone();

@@ -20,6 +20,8 @@ fn a_trap(action: &str, programs: &[&str]) -> cdda_content::traps::Trap {
         flags: std::collections::BTreeSet::new(),
         action: Some(action.to_owned()),
         eocs: programs.iter().map(|name| (*name).to_owned()).collect(),
+        trigger_u: None,
+        trigger_npc: None,
     }
 }
 
@@ -198,5 +200,56 @@ fn a_rider_does_not_set_off_a_trap() {
         cdda_sim::square::trap_at(&world, (0, 0, 0)),
         Some("tr_test".to_owned()),
         "and the trap is still there"
+    );
+}
+
+/// **A trap says what happened, in the words the data gave it.** Reference: `map::maybe_trigger_trap` announces `tr.get_trigger_message_u()` to the player and
+/// `tr.get_trigger_message_npc()` to anyone else - with `<npcname>` replaced by the creature's own name (`Creature::replace_with_npc_name`, `creature.cpp:3408-3412`) - but only when
+/// the trap is not `always_invisible` and the data supplied **both** lines (`trap.h:258-266`).
+fn a_trap_with_lava_words() -> cdda_content::traps::Trap {
+    let mut trap = a_trap("eocs", &["EOC_mark"]);
+    trap.trigger_u = Some("You stepped into lava!".to_owned());
+    trap.trigger_npc = Some("<npcname> stepped into lava!".to_owned());
+    trap
+}
+
+#[test]
+fn the_avatar_hears_the_traps_own_words() {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap_with_lava_words()]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        vec!["You stepped into lava!".to_owned(), "sprung".to_owned()],
+        "**the player's line first, then whatever the trap's program said**"
+    );
+}
+
+#[test]
+fn anyone_else_hears_the_line_with_their_own_name_in_it() {
+    let (mut world, who) = a_world();
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap_with_lava_words()]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // The creature's name is what the reference substitutes for `<npcname>`; this one is not the avatar, so it hears the third person.
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert_eq!(
+        cdda_sim::messages::lines(&world).first().cloned(),
+        Some("the survivor stepped into lava!".to_owned()),
+        "**the third-person line, with the creature's name where `<npcname>` was**"
+    );
+}
+
+#[test]
+fn a_trap_without_words_says_nothing() {
+    let (mut world, who) = a_world();
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("eocs", &["EOC_mark"])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert_eq!(
+        cdda_sim::messages::lines(&world),
+        vec!["sprung".to_owned()],
+        "only the program's line: no trap words were given"
     );
 }

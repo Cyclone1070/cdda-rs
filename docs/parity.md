@@ -39336,3 +39336,18 @@ both invisible until this test existed, which is the second time this chain has 
 **Named gaps.** The Light Step and Clumsy traits (`+dice( 2, 6 )`, `-dice( 2, 6 )`) are not ported - the port has no traits yet. `dodge` is [`crate::creature::Dodge`] points,
 which the reference reads as `get_skill_level( skill_dodge )`. And a creature with **no** `Dexterity` gets no roll at all, so the trap fires: the reference starts every character at
 eight, and a creature here without the component is a port artefact - giving it a dodge because the component was missing would be inventing a rule.
+
+## A trap says what happened (round 237)
+
+Reference: `map::maybe_trigger_trap` announces `tr.get_trigger_message_u()` to the player and `tr.get_trigger_message_npc()` to anyone else (`map.cpp:9941-9944`), guarded by
+`!tr.is_always_invisible() && tr.has_trigger_msg()` - and `has_trigger_msg` (`trap.h:258-260`) requires **both** halves to be present, so a trap with only one says nothing at all.
+
+The lines are the data's own: `traps.json:622-623` gives the lava trap `"You stepped into lava!"` and `"<npcname> stepped into lava!"`. Who hears which is the reference's split in
+`npc::add_msg_player_or_npc` and `monster::add_msg_player_or_npc` (`npc.cpp:3190-3204`, `monster.cpp:3697-3710`), and `<npcname>` is replaced by the creature's own name
+(`Creature::replace_with_npc_name`, `creature.cpp:3408-3412`) - which the port does with the `Creature` component's name.
+
+The loader now reads both fields, and the gate pins all three outcomes: the avatar hears the second person, anybody else hears the third person **with their name in it**, and a trap
+the data gave no words says nothing. Three mutations, three catches: the message never shown, the substitution skipped, and the split inverted.
+
+**Named gap.** The reference shows an NPC's or monster's line only if the player **sees** the creature (`add_msg_if_player_sees`, which needs a player view). The port has no
+visibility system, so it pushes the line regardless; the same gap the trap dodge's `can_see` now names from the other side.
