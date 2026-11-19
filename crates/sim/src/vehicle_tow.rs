@@ -457,3 +457,72 @@ pub fn invalidate_towing(world: &mut World, vehicle: Entity) -> bool {
     clear_towing(world, vehicle);
     true
 }
+
+/// **One part of a hull, by its index and its mount** - the two things the reference's "is this an external part" walk needs, and nothing more.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MountedPart {
+    /// Its position in the hull's part list, which is the reference's `vp.part_index()`.
+    pub index: usize,
+    /// Its mount's x, in the hull's own coordinates.
+    pub x: i32,
+    /// Its mount's y, in the hull's own coordinates.
+    pub y: i32,
+}
+
+/// **Whether a mount sits on the hull's edge** - `vehicle::is_external_part( const point_rel_ms &mount )` (`vehicle.cpp:5170-5184`):
+///
+/// > `for( int x = -1; x <= 1; x++ ) for( int y = -1; y <= 1; y++ ) if( part_at( mount + point( x, y ) ) ) return true; return false;`
+///
+/// **Ported as written, including its quirk**: `part_at` answers the part's **index** and `-1` for none, and the reference tests that index for **truth**, not for `!= -1`. The part at
+/// index **zero** is therefore falsy and never makes a mount external - the first part of every hull is invisible to this rule. It is not repaired here: a port that silently fixed the
+/// reference's arithmetic would disagree with it, and this one records the disagreement instead.
+#[must_use]
+pub fn mount_is_external(parts: &[MountedPart], mount: (i32, i32)) -> bool {
+    for dx in -1..=1 {
+        for dy in -1..=1 {
+            let probe = (mount.0 + dx, mount.1 + dy);
+            if parts
+                .iter()
+                .any(|part| part.x == probe.0 && part.y == probe.1 && part.index != 0)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// **Why a tow cable cannot be attached** - `item::link_to( vehicle &veh, const point_rel_ms &mount, link_state link_type )`'s `vehicle_tow` branch (`item.cpp:14240-14256`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TowRefusal {
+    /// The vehicle already has a cable on it - `has_tow_attached() || is_towed() || is_towing()`.
+    AlreadyAttached,
+    /// The mount is not on the hull's edge - `!is_external_part( mount )`.
+    InternalPart,
+    /// The part at the mount carries items, so a cable could not reach it - `!part( part_at ).carried_stack.empty()`.
+    RackedPart,
+}
+
+/// **Whether a tow cable may be attached at a mount**, in the reference's own order and with its own three refusals: already attached, internal part, racked part. The checks are asked in
+/// that order, so an already-attached vehicle is refused for that reason and not for the mount's shape.
+///
+/// # Errors
+///
+/// [`TowRefusal::AlreadyAttached`] when there is already a cable, [`TowRefusal::InternalPart`] when the mount is not on the hull's edge, and [`TowRefusal::RackedPart`] when the part
+/// there carries items - the reference's own three messages, in the reference's own order.
+pub fn tow_attachment(
+    already_attached: bool,
+    external_part: bool,
+    racked_part: bool,
+) -> Result<(), TowRefusal> {
+    if already_attached {
+        return Err(TowRefusal::AlreadyAttached);
+    }
+    if !external_part {
+        return Err(TowRefusal::InternalPart);
+    }
+    if racked_part {
+        return Err(TowRefusal::RackedPart);
+    }
+    Ok(())
+}

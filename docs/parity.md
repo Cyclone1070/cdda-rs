@@ -38894,3 +38894,28 @@ no item behind. That is a real difference from the reference and it is recorded 
 
 The clear is deliberately **not** recursive the way the reference's is: the reference's `other_veh->invalidate_towing( here )` recurses with `first_vehicle` false, and the port's
 `clear_towing` already takes the far side's pointer with it, so one pass is enough. Recursing would remove a component that is already gone.
+
+## A tow cable attaches to an edge, and nothing else (round 216)
+
+`item::link_to`'s `vehicle_tow` branch (`item.cpp:14240-14256`) refuses a cable for three reasons, in its own order:
+
+1. **already attached** - `has_tow_attached() || is_towed() || is_towing()`;
+2. **an internal part** - `!is_external_part( mount )`;
+3. **a racked part** - the part at the mount carries items.
+
+The order is the behaviour: an attached vehicle is refused *for being attached*, not for the shape of its mount.
+
+`vehicle::is_external_part( mount )` (`vehicle.cpp:5170-5184`) walks the mount's 3×3 neighbourhood and answers **true if any of those mounts holds a part** - and the way it asks is
+`if( part_at( ... ) )`, where `part_at` answers the part's **index** or `-1`. **Index zero is falsy.** The first part of every hull is therefore invisible to this rule, and a mount
+whose only neighbour is part zero is not an edge.
+
+That quirk is **ported as written**. It is almost certainly not what the reference's author meant, and a port that quietly repaired it would disagree with the reference on the first part
+of every vehicle - which is the most common part there is. The gate pins it:
+
+| Parts near the mount | `mount_is_external` |
+|---|---|
+| only part **index 0** | **false** |
+| part index 0 **and** part index 1 | true |
+| nothing in the neighbourhood | false |
+
+Mutation-checked: repairing the quirk (dropping the `index != 0` test) makes the first row answer true.

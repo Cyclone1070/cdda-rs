@@ -755,3 +755,64 @@ fn a_cable_is_cut_from_both_ends_and_snaps_when_it_is_too_long() {
         "and both ends are cut"
     );
 }
+
+/// **A tow cable may only go on an edge, and only where there is nothing better attached.** Reference: `item::link_to`'s `vehicle_tow` branch (`item.cpp:14240-14256`) and
+/// `vehicle::is_external_part( mount )` (`vehicle.cpp:5170-5184`).
+#[test]
+fn a_tow_cable_attaches_to_an_edge_and_nothing_else() {
+    use cdda_sim::vehicle_tow::{MountedPart, TowRefusal, mount_is_external, tow_attachment};
+
+    // **The reference tests the part index for truth**, so the part at index zero never makes a mount external - see the function's own note. A hull whose only neighbour is part zero
+    // is not an edge.
+    let only_first = [MountedPart {
+        index: 0,
+        x: 1,
+        y: 0,
+    }];
+    assert!(
+        !mount_is_external(&only_first, (0, 0)),
+        "**index zero is falsy and does not count**"
+    );
+    let second = [
+        MountedPart {
+            index: 0,
+            x: 1,
+            y: 0,
+        },
+        MountedPart {
+            index: 1,
+            x: 0,
+            y: 1,
+        },
+    ];
+    assert!(
+        mount_is_external(&second, (0, 0)),
+        "a neighbour at index one counts"
+    );
+    assert!(
+        !mount_is_external(&second, (10, 10)),
+        "and a mount far from every part is not an edge"
+    );
+
+    // **The three refusals, in the reference's order**: attached beats shape, shape beats a rack.
+    assert_eq!(
+        tow_attachment(true, false, false),
+        Err(TowRefusal::AlreadyAttached),
+        "**an attached vehicle is refused for that reason**, not for its mount"
+    );
+    assert_eq!(
+        tow_attachment(false, false, false),
+        Err(TowRefusal::InternalPart),
+        "an interior mount is refused"
+    );
+    assert_eq!(
+        tow_attachment(false, true, true),
+        Err(TowRefusal::RackedPart),
+        "and a racked part is refused last"
+    );
+    assert_eq!(
+        tow_attachment(false, true, false),
+        Ok(()),
+        "**an edge with nothing racked takes the cable**"
+    );
+}
