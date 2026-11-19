@@ -39050,3 +39050,17 @@ have hidden exactly the fact this round found.
 The lesson this round earned: the first version of this gate asserted that **every** square holds a terrain its ticket can produce, failed on 95, and the failure was mostly the
 gate's own fault - the feature ticket does not choose the ground when the feature raffle yields nothing, and only the ground ticket does. Splitting the two raffles brought the
 unexplained count to 38. A wrong gate and a wrong rule look the same until they are separated.
+
+## The unexplained squares sit in the top half (round 223)
+
+The 38 empty-ticket squares from round 222 are **not scattered**. Every one of them lies in the tile's **top half** - rows zero to eleven of the twenty-four - and the twelve rows
+below hold not one. That is measured and now gated (`the_unexplained_squares_all_lie_in_the_tiles_top_half`), and it is a much sharper clue than "38 squares disagree":
+
+- a rule that were simply wrong about the empty ticket would scatter its failures across the whole tile;
+- a boundary at the **half-way line** is the shape of something that varies **within** a tile - a rotation applied to part of it, a second generation pass over half of it, or a
+  sub-region the mapgen treats differently.
+
+The clue also rules out the explanation round 222 could not: it is not the corpora being merged from two chunks, because two chunks would not produce a clean horizontal boundary
+inside one grid.
+
+**Not yet explained**, and the next round on this should follow the half-way line rather than re-reading the ticket arithmetic, which has now been checked three ways.

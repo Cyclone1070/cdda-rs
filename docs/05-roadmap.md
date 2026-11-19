@@ -127,13 +127,15 @@ ticket; palette names chain, so resolving once leaves placeholders on the map; a
 value, not a real one. Two consecutive rounds took the score **down** on purpose - 316 to 302, 305 to 291 - because the
 assumption behind the higher number was the wrong one, and the ledger says so beside each figure.
 
-What is left is a single square. The pass lays grass at the chunk's corner where the reference lays forest floor, and
-two cheap explanations are already dead: the corner's arithmetic checks out by hand (the empty ticket wins 76% there),
-and the sample is not mirrored (identity 291 against a best mirror of 307). So the next step is not another inference
-but an instrument: a per-square trace saying which ticket the reference drew, whether a layer fired, and what came out.
-**That instrument is built and the trace has been taken** (`CDDA_MAP_TRACE`, one line per square, 31 chunks). It says
-the corner draws the same ticket the port's arithmetic predicts, so the disagreement is **downstream of the ticket** -
-in what plain ground, own biome and neighbour each turn into - rather than in the raffle itself.
+**What is left is now a band, not a square.** The chunk's corner still disagrees - the port lays grass where the
+reference lays forest floor - and the traces have narrowed it three times: the corner draws the same ticket the port's
+arithmetic predicts, the port walked squares in **rows** while the reference walks **columns** (fixed, which moved the
+chunk score from 291 to 302 of 576), and the missing-draw hypothesis that `set_terrain_dependent_furniture` explained
+is **dead** - a forest biome has no terrain-dependent furniture at all, so the reference makes no draw there either.
+What remains is measured rather than guessed: of the 351 squares whose ground raffle drew the empty ticket, 38 hold
+`t_forestfloor` where the rule says they cannot, and **all 38 lie in the tile's top half** - a boundary at the half-way
+line, which is the shape of something that varies within a tile rather than a rule that is simply wrong. See
+[parity.md](parity.md), "the unexplained squares sit in the top half".
 
 The suite now also runs **on a second machine and a second platform**: `tools/remote_test.py` syncs the workspace to
 a Linux desktop and runs every gate there in about thirty seconds, so the same 1,217 cases are verified on macOS and

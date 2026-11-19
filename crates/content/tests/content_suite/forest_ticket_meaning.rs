@@ -178,3 +178,52 @@ fn a_ground_ticket_explains_most_of_the_chunk_and_the_rest_is_recorded() {
     // The neighbour tickets do hold neighbour ground: a square that drew the east neighbour's palette is woodland ground.
     let _ = biomes;
 }
+
+/// **Where the unexplained squares are**, which is the clue that matters.
+///
+/// The 38 empty-ticket squares that hold `t_forestfloor` are not scattered: **every one of them lies in the tile's top half**, rows zero to eleven, and the twelve rows below
+/// hold not one. A rule that were simply wrong about the empty ticket would produce them all over the chunk; a boundary at row eleven is the shape of something that varies
+/// **within** a tile - a rotation, a second pass over part of it, or a sub-region the generator treats differently - and that is where the next round should look.
+#[test]
+fn the_unexplained_squares_all_lie_in_the_tiles_top_half() {
+    let region = region();
+    let palettes = read_region_palettes(&region);
+    let default_palette = read_groundcover(&region, "t_region_groundcover").expect("the palette");
+    let mut default_set = std::collections::BTreeSet::new();
+    for (name, _) in &default_palette {
+        expand(name, &palettes, &mut default_set);
+    }
+    let terrain = chunk();
+    let ground = ground_tickets();
+    let mut rows = std::collections::BTreeSet::new();
+    let mut unexplained = 0_usize;
+    for (index, ticket) in &ground {
+        if *ticket != -2 {
+            continue;
+        }
+        if terrain
+            .get(*index)
+            .is_some_and(|held| !default_set.contains(held))
+        {
+            unexplained += 1;
+            rows.insert(*index / 24);
+        }
+    }
+    assert_eq!(
+        unexplained, 38,
+        "38 empty-ticket squares hold non-default ground"
+    );
+    assert_eq!(
+        rows.iter().copied().max(),
+        Some(11),
+        "**every one of them is in the top half**, rows zero to eleven: the rows are {rows:?}"
+    );
+    assert!(
+        rows.iter().all(|row| *row < 12),
+        "and none is below the half-way line: {rows:?}"
+    );
+    assert!(
+        !rows.is_empty() && rows.len() > 1,
+        "and they span more than one row, so it is a band rather than a line: {rows:?}"
+    );
+}
