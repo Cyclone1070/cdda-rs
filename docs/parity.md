@@ -38983,3 +38983,24 @@ reference makes **no draw there either**. The port's draw count in that chunk is
 one the same section already names: the chunk is generated partway through a world, and the port does not know what consumed the dice before it.
 
 Mutation-checked: letting a zero-weight entry roll makes an empty entry consume a die the reference never spends.
+
+## The furniture pass, square by square (round 220)
+
+`forest_terrain_furniture_pass` applies `set_terrain_dependent_furniture` (`mapgen_functions.cpp:1094-1116`) over a whole chunk in the reference's order: for every square, look the
+**terrain it was given** up in the chunk's **own biome**; where the biome has an entry with weight, roll `one_in( chance )` and place one of the entry's furniture on a success;
+where it has none, roll nothing.
+
+`ground` is the ground pass's choice **before** the region's palettes resolve it, because that is when the reference asks - it calls this immediately after `ter_set`, with the id
+the biome gave, and the palette pass runs later over the whole chunk.
+
+| Chunk | Ground | Draws | Placed |
+|---|---|---|---|
+| swamp | `t_water_murky` ×3 | **6** (chance + furniture per square) | a water plant on each |
+| swamp | `t_dirt`, `t_water_murky` | **2** | nothing on the dirt, a plant on the water |
+| woodland | `t_region_groundcover_forest` ×4 | **0** | nothing |
+
+The third row is the one that matters for the recorded chunk: **a forest chunk spends no dice here at all**, so this pass cannot be the reason the port's chunk draws different
+dice from the reference's. That was the last cheap explanation for the corner square, and it is now measured rather than argued.
+
+One detail the recording taught: the furniture pick is a **bits** draw, not an `int` range, because the reference's weighted lists are drawn by raw 32-bit ticket
+(`weighted_list::pick` → `rng_bits`). A square with an entry therefore spends **two** draws - the `one_in` and the ticket - and a test recording has to say so explicitly.

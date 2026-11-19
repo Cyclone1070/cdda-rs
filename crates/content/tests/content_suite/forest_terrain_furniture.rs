@@ -86,3 +86,60 @@ fn furniture_with_no_weight_rolls_no_die() {
         "and one roll in two where it does"
     );
 }
+
+/// **The furniture pass rolls a die only where the biome has an entry with weight.** Reference: `set_terrain_dependent_furniture` (`mapgen_functions.cpp:1094-1116`), called
+/// per square immediately after `ter_set` - before the region's palettes are resolved - which is why the lookup is on the **ground name the pass chose**.
+#[test]
+fn the_furniture_pass_rolls_only_where_the_biome_has_an_entry() {
+    use cdda_content::overmap_build::forest_terrain_furniture_pass;
+    use cdda_core_types::rng::{Recording, Rolls};
+
+    let biomes = load_forest_mapgens(&region());
+    let water = biomes.get("forest_water").expect("the swamp biome");
+
+    // **Every square is shallow water**, and each one rolls its own die: `one_in( 2 )` asks for `int 0 1`, and a zero is a success. The furniture pick then draws a
+    // **bits** ticket, because the reference's weighted lists are drawn by raw 32-bit value rather than by a range.
+    let mut rolls = Rolls::replaying(
+        Recording::parse("int 0 1 0\nbits 0\nint 0 1 0\nbits 0\nint 0 1 0\nbits 0\n")
+            .expect("a recording"),
+    );
+    let ground = vec!["t_water_murky".to_owned(); 3];
+    let placed = forest_terrain_furniture_pass(water, &ground, &mut rolls);
+    assert_eq!(
+        placed,
+        vec![
+            Some("f_region_water_plant".to_owned()),
+            Some("f_region_water_plant".to_owned()),
+            Some("f_region_water_plant".to_owned())
+        ],
+        "**a water plant on every square that rolled a zero**"
+    );
+    assert_eq!(
+        rolls.recording_position(),
+        6,
+        "**two draws per square with an entry**: the chance and the furniture"
+    );
+
+    // **A terrain the biome has no entry for consumes no die and places nothing** - the reference's early return.
+    let mut rolls = Rolls::replaying(Recording::parse("int 0 1 0\nbits 0\n").expect("a recording"));
+    let ground = vec!["t_dirt".to_owned(), "t_water_murky".to_owned()];
+    let placed = forest_terrain_furniture_pass(water, &ground, &mut rolls);
+    assert_eq!(placed, vec![None, Some("f_region_water_plant".to_owned())]);
+    assert_eq!(
+        rolls.recording_position(),
+        2,
+        "**the dirt square spent nothing**: two draws for the water square only"
+    );
+
+    // **A forest biome has no entries at all**, so a forest chunk spends no dice here - which is the fact that makes this pass invisible in the recorded chunk's dice.
+    let forest = biomes.get("forest").expect("the woodland biome");
+    let mut rolls = Rolls::replaying(Recording::parse("int 0 1 0\n").expect("a recording"));
+    let ground = vec!["t_region_groundcover_forest".to_owned(); 4];
+    let placed = forest_terrain_furniture_pass(forest, &ground, &mut rolls);
+    assert_eq!(placed, vec![None, None, None, None], "nothing placed");
+    assert_eq!(
+        rolls.recording_position(),
+        0,
+        "**and no die spent**, so the dice of a forest chunk are unaffected"
+    );
+}

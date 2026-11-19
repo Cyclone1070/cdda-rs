@@ -457,3 +457,35 @@ pub fn place_forest_items(
     }
     placed
 }
+
+/// **Furniture that follows the ground, rolled square by square** - `set_terrain_dependent_furniture` (`mapgen_functions.cpp:1094-1116`), applied over a whole chunk in the
+/// reference's own order: for every square, look the **terrain it was given** up in the chunk's own biome; where the biome has an entry with weight, roll
+/// `one_in( chance )` and place one of the entry's furniture on a success; where it has none, roll nothing.
+///
+/// `ground` is what the ground pass chose for each square **before** the region's palettes resolve it, because that is when the reference asks the question - it calls this
+/// immediately after `ter_set`, with the id the biome gave, and the palette pass runs later over the whole chunk. A square whose terrain the biome has no entry for
+/// therefore consumes **no die**, which is what keeps the dice of a `forest` chunk identical whether this pass runs or not.
+#[must_use]
+pub fn forest_terrain_furniture_pass(
+    biome: &crate::overmap_special::ForestMapgen,
+    ground: &[String],
+    rolls: &mut Rolls,
+) -> Vec<Option<String>> {
+    let mut furniture = Vec::with_capacity(ground.len());
+    for terrain in ground {
+        let entry = biome.terrain_furniture.get(terrain);
+        let Some((chance, list)) =
+            entry.and_then(crate::overmap_special::terrain_dependent_furniture_roll)
+        else {
+            furniture.push(None);
+            continue;
+        };
+        if !rolls.one_in(chance) {
+            furniture.push(None);
+            continue;
+        }
+        let entries = WeightedList::from_entries(list.iter().cloned());
+        furniture.push(entries.pick(rolls).cloned());
+    }
+    furniture
+}
