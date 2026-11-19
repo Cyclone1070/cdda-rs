@@ -38858,3 +38858,18 @@ Mutation-checked: letting any distance pull makes the slack row answer 1.
 **Named, not guessed**: the reference measures between the two vehicles' **tow parts** (`abs_part_pos( get_tow_part() )`), and the port has no per-part square yet, so it measures between the
 two hulls' origins - the same square for a centre-mounted cable, a named approximation for every other. The reference also cancels the tow when a tow part is missing and snaps a cable at
 twenty-five squares; snapping is left to a caller because it removes the cable item from the map.
+
+## The cable is a step in the turn (round 214)
+
+`tow_vehicles` runs in `vehicles_stage`, **after** `move_vehicles` and before the idle-fuel pass - which is where the reference puts it: `do_towing_move` sits at the end of
+`map::move_vehicle` (`map.cpp:998-1004`), so a tower that has just moved drags what is behind it **in the same turn** rather than a turn behind.
+
+The gate is a full `turn::run_turn`: a tower at (0, 10) at 100 hundredths of a mile an hour, a front-hitched hull at (0, 0) at rest, and one turn later the hull is moving forwards.
+Mutation-checked by deleting the call from the stage: the hull stays at rest and the tower is left at 100.
+
+**Two things the gate had to teach about the port's own rules**, both of which are the port working as designed rather than a bug:
+
+- a hull with **no wheels** is not merely slow, it is dragged to a stop - `wheelless_drag` (`map.cpp:903-914`) takes the whole of `clamp( velocity, -2000, 2000 )` off, so a
+  100-vmiph tower without wheels stands still before the cable is ever asked. The gate now rolls a wheeled hull;
+- a wheel is a part with the **`WHEEL` flag**, not one with `rolling_resistance` set - the two are separate in the reference's data, and only the flag is what `wheels()` reads. A
+  one-wheeled hull also has to be `STABLE` to count as a valid wheel config, and the gate says so.

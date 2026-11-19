@@ -580,3 +580,82 @@ fn a_cable_pulls_only_when_it_is_taut_and_the_tower_moves() {
         .map(|pos| (pos.x, pos.y));
     assert_eq!(after, before, "and the hull has not moved");
 }
+
+/// **The cable is a step in the turn.** Reference: `map::move_vehicle` (`map.cpp:998-1004`) runs `do_towing_move` after the vehicle it belongs to has moved, so a towed hull follows its
+/// tower **within the same turn** rather than a turn behind it.
+#[test]
+fn a_turn_pulls_the_towed_hull_behind_its_tower() {
+    use cdda_sim::vehicle_tow::{TowPoint, Towing};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![
+                cdda_content::vehicles::PartSpec {
+                    id: "hull".to_owned(),
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+                // **A wheel**, so the hull is not dragged to a stop by the wheel-less rule before the cable can act on it.
+                // **One wheel is enough only when it is `STABLE`**, which is the reference's own rule for a single-wheel vehicle.
+                cdda_content::vehicles::PartSpec {
+                    id: "wheel".to_owned(),
+                    rolling_resistance: Some(1.0),
+                    flags: ["STABLE", "WHEEL"].into_iter().map(str::to_owned).collect(),
+                    ..cdda_content::vehicles::PartSpec::default()
+                },
+            ],
+            prototypes: Vec::new(),
+        },
+    );
+    let hull = |velocity: i32| cdda_sim::vehicles::Vehicle {
+        parts: vec![
+            cdda_sim::vehicles::VehiclePart {
+                part: "hull".to_owned(),
+                ..cdda_sim::vehicles::VehiclePart::default()
+            },
+            cdda_sim::vehicles::VehiclePart {
+                part: "wheel".to_owned(),
+                ..cdda_sim::vehicles::VehiclePart::default()
+            },
+        ],
+        velocity,
+        ..cdda_sim::vehicles::Vehicle::default()
+    };
+
+    let drawn = world
+        .spawn((
+            hull(0),
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+            Towing {
+                towing: None,
+                towed_by: Some(Entity::PLACEHOLDER),
+                direction: TowPoint::Front,
+            },
+        ))
+        .id();
+    let tower = world
+        .spawn((
+            hull(100),
+            cdda_sim::Position { x: 0, y: 10, z: 0 },
+            Towing {
+                towing: Some(drawn),
+                towed_by: None,
+                direction: TowPoint::Front,
+            },
+        ))
+        .id();
+    if let Some(mut held) = world.get_mut::<Towing>(drawn) {
+        held.towed_by = Some(tower);
+    }
+
+    cdda_sim::turn::run_turn(&mut world);
+
+    let pulled = world
+        .get::<cdda_sim::vehicles::Vehicle>(drawn)
+        .map_or(0, |built| built.velocity);
+    assert!(
+        pulled > 0,
+        "**the towed hull is moving by the end of the turn**, and forwards: {pulled}"
+    );
+}

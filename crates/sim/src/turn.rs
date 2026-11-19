@@ -462,6 +462,8 @@ fn vehicles_stage(world: &mut World) {
     crate::vehicle_move::apply_controls(world);
     crate::vehicle_move::drive_vehicles(world);
     crate::vehicle_move::move_vehicles(world);
+    // **Then the cable**: a tower that has just moved drags what is behind it, which is `do_towing_move` sitting at the end of the reference's own `map::move_vehicle`.
+    crate::vehicle_tow::tow_vehicles(world);
     crate::vehicle_drive::idle_vehicles(world);
 }
 
