@@ -402,3 +402,88 @@ fn a_side_hitched_hull_skids_toward_its_tower() {
         "and a line with no second cell falls back to the target's own square"
     );
 }
+
+/// **The side-hitch drag lands on the map.** Reference: `do_towing_move`'s `default` branch (`vehicle.cpp:7141-7152`): the hull is set skidding and then moved through
+/// `map::move_vehicle`, so the derived index follows it - a vehicle that moved without the index moving would be two answers about where it is.
+#[test]
+fn a_side_hitched_hull_moves_on_the_map_and_the_index_follows() {
+    use cdda_sim::vehicle_tow::drag_side_hitched;
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "hull".to_owned(),
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    let hull = || {
+        (cdda_sim::vehicles::Vehicle {
+            parts: vec![cdda_sim::vehicles::VehiclePart {
+                part: "hull".to_owned(),
+                ..cdda_sim::vehicles::VehiclePart::default()
+            }],
+            ..cdda_sim::vehicles::Vehicle::default()
+        },)
+    };
+    let drawn = world
+        .spawn((hull(), cdda_sim::Position { x: 0, y: 0, z: 0 }))
+        .id();
+    let puller = world
+        .spawn((hull(), cdda_sim::Position { x: 0, y: 10, z: 0 }))
+        .id();
+    // **The index is derived**, so it is built from the store before anything moves - the way the turn's own rebuild does.
+    cdda_sim::PositionIndex::rebuild(&mut world);
+
+    assert!(
+        drag_side_hitched(&mut world, (0, 10), drawn),
+        "**the hull is dragged one square north**"
+    );
+    let at = world
+        .get::<cdda_sim::Position>(drawn)
+        .map(|pos| (pos.x, pos.y));
+    assert_eq!(at, Some((0, 1)), "one square north, toward the tower");
+    assert!(
+        world
+            .get::<cdda_sim::vehicles::Vehicle>(drawn)
+            .is_some_and(|built| built.skidding),
+        "and it is skidding while it is dragged"
+    );
+
+    // **The index moved with it**: the old square no longer holds the hull and the new one does.
+    let Some(index) = cdda_sim::index(&world) else {
+        return;
+    };
+    assert!(!index.at(0, 0).contains(&drawn), "the old square is clear");
+    assert!(
+        index.at(0, 1).contains(&drawn),
+        "**and the new square holds it**"
+    );
+    assert_eq!(
+        index.at(0, 10).to_vec(),
+        vec![puller],
+        "the tower has not moved"
+    );
+
+    // **A hull dragged from the east steps east and not diagonally**: with the tower at (5, 1) the line's second cell is (2, 1), so the clamped delta is `(3, 0)` - one square
+    // **east**. Reversing the two points would answer `(1, 1)` instead, which is why this case is here.
+    let behind = world
+        .spawn((hull(), cdda_sim::Position { x: 0, y: 20, z: 0 }))
+        .id();
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    assert!(
+        drag_side_hitched(&mut world, (5, 21), behind),
+        "the hull east of nothing is dragged"
+    );
+    let moved = world
+        .get::<cdda_sim::Position>(behind)
+        .map(|pos| (pos.x, pos.y));
+    assert_eq!(
+        moved,
+        Some((1, 20)),
+        "**one square east, not one east and one north**"
+    );
+}

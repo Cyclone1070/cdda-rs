@@ -319,3 +319,22 @@ pub fn nearby_destination(from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
     );
     line.get(1).map_or(to, |step| (step.x, step.y))
 }
+
+/// **Drags a side-hitched hull one square toward its tower on the map**, which is `do_towing_move`'s `default` branch applied (`vehicle.cpp:7141-7152`): the hull is marked
+/// **skidding** and moved by [`side_hitch_step`] through the port's own vehicle displacement, so its old squares leave the index and its new ones enter it.
+///
+/// Returns whether the hull moved; a hull already on the tower's square is left alone rather than moved by nothing.
+pub fn drag_side_hitched(world: &mut World, tower: (i32, i32), hull: Entity) -> bool {
+    let Some(at) = world.get::<crate::Position>(hull).map(|pos| (pos.x, pos.y)) else {
+        return false;
+    };
+    let step = side_hitch_step(tower, nearby_destination(at, tower));
+    if step == (0, 0) {
+        return false;
+    }
+    // **The skid is set before the move**, as the reference sets it before `move_vehicle`: the move reads the flag to decide that the facing follows `turn_dir`.
+    if let Some(mut held) = world.get_mut::<crate::vehicles::Vehicle>(hull) {
+        held.skidding = true;
+    }
+    crate::vehicles::move_vehicle(world, hull, step)
+}

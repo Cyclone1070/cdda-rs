@@ -38811,3 +38811,24 @@ Mutation-checked: taking the line's first cell instead of its second moves the h
 
 **Not ported**: the move itself - `move_vehicle( towed, move_destination, towed_veh->face )` and the `tileray` the reference then installs as the hull's direction. The port has the step
 and the square it is taken from; applying it to the map is `map::move_vehicle`, which the port's own vehicle movement will reach when the towing turn is scheduled.
+
+## The side-hitch drag lands on the map (round 212)
+
+`drag_side_hitched` applies `do_towing_move`'s `default` branch (`vehicle.cpp:7141-7152`) through the port's own displacement: the hull is set **skidding** (before the move, as the
+reference does, because the move reads the flag to decide that the facing follows `turn_dir`), then moved by [`side_hitch_step`] through `vehicles::move_vehicle`, so its old squares leave
+the derived index and its new ones enter it.
+
+| Towed at | Tower at | Result |
+|---|---|---|
+| (0, 0) | (0, 10) | (0, 1) - one square toward the tower |
+| (0, 20) | (5, 21) | **(1, 20)** - one square east, **not** one east and one north |
+
+The second row is why it is in the test. The first row's clamp collapses almost any input to `(0, 1)`, so a first mutation - a deliberately wrong `nearby` square - **survived**. What the
+diagonal-ish case pins is the **direction of the line**: the reference walks from the towed hull *to* the tower, and running it the other way answers `(1, 1)` where the reference answers
+`(1, 0)`. That mutation fails.
+
+The test also reads the index through its public interface, the way the architecture gate does, and asserts the old square is clear and the new one holds the hull - a vehicle that moved
+without the index moving would be two answers about where it is.
+
+**Not ported**: `towed_veh->move = tileray( destination_delta.xy() )`, which points the hull's *movement* along the raw delta rather than along the step, and the map-level effects of the
+skid. The port sets the flag and the facing behaviour the flag drives is already in `move_step`; the `move` heading from a tow is not.
