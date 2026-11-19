@@ -542,9 +542,10 @@ fn move_creature(
     let Some(actor) = actor else {
         return Applied::CannotAnswer;
     };
-    let holder = crate::dialogue_values::holder_for(world, actor, scope == "global_val");
+    // **The target is read through the scope it names.** The reference's `read_var_value( target_var, d )` answers from the **dialogue's context** for a `context_val` and from
+    // the named holder otherwise (`dialogue_helpers.cpp:11-16`), so a program handed a position by its caller - `EOC_TELEPAD` gets `trap_location` that way - can move there.
     let Some(crate::dialogue_values::Value::Position { x, y, z }) =
-        crate::dialogue_values::value_of(world, holder, name)
+        target_of(world, actor, listener, scope, name)
     else {
         // Reference: `f_teleport` shows `fail_message` when the target variable holds no square, and the move does not happen.
         show(world, speaker, listener, fail_message.as_ref());
@@ -563,6 +564,47 @@ fn move_creature(
     // Reference: and `fail_message` when `teleport_to_point` answers `false`, which includes the same-square case.
     show(world, speaker, listener, fail_message.as_ref());
     Applied::CannotAnswer
+}
+
+/// **The square a variable names**, by the scope it is spelled in.
+///
+/// Reference: `f_teleport`'s `read_var_value( target_var, d ).tripoint()` (`npctalk.cpp:7836-7840`). `context_val` is not a holder's variable at all - it is the **invocation's
+/// context** (`dialogue.h`), which the port keeps as text, so a point arrives as `x,y,z` and is read back here. Every other scope reads the holder the port has always read.
+#[must_use]
+pub fn target_of(
+    world: &World,
+    actor: Entity,
+    listener: Option<Entity>,
+    scope: &str,
+    name: &str,
+) -> Option<crate::dialogue_values::Value> {
+    if scope == "context_val" {
+        if let Some(held) = crate::dialogue_context::values(world, actor).get(name)
+            && let Some(point) = point_of_text(held)
+        {
+            return Some(point);
+        }
+        return crate::dialogue_values::value_of(world, actor, name);
+    }
+    // The global store is an entity of its own; every other scope is the creature it names.
+    if scope == "global_val" {
+        let holder = crate::dialogue_values::global_holder(world)?;
+        return crate::dialogue_values::value_of(world, holder, name);
+    }
+    crate::dialogue_values::value_of(world, listener.unwrap_or(actor), name)
+}
+
+/// Reads a square written as `x,y,z`, which is how a context value carries a position between one program and the next.
+#[must_use]
+fn point_of_text(text: &str) -> Option<crate::dialogue_values::Value> {
+    let mut parts = text.split(',');
+    let x = parts.next()?.trim().parse::<i32>().ok()?;
+    let y = parts.next()?.trim().parse::<i32>().ok()?;
+    let z = parts.next()?.trim().parse::<i32>().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(crate::dialogue_values::Value::Position { x, y, z })
 }
 
 /// Shows a line the data gave beside an effect, when it gave one.

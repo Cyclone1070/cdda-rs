@@ -39194,8 +39194,11 @@ and the crushed cargo underneath is a further rule. The port spends the velocity
 
 ## `force_safe`, the flag that was refused (round 230)
 
-`f_teleport` reads two flags beside its target (`npctalk.cpp:7820-7835`). The port carried `force` and **refused any entry that stated `force_safe`**, which is why seven
-programs in the data could not run at all - the roadmap's own short list of remaining rules.
+`f_teleport` reads two flags beside its target (`npctalk.cpp:7820-7835`). The port carried `force` and **refused any entry that stated `force_safe`**.
+
+**Correction, measured a round later: `force_safe` appears zero times in the reference's data** (`grep -c force_safe references/Cataclysm-DDA/data/json` is 0, against 89 uses of
+`u_teleport`). So the refusal was a guard against a shape this data set does not carry, not the reason any program failed - the first version of this section said otherwise and was
+wrong. The rule is still worth having (a file from another data set may state the flag, and refusing a flag the port does not model is right), but it closed no data gap.
 
 `teleport_to_point` (`teleport.cpp:172-270`) gives the two flags this shape, and it is worth stating plainly because they are not the same flag:
 
@@ -39220,3 +39223,18 @@ top of the other creature").
 
 **Named gap.** The **telefrag** - an unforced jump landing on a creature - is still unported, and so is the reference's "inside the world" relocation and the death a solid landing
 causes without `safe`. Those are named in the module and unchanged by this round.
+
+## A teleport reads its target from the context (round 231)
+
+Five entries in the data aim a teleport at a square the **caller** hands over - `{ "u_teleport": { "context_val": "trap_location" } }` (`traps.json:532`), and the four `quad_pos`
+of the yrax attacks. A `context_val` is not a holder's variable at all: it is the invocation's context (`dialogue.h`), which the port keeps as text on the speaker
+(`dialogue_context`), so the square arrives as `x,y,z` and has to be read back.
+
+`f_teleport` reads it with `read_var_value( target_var, d ).tripoint()` (`npctalk.cpp:7836-7840`), and the port now reads it through one **scope-aware** lookup, `target_of`: the
+context first for `context_val` (parsed as a point), the global store for `global_val`, and the creature the scope names otherwise. Before this round every scope that was not
+`global_val` was read as the speaker's own variables, which is why a context-aimed teleport always found nothing and showed its fail message.
+
+Mutation-checked by never reading the context, which the gate catches with `CannotAnswer`.
+
+**Named gap.** `location_variable_adjust` - the entry that moves `trap_location` before `EOC_TELEPAD` teleports to it - is a different effect, and the telepad reads its context
+without it. The five entries now read; running them end to end still needs the trap that fills the context.

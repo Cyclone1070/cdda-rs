@@ -2535,3 +2535,59 @@ fn a_locked_creature_is_not_moved_by_a_teleport_effect() {
         .map(|at| (at.x, at.y, at.z));
     assert_eq!(at, Some((0, 0, 0)), "the locked creature did not move");
 }
+
+/// **A teleport can be aimed at a square the caller handed it**, which is the shape five entries in the data take: `{ "u_teleport": { "context_val": "trap_location" } }`
+/// (`traps.json:532`) names a square from the **invocation's context** rather than from the speaker's own variables. The context is text, so the square arrives as `x,y,z` and has
+/// to be read back - `read_var_value( target_var, d ).tripoint()` in the reference (`npctalk.cpp:7836-7840`).
+#[test]
+fn a_teleport_reads_its_target_from_the_context() {
+    let mut world = World::new();
+    let mut table = cdda_sim::terrain_table::TerrainTable::default();
+    table.insert(1, true);
+    table.insert_move_cost(1, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain: table,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
+    let mut level = cdda_core_types::level::Level::new();
+    for y in -10..=10 {
+        for x in -10..=10 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "teleporter", (0, 0, 0));
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    cdda_sim::dialogue_context::put(
+        &mut world,
+        speaker,
+        [("trap_location".to_owned(), "4,5,0".to_owned())]
+            .into_iter()
+            .collect(),
+    );
+
+    let effect = cdda_content::dialogue::Effect::Teleport {
+        scope: "context_val".to_owned(),
+        name: "trap_location".to_owned(),
+        listener: false,
+        fail_message: None,
+        success_message: None,
+        force: false,
+        force_safe: false,
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, speaker, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the square the context names is where it goes**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(speaker)
+            .map(|at| (at.x, at.y, at.z)),
+        Some((4, 5, 0)),
+        "and it is there"
+    );
+}
