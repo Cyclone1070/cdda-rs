@@ -39026,3 +39026,27 @@ the score moved the way the argument said it should.
 
 `forest_visit_order(side)` is that order, named and gated: two squares a side visit `(0,0)`, `(0,1)`, `(1,0)`, `(1,1)`, and a full chunk goes `(0,0)` → `(0,23)` → `(1,0)` →
 `(23,23)`. Mutation-checked by putting the rows back, which the gate catches at the second square.
+
+## What a ground ticket turns into, measured (round 222)
+
+The reference records two raffles per square: the **feature** raffle's ticket (`reference-chunk-forest-tickets.txt`, 576 lines) and, where the feature raffle yielded no
+terrain, the **ground** raffle's (`reference-chunk-forest-ground.txt`, 560 lines). The two **complement exactly** - the sixteen squares without a ground line are the ones whose
+feature raffle produced a terrain - which is the data-integrity half of the gate and the reason the comparison means anything.
+
+The mapping half is where the port's reading and the reference's world disagree, and here is the number rather than a wish:
+
+| Ground ticket | Squares | Of those, in the ticket's own palette |
+|---|---|---|
+| `-2` (plain regional ground) | 351 | **313** in grass / dead grass / dirt |
+| everything else | 209 | - |
+
+**38 empty-ticket squares hold `t_forestfloor` and the rule says they cannot**: `get_feathered_groundcover`'s `empty` case returns `dat.region.default_groundcover`, which is
+`t_region_groundcover` and resolves to grass, dead grass and dirt. The port's own transposition check rules out an upside-down chunk (identity 313 against transposed 314), so the
+disagreement is real and unexplained.
+
+It is recorded as the open question it is. The gate pins **313** and **351** as measured, with the residual named in the test's own doc comment - a threshold chosen to pass would
+have hidden exactly the fact this round found.
+
+The lesson this round earned: the first version of this gate asserted that **every** square holds a terrain its ticket can produce, failed on 95, and the failure was mostly the
+gate's own fault - the feature ticket does not choose the ground when the feature raffle yields nothing, and only the ground ticket does. Splitting the two raffles brought the
+unexplained count to 38. A wrong gate and a wrong rule look the same until they are separated.
