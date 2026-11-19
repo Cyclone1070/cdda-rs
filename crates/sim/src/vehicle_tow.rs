@@ -142,3 +142,56 @@ fn tow_side_of(world: &World, vehicle: Entity) -> TowPoint {
         .map_or(min_x, |(_, part)| part.x);
     tow_direction(tow_mount, min_x, max_x)
 }
+
+/// **The distance at which a slack cable starts pulling** - `vehicle::no_towing_slack` (`vehicle.cpp:7354-7385`), whose answer is `rl_dist( tower_tow_point, towed_tow_point ) >= 8`.
+pub const TOW_SLACK: i32 = 8;
+
+/// **The distance at which the cable snaps** - `vehicle::tow_cable_too_far` (`vehicle.cpp:7323-7352`), `>= 25`.
+pub const TOW_SNAP: i32 = 25;
+
+/// **The distance at which a towed vehicle is nudged forward on a slack-ish cable** - `do_towing_move` (`vehicle.cpp:7119-7121`): under six squares the towed hull is pushed rather
+/// than pulled, so a reversing tower does not drive into it.
+pub const TOW_PUSH: i32 = 6;
+
+/// **The distance at which a towed vehicle is dragged along** - `do_towing_move` (`vehicle.cpp:7122-7124`): at seven or more squares a towed vehicle that is no faster than its tower is
+/// pulled.
+pub const TOW_STRAIN: i32 = 7;
+
+/// **The distance at which the towed vehicle is snapped up to the cable's speed** - `do_towing_move` (`vehicle.cpp:7125-7129`): at twelve or more squares its velocity is set to the
+/// tower's times 1.8, negated if the cable leaves its back.
+pub const TOW_STRETCH: i32 = 12;
+
+/// **Whether a cable is pulling at all**: `no_towing_slack` - `distance >= 8`.
+#[must_use]
+pub fn no_towing_slack(distance: i32) -> bool {
+    distance >= TOW_SLACK
+}
+
+/// **Whether a cable has been pulled too far and will snap**: `tow_cable_too_far` - `distance >= 25`.
+#[must_use]
+pub fn tow_cable_too_far(distance: i32) -> bool {
+    distance >= TOW_SNAP
+}
+
+/// **Whether the towed hull is being pushed rather than pulled**: `do_towing_move` sets `accel_y` at **under six** squares, which is what keeps a reversing tower off the vehicle behind
+/// it. The reference's own comparison is `rl_dist( ... ) < 6`, not `<=`.
+#[must_use]
+pub fn towing_pushes(distance: i32) -> bool {
+    distance < TOW_PUSH
+}
+
+/// **Whether the towed hull is being dragged**: at **seven or more** squares a towed vehicle no faster than its tower is pulled along (`>= 7`).
+#[must_use]
+pub fn towing_strains(distance: i32) -> bool {
+    distance >= TOW_STRAIN
+}
+
+/// **The velocity a towed vehicle is snapped to when the cable is fully stretched** - `do_towing_move` (`vehicle.cpp:7125-7129`): the tower's velocity **times 1.8**, negated when the
+/// cable leaves the towed vehicle's back. The reference multiplies an `int` by a `double` and stores it back into an `int`, so the product truncates toward zero.
+#[must_use]
+pub fn towed_velocity_at_stretch(tower_velocity: i32, reverse: bool) -> i32 {
+    let product = f64::from(tower_velocity) * 1.8;
+    #[allow(clippy::cast_possible_truncation)]
+    let stretched = product as i32;
+    if reverse { -stretched } else { stretched }
+}

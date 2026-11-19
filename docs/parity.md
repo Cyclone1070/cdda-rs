@@ -38669,3 +38669,26 @@ trailer is therefore slowed by its own large figure plus the trailer's smaller o
 Mutation-checked: ignoring the towed vehicle's slowdown answers the tower's figure alone where the sum is expected.
 
 The port's `slowdown_with_skid` and the new `slowdown_with_tow` now share `drag_slowdown` and `parked_penalty`, so the two rules cannot drift apart in the parts they have in common.
+
+## The distances a towing cable goes through (round 206)
+
+Five thresholds decide what a cable is doing, and the port now names all of them:
+
+| Distance | Rule | Reference |
+|---|---|---|
+| `< 6` | the towed hull is **pushed**, not pulled | `do_towing_move`, `vehicle.cpp:7119-7121` |
+| `>= 7` | a towed hull no faster than its tower is **dragged** | `:7122-7124` |
+| `>= 8` | the cable is **taut** - `no_towing_slack` | `:7354-7385` |
+| `>= 12` | the towed hull is **snapped to the tower's velocity × 1.8** | `:7125-7129` |
+| `>= 25` | the cable **snaps** - `tow_cable_too_far` | `:7323-7352` |
+
+Each is `>=` or `<` exactly where the reference has it: six is neither push nor drag, seven drags, eight pulls, twenty-four holds and twenty-five snaps.
+
+The velocity at full stretch is `tower_velocity * 1.8`, negated when the cable leaves the towed vehicle's back, and the reference stores an `int` from an `int × double`, so the product
+**truncates toward zero**: three becomes five, and one becomes **one**, not two.
+
+Mutation-checked twice: the first mutation (rounding instead of truncating) **survived**, because 3 × 1.8 = 5.4 rounds and truncates to the same five. The witness that separates them is
+1 × 1.8 = 1.8, which truncates to one and rounds to two - added to the test, and the mutation then failed as it should. A mutation that survives is a missing input, not a bad rule.
+
+**Still not ported** from `do_towing_move`: the geometry (`get_angle_from_targ`, `get_turn_from_angle`), the acceleration sign that depends on which side the cable leaves, and the actual
+movement of the towed hull. The distances and the velocity are what the rest of that function reads.

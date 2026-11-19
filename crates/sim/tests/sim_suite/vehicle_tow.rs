@@ -7,7 +7,10 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use bevy_ecs::prelude::*;
-use cdda_sim::vehicle_tow::{TowPoint, Towing, clear_towing, set_towing, tow_direction};
+use cdda_sim::vehicle_tow::{
+    TowPoint, Towing, clear_towing, no_towing_slack, set_towing, tow_cable_too_far, tow_direction,
+    towed_velocity_at_stretch, towing_pushes, towing_strains,
+};
 
 /// **A five-mount vehicle is trisected**, and the tow part's normalised position decides the end. Reference: `set_tow_directions` - with `length = 5`, `trisect = 1`, so a mount in the
 /// first third is `TOW_BACK`, the second `TOW_SIDE`, and the last `TOW_FRONT`.
@@ -134,5 +137,61 @@ fn two_vehicles_link_by_id() {
         world.get::<Towing>(drawn).map(|state| state.towed_by),
         Some(None),
         "and the towed one is no longer pulled"
+    );
+}
+
+/// **The distances a towing cable goes through.** Reference: `vehicle::no_towing_slack` (`vehicle.cpp:7354-7385`, `>= 8`), `vehicle::tow_cable_too_far` (`:7323-7352`, `>= 25`), and
+/// `vehicle::do_towing_move`'s three thresholds (`:7119-7129`) - push under six, strain at seven, snap the towed hull up to the cable's speed at twelve.
+#[test]
+fn a_cable_goes_slack_taut_stretched_and_snapped() {
+    // **Eight is where pulling starts**, and seven is still slack.
+    assert!(!no_towing_slack(7), "seven squares is slack");
+    assert!(no_towing_slack(8), "**eight pulls**");
+    assert!(!towing_pushes(8), "and nothing is being pushed at eight");
+    assert!(towing_pushes(5), "**under six the towed hull is pushed**");
+    assert!(
+        !towing_pushes(6),
+        "six itself is neither push nor pull: `< 6`, not `<= 6`"
+    );
+
+    // **Seven is where the towed hull is dragged**, twelve where it is snapped up to speed.
+    assert!(!towing_strains(6), "six does not drag");
+    assert!(towing_strains(7), "**seven drags**");
+
+    // **Twenty-five snaps the cable.** Twenty-four is a stretched but whole cable.
+    assert!(!tow_cable_too_far(24), "twenty-four holds");
+    assert!(tow_cable_too_far(25), "**twenty-five snaps it**");
+
+    // **The snap-to-speed is the tower's velocity times 1.8**, negated when the cable leaves the towed vehicle's back, and the product truncates toward zero as the reference's
+    // `int = int * double` does.
+    assert_eq!(
+        towed_velocity_at_stretch(100, false),
+        180,
+        "a hundred becomes a hundred and eighty"
+    );
+    assert_eq!(
+        towed_velocity_at_stretch(100, true),
+        -180,
+        "and backwards turns it around"
+    );
+    assert_eq!(
+        towed_velocity_at_stretch(50, false),
+        90,
+        "fifty becomes ninety"
+    );
+    assert_eq!(
+        towed_velocity_at_stretch(3, false),
+        5,
+        "**three becomes five**, because 5.4 truncates - it does not round"
+    );
+    assert_eq!(
+        towed_velocity_at_stretch(1, false),
+        1,
+        "**one becomes one**, because 1.8 truncates to 1 - which is what separates truncation from rounding"
+    );
+    assert_eq!(
+        towed_velocity_at_stretch(0, false),
+        0,
+        "a still tower pulls nothing"
     );
 }
