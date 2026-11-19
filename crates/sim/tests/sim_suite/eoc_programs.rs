@@ -1648,10 +1648,15 @@ fn build_a_world(
         .map(|(_, mapgen)| mapgen.om_terrain.as_str())
         .collect();
     named.sort_unstable();
+    // **And spread across the whole search radius**, not down a narrow column: a tile more than 540 overmap tiles away is outside the reach of the data's own searches
+    // (`search_range` defaults to `OMAPX * 3`), so a narrow grid put two thirds of the ids where nothing could ever find them. The square below is 1,081 wide and centred on
+    // the survivor's tile, which is the widest set of tiles a search can reach.
+    const REACH: i32 = 540;
+    let width = usize::try_from(REACH * 2 + 1).unwrap_or(1_081);
     for (at, terrain) in named.iter().enumerate() {
         let tile = (
-            i32::try_from(at % 5).unwrap_or(0) + 1,
-            i32::try_from(at / 5).unwrap_or(0) + 1,
+            i32::try_from(at % width).unwrap_or(0) - REACH,
+            i32::try_from(at / width).unwrap_or(0) - REACH,
         );
         cdda_sim::overmap::set_terrain(world, tile, terrain);
     }

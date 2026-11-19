@@ -39411,3 +39411,14 @@ Re-measured with both fixes: **492**.
 
 That is the second time this round that the instrument, not the port, produced the number - and the third time in the trap chain. A census is a measurement, and a measurement is
 only worth what its instrument is worth.
+
+**And the tiles had to be inside the search's reach.** The census laid its overmap tiles down a five-wide column, so with 10,076 ids the map ran 2,015 tiles tall - and a tile more than
+540 overmap tiles away is outside the reach of the data's own searches, because `search_range` defaults to `OMAPX * 3` (`mission_util.cpp:429`). Two thirds of the ids sat where no
+search of theirs could ever find them. The tiles are now spread across the widest square a search can reach (1,081 × 1,081, centred on the survivor), sorted, so the world is both
+reachable and the same everywhere.
+
+Re-measured: **492 → 501**, and `mapgen_update`'s refusals fell 23 → 14.
+
+**What the ranking says now, and it is mostly the census talking.** Of the remaining buckets, the two largest are chain links: `run_eocs(EOC_LIXA_UNFOLD_SHIFT)` 32 and `godco_place_*`
+(a `mapgen_update` whose `target_var` is a `context_val` the **caller** fills, so run alone it has no square). The census runs one program at a time and cannot see a conversation
+between two, which is why these are labelled by the effect that happened to be reached rather than by the missing input.

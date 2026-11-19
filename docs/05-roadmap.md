@@ -416,10 +416,10 @@ a rule genuinely not written | `u_teleport` 7, six legacy talk functions 6 | rea
 |---|---|
 programs defined / readable | **692 / 692** |
 run in a fresh world | **479** |
-run in a built world | **492** |
+run in a built world | **501** |
 refused at run time in a built world | **206** |
 
-and the refusals ranked by the effect that refused, in order: `run_eocs(EOC_LIXA_UNFOLD_SHIFT)` **32** (a chain link), `mapgen_update` **26** (needs an overmap),
+and the refusals ranked by the effect that refused, in order: `run_eocs(EOC_LIXA_UNFOLD_SHIFT)` **32** (a chain link), `mapgen_update` **14** (needs an overmap),
 `u_location_variable` **28** (17 of them naming an `om_terrain`, both halves needing the overmap search), `u_teleport` **8**, `run_eoc_selector` **9** (P10), unnamed entries **6**,
 `u_message` **5**. **`next_weather` is answered (round 239)** and carried four of the six legacy talk-function refusals with it; `u_prevent_death` and `follow`/`take_control` remain.
 

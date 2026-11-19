@@ -85,7 +85,10 @@ pub const NOW: Census = Census {
     // **492 after round 240** read every shape of `om_terrain` (1,595 of the data's 2,725 mapgens write it as a list, and the loader filed only the string form) **and**
     // made the census world deterministic: the overmap tiles were laid in directory order, so ids beyond the grid's height shared a square and the last one written won - the
     // same commit reported 489 on one box and 490 on CI. Sorted, the world is the same everywhere, and three of the tiles that were being overwritten now answer.
-    ran_in_a_built_world: 492,
+    // **501 after round 240's last fix**: the census overmap laid its tiles down a five-wide column, and a tile more than 540 overmap tiles away is outside the reach of the
+    // data's own searches (`search_range` defaults to `OMAPX * 3`), so two thirds of the ids sat where nothing could find them. Spread across the widest reachable square,
+    // nine more programs run and `mapgen_update`'s refusals fall 23 to 14.
+    ran_in_a_built_world: 501,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
