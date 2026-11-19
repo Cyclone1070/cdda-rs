@@ -265,3 +265,89 @@ fn a_tower_pulls_by_distance_and_direction() {
         "and in reverse, backwards and pushed"
     );
 }
+
+/// **A towed vehicle drives itself only because it is towed**, and its turn and acceleration are the cable's. Reference: `vehicle::selfdrive` (`vehicle_move.cpp:1322-1355`) - the opening
+/// guard admits a towed, magic, harnessed or autopilot vehicle and nothing else, the turn is `turn × steer_increment`, and the accelerator is pressed by **minus** the acceleration.
+#[test]
+fn a_towed_vehicle_drives_itself_but_an_untowed_one_does_not() {
+    use cdda_sim::vehicle_tow::{SelfDrive, selfdrive};
+
+    assert!(
+        SelfDrive {
+            towed: true,
+            ..SelfDrive::default()
+        }
+        .allowed(),
+        "**a towed vehicle may be driven**"
+    );
+    assert!(
+        !SelfDrive::default().allowed(),
+        "and an untowed one with no magic, animal or autopilot may not"
+    );
+    assert!(
+        SelfDrive {
+            autopilot: true,
+            ..SelfDrive::default()
+        }
+        .allowed(),
+        "an autopilot part is enough on its own"
+    );
+
+    // **A vehicle with no link refuses to drive itself**, which is the guard's `return`.
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "hull".to_owned(),
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    let vehicle = world
+        .spawn((
+            cdda_sim::vehicles::Vehicle {
+                parts: vec![cdda_sim::vehicles::VehiclePart {
+                    part: "hull".to_owned(),
+                    ..cdda_sim::vehicles::VehiclePart::default()
+                }],
+                ..cdda_sim::vehicles::Vehicle::default()
+            },
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+    assert!(
+        !selfdrive(&mut world, vehicle, 2, 1),
+        "**an untowed hull does not steer itself**"
+    );
+
+    // **With a tower behind it, the same call turns its wheels** by two increments of fifteen degrees.
+    let tower = world
+        .spawn((
+            cdda_sim::vehicles::Vehicle {
+                parts: vec![cdda_sim::vehicles::VehiclePart {
+                    part: "hull".to_owned(),
+                    ..cdda_sim::vehicles::VehiclePart::default()
+                }],
+                ..cdda_sim::vehicles::Vehicle::default()
+            },
+            cdda_sim::Position { x: 0, y: 5, z: 0 },
+        ))
+        .id();
+    assert!(
+        cdda_sim::vehicle_tow::set_towing(&mut world, tower, vehicle),
+        "the two are linked"
+    );
+    let before = cdda_sim::vehicle_move::wheel_direction(&world, vehicle);
+    assert!(
+        selfdrive(&mut world, vehicle, 2, 0),
+        "**a towed hull steers itself**"
+    );
+    let after = cdda_sim::vehicle_move::wheel_direction(&world, vehicle);
+    assert_eq!(
+        (before + 30).rem_euclid(360),
+        after,
+        "**two increments is thirty degrees**"
+    );
+}

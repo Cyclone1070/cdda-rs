@@ -38770,3 +38770,23 @@ Mutation-checked: truncating instead of rounding keeps 7.5 at zero.
 
 **What this buys**: a towed hull's turn - the `trn * steer_increment` that `selfdrive` applies - is now a pure function of the turn count, and the collision heading autodrive would check is
 the same arithmetic the reference's path check uses.
+
+## A towed vehicle drives itself, and an untowed one does not (round 210)
+
+`vehicle::selfdrive` (`vehicle_move.cpp:1322-1355`) opens with a guard: an untowed vehicle with no magic, no harnessed animal and no `AUTOPILOT` part may not steer or accelerate
+itself. Then a non-zero turn turns the wheels by `turn × steer_increment`, and a non-zero acceleration presses the accelerator by **minus** the acceleration - the reference's
+`accel_y` is the opposite of the direction it hands to `thrust`.
+
+`SelfDrive { towed, magic, harnessed, autopilot }` makes the guard's four admissions explicit inputs rather than invented ones: the port only ever sets `towed` today, and a caller
+must claim the others. `selfdrive(world, vehicle, turn, acceleration)` is the towed half, wired to the port's real `vehicle_move::turn` and `vehicle_move::thrust`.
+
+| Call | Result |
+|---|---|
+| a hull with **no link**, turn 2 | refuses, wheels unchanged |
+| the same hull **towed**, turn 2 | wheels turn **thirty degrees** (two increments of fifteen) |
+
+Mutation-checked: inverting the towed flag makes a linked hull refuse and an unlinked one steer.
+
+**Named, not guessed**: the reference also refuses to steer when `steering_effectiveness` is zero, rounds a side-hitched hull's move through `line_to`/`move_vehicle` (that is
+`do_towing_move`'s skid branch, not this one), and shakes a skidding hull loose with `handling_difficulty × rng( 1, 10 ) < 15`. The port has no steering-effectiveness model, no skid
+release, no magic and no harnessed animals, so those branches are absent rather than approximated - and the autopilot part is an input, not a part flag it reads.

@@ -237,3 +237,61 @@ pub fn towing_pull(
     };
     TowingPull { accel_y, velocity }
 }
+
+/// **What lets a vehicle steer and accelerate itself** - `vehicle::selfdrive`'s opening guard (`vehicle_move.cpp:1322-1329`): an untowed vehicle with no magic, no harnessed animal and no
+/// autopilot may not.
+///
+/// The port has only the towing term today; the other three are named inputs rather than invented ones, so a caller must say which it claims.
+// **Four independent facts about one vehicle**, which a bit set would hide: the reference asks `is_towed()`, `magic`, `get_harnessed_animal()` and `has_part()` separately, and a caller
+// that has to name them is a caller that has thought about which it means.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SelfDrive {
+    /// The vehicle is being towed - `is_towed()`.
+    pub towed: bool,
+    /// It drives by magic - `vehicle::magic`.
+    pub magic: bool,
+    /// An animal is harnessed to it - `get_harnessed_animal( here )`.
+    pub harnessed: bool,
+    /// It carries an `AUTOPILOT` part - `has_part( "AUTOPILOT" )`.
+    pub autopilot: bool,
+}
+
+impl SelfDrive {
+    /// Whether anything at all may drive this vehicle itself.
+    #[must_use]
+    pub fn allowed(&self) -> bool {
+        self.towed || self.magic || self.harnessed || self.autopilot
+    }
+}
+
+/// **Drives a vehicle that is being towed** - the towed half of `vehicle::selfdrive` (`vehicle_move.cpp:1322-1355`): a non-zero turn turns the wheels by
+/// `turn × steer_increment`, and a non-zero acceleration presses the accelerator by `-acceleration`, because the reference's `accel_y` is **minus** the direction it passes to `thrust`.
+///
+/// **Named, not guessed:** the reference's `selfdrive` also refuses to steer when `steering_effectiveness` is zero, rounds a side-hitched hull's move through `line_to` and
+/// `move_vehicle` (the skid branch in `do_towing_move`, not here), and shakes a skidding hull loose with `handling_difficulty × rng( 1, 10 ) < 15`. The port has no steering-effectiveness
+/// model, no skid release and no magic or animal drive, so those branches are absent rather than approximated.
+pub fn selfdrive(world: &mut World, vehicle: Entity, turn: i32, acceleration: i32) -> bool {
+    let capabilities = world
+        .get::<Towing>(vehicle)
+        .map_or(SelfDrive::default(), |held| SelfDrive {
+            towed: held.towed_by.is_some(),
+            ..SelfDrive::default()
+        });
+    if !capabilities.allowed() {
+        return false;
+    }
+    if turn != 0 {
+        let degrees = turn * crate::vehicle_move::STEER_INCREMENT_DEGREES;
+        crate::vehicle_move::turn(world, vehicle, degrees);
+    }
+    if acceleration != 0 {
+        crate::vehicle_move::thrust_with_rolls(
+            world,
+            vehicle,
+            -acceleration,
+            &mut cdda_core_types::rng::Rolls::new(0),
+        );
+    }
+    true
+}
