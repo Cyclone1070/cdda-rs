@@ -189,9 +189,20 @@ fn a_teleport_moves_to_the_stored_square() {
         runs(&mut world, r#"{"u_teleport": {"u_val": "a_number"}}"#),
         cdda_sim::dialogue_effects::Applied::CannotAnswer
     );
+    // **A variable nobody set is the origin**, not a refusal: `read_var_value` answers an empty `diag_value` and `diag_value::tripoint()` converts that to a null
+    // `tripoint_abs_ms` (`math_parser_diag_value.cpp:62-70`), so the reference moves the creature to `( 0, 0, 0 )` and so does the port.
     assert_eq!(
         runs(&mut world, r#"{"u_teleport": {"u_val": "never_set"}}"#),
-        cdda_sim::dialogue_effects::Applied::CannotAnswer
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    let at = world
+        .get::<cdda_sim::Position>(survivor)
+        .copied()
+        .expect("a position");
+    assert_eq!(
+        (at.x, at.y, at.z),
+        (0, 0, 0),
+        "an empty square is the null square"
     );
 
     // The outcome messages are read, and so is `force_safe`: the teleport rule understands it now (it bypasses the anchor and refuses a solid or occupied landing), so it

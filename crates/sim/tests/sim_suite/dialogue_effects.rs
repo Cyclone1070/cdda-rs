@@ -2670,3 +2670,53 @@ fn an_adjust_moves_a_square_in_the_context() {
         "the creature is on the square the adjust moved it to"
     );
 }
+
+/// **A target nobody set is the origin, not a refusal.** `read_var_value( target_var, d )` answers an **empty** `diag_value` for an unset variable, and `diag_value::tripoint()`
+/// converts an empty value to a null `tripoint_abs_ms` - `( 0, 0, 0 )` absolute (`_diag_value_helper`'s `std::monostate` arm, `math_parser_diag_value.cpp:62-70`). So the reference
+/// teleports the creature to the map's origin when the square's variable is empty, and the port does the same: nine programs in the data reach a teleport whose variable nothing
+/// ever set, and refusing them was the port inventing a rule the reference does not have.
+#[test]
+fn an_unset_target_square_is_the_origin() {
+    let mut world = World::new();
+    let mut table = cdda_sim::terrain_table::TerrainTable::default();
+    table.insert(1, true);
+    table.insert_move_cost(1, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain: table,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
+    let mut level = cdda_core_types::level::Level::new();
+    for y in -10..=10 {
+        for x in -10..=10 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let who = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (5, 5, 0));
+    cdda_sim::PositionIndex::rebuild(&mut world);
+
+    let effect = cdda_content::dialogue::Effect::Teleport {
+        scope: "u_val".to_owned(),
+        name: "never_set".to_owned(),
+        listener: false,
+        fail_message: None,
+        success_message: None,
+        force: false,
+        force_safe: false,
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, who, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the teleport happens**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(who)
+            .map(|at| (at.x, at.y, at.z)),
+        Some((0, 0, 0)),
+        "at the null square the empty value converts to"
+    );
+}

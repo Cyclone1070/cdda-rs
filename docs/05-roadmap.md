@@ -410,9 +410,27 @@ a chain link whose variable an earlier program sets | `mapgen_update` 26, `u_loc
 a selection surface with no chooser | `run_eoc_selector` 9, `u_run_inv_eocs` | a menu the port has no interface for (P10) |
 a rule genuinely not written | `u_teleport` 7, six legacy talk functions 6 | real gaps, and small ones |
 
-**So the frontier is no longer a call graph, a member list or a refusal count.** It is a short list of rules (`u_teleport`'s seven refusals) plus two subsystems the roadmap
-already names: **P6's activity kinds** and **P8's vehicles**. The next round should take `u_teleport`, because it is seven programs, one rule, and a reference body short
-enough to read in one sitting - the same shape as `transform_line`, which closed the reading census.
+**Round 238 re-measured this table, and it moved.** The instrument is `sim_suite::eoc_programs`, on `cyc@elitedesk`:
+
+| Census | Round 238 |
+|---|---|
+programs defined / readable | **692 / 692** |
+run in a fresh world | **479** |
+run in a built world | **486** |
+refused at run time in a built world | **206** |
+
+and the refusals ranked by the effect that refused, in order: `run_eocs(EOC_LIXA_UNFOLD_SHIFT)` **32** (a chain link), `mapgen_update` **26** (needs an overmap),
+`u_location_variable` **28** (17 of them naming an `om_terrain`, both halves needing the overmap search), `u_teleport` **8**, `run_eoc_selector` **9** (P10), unnamed entries **6**,
+`talk_function` **6** (the legacy talk functions), `u_message` **5**.
+
+**The trap chain closed `u_teleport`'s seven.** Rounds 229-237 ported the teleport's flags, its context target, the adjust that moves one, trap loading, the trap registry, the
+spring, the three refusals, the dodge roll with `KnownTraps`, and the trap's own words. What is left of `u_teleport`'s eight is no longer the teleport: their square is a chain
+link to a program that refuses, or a null square the port now answers exactly as the reference does (an unset variable is `( 0, 0, 0 )` absolute, `math_parser_diag_value.cpp:62-70`,
+port round 238).
+
+**So every remaining runtime refusal is downstream of a subsystem the roadmap already orders later**: the overmap and mapgen (54 between `mapgen_update` and
+`u_location_variable`), the chooser surface (9, P10), and the six legacy talk functions (6). The next round should take one of those, in the roadmap's order - not another pass at the
+dialogue runtime, which is now as far as its own frontiers go.
 
 **What the census taught, three times over, is worth keeping in the record.** Each time the number looked like a fact about the port it was really a fact about the instrument: a
 `switch` the walk did not descend into, a depth limit reported as a missing program, and now an isolation that reports a chain's second link as a refusal. **A census that runs

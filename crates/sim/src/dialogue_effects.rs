@@ -578,20 +578,24 @@ pub fn target_of(
     scope: &str,
     name: &str,
 ) -> Option<crate::dialogue_values::Value> {
-    if scope == "context_val" {
+    let found = if scope == "context_val" {
         if let Some(held) = crate::dialogue_context::values(world, actor).get(name)
             && let Some(point) = point_of_text(held)
         {
             return Some(point);
         }
-        return crate::dialogue_values::value_of(world, actor, name);
-    }
-    // The global store is an entity of its own; every other scope is the creature it names.
-    if scope == "global_val" {
+        crate::dialogue_values::value_of(world, actor, name)
+    } else if scope == "global_val" {
+        // The global store is an entity of its own; every other scope is the creature it names.
         let holder = crate::dialogue_values::global_holder(world)?;
-        return crate::dialogue_values::value_of(world, holder, name);
-    }
-    crate::dialogue_values::value_of(world, listener.unwrap_or(actor), name)
+        crate::dialogue_values::value_of(world, holder, name)
+    } else {
+        crate::dialogue_values::value_of(world, listener.unwrap_or(actor), name)
+    };
+    // **An unset variable is the origin, not a refusal.** `read_var_value` answers an empty `diag_value` for a variable nobody set, and `diag_value::tripoint()` converts an empty
+    // value to a null `tripoint_abs_ms` - `( 0, 0, 0 )` absolute (`math_parser_diag_value.cpp:62-70`). The reference therefore moves the creature to the map's origin when the
+    // square's variable is empty, and nine programs in the data reach a teleport whose variable nothing ever set.
+    Some(found.unwrap_or(crate::dialogue_values::Value::Position { x: 0, y: 0, z: 0 }))
 }
 
 /// **Writes a square to the scope that names it** - the other half of [`target_of`], and the reason `location_variable_adjust` can move a value the caller handed over.

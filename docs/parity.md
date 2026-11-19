@@ -39351,3 +39351,19 @@ the data gave no words says nothing. Three mutations, three catches: the message
 
 **Named gap.** The reference shows an NPC's or monster's line only if the player **sees** the creature (`add_msg_if_player_sees`, which needs a player view). The port has no
 visibility system, so it pushes the line regardless; the same gap the trap dodge's `can_see` now names from the other side.
+
+## An empty square is the origin (round 238)
+
+`f_teleport` reads its target with `read_var_value( target_var, d ).tripoint()` (`npctalk.cpp:7836-7840`), and `read_var_value` answers an **empty** `diag_value` for a variable
+nobody set. `diag_value::tripoint()` converts that empty value through `_diag_value_helper`'s `std::monostate` arm to a **null `tripoint_abs_ms`** - `( 0, 0, 0 )` absolute
+(`math_parser_diag_value.cpp:62-70`). So the reference moves the creature to the map's origin rather than refusing, and the port now does the same: the scope-aware `target_of` falls
+back to that square instead of answering "cannot answer".
+
+This is the same class of rule the port has met before - **absence read as zero** - and the same answer: the reference's zero is a real square, so refusing it was the port inventing a
+rule. Nine programs in the data reach a teleport whose variable nothing ever set.
+
+Measured effect: the built-world census moved from **484 to 486** of 692, and the blame for the rest moved house rather than disappearing - `u_teleport` fell 9 → 8 and the unnamed
+bucket 9 → 6, while four other buckets stayed put. That is the census's own lesson repeating: a refusal that changes bucket is not a program that starts running.
+
+**The re-measured frontier, for the roadmap's benefit:** every remaining runtime refusal is downstream of a subsystem the roadmap orders later - the overmap and mapgen (54 across
+`mapgen_update` and `u_location_variable`), the chooser surface (9), and six legacy talk functions.

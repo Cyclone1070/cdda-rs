@@ -77,7 +77,9 @@ pub const NOW: Census = Census {
     // 411 after round 1495.
     // **484 after round 155**, for the same reason, and the built world's refusals now name `u_teleport` nine times: a target outside the loaded bubbles is guard 5's
     // bubble move, which the port has not written - so it refuses where the reference would move the player.
-    ran_in_a_built_world: 484,
+    // **486 after round 238** read an unset teleport target as the null square the reference's `diag_value::tripoint()` converts an empty value to. The blame moved house
+    // rather than disappearing: `u_teleport` fell nine to eight and the unnamed bucket nine to six, while four other buckets stayed put.
+    ran_in_a_built_world: 486,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
