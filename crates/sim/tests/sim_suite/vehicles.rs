@@ -8193,3 +8193,46 @@ fn a_tank_fed_turret_chooses_among_the_fuels_it_can_fire() {
         "**a preference for a fuel that is not an option is ignored**, not obeyed"
     );
 }
+
+/// **A turret shot is fired without the shooter's own recoil, and gives it back afterwards.** Reference: `turret_data::prepare_fire` and `post_fire` (`turret.cpp:277-292`) - the shooter's
+/// `recoil` is cached and zeroed before the shot, because a mounted gun is subject to the vehicle's recoil, and restored after.
+#[test]
+fn a_turret_shot_sets_the_shooters_recoil_aside() {
+    let mut world = World::new();
+    let shooter = world.spawn(cdda_sim::shot::Recoil { points: 120 }).id();
+
+    let aside = cdda_sim::vehicles::prepare_turret_shot(&mut world, shooter);
+    assert_eq!(
+        aside, 120,
+        "**the shooter's hundred and twenty points are set aside**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::shot::Recoil>(shooter)
+            .map(|recoil| recoil.points),
+        Some(0),
+        "and the shot is fired with none of them"
+    );
+
+    cdda_sim::vehicles::finish_turret_shot(&mut world, shooter, aside);
+    assert_eq!(
+        world
+            .get::<cdda_sim::shot::Recoil>(shooter)
+            .map(|recoil| recoil.points),
+        Some(120),
+        "**and they come back untouched**, because the mount's recoil is the vehicle's"
+    );
+
+    // **A shooter with no recoil component** neither fails nor invents one.
+    let bare = world.spawn_empty().id();
+    assert_eq!(
+        cdda_sim::vehicles::prepare_turret_shot(&mut world, bare),
+        0,
+        "nothing to set aside"
+    );
+    cdda_sim::vehicles::finish_turret_shot(&mut world, bare, 0);
+    assert!(
+        world.get::<cdda_sim::shot::Recoil>(bare).is_none(),
+        "and nothing is invented"
+    );
+}

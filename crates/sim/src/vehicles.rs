@@ -1573,3 +1573,25 @@ pub fn turret_ammo_current(
     }
     options.first().cloned()
 }
+
+/// **Sets a shooter's own recoil aside before a turret fires** - the reference's `turret_data::prepare_fire` (`turret.cpp:277-284`), which caches `you.recoil`, sets it to zero, and puts it
+/// back afterwards: a mounted gun is subject to the **vehicle's** recoil, not the shooter's, so the shooter's own kick must not be added to the mount's.
+///
+/// The reference also grants the shooter a one-turn `on_roof` effect so the turret cannot shoot the vehicle it stands on, and primes the gun's magazine from the tank. Both are named gaps:
+/// the port applies no `on_roof` effect and has no magazine on a mounted gun.
+pub fn prepare_turret_shot(world: &mut World, shooter: Entity) -> i32 {
+    let Some(mut recoil) = world.get_mut::<crate::shot::Recoil>(shooter) else {
+        return 0;
+    };
+    let aside = recoil.points;
+    recoil.points = 0;
+    aside
+}
+
+/// **Puts a shooter's recoil back after a turret fires** - the reference's `turret_data::post_fire` first two lines (`turret.cpp:286-292`), which remove the `on_roof` effect and restore
+/// the cached recoil the shot was fired without.
+pub fn finish_turret_shot(world: &mut World, shooter: Entity, aside: i32) {
+    if let Some(mut recoil) = world.get_mut::<crate::shot::Recoil>(shooter) {
+        recoil.points = aside;
+    }
+}

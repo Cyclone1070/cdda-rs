@@ -38605,3 +38605,19 @@ Mutation-checked: dropping the amount check makes forty-one pay for a shot of fi
 **Named gaps**: the port has no ammunition table inside the world, so the round recording is passed in; a fuel the recording does not name is not an option, which is the reference's
 behaviour too when it cannot find a type. The non-tank branch of `ammo_options` - the one a magazine mount takes, answering its own loaded round - is not ported, because the port's
 mounted gun has no magazine.
+
+## A turret shot sets the shooter's recoil aside (round 203)
+
+`turret_data::prepare_fire` (`turret.cpp:277-284`) caches the shooter's `recoil`, sets it to zero, and `post_fire` (`turret.cpp:286-292`) puts it back afterwards. The reason is in the
+reference's own comment: **a mounted gun is subject to the vehicle's recoil, not the shooter's**, so the shooter's accumulated kick must not be added to the mount's.
+
+| Shooter | Before | `prepare_turret_shot` | After `finish_turret_shot` |
+|---|---|---|---|
+| carrying 120 points | 120 | asks **120**, leaves **0** | 120 |
+| carrying no recoil component | - | asks 0 | leaves none invented |
+
+Mutation-checked: not zeroing the shooter's recoil leaves 120 on them during the shot.
+
+**Named gaps, both named in the reference's own prepare/post**: the shooter is given a one-turn `on_roof` effect so the mount cannot shoot the vehicle it stands on (the port applies no
+such effect), and a tank-fed mount's gun is primed with the chosen fuel before firing and its magazine wells cleared afterwards (the port's mounted gun has no magazine). The recoil
+bracket is the part of `fire` that needs no shooter machinery beyond a number, and it is now ported.
