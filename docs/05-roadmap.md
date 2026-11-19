@@ -416,7 +416,7 @@ a rule genuinely not written | `u_teleport` 7, six legacy talk functions 6 | rea
 |---|---|
 programs defined / readable | **692 / 692** |
 run in a fresh world | **479** |
-run in a built world | **489** |
+run in a built world | **492** |
 refused at run time in a built world | **206** |
 
 and the refusals ranked by the effect that refused, in order: `run_eocs(EOC_LIXA_UNFOLD_SHIFT)` **32** (a chain link), `mapgen_update` **26** (needs an overmap),

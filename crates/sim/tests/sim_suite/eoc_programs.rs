@@ -1639,12 +1639,21 @@ fn build_a_world(
     }
     cdda_sim::load_level(world, &level);
     // One overmap tile of every terrain the mapgens write, so a search for a named tile finds one.
-    for (at, (_, mapgen)) in mapgens.iter().enumerate() {
+    //
+    // **Sorted by name, and that is load-bearing.** The tiles are laid on a five-wide grid, so ids beyond the grid's height share a square and the last one written wins -
+    // and the mapgens arrive in directory order, which is not the same on every machine. An unsorted walk made this census report 489 on one box and 490 on CI for the same
+    // commit. Sorting makes the world the census builds the same world everywhere; the ids it cannot fit are as absent as the grid makes them, and the ranking says so.
+    let mut named: Vec<&str> = mapgens
+        .iter()
+        .map(|(_, mapgen)| mapgen.om_terrain.as_str())
+        .collect();
+    named.sort_unstable();
+    for (at, terrain) in named.iter().enumerate() {
         let tile = (
             i32::try_from(at % 5).unwrap_or(0) + 1,
             i32::try_from(at / 5).unwrap_or(0) + 1,
         );
-        cdda_sim::overmap::set_terrain(world, tile, &mapgen.om_terrain);
+        cdda_sim::overmap::set_terrain(world, tile, terrain);
     }
     // A player who answers whatever is asked, several times over, and who never walks away from a menu that forbids it.
     cdda_sim::choices::set_choices(world, [0; 64]);

@@ -39403,3 +39403,11 @@ rule that reads the world was named as a gap. `Census` now carries `built` and i
 census's own, from the other side: the instrument was reporting the world it made, not the world it measured.
 
 Measured: the built-world census moved **488 → 489**.
+
+**The census world had a second flaw, found by CI.** Its overmap tiles were laid on a five-wide grid in **directory order**, so once there were more ids than the grid had squares,
+the last one written won a shared square - and directory order is not the same on every machine. The same commit reported 489 on the development box and 490 on CI. The world is now
+built from a **sorted** list of ids, so the census measures the same world everywhere; the ids the grid cannot hold are as absent as the grid makes them, and the ranking says which.
+Re-measured with both fixes: **492**.
+
+That is the second time this round that the instrument, not the port, produced the number - and the third time in the trap chain. A census is a measurement, and a measurement is
+only worth what its instrument is worth.
