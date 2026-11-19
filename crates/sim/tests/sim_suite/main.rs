@@ -279,6 +279,7 @@ mod stamina;
 mod switch_effect;
 mod transform_line;
 mod underwater;
+mod vehicle_angle;
 mod vehicle_damage;
 mod vehicle_mass;
 mod vehicle_spawn;

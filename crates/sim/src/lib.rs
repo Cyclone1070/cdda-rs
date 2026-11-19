@@ -107,6 +107,7 @@ pub mod teleport;
 pub mod timed_events;
 pub mod traits;
 pub mod turn;
+pub mod vehicle_angle;
 pub mod vehicle_cargo;
 pub mod vehicle_damage;
 pub mod vehicle_mass;

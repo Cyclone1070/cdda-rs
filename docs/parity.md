@@ -38692,3 +38692,31 @@ Mutation-checked twice: the first mutation (rounding instead of truncating) **su
 
 **Still not ported** from `do_towing_move`: the geometry (`get_angle_from_targ`, `get_turn_from_angle`), the acceleration sign that depends on which side the cable leaves, and the actual
 movement of the towed hull. The distances and the velocity are what the rest of that function reads.
+
+## Where a target is, and how hard to steer at it (round 207)
+
+`vehicle::get_angle_from_targ` (`vehicle.cpp:888-900`) is `atan2( cross, dot )` between the hull's facing and the vector to the target: **signed**, zero dead ahead, positive to the left.
+
+`get_turn_from_angle` (`:746-767`) is a **ladder**, not a proportion, and its edges are asymmetric:
+
+| Angle | Forward | Reverse |
+|---|---|---|
+| `> 10`, `<= 45` | 1 | **4** |
+| `> 45`, `<= 90` | 3 | 3 |
+| `> 90`, `< 180` | 4 | **1** |
+| `> -10`, `>= -45` | -1 | **-4** |
+| `>= -90`, `< -45` | -3 | -3 |
+| `< -90`, `> -180` | -4 | **-1** |
+| exactly ±180 | 0 | 0 |
+
+**The reverse column cannot be a sign flip**: a reversing hull steers *away* from the target's side, so the far bands swap their extremes while the middle band stays three either way.
+Ten degrees is still nothing (`> 10`), forty-five still one (`<= 45`), ninety still three (`<= 90`), and a hundred and eighty is nothing at all.
+
+One honest detail the gate taught: `angle_from_target` facing backwards answers **-180**, not +180, because the cross product comes out `-0.0` and `atan2( -0.0, -1 )` is negative in Rust
+*and* in the reference's C++ (`units::atan2` is `std::atan2`). The port does not "fix" it: the ladder treats both alike, and pretending the sign were chosen would be a lie about the
+arithmetic.
+
+Mutation-checked: leaving the far band unswapped in reverse answers 4 where the reference says 1.
+
+**Not ported**: the callers. `do_towing_move` still lacks its acceleration sign and movement, and `drive_to_local_target` - autodrive - is a P8 gap of its own. This round ports the two
+geometry functions both of them read.
