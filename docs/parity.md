@@ -39172,3 +39172,22 @@ vehicles out of worlds that simply have not built their levels yet. The fall tes
 **Named gap.** A landing is a **vertical collision**, which is not ported: the reference zeroes `vertical_velocity` when the impact takes all of it (`vehicle_move.cpp:803-807`), so in
 the port a hull that reaches ground keeps its speed and - since `should_fall` is a velocity as well as a flag - keeps descending. That is the reference's rule with its landing rule
 missing, and it is named rather than patched over.
+
+## A fall lands (round 229)
+
+Reference: `vehicle::collision`'s downward case (`vehicle_move.cpp:728-733`) and the block that spends the velocity (`vehicle_move.cpp:803-807`). A descending hull meets what is
+**below** it; a part that cannot pass sets `vertical_velocity` to zero, and `vertical_velocity == 0` clears `is_falling`. The port's `vehicle_falling::will_land` asks that question
+with the same `supports_above` the support rule uses - ground nothing can walk onto, furniture with a negative move cost, or another vehicle - so "what holds a hull up" and "what a
+hull lands on" are **one rule asked twice**, which is how the reference reads it too.
+
+What "solid" is **not**: a level of plain open air is not in the way, which is why a hull falls through several of them; and a level that is only water holds the hull up instead of
+landing it, which the support rule already covers.
+
+The hull lands **on top of** the solid square rather than inside it - its level does not change - and the impact spends the speed. Gated both ways: a hull over open air still falls,
+and a hull over a wall stops and cannot restart the fall next turn.
+
+Mutation-checked twice: `will_land` short-circuited to false (caught by the hull falling through a wall), and the impact leaving `-1` instead of zero (caught at "the impact spends the
+fall speed").
+
+**Named gap.** The impact's **damage** is not ported: the reference hands the collision to `part_collision` with the fall's velocity and dents what it lands on and what lands on it,
+and the crushed cargo underneath is a further rule. The port spends the velocity and names the dent, which is the collision rounds' work rather than this one's.

@@ -546,3 +546,98 @@ fn a_falling_hull_steps_down_and_gains_speed() {
         "one level lower again"
     );
 }
+
+/// **A fall stops on what is solid below it**, and the velocity is spent as it stops - the reference's downward collision (`vehicle_move.cpp:728-733`, `803-807`), which zeroes
+/// `vertical_velocity` and with it clears `is_falling`. The hull lands **on top of** the solid square rather than inside it, so its level does not change.
+#[test]
+fn a_fall_stops_on_a_solid_square_below() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_open_air".to_owned(), 1_u32),
+            // A wall is what a fall lands on: nothing can walk onto it, which is the reference's own test for holding something up.
+            ("t_wall".to_owned(), 2_u32),
+        ],
+    );
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [
+            ("t_open_air".to_owned(), vec!["NO_FLOOR".to_owned()]),
+            ("t_wall".to_owned(), Vec::new()),
+        ],
+    );
+    cdda_sim::terrain_types::set_move_costs(
+        &mut world,
+        [
+            ("t_open_air".to_owned(), 2_i32),
+            ("t_wall".to_owned(), 0_i32),
+        ],
+    );
+    // The hull is on open air at the second level, and the wall stands at the first.
+    world.spawn((Terrain { code: 1 }, Position { x: 0, y: 0, z: 1 }));
+    world.spawn((Terrain { code: 1 }, Position { x: 1, y: 0, z: 1 }));
+    world.spawn((Terrain { code: 2 }, Position { x: 0, y: 0, z: 0 }));
+    world.spawn((Terrain { code: 2 }, Position { x: 1, y: 0, z: 0 }));
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "wheel".to_owned(),
+                flags: ["WHEEL".to_owned()].into_iter().collect(),
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    let vehicle = world
+        .spawn((
+            Vehicle {
+                parts: vec![
+                    VehiclePart {
+                        part: "wheel".to_owned(),
+                        ..VehiclePart::default()
+                    },
+                    VehiclePart {
+                        part: "wheel".to_owned(),
+                        x: 1,
+                        ..VehiclePart::default()
+                    },
+                ],
+                is_falling: true,
+                vertical_velocity: -2800,
+                ..Vehicle::default()
+            },
+            Position { x: 0, y: 0, z: 1 },
+        ))
+        .id();
+    PositionIndex::rebuild(&mut world);
+
+    assert_eq!(
+        cdda_sim::vehicle_move::move_vehicles(&mut world),
+        0,
+        "**the fall does not go through the wall**"
+    );
+    let hull = world.get::<Vehicle>(vehicle).cloned().expect("a hull");
+    assert_eq!(
+        world.get::<Position>(vehicle).map(|at| at.z),
+        Some(1),
+        "the hull stays where it was, on top of the solid square"
+    );
+    assert_eq!(
+        hull.vertical_velocity, 0,
+        "**the impact spends the fall speed**"
+    );
+    assert!(!hull.is_falling, "and the hull is no longer falling");
+
+    // A hull on a solid square is held up by it, which is what keeps it from falling again next turn.
+    assert!(
+        cdda_sim::vehicle_falling::has_support(&world, (0, 0, 1), true),
+        "the wall under the open air is what holds the hull up afterwards"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_move::move_vehicles(&mut world),
+        0,
+        "so the next turn does not start the fall again"
+    );
+}

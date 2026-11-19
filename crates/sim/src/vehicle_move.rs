@@ -550,6 +550,15 @@ pub fn move_step_with_rolls(
     // **A falling hull steps down instead of sideways.** Reference: `vehicle::act_on_map` (`vehicle_move.cpp:1958-1998`) - when `should_fall` the step is `dp.z() = -1` and there is no
     // lateral movement at all, which is why the reference's own comment calls it "no air control". The velocity it gains is the gravity rule's, one level at a time.
     if crate::vehicle_falling::should_fall(built.is_falling, built.vertical_velocity) {
+        // **A solid level below stops the fall** - the reference's downward collision (`vehicle_move.cpp:728-733`, `803-807`): the hull does not pass into it, the vertical velocity
+        // is spent, and with it the flag clears. The impact's damage is the collision rounds' business and is named in `docs/parity.md`.
+        if crate::vehicle_falling::will_land(world, vehicle) {
+            if let Some(mut hull) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+                hull.vertical_velocity = 0;
+                hull.is_falling = false;
+            }
+            return false;
+        }
         let fell = crate::vehicles::descend_vehicle(world, vehicle);
         if fell && let Some(mut hull) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
             hull.vertical_velocity =

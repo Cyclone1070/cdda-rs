@@ -213,3 +213,21 @@ pub fn settle(world: &mut World, vehicle: bevy_ecs::prelude::Entity) {
         hull.is_falling = support.falling;
     }
 }
+
+/// **Whether something solid is in the way of the next level down**, which is what a fall lands on.
+///
+/// Reference: `vehicle::collision`'s downward case (`vehicle_move.cpp:728-733`, `744-760`) - a descending hull first meets what is below it, and a part that cannot pass sets the
+/// vertical velocity to zero and with it clears `is_falling` (`vehicle_move.cpp:803-807`). What "solid" means here is [`supports_above`]: ground nothing can walk onto, furniture with a
+/// negative move cost, or another vehicle. A level that is simply **open air** is not in the way, which is why a hull falls through several of them.
+#[must_use]
+pub fn will_land(world: &World, vehicle: bevy_ecs::prelude::Entity) -> bool {
+    let Some(hull) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
+        return false;
+    };
+    let Some(origin) = world.get::<crate::Position>(vehicle).copied() else {
+        return false;
+    };
+    hull.parts
+        .iter()
+        .any(|part| supports_above(world, (origin.x + part.x, origin.y + part.y, origin.z - 1)))
+}
