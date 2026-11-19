@@ -1305,6 +1305,22 @@ pub fn steered_direction(current_degrees: i32, degrees: i32, velocity: i32) -> i
     (clicks * STEER_INCREMENT_DEGREES).rem_euclid(360)
 }
 
+/// **How far a step onto this square lifts or drops the vehicle** - `map::displace_vehicle`'s ramp block (`map.cpp:1463-1476`): a destination carrying `RAMP_UP` lifts it one level and a
+/// destination carrying `RAMP_DOWN` drops it one, and the reference writes that as an `if`/`else if`, so a square that somehow carried both would **rise**.
+///
+/// Zero for every other square, which is every square on the flat. The reference also records that the vehicle is **on a ramp** when either flag fires, which is a state its
+/// falling and collision rules read; the port has no such state yet and names that in `docs/parity.md`.
+#[must_use]
+pub fn ramp_offset(ramp_up: bool, ramp_down: bool) -> i32 {
+    if ramp_up {
+        1
+    } else if ramp_down {
+        -1
+    } else {
+        0
+    }
+}
+
 /// What a driver is asking of the vehicle this turn.
 ///
 /// Reference: the reference keeps this in the avatar's own input handling - `cruise_thrust( here, -acceleration * thr_amount )` and `veh.turn( turn_delta )` are called

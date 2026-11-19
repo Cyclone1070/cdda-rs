@@ -400,11 +400,26 @@ pub fn move_vehicle(world: &mut World, vehicle: Entity, delta: (i32, i32)) -> bo
     }
     let before = occupied_squares(world, vehicle);
     {
-        let Some(mut position) = world.get_mut::<Position>(vehicle) else {
+        // **A ramp lifts or drops the vehicle as it steps on** - `map::displace_vehicle` (`map.cpp:1463-1476`), whose destination square decides, and whose `else if` means `RAMP_UP`
+        // wins where a square somehow carries both. The square is read **before** the position is taken, because the world cannot be read through a live borrow.
+        let Some(from) = world.get::<Position>(vehicle).copied() else {
             return false;
         };
-        position.x += delta.0;
-        position.y += delta.1;
+        let (to_x, to_y) = (from.x + delta.0, from.y + delta.1);
+        let ramp = crate::square::terrain_at(world, (to_x, to_y, from.z)).map_or(0, |code| {
+            crate::vehicle_move::ramp_offset(
+                crate::terrain_types::has_flag(world, code, "RAMP_UP"),
+                crate::terrain_types::has_flag(world, code, "RAMP_DOWN"),
+            )
+        });
+        {
+            let Some(mut position) = world.get_mut::<Position>(vehicle) else {
+                return false;
+            };
+            position.x = to_x;
+            position.y = to_y;
+            position.z += ramp;
+        }
     }
     let after = occupied_squares(world, vehicle);
     {

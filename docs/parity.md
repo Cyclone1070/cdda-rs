@@ -39064,3 +39064,19 @@ The clue also rules out the explanation round 222 could not: it is not the corpo
 inside one grid.
 
 **Not yet explained**, and the next round on this should follow the half-way line rather than re-reading the ticket arithmetic, which has now been checked three ways.
+
+## A ramp changes the level a vehicle is on (round 224)
+
+Reference: `map::displace_vehicle`'s ramp block (`map.cpp:1463-1476`). The **destination** square decides - `RAMP_UP` lifts the vehicle one level, `RAMP_DOWN` drops it one - and the
+pair is an `if`/`else if`, so a square carrying both would rise. The port now reads the destination's terrain flags before it moves, in `vehicles::move_vehicle`, which is what
+`vehicle_move::move_vehicles` calls for every step of a turn, so a drive onto a ramp lifts the hull during an ordinary turn.
+
+The rule is named on its own as `ramp_offset(ramp_up, ramp_down) -> i32` and gated both ways: the offset table (up wins over down), and a drive along a run of squares that rises
+onto a ramp, crosses a deck, and drops off a down ramp - **and stays at the level it reached** on the deck, because the reference reads only the destination and never the square
+it left.
+
+Mutation-checked by zeroing the offset, which the gate catches at "one level higher".
+
+**Named gaps.** The reference also sets `veh.is_on_ramp` when either flag fires, and its falling and collision rules read that state; the port has no such flag yet. Driving off
+the top of a ramp onto **open air** is a fall, a different rule from this one, and the ramp test models both halves of the structure at their own levels rather than pretending a
+lifted vehicle floats.

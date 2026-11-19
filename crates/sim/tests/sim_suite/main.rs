@@ -282,6 +282,7 @@ mod underwater;
 mod vehicle_angle;
 mod vehicle_damage;
 mod vehicle_mass;
+mod vehicle_ramps;
 mod vehicle_spawn;
 mod vehicle_tow;
 mod vehicles;
