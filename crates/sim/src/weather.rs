@@ -301,3 +301,28 @@ pub fn id_of(world: &bevy_ecs::prelude::World) -> Option<String> {
         .iter_entities()
         .find_map(|entity| entity.get::<WeatherId>().map(|held| held.id.clone()))
 }
+
+/// **Makes the weather due on this turn**, which is what the data's `next_weather` effect asks for.
+///
+/// Reference: `f_next_weather` (`npctalk.cpp:5790-5795`) calls `get_weather().set_nextweather( calendar::turn )`, and `weather_manager::set_nextweather`
+/// (`weather.cpp:950-954`) writes that turn as the **due** turn and then calls `update_weather` itself. The port writes the due turn here and lets the next tick do the recompute:
+/// the tick needs a forecast and the world's dice, which the effect does not carry.
+///
+/// Answers `false` when the world has no climate, because then there is no weather to make due.
+pub fn make_due(world: &mut bevy_ecs::prelude::World) -> bool {
+    let Some(turn) = crate::calendar::of(world).map(|calendar| calendar.turn) else {
+        return false;
+    };
+    let Some(mut climate) = crate::singletons::climate(world) else {
+        return false;
+    };
+    climate.system.manager.next_turn = turn;
+    true
+}
+
+/// Whether the weather is due to be recomputed on this turn.
+#[must_use]
+pub fn next_is_due(world: &bevy_ecs::prelude::World, turn: i64) -> bool {
+    crate::singletons::climate_read(world)
+        .is_some_and(|climate| climate.system.manager.needs_update(turn))
+}

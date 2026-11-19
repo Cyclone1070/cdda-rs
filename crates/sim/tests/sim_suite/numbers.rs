@@ -65,7 +65,9 @@ pub const NOW: Census = Census {
     readable: 692,
     // **479 after round 155**: two programs teleport. The dialogue's teleport effect now goes through the landing rule, which is what the reference does
     // (`f_teleport` calls `teleport_to_point`), so a target on a square a world with no floor cannot stand on refuses instead of writing a position onto nothing.
-    ran: 479,
+    // **481 after round 239**: `next_weather` answers even in a world with no climate, because the reference's weather manager always exists and an effect that has nothing to
+    // make due still succeeds. The climate-less case is the port's own, so it answers `Done` rather than pretending the rule refused.
+    ran: 481,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
     silent: 360,
@@ -79,7 +81,8 @@ pub const NOW: Census = Census {
     // bubble move, which the port has not written - so it refuses where the reference would move the player.
     // **486 after round 238** read an unset teleport target as the null square the reference's `diag_value::tripoint()` converts an empty value to. The blame moved house
     // rather than disappearing: `u_teleport` fell nine to eight and the unnamed bucket nine to six, while four other buckets stayed put.
-    ran_in_a_built_world: 486,
+    // **488 after round 239** answered `next_weather`, which the portal storm's own program ends with: four of the six legacy talk-function refusals were this one rule.
+    ran_in_a_built_world: 488,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
@@ -87,7 +90,9 @@ pub const NOW: Census = Census {
     // 209 after round 1493.
     // 206 after round 1495: four programs the stored-condition path used to stop now run.
     // **213 after round 155**: the same two teleport programs join the refusals, and they are refused for a reason the record can name.
-    refused_at_run: 213,
+    // **211 after round 239**, down two with `next_weather`: the effect answers, so the two programs whose last entry it was run. The invariant beside this ledger is what caught
+    // it - 481 + 213 came to 694 against 692 readable, and a census that does not add up is wrong rather than out of date.
+    refused_at_run: 211,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.

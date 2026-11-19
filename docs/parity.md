@@ -39367,3 +39367,20 @@ bucket 9 → 6, while four other buckets stayed put. That is the census's own le
 
 **The re-measured frontier, for the roadmap's benefit:** every remaining runtime refusal is downstream of a subsystem the roadmap orders later - the overmap and mapgen (54 across
 `mapgen_update` and `u_location_variable`), the chooser surface (9), and six legacy talk functions.
+
+## `next_weather` (round 239)
+
+Reference: `f_next_weather` (`npctalk.cpp:5790-5795`) is four lines - `get_weather().set_nextweather( calendar::turn )` - and `weather_manager::set_nextweather`
+(`weather.cpp:950-954`) writes that turn as the **due** turn and then calls `update_weather` itself. The data uses it to force a sky change: the portal storm's program ends with the
+bare name `"next_weather"` (`portal_storm_effect_on_condition.json:152`), and the moonlit scenario uses it to leave its own weather behind.
+
+The port's weather already had everything but the trigger: `Manager::needs_update` compares the turn against `next_turn`, and the tick recomputes when it is due. So the effect is
+`weather::make_due`, which writes the current calendar turn as the due turn.
+
+**Named difference in timing.** `set_nextweather` recomputes **inside the call**; the port writes the due turn and lets the next tick recompute, because that tick needs a forecast and
+the world's dice, which a dialogue effect does not carry. The sky is therefore recomputed at the next weather stage rather than the instant the effect runs - within the same turn if
+the stage has not run yet, and on the next turn otherwise. The rule's **effect** (the weather changes now rather than at its scheduled hour) is the same; the moment within the turn
+is not.
+
+Measured: the built-world census moved **486 → 488**, and four of the six legacy talk-function refusals were this one rule. `u_prevent_death` and `follow`/`take_control` are the two
+that remain, and both are P7's NPC side.

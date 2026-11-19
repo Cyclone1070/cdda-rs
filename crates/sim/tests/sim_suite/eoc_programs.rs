@@ -1585,6 +1585,10 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
             };
             let blamed = first_refusing_effect(program, &named_only, 0)
                 .unwrap_or_else(|| "<no effect named>".to_owned());
+            // **The program's id beside its blame**, so a bucket can be opened instead of counted: a ranking says how many, and only the ids say which rules to read.
+            if std::env::var("CDDA_SHOW_REFUSED").is_ok() {
+                println!("REFUSED {} :: {blamed}", program.id);
+            }
             *refused.entry(blamed).or_insert(0usize) += 1;
         }
     }

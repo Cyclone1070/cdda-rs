@@ -2720,3 +2720,39 @@ fn an_unset_target_square_is_the_origin() {
         "at the null square the empty value converts to"
     );
 }
+
+/// **`next_weather` makes the sky re-roll at once.** Reference: `f_next_weather` (`npctalk.cpp:5790-5795`) calls `get_weather().set_nextweather( calendar::turn )`, and
+/// `weather_manager::set_nextweather` (`weather.cpp:950-954`) writes that turn as the **due** turn and then updates. The data uses it to force a change: the portal storm's own
+/// program ends with it (`portal_storm_effect_on_condition.json:152`).
+#[test]
+fn next_weather_makes_the_sky_due_now() {
+    let mut world = World::new();
+    cdda_sim::singletons::set_climate(
+        &mut world,
+        cdda_sim::Climate::new(cdda_content::weather::Rules::default()),
+    );
+    cdda_sim::calendar::set_turn(&mut world, 100);
+    // Weather that is not due for a thousand turns: the manager remembers a due turn, and this one is far away.
+    if let Some(mut climate) = cdda_sim::singletons::climate(&mut world) {
+        climate.system.manager.weather = Some("clear".to_owned());
+        climate.system.manager.next_turn = 1_100;
+    }
+    assert!(
+        !cdda_sim::weather::next_is_due(&world, 100),
+        "the sky is not due yet"
+    );
+
+    let effect = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "next_weather".to_owned(),
+    };
+    let who = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, who, None, &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the effect answers**"
+    );
+    assert!(
+        cdda_sim::weather::next_is_due(&world, 100),
+        "and the weather is due on this very turn"
+    );
+}

@@ -3412,6 +3412,12 @@ fn run_store_effect(
         Effect::TransformLine { .. } => transform_line(world, speaker, listener, effect),
         // Reference: the legacy string effects are whole interactions - trade, training, camps, bionics - and the port has written none of them, so the name is known and the
         // action is not: a refusal where it runs, exactly as `mapgen_update` refuses.
+        // **The legacy string effects the port has written**, by the name the data spells. A name it has not written still refuses, which is what the census reports.
+        Effect::LegacyStringEffect { name } if name == "next_weather" => {
+            // Reference: `f_next_weather` (`npctalk.cpp:5790-5795`) - the sky re-rolls now.
+            let _ = crate::weather::make_due(world);
+            Applied::Done
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
