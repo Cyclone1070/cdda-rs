@@ -594,6 +594,39 @@ pub fn target_of(
     crate::dialogue_values::value_of(world, listener.unwrap_or(actor), name)
 }
 
+/// **Writes a square to the scope that names it** - the other half of [`target_of`], and the reason `location_variable_adjust` can move a value the caller handed over.
+///
+/// Reference: `write_var_value( var.type, var.name, &d, target_pos )` (`npctalk.cpp:4442-4446`), which writes into the dialogue's context for a `context_val` and into the named
+/// holder otherwise. The port keeps context values as text, so a point is written back as `x,y,z` - the same spelling [`point_of_text`] reads.
+fn store_target(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    scope: &str,
+    name: &str,
+    value: crate::dialogue_values::Value,
+) -> Applied {
+    if scope == "context_val" {
+        let crate::dialogue_values::Value::Position { x, y, z } = value else {
+            return Applied::CannotAnswer;
+        };
+        let mut values = crate::dialogue_context::values(world, speaker);
+        values.insert(name.to_owned(), format!("{x},{y},{z}"));
+        let _ = crate::dialogue_context::put(world, speaker, values);
+        return Applied::Done;
+    }
+    let target = if scope == "global_val" {
+        let Some(global) = crate::dialogue_values::global_holder(world) else {
+            return Applied::CannotAnswer;
+        };
+        global
+    } else {
+        listener.unwrap_or(speaker)
+    };
+    crate::dialogue_values::set(world, target, name, value);
+    Applied::Done
+}
+
 /// Reads a square written as `x,y,z`, which is how a context value carries a position between one program and the next.
 #[must_use]
 fn point_of_text(text: &str) -> Option<crate::dialogue_values::Value> {
@@ -1109,11 +1142,10 @@ fn adjust_location(
     else {
         return Applied::CannotAnswer;
     };
-    let Some(holder) = crate::conditions::holder_for_scope(world, speaker, listener, scope) else {
-        return Applied::CannotAnswer;
-    };
+    // **The square is read through its scope**, the same lookup the teleport uses: a `context_val` lives in the invocation's context rather than in a holder, and the telepad
+    // adjusts exactly that (`EOC_TELEPAD`, `traps.json:527`).
     let Some(crate::dialogue_values::Value::Position { x, y, z }) =
-        crate::dialogue_values::value_of(world, holder, name)
+        target_of(world, speaker, listener, scope, name)
     else {
         return Applied::CannotAnswer;
     };
@@ -1142,20 +1174,18 @@ fn adjust_location(
         Some((scope, name)) => (scope.clone(), name.clone()),
         None => (scope.clone(), name.clone()),
     };
-    let Some(target) = crate::conditions::holder_for_scope(world, speaker, listener, &scope) else {
-        return Applied::CannotAnswer;
-    };
-    crate::dialogue_values::set(
+    store_target(
         world,
-        target,
+        speaker,
+        listener,
+        &scope,
         &name,
         crate::dialogue_values::Value::Position {
             x: moved.0,
             y: moved.1,
             z: moved.2,
         },
-    );
-    Applied::Done
+    )
 }
 
 /// Runs programs on the items a creature carries, once per matching item.

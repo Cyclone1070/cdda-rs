@@ -39238,3 +39238,18 @@ Mutation-checked by never reading the context, which the gate catches with `Cann
 
 **Named gap.** `location_variable_adjust` - the entry that moves `trap_location` before `EOC_TELEPAD` teleports to it - is a different effect, and the telepad reads its context
 without it. The five entries now read; running them end to end still needs the trap that fills the context.
+
+## `location_variable_adjust` moves a context square (round 232)
+
+The entry above the telepad's teleport is `location_variable_adjust` (`traps.json:527`), and it names the same `context_val` the teleport does. The port read that square from a
+**holder**, so a `context_val` was looked for in the speaker's own variables - the same mistake round 231 fixed one entry further down, in the same program's list.
+
+Reference: `f_location_variable_adjust` (`npctalk.cpp:4411-4448`) reads with `read_var_value( input_var, d )` and writes with `write_var_value( var.type, var.name, &d,
+target_pos )`, and **both** go through the scope: `context_val` reaches the invocation's context, everything else reaches the holder. The port now does the same - `target_of` for the
+read, a new `store_target` for the write, which spells a context point as `x,y,z`.
+
+The gate runs the telepad's two entries **in order**: the adjust moves `4,5` by `+2,-1` and the context holds `6,4,0`, then the teleport puts the creature exactly there. Two
+mutations, two catches: the write falling through to a holder (the context keeps its old square) and the read going back to a holder (`CannotAnswer`).
+
+**What this does not yet do.** The program is `eoc_type: ACTIVATION` and is reached from a trap, and the port has a `Trap` component and a trap loader but **no trap activation** - so
+`EOC_TELEPAD` still cannot be triggered from a square. What is now true is that both of its entries work and work together; what is not is that anything fires them.

@@ -2591,3 +2591,82 @@ fn a_teleport_reads_its_target_from_the_context() {
         "and it is there"
     );
 }
+
+/// **`location_variable_adjust` moves a square that lives in the invocation's context**, which is the entry `EOC_TELEPAD` runs immediately before its teleport
+/// (`traps.json:527-532`): the trap hands the program a square, the adjust moves it by a few, and the teleport goes there. Reading the adjust's square from a holder read the
+/// wrong store, so the entry could never move the context value it names.
+#[test]
+fn an_adjust_moves_a_square_in_the_context() {
+    let mut world = World::new();
+    let mut table = cdda_sim::terrain_table::TerrainTable::default();
+    table.insert(1, true);
+    table.insert_move_cost(1, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain: table,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
+    let mut level = cdda_core_types::level::Level::new();
+    for y in -10..=20 {
+        for x in -10..=20 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let speaker = cdda_sim::creature::spawn_creature(&mut world, "teleporter", (0, 0, 0));
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    cdda_sim::dialogue_context::put(
+        &mut world,
+        speaker,
+        [("trap_location".to_owned(), "4,5,0".to_owned())]
+            .into_iter()
+            .collect(),
+    );
+
+    let adjust = cdda_content::dialogue::Effect::LocationVariableAdjust {
+        scope: "context_val".to_owned(),
+        name: "trap_location".to_owned(),
+        output: None,
+        x_adjust: cdda_content::dialogue::Expression::Number(2.0),
+        y_adjust: cdda_content::dialogue::Expression::Number(-1.0),
+        z_adjust: cdda_content::dialogue::Expression::Number(0.0),
+        z_override: false,
+        overmap_tile: false,
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, speaker, None, &adjust),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the adjust answers**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_context::values(&world, speaker)
+            .get("trap_location")
+            .cloned(),
+        Some("6,4,0".to_owned()),
+        "**and the context holds the moved square**: four and five, two east and one north"
+    );
+
+    // And then the teleport, which is the pair the telepad runs in order.
+    let teleport = cdda_content::dialogue::Effect::Teleport {
+        scope: "context_val".to_owned(),
+        name: "trap_location".to_owned(),
+        listener: false,
+        fail_message: None,
+        success_message: None,
+        force: false,
+        force_safe: false,
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, speaker, None, &teleport),
+        cdda_sim::dialogue_effects::Applied::Done
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(speaker)
+            .map(|at| (at.x, at.y, at.z)),
+        Some((6, 4, 0)),
+        "the creature is on the square the adjust moved it to"
+    );
+}
