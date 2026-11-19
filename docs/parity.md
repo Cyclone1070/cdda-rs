@@ -39384,3 +39384,22 @@ is not.
 
 Measured: the built-world census moved **486 → 488**, and four of the six legacy talk-function refusals were this one rule. `u_prevent_death` and `follow`/`take_control` are the two
 that remain, and both are P7's NPC side.
+
+## `om_terrain` is one id, a list, or a grid (round 240)
+
+Reference: a JSON mapgen's `om_terrain` member is a string, a **list** of ids, or a grid of ids with one per column, and `mapgen_factory` files the map under every id it
+names (`src/mapgen.cpp`). The port's `MapgenKeys` had read all three shapes for years - the shape that registers a mapgen under its ids - but the **object** built from the rows
+accepted only the string form and silently skipped the rest.
+
+**1,595 of the data's 2,725 mapgens write a list**, so 59% of the data's maps were not registered at all. The visible consequence was a census line: `u_location_variable` searching
+for `nether_glass_deep`, `mansion_+4d` or `barry_mi-go_scout_tower_1` found no tile, because no mapgen had filed one. That is the third time in this chain that a ranking named a rule
+when the truth was the instrument or the loader.
+
+`mapgen::terrain_ids` now reads the three shapes in one place, and `load_objects` emits **one object per id**, carrying the same rows - a map that builds several terrains is one map
+with several names, which is what the reference's factory holds. Gated three ways: a list, a grid, and a single string.
+
+**And the blame was measuring the wrong world.** The built-world census's ranking built a second, **bare** world for each effect it blamed - no floor, no overmap, no answers - so every
+rule that reads the world was named as a gap. `Census` now carries `built` and installs the world the programs actually ran in; the ranking re-measured with it. The lesson is the
+census's own, from the other side: the instrument was reporting the world it made, not the world it measured.
+
+Measured: the built-world census moved **488 → 489**.

@@ -89,10 +89,13 @@ fn the_reference_tree_holds_the_maps_it_says_it_does() {
             }
         }
     }
-    // 4,487 since the loader stopped requiring `om_terrain`: an **update** mapgen is filed under `update_mapgen_id` or `nested_mapgen_id` and may
-    // carry no rows at all, which is how eight dialogue programs refused at run time. Skipping them made the loader look tidier and the world
-    // poorer.
-    assert_eq!(total, 4_487, "mapgen objects in the reference tree");
+    // **10,076 after round 240** read every shape of `om_terrain`. The count is of **(id, map) pairs**, not of definitions: one map that names a list of ids is filed
+    // once per id, which is what the reference's factory holds and what makes a search by any of its names find it. Before this, the 1,595 list-shaped mapgens in the tree
+    // contributed one object each - the count was 4,487 - and their ids were filed under nothing at all.
+    assert_eq!(
+        total, 10_076,
+        "mapgen objects (id, map pairs) in the reference tree"
+    );
     // Three maps in the reference tree are not rectangular by character count. The reference loads them
     // anyway, so this is a fact about the content rather than a fault in the loader - pinned here so it
     // cannot quietly grow.

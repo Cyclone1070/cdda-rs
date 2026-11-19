@@ -104,6 +104,7 @@ mod mapgen_draw;
 mod mapgen_keys;
 mod mapgen_objects;
 mod mapgen_place;
+mod mapgen_terrains;
 mod martial_arts;
 mod material_resist;
 mod material_vitamins;

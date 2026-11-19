@@ -262,16 +262,20 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
         {
             continue;
         }
-        let Some(id) = object
+        // **One map may build several terrains**, and the reference files it under every id it names: `om_terrain` is a string, a list of ids, or a grid of ids (one per
+        // column). Reading only the string form dropped every list-shaped mapgen - `nether_glass_deep`, `mansion_+4d` and `barry_mi-go_scout_tower_1` are all written that
+        // way - which is why a search for those tiles found none.
+        let Some(named) = object
             .get("om_terrain")
             .or_else(|| object.get("update_mapgen_id"))
             .or_else(|| object.get("nested_mapgen_id"))
         else {
             continue;
         };
-        let cdda_json::Value::Str(om_terrain) = id else {
+        let om_terrains = terrain_ids(named);
+        if om_terrains.is_empty() {
             continue;
-        };
+        }
         // The rows live under `object`, not beside `om_terrain`: a mapgen entry looks like
         // {"type":"mapgen","method":"json","om_terrain":"shelter","object":{"rows":[...]}}.
         // Reading the top level instead finds nothing and looks like a broken loader.
@@ -304,19 +308,50 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
             }
             table
         };
-        out.push(MapgenObject {
-            om_terrain: om_terrain.clone(),
-            rows,
-            terrain: symbols("terrain"),
-            furniture: symbols("furniture"),
-            fields: read_placements(inner),
-            weight: match object.get("weight") {
-                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1000),
-                _ => 1000,
-            },
-        });
+        for om_terrain in &om_terrains {
+            out.push(MapgenObject {
+                om_terrain: om_terrain.clone(),
+                rows: rows.clone(),
+                terrain: symbols("terrain"),
+                furniture: symbols("furniture"),
+                fields: read_placements(inner),
+                weight: match object.get("weight") {
+                    Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1000),
+                    _ => 1000,
+                },
+            });
+        }
     }
     out
+}
+
+/// **Every overmap terrain one mapgen builds**, in the data's order.
+///
+/// Reference: `mapgen_factory`'s registration, which a JSON mapgen reaches through `mapgen::load` - the member may be one id, a list of ids, or a grid of ids with one per
+/// column (`mapgen.cpp`, and the `om_terrain` shapes the data actually writes).
+#[must_use]
+pub fn terrain_ids(named: &cdda_json::Value) -> Vec<String> {
+    match named {
+        cdda_json::Value::Str(one) => vec![one.clone()],
+        cdda_json::Value::Array(rows) => {
+            let mut found = Vec::new();
+            for row in rows {
+                match row {
+                    cdda_json::Value::Str(id) => found.push(id.clone()),
+                    cdda_json::Value::Array(columns) => {
+                        for column in columns {
+                            if let cdda_json::Value::Str(id) = column {
+                                found.push(id.clone());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            found
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// What placing a map produced.

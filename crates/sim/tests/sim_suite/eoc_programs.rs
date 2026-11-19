@@ -623,6 +623,11 @@ struct Census {
     groups: Vec<cdda_content::monster_groups::MonsterGroup>,
     /// Every parsed data file, for the loaders that pick definitions out of the whole set - the data's own math functions are spread over five files.
     files: Vec<cdda_json::Value>,
+    /// Whether the world this census installs is the **built** one: a floor, an overmap tile per mapgen, and answers for every menu.
+    ///
+    /// The blame pass builds its own world from a census, and a census that installs data but not the world will blame every rule that reads the world. That is how the
+    /// built-world ranking came to name `u_location_variable` twenty-eight times: its world had no overmap, so every search for a tile found none.
+    built: bool,
 }
 
 impl Census {
@@ -650,6 +655,9 @@ impl Census {
                 windpower: 3,
                 ..cdda_content::weather::Point::default()
             });
+        }
+        if self.built {
+            build_a_world(world, &self.mapgens, &self.codes);
         }
         let installed =
             cdda_sim::math_functions::install_from_values(world, &self.files).unwrap_or_default();
@@ -757,6 +765,8 @@ fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Pr
         monsters,
         groups,
         files,
+        // The fresh-world census installs the data and nothing else: its floor is what a world with no content can carry out.
+        built: false,
     }
 }
 
@@ -1573,17 +1583,20 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
             ran += 1;
         } else {
             // The walk only needs the programs, because it looks a callee up by name; the other members are the world's data, which this world already has.
-            let named_only = Census {
+            // **The blame runs in the same world the program ran in**, not a bare one: a census that installs data but not the world blamed every rule that reads the world,
+            // and that is the only reason `u_location_variable` headed this ranking. `built: true` is what makes the blame honest.
+            let with_world = Census {
                 programs: readable.clone(),
-                mapgens: Vec::new(),
-                codes: std::collections::BTreeMap::new(),
-                fields: Vec::new(),
-                snippets: Vec::new(),
+                mapgens: mapgens.clone(),
+                codes: codes.clone(),
+                fields: fields.clone(),
+                snippets: snippets.clone(),
                 monsters: Vec::new(),
                 groups: Vec::new(),
                 files: Vec::new(),
+                built: true,
             };
-            let blamed = first_refusing_effect(program, &named_only, 0)
+            let blamed = first_refusing_effect(program, &with_world, 0)
                 .unwrap_or_else(|| "<no effect named>".to_owned());
             // **The program's id beside its blame**, so a bucket can be opened instead of counted: a ranking says how many, and only the ids say which rules to read.
             if std::env::var("CDDA_SHOW_REFUSED").is_ok() {
