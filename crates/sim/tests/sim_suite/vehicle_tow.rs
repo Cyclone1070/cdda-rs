@@ -816,3 +816,69 @@ fn a_tow_cable_attaches_to_an_edge_and_nothing_else() {
         "**an edge with nothing racked takes the cable**"
     );
 }
+
+/// **A vehicle on a cable takes no second one.** Reference: `item::link_to` refuses `has_tow_attached() || is_towed() || is_towing()` before it looks at the mount (`item.cpp:14240-14248`).
+/// The port asks it of **both** ends, because a link is a pair: a chain of three vehicles is not something a tow cable can be.
+#[test]
+fn a_vehicle_on_a_cable_takes_no_second_one() {
+    use cdda_sim::vehicle_tow::{already_attached, set_towing};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "hull".to_owned(),
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    let hull = || cdda_sim::vehicles::Vehicle {
+        parts: vec![cdda_sim::vehicles::VehiclePart {
+            part: "hull".to_owned(),
+            ..cdda_sim::vehicles::VehiclePart::default()
+        }],
+        ..cdda_sim::vehicles::Vehicle::default()
+    };
+    let first = world
+        .spawn((hull(), cdda_sim::Position { x: 0, y: 0, z: 0 }))
+        .id();
+    let second = world
+        .spawn((hull(), cdda_sim::Position { x: 0, y: 5, z: 0 }))
+        .id();
+    let third = world
+        .spawn((hull(), cdda_sim::Position { x: 0, y: 10, z: 0 }))
+        .id();
+
+    assert!(!already_attached(&world, first), "a fresh hull is free");
+    assert!(
+        set_towing(&mut world, first, second),
+        "the first cable goes on"
+    );
+    assert!(already_attached(&world, first), "and both ends know it");
+    assert!(already_attached(&world, second), "**the towed end too**");
+
+    // **The tower cannot take a second cable**, and the refused attempt leaves the first link alone.
+    assert!(
+        !set_towing(&mut world, first, third),
+        "**a tower already on a cable refuses another**"
+    );
+    assert!(
+        !already_attached(&world, third),
+        "and the vehicle that was offered the cable is untouched"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::vehicle_tow::Towing>(first)
+            .and_then(|held| held.towing),
+        Some(second),
+        "the first link still stands"
+    );
+
+    // **The towed end is just as busy**: it cannot be hooked to a third vehicle either.
+    assert!(
+        !set_towing(&mut world, second, third),
+        "the towed hull is already on a cable"
+    );
+}

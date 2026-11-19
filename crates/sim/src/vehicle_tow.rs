@@ -71,6 +71,13 @@ pub fn set_towing(world: &mut World, pulling: Entity, pulled: Entity) -> bool {
     {
         return false;
     }
+    // **A vehicle already on a cable takes no second one** - `item::link_to` refuses `has_tow_attached() || is_towed() || is_towing()` before it looks at the mount at all
+    // (`item.cpp:14240-14248`). The port asks the same question of both ends rather than only the one being attached, because a link is a pair.
+    if tow_attachment(already_attached(world, pulling), true, false).is_err()
+        || tow_attachment(already_attached(world, pulled), true, false).is_err()
+    {
+        return false;
+    }
     let front_side = tow_side_of(world, pulling);
     let rear_side = tow_side_of(world, pulled);
     let mut pull_state = world.get_mut::<Towing>(pulling).map_or(
@@ -501,6 +508,15 @@ pub enum TowRefusal {
     InternalPart,
     /// The part at the mount carries items, so a cable could not reach it - `!part( part_at ).carried_stack.empty()`.
     RackedPart,
+}
+
+/// **Whether a vehicle already has a cable on it** - the reference's `has_tow_attached() || is_towed() || is_towing()`, read from the port's own two-sided record: a vehicle with either
+/// end of a link set is attached, and one with neither is free.
+#[must_use]
+pub fn already_attached(world: &World, vehicle: Entity) -> bool {
+    world
+        .get::<Towing>(vehicle)
+        .is_some_and(|held| held.towing.is_some() || held.towed_by.is_some())
 }
 
 /// **Whether a tow cable may be attached at a mount**, in the reference's own order and with its own three refusals: already attached, internal part, racked part. The checks are asked in

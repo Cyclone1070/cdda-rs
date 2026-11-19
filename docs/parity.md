@@ -38919,3 +38919,20 @@ of every vehicle - which is the most common part there is. The gate pins it:
 | nothing in the neighbourhood | false |
 
 Mutation-checked: repairing the quirk (dropping the `index != 0` test) makes the first row answer true.
+
+## A vehicle on a cable takes no second one (round 217)
+
+`set_towing` now refuses a pair when **either** end is already attached, which is `item::link_to`'s first check (`item.cpp:14240-14248`: `has_tow_attached() || is_towed() || is_towing()`)
+asked of both vehicles rather than only the one being offered the cable - a link is a pair, and a chain of three is not something a cable can be.
+
+| Attempt | Result |
+|---|---|
+| first cable onto two free hulls | linked, both ends attached |
+| a **second** cable onto the tower | refused; the offered hull is untouched and the first link stands |
+| a cable onto the **towed** end | refused |
+
+`already_attached(world, vehicle)` reads the port's own two-sided record - either end set is attached, neither is free - so the question never has to consult a second source.
+
+Mutation-checked: without the guard the second cable goes on and the first link is overwritten.
+
+**Named, not guessed**: the reference's other two refusals - an **internal mount** and a **racked part** - need a mount, and the port has no attach action that chooses one yet: `set_towing` links two vehicles, not a mount on a vehicle. `mount_is_external` and `tow_attachment` are ported and waiting for that action; when it arrives, it asks `tow_attachment` with the mount it has chosen, and `set_towing` keeps only the already-attached half.
