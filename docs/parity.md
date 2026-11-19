@@ -38747,3 +38747,26 @@ Mutation-checked: dropping the `towed_velocity <= tower_velocity` guard drags a 
 
 **Not ported**: the movement itself - `selfdrive` for a front- or back-hitched cable, and the skid-and-slide branch for a side hitch (`vehicle.cpp:7131-7152`), which needs
 `line_to`, `move_vehicle` and the towed hull's own facing. The decision is ported; applying it to the map is the next step.
+
+## Steering happens in fifteen-degree steps (round 209)
+
+`vehicles::steer_increment` (`vehicle.h:88`) is `15_degrees`, and it is a **quantum, not a speed**: a hull does not turn by an arbitrary angle, it turns by whole increments. Every rule
+that rounds a heading in the reference rounds it to this.
+
+| Function | Reference | Rule |
+|---|---|---|
+| `normalise` | `normalize( units::angle )` | into `[0, 360)` from either side |
+| `round_to_steer_increment` | `round_to_multiple_of` (`units_utility.h:42-47`) | `lround( val / of ) * of` - **half away from zero** |
+| `steered_facing` | `vehicle::selfdrive` (`vehicle_move.cpp:1331-1338`) | the facing plus `turn × 15°`, wrapped |
+| `immediate_path_heading` | `vehicle::immediate_path` (`vehicle.cpp:725-731`) | normalise, then round, then normalise |
+
+The rounding convention is the part worth pinning: 7.4 degrees rounds to nothing and **7.5 rounds to fifteen**, because `std::lround` rounds halves away from zero and a truncation would
+have kept both at zero.
+
+The order in `immediate_path_heading` is load-bearing too: the reference wraps the heading **before** rounding it, so 359 degrees with a rotation of 4 lands on **zero** rather than on
+372 - and the port normalises again after the rounding, because 360 × 15 could land on 360 exactly.
+
+Mutation-checked: truncating instead of rounding keeps 7.5 at zero.
+
+**What this buys**: a towed hull's turn - the `trn * steer_increment` that `selfdrive` applies - is now a pure function of the turn count, and the collision heading autodrive would check is
+the same arithmetic the reference's path check uses.

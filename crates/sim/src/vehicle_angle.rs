@@ -61,3 +61,44 @@ pub fn turn_from_angle(angle: f64, on_target: bool, reverse: bool) -> i32 {
         0
     }
 }
+
+/// **The steering quantum**: every steering decision lands on a multiple of fifteen degrees - `vehicles::steer_increment` (`vehicle.h:88`), `15_degrees`.
+///
+/// It is a **quantum, not a speed**: a hull does not turn by an arbitrary angle, it turns by whole increments, and every rule that rounds a heading in the reference rounds it to this.
+pub const STEER_INCREMENT_DEGREES: f64 = 15.0;
+
+/// **An angle brought into `[0, 360)`** - the reference's `normalize( units::angle )`, which every heading passes through before it is rounded or compared.
+#[must_use]
+pub fn normalise(degrees: f64) -> f64 {
+    let wrapped = degrees % 360.0;
+    if wrapped < 0.0 {
+        wrapped + 360.0
+    } else {
+        wrapped
+    }
+}
+
+/// **An angle rounded to the nearest steering quantum** - `round_to_multiple_of( val, of )` (`units_utility.h:42-47`), whose body is `lround( val / of ) * of`: the division is rounded
+/// **half away from zero**, not truncated, so seven and a half degrees rounds up to fifteen and -7.5 rounds down to -15.
+#[must_use]
+pub fn round_to_steer_increment(degrees: f64) -> f64 {
+    let multiple = (degrees / STEER_INCREMENT_DEGREES).round();
+    multiple * STEER_INCREMENT_DEGREES
+}
+
+/// **The facing a towed hull is steered to** - `vehicle::selfdrive` (`vehicle_move.cpp:1331-1338`), which turns by `trn * steer_increment` when the turn is not zero. The turn is the
+/// quarter-turn count [`turn_from_angle`] answers, so a hull whose cable asks for "one quarter" turns exactly fifteen degrees - it does not aim at the target, it steps toward it.
+#[must_use]
+pub fn steered_facing(current_degrees: f64, turn: i32) -> f64 {
+    let step = f64::from(turn) * STEER_INCREMENT_DEGREES;
+    normalise(current_degrees + step)
+}
+
+/// **The heading an immediate-path check runs along** - `vehicle::immediate_path` (`vehicle.cpp:725-731`): the hull's face plus a rotation, **normalised and then rounded to the steering
+/// quantum**, and the clamp happens after the wrap, so a heading of 359 degrees and a rotation of 4 rounds to zero rather than to 372.
+#[must_use]
+pub fn immediate_path_heading(face_degrees: f64, rotate_degrees: f64) -> f64 {
+    let adjusted = normalise(face_degrees + rotate_degrees);
+    let rounded = round_to_steer_increment(adjusted);
+    normalise(rounded)
+}

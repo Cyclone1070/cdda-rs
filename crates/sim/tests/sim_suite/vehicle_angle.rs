@@ -5,7 +5,10 @@
 
 #![allow(clippy::float_cmp)]
 
-use cdda_sim::vehicle_angle::{angle_from_target, turn_from_angle};
+use cdda_sim::vehicle_angle::{
+    STEER_INCREMENT_DEGREES, angle_from_target, immediate_path_heading, normalise,
+    round_to_steer_increment, steered_facing, turn_from_angle,
+};
 
 /// **The angle is signed, zero is dead ahead, and the quadrants come from the cross and dot products.** Reference: `get_angle_from_targ` - `atan2( cross, dot )` between the hull's facing
 /// and the vector to the target.
@@ -130,5 +133,88 @@ fn the_turn_ladder_has_the_references_own_edges() {
         turn_from_angle(-120.0, false, true),
         -1,
         "a hundred and twenty right is minus one"
+    );
+}
+
+/// **Steering happens in fifteen-degree steps.** Reference: `vehicles::steer_increment` (`vehicle.h:88`), `round_to_multiple_of` (`units_utility.h:42-47`), `vehicle::selfdrive`'s turn
+/// (`vehicle_move.cpp:1331-1338`) and `vehicle::immediate_path`'s rounded heading (`vehicle.cpp:725-731`).
+#[test]
+fn steering_happens_in_fifteen_degree_steps() {
+    assert_eq!(
+        STEER_INCREMENT_DEGREES, 15.0,
+        "the quantum is fifteen degrees"
+    );
+
+    // **Normalising wraps into [0, 360)** from either side.
+    assert_eq!(normalise(370.0), 10.0, "past a full turn wraps");
+    assert_eq!(
+        normalise(-10.0),
+        350.0,
+        "and before zero wraps the other way"
+    );
+    assert_eq!(normalise(0.0), 0.0, "zero stays zero");
+    assert_eq!(normalise(360.0), 0.0, "and a full turn is zero");
+
+    // **Rounding is half away from zero**, which is `lround` and not a truncation.
+    assert_eq!(
+        round_to_steer_increment(7.4),
+        0.0,
+        "seven and a bit rounds down"
+    );
+    assert_eq!(
+        round_to_steer_increment(7.5),
+        15.0,
+        "**seven and a half rounds up**"
+    );
+    assert_eq!(
+        round_to_steer_increment(22.0),
+        15.0,
+        "twenty-two rounds to fifteen"
+    );
+    assert_eq!(
+        round_to_steer_increment(23.0),
+        30.0,
+        "and twenty-three to thirty"
+    );
+    assert_eq!(
+        round_to_steer_increment(-7.5),
+        -15.0,
+        "and it is away from zero on the other side too"
+    );
+
+    // **A towed hull steps by whole increments**, so a quarter turn is fifteen degrees and never the angle to the target.
+    assert_eq!(steered_facing(0.0, 1), 15.0, "one step left");
+    assert_eq!(steered_facing(0.0, -1), 345.0, "one step right wraps");
+    assert_eq!(
+        steered_facing(350.0, 4),
+        50.0,
+        "**four steps from three hundred and fifty wrap past north**"
+    );
+    assert_eq!(
+        steered_facing(90.0, 0),
+        90.0,
+        "no turn leaves the facing alone"
+    );
+
+    // **The immediate-path heading is normalised, then rounded, then normalised again** - so the wrap comes before the rounding, and 359 with a rotation of 4 lands on zero.
+    assert_eq!(
+        immediate_path_heading(359.0, 4.0),
+        0.0,
+        "**three hundred and fifty-nine plus four is zero**"
+    );
+    assert_eq!(
+        immediate_path_heading(0.0, 7.0),
+        0.0,
+        "seven rounds to nothing"
+    );
+    assert_eq!(
+        immediate_path_heading(0.0, 8.0),
+        15.0,
+        "eight rounds to fifteen"
+    );
+    assert_eq!(
+        immediate_path_heading(90.0, 0.0),
+        90.0,
+        "a heading already on the quantum stays"
     );
 }
