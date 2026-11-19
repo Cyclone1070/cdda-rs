@@ -39149,3 +39149,26 @@ wrong.
 
 **Named gaps.** Nothing descends yet: `should_fall` and `falling_velocity` are ported and the state they read now exists on the hull, but the one-level `dp.z() = -1` step and the
 vertical collision that lands it are the next rounds.
+
+## A falling hull steps down (round 228)
+
+Reference: `vehicle::act_on_map` (`vehicle_move.cpp:1958-1998`). When `should_fall`, the step is `dp.z() = -1` and there is **no lateral component at all** - the reference's own comment
+calls it "no air control". The port now steps such a hull down through `vehicles::descend_vehicle`, which keeps the index in step the same way a lateral move does, and then raises
+`vertical_velocity` by the gravity ladder: `0 -> -1980 -> -2800`.
+
+Two things the round had to get right, both gated:
+
+- **A falling hull moves even with no speed.** `move_vehicles` used to walk only vehicles whose `velocity != 0`, which is the lateral question; the reference's `map::vehmove` walks the
+  vehicles whose turn has come, and `act_on_map` gives a falling one its downward step before it ever reads lateral velocity. The pass now takes a hull that is falling **or** moving.
+- **A fall costs no turn.** The reference spends `of_turn` on lateral squares; the downward step happens before that bookkeeping, so the port returns from the fall branch without
+  touching it.
+
+Mutation-checked twice: a flat ladder (`-1` instead of the gravity rule) and a fall that drifts sideways instead of dropping.
+
+**Where the port's world is thinner than the reference's, and now visibly so:** a square **nobody described** is read as solid ground, so a hull falling into undescribed space stops
+falling. The reference has no such square - every tile has terrain - and the port keeps the forgiving reading because the alternative (every undescribed square is a hole) would drop
+vehicles out of worlds that simply have not built their levels yet. The fall test describes both levels it falls through, which is also the honest way to write such a test.
+
+**Named gap.** A landing is a **vertical collision**, which is not ported: the reference zeroes `vertical_velocity` when the impact takes all of it (`vehicle_move.cpp:803-807`), so in
+the port a hull that reaches ground keeps its speed and - since `should_fall` is a velocity as well as a flag - keeps descending. That is the reference's rule with its landing rule
+missing, and it is named rather than patched over.

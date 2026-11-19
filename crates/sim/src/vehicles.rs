@@ -394,6 +394,32 @@ fn creature_at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
         .find(|entity| world.get::<crate::creature::Creature>(*entity).is_some())
 }
 
+/// **Moves a hull one level down**, which is what a fall's step is - the reference's `dp.z() = -1` in `vehicle::act_on_map` (`vehicle_move.cpp:1992-1995`). A falling vehicle moves
+/// **downwards and not sideways**, because a fall has no air control.
+///
+/// The index is kept in step with the store the same way a lateral move keeps it: the squares it left are dropped and the ones it arrived at are taken.
+#[must_use]
+pub fn descend_vehicle(world: &mut World, vehicle: Entity) -> bool {
+    let before = occupied_squares(world, vehicle);
+    {
+        let Some(mut position) = world.get_mut::<Position>(vehicle) else {
+            return false;
+        };
+        position.z -= 1;
+    }
+    let after = occupied_squares(world, vehicle);
+    {
+        let mut index = crate::singletons::index_mut(world);
+        for square in before {
+            index.remove(vehicle, square);
+        }
+        for square in &after {
+            index.insert(vehicle, *square);
+        }
+    }
+    true
+}
+
 /// Moves a vehicle one square, taking everything on it - the displacement half of `map::move_vehicle` (`map.cpp:773-...)`, which reaches
 /// `map::displace_vehicle` (`map.cpp:1460-...)`.
 ///

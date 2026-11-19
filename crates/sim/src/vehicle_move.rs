@@ -547,6 +547,17 @@ pub fn move_step_with_rolls(
     let Some(built) = world.get::<crate::vehicles::Vehicle>(vehicle) else {
         return false;
     };
+    // **A falling hull steps down instead of sideways.** Reference: `vehicle::act_on_map` (`vehicle_move.cpp:1958-1998`) - when `should_fall` the step is `dp.z() = -1` and there is no
+    // lateral movement at all, which is why the reference's own comment calls it "no air control". The velocity it gains is the gravity rule's, one level at a time.
+    if crate::vehicle_falling::should_fall(built.is_falling, built.vertical_velocity) {
+        let fell = crate::vehicles::descend_vehicle(world, vehicle);
+        if fell && let Some(mut hull) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+            hull.vertical_velocity =
+                crate::vehicle_falling::falling_velocity(hull.vertical_velocity);
+            hull.is_falling = true;
+        }
+        return fell;
+    }
     let velocity = built.velocity;
     let of_turn = built.of_turn;
     let skidding = built.skidding;
@@ -1143,7 +1154,11 @@ pub fn move_vehicles(world: &mut World) -> usize {
     let mut vehicles = Vec::new();
     let mut query = world.query::<(Entity, &crate::vehicles::Vehicle)>();
     for (entity, built) in query.iter(world) {
-        if built.velocity != 0 {
+        // **A falling hull moves even with no speed at all**: the reference's `map::vehmove` walks the vehicles whose turn has come, and `act_on_map` gives a falling one its
+        // downward step before it ever looks at lateral velocity (`vehicle_move.cpp:1958-1998`).
+        if built.velocity != 0
+            || crate::vehicle_falling::should_fall(built.is_falling, built.vertical_velocity)
+        {
             vehicles.push(entity);
         }
     }

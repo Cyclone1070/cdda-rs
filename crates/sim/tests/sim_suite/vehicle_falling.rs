@@ -446,3 +446,103 @@ fn being_held_up_again_clears_the_flag_but_not_the_speed() {
         "**but the fall speed survives**, because only an impact spends it"
     );
 }
+
+/// **A falling hull steps down a level and gains speed**, and it does not move sideways while it does - the reference's `dp.z() = -1` with no lateral component
+/// (`vehicle_move.cpp:1958-1998`). The velocity is the gravity ladder the port already gates: `0 -> -1980 -> -2800`.
+#[test]
+fn a_falling_hull_steps_down_and_gains_speed() {
+    // A hull hanging over open air at the **second** level, so that there is a level below to fall into.
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_open_air".to_owned(), 1_u32),
+            ("t_floor".to_owned(), 2_u32),
+        ],
+    );
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [
+            ("t_open_air".to_owned(), vec!["NO_FLOOR".to_owned()]),
+            ("t_floor".to_owned(), Vec::new()),
+        ],
+    );
+    cdda_sim::terrain_types::set_move_costs(
+        &mut world,
+        [
+            ("t_open_air".to_owned(), 2_i32),
+            ("t_floor".to_owned(), 2_i32),
+        ],
+    );
+    // **Both levels are open air**, because a hull falling through empty space is only held up if the square it enters says so - the port reads a square nobody described as solid,
+    // which is the one place its world is thinner than the reference's and is named in `docs/parity.md`.
+    for z in [1, 2] {
+        world.spawn((Terrain { code: 1 }, Position { x: 0, y: 0, z }));
+        world.spawn((Terrain { code: 1 }, Position { x: 1, y: 0, z }));
+    }
+    let vehicle = world
+        .spawn((
+            Vehicle {
+                parts: vec![
+                    VehiclePart {
+                        part: "wheel".to_owned(),
+                        ..VehiclePart::default()
+                    },
+                    VehiclePart {
+                        part: "wheel".to_owned(),
+                        x: 1,
+                        ..VehiclePart::default()
+                    },
+                ],
+                // Falling, and fast already: the first step of this fall follows the ladder from zero.
+                is_falling: true,
+                vertical_velocity: 0,
+                ..Vehicle::default()
+            },
+            Position { x: 0, y: 0, z: 2 },
+        ))
+        .id();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "wheel".to_owned(),
+                flags: ["WHEEL".to_owned()].into_iter().collect(),
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    PositionIndex::rebuild(&mut world);
+
+    assert_eq!(
+        cdda_sim::vehicle_move::move_vehicles(&mut world),
+        1,
+        "the hull falls one level"
+    );
+    let at = world.get::<Position>(vehicle).copied().expect("a hull");
+    assert_eq!(
+        (at.x, at.y, at.z),
+        (0, 0, 1),
+        "**straight down, and not sideways**: a fall has no air control"
+    );
+    let hull = world.get::<Vehicle>(vehicle).cloned().expect("a hull");
+    assert_eq!(
+        hull.vertical_velocity, -1980,
+        "and it is now moving at the first rung of the gravity ladder"
+    );
+    assert!(hull.is_falling, "still falling, until something stops it");
+
+    assert_eq!(
+        cdda_sim::vehicle_move::move_vehicles(&mut world),
+        1,
+        "the next turn falls another level"
+    );
+    let hull = world.get::<Vehicle>(vehicle).cloned().expect("a hull");
+    assert_eq!(hull.vertical_velocity, -2800, "at the second rung");
+    assert_eq!(
+        world.get::<Position>(vehicle).map(|at| at.z),
+        Some(0),
+        "one level lower again"
+    );
+}
