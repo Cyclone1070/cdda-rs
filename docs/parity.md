@@ -39274,3 +39274,23 @@ Mutation-checked twice: the trap staying set after springing, and the square not
 **Named gaps, and they are the honest shape of this round.** Only the `eocs` action is sprung: the eighty-odd named actions in `trapfunc.cpp` (`bubble`, `tripwire`, `ledge`, the
 teleport-under-the-player traps) are their own rules, and a trap with one is **left set** rather than half-triggered - removing it without doing what it does would be worse than
 not noticing it. Nothing calls `spring` from the movement pipeline yet; the rule is written and gated, and the step that walks a creature onto a square is the next round's work.
+
+## A step springs the trap it lands on (round 234)
+
+Reference: `game::walk_move` ends with `here.creature_on_trap( u )` (`game.cpp:11356-11362`), which reaches `trap::trigger`. The port now calls `trap_spring::spring` for the square a
+step **entered**, and for nothing else - which is the whole of the rule this round adds:
+
+| Situation | What happens |
+|---|---|
+a step onto a trapped square | the trap's `eocs` programs run, and the trap is removed |
+a step anywhere else | nothing; the trap stays set for whoever walks there |
+a **refused** step | nothing; there was no square entered |
+
+The gate drives all three, and mutation-checks two of them: a step that never springs, and one that springs the square it **left** (both caught by the same assertion, which is why
+the assertion names the square).
+
+**Still named, not hidden.** The reference's `creature_on_trap` does more than trigger: it first asks whether the creature **notices** the trap (`Creature::is_hallucination`,
+perception, `trap::can_see` and the avoidance roll), and a trap that is noticed can be avoided or stepped around. The port springs what the creature steps on, unconditionally,
+because it has no perception roll for traps yet - a difference that matters for a player who would have seen the trap, and is recorded rather than glossed.
+
+And only the `eocs` action fires (see round 233); the named actions are still their own rounds.

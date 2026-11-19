@@ -106,6 +106,10 @@ pub fn walk(world: &mut World, creature: Entity, dx: i32, dy: i32) -> StepOutcom
     if outcome == StepOutcome::Moved {
         // **A step costs breath as well as movement points** (`game.cpp` calls `u.burn_move_stamina( mcost )` with the moves the step cost).
         crate::regeneration::burn(world, creature, charge);
+        // **And the square entered may be trapped.** Reference: `game::walk_move` ends with `here.creature_on_trap( u )` (`game.cpp:11356-11362`), which reaches
+        // `trap::trigger` - so the trap under the square the creature moved into fires, and one it merely walked past does not. The port's springing covers the `eocs`
+        // action, which is the one the data's teleporters use.
+        crate::trap_spring::spring(world, creature, to);
     }
     outcome
 }

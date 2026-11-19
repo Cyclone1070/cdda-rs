@@ -289,3 +289,4 @@ mod vehicle_spawn;
 mod vehicle_tow;
 mod vehicles;
 mod walk;
+mod walk_traps;
