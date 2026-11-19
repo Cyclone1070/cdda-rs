@@ -38936,3 +38936,24 @@ asked of both vehicles rather than only the one being offered the cable - a link
 Mutation-checked: without the guard the second cable goes on and the first link is overwritten.
 
 **Named, not guessed**: the reference's other two refusals - an **internal mount** and a **racked part** - need a mount, and the port has no attach action that chooses one yet: `set_towing` links two vehicles, not a mount on a vehicle. `mount_is_external` and `tow_attachment` are ported and waiting for that action; when it arrives, it asks `tow_attachment` with the mount it has chosen, and `set_towing` keeps only the already-attached half.
+
+## A tower too weak for its load cannot keep pulling (round 218)
+
+`vehicle::thrust` (`vehicle_move.cpp:494-500`) refuses the thrust outright when `accel < 200 && velocity > 0 && is_towing()` - a tower already rolling that cannot muster two hundredths of
+an acceleration gives up, and the player is told the vehicle "struggles to pull" what is behind it.
+
+`towing_struggles` is that condition, and `thrust_with_rolls` now asks it before anything moves.
+
+| Acceleration | Velocity | Towing | Struggles |
+|---|---|---|---|
+| 199 | 100 | yes | **true** |
+| 200 | 100 | yes | false - the reference's `< 200` |
+| 199 | **0** | yes | false - **a stationary tower may still start** |
+| 199 | -100 | yes | false - reversing is not restrained by this rule |
+| 199 | 100 | **no** | false - nothing behind it |
+
+The middle row is the one that explains the rule: this is not "a weak tower cannot pull", it is "a weak tower cannot **keep** pulling", and the velocity check is what says so.
+
+Mutation-checked: dropping `velocity > 0` makes a stationary tower refuse as well, and the gate says which row broke.
+
+**Named**: the reference's message to the player (`"The %s struggles to pull the %s on this surface!"`) is not ported, because the port has no message layer for vehicles yet. The mechanics are.

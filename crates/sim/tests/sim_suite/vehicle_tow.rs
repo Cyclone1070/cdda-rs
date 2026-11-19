@@ -882,3 +882,34 @@ fn a_vehicle_on_a_cable_takes_no_second_one() {
         "the towed hull is already on a cable"
     );
 }
+
+/// **A tower too weak for its load cannot keep pulling while it moves.** Reference: `vehicle::thrust` (`vehicle_move.cpp:494-500`) - `accel < 200 && velocity > 0 && is_towing()` refuses the
+/// thrust, and all three parts must hold.
+#[test]
+fn a_tower_too_weak_for_its_load_cannot_thrust_while_moving() {
+    use cdda_sim::vehicle_tow::{TOWING_ACCELERATION_FLOOR, towing_struggles};
+
+    assert_eq!(TOWING_ACCELERATION_FLOOR, 200, "the floor is two hundred");
+
+    // **All three at once**: weak, moving, towing.
+    assert!(
+        towing_struggles(199, 100, true),
+        "**under the floor, moving forwards and towing refuses**"
+    );
+    assert!(
+        !towing_struggles(200, 100, true),
+        "exactly two hundred is enough: the reference's `< 200`"
+    );
+    assert!(
+        !towing_struggles(199, 0, true),
+        "**a stationary tower may still start**, which is why the rule asks for `velocity > 0`"
+    );
+    assert!(
+        !towing_struggles(199, -100, true),
+        "and a reversing one is not restrained by this rule at all"
+    );
+    assert!(
+        !towing_struggles(199, 100, false),
+        "a vehicle with nothing behind it is not struggling"
+    );
+}

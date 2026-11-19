@@ -196,6 +196,14 @@ pub fn thrust_with_rolls(
     let velocity = built.velocity;
     let cruise_velocity = built.cruise_velocity;
     let acceleration = current_acceleration(world, vehicle);
+    // **A tower too weak for its load cannot thrust at all while it is moving** - `vehicle::thrust` (`vehicle_move.cpp:494-500`), whose three-part condition is the port's own
+    // `towing_struggles`: under 200 of acceleration, moving forwards, and towing.
+    let towing = world
+        .get::<crate::vehicle_tow::Towing>(vehicle)
+        .is_some_and(|held| held.towing.is_some());
+    if crate::vehicle_tow::towing_struggles(acceleration, velocity, towing) {
+        return false;
+    }
     let Some(max_velocity) = crate::vehicle_drive::max_ground_velocity(world, vehicle) else {
         return false;
     };

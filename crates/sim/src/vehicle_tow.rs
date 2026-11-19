@@ -542,3 +542,15 @@ pub fn tow_attachment(
     }
     Ok(())
 }
+
+/// **The acceleration below which a tower cannot get moving** - `vehicle::thrust` (`vehicle_move.cpp:494-500`): `accel < 200 && velocity > 0 && is_towing()` refuses to thrust at all, because the
+/// vehicle "struggles to pull" what is behind it.
+pub const TOWING_ACCELERATION_FLOOR: i32 = 200;
+
+/// **Whether a tower is too weak to pull while it is already moving** - the reference's own three-part condition (`vehicle_move.cpp:494`), all three of which must hold:
+/// the acceleration is **under 200**, the vehicle is **moving forwards**, and it **is towing**. A stationary tower may still start, which is why the velocity check is there: the rule models
+/// a moving vehicle that cannot keep pulling, not one that cannot pull at all.
+#[must_use]
+pub fn towing_struggles(acceleration: i32, velocity: i32, towing: bool) -> bool {
+    acceleration < TOWING_ACCELERATION_FLOOR && velocity > 0 && towing
+}
