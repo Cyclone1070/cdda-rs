@@ -39458,3 +39458,20 @@ Three mutations, three catches: the removal skipped, `UNCONSUMED` ignored, and (
 **Named gaps.** The reference casts through `spell::cast_all_effects`, which walks the spell's own effects and its area shape; the port calls `spell_effects::apply`, which
 dispatches on the spell's single `effect_name`. A spell whose effect the port has no rule for casts nothing - it does not refuse, which is what `Effective::NotPorted` would
 have done, and that is a divergence worth naming rather than hiding. `make_sound` (a spell's own noise) is not modelled here.
+
+## Broken glass, and the trap ledger (round 244)
+
+Reference: `trapfunc::glass` (`trapfunc.cpp:151-175`) - two traps, and the first action whose rule **reads the body**. Four parts:
+
+- only a creature sets it off, and it steps on the shards only `x_in_y( occupied_tile_fraction( size ), 1 )` of the time, so a tiny creature walks between them nine times in ten;
+- the cut is `max( 0, rng( -10, 5 ) )` - no cut at all four times in sixteen;
+- a cut that lands spends `speed * 0.8` moves and is dealt to a **ground-contact** part, where the part's own armour stops what it stops;
+- the trap says "glass cracking!" and is removed.
+
+**The tests are distributions, because the rule is.** A hundred seeds: a medium creature meets the glass about half the time, a tiny one about a tenth, and some meetings cut and some do not - so a rule that always fires and a rule that never fires both fail. Four mutations, four catches: the size fraction removed (100 meetings), the cut made constant (51 of 51 cut), the flinch removed (moves unchanged), and the ground-contact filter removed (five cuts through a hundred points of foot armour, because a bare torso was picked).
+
+**Two test traps worth recording**, both found by mutation rather than by reading. A creature with no `Moves` spends nothing, so a mutation of the flinch survived until the fixture banked a turn; and `wear` charges moves, so a garment put on a creature with no moves is never worn - the armour test was measuring an undressed body until the turn came first.
+
+**The trap ledger is now a test.** `the_reference_tree_holds_the_trap_actions_the_port_answers` buckets all 125 traps by the action they name, after `copy-from` resolution - which is how 6 written `eocs` actions become 24. **93 have an answer** (`spell` 34, `eocs` 24, `map_regen` 17, `none` 16, `glass` 2) and **32 name thirty functions the port has no rule for**, the largest of which is `shotgun` with three.
+
+**Named divergence.** The reference deals its cut to the part's own hit points; the port's body parts carry `base_hp` but no running total, so the wound lands on the creature's health with the part choosing the armour and the message - the same fidelity melee already uses.

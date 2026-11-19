@@ -434,3 +434,276 @@ fn install_a_spell(world: &mut World, id: &str) {
     };
     cdda_sim::spell_types::set_types(world, vec![spell]);
 }
+
+/// **A `glass` trap cuts a foot and slows the walker** - the reference's third family of trap behaviour, and the one that reads the body: which part took the glass, how
+/// much of the cut the part's own armour stops, and how much of a turn the flinch costs.
+///
+/// Reference: `trapfunc::glass` (`trapfunc.cpp:151-175`): only a creature sets it off; whether it steps on the glass at all is `x_in_y(occupied_tile_fraction(size), 1)` -
+/// a tiny creature mostly walks between the shards; the cut is `max(0, rng(-10, 5))`, so four times in sixteen there is none; a cut that lands costs `speed * 0.8` moves
+/// and is dealt to a random **ground-contact** part; and the trap says "glass cracking!" and is gone.
+///
+/// **The counts are the test.** A rule that always fires and a rule that never does are both wrong, so a hundred seeds are run and the tally is what is pinned: half the
+/// seeds meet the glass for a medium creature, a tenth for a tiny one, and some of the meetings cut - which is the only way to prove a distribution-ruled trap without
+/// pretending one lucky seed is the rule.
+#[test]
+fn a_glass_trap_is_met_half_the_time_by_a_medium_creature() {
+    let (mut world, who) = a_world();
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glass", &[])]);
+    let (meetings, cuts) = glass_runs(&mut world, who, 100);
+    assert!(
+        (35..=65).contains(&meetings),
+        "**half of a hundred medium creatures meet the glass**: {meetings}"
+    );
+    assert!(
+        cuts > 0 && cuts <= meetings,
+        "and some of those meetings cut: {cuts} of {meetings}"
+    );
+}
+
+/// **A tiny creature walks between the shards most of the time.** Reference: `occupied_tile_fraction( tiny )` is a tenth, so the same hundred seeds meet the glass about a
+/// tenth as often - and the test pins both ends, because "never" would pass a one-sided assertion just as happily while proving nothing.
+#[test]
+fn a_tiny_creature_mostly_walks_between_the_shards() {
+    let (mut world, who) = a_world();
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glass", &[])]);
+    if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+        creature.size = cdda_sim::CreatureSize::Tiny;
+    }
+    let (meetings, _cuts) = glass_runs(&mut world, who, 100);
+    assert!(
+        (2..=25).contains(&meetings),
+        "**about a tenth of a hundred tiny creatures meet the glass**: {meetings}"
+    );
+}
+
+/// **The meeting is announced, costs moves and sweeps the glass away.** The seed is found rather than guessed: the test runs seeds until one meets the glass, which is
+/// what the tally above already says happens half the time.
+#[test]
+fn a_glass_trap_tells_the_walker_and_costs_moves() {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glass", &[])]);
+    give_the_walker_a_turn(&mut world, who);
+    let mut seed = 1u32;
+    let mut met = false;
+    while seed <= 200 {
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        cdda_sim::messages::clear(&mut world);
+        let before = cdda_sim::creature::moves_left(&world, who);
+        cdda_sim::square::remove_trap(&mut world, (0, 0, 0));
+        assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+        if cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)) {
+            met = true;
+            assert!(
+                cdda_sim::messages::lines(&world)
+                    .iter()
+                    .any(|line| line == "You step on some glass!"),
+                "**the walker is told**: {:#?}",
+                cdda_sim::messages::lines(&world)
+            );
+            assert_eq!(
+                cdda_sim::square::trap_at(&world, (0, 0, 0)),
+                None,
+                "and the glass is swept away"
+            );
+            let now = cdda_sim::creature::moves_left(&world, who);
+            assert!(
+                now < before,
+                "**the flinch costs moves**: {before} then {now}"
+            );
+            break;
+        }
+        assert_eq!(
+            cdda_sim::square::trap_at(&world, (0, 0, 0)),
+            Some("tr_test".to_owned()),
+            "a meeting that does not happen leaves the glass set"
+        );
+        seed += 1;
+    }
+    assert!(
+        met,
+        "**some seed meets the glass**, or the rule never fires"
+    );
+}
+
+/// Runs `seeds` springs and answers how many met the glass and how many of those cut, putting the trap back between runs.
+fn glass_runs(world: &mut World, who: Entity, seeds: u64) -> (usize, usize) {
+    let mut meetings = 0;
+    let mut cuts = 0;
+    // **Moves to spend**, or the flinch costs nothing and the cut cannot be seen: a creature with an empty bank spends nothing whatever it is charged.
+    give_the_walker_a_turn(world, who);
+    for seed in 1..=u32::try_from(seeds).unwrap_or(1) {
+        cdda_sim::singletons::put_rolls(world, cdda_core_types::rng::Rolls::new(seed));
+        // A run that does not meet the glass leaves it set, which is right; the next seed wants a fresh one.
+        cdda_sim::square::remove_trap(world, (0, 0, 0));
+        assert!(cdda_sim::square::set_trap(world, (0, 0, 0), "tr_test"));
+        let before = cdda_sim::creature::moves_left(world, who);
+        let hp_before = cdda_sim::creature::health_of(world, who).unwrap_or(0);
+        if cdda_sim::trap_spring::spring(world, who, (0, 0, 0)) {
+            meetings += 1;
+            // **A cut that got through**, which is what armour can stop: moves are spent whether or not anything passed the part's own covering.
+            if cdda_sim::creature::health_of(world, who).unwrap_or(0) < hp_before {
+                cuts += 1;
+            }
+            let _ = before;
+        }
+        // Heal and restore what a run spends, so the next seed starts from the same place: the tally is about the roll, not about a creature being worn down.
+        cdda_sim::creature::set_health(world, who, 100);
+        give_the_walker_a_turn(world, who);
+    }
+    (meetings, cuts)
+}
+
+/// A plain spawned creature carries neither a speed nor a banked turn, and both are what a trap's flinch is measured against.
+fn give_the_walker_a_turn(world: &mut World, who: Entity) {
+    cdda_sim::creature::set_speed(world, who, 100, 0);
+    cdda_sim::creature::set_health(world, who, 100);
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Moves { left: 100 });
+}
+
+/// **The glass cuts a part that touches the ground, and armour on the parts that do not is worth nothing.** Reference: `trapfunc::glass` deals its cut to
+/// `random_entry( c->get_ground_contact_bodyparts() )` (`trapfunc.cpp:168`), so a character in a steel vest still cuts a bare foot.
+///
+/// **The test is the cover.** Every part that is *not* a leg or a foot is wrapped in armour a cut cannot pass; the ground-contact parts are left bare. Under that cover the
+/// only way a cut can still be dealt is for the rule to pick a part that touches the ground - and the tally says it does, over and over, while a rule that picks any part
+/// would spend most of its meetings on a covered torso and come back with nothing.
+#[test]
+fn the_glass_cuts_a_part_that_touches_the_ground() {
+    let (mut world, who) = a_world();
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glass", &[])]);
+    // A body the fixture gives it: a torso and a head that cannot meet the ground, a leg and a foot that can.
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("head", "head"),
+            a_part("arm_l", "arm"),
+            a_part("arm_r", "arm"),
+            a_part("leg_l", "leg"),
+            a_part("foot_l", "foot"),
+        ],
+    });
+    let parts = world
+        .get::<cdda_sim::creature::Body>(who)
+        .map(|body| body.parts.clone())
+        .unwrap_or_default();
+    let mut wrapped = Vec::new();
+    for part in &parts {
+        let ground = part
+            .primary_limb_type
+            .as_deref()
+            .is_some_and(|kind| kind == "leg" || kind == "foot");
+        if ground {
+            continue;
+        }
+        wrapped.push(part.name.clone());
+    }
+    assert!(
+        !wrapped.is_empty(),
+        "the body has parts that do not touch the ground"
+    );
+    let cover = cdda_sim::creature::Garment {
+        layers: wrapped
+            .iter()
+            .map(|name| {
+                (
+                    name.clone(),
+                    cdda_content::armour::Layer {
+                        damage_type: "cut".to_owned(),
+                        resist: 100.0,
+                        thickness: 1.0,
+                        cover: 100,
+                    },
+                )
+            })
+            .collect(),
+        vitals: Vec::new(),
+    };
+    // **The turn comes before the garment**: wearing costs moves, and a wearer with an empty bank is too slow to be dressed - which is a trap for the test, not a rule.
+    give_the_walker_a_turn(&mut world, who);
+    let garment = world.spawn(cover).id();
+    assert_eq!(
+        cdda_sim::creature::wear(&mut world, who, garment),
+        cdda_sim::creature::Wore::Worn,
+        "the garment goes on"
+    );
+    cdda_sim::creature::dress(&mut world);
+    let (meetings, cuts) = glass_runs(&mut world, who, 100);
+    assert!(
+        meetings >= 35,
+        "**half the seeds still meet the glass**: {meetings}"
+    );
+    assert!(
+        cuts >= 8,
+        "**and the ones that cut land on a bare foot**: {cuts} of {meetings}"
+    );
+    assert!(
+        cuts < meetings,
+        "some meetings draw no cut at all: {cuts} of {meetings}"
+    );
+}
+
+/// One part of the fixture's body, with the kind a rule asks about.
+fn a_part(name: &str, kind: &str) -> cdda_sim::hit_location::BodyPart {
+    cdda_sim::hit_location::BodyPart {
+        name: name.to_owned(),
+        hit_size: 1.0,
+        hit_difficulty: 1.0,
+        primary_limb_type: Some(kind.to_owned()),
+        ..cdda_sim::hit_location::BodyPart::default()
+    }
+}
+
+/// **Armour on the part the glass reaches stops it**, which is what makes the test above about the *choice* of part mean anything: if the rule never read the chosen part's
+/// armour, covering the bare feet would change nothing and every cover assertion would pass for the wrong reason.
+#[test]
+fn armour_on_the_foot_the_glass_reaches_stops_the_cut() {
+    let (mut world, who) = a_world();
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("foot_l", "foot"),
+        ],
+    });
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glass", &[])]);
+    // Every part that touches the ground is wrapped; the torso is bare.
+    let cover = cdda_sim::creature::Garment {
+        layers: ["leg_l", "foot_l"]
+            .iter()
+            .map(|name| {
+                (
+                    (*name).to_owned(),
+                    cdda_content::armour::Layer {
+                        damage_type: "cut".to_owned(),
+                        resist: 100.0,
+                        thickness: 1.0,
+                        cover: 100,
+                    },
+                )
+            })
+            .collect(),
+        vitals: Vec::new(),
+    };
+    // **The turn comes before the garment**: wearing costs moves, and a wearer with an empty bank is too slow to be dressed - which is a trap for the test, not a rule.
+    give_the_walker_a_turn(&mut world, who);
+    let garment = world.spawn(cover).id();
+    assert_eq!(
+        cdda_sim::creature::wear(&mut world, who, garment),
+        cdda_sim::creature::Wore::Worn,
+        "the garment goes on"
+    );
+    cdda_sim::creature::dress(&mut world);
+    assert!(
+        cdda_sim::creature::armour_on(&world, who, "foot_l", Some("cut")) >= 100,
+        "**the foot is covered**, or the test is asking the wrong question: {}",
+        cdda_sim::creature::armour_on(&world, who, "foot_l", Some("cut"))
+    );
+    let (meetings, cuts) = glass_runs(&mut world, who, 100);
+    assert!(meetings >= 35, "**the glass is still met**: {meetings}");
+    assert_eq!(
+        cuts, 0,
+        "**and never cuts through it**: {cuts} of {meetings}"
+    );
+}

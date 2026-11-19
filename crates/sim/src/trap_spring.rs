@@ -39,70 +39,13 @@ pub fn spring_with(
     let Some(trap) = crate::trap_registry::get(world, &kind) else {
         return false;
     };
-    // **A trap that rebuilds its tile** is a second action, and the one the data names third most often (seventeen traps). Reference: `trapfunc::map_regen`
-    // (`trapfunc.cpp:1522-1547`): only a **character** sets it off - `dynamic_cast<Character *>` answers nothing for a monster - it says "Your surroundings shift!", the
-    // trap is removed **before** the mapgen runs, and the update lands on the character's own overmap tile.
-    if trap.action.as_deref() == Some("map_regen") {
-        if !crate::npcs::is_npc(world, who) && crate::missions::avatar(world) != Some(who) {
-            return false;
-        }
-        let Some(update) = trap.map_regen.clone() else {
-            return false;
-        };
-        crate::messages::push(world, "Your surroundings shift!");
-        crate::square::remove_trap(world, square);
-        let Some(at) = world.get::<crate::Position>(who).copied() else {
-            return false;
-        };
-        let tile = crate::overmap::tile_of(at.x, at.y);
-        let place = (
-            tile.0 * crate::overmap::SQUARES_PER_OMT,
-            tile.1 * crate::overmap::SQUARES_PER_OMT,
-            at.z,
-        );
-        let _written = crate::mapgen_update::apply(world, &update, place);
-        let _fields = crate::mapgen_update::place_fields(world, &update, place);
-        return true;
-    }
-    // **A trap that casts a spell** is the data's most common action (thirty-four traps). Reference: `trapfunc::cast_spell` (`trapfunc.cpp:1568-1606`): the trap is
-    // removed **before** the cast - a teleport would leave the trap's square pointing at somewhere the creature no longer is - and the spell is cast with the creature
-    // as its caster and the trap's own square as the centre. `UNCONSUMED` keeps the trap set, so a trap meant to keep casting does.
-    if trap.action.as_deref() == Some("spell") {
-        let Some(spell) = trap.spell.clone() else {
-            return false;
-        };
-        let Some(prototype) = crate::spell_types::find(world, &spell.id) else {
-            return false;
-        };
-        // Reference: `fake_spell::get_spell` clamps the trap's level to the spell's ceiling (`magic.cpp:3571-3600`); the floor is the level itself, so the clamp only
-        // ever lowers it, and a spell with no ceiling keeps the level the data gave.
-        let ceiling = spell
-            .max_level
-            .or_else(|| {
-                prototype
-                    .max_level
-                    // A ceiling is a count of levels, and the data writes it whole; a fractional one truncates, which is what the reference's own `int` does.
-                    .and_then(as_whole_level)
-            })
-            .unwrap_or(spell.level);
-        let level = spell.level.min(ceiling);
-        let unconsumed = trap.flags.contains("UNCONSUMED");
-        if !unconsumed {
-            crate::square::remove_trap(world, square);
-        }
-        // Reference: `PROXIMITY` clears every trap of the same kind in the 3x3 around the spring, so one trigger does not set off nine (`trapfunc.cpp:1590-1600`).
-        if trap.flags.contains("PROXIMITY") {
-            for x in square.0 - 1..=square.0 + 1 {
-                for y in square.1 - 1..=square.1 + 1 {
-                    let at = (x, y, square.2);
-                    if crate::square::trap_at(world, at).as_deref() == Some(kind.as_str()) {
-                        crate::square::remove_trap(world, at);
-                    }
-                }
-            }
-        }
-        let _cast = crate::spell_effects::apply(world, who, &prototype, level, square);
-        return true;
+    // **One function per action**, because each action is its own rule with its own reference: the dispatcher below decides *which* rule applies, and each rule says what
+    // it does. A single function holding all three was 155 lines and clippy was right to object - the rule is the reading, not the length.
+    match trap.action.as_deref() {
+        Some("map_regen") => return rebuild_the_tile(world, who, square, &trap),
+        Some("spell") => return cast_its_spell(world, who, square, &trap, &kind),
+        Some("glass") => return broken_glass(world, who, square),
+        _ => {}
     }
     if trap.action.as_deref() != Some("eocs") || trap.eocs.is_empty() {
         return false;
@@ -167,6 +110,142 @@ pub fn spring_with(
     true
 }
 
+/// **A trap that rebuilds its tile**, the data's third most common action (seventeen traps).
+///
+/// Reference: `trapfunc::map_regen` (`trapfunc.cpp:1522-1547`): only a **character** sets it off - `dynamic_cast<Character *>` answers nothing for a monster - it says "Your
+/// surroundings shift!", the trap is removed **before** the mapgen runs, and the update lands on the character's own overmap tile.
+fn rebuild_the_tile(
+    world: &mut World,
+    who: Entity,
+    square: (i32, i32, i32),
+    trap: &cdda_content::traps::Trap,
+) -> bool {
+    if !crate::npcs::is_npc(world, who) && crate::missions::avatar(world) != Some(who) {
+        return false;
+    }
+    let Some(update) = trap.map_regen.clone() else {
+        return false;
+    };
+    crate::messages::push(world, "Your surroundings shift!");
+    crate::square::remove_trap(world, square);
+    let Some(at) = world.get::<crate::Position>(who).copied() else {
+        return false;
+    };
+    let tile = crate::overmap::tile_of(at.x, at.y);
+    let place = (
+        tile.0 * crate::overmap::SQUARES_PER_OMT,
+        tile.1 * crate::overmap::SQUARES_PER_OMT,
+        at.z,
+    );
+    let _written = crate::mapgen_update::apply(world, &update, place);
+    let _fields = crate::mapgen_update::place_fields(world, &update, place);
+    true
+}
+
+/// **A trap that casts a spell**, the data's most common action (thirty-four traps).
+///
+/// Reference: `trapfunc::cast_spell` (`trapfunc.cpp:1568-1606`): the trap is removed **before** the cast - a teleport would leave the trap's square pointing at somewhere the
+/// creature no longer is - and the spell is cast with the creature as its caster and the trap's own square as the centre. `UNCONSUMED` keeps the trap set, so a trap meant to
+/// keep casting does.
+fn cast_its_spell(
+    world: &mut World,
+    who: Entity,
+    square: (i32, i32, i32),
+    trap: &cdda_content::traps::Trap,
+    kind: &str,
+) -> bool {
+    let Some(spell) = trap.spell.clone() else {
+        return false;
+    };
+    let Some(prototype) = crate::spell_types::find(world, &spell.id) else {
+        return false;
+    };
+    // Reference: `fake_spell::get_spell` clamps the trap's level to the spell's ceiling (`magic.cpp:3571-3600`); the floor is the level itself, so the clamp only
+    // ever lowers it, and a spell with no ceiling keeps the level the data gave.
+    let ceiling = spell
+        .max_level
+        .or_else(|| {
+            prototype
+                .max_level
+                // A ceiling is a count of levels, and the data writes it whole; a fractional one truncates, which is what the reference's own `int` does.
+                .and_then(as_whole_level)
+        })
+        .unwrap_or(spell.level);
+    let level = spell.level.min(ceiling);
+    let unconsumed = trap.flags.contains("UNCONSUMED");
+    if !unconsumed {
+        crate::square::remove_trap(world, square);
+    }
+    // Reference: `PROXIMITY` clears every trap of the same kind in the 3x3 around the spring, so one trigger does not set off nine (`trapfunc.cpp:1590-1600`).
+    if trap.flags.contains("PROXIMITY") {
+        for x in square.0 - 1..=square.0 + 1 {
+            for y in square.1 - 1..=square.1 + 1 {
+                let at = (x, y, square.2);
+                if crate::square::trap_at(world, at).as_deref() == Some(kind) {
+                    crate::square::remove_trap(world, at);
+                }
+            }
+        }
+    }
+    let _cast = crate::spell_effects::apply(world, who, &prototype, level, square);
+    true
+}
+
+/// **A trap the walker may step past**: broken glass, the first action whose rule reads the body.
+///
+/// Reference: `trapfunc::glass` (`trapfunc.cpp:151-175`): only a creature sets it off; whether it steps on the shards at all is `x_in_y( occupied_tile_fraction( size ), 1 )`,
+/// so a tiny creature walks between them nine times in ten; the cut is `max( 0, rng( -10, 5 ) )`; a cut that lands spends `speed * 0.8` moves and is dealt to a random
+/// **ground-contact** part; and the trap says "glass cracking!" and is removed.
+fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return false;
+    };
+    // Whether it steps on the shards at all: `x_in_y( occupied_tile_fraction( size ), 1.0f )`, so a tiny creature walks between them nine times in ten.
+    let stepped = rolls.x_in_y(crate::ballistics::occupied_tile_fraction(size), 1.0);
+    // The cut is `max( 0, rng( -10, 5 ) )` - drawn whether or not the glass is stepped on, because the reference draws it after the message.
+    let cut = if stepped { rolls.rng(-10, 5).max(0) } else { 0 };
+    let part = if stepped {
+        ground_contact_part(world, who, &mut rolls)
+    } else {
+        None
+    };
+    crate::singletons::put_rolls(world, rolls);
+    if !stepped {
+        return false;
+    }
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You step on some glass!".to_owned()
+    } else {
+        format!("{} steps on some glass!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    // Reference: `c->mod_moves( -c->get_speed() * 0.8 )` - the flinch, before the damage, and only for a cut that landed.
+    if cut > 0 {
+        #[allow(clippy::cast_precision_loss)]
+        let cost = f64::from(crate::creature::speed_of(world, who)) * 0.8;
+        crate::creature::spend_moves(world, who, cost);
+        // What the part the glass reached stops: `get_armor_type( cut, bp )` (`character_armor.cpp:70-86`).
+        let stops = part.as_deref().map_or(0, |hit| {
+            crate::creature::armour_on(world, who, hit, Some("cut"))
+        });
+        let through = (cut - stops).max(0);
+        #[allow(clippy::cast_precision_loss)]
+        crate::creature::hurt(world, who, through as f32);
+    }
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        1,
+        "glass cracking!",
+        crate::sounds::SoundCategory::Combat,
+    );
+    crate::square::remove_trap(world, square);
+    true
+}
+
 /// A level from the data's own number, which is written whole.
 ///
 /// Reference: `spell_type::max_level` is an `int` (`magic.h`), so the reference never holds a fraction to begin with - a fractional one in the data truncates here for
@@ -177,4 +256,40 @@ pub fn spring_with(
 )]
 fn as_whole_level(number: f64) -> Option<i32> {
     (number.abs() < f64::from(i32::MAX)).then(|| i32::try_from(number as i64).unwrap_or_default())
+}
+
+/// A part that touches the ground - a leg or a foot - chosen the way `random_entry` chooses.
+///
+/// Reference: `Creature::get_ground_contact_bodyparts( false )` (`creature.cpp:2972-2999`) keeps the parts whose type is a foot; the port's body parts carry their
+/// `primary_limb_type`, so the set is a filter rather than a table. A creature with no legs - a monster with no stated body - answers nothing, and the damage then lands on
+/// the creature itself, which is where the port keeps every wound.
+fn ground_contact_part(
+    world: &World,
+    creature: Entity,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<String> {
+    let parts = world.get::<crate::creature::Body>(creature)?.parts.clone();
+    let ground: Vec<String> = parts
+        .iter()
+        .filter(|part| {
+            part.primary_limb_type
+                .as_deref()
+                .is_some_and(|kind| kind == "leg" || kind == "foot")
+        })
+        .map(|part| part.name.clone())
+        .collect();
+    if ground.is_empty() {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let top = i32::try_from(ground.len()).unwrap_or(1) - 1;
+    let at = usize::try_from(rolls.rng(0, top)).unwrap_or(0);
+    ground.get(at).cloned()
+}
+
+/// What a message calls a creature: its name when it is not the player.
+fn name_of(world: &World, creature: Entity) -> String {
+    world
+        .get::<crate::creature::Creature>(creature)
+        .map_or_else(String::new, |creature| creature.name.clone())
 }

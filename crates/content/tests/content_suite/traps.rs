@@ -282,3 +282,73 @@ fn spell_data_without_the_action_is_refused() {
         "**the loader refuses it**, as the reference does"
     );
 }
+
+/// **What each trap asks for, ranked.** The census that keeps the trap subsystem honest the way the dialogue census keeps the EOC runtime honest: every trap in the data,
+/// bucketed by the action it names, with what the port answers and what it does not.
+///
+/// The point is the **shape of what is left**, not today's numbers: the buckets say whether the next round should port a rule (a named function with no meaning in the port)
+/// or is looking at chain links (an action that names another program).
+#[test]
+fn the_reference_tree_holds_the_trap_actions_the_port_answers() {
+    let loaded = traps::load_paths(&[
+        &root().join("references/Cataclysm-DDA/data/core"),
+        &root().join("references/Cataclysm-DDA/data/json"),
+    ])
+    .expect("the traps load");
+    let mut counts = std::collections::BTreeMap::new();
+    for trap in &loaded {
+        let action = trap
+            .action
+            .clone()
+            .unwrap_or_else(|| "(no action)".to_owned());
+        *counts.entry(action).or_insert(0usize) += 1;
+    }
+    if std::env::var("CDDA_SHOW_TRAPS").is_ok() {
+        let mut ranked: Vec<_> = counts.iter().collect();
+        ranked.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        for (action, count) in ranked {
+            println!("TRAP {count:4} {action}");
+        }
+    }
+    // The port answers these: `eocs` runs its programs, `map_regen` rebuilds the tile, `spell` casts, and `none` is the reference's own do-nothing.
+    for answered in ["eocs", "map_regen", "spell", "none"] {
+        assert!(
+            counts.contains_key(answered),
+            "**the data names {answered}**, so a census that does not see it is reading the wrong tree"
+        );
+    }
+    let total: usize = counts.values().sum();
+    // 125: the data/core tree holds one as well, which a scan of `data/json` alone does not see.
+    assert_eq!(total, 125, "every trap in the reference tree");
+    assert_eq!(
+        counts.get("spell").copied(),
+        Some(34),
+        "the most common action"
+    );
+    // **Twenty-four, not six.** The raw data writes `action: "eocs"` six times; the other eighteen inherit it through `copy-from`, which is only visible after the loader
+    // resolves the copies - the same lesson the sizes test taught, now with a count.
+    assert_eq!(counts.get("eocs").copied(), Some(24));
+    assert_eq!(counts.get("map_regen").copied(), Some(17));
+    assert_eq!(
+        counts.get("none").copied(),
+        Some(16),
+        "the reference's own do-nothing"
+    );
+    // Ninety-one of a hundred and twenty-four traps therefore have an answer; the remaining thirty-three name thirty named functions, the commonest of which is `shotgun`
+    // with three. Pinned so the frontier cannot drift without the number moving with it.
+    let answered: usize = ["eocs", "map_regen", "spell", "none", "glass"]
+        .iter()
+        .map(|action| counts.get(*action).copied().unwrap_or(0))
+        .sum();
+    assert_eq!(answered, 93, "traps whose action the port answers");
+    assert_eq!(
+        total - answered,
+        32,
+        "**and thirty-two that name a function the port has no rule for**"
+    );
+    assert_eq!(
+        counts.get("shotgun").copied(),
+        Some(3),
+        "the largest of the unported actions"
+    );
+}
