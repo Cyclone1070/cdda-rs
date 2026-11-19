@@ -38957,3 +38957,29 @@ The middle row is the one that explains the rule: this is not "a weak tower cann
 Mutation-checked: dropping `velocity > 0` makes a stationary tower refuse as well, and the gate says which row broke.
 
 **Named**: the reference's message to the player (`"The %s struggles to pull the %s on this surface!"`) is not ported, because the port has no message layer for vehicles yet. The mechanics are.
+
+## Furniture that follows the ground, and a dead hypothesis (round 219)
+
+`set_terrain_dependent_furniture` (`mapgen_functions.cpp:1094-1116`) places furniture that belongs to a terrain - cattails on shallow water - by looking the placed terrain up
+in the **chunk's own biome** and rolling `one_in( chance )` when the entry has weight.
+
+**The port was reading the data wrong.** `terrain_furniture` in `regional_map_settings.json` is **nested** - a map from a terrain id to its own `chance`, `clear_furniture`
+and weighted `furniture` list - and the port read it as a **flat** weighted list, which turns the keys `chance` and `clear_furniture` into furniture ids. The model is now the
+reference's shape, and the region's own data is the gate:
+
+| Biome | Terrain | Chance | Furniture |
+|---|---|---|---|
+| `forest_water` | `t_water_murky` | 2 | `f_region_water_plant` ×1 |
+| `forest` | **none** | - | - |
+| `forest_thick` | **none** | - | - |
+
+An entry with no weight rolls **no die at all** - the reference returns before `one_in` - which `terrain_dependent_furniture_roll` answers as `None`.
+
+### The hypothesis this kills
+
+`docs/parity.md` recorded the corner square's disagreement as "the dice", with the strongest candidate being "one missing draw per square from `set_terrain_dependent_furniture`".
+**That candidate is dead**: the measured chunk is plain `forest`, and `forest` has no terrain-dependent furniture, so the reference's lookup fails on every square and the
+reference makes **no draw there either**. The port's draw count in that chunk is the same as the reference's, and the corner's disagreement is somewhere else - most likely the
+one the same section already names: the chunk is generated partway through a world, and the port does not know what consumed the dice before it.
+
+Mutation-checked: letting a zero-weight entry roll makes an empty entry consume a die the reference never spends.

@@ -74,6 +74,7 @@ mod forest_region_masks;
 mod forest_stage_parity;
 mod forest_stage_port_run;
 mod forest_stage_triple;
+mod forest_terrain_furniture;
 mod forest_trace;
 mod frame_diff;
 mod frame_dump;

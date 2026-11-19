@@ -399,8 +399,56 @@ pub struct ForestMapgen {
     pub item_group_chance: i32,
     /// How many times to place items.
     pub item_spawn_iterations: i32,
-    /// Scattered furniture and terrain, if any.
-    pub terrain_furniture: Vec<(String, i32)>,
+    /// **Furniture that follows the ground** - the reference's `terrain_dependent_furniture`, keyed by the **terrain** it appears on. The JSON calls the field
+    /// `terrain_furniture`, and it is **nested**: each terrain names its own chance and its own weighted furniture list. Reading it as a flat weighted list, which is what
+    /// the port used to do, turns the keys `chance` and `clear_furniture` into furniture ids.
+    pub terrain_furniture: std::collections::BTreeMap<String, TerrainDependentFurniture>,
+}
+
+/// **Furniture that appears on one terrain, rolled per square** - the reference's `forest_biome_terrain_dependent_furniture` (`regional_settings.h:124-132`), loaded from one
+/// member of a biome's `terrain_furniture` object (`regional_settings.cpp:67-92`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TerrainDependentFurniture {
+    /// One roll in `chance` places a piece - `read_and_set_or_throw<int>( jo, "chance", ... )`. The roll happens **only once the furniture has weight**, which is the
+    /// reference's own early return in `set_terrain_dependent_furniture` (`mapgen_functions.cpp:1094-1116`).
+    pub chance: i32,
+    /// Whether this definition **replaces** an earlier one's furniture rather than adding to it - `clear_furniture`.
+    pub clear_furniture: bool,
+    /// The furniture and its weights, sorted by id.
+    pub furniture: Vec<(String, i32)>,
+}
+
+/// Reads a biome's `terrain_furniture`: a map from a **terrain id** to that terrain's own chance and furniture.
+///
+/// Reference: `load_forest_biome` (`regional_settings.cpp:144-160`) walks the object and hands each member to
+/// `load_forest_biome_terrain_dependent_furniture` (`:67-92`), which reads `chance`, `clear_furniture` and a `furniture` weighted list. The nesting is the whole point: a biome
+/// may place cattails on shallow water and nothing anywhere else, which a flat list cannot say.
+#[must_use]
+pub fn terrain_dependent_furniture(
+    value: Option<&Value>,
+) -> std::collections::BTreeMap<String, TerrainDependentFurniture> {
+    let Some(Value::Object(all)) = value else {
+        return std::collections::BTreeMap::new();
+    };
+    all.members()
+        .iter()
+        .filter_map(|(terrain, spec)| {
+            let Value::Object(fields) = spec else {
+                return None;
+            };
+            Some((
+                terrain.clone(),
+                TerrainDependentFurniture {
+                    chance: number(fields.get("chance"), 0),
+                    clear_furniture: matches!(
+                        fields.get("clear_furniture"),
+                        Some(Value::Bool(true))
+                    ),
+                    furniture: ordered_weighted(fields.get("furniture")),
+                },
+            ))
+        })
+        .collect()
 }
 
 fn ordered_weighted(value: Option<&Value>) -> Vec<(String, i32)> {
@@ -462,7 +510,7 @@ pub fn read_forest_mapgen(value: &Value, terrain: &str) -> Option<ForestMapgen> 
         item_group: text(forest.get("item_group"), ""),
         item_group_chance: number(forest.get("item_group_chance"), 0),
         item_spawn_iterations: number(forest.get("item_spawn_iterations"), 0),
-        terrain_furniture: ordered_weighted(forest.get("terrain_furniture")),
+        terrain_furniture: terrain_dependent_furniture(forest.get("terrain_furniture")),
     })
 }
 
@@ -608,4 +656,19 @@ pub fn load_forest_mapgens(value: &Value) -> std::collections::BTreeMap<String, 
             read_forest_mapgen(value, terrain).map(|forest| (terrain.clone(), forest))
         })
         .collect()
+}
+
+/// **Whether a square on this terrain rolls for furniture, and what one roll in `chance` places** - `set_terrain_dependent_furniture` (`mapgen_functions.cpp:1094-1116`).
+///
+/// The reference's order matters for the dice: it returns **before** rolling when the terrain has no entry, and again before rolling when the furniture list has no weight.
+/// Only a terrain that has both an entry and weight consumes a draw, which is what makes the rule observable in a replay at all.
+#[must_use]
+pub fn terrain_dependent_furniture_roll(
+    entry: &TerrainDependentFurniture,
+) -> Option<(i32, &[(String, i32)])> {
+    let total: i32 = entry.furniture.iter().map(|(_, weight)| *weight).sum();
+    if total <= 0 {
+        return None;
+    }
+    Some((entry.chance, &entry.furniture))
 }
