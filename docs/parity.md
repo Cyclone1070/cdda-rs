@@ -38650,3 +38650,22 @@ and it refuses a link where either end is not a vehicle - the reference's `!towe
 
 **Not ported**: `invalidate_towing`'s cable-item handling (`vehicle.cpp:7265-7330`, which drops the cable as an item with a link), and every rule that *uses* a tow — the pull itself,
 turning under tow, and the `is_towed()` checks that alter driving. This round is the link and its geometry, not the physics.
+
+## A towing vehicle carries the towed vehicle's drag (round 205)
+
+`vehicle::slowdown` (`vehicle_move.cpp:141-147`) adds the towed vehicle's own slowdown **at the same velocity** while towing, and the addition sits **before** the parked-engine penalty
+and the single floor of one. That order is why the port could not simply add two already-clamped answers when the tower is parked: the reference adds the drags first and applies its
+floor once.
+
+| Vehicle | Air | Rolling | Mass | Slowdown alone (at 4,000 vmiph) |
+|---|---|---|---|---|
+| tower | 0.5 | 40 | 1,000 kg | **493,991** |
+| trailer | 0.5 | 40 | 3,000 kg | 164,663 |
+| towing | - | - | - | **657,654** = the sum |
+
+The first row surprises, and the surprise is the physics: the same drag **coefficient** slows the *lighter* hull more, because the force is divided by mass. A light tower towing a heavy
+trailer is therefore slowed by its own large figure plus the trailer's smaller one - not by less.
+
+Mutation-checked: ignoring the towed vehicle's slowdown answers the tower's figure alone where the sum is expected.
+
+The port's `slowdown_with_skid` and the new `slowdown_with_tow` now share `drag_slowdown` and `parked_penalty`, so the two rules cannot drift apart in the parts they have in common.

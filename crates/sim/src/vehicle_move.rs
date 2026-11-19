@@ -303,6 +303,40 @@ pub fn slowdown_with_skid(
     engine_running: bool,
     skid_factor: f64,
 ) -> i32 {
+    let slowdown = drag_slowdown(air_drag, rolling_drag, mass_g, at_velocity, skid_factor)
+        + parked_penalty(engine_running);
+    slowdown.max(1)
+}
+
+/// **The same rule with a vehicle in tow**, whose own slowdown is added to the tower's.
+///
+/// Reference: `vehicle::slowdown` (`vehicle_move.cpp:141-147`) - while towing, `slowdown += other_veh->slowdown( here, at_velocity )`, **at the same velocity**, so a light tower
+/// dragging a heavy trailer is slowed by the trailer's own drag as well as its own. The addition sits **before** the parked-engine penalty and the final floor of one, which is why
+/// this cannot be expressed by adding two already-clamped answers when the tower is parked: the reference adds the two drags first and applies its floor once.
+#[must_use]
+pub fn slowdown_with_tow(
+    air_drag: f64,
+    rolling_drag: f64,
+    mass_g: i64,
+    at_velocity: i32,
+    engine_running: bool,
+    skid_factor: f64,
+    towed_slowdown: Option<i32>,
+) -> i32 {
+    let slowdown = drag_slowdown(air_drag, rolling_drag, mass_g, at_velocity, skid_factor)
+        + towed_slowdown.unwrap_or(0)
+        + parked_penalty(engine_running);
+    slowdown.max(1)
+}
+
+/// Air and rolling drag turned into a speed loss, before the parked-engine penalty and the floor of one.
+fn drag_slowdown(
+    air_drag: f64,
+    rolling_drag: f64,
+    mass_g: i64,
+    at_velocity: i32,
+    skid_factor: f64,
+) -> i32 {
     let mps = vmiph_to_mps(at_velocity.abs());
     let mut drag = air_drag * mps * mps;
     if mass_g > 0 {
@@ -315,13 +349,13 @@ pub fn slowdown_with_skid(
     } else {
         0.0
     };
-    let mut slowdown = mps_to_vmiph(acceleration);
-    // `static_drag` (`vehicle.cpp:4961`): an engine that is **off** adds 1500 W of drag, which is subtracted from the slowdown - so a vehicle left out of gear
-    // coasts down faster. Plows and towing are its other terms and are zero on every recorded vehicle.
-    if !engine_running {
-        slowdown += 1500;
-    }
-    slowdown.max(1)
+    mps_to_vmiph(acceleration)
+}
+
+/// `static_drag` (`vehicle.cpp:4961`): an engine that is **off** adds 1500 W of drag, which is subtracted from the slowdown - so a vehicle left out of gear coasts down
+/// faster. Plows are its other term and are zero on every recorded vehicle.
+fn parked_penalty(engine_running: bool) -> i32 {
+    if engine_running { 0 } else { 1500 }
 }
 
 /// The speed a hull that cannot stand on its wheels is left with.

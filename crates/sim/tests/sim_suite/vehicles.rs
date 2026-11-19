@@ -8236,3 +8236,51 @@ fn a_turret_shot_sets_the_shooters_recoil_aside() {
         "and nothing is invented"
     );
 }
+
+/// **A vehicle towing another slows by both their drags.** Reference: `vehicle::slowdown` (`vehicle_move.cpp:141-147`) - while towing, `slowdown += other_veh->slowdown( here,
+/// at_velocity )`, the towed vehicle's own figure at the **same** velocity, added before the parked-engine penalty and the single floor of one.
+#[test]
+fn a_towing_vehicle_carries_the_towed_vehicles_drag() {
+    use cdda_sim::vehicle_move::{slowdown_of, slowdown_with_tow};
+
+    // A light tower and a heavy trailer, both rolling, both at forty miles an hour: the trailer's own slowdown is real because its mass is.
+    let (tower_air, tower_rolling, tower_mass) = (0.5, 40.0, 1_000);
+    let (trailer_air, trailer_rolling, trailer_mass) = (0.5, 40.0, 3_000);
+    let velocity = 4_000;
+    let tower_alone = slowdown_of(tower_air, tower_rolling, tower_mass, velocity, true);
+    let trailer_alone = slowdown_of(trailer_air, trailer_rolling, trailer_mass, velocity, true);
+    assert!(
+        tower_alone > trailer_alone,
+        "**the same drag slows the lighter hull more**, because the force is divided by mass: {tower_alone} against {trailer_alone}"
+    );
+
+    let towing = slowdown_with_tow(
+        tower_air,
+        tower_rolling,
+        tower_mass,
+        velocity,
+        true,
+        1.0,
+        Some(trailer_alone),
+    );
+    assert_eq!(
+        towing,
+        tower_alone + trailer_alone,
+        "**towing adds the trailer's slowdown to the tower's own**"
+    );
+
+    // **With nothing in tow the two rules agree**, which is what makes the tow branch an addition rather than a different rule.
+    assert_eq!(
+        slowdown_with_tow(
+            tower_air,
+            tower_rolling,
+            tower_mass,
+            velocity,
+            true,
+            1.0,
+            None
+        ),
+        tower_alone,
+        "an untowed vehicle slows exactly as it did"
+    );
+}
