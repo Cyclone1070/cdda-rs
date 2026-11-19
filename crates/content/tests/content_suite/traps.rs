@@ -226,3 +226,59 @@ fn an_eocs_list_without_the_action_is_refused() {
         "**the loader refuses it**, as the reference does"
     );
 }
+
+/// **A `spell` trap carries its spell**, the action thirty-four traps in the data name - the most common of all. Reference: `trap.h:165` holds a `fake_spell`
+/// (`spell_data`), and `trap.cpp:160-167` refuses that member beside any action but `"spell"`.
+#[test]
+fn a_spell_trap_carries_the_spell_it_casts() {
+    let dir = std::env::temp_dir().join("cdda-trap-spell");
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    std::fs::write(
+        dir.join("traps.json"),
+        r#"[
+        { "type": "trap", "id": "tr_spell", "name": "a spell trap", "color": "red",
+          "symbol": "^", "visibility": 0, "avoidance": 0, "difficulty": 0,
+          "action": "spell", "spell_data": { "id": "summon_trapspider", "level": 3, "max_level": 5 } },
+        { "type": "trap", "id": "tr_plain_spell", "name": "a plain spell trap", "color": "red",
+          "symbol": "^", "visibility": 0, "avoidance": 0, "difficulty": 0,
+          "action": "spell", "spell_data": { "id": "summon_trapspider" } }
+    ]"#,
+    )
+    .expect("write");
+    let loaded = traps::load_paths(&[dir.as_path()]).expect("the traps load");
+    let spelled = loaded
+        .iter()
+        .find(|one| one.id == "tr_spell")
+        .expect("the spell trap");
+    let spell = spelled.spell.as_ref().expect("its spell");
+    assert_eq!(spell.id, "summon_trapspider");
+    assert_eq!(spell.level, 3, "the level the data names");
+    assert_eq!(spell.max_level, Some(5), "and its ceiling");
+    let plain = loaded
+        .iter()
+        .find(|one| one.id == "tr_plain_spell")
+        .expect("the plain spell trap");
+    let spell = plain.spell.as_ref().expect("its spell");
+    assert_eq!(spell.level, 0, "**a spell with no level casts at zero**");
+    assert_eq!(spell.max_level, None, "and has no ceiling of its own");
+}
+
+/// **`spell_data` without `action: "spell"` is refused**, which is the reference's own throw (`trap.cpp:160-165`).
+#[test]
+fn spell_data_without_the_action_is_refused() {
+    let dir = std::env::temp_dir().join("cdda-trap-bad-spell");
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    std::fs::write(
+        dir.join("traps.json"),
+        r#"[
+        { "type": "trap", "id": "tr_bad_spell", "name": "a bad spell trap", "color": "red",
+          "symbol": "^", "visibility": 0, "avoidance": 0, "difficulty": 0,
+          "action": "eocs", "eocs": [ "EOC_ONE" ], "spell_data": { "id": "summon_trapspider" } }
+    ]"#,
+    )
+    .expect("write");
+    assert!(
+        traps::load_paths(&[dir.as_path()]).is_err(),
+        "**the loader refuses it**, as the reference does"
+    );
+}

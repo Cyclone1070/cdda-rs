@@ -46,6 +46,22 @@ pub struct Trap {
     pub trigger_npc: Option<String>,
     /// The mapgen an `action: "map_regen"` trap rebuilds its tile with (`trap.cpp:154`, `map_regen`).
     pub map_regen: Option<String>,
+    /// The spell an `action: "spell"` trap casts - the most common trap action in the data, thirty-four traps (`trap.h:165`, a `fake_spell`).
+    pub spell: Option<TrapSpell>,
+}
+
+/// The spell a trap casts, and the level it casts it at.
+///
+/// Reference: `fake_spell` (`magic.h`, read by `spell_data::get_spell`, `magic.cpp:3571-3600`). The data writes `{"id": "summon_trapspider"}`, and a level when the trap
+/// is meant to be stronger than the spell's first: `level` is a floor, `max_level` a ceiling, and the reference clamps one to the other before it sets the experience.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrapSpell {
+    /// Which spell.
+    pub id: String,
+    /// The level the trap casts it at, zero when the data does not say.
+    pub level: i32,
+    /// The highest level it may reach, when the data names one.
+    pub max_level: Option<i32>,
 }
 
 impl Trap {
@@ -164,6 +180,7 @@ fn resolve(
             trigger_u: None,
             trigger_npc: None,
             map_regen: None,
+            spell: None,
         },
     };
     seen.pop();
@@ -183,6 +200,45 @@ fn apply(trap: &mut Trap, object: &Object, inherited: bool) -> Result<(), LoadEr
     }
     // **What the trap does.** Reference: `trap::load` (`trap.cpp:150-175`) - `action` names the function, and `eocs` is only allowed beside `action: "eocs"`, which the
     // reference refuses to load without. The port keeps the refusal rather than reading the programs as if the action did not matter.
+    // **The spell, and only beside its action.** Reference: `trap.cpp:160-167` throws for a `spell_data` without `action: "spell"`, so the port refuses the same pair, and
+    // reads the two level members `fake_spell` clamps (`magic.h`, `magic.cpp:3571-3600`).
+    if let Some(spell) = object.get("spell_data") {
+        // Read from the **object**, not from the trap: the action is loaded a few lines below, and asking the trap here answers the default.
+        let is_spell = matches!(object.get("action"), Some(Value::Str(name)) if name == "spell");
+        if !is_spell {
+            return Err(LoadError {
+                message: format!("trap {id} has spell_data without action: spell"),
+            });
+        }
+        let Value::Object(data) = spell else {
+            return Err(LoadError {
+                message: format!("trap {id} has a spell_data that is not an object"),
+            });
+        };
+        let Some(Value::Str(spell_id)) = data.get("id") else {
+            return Err(LoadError {
+                message: format!("trap {id} names no spell id"),
+            });
+        };
+        let whole = |member: &str| -> Result<Option<i32>, LoadError> {
+            match data.get(member) {
+                None => Ok(None),
+                Some(Value::Int(number)) => {
+                    i32::try_from(*number).map(Some).map_err(|_| LoadError {
+                        message: format!("trap {id} has a {member} out of range"),
+                    })
+                }
+                Some(_) => Err(LoadError {
+                    message: format!("trap {id} has a {member} that is not a whole number"),
+                }),
+            }
+        };
+        trap.spell = Some(TrapSpell {
+            id: spell_id.clone(),
+            level: whole("level")?.unwrap_or(0),
+            max_level: whole("max_level")?,
+        });
+    }
     // Reference: `optional( jo, was_loaded, "map_regen", map_regen, update_mapgen_none )` (`trap.cpp:154`) - one of the two actions the data names most often.
     if let Some(name) = string(object, "map_regen") {
         trap.map_regen = Some(name);

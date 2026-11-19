@@ -39440,3 +39440,21 @@ Three mutations, three catches: the person guard removed (a monster rebuilds the
 
 **Named gaps in the same action.** The reference reports a mapgen that collides with a vehicle and refuses the update; the port applies what it can and has no vehicle-collision check
 in this path. `set_queued_points` and the two cache invalidations are renderer bookkeeping with no counterpart yet.
+
+## A trap that casts a spell (round 243)
+
+Reference: `trapfunc::cast_spell` (`trapfunc.cpp:1568-1606`), the data's **most common** trap action - thirty-four traps, and every one names its own spell. The rule:
+
+- the trap is removed **before** the cast, because a spell that teleports would otherwise leave the trap's square referring to somewhere the creature no longer is;
+- the spell is cast with the creature as its caster and the trap's own square as the centre;
+- `UNCONSUMED` keeps the trap set, so a trap meant to keep casting does;
+- `PROXIMITY` clears every trap of the same kind in the 3×3 first, so one trigger does not set off nine.
+
+The loader reads `spell_data` beside its action and **refuses it beside any other** action, which is the reference's own throw (`trap.cpp:160-165`); the level members are the
+`fake_spell` floor and ceiling (`magic.cpp:3571-3600`), clamped the same way.
+
+Three mutations, three catches: the removal skipped, `UNCONSUMED` ignored, and (from round 242) the person guard.
+
+**Named gaps.** The reference casts through `spell::cast_all_effects`, which walks the spell's own effects and its area shape; the port calls `spell_effects::apply`, which
+dispatches on the spell's single `effect_name`. A spell whose effect the port has no rule for casts nothing - it does not refuse, which is what `Effective::NotPorted` would
+have done, and that is a divergence worth naming rather than hiding. `make_sound` (a spell's own noise) is not modelled here.

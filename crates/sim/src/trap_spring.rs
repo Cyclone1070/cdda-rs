@@ -64,6 +64,46 @@ pub fn spring_with(
         let _fields = crate::mapgen_update::place_fields(world, &update, place);
         return true;
     }
+    // **A trap that casts a spell** is the data's most common action (thirty-four traps). Reference: `trapfunc::cast_spell` (`trapfunc.cpp:1568-1606`): the trap is
+    // removed **before** the cast - a teleport would leave the trap's square pointing at somewhere the creature no longer is - and the spell is cast with the creature
+    // as its caster and the trap's own square as the centre. `UNCONSUMED` keeps the trap set, so a trap meant to keep casting does.
+    if trap.action.as_deref() == Some("spell") {
+        let Some(spell) = trap.spell.clone() else {
+            return false;
+        };
+        let Some(prototype) = crate::spell_types::find(world, &spell.id) else {
+            return false;
+        };
+        // Reference: `fake_spell::get_spell` clamps the trap's level to the spell's ceiling (`magic.cpp:3571-3600`); the floor is the level itself, so the clamp only
+        // ever lowers it, and a spell with no ceiling keeps the level the data gave.
+        let ceiling = spell
+            .max_level
+            .or_else(|| {
+                prototype
+                    .max_level
+                    // A ceiling is a count of levels, and the data writes it whole; a fractional one truncates, which is what the reference's own `int` does.
+                    .and_then(as_whole_level)
+            })
+            .unwrap_or(spell.level);
+        let level = spell.level.min(ceiling);
+        let unconsumed = trap.flags.contains("UNCONSUMED");
+        if !unconsumed {
+            crate::square::remove_trap(world, square);
+        }
+        // Reference: `PROXIMITY` clears every trap of the same kind in the 3x3 around the spring, so one trigger does not set off nine (`trapfunc.cpp:1590-1600`).
+        if trap.flags.contains("PROXIMITY") {
+            for x in square.0 - 1..=square.0 + 1 {
+                for y in square.1 - 1..=square.1 + 1 {
+                    let at = (x, y, square.2);
+                    if crate::square::trap_at(world, at).as_deref() == Some(kind.as_str()) {
+                        crate::square::remove_trap(world, at);
+                    }
+                }
+            }
+        }
+        let _cast = crate::spell_effects::apply(world, who, &prototype, level, square);
+        return true;
+    }
     if trap.action.as_deref() != Some("eocs") || trap.eocs.is_empty() {
         return false;
     }
@@ -125,4 +165,16 @@ pub fn spring_with(
     // **The trap is gone**, which the reference does after the programs whatever they did.
     crate::square::remove_trap(world, square);
     true
+}
+
+/// A level from the data's own number, which is written whole.
+///
+/// Reference: `spell_type::max_level` is an `int` (`magic.h`), so the reference never holds a fraction to begin with - a fractional one in the data truncates here for
+/// the same reason it would there.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "a level is a small count; the reference's own int truncates the same way"
+)]
+fn as_whole_level(number: f64) -> Option<i32> {
+    (number.abs() < f64::from(i32::MAX)).then(|| i32::try_from(number as i64).unwrap_or_default())
 }

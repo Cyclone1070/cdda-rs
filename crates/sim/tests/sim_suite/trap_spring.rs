@@ -23,6 +23,7 @@ fn a_trap(action: &str, programs: &[&str]) -> cdda_content::traps::Trap {
         trigger_u: None,
         trigger_npc: None,
         map_regen: None,
+        spell: None,
     }
 }
 
@@ -353,4 +354,83 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         weight: 100,
         fields: Vec::new(),
     }
+}
+
+/// **A `spell` trap casts its spell where it stands and is gone afterwards** - the action thirty-four traps in the data name, the most common of all.
+///
+/// Reference: `trapfunc::cast_spell` (`trapfunc.cpp:1568-1606`): the trap is removed **before** the cast, because a teleport would leave `p` pointing at a square the
+/// creature has left; the spell is cast with the creature as its caster and the trap's own square as the centre; and `UNCONSUMED` keeps the trap set.
+#[test]
+fn a_spell_trap_casts_where_it_stands_and_is_removed() {
+    let (mut world, who) = a_world();
+    // A spell the port can perform: `target_attack`'s sibling for a square is the summon, which places a monster at the centre.
+    install_a_spell(&mut world, "summon_trapspider");
+    let mut trap = a_trap("spell", &[]);
+    trap.spell = Some(cdda_content::traps::TrapSpell {
+        id: "summon_trapspider".to_owned(),
+        level: 1,
+        max_level: None,
+    });
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**the trap springs**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "and the trap is gone, removed before the cast"
+    );
+}
+
+/// **An `UNCONSUMED` spell trap stays set**, so a trap that keeps casting does.
+#[test]
+fn an_unconsumed_spell_trap_stays_set() {
+    let (mut world, who) = a_world();
+    install_a_spell(&mut world, "summon_trapspider");
+    let mut trap = a_trap("spell", &[]);
+    trap.flags.insert("UNCONSUMED".to_owned());
+    trap.spell = Some(cdda_content::traps::TrapSpell {
+        id: "summon_trapspider".to_owned(),
+        level: 0,
+        max_level: None,
+    });
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "**the trap is still there**, because the data said it is not consumed"
+    );
+}
+
+use cdda_content::spells::Scaling;
+
+/// A spell the port can perform, installed under a name: `summon` is one of the effects it has a rule for.
+fn install_a_spell(world: &mut World, id: &str) {
+    let spell = cdda_content::spells::Spell {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        effect_name: "summon".to_owned(),
+        effect_str: "mon_zombie".to_owned(),
+        damage_type: String::new(),
+        shape: "point".to_owned(),
+        energy_source: "MANA".to_owned(),
+        damage: Scaling::default(),
+        range: Scaling::default(),
+        area: Scaling::default(),
+        energy: Scaling::default(),
+        duration: Scaling::default(),
+        casting_time: Scaling::default(),
+        difficulty: None,
+        max_level: None,
+        valid_targets: std::collections::BTreeSet::new(),
+        targeted_monster_ids: std::collections::BTreeSet::new(),
+        targeted_species_ids: std::collections::BTreeSet::new(),
+        ignored_species_ids: std::collections::BTreeSet::new(),
+        flags: std::collections::BTreeSet::new(),
+    };
+    cdda_sim::spell_types::set_types(world, vec![spell]);
 }

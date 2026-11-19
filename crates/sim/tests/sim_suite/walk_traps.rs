@@ -25,6 +25,7 @@ fn a_trap() -> cdda_content::traps::Trap {
         trigger_u: None,
         trigger_npc: None,
         map_regen: None,
+        spell: None,
     }
 }
 
