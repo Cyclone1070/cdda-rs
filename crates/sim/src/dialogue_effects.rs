@@ -528,6 +528,7 @@ fn move_creature(
         fail_message,
         success_message,
         force,
+        force_safe,
     } = effect
     else {
         return Applied::CannotAnswer;
@@ -552,7 +553,8 @@ fn move_creature(
     // **The move is the teleport rule, not a write to the position.** Reference: `f_teleport` calls `teleport::teleport_to_point( ..., force, force_safe )` (`npctalk.cpp:7836-7845`),
     // so a worn dimensional anchor, a teleport lock, a square off the world or a solid landing refuses here exactly as it does for a spell - and `force` is the flag the data uses to
     // overrule the anchor.
-    let outcome = crate::teleport::to_point_with(world, actor, (x, y, z), true, *force);
+    let outcome =
+        crate::teleport::to_point_with(world, actor, (x, y, z), true, *force, *force_safe);
     if matches!(outcome, crate::teleport::Teleport::Moved { .. }) {
         // Reference: `f_teleport` shows `success_message` after a move that happened, and an absent one says nothing.
         show(world, speaker, listener, success_message.as_ref());

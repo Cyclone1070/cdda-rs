@@ -194,8 +194,8 @@ fn a_teleport_moves_to_the_stored_square() {
         cdda_sim::dialogue_effects::Applied::CannotAnswer
     );
 
-    // The outcome messages are read now, and `force_safe` - the one member beside them the port still has no rule for - refuses the whole entry rather than being
-    // dropped as if it meant nothing.
+    // The outcome messages are read, and so is `force_safe`: the teleport rule understands it now (it bypasses the anchor and refuses a solid or occupied landing), so it
+    // joins the entry rather than refusing it.
     let with_message =
         cdda_json::parse(br#"{"u_teleport": {"u_val": "place"}, "fail_message": "no"}"#.as_slice())
             .expect("json");
@@ -206,9 +206,16 @@ fn a_teleport_moves_to_the_stored_square() {
     let with_safe =
         cdda_json::parse(br#"{"u_teleport": {"u_val": "place"}, "force_safe": true}"#.as_slice())
             .expect("json");
+    let read = cdda_content::dialogue::read_effect(&with_safe).expect("**`force_safe` reads**");
     assert!(
-        cdda_content::dialogue::read_effect(&with_safe).is_none(),
-        "but `force_safe` does not"
+        matches!(
+            read,
+            cdda_content::dialogue::Effect::Teleport {
+                force_safe: true,
+                ..
+            }
+        ),
+        "**and it is carried as the flag it is**, rather than dropped: {read:?}"
     );
 }
 

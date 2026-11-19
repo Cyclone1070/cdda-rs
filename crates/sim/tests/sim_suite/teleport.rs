@@ -263,3 +263,104 @@ fn a_teleport_unboards_the_rider_first() {
         "**and the rider is out of the vehicle**"
     );
 }
+
+/// **A forced teleport into a solid square lands on the nearest open one** rather than refusing or dying - `teleport.cpp:215-223`. `forced_landing` already knew how to find
+/// that square; until now nothing asked it, so a forced jump into a wall was still a refusal and the rule was a function without a caller.
+#[test]
+fn a_forced_teleport_into_a_wall_lands_beside_it() {
+    let (mut world, who) = a_world();
+    cdda_sim::square::set_terrain(&mut world, (3, 3, 0), 2);
+    let outcome = cdda_sim::teleport::to_point_with(&mut world, who, (3, 3, 0), true, true, false);
+    let cdda_sim::teleport::Teleport::Moved { to, .. } = outcome else {
+        panic!("**a forced teleport does not refuse a solid landing**: {outcome:?}");
+    };
+    assert!((to.0, to.1) != (3, 3), "it does not land in the wall");
+    let distance = (to.0 - 3).abs().max((to.1 - 3).abs());
+    assert!(
+        (1..=5).contains(&distance),
+        "and it lands within five squares of where it aimed: {distance}"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(who)
+            .map(|at| (at.x, at.y, at.z)),
+        Some(to),
+        "the creature really is there"
+    );
+}
+
+/// **A `force_safe` teleport resolves a solid landing the same way a forced one does** - the reference tests `if( force || force_safe )` (`teleport.cpp:214-225`), so the flag
+/// is a second way to the same landing rule and not a third behaviour.
+#[test]
+fn a_force_safe_teleport_into_a_wall_lands_beside_it() {
+    let (mut world, who) = a_world();
+    cdda_sim::square::set_terrain(&mut world, (3, 3, 0), 2);
+    let outcome = cdda_sim::teleport::to_point_with(&mut world, who, (3, 3, 0), true, false, true);
+    assert!(
+        matches!(outcome, cdda_sim::teleport::Teleport::Moved { .. }),
+        "**force_safe is enough on its own**: {outcome:?}"
+    );
+}
+
+/// **A `force_safe` teleport lands on a square nobody is standing on**, and a plain one does not care - `teleport.cpp:252-270`: with `force_safe` and a creature already at the
+/// target, the reference walks outward to the nearest square that is passable and empty. Without the flag it telefrags, which is a rule the port has not written.
+#[test]
+fn a_force_safe_teleport_lands_where_nobody_stands() {
+    let (mut world, who) = a_world();
+    let other = cdda_sim::creature::spawn_creature(&mut world, "other", (3, 3, 0));
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    let outcome = cdda_sim::teleport::to_point_with(&mut world, who, (3, 3, 0), true, false, true);
+    let cdda_sim::teleport::Teleport::Moved { to, .. } = outcome else {
+        panic!("the teleport moves: {outcome:?}");
+    };
+    assert!(
+        (to.0, to.1) != (3, 3),
+        "**it does not land on top of the other creature**"
+    );
+    assert!(
+        (to.0 - 3).abs().max((to.1 - 3).abs()) <= 5,
+        "and it is within five squares of the target: {to:?}"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::Position>(other)
+            .map(|at| (at.x, at.y, at.z)),
+        Some((3, 3, 0)),
+        "the creature that was there has not moved"
+    );
+}
+
+/// **`force_safe` overrules a dimensional anchor** exactly as `force` does - the reference's guard is `if( !force && !force_safe && ... )` (`teleport.cpp:188-201`), so the flag
+/// is a bypass and not merely a landing choice.
+#[test]
+fn force_safe_pushes_a_locked_creature_through() {
+    let (mut world, who) = a_world();
+    let mut kind = cdda_sim::effect_registry::bare("effect_teleport_lock");
+    kind.flags.insert("TELEPORT_LOCK".to_owned());
+    cdda_sim::effect_registry::set_effect_types(&mut world, &[kind]);
+    cdda_sim::applied_effects::add(
+        &mut world,
+        who,
+        cdda_sim::effects::ActiveEffect {
+            id: "effect_teleport_lock".to_owned(),
+            intensity: 1,
+            duration: 10,
+            permanent: false,
+        },
+    );
+    assert!(
+        matches!(
+            cdda_sim::teleport::to_point_with(&mut world, who, (4, 4, 0), true, false, false),
+            cdda_sim::teleport::Teleport::Refused
+        ),
+        "without the flag the lock refuses the jump"
+    );
+    assert!(
+        matches!(
+            cdda_sim::teleport::to_point_with(&mut world, who, (4, 4, 0), true, false, true),
+            cdda_sim::teleport::Teleport::Moved { .. }
+        ),
+        "**and with it the creature goes anyway**"
+    );
+}

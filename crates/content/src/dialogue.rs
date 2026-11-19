@@ -3674,6 +3674,9 @@ pub enum Effect {
         success_message: Option<StringSource>,
         /// Whether the creature is moved even when it would rather not be.
         force: bool,
+        /// Whether the creature is moved **safely** even when it would rather not be: the reference's `force_safe`, which bypasses the anchor like `force` and additionally
+        /// refuses to land in a solid square or on top of another creature (`teleport.cpp:188-270`).
+        force_safe: bool,
     },
     /// Put a location into a dialogue variable.
     ///
@@ -4421,12 +4424,9 @@ fn read_teleport(object: &cdda_json::Object) -> Option<Effect> {
         let Some(Value::Object(target)) = object.get(member) else {
             continue;
         };
-        // Reference: `f_teleport` (`npctalk.cpp:7820-7835`) reads two messages and two flags beside the target. `fail_message` and `success_message` are shown by the
-        // teleport itself, so the port carries them and shows them where the reference does; `force_safe` skips the map's safety check, which the port has no such
-        // check to skip, and an entry that asks for it is refused rather than read as if the flag meant nothing.
-        if object.get("force_safe").is_some() {
-            return None;
-        }
+        // Reference: `f_teleport` (`npctalk.cpp:7820-7835`) reads two messages and two flags beside the target. `fail_message` and `success_message` are shown by the teleport
+        // itself, so the port carries them and shows them where the reference does. `force_safe` was refused here until the teleport rule understood it: it is a bypass of the
+        // anchor and a safer landing (`teleport.cpp:188-270`), not a flag without a meaning, and seven programs in the data state it.
         let fail_message = match object.get("fail_message") {
             None => None,
             Some(value) => Some(read_string_source(value)?),
@@ -4449,6 +4449,7 @@ fn read_teleport(object: &cdda_json::Object) -> Option<Effect> {
             fail_message,
             success_message,
             force: matches!(object.get("force"), Some(Value::Bool(true))),
+            force_safe: matches!(object.get("force_safe"), Some(Value::Bool(true))),
         });
     }
     None

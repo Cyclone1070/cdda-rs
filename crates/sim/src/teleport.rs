@@ -95,19 +95,21 @@ fn standable_refused(world: &mut World, square: (i32, i32, i32)) -> bool {
 /// landing **refuses** when the teleport is safe (`"You cannot teleport safely."`); and a solid landing without safety kills the creature outright - `apply_damage` of
 /// 9,999 to the torso, which is the reference's way of saying "there is no body left to find".
 pub fn to_point(world: &mut World, who: Entity, target: (i32, i32, i32), safe: bool) -> Teleport {
-    to_point_with(world, who, target, safe, false)
+    to_point_with(world, who, target, safe, false, false)
 }
 
 /// The same rule with the reference's `force` at hand.
 ///
-/// Reference: `teleport_to_point` takes `force` and `force_safe` (`teleport.cpp:172-180`), and the only thing they change early is the anchor guard: a forced teleport ignores a
-/// worn or applied `DIMENSIONAL_ANCHOR` and a `TELEPORT_LOCK` (`:191-201`). The dialogue's `u_teleport` is where the flag comes from.
+/// Reference: `teleport_to_point` takes `force` and `force_safe` (`teleport.cpp:172-180`). They differ in **one** place and agree in two: both bypass the anchor guard
+/// (`if( !force && !force_safe && ... )`, `:188-201`), both turn a solid landing into the nearest open square rather than a refusal (`:214-225`), and only `force_safe` also
+/// refuses to land on a square somebody is already standing on (`:252-270`). The dialogue's `u_teleport` is where the flags come from.
 pub fn to_point_with(
     world: &mut World,
     who: Entity,
     target: (i32, i32, i32),
     safe: bool,
     force: bool,
+    force_safe: bool,
 ) -> Teleport {
     let Some(origin) = world
         .get::<crate::Position>(who)
@@ -126,32 +128,45 @@ pub fn to_point_with(
     // **A locked creature does not move.** Reference: `teleport.cpp:191-201` refuses a teleportee wearing an item or carrying an effect with `DIMENSIONAL_ANCHOR`, or an effect
     // with `TELEPORT_LOCK`. Three sources, one bypass: all three are tested here, and the bypass (`force`/`force_safe`) belongs to the caller that has one, which this rule does not.
     if !force
+        && !force_safe
         && (crate::creature::wears_flag(world, who, "DIMENSIONAL_ANCHOR")
             || crate::applied_effects::has_flag(world, who, "DIMENSIONAL_ANCHOR")
             || crate::applied_effects::has_flag(world, who, "TELEPORT_LOCK"))
     {
         return Teleport::Refused;
     }
-    if !standable(world, target) {
-        if safe {
-            return Teleport::Refused;
-        }
+    // **A forced jump does not land in the wall, it lands beside it.** Reference: `if( force || force_safe )` walks `closest_points_first( target, 5 )` and takes the first
+    // square that is `passable_through` (`teleport.cpp:214-225`); only an unforced, unsafe jump into a solid square kills (`:226-241`).
+    let landing = if standable(world, target) {
+        target
+    } else if force || force_safe {
+        forced_landing(world, target).unwrap_or(target)
+    } else if safe {
+        return Teleport::Refused;
+    } else {
         crate::creature::hurt(world, who, 9_999.0);
         return Teleport::Died;
-    }
+    };
+    // **A `force_safe` jump lands where nobody stands.** Reference: `teleport.cpp:252-270` - with the flag set and a creature already at the target, the reference walks outward
+    // to the nearest square that is passable **and empty**. Without the flag it telefrags, which the port has not written and names in `docs/parity.md`.
+    let landing = if force_safe && creature_there(world, landing) {
+        free_landing(world, landing).unwrap_or(landing)
+    } else {
+        landing
+    };
     // **A rider is put down first.** Reference: `teleport.cpp:203-206` unboards a character in a vehicle before the landing rules run, so the teleportee is not left sitting in a
     // seat that stayed behind. The port's `unboard` is the same link the vehicle system reads, so a teleported driver stops driving without a second flag to keep in step.
     crate::vehicles::unboard(world, who);
     if let Some(mut place) = world.get_mut::<crate::Position>(who) {
-        place.x = target.0;
-        place.y = target.1;
-        place.z = target.2;
+        place.x = landing.0;
+        place.y = landing.1;
+        place.z = landing.2;
     }
     // A moved thing that kept its old index entry would stand on two squares, which is the ghost the architecture gate exists for.
     crate::PositionIndex::rebuild(world);
     Teleport::Moved {
         from: origin,
-        to: target,
+        to: landing,
     }
 }
 
@@ -173,6 +188,39 @@ pub fn forced_landing(world: &mut World, target: (i32, i32, i32)) -> Option<(i32
                 }
                 let square = (target.0 + dx, target.1 + dy, target.2);
                 if standable(world, square) {
+                    return Some(square);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Whether a creature already stands on a square.
+fn creature_there(world: &World, square: (i32, i32, i32)) -> bool {
+    crate::singletons::index(world)
+        .map_or(&[][..], |index| {
+            index.at_level(square.0, square.1, square.2)
+        })
+        .iter()
+        .any(|entity| world.get::<crate::creature::Creature>(*entity).is_some())
+}
+
+/// **The nearest square that is both passable and empty**, for a `force_safe` landing.
+///
+/// Reference: `teleport.cpp:252-270` walks `closest_points_first( abs_ms, 5 )`, drops the target itself, and takes the first square that is passable - or out of bounds, which the
+/// reference treats as free - and holds no creature. The port searches the same rings through [`forced_landing`] and then asks the occupancy question, which is the same
+/// two-part test with the two halves in the reference's own order.
+#[must_use]
+pub fn free_landing(world: &mut World, target: (i32, i32, i32)) -> Option<(i32, i32, i32)> {
+    for distance in 1..=5_i32 {
+        for dy in -distance..=distance {
+            for dx in -distance..=distance {
+                if dx.abs().max(dy.abs()) != distance {
+                    continue;
+                }
+                let square = (target.0 + dx, target.1 + dy, target.2);
+                if standable(world, square) && !creature_there(world, square) {
                     return Some(square);
                 }
             }

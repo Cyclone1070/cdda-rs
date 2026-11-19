@@ -39191,3 +39191,32 @@ fall speed").
 
 **Named gap.** The impact's **damage** is not ported: the reference hands the collision to `part_collision` with the fall's velocity and dents what it lands on and what lands on it,
 and the crushed cargo underneath is a further rule. The port spends the velocity and names the dent, which is the collision rounds' work rather than this one's.
+
+## `force_safe`, the flag that was refused (round 230)
+
+`f_teleport` reads two flags beside its target (`npctalk.cpp:7820-7835`). The port carried `force` and **refused any entry that stated `force_safe`**, which is why seven
+programs in the data could not run at all - the roadmap's own short list of remaining rules.
+
+`teleport_to_point` (`teleport.cpp:172-270`) gives the two flags this shape, and it is worth stating plainly because they are not the same flag:
+
+| Question | `force` | `force_safe` |
+|---|---|---|
+| overrules a `DIMENSIONAL_ANCHOR` or `TELEPORT_LOCK` | yes | **yes** |
+| a solid landing | nearest open square (`:214-225`) | **nearest open square** |
+| a landing on top of a creature | telefrag (unported) | **nearest open square nobody stands on** (`:252-270`) |
+
+So `force_safe` is a superset of `force` for the rules the port has, and both are bypasses of the anchor rather than landing choices alone.
+
+Two things the round found while wiring it:
+
+- **`forced_landing` had no caller.** The nearest-open-square rule was written and gated rounds ago, and `to_point_with` never asked it, so a *forced* jump into a wall still
+  refused. Wiring `force_safe` exposed it: the test for a forced landing beside a wall failed before the landing rule did. A function with a test and no caller is a rule the port
+  has proved but does not yet follow.
+- **"A creature is there" is the `Creature` component, not the `Position`.** The first version of the occupancy test spawned its second creature as a bare position, which the
+  port's own index knows and its own creature rules do not; `creature::spawn_creature` is the store's way to make one, and the test uses it.
+
+Mutation-checked twice: `force_safe` failing to bypass a wall (caught by "force_safe is enough on its own"), and the occupancy check short-circuited (caught by "it does not land on
+top of the other creature").
+
+**Named gap.** The **telefrag** - an unforced jump landing on a creature - is still unported, and so is the reference's "inside the world" relocation and the death a solid landing
+causes without `safe`. Those are named in the module and unchanged by this round.

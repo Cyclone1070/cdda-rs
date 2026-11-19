@@ -2523,6 +2523,7 @@ fn a_locked_creature_is_not_moved_by_a_teleport_effect() {
         fail_message: None,
         success_message: None,
         force: false,
+        force_safe: false,
     };
     assert_eq!(
         run_effects(&mut world, survivor, None, &[effect]),
