@@ -170,7 +170,9 @@ def main() -> int:
         if subprocess.run([sys.executable, "tools/check_dead_rules.py"], capture_output=True).returncode != 0:
             subprocess.run([sys.executable, "tools/check_dead_rules.py"], check=False)
             failed.append("dead rules")
-    if options.clippy:
+    # **The full run includes clippy.** It did not, and that cost a red CI: the complete gate reported green on a tree whose test target held an `items_after_statements`
+    # error, because the run had only asked for tests, docs and the oracle. A gate that is not the gate is worse than no gate - so `everything` means every job.
+    if options.clippy or everything:
         # **Touch every crate root first, or cargo's cache eats the gate.** `cargo clippy -D warnings` only fails on diagnostics it *emits*, and a crate whose fingerprint has not changed is
         # not re-checked - so a green run could mean "nothing was looked at". That is exactly what happened: the gate reported clean for many rounds while `crates/sim` held twenty-three
         # deny-level lints, and a fresh checkout of the same tree failed instantly. The touch is cheap (a mtime) and forces the diagnostics to be re-emitted.

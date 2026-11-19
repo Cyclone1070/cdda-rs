@@ -1624,6 +1624,9 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
 }
 
 /// Gives a world the things a program acts on: terrain under the player, an overmap tile of every terrain the mapgens name, and queued answers.
+/// How far a search of the data's own can reach, in overmap tiles: `search_range` defaults to `OMAPX * 3` (`mission_util.cpp:429`).
+const REACH: i32 = 540;
+
 fn build_a_world(
     world: &mut World,
     mapgens: &[(String, cdda_content::mapgen::MapgenObject)],
@@ -1651,7 +1654,6 @@ fn build_a_world(
     // **And spread across the whole search radius**, not down a narrow column: a tile more than 540 overmap tiles away is outside the reach of the data's own searches
     // (`search_range` defaults to `OMAPX * 3`), so a narrow grid put two thirds of the ids where nothing could ever find them. The square below is 1,081 wide and centred on
     // the survivor's tile, which is the widest set of tiles a search can reach.
-    const REACH: i32 = 540;
     let width = usize::try_from(REACH * 2 + 1).unwrap_or(1_081);
     for (at, terrain) in named.iter().enumerate() {
         let tile = (
