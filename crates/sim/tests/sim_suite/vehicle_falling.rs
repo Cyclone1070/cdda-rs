@@ -311,3 +311,71 @@ fn two_thirds_of_the_hull_in_deep_water_is_deep_water() {
         "**two of three is two thirds**, which meets the reference's threshold exactly"
     );
 }
+
+/// **A fall accelerates, and the numbers are the reference's.** `v_2 = -sqrt( 2 * d * g + v_1^2 )` with a four-metre level and `g` at 9.8, computed in single precision exactly as
+/// `vehicle_move.cpp:1869-1877` does - so `-1980` after one level, not `-1981`, because the conversion to hundredths of a mile per hour truncates towards zero.
+#[test]
+fn a_fall_accelerates_by_the_references_own_numbers() {
+    assert_eq!(
+        cdda_sim::vehicle_falling::falling_velocity(0),
+        -1980,
+        "**from rest, one level of fall is 8.85 m/s**, which is -1980 in hundredths of a mile per hour"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_falling::falling_velocity(-1980),
+        -2800,
+        "and the next level takes it to 12.52 m/s"
+    );
+    assert_eq!(
+        cdda_sim::vehicle_falling::falling_velocity(-2800),
+        -3429,
+        "and the one after that to 15.33"
+    );
+    // The sign is the reference's: a fall is negative whichever way it was going.
+    assert!(
+        cdda_sim::vehicle_falling::falling_velocity(1980) < 0,
+        "**a hull moving upwards still comes down**, because the square root drops the sign"
+    );
+}
+
+#[test]
+fn the_speed_conversions_round_trip_through_metres_per_second() {
+    use cdda_sim::vehicle_falling::{metres_per_second_to_vmiph, vmiph_to_metres_per_second};
+    assert_eq!(metres_per_second_to_vmiph(0.0), 0, "standing still is zero");
+    assert_eq!(
+        metres_per_second_to_vmiph(1.0),
+        223,
+        "**one metre a second is 223**"
+    );
+    let one_mile_per_hour = vmiph_to_metres_per_second(100);
+    assert!(
+        (one_mile_per_hour - 0.447_039_3).abs() < 1e-7,
+        "**a hundred is one mile per hour**, 0.447 m/s: got {one_mile_per_hour}"
+    );
+    // **And it does not come back exactly**, which is the reference's own arithmetic rather than the port's: `vehicle_move.cpp:1873` stores the conversion in a `float`, so a
+    // mile per hour narrows to 0.44703928 and 223.694 of *that* is 99.99999, which the `int` return truncates to **99**. A round trip that gained the digit back would be a port
+    // that had widened the reference's single precision somewhere.
+    assert_eq!(
+        metres_per_second_to_vmiph(vmiph_to_metres_per_second(100)),
+        99,
+        "**the reference's float narrowing costs a hundredth**, so a mile per hour returns as 99"
+    );
+}
+
+#[test]
+fn a_hull_keeps_falling_once_it_has_started() {
+    use cdda_sim::vehicle_falling::should_fall;
+    assert!(
+        !should_fall(false, 0),
+        "a hull on the ground with no velocity is not falling"
+    );
+    assert!(
+        should_fall(true, 0),
+        "**a flagged hull falls even at rest**"
+    );
+    assert!(
+        should_fall(false, -1980),
+        "and a hull with downward velocity keeps falling after the flag clears"
+    );
+    assert!(should_fall(false, 1980), "in either direction");
+}

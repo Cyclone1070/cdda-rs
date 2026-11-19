@@ -39104,3 +39104,26 @@ exactly-two-thirds case, which is the only input that tells `>=` from `>`.
 
 **Named gaps.** `is_flying`/rotorcraft is not ported, so the flying branch is absent; `is_falling` is not yet stored on a vehicle and nothing acts on it - the reference's falling
 physics is a different rule - so this round ports the **question** and leaves the consequence for the round that needs it.
+
+## How fast a falling hull is going (round 226)
+
+Reference: `vehicle::move_vehicle`'s fall block (`vehicle_move.cpp:1863-1881`). Two facts and one formula:
+
+- **When it falls.** `should_fall = is_falling || vertical_velocity != 0`. The second half is what keeps a hull falling after the flag clears, so the port's `should_fall` takes
+  both.
+- **How fast.** `v_2 = -sqrt( 2 * d * g + v_1^2)` with `d = 4.0` metres (`tile_height`, `vehicle_move.cpp:84`) and `g = 9.8`, and the result converted to hundredths of a mile per
+  hour. The sign is the reference's: a fall is negative whatever the previous velocity's sign was, because the square root drops it.
+- **In which precision.** `float`, all the way to the square root - `old_vel` is a `float` and `std::sqrt` takes it as one. The port keeps single precision for the same reason a
+  digit depends on it: from rest the first level is `-1980`, and a port that widened to `double` and rounded would say `-1981`.
+
+The measured ladder, now pinned: `0 -> -1980 -> -2800 -> -3429`.
+
+**A quirk that is the reference's and not the port's:** the round trip through the conversions does not close. `vmiph_to_mps(100)` is 0.4470392..., which the reference stores in a
+`float`, and 223.694 of *that* is 99.99999, which its `int` return truncates to **99**. The gate asserts 99 and says why; a port that gained the hundredth back would be one that
+had widened the reference's arithmetic somewhere.
+
+Mutation-checked twice: flooring the conversion instead of truncating towards zero (caught at `-1980` against `-1981`), and dropping the velocity half of `should_fall` (caught by
+the hull whose flag has cleared).
+
+**Named gaps.** Nothing acts on the velocity yet: the reference's vertical collision, the landing, and the crushed cargo underneath are separate rules, and `is_falling` is still
+not stored on a vehicle. This round ports the arithmetic those rules will read.

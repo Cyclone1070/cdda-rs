@@ -20,6 +20,66 @@ use bevy_ecs::prelude::World;
 /// How far down the world goes, in levels - the reference's `OVERMAP_DEPTH` (`map_scale_constants.h:47`). The bottom is held up by the world itself.
 pub const OVERMAP_DEPTH: i32 = 10;
 
+/// How tall one level is, in metres - the reference's `tile_height` (`vehicle_move.cpp:84`). A `float` there, and kept as one here, because the fall's arithmetic is single precision
+/// all the way to the square root and the last digit of the answer depends on it.
+pub const TILE_HEIGHT_METRES: f32 = 4.0;
+
+/// Gravity, in metres per second squared - the reference's literal `g` (`vehicle_move.cpp:1871`).
+pub const GRAVITY: f32 = 9.8;
+
+/// Metres per second in one mile per hour - the reference's `mps_to_miph` (`vehicle_move.cpp:88`).
+pub const METRES_PER_SECOND_IN_A_MILE_PER_HOUR: f32 = 2.236_94;
+
+/// Vehicle speed is in **hundredths of a mile per hour**, which is what the `v` in `vmiph` stands for.
+pub const HUNDREDTHS: f32 = 100.0;
+
+/// Metres per second as the reference's vehicle speed, **truncating towards zero** exactly as its `int` return does - which for a fall's negative velocity means -1980 and not -1981.
+///
+/// Reference: `mps_to_vmiph` (`vehicle_move.cpp:91-94`), whose product is a `double` and whose return type is `int`.
+#[must_use]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the reference's own `int` return truncates this exact product; the truncation is the rule"
+)]
+pub fn metres_per_second_to_vmiph(metres_per_second: f32) -> i32 {
+    (f64::from(metres_per_second)
+        * f64::from(METRES_PER_SECOND_IN_A_MILE_PER_HOUR)
+        * f64::from(HUNDREDTHS)) as i32
+}
+
+/// The reference's vehicle speed as metres per second.
+///
+/// Reference: `vmiph_to_mps` (`vehicle_move.cpp:96-99`), which divides a `double` twice - so the port widens before it divides rather than staying in single precision.
+#[must_use]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the reference stores the conversion in a `float` (vehicle_move.cpp:1873), and that narrowing is exactly what the round-trip test measures"
+)]
+pub fn vmiph_to_metres_per_second(vmiph: i32) -> f32 {
+    (f64::from(vmiph) / f64::from(METRES_PER_SECOND_IN_A_MILE_PER_HOUR) / f64::from(HUNDREDTHS))
+        as f32
+}
+
+/// **How fast a falling hull is going after another level of fall** - `v_2 = -sqrt( 2 * d * g + v_1^2 )` (`vehicle_move.cpp:1869-1877`).
+///
+/// The sign is the reference's: a fall's velocity is **negative**, and the square root drops whatever sign the previous one had. The arithmetic is `float` throughout, as the
+/// reference's is, so the conversion back to hundredths of a mile per hour truncates the same digit.
+#[must_use]
+pub fn falling_velocity(previous: i32) -> i32 {
+    let old = vmiph_to_metres_per_second(previous);
+    let fall = (2.0_f32 * TILE_HEIGHT_METRES * GRAVITY + old * old).sqrt();
+    metres_per_second_to_vmiph(-fall)
+}
+
+/// **Whether a hull is due to fall this move** - the reference's `should_fall = is_falling || vertical_velocity != 0` (`vehicle_move.cpp:1863`).
+///
+/// The second half is what keeps a hull falling once it has started: a frame that lands on the ground stops being flagged, but a hull already moving downwards keeps its velocity
+/// until the landing rule zeros it, so the test is a velocity as well as a flag.
+#[must_use]
+pub fn should_fall(is_falling: bool, vertical_velocity: i32) -> bool {
+    is_falling || vertical_velocity != 0
+}
+
 /// **What holds a vehicle up**, as the reference asks it once per move.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Support {
