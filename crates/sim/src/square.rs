@@ -116,6 +116,21 @@ pub fn set_trap(world: &mut World, square: (i32, i32, i32), kind: &str) -> bool 
     true
 }
 
+/// **Takes the trap off a square**, which is what a sprung trap does - the reference's `here.remove_trap( p )` (`trapfunc.cpp:396`), the last thing `trapfunc::eocs` does.
+///
+/// The entity that carried the trap is destroyed rather than left with an empty field, so the index has nothing to leave behind.
+pub fn remove_trap(world: &mut World, square: (i32, i32, i32)) {
+    let Some(entity) = entities_at(world, square)
+        .iter()
+        .copied()
+        .find(|entity| world.get::<Trap>(*entity).is_some())
+    else {
+        return;
+    };
+    world.entity_mut(entity).despawn();
+    crate::singletons::index_mut(world).remove(entity, square);
+}
+
 /// What a materialised level made, so a caller can check it rather than count by hand.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Materialised {

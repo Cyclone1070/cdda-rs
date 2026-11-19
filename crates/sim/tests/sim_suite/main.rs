@@ -278,6 +278,7 @@ mod sell_item;
 mod stamina;
 mod switch_effect;
 mod transform_line;
+mod trap_spring;
 mod underwater;
 mod vehicle_angle;
 mod vehicle_damage;

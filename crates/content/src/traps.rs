@@ -35,6 +35,11 @@ pub struct Trap {
     pub always_invisible: bool,
     /// Its flag set.
     pub flags: BTreeSet<String>,
+    /// What the trap **does** when it is triggered, as the data names it - the reference's `action` (`trap.cpp:150-175`), which is `"eocs"` for a trap that runs programs
+    /// and a named function such as `"bubble"` for one that does something of its own.
+    pub action: Option<String>,
+    /// The programs `action: "eocs"` runs, in order (`trap.cpp:168-175`).
+    pub eocs: Vec<String>,
 }
 
 impl Trap {
@@ -148,6 +153,8 @@ fn resolve(
             benign: false,
             always_invisible: false,
             flags: BTreeSet::new(),
+            action: None,
+            eocs: Vec::new(),
         },
     };
     seen.pop();
@@ -164,6 +171,24 @@ fn apply(trap: &mut Trap, object: &Object, inherited: bool) -> Result<(), LoadEr
         return Err(LoadError {
             message: format!("trap {id}: missing name"),
         });
+    }
+    // **What the trap does.** Reference: `trap::load` (`trap.cpp:150-175`) - `action` names the function, and `eocs` is only allowed beside `action: "eocs"`, which the
+    // reference refuses to load without. The port keeps the refusal rather than reading the programs as if the action did not matter.
+    if let Some(Value::Str(action)) = object.get("action") {
+        trap.action = Some(action.clone());
+    }
+    if let Some(Value::Array(programs)) = object.get("eocs") {
+        if trap.action.as_deref() != Some("eocs") {
+            return Err(LoadError {
+                message: format!(r#"trap {id}: "eocs" without "action": "eocs""#),
+            });
+        }
+        for program in programs {
+            let Value::Str(name) = program else {
+                continue;
+            };
+            trap.eocs.push(name.clone());
+        }
     }
     if let Some(text) = string(object, "symbol") {
         let mut characters = text.chars();

@@ -39253,3 +39253,24 @@ mutations, two catches: the write falling through to a holder (the context keeps
 
 **What this does not yet do.** The program is `eoc_type: ACTIVATION` and is reached from a trap, and the port has a `Trap` component and a trap loader but **no trap activation** - so
 `EOC_TELEPAD` still cannot be triggered from a square. What is now true is that both of its entries work and work together; what is not is that anything fires them.
+
+## A trap springs (round 233)
+
+Reference: `trapfunc::eocs` (`trapfunc.cpp:382-400`), the action three trap entries in the data name beside `"action": "eocs"` - the telepad, its invisible twin and the portal.
+The rule is four steps and the port now does all four:
+
+1. the trap's programs run with the **creature as the speaker**;
+2. the trap's **own square** goes into the invocation's context under the name `trap_location` (`write_var_value( var_type::context, ... )`);
+3. each program runs in order, and only an `ACTIVATION` one is run at all - the reference refuses the other kinds with a debug message;
+4. the trap is **removed**, whatever the programs did and after they did it.
+
+Both halves of the store are new: a `trap_registry` (the twin of `effect_registry`) so a square's trap name can answer what the trap does, and `square::remove_trap`, which
+destroys the entity that carried the trap so the index has nothing left behind. The content loader now reads `action` and `eocs`, and keeps the reference's refusal of an `eocs`
+list without `action: "eocs"`.
+
+The gate drives the pair the data actually runs: a program that teleports to `context_val trap_location` is handed the trap's square by the spring, and the creature ends up on it.
+Mutation-checked twice: the trap staying set after springing, and the square not being handed over (the creature does not move).
+
+**Named gaps, and they are the honest shape of this round.** Only the `eocs` action is sprung: the eighty-odd named actions in `trapfunc.cpp` (`bubble`, `tripwire`, `ledge`, the
+teleport-under-the-player traps) are their own rules, and a trap with one is **left set** rather than half-triggered - removing it without doing what it does would be worse than
+not noticing it. Nothing calls `spring` from the movement pipeline yet; the rule is written and gated, and the step that walks a creature onto a square is the next round's work.
