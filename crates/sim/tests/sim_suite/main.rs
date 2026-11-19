@@ -282,5 +282,6 @@ mod underwater;
 mod vehicle_damage;
 mod vehicle_mass;
 mod vehicle_spawn;
+mod vehicle_tow;
 mod vehicles;
 mod walk;

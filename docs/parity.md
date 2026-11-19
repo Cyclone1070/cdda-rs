@@ -38621,3 +38621,32 @@ Mutation-checked: not zeroing the shooter's recoil leaves 120 on them during the
 **Named gaps, both named in the reference's own prepare/post**: the shooter is given a one-turn `on_roof` effect so the mount cannot shoot the vehicle it stands on (the port applies no
 such effect), and a tank-fed mount's gun is primed with the chosen fuel before firing and its magazine wells cleared afterwards (the port's mounted gun has no magazine). The recoil
 bracket is the part of `fire` that needs no shooter machinery beyond a number, and it is now ported.
+
+## Towing: the cable's end, and a link by id (round 204)
+
+The reference's towing model is two raw pointers on `towing_data` (`vehicle.h:201-225`) and a geometric rule on top of them. The port takes the rule and replaces the pointers:
+
+**`vehicle_tow::tow_direction`** is `vehicle::set_tow_directions` (`vehicle.cpp:7231-7251`): the hull's length is `max.x - min.x + 1`, the tow part's mount is normalised against `min.x`, and -
+**only when the hull is three or more mounts long** - a third and two thirds of the length decide which end the cable leaves from. A shorter hull always answers front, because the
+reference's own comment says a small vehicle is no danger if it flips around.
+
+| Hull | Tow part at | Side |
+|---|---|---|
+| 0..4 (length 5, trisect 1) | 0, 1 | back |
+| | 2 | **side** |
+| | 3, 4 | front |
+| 0..8 (length 9, trisect 3) | 6, 7 | **side, side** - the boundary mount is `<= 2 × trisect` |
+| 0..1, or a single mount | any | front |
+
+**`Towing`** is the link: `towing: Option<Entity>`, `towed_by: Option<Entity>`, and the direction. A vehicle carries it only while it is part of a pair, so "is this towing?" is a component
+query and "nothing is towing it" is its absence - never a null pointer, which is the architecture rule stated in its smallest form.
+
+`set_towing` writes both ends and recomputes both directions; `clear_towing` clears **both ends**, because a half-cleared pair would leave one vehicle pointing at a stranger.
+
+Mutation-checked: making the middle third's far boundary exclusive (`<` for `<=`) moves the boundary mount to the front.
+
+**Two deliberate departures, both named in the code**: the port refuses a vehicle towing **itself**, because an entity linked to itself is a loop the schedule would have to break later,
+and it refuses a link where either end is not a vehicle - the reference's `!tower || !towed`, which in a store means "no such vehicle component".
+
+**Not ported**: `invalidate_towing`'s cable-item handling (`vehicle.cpp:7265-7330`, which drops the cable as an item with a link), and every rule that *uses* a tow — the pull itself,
+turning under tow, and the `is_towed()` checks that alter driving. This round is the link and its geometry, not the physics.
