@@ -39080,3 +39080,27 @@ Mutation-checked by zeroing the offset, which the gate catches at "one level hig
 **Named gaps.** The reference also sets `veh.is_on_ramp` when either flag fires, and its falling and collision rules read that state; the port has no such flag yet. Driving off
 the top of a ramp onto **open air** is a fall, a different rule from this one, and the ramp test models both halves of the structure at their own levels rather than pretending a
 lifted vehicle floats.
+
+## Whether the ground holds a vehicle up (round 225)
+
+Reference: `vehicle::check_falling_or_floating` (`vehicle_move.cpp:2059-2135`). One pass answers three questions, and the port keeps them together as `Support { falling, in_water,
+in_deep_water }` because they share the walk:
+
+1. **The wheels.** If at least half the wheels stand on something, the hull is not falling and not in water - nothing else is asked. `supported * 2 >= wheels.size()`.
+2. **The parts.** Otherwise the hull falls only if **no** part is held up. The reference lowers the flag at the first supported part and skips the rest
+   (`if( !is_falling ) { continue; }`), and since the flag never rises again, the rule is "any part will do" - looser than "every part", which is why the port has a test for
+   each order.
+3. **Water**, counted over every part: two thirds deep is *in deep water* (`3 * deep >= 2 * count`), half in water at all is *in water* (`2 * water >= count`).
+
+**The asymmetry that is easy to get backwards:** a wheel on water is **not** supported, while a hull over water **is** - the reference passes `water_supports` false for the wheels
+and true for the parts, which is why a floating hull does not fall. The gate pins both directions on the same water square.
+
+Support itself is two rules: `has_support` (the bottom of the world at `-OVERMAP_DEPTH` always, water only when the caller says so, anything that is not `NO_FLOOR`, and open air
+only through `supports_above`), and `supports_above` (`map.cpp:2662-2679`: an impassable terrain, furniture with a negative move cost, or a vehicle already standing there). The
+terrain and furniture tables now carry **move costs** for that question, which is the first rule to read them.
+
+Mutation-checked twice: `3 * deep > 2 * count` (the two-thirds threshold) and making open air support everything - the second caught by the falling hull, the first by the
+exactly-two-thirds case, which is the only input that tells `>=` from `>`.
+
+**Named gaps.** `is_flying`/rotorcraft is not ported, so the flying branch is absent; `is_falling` is not yet stored on a vehicle and nothing acts on it - the reference's falling
+physics is a different rule - so this round ports the **question** and leaves the consequence for the round that needs it.

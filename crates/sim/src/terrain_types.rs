@@ -19,6 +19,9 @@ pub struct TerrainTypes {
     ///
     /// Reference: `ter_t::has_flag` (`mapdata.h`), read by every rule that asks what a tile is like - whether it is transparent, whether it can be walked on.
     pub flags: BTreeMap<u32, std::collections::BTreeSet<String>>,
+    /// The move cost each code carries: **zero means nothing can walk onto it** (`map::impassable`), which is also what makes it hold up whatever stands above it
+    /// (`map::supports_above`, `map.cpp:2665-2668`).
+    pub move_costs: BTreeMap<u32, i32>,
 }
 
 /// Marks the entity holding [`TerrainTypes`].
@@ -60,6 +63,30 @@ pub fn set_types(world: &mut World, terrains: impl IntoIterator<Item = (String, 
     }
     let element = crate::singletons::singleton::<TerrainTypes, TheTerrainTypes>(world);
     world.entity_mut(element).insert(table);
+}
+
+/// Gives terrains the move costs the data defines for them, by name.
+pub fn set_move_costs(world: &mut World, costs: impl IntoIterator<Item = (String, i32)>) {
+    let Some(holder) = holder(world) else {
+        return;
+    };
+    if let Some(mut table) = world.get_mut::<TerrainTypes>(holder) {
+        for (name, cost) in costs {
+            let Some(code) = table.codes.get(&name).copied() else {
+                continue;
+            };
+            table.move_costs.insert(code, cost);
+        }
+    }
+}
+
+/// The move cost a terrain code carries, or nothing when the table does not know it.
+#[must_use]
+pub fn move_cost_of(world: &World, code: u32) -> i32 {
+    holder(world)
+        .and_then(|holder| world.get::<TerrainTypes>(holder))
+        .and_then(|table| table.move_costs.get(&code).copied())
+        .unwrap_or(0)
 }
 
 /// The entity holding the terrain table, when the world has one.

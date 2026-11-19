@@ -155,6 +155,7 @@ pub mod terrain_types;
 pub mod throwing;
 pub mod vehicle_air;
 pub mod vehicle_drive;
+pub mod vehicle_falling;
 pub mod vehicle_move;
 pub mod vitamin_registry;
 pub mod weather;

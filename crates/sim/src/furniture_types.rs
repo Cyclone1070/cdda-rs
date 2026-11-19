@@ -16,6 +16,9 @@ pub struct FurnitureTypes {
     pub names: BTreeMap<u32, String>,
     /// The flags each code carries.
     pub flags: BTreeMap<u32, std::collections::BTreeSet<String>>,
+    /// The move cost each code carries, which is what makes furniture an obstacle: the reference treats a **negative** cost as impassable (`map::supports_above`,
+    /// `map.cpp:2670-2676`, and `map::move_cost`, which refuses to walk onto it) and a zero cost as furniture nothing will walk through either.
+    pub move_costs: BTreeMap<u32, i32>,
 }
 
 /// Marks the entity holding [`FurnitureTypes`].
@@ -35,6 +38,30 @@ pub fn set_flags(world: &mut World, furniture: impl IntoIterator<Item = (String,
             table.flags.insert(code, flags.into_iter().collect());
         }
     }
+}
+
+/// Gives furniture the move costs the data defines for it, by name.
+pub fn set_move_costs(world: &mut World, costs: impl IntoIterator<Item = (String, i32)>) {
+    let Some(holder) = holder(world) else {
+        return;
+    };
+    if let Some(mut table) = world.get_mut::<FurnitureTypes>(holder) {
+        for (name, cost) in costs {
+            let Some(code) = table.codes.get(&name).copied() else {
+                continue;
+            };
+            table.move_costs.insert(code, cost);
+        }
+    }
+}
+
+/// The move cost a furniture code carries, or nothing when the table does not know it.
+#[must_use]
+pub fn move_cost_of(world: &World, code: u32) -> i32 {
+    holder(world)
+        .and_then(|holder| world.get::<FurnitureTypes>(holder))
+        .and_then(|table| table.move_costs.get(&code).copied())
+        .unwrap_or(0)
 }
 
 /// Whether a furniture code carries a flag.
