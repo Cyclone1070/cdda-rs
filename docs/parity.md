@@ -39294,3 +39294,19 @@ perception, `trap::can_see` and the avoidance roll), and a trap that is noticed 
 because it has no perception roll for traps yet - a difference that matters for a player who would have seen the trap, and is recorded rather than glossed.
 
 And only the `eocs` action fires (see round 233); the named actions are still their own rounds.
+
+## Three traps that must not fire (round 235)
+
+`map::maybe_trigger_trap` (`map.cpp:9915-9946`) is a chain of refusals before the trigger, and the port now makes the three the data can answer for **without a perception roll**:
+
+| Refusal | Reference | Why it matters |
+|---|---|---|
+benign trap | `map.cpp:9923-9926` | a cot is a trap in the data; nothing should happen to whoever lies on it |
+`AVATAR_ONLY` and not the avatar | `map.cpp:9928-9930` | some traps are the player's alone |
+creature in a vehicle | `map.cpp:9886-9888` | the wheels meet the trap, not the passenger |
+
+Each is gated and mutation-checked on its own.
+
+**The rider test was vacuous when first written**, and the mutation check is what found it: the test never installed the trap in the registry, so `spring` answered `false` because the store knew no such trap - the assertion passed for the wrong reason and the guard could have been deleted without a failure. Installing the trap made the mutation catch it. That is the argument for breaking the rule on purpose rather than trusting a green line.
+
+**Still not ported, and this is the same gap as round 234:** the **avoidance** half. The reference asks `c->avoid_trap( pos, tr )` - a dexterity-and-perception roll against the trap's `avoidance`, skipped for `UNDODGEABLE` - and a noticed trap is announced ("You've spotted a %1$s!") and remembered. The port springs what a creature steps on, so a trap the player would have dodged still fires. That is the next step in this chain, not a detail of it.

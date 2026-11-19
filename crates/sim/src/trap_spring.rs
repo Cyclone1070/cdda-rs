@@ -29,6 +29,20 @@ pub fn spring(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
     if trap.action.as_deref() != Some("eocs") || trap.eocs.is_empty() {
         return false;
     }
+    // **A benign trap is not a trap.** Reference: `map::maybe_trigger_trap` returns before doing anything for a `benign` trap (`map.cpp:9923-9926`) - a cot is a trap in the
+    // data and nothing should happen to whoever lies on it.
+    if trap.benign {
+        return false;
+    }
+    // **Some traps only care about the player.** Reference: `map.cpp:9928-9930` skips the trigger when the trap carries `AVATAR_ONLY` and the creature is not the avatar.
+    if trap.flags.contains("AVATAR_ONLY") && crate::missions::avatar(world) != Some(who) {
+        return false;
+    }
+    // **A rider is above the trap.** Reference: `map::creature_on_trap` returns at once for a character `in_vehicle` or gliding (`map.cpp:9886-9888`) - the wheels, not the
+    // passenger, meet the trap, and a vehicle's own collisions are a different rule.
+    if world.get::<crate::vehicles::Riding>(who).is_some() {
+        return false;
+    }
     // Reference: `dialogue d( get_talker_for( critter ), nullptr ); write_var_value( var_type::context, "trap_location", &d, trap_location );`
     let previous = crate::dialogue_context::values(world, who);
     let mut context = previous.clone();

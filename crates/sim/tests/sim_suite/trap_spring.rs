@@ -118,3 +118,85 @@ fn a_trap_the_port_cannot_act_on_stays_where_it_is() {
         "no program ran"
     );
 }
+
+/// **A benign trap does not fire.** Reference: `map::maybe_trigger_trap` returns before triggering a `benign` trap (`map.cpp:9923-9926`) - a cot is a trap in the data and
+/// nothing should happen to whoever lies on it.
+#[test]
+fn a_benign_trap_does_not_fire() {
+    let (mut world, who) = a_world();
+    let mut cot = a_trap("eocs", &["EOC_mark"]);
+    cot.benign = true;
+    cdda_sim::trap_registry::set_traps(&mut world, &[cot]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**a benign trap is not sprung**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world).is_empty(),
+        "no program ran"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "and it stays where it is"
+    );
+}
+
+/// **An `AVATAR_ONLY` trap fires for the avatar and for nobody else.** Reference: `map.cpp:9928-9930` skips the trigger when the flag is set and the creature is not the avatar.
+#[test]
+fn an_avatar_only_trap_ignores_everyone_but_the_avatar() {
+    let (mut world, who) = a_world();
+    let mut only = a_trap("eocs", &["EOC_mark"]);
+    only.flags.insert("AVATAR_ONLY".to_owned());
+    cdda_sim::trap_registry::set_traps(&mut world, &[only]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**nobody but the avatar sets it off**, and this creature is not the avatar"
+    );
+    assert!(cdda_sim::messages::lines(&world).is_empty());
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "the trap is still set"
+    );
+
+    // The same creature, now the avatar.
+    cdda_sim::missions::set_avatar(&mut world, who);
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**the avatar sets it off**"
+    );
+    assert_eq!(cdda_sim::messages::lines(&world), vec!["sprung".to_owned()]);
+}
+
+/// **A creature riding in a vehicle is above the trap.** Reference: `map::creature_on_trap` returns at once for a character `in_vehicle` or gliding (`map.cpp:9886-9888`), so
+/// driving over a trap does not set it off.
+#[test]
+fn a_rider_does_not_set_off_a_trap() {
+    let (mut world, who) = a_world();
+    let vehicle = world
+        .spawn((
+            cdda_sim::vehicles::Vehicle::default(),
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+        ))
+        .id();
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::vehicles::Riding { vehicle, part: 0 });
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    // **The trap has to be a real one**, or the test would pass because the store knows no such trap rather than because the rider is above it.
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("eocs", &["EOC_mark"])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**a rider is above the trap**"
+    );
+    assert!(cdda_sim::messages::lines(&world).is_empty());
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "and the trap is still there"
+    );
+}
