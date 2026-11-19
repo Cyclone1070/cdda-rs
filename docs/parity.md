@@ -38720,3 +38720,30 @@ Mutation-checked: leaving the far band unswapped in reverse answers 4 where the 
 
 **Not ported**: the callers. `do_towing_move` still lacks its acceleration sign and movement, and `drive_to_local_target` - autodrive - is a P8 gap of its own. This round ports the two
 geometry functions both of them read.
+
+## What a tower's movement does to the vehicle behind it (round 208)
+
+`do_towing_move`'s arithmetic (`vehicle.cpp:7119-7129`), in the reference's own order, is now `vehicle_tow::towing_pull`:
+
+1. under six squares the towed hull is **pushed** - `accel_y = reverse ? -1 : 1`;
+2. at seven or more squares a towed hull **no faster than the tower** is **dragged** - `accel_y = reverse ? 1 : -1`. This assignment comes **after** the first, so at any one distance
+   a hull is either pushed or dragged, never both;
+3. the towed hull's velocity is **assigned, never added**: at twelve or more squares the tower's times 1.8 (negated in reverse), otherwise the tower's own velocity (negated in reverse).
+
+| Distance | Tower | Towed | Reverse | `accel_y` | Velocity |
+|---|---|---|---|---|---|
+| 5 | 100 | 100 | no | **1** | 100 |
+| 5 | 100 | 100 | yes | **-1** | -100 |
+| 6 | 100 | 50 | no | **0** | 100 |
+| 8 | 100 | 50 | no | **-1** | 100 |
+| 8 | 100 | 150 | no | **0** | 100 |
+| 12 | 100 | 50 | no | **-1** | **180** |
+| 12 | 100 | 50 | yes | **1** | **-180** |
+
+**Six is the row worth keeping**: it is neither pushed nor dragged, because the reference's bands are `< 6` and `>= 7` and there is a square between them. And the faster-towed row is
+the reference's own guard - a towed hull already running ahead of its tower is not dragged, though its velocity is still forced to the tower's.
+
+Mutation-checked: dropping the `towed_velocity <= tower_velocity` guard drags a hull that is already faster.
+
+**Not ported**: the movement itself - `selfdrive` for a front- or back-hitched cable, and the skid-and-slide branch for a side hitch (`vehicle.cpp:7131-7152`), which needs
+`line_to`, `move_vehicle` and the towed hull's own facing. The decision is ported; applying it to the map is the next step.

@@ -195,3 +195,45 @@ pub fn towed_velocity_at_stretch(tower_velocity: i32, reverse: bool) -> i32 {
     let stretched = product as i32;
     if reverse { -stretched } else { stretched }
 }
+
+/// **What a tower's movement does to the vehicle behind it**: how hard to accelerate, and what velocity the towed hull is given - `vehicle::do_towing_move`'s arithmetic
+/// (`vehicle.cpp:7119-7129`), with its three distances resolved in the reference's own order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TowingPull {
+    /// How hard the towed hull is pushed along its own facing: `accel_y`, which `selfdrive` takes.
+    pub accel_y: i32,
+    /// The velocity the towed hull is **set to**, not added to.
+    pub velocity: i32,
+}
+
+/// **The pull a tower applies to its towed vehicle**, in the reference's own order:
+///
+/// 1. under six squares the towed hull is **pushed** - `accel_y = reverse ? -1 : 1` - because a reversing tower must not drive into it;
+/// 2. at seven or more squares a towed hull **no faster than the tower** is **dragged** - `accel_y = reverse ? 1 : -1` - and this assignment comes **after** the first, so a hull can be
+///    pushed at one distance and dragged at another but never both at once;
+/// 3. at twelve or more squares the towed hull's velocity is **set** to the tower's times 1.8 (negated in reverse), otherwise to the tower's velocity itself (negated in reverse).
+///
+/// The velocity is always **assigned**, never added: a towed vehicle does not keep its own speed, which is what makes a cable a constraint rather than a suggestion.
+#[must_use]
+pub fn towing_pull(
+    distance: i32,
+    tower_velocity: i32,
+    behind_velocity: i32,
+    reverse: bool,
+) -> TowingPull {
+    let mut accel_y = 0;
+    if towing_pushes(distance) {
+        accel_y = if reverse { -1 } else { 1 };
+    }
+    if behind_velocity <= tower_velocity && towing_strains(distance) {
+        accel_y = if reverse { 1 } else { -1 };
+    }
+    let velocity = if distance >= TOW_STRETCH {
+        towed_velocity_at_stretch(tower_velocity, reverse)
+    } else if reverse {
+        -tower_velocity
+    } else {
+        tower_velocity
+    };
+    TowingPull { accel_y, velocity }
+}

@@ -9,7 +9,7 @@
 use bevy_ecs::prelude::*;
 use cdda_sim::vehicle_tow::{
     TowPoint, Towing, clear_towing, no_towing_slack, set_towing, tow_cable_too_far, tow_direction,
-    towed_velocity_at_stretch, towing_pushes, towing_strains,
+    towed_velocity_at_stretch, towing_pull, towing_pushes, towing_strains,
 };
 
 /// **A five-mount vehicle is trisected**, and the tow part's normalised position decides the end. Reference: `set_tow_directions` - with `length = 5`, `trisect = 1`, so a mount in the
@@ -193,5 +193,75 @@ fn a_cable_goes_slack_taut_stretched_and_snapped() {
         towed_velocity_at_stretch(0, false),
         0,
         "a still tower pulls nothing"
+    );
+}
+
+/// **What a tower's movement does to the vehicle behind it.** Reference: `do_towing_move`'s arithmetic (`vehicle.cpp:7119-7129`) - push under six, drag at seven when the towed hull is
+/// no faster, and the velocity **assigned** (the tower's, or 1.8 times it at twelve or more).
+#[test]
+fn a_tower_pulls_by_distance_and_direction() {
+    // **Under six the towed hull is pushed**, and its velocity is the tower's.
+    assert_eq!(
+        towing_pull(5, 100, 100, false),
+        cdda_sim::vehicle_tow::TowingPull {
+            accel_y: 1,
+            velocity: 100
+        },
+        "**five squares pushes it along at the tower's speed**"
+    );
+    assert_eq!(
+        towing_pull(5, 100, 100, true),
+        cdda_sim::vehicle_tow::TowingPull {
+            accel_y: -1,
+            velocity: -100
+        },
+        "and a reversing tower pushes the other way"
+    );
+
+    // **Six is neither**: the push band is `< 6` and the drag band is `>= 7`.
+    assert_eq!(
+        towing_pull(6, 100, 50, false),
+        cdda_sim::vehicle_tow::TowingPull {
+            accel_y: 0,
+            velocity: 100
+        },
+        "six squares neither pushes nor drags"
+    );
+
+    // **At seven a slower towed hull is dragged**: `accel_y` is minus one forward.
+    assert_eq!(
+        towing_pull(8, 100, 50, false),
+        cdda_sim::vehicle_tow::TowingPull {
+            accel_y: -1,
+            velocity: 100
+        },
+        "**eight squares drags a slower hull**"
+    );
+    // **A towed hull that is already faster is not dragged**, because the reference's second condition asks `towed_veh->velocity <= velocity`.
+    assert_eq!(
+        towing_pull(8, 100, 150, false),
+        cdda_sim::vehicle_tow::TowingPull {
+            accel_y: 0,
+            velocity: 100
+        },
+        "and one that is faster is left to coast, though its velocity is still the tower's"
+    );
+
+    // **At twelve the velocity is 1.8 times the tower's**, and the drag still applies.
+    assert_eq!(
+        towing_pull(12, 100, 50, false),
+        cdda_sim::vehicle_tow::TowingPull {
+            accel_y: -1,
+            velocity: 180
+        },
+        "**twelve squares snaps it up to a hundred and eighty**"
+    );
+    assert_eq!(
+        towing_pull(12, 100, 50, true),
+        cdda_sim::vehicle_tow::TowingPull {
+            accel_y: 1,
+            velocity: -180
+        },
+        "and in reverse, backwards and pushed"
     );
 }
