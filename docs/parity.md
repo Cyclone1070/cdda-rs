@@ -38790,3 +38790,24 @@ Mutation-checked: inverting the towed flag makes a linked hull refuse and an unl
 **Named, not guessed**: the reference also refuses to steer when `steering_effectiveness` is zero, rounds a side-hitched hull's move through `line_to`/`move_vehicle` (that is
 `do_towing_move`'s skid branch, not this one), and shakes a skidding hull loose with `handling_difficulty × rng( 1, 10 ) < 15`. The port has no steering-effectiveness model, no skid
 release, no magic and no harnessed animals, so those branches are absent rather than approximated - and the autopilot part is an input, not a part flag it reads.
+
+## A side-hitched hull skids toward its tower (round 211)
+
+`do_towing_move`'s `default` branch (`vehicle.cpp:7141-7152`) is the one for a cable that leaves the hull's **side**: the hull is marked skidding and moved by
+`clamp( tower − nearby, -1, 1 )` in each axis, where `nearby` is a cell of the line from the towed hull's tow point to the tower's.
+
+| From | Tower | `nearby` | Step |
+|---|---|---|---|
+| (0, 0) | (0, 10) | (0, 2) | **(0, 1)** |
+| (0, 0) | (5, 5) | (2, 2) | (1, 1) |
+| (0, 12) | (0, 12)'s hull at (0,0) | (0, 2) | (0, 1) - ten squares of difference is one square of movement |
+| (4, 4) | (4, 4) | (4, 4) | (0, 0) |
+
+**`line_to` does not include its origin.** Its walk steps first and reports after - in the port's `cdda_core_types::line::line_to` *and* in the reference's own `bresenham`
+(`line.cpp:26-70`), which starts its cursor at `p1` and pushes after the first step - so `line_to( ..., ... )[1]` is **two** squares along the line, not one. The gate caught the port
+assuming otherwise, and the recording of that fact now sits in the test that depends on it.
+
+Mutation-checked: taking the line's first cell instead of its second moves the hull from a different square and answers a different `nearby`.
+
+**Not ported**: the move itself - `move_vehicle( towed, move_destination, towed_veh->face )` and the `tileray` the reference then installs as the hull's direction. The port has the step
+and the square it is taken from; applying it to the map is `map::move_vehicle`, which the port's own vehicle movement will reach when the towing turn is scheduled.

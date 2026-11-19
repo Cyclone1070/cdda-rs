@@ -295,3 +295,27 @@ pub fn selfdrive(world: &mut World, vehicle: Entity, turn: i32, acceleration: i3
     }
     true
 }
+
+/// **Where a side-hitched towed hull is dragged to** - `do_towing_move`'s `default` branch (`vehicle.cpp:7141-7152`), which is the branch for a cable that leaves the hull's **side**:
+/// the hull skids, and it is moved one square toward the tower each turn.
+///
+/// The reference computes it as `tower_tow_point - nearby_destination`, where `nearby_destination` is the **first step** of a line from the towed hull's tow point to the tower's, then
+/// clamps each component into `[-1, 1]`. Over a distance that is one square toward the tower; at the same square it is zero, and the hull stays put.
+#[must_use]
+pub fn side_hitch_step(tower: (i32, i32), nearby: (i32, i32)) -> (i32, i32) {
+    let dx = (tower.0 - nearby.0).clamp(-1, 1);
+    let dy = (tower.1 - nearby.1).clamp(-1, 1);
+    (dx, dy)
+}
+
+/// **The first square of the path from one point to another**, which is what the side-hitch step subtracts from - the reference's `line_to( ... )[1]`, guarded by
+/// `lineto.size() >= 2` and falling back to the tower's own square when the line has no second cell.
+#[must_use]
+pub fn nearby_destination(from: (i32, i32), to: (i32, i32)) -> (i32, i32) {
+    let line = cdda_core_types::line::line_to(
+        cdda_core_types::line::Point::new(from.0, from.1),
+        cdda_core_types::line::Point::new(to.0, to.1),
+        0,
+    );
+    line.get(1).map_or(to, |step| (step.x, step.y))
+}

@@ -351,3 +351,54 @@ fn a_towed_vehicle_drives_itself_but_an_untowed_one_does_not() {
         "**two increments is thirty degrees**"
     );
 }
+
+/// **A side-hitched hull skids one square toward its tower.** Reference: `do_towing_move`'s `default` branch (`vehicle.cpp:7141-7152`) - `tower − nearby`, each component clamped into
+/// `[-1, 1]`, where `nearby` is the first step of the line from the towed hull's tow point toward the tower's.
+#[test]
+fn a_side_hitched_hull_skids_toward_its_tower() {
+    use cdda_sim::vehicle_tow::{nearby_destination, side_hitch_step};
+
+    // **`line_to` does not include its origin**: its walk steps first and reports after, in the port and in the reference's own `bresenham`, so index 1 is **two** squares along the
+    // line. That is the square `do_towing_move` subtracts from the tower.
+    assert_eq!(
+        nearby_destination((0, 0), (0, 10)),
+        (0, 2),
+        "two squares north"
+    );
+    assert_eq!(
+        side_hitch_step((0, 10), (0, 2)),
+        (0, 1),
+        "**so the hull is dragged one square north**, toward the tower"
+    );
+
+    // **A diagonal line steps diagonally**, and the clamped delta keeps it diagonal rather than preferring an axis.
+    assert_eq!(
+        nearby_destination((0, 0), (5, 5)),
+        (2, 2),
+        "two squares north-east"
+    );
+    assert_eq!(
+        side_hitch_step((5, 5), (2, 2)),
+        (1, 1),
+        "and the drag follows it"
+    );
+
+    // **The clamp is what makes it one square**: from twelve squares away the raw delta is eleven, and the reference moves the hull by one.
+    assert_eq!(
+        side_hitch_step((0, 12), (0, 2)),
+        (0, 1),
+        "**ten squares of difference is still one square of movement**"
+    );
+
+    // **On the same square there is nothing to do**: the delta is zero and the hull stays where it is.
+    assert_eq!(
+        side_hitch_step((4, 4), (4, 4)),
+        (0, 0),
+        "no step when it is already there"
+    );
+    assert_eq!(
+        nearby_destination((4, 4), (4, 4)),
+        (4, 4),
+        "and a line with no second cell falls back to the target's own square"
+    );
+}
