@@ -558,6 +558,11 @@ fn glass_runs(world: &mut World, who: Entity, seeds: u64) -> (usize, usize) {
 fn give_the_walker_a_turn(world: &mut World, who: Entity) {
     cdda_sim::creature::set_speed(world, who, 100, 0);
     cdda_sim::creature::set_health(world, who, 100);
+    // **A body that can dodge**: `rng(5, 50) > get_dodge()` is true for every roll when the dodge is zero, so a fixture without one is hit by nothing - and a shotgun test
+    // would walk every seed without seeing a shell land.
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dodge { points: 6 });
     world
         .entity_mut(who)
         .insert(cdda_sim::creature::Moves { left: 100 });
@@ -706,4 +711,140 @@ fn armour_on_the_foot_the_glass_reaches_stops_the_cut() {
         cuts, 0,
         "**and never cuts through it**: {cuts} of {meetings}"
     );
+}
+
+/// **A shotgun trap fires, and the trap is a load of buckshot on a string afterwards.** Reference: `trapfunc::shotgun` (`trapfunc.cpp:566-667`), the largest of the actions
+/// the port has no rule for - three traps in the data, and the only one that shoots.
+///
+/// The character's half: it says "Kerblam!" loud enough to be heard across the map (`MAX_VIEW_DISTANCE`), tells the walker what happened, fires **two** shells when the roll
+/// says so and the trap is the double-barrelled one (`tr_shotgun_2`), and a shell that is not dodged hits a part chosen by a ten-sided roll - a foot once in twenty, a leg
+/// three times, the torso five, the head once - for `rng(40, 60)` bullet damage per shell. Then the trap is gone and its gun and its string of shells are on the ground.
+#[test]
+fn a_shotgun_trap_fires_and_leaves_its_gun_behind() {
+    let (mut world, who) = a_world();
+    install_the_shotgun_if_the_data_has_it(&mut world);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("shotgun", &[])]);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    give_the_walker_a_turn(&mut world, who);
+    let (lost, lines) = fire_a_shotgun(&mut world, who, "tr_test");
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "You trigger a shotgun trap!"),
+        "**the walker is told**: {lines:#?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.ends_with("is hit!")),
+        "**and which part took it**: {lines:#?}"
+    );
+    assert!(
+        (1..=60).contains(&lost),
+        "**one shell, forty to sixty points**: {lost}"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "the trap is gone"
+    );
+    assert!(
+        !cdda_sim::items_at(&mut world, (0, 0)).is_empty(),
+        "**the gun and its shells are on the ground**"
+    );
+}
+
+/// **Only the double-barrelled trap fires twice**, and only when the roll says so. Reference: `trapfunc::shotgun` (`trapfunc.cpp:582-585`) - a character's strength raises the
+/// chance of two shells, and `if( here.tr_at( p ) != tr_shotgun_2 ) shots = 1` caps it: a single-barrelled trap fires one whatever the roll. The damage is per shell, so two
+/// shells are eighty to a hundred and twenty points and one is forty to sixty - which is how the count is visible at all.
+#[test]
+fn a_double_barrelled_trap_can_fire_two_shells() {
+    let (mut world, who) = a_world();
+    install_the_shotgun_if_the_data_has_it(&mut world);
+    // The trap's own id is what the cap reads, so the trap is registered - and set - as the double one.
+    let mut trap = a_trap("shotgun", &[]);
+    trap.id = "tr_shotgun_2".to_owned();
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    give_the_walker_a_turn(&mut world, who);
+    let (lost, _lines) = fire_a_shotgun(&mut world, who, "tr_shotgun_2");
+    assert!(
+        (80..=120).contains(&lost),
+        "**two shells, eighty to a hundred and twenty points**: {lost}"
+    );
+}
+
+/// **A shell that is dodged takes nothing**, and the trap is spent all the same. Reference: `trapfunc::shotgun` (`trapfunc.cpp:586-628`) - `rng( 5, 50 ) > get_dodge()` and the
+/// shot is dodged, which the walker is told; the gun and the shells still hit the ground.
+#[test]
+fn a_dodged_shell_takes_no_health() {
+    let (mut world, who) = a_world();
+    install_the_shotgun_if_the_data_has_it(&mut world);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("shotgun", &[])]);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    give_the_walker_a_turn(&mut world, who);
+    // A walker with no dodge at all: `rng(5, 50)` is never below five, so every shell is dodged.
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dodge { points: 0 });
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who),
+        Some(100),
+        "**nothing got through**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You dodge the shot!"),
+        "and the walker is told: {:#?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "the trap is spent even though the shot missed"
+    );
+}
+
+/// Runs the trap until a shell lands, and answers how much the walker lost and what was said.
+fn fire_a_shotgun(world: &mut World, who: Entity, trap_id: &str) -> (i32, Vec<String>) {
+    let mut seed = 1u32;
+    while seed <= 400 {
+        cdda_sim::singletons::put_rolls(world, cdda_core_types::rng::Rolls::new(seed));
+        cdda_sim::messages::clear(world);
+        cdda_sim::creature::set_health(world, who, 100);
+        cdda_sim::square::remove_trap(world, (0, 0, 0));
+        assert!(cdda_sim::square::set_trap(world, (0, 0, 0), trap_id));
+        if cdda_sim::trap_spring::spring(world, who, (0, 0, 0)) {
+            let lines = cdda_sim::messages::lines(world);
+            let lost = 100 - cdda_sim::creature::health_of(world, who).unwrap_or(100);
+            if lost > 0 {
+                return (lost, lines);
+            }
+        }
+        seed += 1;
+    }
+    panic!("**no seed of four hundred lands a shell**, so the rule never fires")
+}
+
+/// The two item types the trap leaves/// The two item types the trap leaves: a shotgun and its string of shells.
+fn install_the_shotgun_if_the_data_has_it(world: &mut World) {
+    // The trap spawns `shotgun_s` (a sawn-off) or `shotgun_d` and a `string_36`. The port's catalogue names them, so the test registers them under those names.
+    cdda_sim::item_registry::set_item_types(world, &[a_kind("shotgun_d"), a_kind("string_36")]);
+}
+
+/// An item type with nothing but a name, which is all a drop needs.
+fn a_kind(id: &str) -> cdda_sim::item_registry::Kind<'_> {
+    cdda_sim::item_registry::Kind {
+        id,
+        volume_ml: 0,
+        weight_g: 0,
+        pockets: &[],
+        thrown_damage: 0.0,
+        melee_bash: 0.0,
+        melee_cut: 0.0,
+        melee_stab: 0.0,
+        to_hit: 0,
+    }
 }

@@ -39475,3 +39475,25 @@ Reference: `trapfunc::glass` (`trapfunc.cpp:151-175`) - two traps, and the first
 **The trap ledger is now a test.** `the_reference_tree_holds_the_trap_actions_the_port_answers` buckets all 125 traps by the action they name, after `copy-from` resolution - which is how 6 written `eocs` actions become 24. **93 have an answer** (`spell` 34, `eocs` 24, `map_regen` 17, `none` 16, `glass` 2) and **32 name thirty functions the port has no rule for**, the largest of which is `shotgun` with three.
 
 **Named divergence.** The reference deals its cut to the part's own hit points; the port's body parts carry `base_hp` but no running total, so the wound lands on the creature's health with the part choosing the armour and the message - the same fidelity melee already uses.
+
+## The shotgun trap (round 245)
+
+Reference: `trapfunc::shotgun` (`trapfunc.cpp:566-667`), the largest of the actions the port had no rule for and the only one that shoots - three traps, all `tr_shotgun_*`. The rule
+in five parts:
+
+- **Kerblam!** at `MAX_VIEW_DISTANCE` volume, before anything else, and a ridden creature hears about its mount first;
+- the announcement in the reference's two voices: "You trigger a shotgun trap!" for the player, `<npcname> triggers a shotgun trap!` for a person;
+- how many shells: a **character's strength** raises the chance of two (`one_in( 8 ) || one_in( 20 - str_max )`), a **monster's size** sets its own chance, and the trap's own id
+  caps it - `if( tr_at( p ) != tr_shotgun_2 ) shots = 1`, so a single-barrelled trap fires one whatever was rolled;
+- a shell that is not dodged (`rng( 5, 50 ) > get_dodge()`) hits a part by a ten-sided roll - foot once in twenty, leg three times in ten, torso five, head once - for
+  `rng( 40 * shots, 60 * shots )` bullet damage; a dodged shell says so and takes nothing;
+- then the trap is gone and its **gun and string of shells** are on the ground: `shotgun_s` for the single-barrelled trap, `shotgun_d` otherwise, plus `string_36`.
+
+Four mutations, four catches: the kind cap removed (a single-barrelled trap fired 101 points), no dodge ever (a "dodged" shell took 48), the removal skipped, and the drops
+skipped. The dodge test only works because the fixture gives the walker a dodge: with none, `rng( 5, 50 ) > 0` dodges every shell and the test could not tell a rule from a
+mutation - which is exactly how the first version of the test failed.
+
+**Named gap.** The monster half announces its hit unconditionally; the reference asks whether the player's view sees the monster first (`trapfunc.cpp:634-653`). The port's
+visibility rules exist, but the trap path does not consult them yet.
+
+**The trap ledger moved to 96 of 125** - thirty-two traps still name functions with no rule, the largest now `beartrap` with two.

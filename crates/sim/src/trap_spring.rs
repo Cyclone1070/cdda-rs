@@ -45,6 +45,7 @@ pub fn spring_with(
         Some("map_regen") => return rebuild_the_tile(world, who, square, &trap),
         Some("spell") => return cast_its_spell(world, who, square, &trap, &kind),
         Some("glass") => return broken_glass(world, who, square),
+        Some("shotgun") => return shotgun_trap(world, who, square, &kind),
         _ => {}
     }
     if trap.action.as_deref() != Some("eocs") || trap.eocs.is_empty() {
@@ -244,6 +245,144 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
     );
     crate::square::remove_trap(world, square);
     true
+}
+
+/// **A shotgun trap fires**, the largest of the actions the port had no rule for and the only one that shoots.
+///
+/// Reference: `trapfunc::shotgun` (`trapfunc.cpp:566-667`). The sound is `MAX_VIEW_DISTANCE` loud - a shotgun is heard across the map. A character triggers it and is told so;
+/// how many shells fire is a roll the trap's own kind limits (`tr_shotgun_2` can fire two, `tr_shotgun_1` one); a shell that is not dodged hits a part by a ten-sided roll -
+/// a foot once in twenty, a leg three times in ten, the torso five times, the head once - for `rng( 40, 60 )` bullet damage per shell. A monster's own chance of two shells
+/// depends on how big it is. Then the trap is gone and its gun and its string of shells are on the ground.
+fn shotgun_trap(world: &mut World, who: Entity, square: (i32, i32, i32), kind: &str) -> bool {
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return false;
+    };
+    // Reference: `sounds::sound( p, MAX_VIEW_DISTANCE, ..., "Kerblam!" )` - the loudest thing a trap does, and it happens whether or not anyone is hit.
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        cdda_core_types::light::MAX_VIEW_DISTANCE,
+        "Kerblam!",
+        crate::sounds::SoundCategory::Combat,
+    );
+    // The ridden creature hears about its mount first (`trapfunc.cpp:573-575`).
+    let name = world
+        .get::<crate::creature::Creature>(who)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    if world.get::<crate::vehicles::Riding>(who).is_some() {
+        crate::messages::push(world, &format!("Your {name} triggers a shotgun trap!"));
+    }
+    let is_person = crate::npcs::is_npc(world, who) || crate::missions::avatar(world) == Some(who);
+    // The announcement, in the reference's two voices (`trapfunc.cpp:576-577`).
+    if is_person {
+        let line = if crate::missions::avatar(world) == Some(who) {
+            "You trigger a shotgun trap!".to_owned()
+        } else {
+            format!("{name} triggers a shotgun trap!")
+        };
+        crate::messages::push(world, &line);
+    }
+    // How many shells: a character's strength raises the chance of two, and the trap's own kind caps it; a monster's size sets its chance (`trapfunc.cpp:580-640`).
+    let mut shots;
+    if is_person {
+        let strength = crate::creature::effective_strength(world, who);
+        let two = rolls.one_in(8) || rolls.one_in((20 - strength).max(1));
+        shots = if two { 2 } else { 1 };
+    } else {
+        let chance = match world
+            .get::<crate::creature::Creature>(who)
+            .map_or(crate::CreatureSize::Medium, |creature| creature.size)
+        {
+            crate::CreatureSize::Tiny => 100,
+            crate::CreatureSize::Small => 16,
+            crate::CreatureSize::Medium => 12,
+            crate::CreatureSize::Large => 8,
+            crate::CreatureSize::Huge => 2,
+        };
+        shots = if rolls.one_in(8) || rolls.one_in(chance) {
+            2
+        } else {
+            1
+        };
+    }
+    // Reference: `if( here.tr_at( p ) != tr_shotgun_2 ) shots = 1;` - only the double-barrelled trap can fire twice.
+    if kind != "tr_shotgun_2" {
+        shots = 1;
+    }
+    let bullet = rolls.rng(40 * shots, 60 * shots);
+    // A character may dodge it: `rng( 5, 50 ) > you->get_dodge()` (`trapfunc.cpp:587`). A monster does not dodge, and the reference gives it the torso.
+    // Reference: `rng( 5, 50 ) > you->get_dodge()` (`trapfunc.cpp:587`) - and `get_dodge` is never zero for a person, because a character's base dodge is the limb score its
+    // body states. A creature with no `Dodge` component answers the same, which is what makes a fixture without a body dodge everything.
+    let dodge = world
+        .get::<crate::creature::Dodge>(who)
+        .map_or(0, |dodge| dodge.points);
+    let dodged = is_person && rolls.rng(5, 50) > dodge;
+    let aimed = if dodged {
+        None
+    } else if is_person {
+        Some(person_part(&mut rolls))
+    } else {
+        Some("torso".to_owned())
+    };
+    crate::singletons::put_rolls(world, rolls);
+    if let Some(part) = aimed {
+        if is_person {
+            let line = if crate::missions::avatar(world) == Some(who) {
+                format!("Your {} is hit!", part.replace('_', " "))
+            } else {
+                format!("{name}'s {} is hit!", part.replace('_', " "))
+            };
+            crate::messages::push(world, &line);
+        } else {
+            crate::messages::push(world, &format!("A shotgun fires and hits the {name}!"));
+        }
+        let stops = crate::creature::armour_on(world, who, &part, Some("bullet"));
+        let through = (bullet - stops).max(0);
+        #[allow(clippy::cast_precision_loss)]
+        crate::creature::hurt(world, who, through as f32);
+    } else {
+        let line = if crate::missions::avatar(world) == Some(who) {
+            "You dodge the shot!".to_owned()
+        } else {
+            format!("{name} dodges the shot!")
+        };
+        crate::messages::push(world, &line);
+    }
+    // **What is left behind**, which is the trap's own gun and a string of shells (`trapfunc.cpp:660-665`). The sawn-off is the single-barrelled trap's.
+    let gun = if kind == "tr_shotgun_1" {
+        "shotgun_s"
+    } else {
+        "shotgun_d"
+    };
+    for dropped in [gun, "string_36"] {
+        if let Some(item) = crate::item_registry::id_of(world, dropped) {
+            crate::drop_item(world, (square.0, square.1), item, 1);
+        }
+    }
+    crate::square::remove_trap(world, square);
+    true
+}
+
+/// The part a shotgun's single shell hits: a ten-sided roll, as `switch( rng( 1, 10 ) )` reads it (`trapfunc.cpp:589-612`).
+fn person_part(rolls: &mut cdda_core_types::rng::Rolls) -> String {
+    match rolls.rng(1, 10) {
+        1 => {
+            if rolls.one_in(2) {
+                "foot_l".to_owned()
+            } else {
+                "foot_r".to_owned()
+            }
+        }
+        2..=4 => {
+            if rolls.one_in(2) {
+                "leg_l".to_owned()
+            } else {
+                "leg_r".to_owned()
+            }
+        }
+        10 => "head".to_owned(),
+        _ => "torso".to_owned(),
+    }
 }
 
 /// A level from the data's own number, which is written whole.
