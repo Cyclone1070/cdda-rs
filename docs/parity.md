@@ -39127,3 +39127,25 @@ the hull whose flag has cleared).
 
 **Named gaps.** Nothing acts on the velocity yet: the reference's vertical collision, the landing, and the crushed cargo underneath are separate rules, and `is_falling` is still
 not stored on a vehicle. This round ports the arithmetic those rules will read.
+
+## The ground is asked after every step (round 227)
+
+`map::move_vehicle` ends with `veh.check_falling_or_floating()` (`map.cpp:953`), so the answer is stored on the hull between moves rather than asked again by whoever needs it. The port
+now does the same: `Vehicle` carries the reference's two members - `is_falling` and `vertical_velocity` - and `vehicle_falling::settle` recomputes the support and writes the flag,
+called from `vehicle_move::move_vehicles` once per vehicle **after** its step.
+
+Two consequences worth keeping straight, and both gated:
+
+- **Landing is not the support rule's business.** `settle` sets the flag and leaves the velocity alone, because the reference zeroes `vertical_velocity` in its vertical collision
+  (`vehicle_move.cpp:803-807`) - an impact spends the speed, not a support test. A hull held up again keeps the speed it had, which is what makes the impact the interesting event.
+- **Half the wheels is enough to stay up**, so a hull only takes flight when the step carries **both** wheels over the edge. The test that flags a hull drives the **turn**
+  (`move_vehicles`), not `settle`, so a turn that stopped asking the ground fails the gate.
+
+Mutation-checked twice: `settle` writing `false` (caught at the flag), and the turn dropping the `settle` call (caught by the same test, which is why it drives the turn).
+
+**A quirk of the data the port had to learn:** `t_open_air` has `move_cost` 2, not 0 - open air is **passable**, which is why creatures fall through it and why a vehicle can be
+stepped onto it at all. The first version of the test gave open air a cost of zero, made it a wall, and the hull refused to move; the collision rule was right and the fixture was
+wrong.
+
+**Named gaps.** Nothing descends yet: `should_fall` and `falling_velocity` are ported and the state they read now exists on the hull, but the one-level `dp.z() = -1` step and the
+vertical collision that lands it are the next rounds.

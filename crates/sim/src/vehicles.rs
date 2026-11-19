@@ -111,6 +111,12 @@ pub struct Vehicle {
     /// The turn a collision has lined up for the **next** move, in degrees - the reference's `coll_turn`, which `part_smash` sets and `move_vehicle` spends when the
     /// vehicle can move again (`map.cpp:938-941`). A vehicle that is stopped clears it, because a stopped vehicle cannot be mid-skid.
     pub coll_turn: i32,
+    /// Whether the hull is **falling** - the reference's `is_falling` (`vehicle.h`), which `check_falling_or_floating` sets and the move rule reads. A hull placed from a blueprint
+    /// is held up by nothing in particular and starts not falling; the support rule decides as soon as it is asked.
+    pub is_falling: bool,
+    /// How fast the hull is moving **downwards**, in the same hundredths of a mile per hour as `velocity` and negative for a fall - the reference's `vertical_velocity`
+    /// (`vehicle.h`), which the gravity rule raises every level and the vertical collision zeroes when the hull lands.
+    pub vertical_velocity: i32,
     /// The direction of the hull's **last accepted move**, in degrees clockwise from east - the reference's `move` (`vehicle.h`), which is set to the direction of travel on
     /// every accepted step (`map.cpp:942`) and is what makes a skid measurable: the angle between where a vehicle is going and where it points is `move` against `face`.
     pub move_dir: i32,
@@ -184,6 +190,9 @@ pub fn spawn_facing(
                 move_dir: floor_to_heading(rotation),
                 rotation,
                 velocity: 0,
+                // A hull placed from a blueprint is standing on whatever the blueprint put it on; the support rule is asked on its first move.
+                is_falling: false,
+                vertical_velocity: 0,
             },
             crate::Position {
                 x: at.0,

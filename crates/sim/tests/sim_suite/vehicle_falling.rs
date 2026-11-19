@@ -108,7 +108,7 @@ fn a_hull_whose_wheels_stand_on_the_ground_is_not_falling() {
 fn a_hull_over_open_air_falls() {
     // `t_open_air` is open air with nothing under it. A hull standing on its own hull is not supported either: the only vehicle is the one falling.
     let (world, vehicle) = world_with(
-        &[("t_open_air", 1, 0, &["NO_FLOOR"])],
+        &[("t_open_air", 1, 2, &["NO_FLOOR"])],
         &[(0, 0, 1), (1, 0, 1)],
         &[("wheel", 0, 0), ("wheel", 1, 0)],
     );
@@ -224,7 +224,7 @@ fn the_bottom_of_the_world_holds_up_everything() {
 #[test]
 fn half_the_wheels_standing_is_enough() {
     let (world, vehicle) = world_with(
-        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 0, &["NO_FLOOR"])],
+        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 2, &["NO_FLOOR"])],
         &[(0, 0, 1), (1, 0, 2)],
         // **The wheel over the open air comes first**, so that the early return is what answers: without it the part pass would reach this wheel and call the hull falling, which
         // is the difference between "half the wheels is enough" and "the first part decides".
@@ -244,7 +244,7 @@ fn furniture_that_cannot_be_walked_through_holds_up_what_is_above_it() {
         &mut world,
         [("t_open_air".to_owned(), vec!["NO_FLOOR".to_owned()])],
     );
-    cdda_sim::terrain_types::set_move_costs(&mut world, [("t_open_air".to_owned(), 0_i32)]);
+    cdda_sim::terrain_types::set_move_costs(&mut world, [("t_open_air".to_owned(), 2_i32)]);
     cdda_sim::furniture_types::set_types(&mut world, [("f_wall".to_owned(), 7_u32)]);
     cdda_sim::furniture_types::set_move_costs(&mut world, [("f_wall".to_owned(), -1_i32)]);
     world.spawn((Furniture { code: 7 }, Position { x: 0, y: 0, z: 0 }));
@@ -261,7 +261,7 @@ fn furniture_that_cannot_be_walked_through_holds_up_what_is_above_it() {
 #[test]
 fn one_supported_part_is_enough_whatever_the_order() {
     let (world, vehicle) = world_with(
-        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 0, &["NO_FLOOR"])],
+        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 2, &["NO_FLOOR"])],
         &[(0, 0, 1), (1, 0, 2)],
         &[("hull", 0, 0), ("hull", 1, 0)],
     );
@@ -272,7 +272,7 @@ fn one_supported_part_is_enough_whatever_the_order() {
 
     // The other order, and the same squares: the open air now comes first, and the answer is the same.
     let (world, vehicle) = world_with(
-        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 0, &["NO_FLOOR"])],
+        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 2, &["NO_FLOOR"])],
         &[(0, 0, 1), (1, 0, 2)],
         &[("hull", 1, 0), ("hull", 0, 0)],
     );
@@ -283,7 +283,7 @@ fn one_supported_part_is_enough_whatever_the_order() {
 
     // Every part over open air is the only hull that falls.
     let (world, vehicle) = world_with(
-        &[("t_open_air", 2, 0, &["NO_FLOOR"])],
+        &[("t_open_air", 2, 2, &["NO_FLOOR"])],
         &[(0, 0, 2), (1, 0, 2)],
         &[("hull", 0, 0), ("hull", 1, 0)],
     );
@@ -378,4 +378,71 @@ fn a_hull_keeps_falling_once_it_has_started() {
         "and a hull with downward velocity keeps falling after the flag clears"
     );
     assert!(should_fall(false, 1980), "in either direction");
+}
+
+/// **The ground is asked after every step of a turn**, which is the reference's `veh.check_falling_or_floating()` at `map.cpp:953` - so a hull that has just put its wheels over
+/// open air is flagged before the next turn reads it. The test drives the **turn**, not `settle`, so that a turn which stopped asking the ground would fail it.
+#[test]
+fn a_hull_driven_onto_open_air_is_flagged_as_falling() {
+    let (mut world, vehicle) = world_with(
+        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 2, &["NO_FLOOR"])],
+        &[(0, 0, 1), (1, 0, 2), (2, 0, 2)],
+        // **Two wheels in a row**, because one is not a wheeled vehicle (`sufficient_wheel_config` wants the single one to be `STABLE` on a three-tile hull) - and because half the
+        // wheels standing is enough to hold a hull up, so the step has to take **both** of them over the edge for the flag to fire.
+        &[("wheel", 0, 0), ("wheel", 1, 0)],
+    );
+    assert!(
+        !world
+            .get::<Vehicle>(vehicle)
+            .is_some_and(|hull| hull.is_falling),
+        "it starts on solid ground"
+    );
+    // Rolling east at four miles an hour, with a move to spend: `move_vehicles` only steps a hull that has both, and the next square is open air.
+    if let Some(mut hull) = world.get_mut::<Vehicle>(vehicle) {
+        hull.velocity = 400;
+        hull.of_turn = 10_000.0;
+    }
+    assert_eq!(
+        cdda_sim::vehicle_move::move_vehicles(&mut world),
+        1,
+        "the hull takes a step"
+    );
+    assert_eq!(
+        world.get::<Position>(vehicle).map(|at| (at.x, at.y, at.z)),
+        Some((1, 0, 0)),
+        "onto the square with no floor"
+    );
+    assert!(
+        world
+            .get::<Vehicle>(vehicle)
+            .is_some_and(|hull| hull.is_falling),
+        "**and the turn flags the hull as falling**, because the ground under it no longer holds it"
+    );
+}
+
+/// **Landing is not the support rule's doing.** The reference zeroes `vertical_velocity` in its vertical collision (`vehicle_move.cpp:803-807`), so a hull that is held up again
+/// keeps whatever fall speed it had until an impact spends it - the flag and the velocity are set by different rules.
+#[test]
+fn being_held_up_again_clears_the_flag_but_not_the_speed() {
+    let (mut world, vehicle) = world_with(
+        &[("t_floor", 1, 2, &[]), ("t_open_air", 2, 2, &["NO_FLOOR"])],
+        &[(0, 0, 1)],
+        &[("wheel", 0, 0)],
+    );
+    let falling = Vehicle {
+        is_falling: true,
+        vertical_velocity: -1980,
+        ..world.get::<Vehicle>(vehicle).cloned().expect("a hull")
+    };
+    world.entity_mut(vehicle).insert(falling);
+    cdda_sim::vehicle_falling::settle(&mut world, vehicle);
+    let hull = world.get::<Vehicle>(vehicle).cloned().expect("a hull");
+    assert!(
+        !hull.is_falling,
+        "solid ground under the wheel clears the flag"
+    );
+    assert_eq!(
+        hull.vertical_velocity, -1980,
+        "**but the fall speed survives**, because only an impact spends it"
+    );
 }

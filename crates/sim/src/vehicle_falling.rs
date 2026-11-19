@@ -201,3 +201,15 @@ pub fn check_support(world: &World, vehicle: bevy_ecs::prelude::Entity) -> Suppo
         in_deep_water: deep_water.saturating_mul(3) >= count.saturating_mul(2),
     }
 }
+
+/// **Recomputes whether the hull is held up and stores the answer on it** - the reference's `veh.check_falling_or_floating()` (`map.cpp:953`), which `map::move_vehicle` calls
+/// once a step has settled.
+///
+/// Landing is **not** this function's business: the reference zeroes `vertical_velocity` in its vertical collision, so a hull that comes to rest is put down by the impact rather
+/// than by a support test. Setting the flag here and leaving the velocity alone is what lets a hull that has already started down keep its speed for the next level.
+pub fn settle(world: &mut World, vehicle: bevy_ecs::prelude::Entity) {
+    let support = check_support(world, vehicle);
+    if let Some(mut hull) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        hull.is_falling = support.falling;
+    }
+}

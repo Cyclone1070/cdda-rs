@@ -1151,7 +1151,11 @@ pub fn move_vehicles(world: &mut World) -> usize {
         crate::singletons::take_rolls(world).unwrap_or_else(|| cdda_core_types::rng::Rolls::new(0));
     let mut moved = 0;
     for vehicle in vehicles {
-        if move_step_with_rolls(world, vehicle, &mut rolls) {
+        let stepped = move_step_with_rolls(world, vehicle, &mut rolls);
+        // **The ground is asked after every step** - `map::move_vehicle` calls `veh.check_falling_or_floating()` once the move has settled (`map.cpp:953`), so a hull that has just
+        // put a wheel over open air is flagged before the next turn reads it.
+        crate::vehicle_falling::settle(world, vehicle);
+        if stepped {
             moved += 1;
         }
     }
