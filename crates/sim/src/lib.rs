@@ -106,6 +106,7 @@ pub mod summoned;
 pub mod teleport;
 pub mod timed_events;
 pub mod traits;
+pub mod trap_avoidance;
 pub mod trap_registry;
 pub mod trap_spring;
 pub mod turn;

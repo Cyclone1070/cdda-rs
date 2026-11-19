@@ -39310,3 +39310,29 @@ Each is gated and mutation-checked on its own.
 **The rider test was vacuous when first written**, and the mutation check is what found it: the test never installed the trap in the registry, so `spring` answered `false` because the store knew no such trap - the assertion passed for the wrong reason and the guard could have been deleted without a failure. Installing the trap made the mutation catch it. That is the argument for breaking the rule on purpose rather than trusting a green line.
 
 **Still not ported, and this is the same gap as round 234:** the **avoidance** half. The reference asks `c->avoid_trap( pos, tr )` - a dexterity-and-perception roll against the trap's `avoidance`, skipped for `UNDODGEABLE` - and a noticed trap is announced ("You've spotted a %1$s!") and remembered. The port springs what a creature steps on, so a trap the player would have dodged still fires. That is the next step in this chain, not a detail of it.
+
+## Noticing a trap in time (round 236)
+
+Reference: `Character::avoid_trap` (`character.cpp:12182-12203`), the roll `map::maybe_trigger_trap` makes before it fires anything. Two questions, and the port answers both:
+
+```text
+myroll   = dice( 3, round( dex + dodge * 1.5 ) )
+traproll = dice( can_see ? 3 : 6, avoidance )
+avoided  = myroll >= traproll
+```
+
+**`can_see` is a memory question.** `trap::can_see` (`trap.cpp:319-331`) answers `visibility < 0 || knows_trap( pos )` - a trap becomes visible to a creature once it has noticed it
+there - so the port gained `KnownTraps`, a set of squares on the creature, and `remember`. That is what makes the die count change: an unnoticed trap rolls **six** dice against its
+avoidance, a noticed one rolls **three**, and the noticed trap is also announced ("You've spotted a %1$s!").
+
+`spring` now has a `may_avoid` twin, `spring_with`, because the reference calls `creature_on_trap( u )` for the player and `creature_on_trap( *c, false )` for monsters
+(`game.cpp:11361`, `game.cpp:12221`): a monster never rolls at all.
+
+The gate pins the die-count difference **without depending on a seed**, which was the interesting part: a creature with one dexterity rolls three one-sided dice - a **3** - and a
+trap with avoidance 1 rolls three ones (3) or six ones (6), so `3 >= 6` is false unnotice and `3 >= 3` is true noticed. Four mutations, four catches: always three dice, `can_see`
+forgetting the memory, the dodge not being remembered, and `UNDODGEABLE` being ignored. The first draft caught only two of the four - the roll's **dice count** and the memory were
+both invisible until this test existed, which is the second time this chain has shown a green test that proved less than it claimed.
+
+**Named gaps.** The Light Step and Clumsy traits (`+dice( 2, 6 )`, `-dice( 2, 6 )`) are not ported - the port has no traits yet. `dodge` is [`crate::creature::Dodge`] points,
+which the reference reads as `get_skill_level( skill_dodge )`. And a creature with **no** `Dexterity` gets no roll at all, so the trap fires: the reference starts every character at
+eight, and a creature here without the component is a port artefact - giving it a dodge because the component was missing would be inventing a rule.

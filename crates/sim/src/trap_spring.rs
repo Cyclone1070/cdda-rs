@@ -20,6 +20,19 @@ use bevy_ecs::prelude::*;
 /// Reference: `trapfunc::eocs` (`trapfunc.cpp:382-400`) called from `trap::trigger`. Nothing happens when the square carries no trap, when the trap's action is not `eocs`,
 /// or when the data names no programs - in each case the trap stays where it is, because a trap the port cannot act on is better left set than silently removed.
 pub fn spring(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    spring_with(world, who, square, true)
+}
+
+/// The same, and whether the creature **may dodge** it.
+///
+/// Reference: `map::creature_on_trap( Creature &c, bool may_avoid )` (`map.cpp:9881`), called with `true` for the player (`game.cpp:11361`) and `false` for monsters
+/// (`game.cpp:12221`). A monster does not notice traps, so its call skips the avoidance branch entirely.
+pub fn spring_with(
+    world: &mut World,
+    who: Entity,
+    square: (i32, i32, i32),
+    may_avoid: bool,
+) -> bool {
     let Some(kind) = crate::square::trap_at(world, square) else {
         return false;
     };
@@ -41,6 +54,18 @@ pub fn spring(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
     // **A rider is above the trap.** Reference: `map::creature_on_trap` returns at once for a character `in_vehicle` or gliding (`map.cpp:9886-9888`) - the wheels, not the
     // passenger, meet the trap, and a vehicle's own collisions are a different rule.
     if world.get::<crate::vehicles::Riding>(who).is_some() {
+        return false;
+    }
+    // **A trap that is noticed is stepped over.** Reference: `map.cpp:9932-9939` - the roll is skipped for `UNDODGEABLE` traps and for a creature that may not avoid, and a
+    // trap that is dodged is announced and remembered unless it is always invisible.
+    if !trap.flags.contains("UNDODGEABLE")
+        && may_avoid
+        && crate::trap_avoidance::avoid_trap(world, who, &trap, square)
+    {
+        if !trap.always_invisible && !crate::trap_avoidance::knows(world, who, square) {
+            crate::messages::push(world, &format!("You've spotted a {}!", trap.name));
+            crate::trap_avoidance::remember(world, who, square);
+        }
         return false;
     }
     // Reference: `dialogue d( get_talker_for( critter ), nullptr ); write_var_value( var_type::context, "trap_location", &d, trap_location );`
