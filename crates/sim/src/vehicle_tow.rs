@@ -9,6 +9,8 @@
 
 use bevy_ecs::prelude::*;
 
+use crate::vehicle_angle::{angle_from_target, turn_from_angle};
+
 /// **Which end of a vehicle a tow cable leaves from** - the reference's `towing_point_side` (`vehicle.h:192-198`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TowPoint {
@@ -337,4 +339,84 @@ pub fn drag_side_hitched(world: &mut World, tower: (i32, i32), hull: Entity) -> 
         held.skidding = true;
     }
     crate::vehicles::move_vehicle(world, hull, step)
+}
+
+/// **The turn each cable applies to the hull behind it, once per turn**, which is `map::move_vehicle`'s towing block (`map.cpp:998-1004`) applied to every tower:
+///
+/// - a cable with no slack (`no_towing_slack`) and a tower that is not moving does nothing, which is the reference's `velocity <= 0` guard;
+/// - the **angle** is measured from the towed hull's facing to the tower's square ([`angle_from_target`]), the **turn** is [`turn_from_angle`] with `reverse` set when the cable leaves
+///   the towed hull's back, and the **pull** is [`towing_pull`];
+/// - a front- or back-hitched hull is driven by [`selfdrive`] with the tower's own velocity assigned first, exactly as `do_towing_move` assigns `towed_veh->velocity` and then calls it;
+/// - a side-hitched hull is dragged one square toward the tower by [`drag_side_hitched`] and marked skidding.
+///
+/// **Named, not guessed:** the reference measures between the two vehicles' **tow parts** (`abs_part_pos( get_tow_part() )`). The port has no per-part square yet, so it measures
+/// between the two hulls' origins, which is the same square for a hull whose cable leaves its centre and a named approximation for every other. The reference also cancels the tow
+/// when either vehicle's tow part is missing and snaps a cable at twenty-five squares; the snapping is a caller's job here because it needs the map to remove the cable item.
+///
+/// Returns how many cables pulled something.
+pub fn tow_vehicles(world: &mut World) -> usize {
+    let mut links = Vec::new();
+    let mut query = world.query::<(Entity, &Towing)>();
+    for (entity, held) in query.iter(world) {
+        if let Some(pulled) = held.towing {
+            links.push((entity, pulled, held.direction));
+        }
+    }
+    let mut pulls = 0;
+    for (tower, drawn, direction) in links {
+        let Some(tower_pos) = world
+            .get::<crate::Position>(tower)
+            .map(|pos| (pos.x, pos.y))
+        else {
+            continue;
+        };
+        let Some(drawn_pos) = world
+            .get::<crate::Position>(drawn)
+            .map(|pos| (pos.x, pos.y))
+        else {
+            continue;
+        };
+        let distance = cdda_core_types::light::rl_dist(drawn_pos, tower_pos, false);
+        if !no_towing_slack(distance) {
+            continue;
+        }
+        let tower_velocity = world
+            .get::<crate::vehicles::Vehicle>(tower)
+            .map_or(0, |built| built.velocity);
+        if tower_velocity <= 0 {
+            continue;
+        }
+        let reverse = direction == TowPoint::Back;
+        if direction == TowPoint::Side {
+            if drag_side_hitched(world, tower_pos, drawn) {
+                pulls += 1;
+            }
+            continue;
+        }
+        let facing = world
+            .get::<crate::vehicles::Vehicle>(drawn)
+            .map_or(0.0, |built| built.rotation);
+        let rel = (
+            f64::from(tower_pos.0 - drawn_pos.0),
+            f64::from(tower_pos.1 - drawn_pos.1),
+        );
+        let angle = angle_from_target(facing_vector(facing), rel);
+        let turn = turn_from_angle(angle, false, reverse);
+        let drawn_velocity = world
+            .get::<crate::vehicles::Vehicle>(drawn)
+            .map_or(0, |built| built.velocity);
+        let pull = towing_pull(distance, tower_velocity, drawn_velocity, reverse);
+        if let Some(mut held) = world.get_mut::<crate::vehicles::Vehicle>(drawn) {
+            held.velocity = pull.velocity;
+        }
+        selfdrive(world, drawn, turn, pull.accel_y);
+        pulls += 1;
+    }
+    pulls
+}
+
+/// **A hull's facing as a unit vector**, in the port's own convention: `rotation` is degrees clockwise from **east**, the same way the hull's own drawing and `move` are measured.
+fn facing_vector(rotation: f64) -> (f64, f64) {
+    let radians = rotation.to_radians();
+    (radians.cos(), -radians.sin())
 }

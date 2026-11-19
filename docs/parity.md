@@ -38832,3 +38832,29 @@ without the index moving would be two answers about where it is.
 
 **Not ported**: `towed_veh->move = tileray( destination_delta.xy() )`, which points the hull's *movement* along the raw delta rather than along the step, and the map-level effects of the
 skid. The port sets the flag and the facing behaviour the flag drives is already in `move_step`; the `move` heading from a tow is not.
+
+## The cable pulls once a turn (round 213)
+
+`tow_vehicles` is `map::move_vehicle`'s towing block (`map.cpp:998-1004`) applied to every tower in the store, in the reference's own order:
+
+1. a cable with **slack** (`no_towing_slack`, under eight squares) does nothing;
+2. a **stationary** tower does nothing - the reference's `velocity <= 0` guard;
+3. the angle is measured from the **towed** hull's facing to the tower's square, the turn is [`turn_from_angle`] with `reverse` set when the cable leaves the towed hull's back, and the
+   pull is [`towing_pull`];
+4. a **front- or back-hitched** hull has the tower's velocity assigned and is then driven by [`selfdrive`] - the reference assigns `towed_veh->velocity` and then calls it;
+5. a **side-hitched** hull is dragged one square by [`drag_side_hitched`] and marked skidding.
+
+| Setup | Answer |
+|---|---|
+| tower at (0, 1), cable on a front hitch | 0 - one square of slack pulls nothing |
+| tower at (0, 10), same cable | 1 - taut, and the hull is moving and not skidding |
+| tower stopped, cable taut | 0 - and the hull has not moved |
+
+The link hangs on the **tower**: `towing_data::towing` is the vehicle it is pulling, and the towed hull carries `towed_by` in its own component - the same two-sided record the reference
+keeps, with ids instead of pointers.
+
+Mutation-checked: letting any distance pull makes the slack row answer 1.
+
+**Named, not guessed**: the reference measures between the two vehicles' **tow parts** (`abs_part_pos( get_tow_part() )`), and the port has no per-part square yet, so it measures between the
+two hulls' origins - the same square for a centre-mounted cable, a named approximation for every other. The reference also cancels the tow when a tow part is missing and snaps a cable at
+twenty-five squares; snapping is left to a caller because it removes the cable item from the map.

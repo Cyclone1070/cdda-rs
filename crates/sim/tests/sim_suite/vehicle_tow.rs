@@ -487,3 +487,96 @@ fn a_side_hitched_hull_moves_on_the_map_and_the_index_follows() {
         "**one square east, not one east and one north**"
     );
 }
+
+/// **The cable pulls once a turn, and only when it is taut and the tower is moving.** Reference: `map::move_vehicle`'s towing block (`map.cpp:998-1004`) and `do_towing_move`
+/// (`vehicle.cpp:7084-7090`) - a cable with slack does nothing, a stationary tower does nothing, a front-hitched hull has the tower's velocity assigned to it, and a side-hitched one is
+/// dragged a square.
+#[test]
+fn a_cable_pulls_only_when_it_is_taut_and_the_tower_moves() {
+    use cdda_sim::vehicle_tow::{TowPoint, Towing, tow_vehicles};
+
+    let mut world = World::new();
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "hull".to_owned(),
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: Vec::new(),
+        },
+    );
+    let hull = |velocity: i32| cdda_sim::vehicles::Vehicle {
+        parts: vec![cdda_sim::vehicles::VehiclePart {
+            part: "hull".to_owned(),
+            ..cdda_sim::vehicles::VehiclePart::default()
+        }],
+        velocity,
+        ..cdda_sim::vehicles::Vehicle::default()
+    };
+
+    // **Slack**: a tower one square away pulls nothing at all.
+    // **The link hangs on the tower**: `towing_data::towing` is the vehicle it is pulling, and the towed hull carries `towed_by` in its own component.
+    let drawn = world
+        .spawn((
+            hull(0),
+            cdda_sim::Position { x: 0, y: 0, z: 0 },
+            Towing {
+                towing: None,
+                towed_by: Some(Entity::PLACEHOLDER),
+                direction: TowPoint::Front,
+            },
+        ))
+        .id();
+    let tower = world
+        .spawn((
+            hull(100),
+            cdda_sim::Position { x: 0, y: 1, z: 0 },
+            Towing {
+                towing: Some(drawn),
+                towed_by: None,
+                direction: TowPoint::Front,
+            },
+        ))
+        .id();
+    if let Some(mut held) = world.get_mut::<Towing>(drawn) {
+        held.towed_by = Some(tower);
+    }
+    assert_eq!(
+        tow_vehicles(&mut world),
+        0,
+        "**one square of slack pulls nothing**"
+    );
+
+    // **Taut**: ten squares away, the same tower now pulls.
+    if let Some(mut position) = world.get_mut::<cdda_sim::Position>(tower) {
+        position.y = 10;
+    }
+    assert_eq!(tow_vehicles(&mut world), 1, "ten squares is taut");
+    let drawn_state = world
+        .get::<cdda_sim::vehicles::Vehicle>(drawn)
+        .map(|built| (built.velocity, built.skidding));
+    assert_eq!(
+        drawn_state.map(|state| state.1),
+        Some(false),
+        "a front-hitched hull is driven, not left skidding"
+    );
+    assert_ne!(
+        drawn_state.map(|state| state.0),
+        Some(0),
+        "**and it is moving by the end of the turn**"
+    );
+
+    // **A stationary tower pulls nothing**, even on a taut cable.
+    if let Some(mut built) = world.get_mut::<cdda_sim::vehicles::Vehicle>(tower) {
+        built.velocity = 0;
+    }
+    let before = world
+        .get::<cdda_sim::Position>(drawn)
+        .map(|pos| (pos.x, pos.y));
+    assert_eq!(tow_vehicles(&mut world), 0, "a stopped tower pulls nothing");
+    let after = world
+        .get::<cdda_sim::Position>(drawn)
+        .map(|pos| (pos.x, pos.y));
+    assert_eq!(after, before, "and the hull has not moved");
+}
