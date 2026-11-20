@@ -40042,3 +40042,22 @@ session, and one build finished before its ssh returned. What is verified here i
 workspace, and the docs check; **CI runs the rest**, and that is where the full suite is proven this time.
 
 The trap ledger moves to **121 of 125 traps answered, 4 unported** - `boobytrap`, `dissector`, `goo` and `sinkhole`, each waiting on a subsystem rather than on a rule.
+
+## A dissector (round 272)
+
+`trapfunc::dissector` (`trapfunc.cpp:900-962`). A **robot** - a monster whose species is `ROBOT` - is refused with "BEEPBOOP!  Please remove non-organic object." at volume four of
+the electronic-speech kind, and the rule answers **false**, so the machine is left standing and nothing is cut. Anything else takes "BRZZZAP!" at volume ten of the combat kind, a
+line if the player can see it, and a **fixed list** of ten cut hits: head fifteen, torso twenty, both arms twelve, both hands ten, **the right leg twice twelve**, both feet ten. The
+trap is a machine and is **not** removed.
+
+**The reference's own bug is the rule.** `leg_r` is hit twice and `leg_l` never, and the sum - a hundred and twenty-three - is the same either way, so an asserting total can never
+see it. Armour is the only witness: ten points of cut cover on the **left** leg changes nothing, and the same cover on the **right** leg takes twenty off instead of ten. The mutation
+that "fixes" the reference - one hit on each leg - fails at `113` against `123`. **A faithful port keeps the bug, and a test has to be built to see it.**
+
+**Another line the reference never says.** The robot's "The dissector lights up, and shuts down." goes through `add_msg_player_or_npc` **on the monster**, and a monster is not an
+NPC - the same correction the snake needed last round. The port says nothing there, and the sound is the only thing the player gets.
+
+**Named gaps.** The ridden branch (a rider takes the same list) is not ported, because the port has no riders.
+
+The trap ledger moves to **122 of 125 traps answered, 3 unported** - `boobytrap`, `goo` and `sinkhole`, each waiting on a subsystem: an active item with a fuse, part-scoped
+effects and a monster's `poly`, and a grapnel/rope inventory check with a terrain change.

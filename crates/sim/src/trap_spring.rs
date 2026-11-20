@@ -57,6 +57,7 @@ pub fn spring_with(
         Some("crossbow") => return crossbow(world, who, square),
         Some("temple_toggle") => return temple_toggle(world, who, square),
         Some("temple_flood") => return temple_flood(world, who, square),
+        Some("dissector") => return dissector(world, who, square),
         Some("glow") => return glow(world, who, square),
         Some("lava") => return lava(world, who, square),
         Some("pit_spikes") => return spiked_pit(world, who, square, &Spiked::SPIKES),
@@ -319,6 +320,70 @@ fn snake(world: &mut World, square: (i32, i32, i32)) -> bool {
         // this port said it anyway; the correction is that the message is only ever an NPC's, which the port has no NPC monster to be.
         let _ = crate::spawn_monster(world, (at.0, at.1), kind, hp);
         crate::square::remove_trap(world, square);
+    }
+    true
+}
+
+/// **A dissector slices whatever stands on it, ten times, and stays armed.**
+///
+/// Reference: `trapfunc::dissector` (`trapfunc.cpp:900-962`). A **robot** - a monster whose species is `ROBOT` - is refused with "BEEPBOOP!  Please remove non-organic object." at
+/// volume four of the electronic-speech kind, and the rule answers **false**, so the machine is left standing and nothing is cut. Anything else takes "BRZZZAP!" at volume ten of
+/// the combat kind, a line if the player can see it, and a **fixed list** of ten cut hits: head fifteen, torso twenty, both arms twelve, both hands ten, **the right leg twice
+/// twelve**, both feet ten.
+///
+/// **The double `leg_r` is the reference's own bug and the port keeps it**: `leg_l` is never hit, and the sum is the same either way, which is why the test that proves it wears
+/// armour on the left leg and then on the right.
+///
+/// **Not ported**: the ridden branch (a rider takes the same list), because the port has no riders; and the "lights up, and shuts down" line, which the reference sends through
+/// `add_msg_player_or_npc` **on the monster**, which a monster never says - the same correction the snake needed.
+fn dissector(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let robot = is_a_monster(world, who)
+        && world
+            .get::<crate::creature::Species>(who)
+            .is_some_and(|species| species.0.contains("ROBOT"));
+    if robot {
+        crate::sounds::make_a_sound_of_kind(
+            world,
+            square,
+            4,
+            "BEEPBOOP!  Please remove non-organic object.",
+            crate::sounds::SoundCategory::ElectronicSpeech,
+        );
+        return false;
+    }
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        10,
+        "BRZZZAP!",
+        crate::sounds::SoundCategory::Combat,
+    );
+    if sees_the_square(world, (square.0, square.1)) {
+        crate::messages::push(
+            world,
+            &format!(
+                "Electrical beams emit from the floor and slice the {}!",
+                name_of(world, who)
+            ),
+        );
+    }
+    // **The list is the rule, in the reference's order and with its repetition intact.**
+    let blows = [
+        ("head", 15),
+        ("torso", 20),
+        ("arm_r", 12),
+        ("arm_l", 12),
+        ("hand_r", 10),
+        ("hand_l", 10),
+        ("leg_r", 12),
+        ("leg_r", 12),
+        ("foot_l", 10),
+        ("foot_r", 10),
+    ];
+    for (part, damage) in blows {
+        let stops = crate::creature::armour_on(world, who, part, Some("cut"));
+        #[allow(clippy::cast_precision_loss)]
+        crate::creature::hurt(world, who, (damage - stops).max(0) as f32);
     }
     true
 }

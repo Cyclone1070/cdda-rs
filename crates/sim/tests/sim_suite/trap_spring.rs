@@ -2737,3 +2737,151 @@ fn a_flood_trap_clears_its_siblings_and_schedules_the_flood() {
         cdda_sim::messages::lines(&world)
     );
 }
+
+/// A world with a dissector underfoot and a body carrying every part the beams reach. A named part may be covered by ten points of cut armour.
+fn a_dissector_world(covered: Option<&str>) -> (World, Entity) {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::creature::set_health(&mut world, who, 500);
+    let parts = [
+        "head", "torso", "arm_r", "arm_l", "hand_r", "hand_l", "leg_r", "leg_l", "foot_l", "foot_r",
+    ];
+    let kind_of = |name: &str| match name {
+        "head" => "head",
+        "torso" => "torso",
+        "arm_r" | "arm_l" => "arm",
+        "hand_r" | "hand_l" => "hand",
+        "leg_r" | "leg_l" => "leg",
+        _ => "foot",
+    };
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: parts
+            .iter()
+            .map(|name| a_part(name, kind_of(name)))
+            .collect(),
+    });
+    if let Some(part) = covered {
+        let layer = cdda_content::armour::Layer {
+            damage_type: "cut".to_owned(),
+            resist: 10.0,
+            thickness: 1.0,
+            cover: 100,
+        };
+        let garment = world
+            .spawn(cdda_sim::creature::Garment {
+                layers: [(part.to_owned(), layer)].into_iter().collect(),
+                vitals: Vec::new(),
+            })
+            .id();
+        assert_eq!(
+            cdda_sim::creature::wear(&mut world, who, garment),
+            cdda_sim::creature::Wore::Worn,
+            "the cover goes on"
+        );
+        cdda_sim::creature::dress(&mut world);
+    }
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("dissector", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    (world, who)
+}
+
+/// **A dissector slices ten parts and stays armed.** Reference: `trapfunc::dissector` (`trapfunc.cpp:900-962`): "BRZZZAP!" at volume ten of the combat kind, and then a fixed list of
+/// ten cut hits - head fifteen, torso twenty, both arms twelve, both hands ten, **the right leg twice twelve**, both feet ten. The trap is a machine and is **not** removed.
+///
+/// **The reference's own bug is the rule**: `leg_r` is hit twice and `leg_l` never, and the sum - a hundred and twenty-three - is the same either way. What tells them apart is
+/// armour: covering the **left** leg changes nothing, and covering the **right** leg takes twenty off instead of ten.
+#[test]
+fn a_dissector_slices_ten_parts_and_stays_armed() {
+    let (mut world, who) = a_dissector_world(None);
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the beams fire**"
+    );
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        123,
+        "**fifteen, twenty, twelve twice, ten twice, twelve twice, ten twice**"
+    );
+    let sounds = cdda_sim::sounds::heard_this_turn(&mut world);
+    let zap = sounds.last().cloned().expect("a zap was heard");
+    assert_eq!(zap.description, "BRZZZAP!");
+    assert_eq!(zap.volume, 10, "**at volume ten**");
+    assert_eq!(zap.category, cdda_sim::sounds::SoundCategory::Combat);
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "**the machine stays armed**"
+    );
+}
+
+/// **The left leg is never hit and the right leg is hit twice.** Armour is the only way to see it: ten points of cut cover on the left leg leaves the total at a hundred and
+/// twenty-three, and the same cover on the right leg takes twenty off it - two hits of twelve against ten points each.
+#[test]
+fn a_dissector_hits_the_right_leg_twice_and_the_left_never() {
+    let (mut world, who) = a_dissector_world(Some("leg_l"));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        123,
+        "**covering the left leg changes nothing, because the reference never hits it**"
+    );
+    let (mut world, who) = a_dissector_world(Some("leg_r"));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        103,
+        "**and covering the right leg takes twenty, because it is hit twice**"
+    );
+}
+
+/// **A robot is refused.** Reference: `:910-921` - the dissector will not dissect a machine: it says "BEEPBOOP!  Please remove non-organic object." at volume four of the
+/// electronic-speech kind, returns **false** so the trap is left standing, and deals no damage at all.
+#[test]
+fn a_dissector_refuses_a_robot() {
+    let (mut world, who) = a_dissector_world(None);
+    cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+    // **The robot is a monster, so somebody else is the player**: `is_a_monster` asks whether this creature is the avatar.
+    let somebody_else = world.spawn(()).id();
+    cdda_sim::missions::set_avatar(&mut world, somebody_else);
+    world.entity_mut(who).insert(cdda_sim::creature::Species(
+        ["ROBOT".to_owned()].into_iter().collect(),
+    ));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        !cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**a robot is refused**"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before,
+        "**and nothing is cut**"
+    );
+    let sounds = cdda_sim::sounds::heard_this_turn(&mut world);
+    let beep = sounds.last().cloned().expect("a beep was heard");
+    assert_eq!(
+        beep.description,
+        "BEEPBOOP!  Please remove non-organic object."
+    );
+    assert_eq!(
+        beep.category,
+        cdda_sim::sounds::SoundCategory::ElectronicSpeech
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned())
+    );
+}
