@@ -39696,3 +39696,26 @@ reference tree's real mapgens - 2,725 objects, 10,076 (id, map) pairs - and draw
 **A mutation that proved nothing until it was applied properly.** Two rounds of "break the terrain lookup and watch the test fail" passed, because the replacement string did
 not match the formatted source and the mutation was a no-op - a green run on an unchanged file. Redone against the exact lines, it fails five tests at once. The lesson is the
 one this port keeps relearning: *check that the mutation is in the file* before believing the test that survives it.
+
+## Where cities stand (round 257)
+
+Reference: `overmap::place_cities` (`overmap.cpp:6037-6162`), the root of the overmap's own generation. The port had city **tiles** (`cities::set_tiles`) and no city
+**placement**, so every world's cities were whatever a test laid down. `city_placement` is the first generation rule the overmap has of its own:
+
+- **how many**: `roll_remainder( omts_per_overmap * coverage / omts_per_city )`, where the coverage is `1 / 2^spacing`. With the data's default options (`CITY_SIZE` eight and
+  `CITY_SPACING` four from the `world_cities` slider's first level, `OVERMAP_MAXIMUM_URBANITY` eight from `external_options.json`) that is `32400 / 16 / 216.75 = 9.34`, so an
+  overmap holds **nine or ten** cities - which is what the reference's own coverage table says in words ("spacing four, about six percent of the map, seven cities of size eight"),
+  and what the port's test counts over two hundred seeds;
+- **how big**: a size drawn between the base and the ceiling, then one of **four fates** - a third tiny (a third of it), a third small (two thirds), then the rest split between
+  large (three halves) and huge (twice) - clipped to `[2, 55]`, because "a city of size 1 is just a crossroad with no buildings at all";
+- **where**: a centre drawn inside the map with room for the city's radius, accepted **only on a tile that is still default**, and turned into an intersection
+  (`road_nesw`) - "every city starts with an intersection";
+- **the gradient**: `urbanity_of_position` ports the reference's `calculate_urbanity` (`:5968-6024`) - the four `OVERMAP_URBAN_INCREASE_*` options, the falloff to the sides, and
+  the truncation to an integer. The data sets only the southern increase (five), so a world is urban to the south and empty at the origin, where a new game starts.
+
+Four mutations, four catches: the count forced, the road guard removed, the size clamp removed (the clamp only bites when the settings make the ladder roll below two, so that
+test uses a city size of three), and - after a first attempt that was a **no-op** because the replacement string did not match the formatted source - the terrain lookup.
+
+**Named gaps.** `build_city_street` (`:6148-6154`) - the street grid and the buildings hanging off it - is not ported: a city without streets is a place, not a town. `city::merge`
+is not ported either: two cities drawn too close both stand, where the reference would fuse them. The count also assumes no regional city definitions
+(`city::get_all()` empty), which is the case the data's default world is.

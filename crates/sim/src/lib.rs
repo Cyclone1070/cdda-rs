@@ -14,6 +14,7 @@ pub mod burning;
 pub mod calendar;
 pub mod camps;
 pub mod cities;
+pub mod city_placement;
 pub mod dialogue_context;
 pub mod emit_at;
 pub mod emit_registry;

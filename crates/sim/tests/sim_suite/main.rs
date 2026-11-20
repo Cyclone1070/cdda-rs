@@ -36,6 +36,7 @@ mod butcher_finish;
 mod butchery;
 mod butchery_activity;
 mod character_swing;
+mod city_placement;
 mod clear_path;
 mod consume_amount;
 mod consume_contents;
