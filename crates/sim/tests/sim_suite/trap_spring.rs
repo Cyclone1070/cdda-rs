@@ -1384,3 +1384,165 @@ fn a_drain_takes_a_point_from_every_part() {
         "**the trap does not move** - a drain is a place, not a one-shot"
     );
 }
+
+/// **Caltrops cut the foot and may be destroyed, disarmed, or neither.** Reference: `trapfunc::caltrops` (`trapfunc.cpp:311-345`):
+///
+/// - the step chance is `occupied_tile_fraction`, as for glass;
+/// - "You step on a sharp {trap name}!", then the `speed * 0.8` flinch, then a cut of `rng( 9, 15 )` on a ground-contact part;
+/// - a wound that drew blood may fester (`try_apply_tetanus`);
+/// - a creature of `weight / 1_kilogram` in two hundred breaks the trap outright ("You destroy the ... as you step on it!"), and otherwise a **twenty in a hundred** chance
+///   disarms it.
+#[test]
+fn caltrops_cut_and_leave_the_trap_standing() {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![a_part("torso", "torso"), a_part("foot_l", "foot")],
+    });
+    give_the_walker_a_turn(&mut world, who);
+    let mut trap = a_trap("caltrops", &[]);
+    trap.name = "caltrops".to_owned();
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // **The dice at the top of their range**: the step is taken (the chance is certain at any draw below a half's complement), the cut is the largest, and neither the break
+    // nor the disarm comes up.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.25));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    let moves_before = cdda_sim::creature::moves_left(&world, who);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the caltrops are stepped on**"
+    );
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, who),
+        moves_before - 80,
+        "**the step costs eight tenths of a speed of a hundred**"
+    );
+    let cut = hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert_eq!(
+        cut, 11,
+        "**a quarter of the way through nine to fifteen, rounded**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("step on a sharp caltrops")),
+        "**with the word sharp in the line**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)).is_some(),
+        "**and the caltrops are still there**"
+    );
+}
+
+/// **A heavy creature breaks the caltrops outright.** Reference: `:333-336` - `x_in_y( weight / 1_kilogram, 200 )`, so two hundred kilograms is certain and the line says what
+/// happened.
+#[test]
+fn heavy_caltrops_break_under_two_hundred_kilograms() {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Weight { grams: 200_000 });
+    give_the_walker_a_turn(&mut world, who);
+    let mut trap = a_trap("caltrops", &[]);
+    trap.name = "caltrops".to_owned();
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.25));
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("You destroy the caltrops as you step on it!")),
+        "**two hundred kilograms break them**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "**and the caltrops are gone**"
+    );
+}
+
+/// **A step that neither breaks nor disarms disarms nothing, and one that disarms takes the trap away quietly.** Over sixty seeds a light creature does both: some steps leave
+/// the caltrops standing, and some take them away - and the ones that take them away say nothing about destroying them, which is what tells the two branches apart.
+#[test]
+fn a_light_step_either_disarms_the_caltrops_or_leaves_them() {
+    let mut left = 0;
+    let mut disarmed = 0;
+    for seed in 1..=60u32 {
+        let (mut world, who) = a_world();
+        cdda_sim::missions::set_avatar(&mut world, who);
+        give_the_walker_a_turn(&mut world, who);
+        let mut trap = a_trap("caltrops", &[]);
+        trap.name = "caltrops".to_owned();
+        cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+        assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        if !cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false) {
+            continue;
+        }
+        if cdda_sim::square::trap_at(&world, (0, 0, 0)).is_some() {
+            left += 1;
+        } else {
+            disarmed += 1;
+            assert!(
+                !cdda_sim::messages::lines(&world)
+                    .iter()
+                    .any(|line| line.contains("destroy")),
+                "**a disarm is not a destruction**: {:?}",
+                cdda_sim::messages::lines(&world)
+            );
+        }
+    }
+    assert!(
+        left > 0,
+        "**some steps leave the caltrops standing**: {left}"
+    );
+    assert!(
+        disarmed > 0,
+        "**and some disarm them**: {disarmed} of sixty"
+    );
+}
+
+/// **A board is a nail in it.** Reference: `trapfunc::board` (`trapfunc.cpp:271-306`): the same shape as caltrops with the numbers of a plank - a cut of `rng( 3, 5 )`, and
+/// **forty in a hundred** chance to be disarmed instead of twenty. The line does not call it sharp.
+#[test]
+fn a_board_cuts_less_and_disarms_more() {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![a_part("torso", "torso"), a_part("foot_l", "foot")],
+    });
+    give_the_walker_a_turn(&mut world, who);
+    let mut trap = a_trap("board", &[]);
+    trap.name = "nailed board".to_owned();
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.25));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the board is stepped on**"
+    );
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        4,
+        "**and a quarter of the way through three to five**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("step on a nailed board")
+                || line.contains("steps on a nailed board")),
+        "**and the line does not call a board sharp**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}

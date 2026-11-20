@@ -48,6 +48,8 @@ pub fn spring_with(
         Some("caltrops_glass") => return glass_caltrops(world, who, square),
         Some("cot") => return cot(world, who),
         Some("bubble") => return bubble(world, who, square),
+        Some("caltrops") => return sharp_ground(world, who, square, &Sharp::CALTROPS),
+        Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
         Some("drain") => return drain(world, who),
         Some("hum") => return hum(world, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
@@ -251,6 +253,119 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
         crate::sounds::SoundCategory::Combat,
     );
     crate::square::remove_trap(world, square);
+    true
+}
+
+/// What one of the data's sharp-on-the-ground traps does, with the numbers that tell them apart.
+///
+/// Reference: `trapfunc::caltrops` (`trapfunc.cpp:311-345`) and `trapfunc::board` (`:271-306`). The two are the same rule with different figures - the cut's range, whether the
+/// line calls what was stepped on **sharp**, what weight in kilograms is certain to break the trap, and how many in a hundred steps disarm it - so the port keeps one rule and
+/// two sets of numbers rather than two copies that would drift apart.
+struct Sharp {
+    /// The smallest cut.
+    cut_lo: i32,
+    /// The largest cut.
+    cut_hi: i32,
+    /// Whether the line says the word "sharp".
+    wordy: bool,
+    /// The weight in kilograms at which breaking the trap becomes certain - `x_in_y( weight, this )`.
+    weight_limit: i32,
+    /// How many steps in a hundred disarm the trap - `x_in_y( this, 100 )`.
+    disarm_in: i32,
+}
+
+impl Sharp {
+    /// `tr_caltrops`: a cut of nine to fifteen, "sharp", two hundred kilograms break it, twenty in a hundred disarm it.
+    const CALTROPS: Self = Self {
+        cut_lo: 9,
+        cut_hi: 15,
+        wordy: true,
+        weight_limit: 200,
+        disarm_in: 20,
+    };
+
+    /// `tr_board`: a cut of three to five, not "sharp", a hundred kilograms break it, forty in a hundred disarm it.
+    const BOARD: Self = Self {
+        cut_lo: 3,
+        cut_hi: 5,
+        wordy: false,
+        weight_limit: 100,
+        disarm_in: 40,
+    };
+}
+
+/// **Stepping on something sharp on the ground.**
+///
+/// Reference: `trapfunc::caltrops` and `trapfunc::board`. The step chance is `x_in_y( occupied_tile_fraction( size ), 1 )`; the flinch is `speed * 0.8`; the cut lands on a random
+/// ground-contact part and may fester; and then the trap itself may not survive the step - `x_in_y( weight / 1_kilogram, weight_limit )` breaks it outright, otherwise
+/// `x_in_y( disarm_in, 100 )` disarms it.
+///
+/// **Not ported**: the reference's mount branch, as with the glass caltrops, because the port has no mount whose speed could be slowed.
+fn sharp_ground(world: &mut World, who: Entity, square: (i32, i32, i32), rule: &Sharp) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return false;
+    };
+    if !rolls.x_in_y(crate::ballistics::occupied_tile_fraction(size), 1.0) {
+        crate::singletons::put_rolls(world, rolls);
+        return false;
+    }
+    let cut = rolls.rng(rule.cut_lo, rule.cut_hi);
+    let part = ground_contact_part(world, who, &mut rolls);
+    let infected = rolls.one_in(tetanus_chance(world, who));
+    // **The trap's own survival is a dice roll too**, and it comes after the wound (`:333-344`): weight first, then the disarming chance.
+    let kilograms = world
+        .get::<crate::creature::Weight>(who)
+        .map_or(0, |weight| i32::try_from(weight.grams / 1_000).unwrap_or(0));
+    let crushed = rolls.x_in_y(f64::from(kilograms), f64::from(rule.weight_limit));
+    let disarmed = !crushed && rolls.x_in_y(f64::from(rule.disarm_in), 100.0);
+    crate::singletons::put_rolls(world, rolls);
+    let name = crate::trap_registry::get(world, "tr_test")
+        .map_or_else(|| "trap".to_owned(), |trap| trap.name);
+    let sharp = if rule.wordy { "sharp " } else { "" };
+    let line = if crate::missions::avatar(world) == Some(who) {
+        format!("You step on a {sharp}{name}!")
+    } else {
+        format!("{} steps on a {sharp}{name}!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    #[allow(clippy::cast_precision_loss)]
+    let cost = f64::from(crate::creature::speed_of(world, who)) * 0.8;
+    crate::creature::spend_moves(world, who, cost);
+    let stops = part.as_deref().map_or(0, |hit| {
+        crate::creature::armour_on(world, who, hit, Some("cut"))
+    });
+    let through = (cut - stops).max(0);
+    #[allow(clippy::cast_precision_loss)]
+    crate::creature::hurt(world, who, through as f32);
+    if through > 0
+        && infected
+        && !crate::traits::has_trait(world, who, "IMMUNE_INFECTION")
+        && let Some(tetanus) = crate::effect_registry::kind_named(world, "tetanus")
+    {
+        crate::applied_effects::add(
+            world,
+            who,
+            crate::effects::ActiveEffect::new(&tetanus, 1, 1),
+        );
+    }
+    if crushed {
+        crate::square::remove_trap(world, square);
+        let line = if crate::missions::avatar(world) == Some(who) {
+            format!("You destroy the {name} as you step on it!")
+        } else {
+            format!(
+                "{} destroys a {name} as they move over it!",
+                name_of(world, who)
+            )
+        };
+        crate::messages::push(world, &line);
+    } else if disarmed {
+        // `trap::on_disarmed`: the trap leaves the ground. What it drops when disarmed is the data's `drops` list, which the port does not yet place - a named gap.
+        crate::square::remove_trap(world, square);
+    }
     true
 }
 

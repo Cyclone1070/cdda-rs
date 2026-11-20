@@ -39847,3 +39847,31 @@ three points - kills it. "Something happened" is not a rule.
 Three mutations caught, and the fourth after the test counted: the tiny-creature check, the pop's volume, the wrap's removal, and the per-part harm.
 
 The trap ledger moves to **106 of 125 traps answered, 19 unported**.
+
+## Caltrops and a board (round 264)
+
+Two traps of the same shape, kept as **one rule and two sets of numbers** rather than two copies that would drift: `Sharp`, with `Sharp::CALTROPS` and `Sharp::BOARD`.
+
+Reference: `trapfunc::caltrops` (`trapfunc.cpp:311-345`) and `trapfunc::board` (`:271-306`). The step chance is `x_in_y( occupied_tile_fraction( size ), 1 )`; the flinch is
+`speed * 0.8`; the cut lands on a random ground-contact part and may fester (`try_apply_tetanus`); and then **the trap itself may not survive the step**:
+
+- `x_in_y( weight / 1_kilogram, weight_limit )` breaks it outright - two hundred kilograms for caltrops, a hundred for a board - with its own line ("You destroy the ... as you
+  step on it!");
+- otherwise `x_in_y( disarm_in, 100 )` disarms it - twenty in a hundred for caltrops, forty for a board - and the trap leaves the ground;
+- otherwise it stays standing.
+
+What tells them apart in the data: the cut (nine to fifteen against three to five), whether the line says **sharp**, and those two chances. What tells them apart in the test: three
+tests, each saying **which branch** it drove, and a sixty-seed walk that must see both a standing trap and a disarmed one.
+
+**Two mutations that survived until the tests were split.** Forcing `cut` to its low end survived because the test's dice sat at the bottom of the range; forcing the disarm to never
+fire survived because at zero kilograms the *crush* roll is certain and removed the trap for the wrong reason. Both are the same lesson as the last round in a new disguise: a test
+that accepts either branch proves neither. Fixing it meant driving the dice to a quarter of the way through (so the cut is **inside** its range) and giving the disarm its own
+sixty-seed test with the two outcomes counted separately.
+
+Also: `clippy::struct_field_names` refused `sharp: bool` inside `struct Sharp`, and then refused `says_sharp`. The field is `wordy`, which is a worse name for a better reason - the
+lint wanted a name that says what the field means rather than repeating the type's.
+
+The trap ledger moves to **108 of 125 traps answered, 17 unported**.
+
+**Named gap.** `trap::on_disarmed` drops the trap's `drops` item when it is disarmed; the port takes the trap away and places nothing, because the drop is a rule the port has not
+written.
