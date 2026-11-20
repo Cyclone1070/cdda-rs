@@ -334,8 +334,8 @@ fn the_reference_tree_holds_the_trap_actions_the_port_answers() {
         Some(16),
         "the reference's own do-nothing"
     );
-    // Ninety-one of a hundred and twenty-four traps therefore have an answer; the remaining thirty-three name thirty named functions, the commonest of which is `shotgun`
-    // with three. Pinned so the frontier cannot drift without the number moving with it.
+    // A hundred and two of a hundred and twenty-five traps therefore have an answer; the remaining twenty-three name twenty-one named functions. Pinned so the frontier cannot
+    // drift without the number moving with it.
     let answered: usize = [
         "eocs",
         "map_regen",
@@ -345,19 +345,21 @@ fn the_reference_tree_holds_the_trap_actions_the_port_answers() {
         "shotgun",
         "beartrap",
         "landmine",
+        "caltrops_glass",
     ]
     .iter()
     .map(|action| counts.get(*action).copied().unwrap_or(0))
     .sum();
-    assert_eq!(answered, 100, "traps whose action the port answers");
+    assert_eq!(answered, 102, "traps whose action the port answers");
     assert_eq!(
         total - answered,
-        25,
-        "**and twenty-five that name a function the port has no rule for**"
+        23,
+        "**and twenty-three that name a function the port has no rule for**"
     );
+    // **No unported action has more than one trap now**: glass caltrops were the last pair, so what is left is one trap per function, and the frontier is a list of singletons.
     assert_eq!(
-        counts.get("caltrops_glass").copied(),
-        Some(2),
-        "the largest of the actions still unported"
+        counts.get("caltrops").copied(),
+        Some(1),
+        "the largest of the actions still unported is a single trap"
     );
 }

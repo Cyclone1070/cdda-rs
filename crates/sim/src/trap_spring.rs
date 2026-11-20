@@ -45,6 +45,7 @@ pub fn spring_with(
         Some("map_regen") => return rebuild_the_tile(world, who, square, &trap),
         Some("spell") => return cast_its_spell(world, who, square, &trap, &kind),
         Some("glass") => return broken_glass(world, who, square),
+        Some("caltrops_glass") => return glass_caltrops(world, who, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
         Some("beartrap") => return bear_trap(world, who, square),
         Some("landmine") => return land_mine(world, who, square),
@@ -242,6 +243,68 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
         world,
         square,
         1,
+        "glass cracking!",
+        crate::sounds::SoundCategory::Combat,
+    );
+    crate::square::remove_trap(world, square);
+    true
+}
+
+/// **Glass caltrops cut the foot that steps on them, and cost the step as well.**
+///
+/// Reference: `trapfunc::caltrops_glass` (`trapfunc.cpp:353-379`). The same chance as the plain glass - `x_in_y( occupied_tile_fraction( size ), 1 )` - but a different trap: it
+/// announces its **name** ("You step on a sharp glass caltrops!"), charges `speed * 0.8` moves whether or not the shards get through, cuts for `rng( 3, 10 )` on a random
+/// ground-contact part, and shatters with a sound at volume eight.
+///
+/// **Not ported**: the reference's mount branch - a ridden creature's mount is slowed instead (`mount_step_on_trap_make_slow_give_msg`) - because the port has no mount whose own
+/// speed could be slowed. A ridden creature on glass caltrops is otherwise treated as afoot, which is the reference's path for everything the port can express.
+fn glass_caltrops(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return false;
+    };
+    let stepped = rolls.x_in_y(crate::ballistics::occupied_tile_fraction(size), 1.0);
+    if !stepped {
+        crate::singletons::put_rolls(world, rolls);
+        return false;
+    }
+    // The cut and the part are drawn only once the shards are stepped on, because the reference draws them after the message.
+    let cut = rolls.rng(3, 10);
+    let part = ground_contact_part(world, who, &mut rolls);
+    crate::singletons::put_rolls(world, rolls);
+    let name = crate::trap_registry::get(world, "tr_test")
+        .map_or_else(|| "caltrops".to_owned(), |trap| trap.name);
+    let line = if crate::missions::avatar(world) == Some(who) {
+        format!("You step on a sharp {name}!")
+    } else {
+        format!("{} steps on a sharp {name}!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    // **The flinch comes before the damage and does not depend on it** (`:365-368`): `c->mod_moves( -c->get_speed() * 0.8 )`.
+    #[allow(clippy::cast_precision_loss)]
+    let cost = f64::from(crate::creature::speed_of(world, who)) * 0.8;
+    crate::creature::spend_moves(world, who, cost);
+    let stops = part.as_deref().map_or(0, |hit| {
+        crate::creature::armour_on(world, who, hit, Some("cut"))
+    });
+    let through = (cut - stops).max(0);
+    #[allow(clippy::cast_precision_loss)]
+    crate::creature::hurt(world, who, through as f32);
+    // `add_msg_if_player_sees`: the shatter is announced to a player who can see the square, which in the port is the avatar standing there or seeing it. The trap springs
+    // under the creature that stepped on it, so the creature's own square is where the avatar looks.
+    if crate::missions::avatar(world) == Some(who)
+        || crate::missions::avatar(world).is_some_and(|avatar| {
+            crate::seeing::can_see_location(world, avatar, (square.0, square.1))
+        })
+    {
+        crate::messages::push(world, "The shards shatter!");
+    }
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        8,
         "glass cracking!",
         crate::sounds::SoundCategory::Combat,
     );

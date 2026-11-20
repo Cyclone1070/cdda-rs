@@ -1080,3 +1080,103 @@ fn a_land_mine_ignores_a_tiny_animal() {
         "**and the mine is still armed**"
     );
 }
+
+/// **Glass caltrops cut a foot that steps on them, and cost the step as well.** Reference: `trapfunc::caltrops_glass` (`trapfunc.cpp:353-379`):
+///
+/// - only a creature sets them off, and whether it steps on them at all is `x_in_y( occupied_tile_fraction( size ), 1 )`, the chance the plain glass uses;
+/// - "You step on a sharp {trap name}!" - the trap's **name**, where the plain glass says only "some glass";
+/// - the flinch is `speed * 0.8`, spent **whether or not** the cut gets through;
+/// - a cut of `rng( 3, 10 )` on a random **ground-contact** part;
+/// - "The shards shatter!", a sound at volume eight, and the trap is removed.
+#[test]
+fn glass_caltrops_cut_a_foot_and_cost_the_step() {
+    let (mut world, who) = a_world();
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("foot_l", "foot"),
+        ],
+    });
+    give_the_walker_a_turn(&mut world, who);
+    let mut trap = a_trap("caltrops_glass", &[]);
+    trap.name = "glass caltrops".to_owned();
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // **The dice are driven to the low end**: every draw answers zero, so the shards are stepped on (a medium creature fills half its tile) and the cut is the smallest of the range.
+    // A seed would make the test say "something happened"; this says what.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    let moves_before = cdda_sim::creature::moves_left(&world, who);
+    // **No dodge**: the avoidance roll is skipped, as it is for a monster (`spring_with( .., false )`), so the fixed dice reach the rule under test rather than being spent on
+    // whether the creature noticed the shards.
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**a medium creature steps on the shards**"
+    );
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, who),
+        moves_before - 80,
+        "**the flinch costs eight tenths of a speed of a hundred**"
+    );
+    let hurt = hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert_eq!(
+        hurt, 3,
+        "**and the glass cuts for the smallest of three to ten**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "**the shards are gone**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("steps on a sharp glass caltrops")),
+        "**and the trap is named**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A tiny creature walks between the shards.** The chance is `occupied_tile_fraction( size )` in one - a tenth of the tile for a tiny thing - so some seeds leave the caltrops
+/// standing, and a refusal must spend nothing: not a move, not a hit point.
+#[test]
+fn a_tiny_creature_walks_between_the_shards() {
+    let mut refusals = 0;
+    for seed in 1..=40u32 {
+        let (mut world, who) = a_world();
+        give_the_walker_a_turn(&mut world, who);
+        if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+            creature.size = cdda_sim::CreatureSize::Tiny;
+        }
+        let mut trap = a_trap("caltrops_glass", &[]);
+        trap.name = "glass caltrops".to_owned();
+        cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+        assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        let moves_before = cdda_sim::creature::moves_left(&world, who);
+        let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+        if cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)) {
+            continue;
+        }
+        refusals += 1;
+        assert_eq!(
+            cdda_sim::creature::moves_left(&world, who),
+            moves_before,
+            "**a refusal costs no move**"
+        );
+        assert_eq!(
+            cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+            hp_before,
+            "**and no hit point**"
+        );
+        assert!(
+            cdda_sim::square::trap_at(&world, (0, 0, 0)).is_some(),
+            "**and the shards stay where they are**"
+        );
+    }
+    assert!(
+        refusals > 0,
+        "**a tiny creature refused the shards at least once in forty**: {refusals}"
+    );
+}

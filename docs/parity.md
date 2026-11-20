@@ -39788,3 +39788,19 @@ Five mutations, five catches - but one only after the test moved: the "un-crossa
 **Named gaps.** The reference's neighbour pass (`:6717-6725`) also reaches into the roads *around* a tile and reshapes them to meet it; this port joins the tile's own existing road
 but not its neighbours'. `connections_out`, the reference's bookkeeping of which overmap edges a path reaches, is not ported. And a subtype whose terrain is **not** linear (a
 rotatable connection terrain) is written as a line here, where the reference would write a rotated shape - the port's connections are roads and bridges, which are linear.
+
+## Glass caltrops (round 261)
+
+Reference: `trapfunc::caltrops_glass` (`trapfunc.cpp:353-379`). The last action with more than one trap behind it, and the plain glass's sharper cousin:
+
+- the same chance as the plain glass, `x_in_y( occupied_tile_fraction( size ), 1 )`, so a tiny creature walks between them nine times in ten and a refusal costs nothing at all;
+- the line names the **trap** - "You step on a sharp glass caltrops!" - where the plain glass says only "some glass";
+- the flinch is `speed * 0.8`, spent **whether or not** the cut gets through;
+- a cut of `rng( 3, 10 )` on a random **ground-contact** part, less that part's cut armour;
+- "The shards shatter!" to a player who sees it, a sound at volume eight, and the trap removed.
+
+Four mutations, four catches: the chance forced, the flinch made a whole turn, the cut forced to zero, and the removal dropped. **One survived at first** - forcing the chance - because the deterministic test drives the dice to the low end, where the chance always passes; it is the *other* test, the tiny creature over forty seeds, that catches it.
+
+The trap ledger moves: **102 of 125 traps answered, 23 unported**, and every remaining action now names exactly **one** trap. Glass caltrops were the last pair.
+
+**Named gap.** The reference's mount branch (`mount_step_on_trap_make_slow_give_msg`) slows the *mount*; the port has no mount whose speed could be slowed, so a ridden creature is treated as afoot - the reference's own path for everything the port can express.
