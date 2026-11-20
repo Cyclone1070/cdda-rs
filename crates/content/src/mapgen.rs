@@ -143,6 +143,8 @@ pub struct MapgenObject {
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
     /// twenty-four-square chunk at one terrain rather than blank.
     pub fill_ter: Option<String>,
+    /// The terrain whose mapgen is drawn **first**, under this one's rows (`mapgen.cpp:5176-5180` and `:6047-6050`): how a roof keeps the walls of the house below it.
+    pub predecessor_mapgen: Option<String>,
 }
 
 /// One `items` entry: an item a symbol places (`jmapgen_item_group`, `mapgen.cpp:5320-5340`).
@@ -472,6 +474,10 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 monsters: read_monsters(inner),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
+                predecessor_mapgen: match inner.get("predecessor_mapgen") {
+                    Some(cdda_json::Value::Str(pre)) if pre != "null" => Some(pre.clone()),
+                    _ => None,
+                },
                 weight: match object.get("weight") {
                     Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1000),
                     _ => 1000,

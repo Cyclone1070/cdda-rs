@@ -17,6 +17,23 @@ use crate::mapgen_update::{Mapgens, TheMapgens};
 /// draw is `rng( 1, total )` walking the weights in order, which is what `weighted_list::pick` does (`weighted_list.h`), so the port does the same rather than scaling a
 /// float - the two agree on every seed, which is what makes an oracle replay of this rule possible at all.
 pub fn generate(world: &mut World, terrain: &str, origin: (i32, i32, i32)) -> Option<usize> {
+    generate_below(world, terrain, origin, 0)
+}
+
+/// How deep a chain of predecessors may go before the port stops following it.
+///
+/// The reference has no such bound, because a predecessor is a terrain whose own mapgen names a predecessor in turn only where the data says so, and the data is finite. A cycle in
+/// the data would make the reference recurse until the stack runs out; the port answers the same cycle with a **limit** rather than a crash, because a crash takes the whole
+/// session with it and this is the one place a data mistake could reach the recursion.
+const DEEPEST_PREDECESSOR: usize = 8;
+
+/// [`generate`], with how deep in a predecessor chain this draw already is.
+fn generate_below(
+    world: &mut World,
+    terrain: &str,
+    origin: (i32, i32, i32),
+    depth: usize,
+) -> Option<usize> {
     let choices: Vec<cdda_content::mapgen::MapgenObject> =
         crate::singletons::holder::<TheMapgens>(world)
             .and_then(|holder| world.get::<Mapgens>(holder))
@@ -40,6 +57,14 @@ pub fn generate(world: &mut World, terrain: &str, origin: (i32, i32, i32)) -> Op
             break;
         }
     }
+    let picked = picked?;
+    // **The predecessor is drawn first** (`mapgen.cpp:6047-6062`): the mapgen under this one writes its whole chunk, and this one's rows then draw on top of it. A roof keeps
+    // the walls of the house below exactly because of this order, and reversing it would leave a roof on bare ground.
+    if let Some(predecessor) = picked.predecessor_mapgen.as_deref()
+        && depth < DEEPEST_PREDECESSOR
+    {
+        generate_below(world, predecessor, origin, depth + 1);
+    }
     // The chosen mapgen is written by the **one** writer a drawn mapgen has, so a terrain's chunk and an update's chunk cannot disagree about what a symbol means.
-    Some(crate::mapgen_update::write(world, picked?, origin))
+    Some(crate::mapgen_update::write(world, picked, origin))
 }

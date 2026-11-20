@@ -39643,3 +39643,22 @@ layers (`draw_one_square`), the item layer (`place_the_items`) and the monster p
 
 **Named gaps.** A `place_monster` entry may name a monster **group** (with its own weights) and may carry `target`/`spawn_data`; the port reads the single-monster form. The
 `monsters` **symbol** map is unread.
+
+## The predecessor under a map (round 254)
+
+Reference: `mapgen_function_json::generate` (`mapgen.cpp:6033-6062`), with the member read at `:5176-5180`. A mapgen may name a **`predecessor_mapgen`**, and that terrain's
+map is drawn **first**, into the same chunk, before this one's rows draw on top of it. It is how a roof keeps the walls of the house below it and how an upper floor keeps the
+footprint beneath - reverse the order and a roof stands on bare ground.
+
+- `MapgenObject` carries `predecessor_mapgen: Option<String>`, read from the member (the loader treats `"null"` as none, which is how the data spells "no predecessor");
+- `generate` draws the predecessor through **its own terrain key**, which means its own weighted pick, before writing its own map - so a predecessor with several candidates is
+  chosen by the same rule as any other tile rather than by "the first one";
+- **the chain has a depth limit.** The reference has none, because a cycle in the data would recurse until the stack runs out; the port stops at eight and draws what it has,
+  because a crash takes the whole session with it and this is the one place a data mistake can reach a recursion.
+
+Three mutations, three catches: the predecessor skipped, the order reversed (the roof's own rows written first, so the predecessor painted over them), and the depth limit set to
+zero.
+
+**Named gaps.** `expects_predecessor` (a mapgen that *requests* the tile it replaced, with `fallback_predecessor_mapgen` when there is none) is not read - that rule needs the
+overmap's own "what was here before" bookkeeping, which the port does not keep yet. `predecessor_mapgen`'s rotation bookkeeping (`:6066-6085`) is not ported, because rotation
+itself is not.

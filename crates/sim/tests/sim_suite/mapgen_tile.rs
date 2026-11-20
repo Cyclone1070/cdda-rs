@@ -28,6 +28,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         weight,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     }
 }
 
@@ -133,6 +134,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         weight: 1,
         fields: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), filling.clone())]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -196,6 +198,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), furnished)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -242,6 +245,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("field".to_owned(), trapped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -307,6 +311,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), stocked)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -391,6 +396,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), grouped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -444,6 +450,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), haunted)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -469,4 +476,67 @@ fn a_mapgens_place_monster_spawns_its_pack() {
             "**and standing on the square the entry names**"
         );
     }
+}
+
+/// **A mapgen may name a predecessor, and that map is drawn first.** Reference: `mapgen_function_json::generate` (`mapgen.cpp:6033-6062`): `predecessor_mapgen` runs the
+/// other terrain's mapgen into the chunk, and only then does this one's own rows draw on top of it - which is how a roof keeps the walls of the house under it, and how an
+/// upper floor keeps the footprint below.
+#[test]
+fn a_mapgens_predecessor_is_drawn_first() {
+    let mut world = a_world(Vec::new());
+    let walls = MapgenObject {
+        om_terrain: "house_inside".to_owned(),
+        // Two rows of walls, and the roof covers only the first: the second row is the predecessor showing through.
+        rows: vec!["##".to_owned(), "##".to_owned()],
+        terrain: [('#', "t_house_two".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    let roof = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["..".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: Some("house_inside".to_owned()),
+    };
+    cdda_sim::mapgen_update::set_mapgens(
+        &mut world,
+        [
+            ("house_inside".to_owned(), walls),
+            ("house".to_owned(), roof),
+        ],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0)),
+        Some(2),
+        "the mapgen's own squares are the count"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(11),
+        "**the roof's own row is on top**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 0, 0)),
+        Some(11),
+        "and its second square"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 1, 0)),
+        Some(12),
+        "**and the predecessor's wall stands where the roof drew nothing**"
+    );
 }

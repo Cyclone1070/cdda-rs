@@ -1328,6 +1328,7 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         weight: 100,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_wall_opens".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
@@ -1425,6 +1426,7 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
         monsters: Vec::new(),
         weight: 1000,
         fill_ter: None,
+        predecessor_mapgen: None,
         fields: vec![cdda_content::mapgen::Placement {
             field: "fd_smoke".to_owned(),
             x: (0, 3),
@@ -1499,6 +1501,7 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
         weight: 100,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("open_the_wall".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
@@ -1780,6 +1783,7 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
         weight: 100,
         fields: Vec::new(),
         fill_ter: None,
+        predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_finale".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(

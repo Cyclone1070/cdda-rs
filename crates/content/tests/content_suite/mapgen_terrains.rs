@@ -146,6 +146,25 @@ fn a_mapgen_carries_the_monsters_it_places() {
     assert_eq!(zombie.y, (3, 3), "and a single row is one row");
 }
 
+/// **A mapgen may name the terrain whose map is drawn under it** (`predecessor_mapgen`, `mapgen.cpp:5176-5180`), and a mapgen without one says so.
+#[test]
+fn a_mapgen_carries_its_predecessor() {
+    let found = objects(
+        r#"{"type": "mapgen", "method": "json", "om_terrain": "house_roof",
+            "object": {"rows": ["."], "terrain": {".": "t_roof"}, "predecessor_mapgen": "house"}}"#,
+    );
+    assert_eq!(
+        found[0].predecessor_mapgen.as_deref(),
+        Some("house"),
+        "**the predecessor is read**"
+    );
+    let bare = objects(
+        r#"{"type": "mapgen", "method": "json", "om_terrain": "house_roof",
+            "object": {"rows": ["."], "terrain": {".": "t_roof"}}}"#,
+    );
+    assert_eq!(bare[0].predecessor_mapgen, None, "and one without says so");
+}
+
 /// **A single string still reads as one**, so the shapes agree.
 #[test]
 fn one_terrain_is_still_one() {
