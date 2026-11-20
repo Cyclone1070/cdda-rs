@@ -22,6 +22,20 @@ workspace first and then runs **one** gate:
 receipt said "clippy clean": the findings were there to read, but the gate was never named and the command
 was piped, so nobody read the exit status. A piped gate is a report about the pipe.
 
+**A dropped link is not a failing gate.** The sync each invocation begins with is retried - up to
+`CVE_SYNC_ATTEMPTS` times (three by default) with `CVE_SYNC_RETRY_DELAY` between them - but only when the
+failure is **transport**: an exit code of 255 (rsync's dropped connection) or 124 (an attempt the
+`CVE_SYNC_TIMEOUT` gave up on). A compile error or a failing test returns its own code and is reported at
+once, because retrying it would only make the gate slower at saying the same thing. The rsync is given its
+own `-e` with keepalives for the same reason: a stalled transfer must fail and be retried, not hang.
+
+That retry was earned. One round lost a full gate to an `rsync` that returned 255 halfway through the
+copy - nothing checked, nothing wrong with the tree - and another lost a test run whose remote half had
+already passed while the session carrying it stayed open. The retry is proved by fault injection: a shim
+`rsync` that returns 255 for its first two calls recovers on the third and reports green, and the same
+shim with `CVE_SYNC_ATTEMPTS=1` fails with `copy <path> failed after 1 attempt(s)`. **A gate that can
+only be trusted when the network is perfect is not a gate.**
+
 Local cargo is for diagnosing a single failure, never for the gate: a full debug build of the workspace
 plus a test build is minutes of CPU on the machine someone is trying to use.
 

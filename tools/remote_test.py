@@ -25,6 +25,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import time
 
 REMOTE = "cyc@elitedesk"
 REMOTE_DIR = "cve-test"
@@ -57,17 +58,60 @@ EXCLUDES = [
 ]
 
 
+#: How many times one copy to the build machine is attempted before the gate gives up on it.
+#:
+#: **A dropped link is not a failing gate.** One round lost a full run to an `rsync` that returned 255 halfway through the sync - nothing had been checked and nothing was wrong
+#: with the tree. Another lost a test run whose remote half had already passed while the session that carried it stayed open. A single attempt turns either into "FAILED" for the
+#: wrong reason, so the copy is retried, and the retry is bounded so a genuinely broken remote still fails the gate instead of living in it.
+SYNC_ATTEMPTS = int(os.environ.get("CVE_SYNC_ATTEMPTS", "3"))
+#: How long to wait between attempts, in seconds. Overridable so a test can run the retry without the wait.
+SYNC_RETRY_DELAY = float(os.environ.get("CVE_SYNC_RETRY_DELAY", "5"))
+#: How long one attempt may take. A copy of this workspace is a few seconds on a working link; ten minutes means the link is dead, not slow.
+SYNC_TIMEOUT = float(os.environ.get("CVE_SYNC_TIMEOUT", "600"))
+
+
+def attempt(label: str, command: list[str], check: bool = True) -> bool:
+    """Runs one command, retrying a transport failure and giving up on anything else.
+
+    The retry is for **the link**, not for the work: an `rsync` killed by a dropped connection returns 255, and an `ssh` that never answers is
+    bounded by the timeout. A command that runs and fails - a compiler error, a test failure - returns its own code and is **not** retried, because
+    retrying it would only make the gate slower at reporting the same thing.
+    """
+    for tries in range(1, SYNC_ATTEMPTS + 1):
+        try:
+            finished = subprocess.run(command, timeout=SYNC_TIMEOUT, check=False)
+            code = finished.returncode
+        except subprocess.TimeoutExpired:
+            code = 124
+        if code == 0:
+            return True
+        transport = code in (124, 255)
+        print(f"  {label}: attempt {tries} of {SYNC_ATTEMPTS} failed with {code}" + (" (the link, not the tree)" if transport else ""), flush=True)
+        if not transport or tries == SYNC_ATTEMPTS:
+            if check:
+                raise SystemExit(f"{label} failed after {tries} attempt(s)")
+            return False
+        if SYNC_RETRY_DELAY > 0:
+            time.sleep(SYNC_RETRY_DELAY)
+    return False
+
+
 def sync() -> None:
     """Copies the workspace to the remote, deleting files that no longer exist here.
 
     `--delete` is safe because it only ever applies to the paths listed in SYNC, each of which is a directory the
     remote copy owns outright. The remote directory itself is never the target of a delete.
+
+    **Every copy is retried**, because a dropped link is not a failing tree - see [`attempt`].
     """
     print(f"syncing to {REMOTE}:{REMOTE_DIR}", flush=True)
     # `--no-times` matters: `-a` preserves modification times, and a machine whose clock is a little behind the server then delivers a "new" file
     # with an old timestamp, so cargo reuses the artifact it already has and the gate silently tests the previous round's code. Writing the time as
     # now for the files that actually changed costs nothing and removes a whole class of false green.
     args = ["rsync", "-az", "--no-times", "--delete"]
+    # **The copy must notice a dead link as fast as a command does**: without `-e`, rsync's own ssh has no keepalives and a stalled transfer sits
+    # there until the socket gives up - which is the shape of the hang this round's retry exists to prevent.
+    args.extend(["-e", "ssh -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o ConnectTimeout=20"])
     for pattern in EXCLUDES:
         args.extend(["--exclude", pattern])
     for path in SYNC:
@@ -80,16 +124,16 @@ def sync() -> None:
         # `crates/content` rather than `crates/crates/content`. This is the form that behaves the same on the old
         # rsync this machine ships and the new one on the server.
         if source.is_dir():
-            subprocess.run([*ssh_args(), f"mkdir -p {remote_path}"], check=True)
+            attempt(f"mkdir {remote_path}", [*ssh_args(), f"mkdir -p {remote_path}"])
             source_arg = f"{source}/"
             destination = f"{REMOTE}:{remote_path}/"
         else:
             parent = pathlib.PurePosixPath(remote_path).parent
-            subprocess.run([*ssh_args(), f"mkdir -p {parent}"], check=True)
+            attempt(f"mkdir {parent}", [*ssh_args(), f"mkdir -p {parent}"])
             source_arg = str(source)
             destination = f"{REMOTE}:{remote_path}"
         print(f"  {path}", flush=True)
-        subprocess.run([*args, source_arg, destination], check=True)
+        attempt(f"copy {path}", [*args, source_arg, destination])
 
 
 def ssh_args() -> list[str]:
