@@ -46,6 +46,8 @@ pub fn spring_with(
         Some("spell") => return cast_its_spell(world, who, square, &trap, &kind),
         Some("glass") => return broken_glass(world, who, square),
         Some("caltrops_glass") => return glass_caltrops(world, who, square),
+        Some("cot") => return cot(world, who),
+        Some("hum") => return hum(world, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
         Some("beartrap") => return bear_trap(world, who, square),
         Some("landmine") => return land_mine(world, who, square),
@@ -248,6 +250,60 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
     );
     crate::square::remove_trap(world, square);
     true
+}
+
+/// **A monster stumbles over a cot; a person steps over it.**
+///
+/// Reference: `trapfunc::cot` (`trapfunc.cpp:177-187`). The reference casts the creature to `monster`: a monster trips, loses **a whole turn** of its speed in moves, and
+/// says so ("The %s stumbles over the cot!"); a character walks over it for nothing, and the trap stays standing because a cot is furniture, not a hazard.
+fn cot(world: &mut World, who: Entity) -> bool {
+    if !is_a_monster(world, who) {
+        return false;
+    }
+    let name = name_of(world, who);
+    crate::messages::push(world, &format!("The {name} stumbles over the cot!"));
+    #[allow(clippy::cast_precision_loss)]
+    let speed = f64::from(crate::creature::speed_of(world, who));
+    crate::creature::spend_moves(world, who, speed);
+    true
+}
+
+/// **A humming trap says how loud it is by what it says.**
+///
+/// Reference: `trapfunc::hum` (`trapfunc.cpp:1472-1491`). The volume is `rng( 1, 200 )` and the word is one of four bands of it - "hrm" to ten, "hrmmm" to fifty, "HRMMM" to a
+/// hundred, "VRMMMMMM" above - and the sound is of the **activity** kind, because a machine humming is somebody working, not violence. Nothing is removed and nothing is damaged:
+/// it answers true whatever is standing on it.
+fn hum(world: &mut World, square: (i32, i32, i32)) -> bool {
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return false;
+    };
+    let volume = rolls.rng(1, 200);
+    crate::singletons::put_rolls(world, rolls);
+    let says = if volume <= 10 {
+        "hrm"
+    } else if volume <= 50 {
+        "hrmmm"
+    } else if volume <= 100 {
+        "HRMMM"
+    } else {
+        "VRMMMMMM"
+    };
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        volume,
+        says,
+        crate::sounds::SoundCategory::Activity,
+    );
+    true
+}
+
+/// Whether a creature is a **monster**: the reference's `dynamic_cast<monster *>`, which answers nothing for the player or a person. The port's monsters carry a
+/// [`crate::creature::CreatureKind`], and a person carries [`crate::npcs::Npc`] instead - the avatar is a person too, even before anything marks it.
+fn is_a_monster(world: &World, who: Entity) -> bool {
+    crate::missions::avatar(world) != Some(who)
+        && !crate::npcs::is_npc(world, who)
+        && world.get::<crate::creature::CreatureKind>(who).is_some()
 }
 
 /// **Glass caltrops cut the foot that steps on them, and cost the step as well.**

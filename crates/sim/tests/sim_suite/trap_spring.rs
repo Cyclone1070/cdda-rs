@@ -1180,3 +1180,116 @@ fn a_tiny_creature_walks_between_the_shards() {
         "**a tiny creature refused the shards at least once in forty**: {refusals}"
     );
 }
+
+/// **A monster stumbles over a cot and a person does not.** Reference: `trapfunc::cot` (`trapfunc.cpp:177-187`): "Haha, only monsters stumble over a cot, humans are smart" -
+/// the stumble costs the monster **a whole turn's moves** and is announced; a character walks over it free.
+#[test]
+fn a_monster_stumbles_over_a_cot_but_a_person_does_not() {
+    let (mut world, who) = a_world();
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("cot", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    give_the_walker_a_turn(&mut world, who);
+    // The walker is a **monster** here: a creature with a kind, not a person.
+    cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+    let moves_before = cdda_sim::creature::moves_left(&world, who);
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**a monster trips on the cot**"
+    );
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, who),
+        moves_before - 100,
+        "**and loses the whole turn**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("stumbles over the cot")),
+        "**and is told why**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    // The same cot under a person's feet: nothing happens, and the cot is left standing because a cot is not consumed.
+    let (mut world, who) = a_world();
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("cot", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    give_the_walker_a_turn(&mut world, who);
+    let moves_before = cdda_sim::creature::moves_left(&world, who);
+    assert!(
+        !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**a person steps over it**"
+    );
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, who),
+        moves_before,
+        "**at no cost**"
+    );
+}
+
+/// **A humming trap says how loud it is by what it says.** Reference: `trapfunc::hum` (`trapfunc.cpp:1472-1491`): a volume of `rng( 1, 200 )` picks one of four sounds -
+/// "hrm" up to ten, "hrmmm" to fifty, "HRMMM" to a hundred, "VRMMMMMM" above - and the sound is of the **activity** kind. It answers true whatever is standing on it.
+#[test]
+fn a_humming_trap_says_how_loud_it_is() {
+    let mut heard = Vec::new();
+    // **The seeds are spread across the generator's first draw**, which is `16807 * seed`: below the modulus that fraction is `seed / 127773`, so small seeds all land near
+    // one and a spread of three hundred covers the whole range - quiet bands, loud ones, and every word between.
+    for step in 1..=400u32 {
+        let seed = step * 300;
+        let (mut world, who) = a_world();
+        cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("hum", &[])]);
+        assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(seed));
+        assert!(
+            cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+            "**a hum always sounds**"
+        );
+        let line = cdda_sim::sounds::heard_this_turn(&mut world)
+            .last()
+            .cloned()
+            .unwrap_or(cdda_sim::sounds::Sound {
+                position: (0, 0, 0),
+                volume: 0,
+                category: cdda_sim::sounds::SoundCategory::Activity,
+                description: String::new(),
+            });
+        heard.push(line);
+    }
+    assert!(
+        heard.iter().any(|sound| sound.description == "VRMMMMMM"),
+        "**the loudest band appeared**: {heard:?}"
+    );
+    assert!(
+        heard.iter().any(|sound| sound.description == "hrm"),
+        "**and the quietest too**"
+    );
+    let mut bands: Vec<&str> = heard
+        .iter()
+        .map(|sound| sound.description.as_str())
+        .collect();
+    bands.sort_unstable();
+    bands.dedup();
+    assert_eq!(
+        bands,
+        vec!["HRMMM", "VRMMMMMM", "hrm", "hrmmm"],
+        "**all four bands appeared over four hundred seeds**"
+    );
+    // **The volume and the word agree**: every "VRMMMMMM" is above a hundred, every "hrmmm" between eleven and fifty, and every hum is an activity sound.
+    for sound in &heard {
+        assert_eq!(
+            sound.category,
+            cdda_sim::sounds::SoundCategory::Activity,
+            "**a hum is activity, not violence**"
+        );
+        let fits = match sound.description.as_str() {
+            "hrm" => sound.volume <= 10,
+            "hrmmm" => (11..=50).contains(&sound.volume),
+            "HRMMM" => (51..=100).contains(&sound.volume),
+            "VRMMMMMM" => sound.volume > 100,
+            other => panic!("an unknown hum: {other}"),
+        };
+        assert!(
+            fits,
+            "**the word fits the volume**: {:?} at {}",
+            sound.description, sound.volume
+        );
+    }
+}

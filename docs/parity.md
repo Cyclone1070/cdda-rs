@@ -39804,3 +39804,23 @@ Four mutations, four catches: the chance forced, the flinch made a whole turn, t
 The trap ledger moves: **102 of 125 traps answered, 23 unported**, and every remaining action now names exactly **one** trap. Glass caltrops were the last pair.
 
 **Named gap.** The reference's mount branch (`mount_step_on_trap_make_slow_give_msg`) slows the *mount*; the port has no mount whose speed could be slowed, so a ridden creature is treated as afoot - the reference's own path for everything the port can express.
+
+## A cot and a hum (round 262)
+
+Two more of the trap frontier's singletons, and two different shapes of rule.
+
+**A cot** (`trapfunc::cot`, `trapfunc.cpp:177-187`) is furniture that only a **monster** trips over - the reference is blunt about it: "Haha, only monsters stumble over a cot, humans
+are smart." A monster loses a whole turn of moves and is told why; a character walks over it for nothing and the cot stays standing. The port's `is_a_monster` is the reference's
+`dynamic_cast<monster *>`: a creature with a [`CreatureKind`], and neither the avatar nor a person.
+
+**A hum** (`trapfunc::hum`, `:1472-1491`) is a machine that says how loud it is: the volume is `rng( 1, 200 )`, the word is one of four bands of it - "hrm" to ten, "hrmmm" to
+fifty, "HRMMM" to a hundred, "VRMMMMMM" above - and the sound is of the **activity** kind, because a machine humming is work, not violence. Nothing is removed and nothing is
+damaged.
+
+**A test that had to learn the generator's shape.** The hum test first drew one seed per turn from one to four hundred and saw volume one every time. That is the same
+`MinStdRand0` fact the port has known since the movement rules: the first draw is `16807 * seed`, so below the modulus the fraction is `seed / 127773` and small seeds all sit in
+the same sliver of the range. Spreading the seeds by three hundred covers every band, and the test now asserts **all four words appear** and that each word fits its volume.
+
+Four mutations, four catches: the cot's turn not spent, the monster check dropped (a person trips), a band widened, and the hum made violence.
+
+The trap ledger moves to **104 of 125 traps answered, 21 unported** - still one trap per unported action.
