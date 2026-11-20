@@ -146,6 +146,7 @@ mod light_system;
 mod limbs;
 mod line_rules;
 mod map_facts;
+mod mapgen_real;
 mod mapgen_tile;
 mod martial_arts;
 mod melee;

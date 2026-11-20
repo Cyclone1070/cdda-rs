@@ -39680,3 +39680,19 @@ throw fragments at all - the blast's *damage* is ported and hurts, but the shrap
 against [`crate::explosion`] as well, so the two records cannot drift apart.
 
 **The trap ledger moved to 100 of 125** - a hundred traps whose action the port answers, twenty-five whose functions it has no rule for, the largest now `caltrops_glass` with two.
+
+## The generator on the reference's own data (round 256)
+
+Every other mapgen test uses a fixture: two rows, one symbol, one square. They prove the rules; they cannot prove the **pipeline meets the data**. `mapgen_real` takes the
+reference tree's real mapgens - 2,725 objects, 10,076 (id, map) pairs - and draws one into a world:
+
+- **a real mapgen draws its own chunk.** The test picks the mapgen with the most distinguishable terrain among those that name no monsters, items or traps, and asserts the
+  chunk is made of that mapgen's own terrains - including a **known symbol on a known square**, which a constant code cannot fake, and more than one terrain when the map
+  names more than one;
+- **the same seed draws the same chunk.** The terrain is found by trying the ones with several candidates and keeping the first that draws, because the data files mapgens
+  whose rows name layers their own file does not carry (a palette supplies them, or an update adds them later); a test that insisted on one id would be testing the id, not the
+  replay.
+
+**A mutation that proved nothing until it was applied properly.** Two rounds of "break the terrain lookup and watch the test fail" passed, because the replacement string did
+not match the formatted source and the mutation was a no-op - a green run on an unchanged file. Redone against the exact lines, it fails five tests at once. The lesson is the
+one this port keeps relearning: *check that the mutation is in the file* before believing the test that survives it.
