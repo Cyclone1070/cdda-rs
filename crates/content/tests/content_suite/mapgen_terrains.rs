@@ -68,6 +68,30 @@ fn a_mapgen_carries_the_terrain_it_fills_its_chunk_with() {
     assert_eq!(bare[0].fill_ter, None, "and a mapgen without one says so");
 }
 
+/// **A mapgen's `traps` symbols are read as ids**, the third layer a character can carry (`mapgen.cpp:5470-5480`).
+#[test]
+fn a_mapgen_carries_the_traps_its_symbols_set() {
+    let found = objects(
+        r#"{"type": "mapgen", "method": "json", "om_terrain": "field",
+            "object": {"rows": ["T."], "terrain": {".": "t_dirt", "T": "t_dirt"},
+                       "traps": {"T": "tr_bear"}}}"#,
+    );
+    assert_eq!(found.len(), 1);
+    assert_eq!(
+        found[0].traps.get(&'T').map(String::as_str),
+        Some("tr_bear"),
+        "**the trap layer is read**"
+    );
+    let bare = objects(
+        r#"{"type": "mapgen", "method": "json", "om_terrain": "field",
+            "object": {"rows": ["."], "terrain": {".": "t_dirt"}}}"#,
+    );
+    assert!(
+        bare[0].traps.is_empty(),
+        "and a mapgen without traps says so"
+    );
+}
+
 /// **A single string still reads as one**, so the shapes agree.
 #[test]
 fn one_terrain_is_still_one() {

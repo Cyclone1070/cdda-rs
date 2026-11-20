@@ -143,6 +143,11 @@ pub fn write(
                 crate::square::set_furniture(world, at, code);
                 drew = true;
             }
+            // **Traps come after furniture** (`mapgen.cpp:5470-5480`), and a trap square is a drawn square even when the map names no terrain or furniture for it.
+            if let Some(trap) = mapgen.traps.get(&symbol) {
+                crate::square::set_trap(world, at, trap);
+                drew = true;
+            }
             if drew && filled.is_none() {
                 written += 1;
             }

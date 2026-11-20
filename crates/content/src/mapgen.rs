@@ -130,6 +130,8 @@ pub struct MapgenObject {
     pub terrain: BTreeMap<char, String>,
     /// What each character means, as furniture ids.
     pub furniture: BTreeMap<char, String>,
+    /// The traps a symbol sets (`mapgen.cpp:5470-5480`), placed after the furniture: a minefield is drawn as characters, not placed piece by piece.
+    pub traps: BTreeMap<char, String>,
     /// How likely this one is when several build the same terrain.
     pub weight: i32,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
@@ -324,6 +326,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 rows: rows.clone(),
                 terrain: symbols("terrain"),
                 furniture: symbols("furniture"),
+                traps: symbols("traps"),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 weight: match object.get("weight") {

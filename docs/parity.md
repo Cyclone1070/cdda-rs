@@ -39577,3 +39577,18 @@ desk).
 
 **Named gap.** The writer places the furniture's **id** and not the rest of a furniture's placement rules - a mapgen's furniture may also carry `items`, `traps` and `fields`
 on the same square, and those layers are still unread.
+
+## Traps on the drawn squares (round 250)
+
+Reference: `mapgen_function_json::generate` (`mapgen.cpp:5470-5480`). The layer order is terrain, then furniture, then **traps**, and a trap character is a square with a trap
+on it - which is how a minefield is drawn rather than placed piece by piece. The port read the `traps` symbols and placed none.
+
+- `MapgenObject` carries `traps: BTreeMap<char, String>`, read by the same `symbols` helper as the other two layers;
+- the writer sets the trap **after** the furniture, at the same square, and a trap square counts as drawn even when the map names no terrain or furniture for it - a trap on
+  bare ground is still something the chunk said;
+- traps need no code table: `square::set_trap` takes the trap's id, which is what the data names.
+
+Two mutations, two catches: the placement removed, and the map's first trap set on every square regardless of the symbol.
+
+**Named gap.** A mapgen's trap layer may also name **lists** of traps with `chance` (a randomised trap), and the port reads a single id per symbol; the rest is refused rather
+than guessed at.

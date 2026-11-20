@@ -22,6 +22,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         rows: vec!["##".to_owned(), "##".to_owned()],
         terrain: [('#', terrain.to_owned())].into_iter().collect(),
         furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
         weight,
         fields: Vec::new(),
         fill_ter: None,
@@ -124,6 +125,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         rows: vec!["#".to_owned()],
         terrain: [('#', "t_house_two".to_owned())].into_iter().collect(),
         furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
@@ -184,6 +186,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         .into_iter()
         .collect(),
         furniture: [('F', "f_desk".to_owned())].into_iter().collect(),
+        traps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -209,5 +212,44 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         cdda_sim::square::furniture_at(&world, (0, 0, 0)),
         None,
         "and the plain squares have none"
+    );
+}
+
+/// **A mapgen's trap symbol map sets traps on the squares its rows draw them on.** Reference: `mapgen_function_json::generate` (`mapgen.cpp:5470-5480`): the layer order is
+/// terrain, then furniture, then traps, and a trap character is a square with a trap on it - which is how a minefield is drawn rather than placed piece by piece.
+#[test]
+fn a_mapgens_traps_are_set_where_its_rows_say() {
+    let mut world = a_world(Vec::new());
+    let trapped = MapgenObject {
+        om_terrain: "field".to_owned(),
+        rows: vec!["T.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('T', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: [('T', "tr_bear".to_owned())].into_iter().collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("field".to_owned(), trapped)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut world, "field", (0, 0, 0)),
+        Some(2),
+        "two squares drawn"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_bear".to_owned()),
+        "**the trap is on the square the row drew**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (1, 0, 0)),
+        None,
+        "and the plain square has none"
     );
 }

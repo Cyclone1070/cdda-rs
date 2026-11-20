@@ -1322,6 +1322,7 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
             .into_iter()
             .collect::<BTreeMap<char, String>>(),
         furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
         weight: 100,
         fields: Vec::new(),
         fill_ter: None,
@@ -1417,6 +1418,7 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
         rows: Vec::new(),
         terrain: BTreeMap::new(),
         furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
         weight: 1000,
         fill_ter: None,
         fields: vec![cdda_content::mapgen::Placement {
@@ -1487,6 +1489,7 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
             .into_iter()
             .collect::<BTreeMap<char, String>>(),
         furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
         weight: 100,
         fields: Vec::new(),
         fill_ter: None,
@@ -1765,6 +1768,7 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
             .into_iter()
             .collect::<BTreeMap<char, String>>(),
         furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
         weight: 100,
         fields: Vec::new(),
         fill_ter: None,

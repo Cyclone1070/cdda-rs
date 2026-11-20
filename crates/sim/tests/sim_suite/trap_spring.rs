@@ -351,6 +351,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         rows: vec![".".to_owned()],
         terrain: [('.', "t_floor".to_owned())].into_iter().collect(),
         furniture: std::collections::BTreeMap::new(),
+        traps: std::collections::BTreeMap::new(),
         weight: 100,
         fields: Vec::new(),
         fill_ter: None,
