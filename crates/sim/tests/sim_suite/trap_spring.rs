@@ -2146,3 +2146,152 @@ fn lava_hurts_a_monster_by_what_it_is_made_of() {
         );
     }
 }
+
+/// **A snake hisses, and sometimes a shadow snake forms.** Reference: `trapfunc::snake` (`trapfunc.cpp:1608-1638`): "ssssssss" at volume ten of the **movement** kind; one time
+/// in six the trap is gone; one time in three the trap tries ten times to put a **shadow snake** five squares out, on a square it can see from the trap, and when one lands the trap
+/// is removed and the snake says "A shadowy snake forms nearby."
+#[test]
+fn a_snake_hisses_and_summons_a_shadow_snake() {
+    let (mut world, who) = a_world();
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_shadow_snake",
+            hp: 40,
+        }],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("snake", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**a snake always answers**"
+    );
+    let sounds = cdda_sim::sounds::heard_this_turn(&mut world);
+    let hiss = sounds.last().cloned().expect("a hiss was heard");
+    assert_eq!(hiss.description, "ssssssss");
+    assert_eq!(hiss.volume, 10, "**at volume ten**");
+    assert_eq!(hiss.category, cdda_sim::sounds::SoundCategory::Movement);
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "**the trap is gone**"
+    );
+    // **A shadow snake, five squares out**: the dice put it at the far corner the reference's own two rolls reach.
+    let snake =
+        cdda_sim::monster_registry::id_of(&mut world, "mon_shadow_snake").map(|kind| kind.0);
+    let mut query = world.query::<(&cdda_sim::creature::CreatureKind, &cdda_sim::Position)>();
+    let found: Vec<(u32, i32, i32)> = query
+        .iter(&world)
+        .map(|(kind, at)| (kind.0.0, at.x, at.y))
+        .collect();
+    let [placed] = found.as_slice() else {
+        panic!("**one creature was placed**: {found:?}");
+    };
+    assert_eq!(Some(placed.0), snake, "**and it is the shadow snake**");
+    assert_eq!((placed.1, placed.2), (-5, -5), "**five squares out**");
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "A shadowy snake forms nearby."),
+        "**and the line is the snake's own**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A glow trap burns a monster and slows it.** Reference: `trapfunc::glow` (`trapfunc.cpp:1430-1472`): a monster takes `rng( 5, 10 )` of acid on its torso one time in three and
+/// has its **base speed multiplied by 0.9**. "Small flashes surround you." is the else branch for anyone.
+#[test]
+fn a_glow_trap_burns_a_monster_and_slows_it() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+    cdda_sim::creature::set_speed(&mut world, who, 100, 0);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the glow answers**"
+    );
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        5,
+        "**five points of acid at the bottom of the range**"
+    );
+    assert_eq!(
+        cdda_sim::creature::speed_of(&world, who),
+        90,
+        "**and the base speed times nine tenths**"
+    );
+}
+
+/// **A person is bathed in radiation, or blinded, or only sees small flashes.** The reference's three-way roll: one in three says the line about radiation, and otherwise one in
+/// four says the flash, and otherwise the small flashes. The **dose itself is not applied** - the port has no creature dose - so the line is what a person sees; that is the named
+/// gap this rule carries.
+#[test]
+fn a_glow_trap_talks_to_a_person() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "You're bathed in radiation!"),
+        "**the lowest dice are the radiation branch**: {lines:?}"
+    );
+    // **The flash branch is a recording, not a hunt for a seed**: one in three false (`int 0 2 1`), then one in four true (`int 0 3 0`) - and the recording asserts the bounds, so a
+    // port that asked a different range fails here rather than rolling differently.
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("glow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // The flashbang's effects are kinds the data names, so the world must know them before it can give them.
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[
+            cdda_sim::effect_registry::bare("deaf"),
+            cdda_sim::effect_registry::bare("blind"),
+        ],
+    );
+    let text = "int 0 2 1\nint 0 3 0\n";
+    let recording = cdda_core_types::rng::Recording::parse(text).expect("two dice parse");
+    cdda_sim::singletons::put_rolls(
+        &mut world,
+        cdda_core_types::rng::Rolls::replaying(recording.clone()),
+    );
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "A blinding flash strikes you!"),
+        "**one in three false, one in four true: the flash**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    // **The flash actually flashes**: the person on the trap is deafened and blinded by it (`explosion_handler::flashbang`), which is what "not immune" means.
+    let effects: Vec<String> = cdda_sim::applied_effects::worn(&world, who)
+        .into_iter()
+        .map(|effect| effect.id)
+        .collect();
+    assert!(
+        effects.iter().any(|id| id == "deaf" || id == "blind"),
+        "**the flashbang reached the person**: {effects:?}"
+    );
+}

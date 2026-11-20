@@ -39968,3 +39968,28 @@ points at `"shadow"`), and a blunt text replacement re-pointed the **fixture** t
 the fixture's must not.
 
 The trap ledger moves to **115 of 125 traps answered, 10 unported**.
+
+## A snake, and a glow (round 269)
+
+**A snake** (`trapfunc::snake`, `trapfunc.cpp:1608-1638`): "ssssssss" at volume ten of the movement kind always comes first; one time in six the trap is gone; one time in three it
+tries ten times to put a shadow snake five squares out, on a square it can see, and the first one that lands removes the trap and says "A shadowy snake forms nearby."
+
+**A glow** (`trapfunc::glow`, `:1430-1472`): a monster takes `rng( 5, 10 )` of acid on its torso one time in three and has its **base** speed multiplied by 0.9; a person gets one of
+three lines - one in three radiation, otherwise one in four a flashbang at the square, otherwise small flashes.
+
+**A recording beats a seed hunt.** The flash branch needs *one in three false* and *then one in four true*, which the fixed dice cannot express (every draw is the same fraction) and a
+seed hunt struggled to reach. `Rolls::replaying` with `int 0 2 1` and `int 0 3 0` says exactly that, and the recording asserts the **bounds**, so a port asking a different range
+fails here rather than rolling differently. That is the tool for every branch that lives behind two rolls.
+
+**Two markers, one fact.** The flashbang asks `Player` of every creature in the blast; the port's `set_avatar` only inserted `TheAvatar`, so a body made avatar by a test was not a
+person to the flash and caught **no** deafness or blindness. `set_avatar` now moves both - and takes them off whoever held them before, because two markers that can drift are the
+second source of truth the architecture forbids. The glow test is what found it: a rule that quietly did nothing looked like a rule that worked.
+
+**Named gaps.** `irradiate( rng( 10, 30 ) )` is not applied - the port's radiation is a property of squares, not of creatures - so the radiation branch says its line and gives
+nothing. `reset_special_rng( "DISAPPEAR" )` is not armed, because the port's monsters have no special cooldowns yet.
+
+**An untested guard, said out loud.** The snake's line-of-sight check is transcribed but **not pinned**: in a bare test world every candidate square is visible, so removing the
+check changes nothing, and writing a world with an opaque wall is a prototype table this test does not build. It is a guard the suite cannot see, and pretending otherwise would be
+worse than naming it.
+
+The trap ledger moves to **117 of 125 traps answered, 8 unported**.

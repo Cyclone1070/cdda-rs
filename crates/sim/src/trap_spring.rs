@@ -52,6 +52,8 @@ pub fn spring_with(
         Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
         Some("pit") => return pit(world, who, square),
         Some("blade") => return blade(world, who),
+        Some("snake") => return snake(world, square),
+        Some("glow") => return glow(world, who, square),
         Some("lava") => return lava(world, who, square),
         Some("pit_spikes") => return spiked_pit(world, who, square, &Spiked::SPIKES),
         Some("pit_glass") => return spiked_pit(world, who, square, &Spiked::GLASS),
@@ -260,6 +262,104 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
         crate::sounds::SoundCategory::Combat,
     );
     crate::square::remove_trap(world, square);
+    true
+}
+
+/// **A snake hisses in the grass, and sometimes a shadow snake forms.**
+///
+/// Reference: `trapfunc::snake` (`trapfunc.cpp:1608-1638`). The sound is the first thing and always happens: "ssssssss" at volume ten of the movement kind. One time in six the
+/// trap is gone; one time in three it tries **ten times** to put a shadow snake five squares out - a point on that square's edge, `sees` from the trap at range ten - and the first
+/// one that lands removes the trap and says so. The trap answers whether or not a creature stepped on it.
+///
+/// **Not ported**: `reset_special_rng( "DISAPPEAR" )`, which seeds a monster's special cooldown - the port's monsters have no specials to seed yet - so the snake is placed and the
+/// trap is removed, and the disappearance special is not armed.
+fn snake(world: &mut World, square: (i32, i32, i32)) -> bool {
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        10,
+        "ssssssss",
+        crate::sounds::SoundCategory::Movement,
+    );
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    let gone = rolls.one_in(6);
+    let forms = rolls.one_in(3);
+    let mut spots = Vec::new();
+    if forms {
+        for _ in 0..10 {
+            let out = rolls.rng(-5, 5);
+            let edge = if rolls.one_in(2) { -5 } else { 5 };
+            let at = if rolls.one_in(2) {
+                (square.0 + out, square.1 + edge)
+            } else {
+                (square.0 + edge, square.1 + out)
+            };
+            if !crate::sees(world, at, (square.0, square.1), 10) {
+                continue;
+            }
+            spots.push(at);
+            break;
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    if gone {
+        crate::square::remove_trap(world, square);
+    }
+    if let Some(at) = spots.first()
+        && let Some(kind) = crate::monster_registry::id_of(world, "mon_shadow_snake")
+    {
+        let hp = crate::monster_registry::hit_points(world, kind).max(1);
+        let spawned = crate::spawn_monster(world, (at.0, at.1), kind, hp);
+        crate::messages::push(world, "A shadowy snake forms nearby.");
+        let _ = spawned;
+        crate::square::remove_trap(world, square);
+    }
+    true
+}
+
+/// **A glow trap radiates, flashes, or only glows.**
+///
+/// Reference: `trapfunc::glow` (`trapfunc.cpp:1430-1472`). A monster takes `rng( 5, 10 )` of acid on its torso one time in three and has its **base speed** multiplied by 0.9.
+/// Anyone who is not a monster gets one of three lines: one in three "You're bathed in radiation!", otherwise one in four "A blinding flash strikes you!" - with a flashbang at
+/// the square - and otherwise "Small flashes surround you."
+///
+/// **Named gap**: `irradiate( rng( 10, 30 ) )` is not applied, because the port has no creature dose to give - its radiation is a property of squares
+/// ([`crate::radiation`]) - so the radiation branch says its line and gives nothing. The flashbang is real.
+fn glow(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    if is_a_monster(world, who) {
+        let acid = rolls.one_in(3);
+        let damage = rolls.rng(5, 10);
+        crate::singletons::put_rolls(world, rolls);
+        if acid {
+            let stops = crate::creature::armour_on(world, who, "torso", Some("acid"));
+            #[allow(clippy::cast_precision_loss)]
+            crate::creature::hurt(world, who, (damage - stops).max(0) as f32);
+            // **The base** is multiplied, not the effective speed: `set_speed_base( get_speed_base() * 0.9 )`.
+            let (base, bonus) = world
+                .get::<crate::creature::Speed>(who)
+                .map_or((0, 0), |speed| (speed.base, speed.bonus));
+            #[allow(clippy::cast_possible_truncation)]
+            let slower = (f64::from(base) * 0.9) as i32;
+            crate::creature::set_speed(world, who, slower, bonus);
+        }
+        return true;
+    }
+    let radiated = rolls.one_in(3);
+    let flashed = if radiated { false } else { rolls.one_in(4) };
+    crate::singletons::put_rolls(world, rolls);
+    if radiated {
+        crate::messages::push(world, "You're bathed in radiation!");
+    } else if flashed {
+        crate::messages::push(world, "A blinding flash strikes you!");
+        crate::flashbang::flashbang(world, square, false);
+    } else {
+        crate::messages::push(world, "Small flashes surround you.");
+    }
     true
 }
 

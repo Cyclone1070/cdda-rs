@@ -66,10 +66,23 @@ pub fn avatar(world: &World) -> Option<Entity> {
     query.iter(world).next()
 }
 
-/// Makes a character the player's.
+/// Makes a character the player's, and **only** that character.
+///
+/// Two markers say a creature is the player's: [`TheAvatar`], which is the singleton a system looks up, and [`crate::Player`], which the rules ask when they mean "a person
+/// rather than a monster" (`explosion_handler::flashbang` asks it of every creature in the blast). They are one fact, so this is the only place that moves them, and it takes
+/// both off whoever held them before - otherwise a body made avatar by a test would not be a person to a flashbang, and a body that stopped being the avatar would still be one.
 pub fn set_avatar(world: &mut World, character: Entity) {
+    let mut previous: Vec<Entity> = Vec::new();
+    if let Some(mut query) = world.try_query_filtered::<Entity, With<TheAvatar>>() {
+        previous.extend(query.iter(world).filter(|other| *other != character));
+    }
+    for other in previous {
+        if let Ok(mut entity) = world.get_entity_mut(other) {
+            entity.remove::<(TheAvatar, crate::Player)>();
+        }
+    }
     if let Ok(mut entity) = world.get_entity_mut(character) {
-        entity.insert(TheAvatar);
+        entity.insert((TheAvatar, crate::Player));
     }
 }
 
