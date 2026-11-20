@@ -163,3 +163,51 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         "and the rest of the tile is untouched"
     );
 }
+
+/// **A mapgen's furniture symbol map places furniture on the squares its rows draw it on.** Reference: `mapgen_function_json::generate` (`mapgen.cpp:5480-5490`): a symbol may
+/// carry terrain, furniture or both, and furniture is placed at the same square the row put it on - `furn_set( p, furniture )` - which is how a house is drawn as a grid of
+/// characters rather than a list of objects.
+#[test]
+fn a_mapgens_furniture_lands_where_its_rows_say() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::mapgen_update::set_furniture_codes(
+        &mut world,
+        [("f_desk".to_owned(), 21u32)].into_iter().collect(),
+    );
+    let furnished = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec![".F.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('F', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: [('F', "f_desk".to_owned())].into_iter().collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), furnished)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0)),
+        Some(3),
+        "three squares drawn"
+    );
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (1, 0, 0)),
+        Some(21),
+        "**the desk stands where the F is**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 0, 0)),
+        Some(11),
+        "**and on the terrain the row drew under it**, because a symbol may carry both"
+    );
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (0, 0, 0)),
+        None,
+        "and the plain squares have none"
+    );
+}

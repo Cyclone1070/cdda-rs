@@ -39559,3 +39559,21 @@ Three mutations, three catches: the fill skipped, the count kept as writes (577 
 
 Tested at both ends: the loader reads a fill and reports none when there is none; and a world where a one-square map with `fill_ter` covers all 576 squares, the row on top of the
 fill, the far corner at the fill; with a mapgen without one, exactly one square is written and the rest of the tile is untouched.
+
+## Furniture on the drawn squares (round 249)
+
+Reference: `mapgen_function_json::generate` (`mapgen.cpp:5480-5490`). A symbol may carry terrain, furniture, or both, and each layer is placed at the square the row drew the
+symbol on - which is how a house is a grid of characters rather than a list of objects. The port loaded `furniture` symbols and never placed one, so every drawn map was a floor
+plan with no furniture in it.
+
+- `FurnitureCodes` is the furniture twin of `TerrainCodes`: a singleton entity with a marker, filed by `set_furniture_codes`, read by the writer. Two tables rather than one
+  because terrain and furniture are two namespaces in the data and a single table would let a furniture id answer as terrain.
+- The writer now asks each layer separately: a symbol with terrain sets terrain, a symbol with furniture sets furniture, and a symbol that names neither **is not drawn at
+  all** - which keeps the count honest about what the chunk says, rather than counting a row of characters that placed nothing.
+- The count is still of squares touched: a symbol carrying both layers is one square, not two.
+
+Two mutations, two catches: the furniture placement removed (the desk is not there) and furniture placed for every symbol regardless of the map (the plain squares gain the
+desk).
+
+**Named gap.** The writer places the furniture's **id** and not the rest of a furniture's placement rules - a mapgen's furniture may also carry `items`, `traps` and `fields`
+on the same square, and those layers are still unread.

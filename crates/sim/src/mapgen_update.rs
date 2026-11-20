@@ -45,6 +45,20 @@ pub fn set_terrain_codes(world: &mut World, codes: BTreeMap<String, u32>) {
     world.entity_mut(holder).insert(TerrainCodes(codes));
 }
 
+/// What number the world calls each furniture, which is how a drawn furniture id reaches a square.
+#[derive(Debug, Clone, Default, Component)]
+pub struct FurnitureCodes(pub BTreeMap<String, u32>);
+
+/// The marker that says a single entity holds the furniture codes.
+#[derive(Debug, Clone, Copy, Default, Component)]
+pub struct TheFurnitureCodes;
+
+/// Files what number the world calls each furniture.
+pub fn set_furniture_codes(world: &mut World, codes: BTreeMap<String, u32>) {
+    let holder = crate::singletons::singleton::<FurnitureCodes, TheFurnitureCodes>(world);
+    world.entity_mut(holder).insert(FurnitureCodes(codes));
+}
+
 /// Applies an update mapgen at a square, answering how many squares it wrote.
 ///
 /// Reference: `mapgen::update` (`mapgen.cpp`) draws the mapgen and writes the terrain it names, leaving squares it says nothing about alone - which
@@ -95,6 +109,10 @@ pub fn write(
             }
         }
     }
+    let furniture_codes = crate::singletons::holder::<TheFurnitureCodes>(world)
+        .and_then(|holder| world.get::<FurnitureCodes>(holder))
+        .map(|codes| codes.0.clone())
+        .unwrap_or_default();
     let mut written = if filled.is_some() {
         usize::try_from(side * side).unwrap_or(0)
     } else {
@@ -102,17 +120,30 @@ pub fn write(
     };
     for (row, line) in mapgen.rows.iter().enumerate() {
         for (column, symbol) in line.chars().enumerate() {
-            let Some(terrain) = mapgen.terrain.get(&symbol) else {
-                continue;
-            };
-            let Some(code) = codes.get(terrain).copied() else {
-                continue;
-            };
             let (Some(column), Some(row)) = (offset(column), offset(row)) else {
                 continue;
             };
-            crate::square::set_terrain(world, (origin.0 + column, origin.1 + row, origin.2), code);
-            if filled.is_none() {
+            let at = (origin.0 + column, origin.1 + row, origin.2);
+            // **A symbol may carry terrain, furniture, or both** (`mapgen.cpp:5480-5490`): each layer is placed if the mapgen names it, and a symbol that names neither is not
+            // drawn at all - which keeps the count honest about what the chunk actually says.
+            let mut drew = false;
+            if let Some(code) = mapgen
+                .terrain
+                .get(&symbol)
+                .and_then(|terrain| codes.get(terrain).copied())
+            {
+                crate::square::set_terrain(world, at, code);
+                drew = true;
+            }
+            if let Some(code) = mapgen
+                .furniture
+                .get(&symbol)
+                .and_then(|furniture| furniture_codes.get(furniture).copied())
+            {
+                crate::square::set_furniture(world, at, code);
+                drew = true;
+            }
+            if drew && filled.is_none() {
                 written += 1;
             }
         }
