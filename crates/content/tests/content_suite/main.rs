@@ -124,6 +124,7 @@ mod mutations;
 mod npc_classes;
 mod overmap;
 mod overmap_build;
+mod overmap_connections;
 mod overmap_locations;
 mod overmap_specials;
 mod overmap_terrain_ids;

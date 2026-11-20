@@ -176,6 +176,7 @@ pub fn parse_count() -> usize {
 }
 pub mod crit_chance;
 pub mod overmap_build;
+pub mod overmap_connection;
 pub mod overmap_special;
 pub mod skills;
 pub mod swing_cost;

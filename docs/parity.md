@@ -39719,3 +39719,27 @@ test uses a city size of three), and - after a first attempt that was a **no-op*
 **Named gaps.** `build_city_street` (`:6148-6154`) - the street grid and the buildings hanging off it - is not ported: a city without streets is a place, not a town. `city::merge`
 is not ported either: two cities drawn too close both stand, where the reference would fuse them. The count also assumes no regional city definitions
 (`city::get_all()` empty), which is the case the data's default world is.
+
+## Roads and rails as connections (round 258)
+
+Reference: `overmap_connection` (`src/overmap_connection.h`) and `overmap_location`, with the data at `data/json/overmap/overmap_connections.json` (five connections) and
+`data/json/overmap/special_locations.json` (thirty-five locations). A connection is a **list of subtypes** - each a terrain to lay plus the places it may be laid on - and the
+rule is *the first subtype that allows this ground*. That order is the whole meaning: a road crosses a river as a bridge because the bridge subtype comes before a plain road,
+and a port that reordered the list would build roads on water.
+
+The port read none of it. `overmap_connection::read_all` reads both data types in one walk, and `pick_subtype` ports `subtype::allows_terrain` (`overmap_connection.cpp:38-48`)
+exactly - **two ways to allow a tile**, and both are the reference's:
+
+- the tile is **already of the subtype's own terrain** (`oter->type_is( terrain )`, "can be built on similar terrains");
+- or one of the subtype's locations counts this tile as that place.
+
+**A reading of the source that the test corrected.** The first version treated an empty `locations` list as a fallback matching everything, which made the manhole subtype
+swallow every unknown tile. The reference says otherwise: a subtype with no locations allows only a tile that is already that kind of thing, so ground the road may not cross is
+**not crossed** - which is what stops a street at a ravine. Water, too, turned out to be the *river* terrains, not a terrain called "water".
+
+Three mutations, three catches: the subtype list reversed (the bridge becomes a bridgehead), `type_is` degraded to an equality test, and the two ways joined by `and` instead of
+`or`.
+
+**Named gap.** `oter_t::type_is` compares the **type** an overmap terrain declares; the port has not loaded that declaration and reads the id's shape instead (`road_nesw` is of
+type `road`), which is the same answer for every directional terrain in the data and a named approximation for the rest. The street builder (`overmap::lay_out_street`,
+`:6628`) and the pathfinding above it are not ported - this round is the data and the pick they will call.
