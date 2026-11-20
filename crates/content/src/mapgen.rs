@@ -134,6 +134,8 @@ pub struct MapgenObject {
     pub traps: BTreeMap<char, String>,
     /// The items a symbol places (`jmapgen_item_group`), the last layer a character can carry.
     pub items: BTreeMap<char, ItemPlacement>,
+    /// The monsters the mapgen places (`jmapgen_monster`), which are named by coordinate rather than by symbol.
+    pub monsters: Vec<MonsterPlacement>,
     /// How likely this one is when several build the same terrain.
     pub weight: i32,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
@@ -204,6 +206,37 @@ fn read_items(inner: &cdda_json::Object) -> BTreeMap<char, ItemPlacement> {
     items
 }
 
+/// The `place_monster` array: which monsters the mapgen places, where, and how many (`jmapgen_monster::load`, `mapgen.cpp:5560-5610`).
+fn read_monsters(inner: &cdda_json::Object) -> Vec<MonsterPlacement> {
+    let Some(cdda_json::Value::Array(entries)) = inner.get("place_monster") else {
+        return Vec::new();
+    };
+    let mut placements = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(entry) = entry else {
+            continue;
+        };
+        placements.push(MonsterPlacement {
+            monster: match entry.get("monster") {
+                Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                _ => None,
+            },
+            group: match entry.get("group") {
+                Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                _ => None,
+            },
+            chance: match entry.get("chance") {
+                Some(cdda_json::Value::Int(chance)) => i32::try_from(*chance).unwrap_or(100),
+                _ => 100,
+            },
+            pack_size: read_amount(entry.get("pack_size")),
+            x: read_amount(entry.get("x")),
+            y: read_amount(entry.get("y")),
+        });
+    }
+    placements
+}
+
 /// An `amount` that is a number or a two-number range, defaulting to one.
 fn read_amount(value: Option<&cdda_json::Value>) -> (i32, i32) {
     match value {
@@ -230,6 +263,23 @@ fn read_amount(value: Option<&cdda_json::Value>) -> (i32, i32) {
         }
         _ => (1, 1),
     }
+}
+
+/// One `place_monster` entry: a monster (or a group of them) placed at a square or a range of squares (`jmapgen_monster`, `mapgen.cpp:5560-5610`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MonsterPlacement {
+    /// The monster id the entry names.
+    pub monster: Option<String>,
+    /// The monster **group** the entry names instead, which the port does not draw from yet.
+    pub group: Option<String>,
+    /// How likely the entry is to spawn at all, out of a hundred: one hundred is always.
+    pub chance: i32,
+    /// How many, as a range the dice answer between.
+    pub pack_size: (i32, i32),
+    /// The columns it may stand in, as a range.
+    pub x: (i32, i32),
+    /// The rows it may stand in, as a range.
+    pub y: (i32, i32),
 }
 
 /// One `place_fields` entry: a field scattered over a rectangle.
@@ -419,6 +469,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 furniture: symbols("furniture"),
                 traps: symbols("traps"),
                 items: read_items(inner),
+                monsters: read_monsters(inner),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 weight: match object.get("weight") {

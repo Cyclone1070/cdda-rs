@@ -24,6 +24,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
+        monsters: Vec::new(),
         weight,
         fields: Vec::new(),
         fill_ter: None,
@@ -128,6 +129,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
+        monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
@@ -190,6 +192,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         furniture: [('F', "f_desk".to_owned())].into_iter().collect(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
+        monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -235,6 +238,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         furniture: BTreeMap::new(),
         traps: [('T', "tr_bear".to_owned())].into_iter().collect(),
         items: BTreeMap::new(),
+        monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -299,6 +303,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         )]
         .into_iter()
         .collect(),
+        monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -382,6 +387,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         )]
         .into_iter()
         .collect(),
+        monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -403,4 +409,64 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         0,
         "and the plain square has nothing"
     );
+}
+
+/// **A mapgen's `place_monster` entries spawn monsters.** Reference: `jmapgen_monster::apply` (`mapgen.cpp:5560-5610`): an entry names a monster (or a group), a square or a
+/// range of them, a `chance` out of a hundred, and a `pack_size` the dice answer between - and the pack is what makes a map a place something lives rather than a place
+/// something stood.
+///
+/// The numbers are what the test pins: a pack of two is two monsters, both at the square the entry names, both with the hit points their kind says.
+#[test]
+fn a_mapgens_place_monster_spawns_its_pack() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_zombie",
+            hp: 40,
+        }],
+    );
+    let haunted = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["..".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: vec![cdda_content::mapgen::MonsterPlacement {
+            monster: Some("mon_zombie".to_owned()),
+            group: None,
+            chance: 100,
+            pack_size: (2, 2),
+            x: (1, 1),
+            y: (0, 0),
+        }],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), haunted)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0)),
+        Some(2),
+        "two squares drawn"
+    );
+    let zombies: Vec<Entity> = world
+        .query::<(Entity, &cdda_sim::creature::Creature)>()
+        .iter(&world)
+        .map(|(entity, _)| entity)
+        .collect();
+    assert_eq!(zombies.len(), 2, "**a pack of two is two monsters**");
+    for zombie in zombies {
+        assert_eq!(
+            cdda_sim::creature::health_of(&world, zombie),
+            Some(40),
+            "**with the hit points its kind says**"
+        );
+        assert!(
+            cdda_sim::index(&world).is_some_and(|index| index.at_level(1, 0, 0).contains(&zombie)),
+            "**and standing on the square the entry names**"
+        );
+    }
 }

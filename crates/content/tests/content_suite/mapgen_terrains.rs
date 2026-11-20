@@ -125,6 +125,27 @@ fn a_mapgen_carries_the_items_its_symbols_place() {
     );
 }
 
+/// **A mapgen's `place_monster` entries are read as placements**: a monster, a chance out of a hundred that defaults to certainty, a pack size and a square range
+/// (`jmapgen_monster::load`, `mapgen.cpp:5560-5610`).
+#[test]
+fn a_mapgen_carries_the_monsters_it_places() {
+    let found = objects(
+        r#"{"type": "mapgen", "method": "json", "om_terrain": "house",
+            "object": {"rows": ["."], "terrain": {".": "t_floor"},
+                       "place_monster": [{"monster": "mon_zombie", "x": [1, 4], "y": 3, "pack_size": [2, 5]}]}}"#,
+    );
+    assert_eq!(found.len(), 1);
+    let zombie = &found[0].monsters[0];
+    assert_eq!(zombie.monster.as_deref(), Some("mon_zombie"));
+    assert_eq!(
+        zombie.chance, 100,
+        "**a placement with no chance is certain**"
+    );
+    assert_eq!(zombie.pack_size, (2, 5), "and the pack is a range");
+    assert_eq!(zombie.x, (1, 4), "the columns are a range");
+    assert_eq!(zombie.y, (3, 3), "and a single row is one row");
+}
+
 /// **A single string still reads as one**, so the shapes agree.
 #[test]
 fn one_terrain_is_still_one() {

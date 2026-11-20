@@ -121,89 +121,181 @@ pub fn write(
     } else {
         0
     };
+    let drew_squares = draw_rows(world, mapgen, origin, &codes, &furniture_codes, &mut rolls);
+    if filled.is_none() {
+        written += drew_squares;
+    }
+    place_monsters(world, mapgen, origin, &mut rolls);
+    if let Some(rolls) = rolls {
+        crate::singletons::put_rolls(world, rolls);
+    }
+    written
+}
+
+/// Draws a mapgen's rows, layer by layer, and answers how many squares it drew on.
+///
+/// Reference: `mapgen_function_json::generate` (`mapgen.cpp:5470-5530`). The order is the reference's own and it matters: terrain, then furniture, then traps, then items -
+/// a trap on top of the terrain that was drawn for it, an item on the floor the row laid down.
+fn draw_rows(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    codes: &BTreeMap<String, u32>,
+    furniture_codes: &BTreeMap<String, u32>,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> usize {
+    let mut drawn = 0;
     for (row, line) in mapgen.rows.iter().enumerate() {
         for (column, symbol) in line.chars().enumerate() {
             let (Some(column), Some(row)) = (offset(column), offset(row)) else {
                 continue;
             };
             let at = (origin.0 + column, origin.1 + row, origin.2);
-            // **A symbol may carry terrain, furniture, or both** (`mapgen.cpp:5480-5490`): each layer is placed if the mapgen names it, and a symbol that names neither is not
-            // drawn at all - which keeps the count honest about what the chunk actually says.
-            let mut drew = false;
-            if let Some(code) = mapgen
-                .terrain
-                .get(&symbol)
-                .and_then(|terrain| codes.get(terrain).copied())
-            {
-                crate::square::set_terrain(world, at, code);
-                drew = true;
-            }
-            if let Some(code) = mapgen
-                .furniture
-                .get(&symbol)
-                .and_then(|furniture| furniture_codes.get(furniture).copied())
-            {
-                crate::square::set_furniture(world, at, code);
-                drew = true;
-            }
-            // **Traps come after furniture** (`mapgen.cpp:5470-5480`), and a trap square is a drawn square even when the map names no terrain or furniture for it.
-            if let Some(trap) = mapgen.traps.get(&symbol) {
-                crate::square::set_trap(world, at, trap);
-                drew = true;
-            }
-            // **Items come last** (`mapgen.cpp:5510-5530`): a symbol's item is placed with a chance out of a hundred - one hundred always - and an amount the dice answer between.
-            if let Some(placement) = mapgen.items.get(&symbol)
-                && (placement.chance >= 100
-                    || rolls
-                        .as_mut()
-                        .is_none_or(|rolls| rolls.x_in_y(f64::from(placement.chance), 100.0)))
-            {
-                let count = match rolls.as_mut() {
-                    Some(rolls) => rolls.rng(placement.amount.0, placement.amount.1),
-                    None => placement.amount.0,
-                }
-                .max(0);
-                if let Some(item) = placement.item.as_deref() {
-                    if let Some(kind) = crate::item_registry::id_of(world, item) {
-                        for _ in 0..count {
-                            crate::drop_item(world, (at.0, at.1), kind, 1);
-                        }
-                        drew = true;
-                    }
-                } else if let Some(group) = placement.group.as_deref() {
-                    // **A group is drawn once per amount** (`jmapgen_item_group::apply`, `mapgen.cpp:5360-5400`): the square gets a member of the group rather than a named thing,
-                    // and the group's own rules decide whether that member is anything at all - a draw of nothing is a square with nothing on it, not an error.
-                    //
-                    // The group's own draw takes the dice, so the writer hands them back first and picks them up again after: one generator, one holder at a time, and no second
-                    // copy of the dice anywhere.
-                    for _ in 0..count {
-                        if let Some(held) = rolls.take() {
-                            crate::singletons::put_rolls(world, held);
-                        }
-                        let produced = crate::item_groups::draw(world, group);
-                        rolls = crate::singletons::take_rolls(world);
-                        if let Some(produced) = produced {
-                            for (id, amount) in produced {
-                                if let Some(kind) = crate::item_registry::id_of(world, &id) {
-                                    for _ in 0..amount.max(0) {
-                                        crate::drop_item(world, (at.0, at.1), kind, 1);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    drew = true;
-                }
-            }
-            if drew && filled.is_none() {
-                written += 1;
+            if draw_one_square(world, mapgen, at, symbol, codes, furniture_codes, rolls) {
+                drawn += 1;
             }
         }
     }
-    if let Some(rolls) = rolls {
-        crate::singletons::put_rolls(world, rolls);
+    drawn
+}
+
+/// Places every layer one symbol carries, answering whether it drew anything at all.
+fn draw_one_square(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    codes: &BTreeMap<String, u32>,
+    furniture_codes: &BTreeMap<String, u32>,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    // **A symbol may carry terrain, furniture, or both** (`mapgen.cpp:5480-5490`): each layer is placed if the mapgen names it, and a symbol that names neither is not drawn at
+    // all - which keeps the count honest about what the chunk actually says.
+    let mut drew = false;
+    if let Some(code) = mapgen
+        .terrain
+        .get(&symbol)
+        .and_then(|terrain| codes.get(terrain).copied())
+    {
+        crate::square::set_terrain(world, at, code);
+        drew = true;
     }
-    written
+    if let Some(code) = mapgen
+        .furniture
+        .get(&symbol)
+        .and_then(|furniture| furniture_codes.get(furniture).copied())
+    {
+        crate::square::set_furniture(world, at, code);
+        drew = true;
+    }
+    // **Traps come after furniture** (`mapgen.cpp:5470-5480`), and a trap square is a drawn square even when the map names no terrain or furniture for it.
+    if let Some(trap) = mapgen.traps.get(&symbol) {
+        crate::square::set_trap(world, at, trap);
+        drew = true;
+    }
+    drew |= place_the_items(world, mapgen, at, symbol, rolls);
+    drew
+}
+
+/// Places the items a symbol carries, and answers whether it placed any. Reference: `jmapgen_item_group::apply` (`mapgen.cpp:5360-5400`).
+fn place_the_items(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(placement) = mapgen.items.get(&symbol) else {
+        return false;
+    };
+    if placement.chance < 100
+        && !rolls
+            .as_mut()
+            .is_none_or(|rolls| rolls.x_in_y(f64::from(placement.chance), 100.0))
+    {
+        return false;
+    }
+    let count = match rolls.as_mut() {
+        Some(rolls) => rolls.rng(placement.amount.0, placement.amount.1),
+        None => placement.amount.0,
+    }
+    .max(0);
+    if let Some(item) = placement.item.as_deref() {
+        let Some(kind) = crate::item_registry::id_of(world, item) else {
+            return false;
+        };
+        for _ in 0..count {
+            crate::drop_item(world, (at.0, at.1), kind, 1);
+        }
+        return true;
+    }
+    let Some(group) = placement.group.as_deref() else {
+        return false;
+    };
+    // **A group is drawn once per amount.** The group's own draw takes the dice, so the writer hands them back first and picks them up again after: one generator, one holder at
+    // a time, and no second copy of the dice anywhere.
+    for _ in 0..count {
+        if let Some(held) = rolls.take() {
+            crate::singletons::put_rolls(world, held);
+        }
+        let produced = crate::item_groups::draw(world, group);
+        *rolls = crate::singletons::take_rolls(world);
+        if let Some(produced) = produced {
+            for (id, amount) in produced {
+                if let Some(kind) = crate::item_registry::id_of(world, &id) {
+                    for _ in 0..amount.max(0) {
+                        crate::drop_item(world, (at.0, at.1), kind, 1);
+                    }
+                }
+            }
+        }
+    }
+    true
+}
+
+/// Spawns the monsters a mapgen places, answering nothing because a monster is not a drawn square.
+///
+/// Reference: `jmapgen_monster::apply` (`mapgen.cpp:5560-5610`): an entry names a square or a range of them, a chance out of a hundred, and a `pack_size` the dice answer
+/// between - and each member of the pack rolls its own square inside the range, which is why a pack spreads rather than piling on one tile.
+fn place_monsters(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for placement in &mapgen.monsters {
+        if placement.chance < 100
+            && !rolls
+                .as_mut()
+                .is_none_or(|rolls| rolls.x_in_y(f64::from(placement.chance), 100.0))
+        {
+            continue;
+        }
+        let count = match rolls.as_mut() {
+            Some(rolls) => rolls.rng(placement.pack_size.0, placement.pack_size.1),
+            None => placement.pack_size.0,
+        }
+        .max(0);
+        let Some(monster) = placement.monster.as_deref() else {
+            // A group is not drawn from here yet: the reference's monster-group draw carries its own weights and its own dice.
+            continue;
+        };
+        let Some(kind) = crate::monster_registry::id_of(world, monster) else {
+            continue;
+        };
+        let hp = crate::monster_registry::hit_points(world, kind);
+        for _ in 0..count {
+            let x = match rolls.as_mut() {
+                Some(rolls) => rolls.rng(placement.x.0, placement.x.1),
+                None => placement.x.0,
+            };
+            let y = match rolls.as_mut() {
+                Some(rolls) => rolls.rng(placement.y.0, placement.y.1),
+                None => placement.y.0,
+            };
+            crate::spawn_monster(world, (origin.0 + x, origin.1 + y), kind, hp);
+        }
+    }
 }
 
 /// Places the fields a mapgen scatters, answering how many patches landed.

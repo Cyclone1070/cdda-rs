@@ -39623,3 +39623,23 @@ Two mutations, two catches: the group drawn once instead of per amount, and the 
 
 **Named gap.** The mapgen's group draw is the reference's **`item_from`** rule, not its `place_items` machinery: the reference also applies a spawn rate per chunk and can place a
 group over a whole area (`"repeat"`, `x`/`y` offsets). The port draws one group per square, which is the shape the data uses for rooms.
+
+## Monsters on the drawn squares (round 253)
+
+Reference: `jmapgen_monster::apply` (`mapgen.cpp:5560-5610`). A mapgen's `place_monster` array names a monster, a square or a range of them, a `chance` out of a hundred and a
+`pack_size` the dice answer between - and **each member of the pack rolls its own square inside the range**, which is why a pack spreads rather than piling on one tile. The port
+read none of it, so every generated map was a place something used to live.
+
+- `MapgenObject` carries `monsters: Vec<MonsterPlacement>`, read from `place_monster` entries - the form the data overwhelmingly uses (165 files, against 36 that use a `monsters`
+  symbol map, which the port does not read);
+- the writer spawns them **after** the square layers, through the same `spawn_monster` the rest of the port uses, with the hit points **their kind's registry says** - a monster
+  born with different health from its type would be a second source of truth about what a zombie is;
+- a world with no generator still spawns the **minimum** pack, the same choice the items and the bear trap make.
+
+Three mutations, three catches: the pack's size ignored, the hit points invented, and the square rolled but not used.
+
+**The writer was split to keep its file honest.** `write` had grown to 136 lines against the 130-line threshold the lints enforce; the row drawing (`draw_rows`), one square's
+layers (`draw_one_square`), the item layer (`place_the_items`) and the monster pass (`place_monsters`) are now separate functions, which is also the order the reference draws in.
+
+**Named gaps.** A `place_monster` entry may name a monster **group** (with its own weights) and may carry `target`/`spawn_data`; the port reads the single-monster form. The
+`monsters` **symbol** map is unread.
