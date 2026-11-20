@@ -39942,3 +39942,29 @@ registry to ask, so the square keeps its terrain. The debris lands; the lining's
 plain pit's.
 
 The trap ledger moves to **113 of 125 traps answered, 12 unported**.
+
+## A blade and lava (round 268)
+
+**A blade** (`trapfunc::blade`, `trapfunc.cpp:668-685`) is the first trap with **two kinds in one instance**: bash twelve and cut thirty on the torso, each kind's own armour subtracted
+before they are added together.
+
+**Lava** (`trapfunc::lava`, `:1191-1233`) burns every part that touches it: twenty heat on each **leg** and twenty on each **foot** - the reference loops
+`get_ground_contact_bodyparts( true )`, the limbs, and `get_ground_contact_bodyparts()`, the feet, so a whole body takes it four times. A monster takes heat on its torso instead, and
+the amount is the reference's own ladder: thirty, fifty for flesh, eighty for veggy, two hundred for anything flammable, fifteen for stone, five for steel or kevlar - **each later
+question overwriting the answer before it**, so the last matching material decides.
+
+**The order is the rule, and only a mixed monster proves it.** Six single-material cases let the flesh/veggy blocks be swapped with no test failing, because a monster made only of
+flesh has no veggy to hit. Two mixed cases - flesh with veggy is eighty, flesh with steel is five - pin the overwriting, and the swap dies.
+
+**The terrain's name, honestly.** The reference says "The %s burns you horribly!" with `here.tername( p )`; the port's squares carry a **code**, and the name-to-code table is the
+loader's. `square::terrain_id_at` reads the name back out of `TerrainCodes` rather than copying it onto every square, so the line says the terrain's **id** (`t_lava`) - a named gap,
+because the port has no display-name table. `set_terrain` is the one writer, as ever.
+
+**Named gaps.** The quadruped effects, which make the ground-contact set arms and hands instead (the port has no quadruped state), and a monster made of **liquid**
+(`made_of( phase_id::LIQUID )`), which is a phase the port's monsters do not carry - so only the flammable-materials half of that test is asked.
+
+Two mistakes of mine, both caught by the suite: the guard test that proves an unported trap is left alone was pointing at `"lava"` and started failing the moment lava worked (it now
+points at `"shadow"`), and a blunt text replacement re-pointed the **fixture** too - the lava tests were setting a shadow trap. The guard's example has to move as the frontier moves;
+the fixture's must not.
+
+The trap ledger moves to **115 of 125 traps answered, 10 unported**.

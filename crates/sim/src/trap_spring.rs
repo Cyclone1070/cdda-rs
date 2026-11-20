@@ -51,6 +51,8 @@ pub fn spring_with(
         Some("caltrops") => return sharp_ground(world, who, square, &Sharp::CALTROPS),
         Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
         Some("pit") => return pit(world, who, square),
+        Some("blade") => return blade(world, who),
+        Some("lava") => return lava(world, who, square),
         Some("pit_spikes") => return spiked_pit(world, who, square, &Spiked::SPIKES),
         Some("pit_glass") => return spiked_pit(world, who, square, &Spiked::GLASS),
         Some("snare_light") => return snare_light(world, who, square),
@@ -259,6 +261,99 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
     );
     crate::square::remove_trap(world, square);
     true
+}
+
+/// **A blade swings out of the wall and hacks the torso.**
+///
+/// Reference: `trapfunc::blade` (`trapfunc.cpp:668-685`). One damage instance with **two kinds at once** - bash twelve and cut thirty - on the torso, and the line names the part.
+/// The port subtracts each kind's own armour before adding the two together, which is what `deal_damage` does with a multi-kind instance.
+fn blade(world: &mut World, who: Entity) -> bool {
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "A blade swings out and hacks your torso!".to_owned()
+    } else {
+        format!(
+            "A blade swings out and hacks {}'s torso!",
+            name_of(world, who)
+        )
+    };
+    crate::messages::push(world, &line);
+    let bash = (12 - crate::creature::armour_on(world, who, "torso", Some("bash"))).max(0);
+    let cut = (30 - crate::creature::armour_on(world, who, "torso", Some("cut"))).max(0);
+    #[allow(clippy::cast_precision_loss)]
+    crate::creature::hurt(world, who, (bash + cut) as f32);
+    true
+}
+
+/// **Lava burns whatever touches it.**
+///
+/// Reference: `trapfunc::lava` (`trapfunc.cpp:1191-1233`). The line names the terrain. A character takes **twenty heat on each leg and twenty on each foot** - the reference loops
+/// `get_ground_contact_bodyparts( true )`, which is the limbs, and `get_ground_contact_bodyparts()`, which is the feet, so a whole body takes it four times. A monster takes heat on
+/// its torso instead, and the amount is a ladder over what it is made of: thirty by default, fifty for flesh, eighty for veggy, two hundred for anything flammable, fifteen for stone
+/// and five for steel or kevlar - each question overwriting the answer before it, so the **last** matching material decides.
+///
+/// **Named gaps**: the reference's quadruped effects (`effect_quadruped_full`/`half`), which make the ground-contact set arms and hands instead - the port has no quadruped state -
+/// and a monster made of **liquid** (`made_of( phase_id::LIQUID )`), which is a phase the port's monsters do not carry, so only the flammable-materials half of that test is asked. The
+/// terrain is named by its **id** (`t_lava`), because the port has no display-name table for terrain.
+fn lava(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let ground =
+        crate::square::terrain_id_at(world, square).unwrap_or_else(|| "the ground".to_owned());
+    let line = if crate::missions::avatar(world) == Some(who) {
+        format!("The {ground} burns you horribly!")
+    } else {
+        format!("The {ground} burns {}!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    if is_a_monster(world, who) {
+        let damage = lava_damage(world, who);
+        let stops = crate::creature::armour_on(world, who, "torso", Some("heat"));
+        #[allow(clippy::cast_precision_loss)]
+        crate::creature::hurt(world, who, (damage - stops).max(0) as f32);
+        return true;
+    }
+    // `get_ground_contact_bodyparts( true )` is the legs and `get_ground_contact_bodyparts()` the feet, so both are asked and each part takes the same twenty.
+    let parts: Vec<String> =
+        world
+            .get::<crate::creature::Body>(who)
+            .map_or_else(Vec::new, |body| {
+                body.parts
+                    .iter()
+                    .filter(|part| {
+                        part.primary_limb_type
+                            .as_deref()
+                            .is_some_and(|limb| limb == "leg" || limb == "foot")
+                    })
+                    .map(|part| part.name.clone())
+                    .collect()
+            });
+    for part in parts {
+        let stops = crate::creature::armour_on(world, who, &part, Some("heat"));
+        #[allow(clippy::cast_precision_loss)]
+        crate::creature::hurt(world, who, (20 - stops).max(0) as f32);
+    }
+    true
+}
+
+/// How much heat lava deals a monster, by what it is made of. Reference: the ladder at `trapfunc.cpp:1208-1229`, in the reference's own order.
+fn lava_damage(world: &World, who: Entity) -> i32 {
+    let made = crate::creature::materials_of(world, who);
+    let has = |names: &[&str]| names.iter().any(|name| made.contains_key(*name));
+    let mut damage = 30;
+    if has(&["flesh", "iflesh"]) {
+        damage = 50;
+    }
+    if has(&["veggy"]) {
+        damage = 80;
+    }
+    if has(&["paper", "powder", "wood", "cotton", "wool"]) {
+        damage = 200;
+    }
+    if has(&["stone"]) {
+        damage = 15;
+    }
+    if has(&["kevlar", "steel"]) {
+        damage = 5;
+    }
+    damage
 }
 
 /// What one of the data's **lined** pits does, with the numbers that tell them apart.

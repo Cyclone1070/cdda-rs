@@ -106,7 +106,7 @@ fn the_program_is_handed_the_traps_square() {
 #[test]
 fn a_trap_the_port_cannot_act_on_stays_where_it_is() {
     let (mut world, who) = a_world();
-    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("lava", &[])]);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("shadow", &[])]);
     assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
     assert!(
         !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
@@ -2014,4 +2014,135 @@ fn a_nimble_fall_misses_the_lining() {
         "**and the line says so**: {:?}",
         cdda_sim::messages::lines(&world)
     );
+}
+
+/// A world with a lava trap underfoot, the walker the avatar, a body with legs and feet, and the terrain named so the line can say what burned them.
+fn a_lava_world() -> (World, Entity) {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("leg_r", "leg"),
+            a_part("foot_l", "foot"),
+            a_part("foot_r", "foot"),
+        ],
+    });
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [("t_lava".to_owned(), 7_u32)].into_iter().collect(),
+    );
+    cdda_sim::square::set_terrain(&mut world, (0, 0, 0), 7);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("lava", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    (world, who)
+}
+
+/// **A blade hacks the torso, bash and cut.** Reference: `trapfunc::blade` (`trapfunc.cpp:668-685`): "A blade swings out and hacks your torso!" and then a damage instance of **bash
+/// twelve and cut thirty** on the torso - the only trap so far that deals two kinds at once.
+#[test]
+fn a_blade_hacks_the_torso_with_bash_and_cut() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("leg_r", "leg"),
+        ],
+    });
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("blade", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the blade swings**"
+    );
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        42,
+        "**twelve bash and thirty cut**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "A blade swings out and hacks your torso!"),
+        "**and the line names the torso**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **Lava burns every part that touches it.** Reference: `trapfunc::lava` (`trapfunc.cpp:1191-1233`): the line names the terrain ("The %s burns you horribly!"), and then **two
+/// loops** - `get_ground_contact_bodyparts( true )`, which is the legs, and `get_ground_contact_bodyparts()`, which is the feet - each part taking **twenty heat**. A monster
+/// instead takes heat on its torso, and how much depends on what it is made of: thirty by default, fifty for flesh, eighty for veggy, two hundred for something flammable, fifteen
+/// for stone and **five** for steel or kevlar - the last matching material wins.
+#[test]
+fn lava_burns_the_legs_and_the_feet() {
+    let (mut world, who) = a_lava_world();
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the lava burns**"
+    );
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        80,
+        "**twenty per leg and twenty per foot**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("burns you horribly")),
+        "**and the line says so**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **What a monster is made of decides how lava hurts it.** The reference's own ladder: thirty, fifty for flesh, eighty for veggy, two hundred for anything flammable, fifteen for
+/// stone and five for steel - each later question overwriting the answer before it.
+#[test]
+fn lava_hurts_a_monster_by_what_it_is_made_of() {
+    let cases = [
+        (vec![("flesh", 1)], 50),
+        (vec![("veggy", 1)], 80),
+        (vec![("paper", 1)], 200),
+        (vec![("stone", 1)], 15),
+        (vec![("steel", 1)], 5),
+        (vec![("bone", 1)], 30),
+        // **The order is the rule**: flesh and veggy together take veggy's eighty, and flesh with steel takes steel's five, because each later question overwrites the answer.
+        (vec![("flesh", 1), ("veggy", 1)], 80),
+        (vec![("flesh", 1), ("steel", 1)], 5),
+    ];
+    for (made_of, expected) in cases {
+        let (mut world, who) = a_lava_world();
+        // A monster, not a person: a creature with a kind, and the avatar is somebody else - `is_a_monster` reads the marker, not the name.
+        cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+        let somebody_else = world.spawn(()).id();
+        cdda_sim::missions::set_avatar(&mut world, somebody_else);
+        if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+            creature.name = "a shambler".to_owned();
+        }
+        world.entity_mut(who).insert(cdda_sim::creature::Materials(
+            made_of
+                .iter()
+                .map(|(name, portion)| ((*name).to_owned(), *portion))
+                .collect(),
+        ));
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+        let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+        assert!(cdda_sim::trap_spring::spring_with(
+            &mut world,
+            who,
+            (0, 0, 0),
+            false
+        ));
+        assert_eq!(
+            hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+            expected,
+            "**{made_of:?} takes {expected}**"
+        );
+    }
 }

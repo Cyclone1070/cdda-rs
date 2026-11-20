@@ -221,6 +221,23 @@ pub fn terrain_at(world: &World, square: (i32, i32, i32)) -> Option<u32> {
         .find_map(|entity| world.get::<Terrain>(*entity).map(|terrain| terrain.code))
 }
 
+/// What the loader calls a square's terrain, for a line that has to name it.
+///
+/// Reference: `map::tername` (`map.cpp`), which the traps use to say what burned or froze a creature. The port's squares carry a **code**; the name-to-code table is the content
+/// loader's ([`crate::mapgen_update::TerrainCodes`]), so the name is read back out of it rather than copied onto every square. A square whose code the loader has never seen answers
+/// nothing, and the caller decides what to say.
+#[must_use]
+pub fn terrain_id_at(world: &World, square: (i32, i32, i32)) -> Option<String> {
+    let code = terrain_at(world, square)?;
+    let holder = crate::singletons::holder::<crate::mapgen_update::TheTerrainCodes>(world)?;
+    let codes = world.get::<crate::mapgen_update::TerrainCodes>(holder)?;
+    codes
+        .0
+        .iter()
+        .find(|(_, registered)| **registered == code)
+        .map(|(name, _)| name.clone())
+}
+
 /// The furniture code of a square, if any furniture stands on it.
 #[must_use]
 pub fn furniture_at(world: &World, square: (i32, i32, i32)) -> Option<u32> {
