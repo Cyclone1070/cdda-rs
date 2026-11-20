@@ -51,6 +51,8 @@ pub fn spring_with(
         Some("caltrops") => return sharp_ground(world, who, square, &Sharp::CALTROPS),
         Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
         Some("pit") => return pit(world, who, square),
+        Some("pit_spikes") => return spiked_pit(world, who, square, &Spiked::SPIKES),
+        Some("pit_glass") => return spiked_pit(world, who, square, &Spiked::GLASS),
         Some("snare_light") => return snare_light(world, who, square),
         Some("tripwire") => return tripwire(world, who, square),
         Some("drain") => return drain(world, who),
@@ -257,6 +259,183 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
     );
     crate::square::remove_trap(world, square);
     true
+}
+
+/// What one of the data's **lined** pits does, with the numbers that tell them apart.
+///
+/// Reference: `trapfunc::pit_spikes` (`trapfunc.cpp:1010-1093`) and `trapfunc::pit_glass` (`:1095-1180`). The two are the same fall - `eff * rng( lo, hi )`, a dodge gate, a
+/// ten-sided roll for which part is hit, a cut that may fester - with different ranges, different part tables, and different debris when the lining gives way.
+struct Spiked {
+    /// The smallest fall.
+    cut_lo: i32,
+    /// The largest fall.
+    cut_hi: i32,
+    /// The line for the fall.
+    fall_line: &'static str,
+    /// The line for a fall that is dodged or does nothing.
+    avoid_line: &'static str,
+    /// The line for a part that is hit, with `%s` where the part's name goes.
+    impale_line: &'static str,
+    /// Which ten-sided rolls land on which part, as the reference's own switch reads them.
+    parts: fn(i32) -> &'static str,
+    /// One in this many falls breaks the lining.
+    break_in: i32,
+    /// The line when the lining breaks.
+    break_line: &'static str,
+    /// What the broken lining leaves, and how many draws of one in three place one.
+    litter: (&'static str, i32),
+}
+
+impl Spiked {
+    /// `tr_pit_spikes`: a fall of twenty to fifty, the legs and arms twice each and the torso six times, spears that break one time in four, four pointy sticks.
+    const SPIKES: Self = Self {
+        cut_lo: 20,
+        cut_hi: 50,
+        fall_line: "You fall in a spiked pit!",
+        avoid_line: "You avoid the spikes within.",
+        impale_line: "The spikes impale your %s!",
+        parts: |roll| match roll {
+            1 => "leg_l",
+            2 => "leg_r",
+            3 => "arm_l",
+            4 => "arm_r",
+            _ => "torso",
+        },
+        break_in: 4,
+        break_line: "The spears break!",
+        litter: ("pointy_stick", 4),
+    };
+
+    /// `tr_pit_glass`: a fall of fifteen to thirty-five, the legs and arms twice each and the **feet** twice, shards that shatter one time in five, twenty shards.
+    const GLASS: Self = Self {
+        cut_lo: 15,
+        cut_hi: 35,
+        fall_line: "You fall in a pit filled with glass shards!",
+        avoid_line: "You avoid the glass shards within.",
+        impale_line: "The glass shards slash your %s!",
+        parts: |roll| match roll {
+            1 => "leg_l",
+            2 => "leg_r",
+            3 => "arm_l",
+            4 => "arm_r",
+            5 => "foot_l",
+            6 => "foot_r",
+            _ => "torso",
+        },
+        break_in: 5,
+        break_line: "The shards shatter!",
+        litter: ("glass_shard", 20),
+    };
+}
+
+/// **A pit lined with something sharp.**
+///
+/// Reference: `trapfunc::pit_spikes` and `trapfunc::pit_glass`. A tiny creature is too small to be hurt; anyone else is told and takes the `in_pit` effect. A character's fall is
+/// `eff * rng( lo, hi )`: if it does nothing, or `rng( 5, 30 ) < dodge`, the lining is avoided; otherwise a ten-sided roll picks the part, the whole fall is dealt to it as **cut**,
+/// and a wound that drew blood may fester at one in thirty-five. A monster takes the fall to its torso. Then the lining may give way: one time in four (spikes) or five (shards) the
+/// pit becomes a plain one and its debris lies where it was.
+///
+/// **Not ported**: the reference's flying and bionic branches, as with the plain pit, and the rider branches. The pit's **terrain** change is made where the port's squares have a
+/// terrain code, and the debris is a kind the data names.
+fn spiked_pit(world: &mut World, who: Entity, square: (i32, i32, i32), rule: &Spiked) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if size == crate::CreatureSize::Tiny {
+        return false;
+    }
+    let line = if crate::missions::avatar(world) == Some(who) {
+        rule.fall_line.to_owned()
+    } else {
+        format!("{} falls in a pit!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    if let Some(kind) = crate::effect_registry::kind_named(world, "in_pit") {
+        crate::applied_effects::add(world, who, crate::effects::ActiveEffect::new(&kind, 1, 1));
+    }
+    let effectiveness = pit_effectiveness(world, (square.0, square.1));
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    if is_a_monster(world, who) {
+        let fall = rolls.rng(rule.cut_lo, rule.cut_hi);
+        #[allow(clippy::cast_precision_loss)]
+        let through = effectiveness * fall as f32;
+        crate::singletons::put_rolls(world, rolls);
+        crate::creature::hurt(world, who, through);
+        return true;
+    }
+    let fall = rolls.rng(rule.cut_lo, rule.cut_hi);
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let damage = (effectiveness * fall as f32) as i32;
+    let dodge = world
+        .get::<crate::creature::Dodge>(who)
+        .map_or(0, |dodge| dodge.points);
+    let dodged = rolls.rng(5, 30);
+    let hit_roll = if damage == 0 || dodged < dodge {
+        None
+    } else {
+        Some(rolls.rng(1, 10))
+    };
+    let infected = hit_roll.is_some() && rolls.one_in(tetanus_chance_35(world, who));
+    let breaks = rolls.one_in(rule.break_in);
+    let mut sticks = 0;
+    if breaks {
+        for _ in 0..rule.litter.1 {
+            if rolls.one_in(3) {
+                sticks += 1;
+            }
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    if let Some(roll) = hit_roll {
+        let part = (rule.parts)(roll);
+        let shown = part.replace('_', " ");
+        let line = if crate::missions::avatar(world) == Some(who) {
+            rule.impale_line.replace("%s", &shown)
+        } else {
+            format!("{} is hit in the {shown}!", name_of(world, who))
+        };
+        crate::messages::push(world, &line);
+        let stops = crate::creature::armour_on(world, who, part, Some("cut"));
+        let through = (damage - stops).max(0);
+        #[allow(clippy::cast_precision_loss)]
+        crate::creature::hurt(world, who, through as f32);
+        if through > 0
+            && infected
+            && !crate::traits::has_trait(world, who, "INFECTION_IMMUNE")
+            && let Some(kind) = crate::effect_registry::kind_named(world, "tetanus")
+        {
+            crate::applied_effects::add(world, who, crate::effects::ActiveEffect::new(&kind, 1, 1));
+        }
+    } else {
+        let line = if crate::missions::avatar(world) == Some(who) {
+            rule.avoid_line.to_owned()
+        } else {
+            format!("{} avoids the pit's lining.", name_of(world, who))
+        };
+        crate::messages::push(world, &line);
+    }
+    if breaks {
+        crate::messages::push(world, rule.break_line);
+        // **The pit is a plain one now** - `here.ter_set( p, ter_t_pit )`. The port's terrain codes are assigned by the content loader and this rule has no registry to ask, so the
+        // square keeps the terrain it had. That is the **named gap** this rule carries: the debris lands, the lining's terrain change does not.
+        if let Some(kind) = crate::item_registry::id_of(world, rule.litter.0) {
+            for _ in 0..sticks {
+                crate::drop_item(world, (square.0, square.1), kind, 1);
+            }
+        }
+    }
+    true
+}
+
+/// How likely a wound from a lined pit is to fester: one in thirty-five, one in two hundred and fifty-six for a creature that resists infection (`trapfunc.cpp:1066-1069`).
+fn tetanus_chance_35(world: &World, creature: Entity) -> i32 {
+    if crate::traits::has_trait(world, creature, "INFRESIST") {
+        256
+    } else {
+        35
+    }
 }
 
 /// **A light snare snaps shut on a small animal's leg.**

@@ -39920,3 +39920,25 @@ The trap ledger moves to **111 of 125 traps answered, 14 unported**.
 
 **Named gaps.** The monster's `stumble()` - the reference's "the monster falls over" movement rule - is not ported, so a monster keeps its footing and only takes the damage. The
 rider branches are not ported, as elsewhere.
+
+## Spiked and glass pits (round 267)
+
+Two more of the pit family, kept as **one rule and two tables**: `Spiked::SPIKES` and `Spiked::GLASS`.
+
+Reference: `trapfunc::pit_spikes` (`trapfunc.cpp:1010-1093`) and `trapfunc::pit_glass` (`:1095-1180`). The fall is `eff * rng( lo, hi )` (twenty to fifty, fifteen to
+thirty-five); a fall that does nothing, or `rng( 5, 30 ) < dodge`, avoids the lining; otherwise a ten-sided roll picks the part - the legs and arms twice each, then the **torso** six
+times for spikes or the **feet** twice and the torso four times for glass - the whole fall is dealt as **cut**, and a wound that drew blood may fester at one in thirty-five (one in
+two hundred and fifty-six for `INFRESIST`). A monster takes the fall to its torso. Then the lining gives way: one time in four (spikes) or five (shards), the pit becomes a plain one
+and its debris - four pointy sticks, twenty shards, each one in three - lies where it was.
+
+**A filter that hid a mutation.** The first mutation run reported the dodge gate as surviving; it had not - my `-- "pit"` filter does not match `a_nimble_fall_misses_the_lining`,
+whose name has no "pit" in it, so the test never ran. The mutation died the moment the filter named it. **A test that did not run is not a test that passed**, and the filter is part
+of the experiment.
+
+Four mutations, four catches, once the filter was right: the glass part table's feet, the dodge gate, the fall's range, and the debris.
+
+**Named gap.** `here.ter_set( p, ter_t_pit )` - the broken pit becoming a plain one - is not made: the port's terrain codes are assigned by the content loader and this rule has no
+registry to ask, so the square keeps its terrain. The debris lands; the lining's terrain change does not. The flying and bionic branches, and the riders, are the same gaps as the
+plain pit's.
+
+The trap ledger moves to **113 of 125 traps answered, 12 unported**.

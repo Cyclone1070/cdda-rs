@@ -1568,6 +1568,34 @@ fn a_pit_world() -> (World, Entity) {
     (world, who)
 }
 
+/// A world with a pit of the named kind, the walker the avatar of it, a body with the parts a pit can reach, and a whole turn banked.
+fn a_pit_for(kind: &str) -> (World, Entity) {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("leg_r", "leg"),
+            a_part("arm_l", "arm"),
+            a_part("arm_r", "arm"),
+            a_part("foot_l", "foot"),
+            a_part("foot_r", "foot"),
+        ],
+    });
+    give_the_walker_a_turn(&mut world, who);
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dodge { points: 0 });
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[cdda_sim::effect_registry::bare("in_pit")],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap(kind, &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    (world, who)
+}
+
 /// **A person falls in a pit and hurts themself.** Reference: `trapfunc::pit` (`trapfunc.cpp:960-1004`): a tiny creature is too small to be hurt by the fall; anyone else is told
 /// ("You fall in a pit!"), takes the `in_pit` effect, and then - unless they dodge it - `eff * rng( 10, 20 ) - rng( dodge, dodge * 5 )` damage: `hurtall` for a share of it and
 /// a bash hit on **each** leg.
@@ -1857,5 +1885,133 @@ fn a_nimble_walker_trips_without_being_hurt() {
         cdda_sim::creature::health_of(&world, who).unwrap_or(0),
         hp_before,
         "**a dexterity of thirty takes a five-to-twenty roll**"
+    );
+}
+
+/// **A spiked pit impales one part, and its spears break.** Reference: `trapfunc::pit_spikes` (`trapfunc.cpp:1010-1093`): the fall is `eff * rng( 20, 50 )`; a dodge roll of
+/// `rng( 5, 30 )` or a fall that does nothing avoids the spikes; otherwise a ten-sided roll picks the part - both legs twice, both arms twice, the torso six times in ten - the
+/// spikes impale it for the whole fall as **cut**, and the wound may fester. Then, one time in four, the spears break: the pit becomes a plain one and **four pointy sticks**, each
+/// one in three, lie where they were.
+#[test]
+fn a_spiked_pit_impales_and_its_spears_break() {
+    let (mut world, who) = a_pit_for("pit_spikes");
+    cdda_sim::item_registry::set_item_types(&mut world, &[a_kind("pointy_stick")]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the spiked pit is fallen into**"
+    );
+    // The fall is twenty (the bottom of the range) and the ten-sided roll is one: the left leg.
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        20,
+        "**twenty points of cut on one part**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.starts_with("The spikes impale your leg")),
+        "**and the part is named**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "The spears break!"),
+        "**the lowest dice break the spears**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    // **Four spears, four sticks**: `for( i = 0; i < 4; i++ ) if( one_in( 3 ) )`, and the dice are all low, so every one lands.
+    let sticks = cdda_sim::item_registry::id_of(&mut world, "pointy_stick");
+    let lying = cdda_sim::items_at(&mut world, (0, 0))
+        .into_iter()
+        .filter(|item| {
+            world
+                .get::<cdda_sim::GroundItem>(*item)
+                .is_some_and(|ground| Some(ground.kind) == sticks)
+        })
+        .count();
+    assert_eq!(lying, 4, "**four spears to a pit**");
+}
+
+/// **The fall is the pit's own range, and the part the pit's own table.** A quarter of the way through: `rng( 20, 50 )` is twenty-eight and the ten-sided roll is three - the left
+/// arm. A rule that read the low end of the range, or the plain pit's table, would answer twenty and a leg.
+#[test]
+fn a_spiked_pit_falls_inside_its_range_and_hits_its_own_parts() {
+    let (mut world, who) = a_pit_for("pit_spikes");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.25));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        28,
+        "**a quarter of the way through twenty to fifty**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.starts_with("The spikes impale your arm")),
+        "**and the left arm is impaled**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A glass pit slashes a foot.** Reference: `trapfunc::pit_glass` (`:1095-1180`): a fall of `eff * rng( 15, 35 )` and a ten-sided roll that reaches the **feet** where the spiked
+/// pit reaches the torso - five or six is a foot. Halfway through: a fall of twenty-five and a roll of six, the right foot.
+#[test]
+fn a_glass_pit_slashes_a_foot() {
+    let (mut world, who) = a_pit_for("pit_glass");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.5));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the glass pit is fallen into**"
+    );
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        25,
+        "**half of fifteen to thirty-five**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.starts_with("The glass shards slash your foot")),
+        "**a foot, where the spiked pit would reach the torso**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A nimble fall misses the lining.** `rng( 5, 30 ) < dodge` is the gate: a dodge of forty takes every draw, so the fall costs nothing and the line says the lining was avoided.
+#[test]
+fn a_nimble_fall_misses_the_lining() {
+    let (mut world, who) = a_pit_for("pit_spikes");
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dodge { points: 40 });
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before,
+        "**a dodge of forty avoids the spikes**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You avoid the spikes within."),
+        "**and the line says so**: {:?}",
+        cdda_sim::messages::lines(&world)
     );
 }
