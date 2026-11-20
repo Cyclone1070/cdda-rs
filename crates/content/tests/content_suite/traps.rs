@@ -344,18 +344,19 @@ fn the_reference_tree_holds_the_trap_actions_the_port_answers() {
         "glass",
         "shotgun",
         "beartrap",
+        "landmine",
     ]
     .iter()
     .map(|action| counts.get(*action).copied().unwrap_or(0))
     .sum();
-    assert_eq!(answered, 98, "traps whose action the port answers");
+    assert_eq!(answered, 100, "traps whose action the port answers");
     assert_eq!(
         total - answered,
-        27,
-        "**and thirty-two that name a function the port has no rule for**"
+        25,
+        "**and twenty-five that name a function the port has no rule for**"
     );
     assert_eq!(
-        counts.get("landmine").copied(),
+        counts.get("caltrops_glass").copied(),
         Some(2),
         "the largest of the actions still unported"
     );

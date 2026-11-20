@@ -47,6 +47,7 @@ pub fn spring_with(
         Some("glass") => return broken_glass(world, who, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
         Some("beartrap") => return bear_trap(world, who, square),
+        Some("landmine") => return land_mine(world, who, square),
         _ => {}
     }
     if trap.action.as_deref() != Some("eocs") || trap.eocs.is_empty() {
@@ -360,6 +361,39 @@ fn shotgun_trap(world: &mut World, who: Entity, square: (i32, i32, i32), kind: &
             crate::drop_item(world, (square.0, square.1), item, 1);
         }
     }
+    crate::square::remove_trap(world, square);
+    true
+}
+
+/// **A land mine blows up whoever set it off.**
+///
+/// Reference: `trapfunc::landmine` (`trapfunc.cpp:819-833`):
+///
+/// - a **tiny** animal is too light to trigger it (`:821-824`);
+/// - the walker is told, in the reference's two voices;
+/// - the explosion is centred on the trigger's own square: `explosion( c, p, 18, 0.5, false, 8 )` - force eighteen, a half per square of distance, no fire - with the creature
+///   named as the source;
+/// - and the mine is spent.
+///
+/// **Named gap.** The reference's sixth argument is `shrapnel = 8`: eight fragments thrown by the blast, which the port's explosion does not throw yet. The blast's own damage is
+/// ported, so the mine hurts; the shrapnel is the piece that is missing, and it is missing from every explosion, not just this one.
+fn land_mine(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if size == crate::CreatureSize::Tiny {
+        return false;
+    }
+    let name = world
+        .get::<crate::creature::Creature>(who)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You trigger a land mine!".to_owned()
+    } else {
+        format!("{name} triggers a land mine!")
+    };
+    crate::messages::push(world, &line);
+    crate::explosion::explode(world, Some(who), square, 18.0, 0.5, false);
     crate::square::remove_trap(world, square);
     true
 }

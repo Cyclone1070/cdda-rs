@@ -1027,3 +1027,56 @@ fn the_wound_may_fester() {
         "**and the high draw does not fester**"
     );
 }
+
+/// **A land mine blows up whoever set it off.** Reference: `trapfunc::landmine` (`trapfunc.cpp:819-833`): the trigger's own square is the centre of an explosion of force
+/// eighteen with a factor of a half, the creature that triggered it is the source, and the trap is gone afterwards. A **tiny** animal is too light to set one off.
+#[test]
+fn a_land_mine_explodes() {
+    let (mut world, who) = a_world();
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("landmine", &[])]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**the mine goes off**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You trigger a land mine!"),
+        "and the walker is told: {:#?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert!(
+        cdda_sim::creature::health_of(&world, who).is_some_and(|hp| hp < 100),
+        "**and the blast hurts**: {:?}",
+        cdda_sim::creature::health_of(&world, who)
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "and the mine is spent"
+    );
+}
+
+/// **A tiny animal does not set a land mine off.** Reference: `trapfunc.cpp:821-824` - it is too light, and nothing happens at all.
+#[test]
+fn a_land_mine_ignores_a_tiny_animal() {
+    let (mut world, who) = a_world();
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+        creature.size = cdda_sim::CreatureSize::Tiny;
+    }
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("landmine", &[])]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(!cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert_eq!(cdda_sim::creature::health_of(&world, who), Some(100));
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "**and the mine is still armed**"
+    );
+}

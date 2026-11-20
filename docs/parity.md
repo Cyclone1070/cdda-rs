@@ -39662,3 +39662,21 @@ zero.
 **Named gaps.** `expects_predecessor` (a mapgen that *requests* the tile it replaced, with `fallback_predecessor_mapgen` when there is none) is not read - that rule needs the
 overmap's own "what was here before" bookkeeping, which the port does not keep yet. `predecessor_mapgen`'s rotation bookkeeping (`:6066-6085`) is not ported, because rotation
 itself is not.
+
+## The land mine (round 255)
+
+Reference: `trapfunc::landmine` (`trapfunc.cpp:819-833`). Four parts, all ported:
+
+- a **tiny** animal is too light to trigger it, and nothing happens at all;
+- the walker is told, in the reference's two voices;
+- the explosion is centred on the trigger's own square: `explosion( c, p, 18, 0.5, false, 8 )` - force eighteen, a half per square of distance, no fire - with the creature named
+  as the **source**;
+- and the mine is spent.
+
+Three mutations, three catches: the tiny guard removed, the blast skipped, and the removal skipped.
+
+**Named gap, and it is not this trap's own.** The reference's sixth argument to `explosion` is `shrapnel = 8`: eight fragments the blast throws. The port's explosion does not
+throw fragments at all - the blast's *damage* is ported and hurts, but the shrapnel is missing from every explosion in the port, not just the land mine's. That is recorded
+against [`crate::explosion`] as well, so the two records cannot drift apart.
+
+**The trap ledger moved to 100 of 125** - a hundred traps whose action the port answers, twenty-five whose functions it has no rule for, the largest now `caltrops_glass` with two.
