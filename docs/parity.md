@@ -39766,3 +39766,25 @@ bails on a path of one node or fewer.
 **Named gaps.** `build_city_street` (`:6232`) - the side streets and the buildings hung off them - and `build_connection` (`:6697`), which turns a path into directional terrain
 ids, are not ported: this round is the walk those two call. `city_tiles.insert( pos )`, the reference's marking of the walk's tiles as city, is not done either, because the port's
 city tiles are set in one place (`cities::set_tiles`) and the flood fill that consumes them is not ported.
+
+## A path becomes a line (round 260)
+
+Reference: `overmap::build_connection` (`overmap.cpp:6697-6740`). This closes the street rule at its other end: the walk answers a path, and the write turns that path into the
+**linear shapes** an overmap terrain id is made of.
+
+For every tile the connection's subtype is chosen for that ground (`pick_subtype_for`), and the line's mask is three things together (`:6713-6718`):
+
+- **what the tile already carries** - `connection.has( ter_id ) ? ter_id->get_line() : 0`, so a street meeting a road makes a tee rather than erasing half of it;
+- **the segment towards the next tile** of the path;
+- **the segment back towards the previous one**.
+
+The id is then the subtype's terrain with the shape that mask names - `cdda_content::overmap::LINE_SUFFIXES`, `om_lines::all` (`overmap.cpp:266-287`): `road_end_west`,
+`road_ew`, `road_nesw`, and the rest of the sixteen. The segment bits are the reference's own (**north 1, east 2, south 4, west 8**), which is why a two-way run is `_ew` and a
+crossing is `_nesw`.
+
+Five mutations, five catches - but one only after the test moved: the "un-crossable ground ends the write" mutation survived, because the forest in the first test sat at the
+**end** of the path, where `return` and `continue` behave alike. Putting it in the middle of the path (and asserting the tile *beyond* it stays empty) is what distinguishes them.
+
+**Named gaps.** The reference's neighbour pass (`:6717-6725`) also reaches into the roads *around* a tile and reshapes them to meet it; this port joins the tile's own existing road
+but not its neighbours'. `connections_out`, the reference's bookkeeping of which overmap edges a path reaches, is not ported. And a subtype whose terrain is **not** linear (a
+rotatable connection terrain) is written as a line here, where the reference would write a rotated shape - the port's connections are roads and bridges, which are linear.

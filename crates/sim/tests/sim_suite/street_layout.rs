@@ -189,3 +189,82 @@ fn a_street_turns_away_from_a_crowd_of_roads() {
         "**three roads beside the source stop the street before it starts**: {path:?}"
     );
 }
+
+/// **A path becomes a line: each tile carries the segments it actually has.** Reference: `overmap::build_connection` (`overmap.cpp:6697-6740`) - for every node the connection's
+/// subtype is laid as its **linear** shape, and the shape's mask is the line's segments: the way onward, the way back, and anything the tile already had.
+#[test]
+fn a_path_becomes_the_line_it_traces() {
+    let mut world = a_world(&[]);
+    let path = vec![(10, 10), (11, 10), (12, 10)];
+    cdda_sim::street_layout::write_connection(&mut world, &a_road(), &the_locations(), &path);
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (10, 10)),
+        Some("road_end_west"),
+        "**the first tile is a dead end facing the way the line goes**"
+    );
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (11, 10)),
+        Some("road_ew"),
+        "the middle is a straight run"
+    );
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (12, 10)),
+        Some("road_end_east"),
+        "and the last is the other dead end"
+    );
+}
+
+/// **A new line joins what is already there.** Reference: `overmap.cpp:6712-6731` - `new_line` keeps the existing tile's own line (`connection.has( ter_id )` → `get_line()`), so a
+/// street meeting a road makes a tee rather than erasing half of it.
+#[test]
+fn a_new_line_joins_the_road_already_there() {
+    let mut world = a_world(&[((11, 10), "road_ew")]);
+    let path = vec![(11, 11), (11, 10)];
+    cdda_sim::street_layout::write_connection(&mut world, &a_road(), &the_locations(), &path);
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (11, 11)),
+        Some("road_end_south"),
+        "**the street below the road is a dead end facing north**: {:?}",
+        cdda_sim::overmap::terrain_at(&world, (11, 11))
+    );
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (11, 10)),
+        Some("road_esw"),
+        "**and the road keeps its east and west and gains south**: {:?}",
+        cdda_sim::overmap::terrain_at(&world, (11, 10))
+    );
+}
+
+/// **A crossing stays a crossing.** A tile that already carries all four segments keeps them, so a line drawn through a crossroads does not tear it open.
+#[test]
+fn a_crossing_stays_a_crossing() {
+    let mut world = a_world(&[((11, 10), "road_nesw")]);
+    let path = vec![(10, 10), (11, 10), (12, 10)];
+    cdda_sim::street_layout::write_connection(&mut world, &a_road(), &the_locations(), &path);
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (11, 10)),
+        Some("road_nesw"),
+        "**all four segments survive**: {:?}",
+        cdda_sim::overmap::terrain_at(&world, (11, 10))
+    );
+}
+
+/// **A path stops where the connection may not be laid.** The subtype pick is asked per tile, as the reference asks it (`:6707`), and a tile with no subtype **ends** the write -
+/// `return`, not `continue` - so nothing beyond it is laid either.
+#[test]
+fn a_path_stops_where_it_may_not_be_laid() {
+    let mut world = a_world(&[((11, 10), "forest")]);
+    let path = vec![(10, 10), (11, 10), (12, 10)];
+    let written =
+        cdda_sim::street_layout::write_connection(&mut world, &a_road(), &the_locations(), &path);
+    assert_eq!(written, 1, "**one tile was laid before the forest**");
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (11, 10)),
+        Some("forest")
+    );
+    assert_eq!(
+        cdda_sim::overmap::terrain_at(&world, (12, 10)),
+        None,
+        "**and nothing beyond the forest was laid**: a write that skipped over it would answer two"
+    );
+}

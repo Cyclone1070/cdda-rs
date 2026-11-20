@@ -57,6 +57,9 @@ const EDGE_MARGIN: i32 = 1;
 /// How many roads beside a street tile are too many: `if( collisions >= 3 )` (`overmap.cpp:6678`).
 const TOO_CROWDED: i32 = 3;
 
+/// The ground a tile has when nothing has set it: the regional settings' default overmap terrain for the surface (`region_settings.json`'s `default_oter`).
+const DEFAULT_GROUND: &str = "field";
+
 /// The terrains a street never crosses, whatever the connection says (`overmap.cpp:6649-6650`): a river, a ravine, and the edge of a ravine.
 const IMPASSABLE: [&str; 6] = [
     "river",
@@ -178,4 +181,90 @@ fn crowded(
         }
     }
     false
+}
+
+/// The segment a direction contributes to a line, as `om_lines`' own bit: north one, east two, south four, west eight (`omdata.h`).
+fn segment(direction: Direction) -> usize {
+    match direction {
+        Direction::North => 1,
+        Direction::East => 2,
+        Direction::South => 4,
+        Direction::West => 8,
+    }
+}
+
+/// The shape a line mask names: the sixteenth part of `om_lines::all` (`overmap.cpp:266-287`).
+fn shape(line: usize) -> &'static str {
+    cdda_content::overmap::LINE_SUFFIXES
+        .get(line)
+        .copied()
+        .unwrap_or("_nesw")
+}
+
+/// The line an existing terrain already carries, or nothing when it is not one of the connection's linear shapes.
+///
+/// Reference: `connection.has( ter_id ) ? ter_id->get_line() : 0` (`overmap.cpp:6713`). The port reads the shape back out of the id's suffix, which is what the id is made of
+/// ([`cdda_content::overmap::LINE_SUFFIXES`]).
+fn line_of(existing: &str) -> Option<usize> {
+    let position = cdda_content::overmap::LINE_SUFFIXES
+        .iter()
+        .position(|suffix| existing.ends_with(suffix))?;
+    Some(position)
+}
+
+/// Lays a path as a connection: every tile gets the line's **linear shape** for the segments it has, and the count of tiles laid is answered.
+///
+/// Reference: `overmap::build_connection` (`overmap.cpp:6697-6740`). For each node in the path the connection's subtype for that ground is chosen; the line is the tile's own if
+/// it already carries one, plus the segment towards the next node, plus the segment back towards the previous one. The shape is then the subtype's terrain with the suffix that
+/// mask names ([`cdda_content::overmap::LINE_SUFFIXES`], `om_lines::all`, `overmap.cpp:266-287`).
+///
+/// **What is not ported** is the reference's neighbour pass (`:6717-6725`), which also reaches into the roads **around** a tile, turning their shapes to meet it. A line laid
+/// here joins the tile's own existing road but not its neighbours', which is a named gap rather than a silent difference.
+pub fn write_connection(
+    world: &mut World,
+    connection: &Connection,
+    locations: &BTreeMap<String, Location>,
+    path: &[(i32, i32)],
+) -> usize {
+    let mut laid = 0;
+    for (index, at) in path.iter().enumerate() {
+        // A tile the port has not set is the overmap's **default ground** - `region_settings.default_oter[0]`, which the data sets to "field" - and a road crosses a field.
+        let terrain = crate::overmap::terrain_at(world, *at).unwrap_or(DEFAULT_GROUND);
+        let Some(subtype) = pick_subtype(connection, locations, terrain) else {
+            // **Ground the connection may not cross ends the write** (`:6707-6711`), rather than being skipped over.
+            return laid;
+        };
+        let existing = line_of(terrain).unwrap_or(0);
+        let line = self_line(path, index, existing);
+        crate::overmap::set_terrain(world, *at, &format!("{}{}", subtype.terrain, shape(line)));
+        laid += 1;
+    }
+    laid
+}
+
+/// The line a path's tile carries: its own existing segments, the way onward, and the way back (`overmap.cpp:6713-6718`).
+fn self_line(path: &[(i32, i32)], index: usize, existing: usize) -> usize {
+    let mut line = existing;
+    let Some(here) = path.get(index).copied() else {
+        return existing;
+    };
+    if let Some(ahead) = path.get(index + 1).copied() {
+        line |= segment(step_direction(here, ahead));
+    }
+    if index > 0
+        && let Some(behind) = path.get(index - 1).copied()
+    {
+        line |= segment(step_direction(here, behind));
+    }
+    line
+}
+
+/// The direction from one tile of a path to the next, which the walk guarantees to be one of the four cardinals.
+fn step_direction(from: (i32, i32), to: (i32, i32)) -> Direction {
+    match (to.0 - from.0, to.1 - from.1) {
+        (0, y) if y < 0 => Direction::North,
+        (x, 0) if x > 0 => Direction::East,
+        (0, y) if y > 0 => Direction::South,
+        _ => Direction::West,
+    }
 }
