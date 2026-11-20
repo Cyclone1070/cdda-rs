@@ -39518,3 +39518,26 @@ already make. And the jaws' message names the part in the player's language ("yo
 has no part-display grammar yet.
 
 **The trap ledger moved to 98 of 125**; twenty-seven traps still name functions with no rule, the largest now `landmine` with two.
+
+## A tile becomes a map: the weighted choice (round 247)
+
+Reference: `mapgen_factory`'s `generate` (`mapgen.cpp:1070-1090`). Several mapgens may be filed under **one** overmap terrain, each with a weight, and the game picks one by
+weight - `weights_.pick()` - then draws it. The port had both halves and no join: `place_drawn` could write a drawn chunk and `cdda_content::mapgen::draw_chunk` could draw
+one, but **nothing called either**, so an overmap tile never became a map.
+
+Three things were needed, and the first was structural:
+
+- **The registry now files every mapgen under its name, not the last one.** `Mapgens` was a `BTreeMap<String, MapgenObject>`, and the data files 10,076 (id, map) pairs across
+  2,725 mapgens - so every terrain with two maps kept only whichever came last, which makes a weighted choice impossible in principle. It is a `BTreeMap<String, Vec<..>>`
+  now; the update path reads the first entry, because an update mapgen is filed once.
+- **One writer.** `mapgen_update::write` writes a given mapgen at an origin, `apply` calls it for updates, and `mapgen_tile::generate` calls it for whichever map the weight
+  picked - two writers would eventually disagree about what a symbol means, which is the second source of truth the architecture forbids.
+- **The pick is `rng( 1, total )` walking the weights**, which is what `weighted_list::pick` does, rather than scaling a float: the two agree on every seed, which is what
+  makes this rule replayable against the oracle at all.
+
+Tested three ways: two mapgens weighing 1 and 3 are picked about three times in four over four hundred draws (already caught by a mutation that always takes the first); one
+mapgen is always picked; a terrain whose only mapgen weighs **zero** draws nothing, because the reference never files one (`if( weight >= 1 )`, `:1070-1074`).
+
+**A dose of humility from the dice.** The first version of the weight test seeded a fresh generator per iteration and counted 400 to nothing for the light mapgen. The rule was
+right and the test was wrong: `MinStdRand0`'s *first* draw is `16807 * seed`, which for small seeds lands in the same quarter of a two-billion range, so a per-seed loop
+measures the seeding rather than the weights. One generator and four hundred successive draws measure the weights.

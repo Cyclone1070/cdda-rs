@@ -10,7 +10,9 @@ use bevy_ecs::prelude::*;
 
 /// Every mapgen the world can apply, keyed by the id the data gives it.
 #[derive(Debug, Clone, Default, PartialEq, Component)]
-pub struct Mapgens(pub BTreeMap<String, cdda_content::mapgen::MapgenObject>);
+/// **Every** mapgen filed under a name, because an overmap terrain may have several and the game picks among them by weight (`mapgen.cpp:1078-1088`). An update mapgen
+/// is filed once, so the list a caller reading an update wants is its first entry - which is why this is a list and not a map of maps.
+pub struct Mapgens(pub BTreeMap<String, Vec<cdda_content::mapgen::MapgenObject>>);
 
 /// The marker that says a single entity holds the mapgens.
 #[derive(Debug, Clone, Copy, Default, Component)]
@@ -30,9 +32,11 @@ pub fn set_mapgens(
     mapgens: impl IntoIterator<Item = (String, cdda_content::mapgen::MapgenObject)>,
 ) {
     let holder = crate::singletons::singleton::<Mapgens, TheMapgens>(world);
-    world
-        .entity_mut(holder)
-        .insert(Mapgens(mapgens.into_iter().collect()));
+    let mut filed: BTreeMap<String, Vec<cdda_content::mapgen::MapgenObject>> = BTreeMap::new();
+    for (name, mapgen) in mapgens {
+        filed.entry(name).or_default().push(mapgen);
+    }
+    world.entity_mut(holder).insert(Mapgens(filed));
 }
 
 /// Installs the terrain codes, so a drawn terrain id can be written to a square.
@@ -49,7 +53,26 @@ pub fn set_terrain_codes(world: &mut World, codes: BTreeMap<String, u32>) {
 pub fn apply(world: &mut World, update: &str, origin: (i32, i32, i32)) -> Option<usize> {
     let mapgen = crate::singletons::holder::<TheMapgens>(world)
         .and_then(|holder| world.get::<Mapgens>(holder))
-        .and_then(|mapgens| mapgens.0.get(update).cloned())?;
+        // An update mapgen is filed once; a terrain's several mapgens are not this path's business, so the first is the one an update writes.
+        .and_then(|mapgens| {
+            mapgens
+                .0
+                .get(update)
+                .and_then(|filed| filed.first())
+                .cloned()
+        })?;
+    Some(write(world, &mapgen, origin))
+}
+
+/// Writes one mapgen's terrain at an origin, answering how many squares it filled.
+///
+/// This is the single writer of a drawn mapgen: [`apply`] writes an update's, and [`crate::mapgen_tile::generate`] writes whichever one the weight picked for a tile. Two
+/// writers would eventually disagree about what a symbol means, which is exactly the second source of truth the architecture forbids.
+pub fn write(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+) -> usize {
     let codes = crate::singletons::holder::<TheTerrainCodes>(world)
         .and_then(|holder| world.get::<TerrainCodes>(holder))
         .map(|codes| codes.0.clone())
@@ -70,7 +93,7 @@ pub fn apply(world: &mut World, update: &str, origin: (i32, i32, i32)) -> Option
             written += 1;
         }
     }
-    Some(written)
+    written
 }
 
 /// Places the fields a mapgen scatters, answering how many patches landed.
@@ -80,7 +103,14 @@ pub fn apply(world: &mut World, update: &str, origin: (i32, i32, i32)) -> Option
 pub fn place_fields(world: &mut World, update: &str, origin: (i32, i32, i32)) -> Option<usize> {
     let mapgen = crate::singletons::holder::<TheMapgens>(world)
         .and_then(|holder| world.get::<Mapgens>(holder))
-        .and_then(|mapgens| mapgens.0.get(update).cloned())?;
+        // An update mapgen is filed once; a terrain's several mapgens are not this path's business, so the first is the one an update writes.
+        .and_then(|mapgens| {
+            mapgens
+                .0
+                .get(update)
+                .and_then(|filed| filed.first())
+                .cloned()
+        })?;
     if mapgen.fields.is_empty() {
         return Some(0);
     }
