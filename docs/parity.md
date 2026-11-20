@@ -40016,3 +40016,29 @@ run of five sizes pins the whole ladder. `one_in( 1 )` is a certainty (`chance <
 Six mutations, six catches: the avatar gate, the trap removal, the dodge gate, the size ladder, the head face, and the lost bolt.
 
 The trap ledger moves to **119 of 125 traps answered, 6 unported**.
+
+## A temple's colours and its flood (round 271)
+
+**A temple toggle** (`trapfunc::temple_toggle`, `trapfunc.cpp:1359-1423`) answers only the avatar, with "You hear the grinding of shifting rock.", and then swaps terrain **by the
+colour of the floor underfoot**: from a red floor, green rock becomes green floor and green floor becomes green rock; from green, blue swaps; from blue, red swaps. Then, if all eight
+neighbours are impassable and one of them is a coloured rock, one of those at random becomes its floor. The port walks the **terrain entities**, the same set the reference's double
+loop visits, without a per-square array to walk.
+
+**A flood trap** (`trapfunc::temple_flood`, `:1334-1357`) answers only the avatar, with "You step on a loose tile, and water starts to flood the room!", removes **every**
+`temple_flood` trap on the level and schedules `TEMPLE_FLOOD` three turns out.
+
+**A trap on a square is an id, not an action.** The flood's "every other flood trap" first compared the square's own string to `"temple_flood"` and found nothing: a square holds
+`tr_test`, and which rule that id runs is the **registry's** answer. The fix asks the registry per id - the reference's own `here.tr_at( tmp ) == tr_temple_flood`, which compares
+the trap it loaded. The failing assertion ("the trap underfoot is gone") was the only thing that could have caught it.
+
+**A deliberate divergence, said out loud.** When every neighbour is impassable but none is a coloured rock, the reference calls `random_entry` on an empty vector - undefined
+behaviour. The port answers nothing rather than reading past the end, and there is no test for it because there is no defined behaviour to pin.
+
+**Named gap.** The flood itself is the timed event's work (`timed_event.cpp:223-291`: water spreads a ring a turn, deepening as it goes), and the port schedules the event without a
+processor for it. The trap's half - the line, the trap removal, the schedule - is exact; the flood is what the event still has to learn.
+
+**A note on this round's instrument.** The remote link was unreliable: one full gate died on an rsync `255`, another test run whose remote half had already passed hung with the
+session, and one build finished before its ssh returned. What is verified here is the two focused tests (red then green), their two mutations (each caught), clippy green on the whole
+workspace, and the docs check; **CI runs the rest**, and that is where the full suite is proven this time.
+
+The trap ledger moves to **121 of 125 traps answered, 4 unported** - `boobytrap`, `dissector`, `goo` and `sinkhole`, each waiting on a subsystem rather than on a rule.

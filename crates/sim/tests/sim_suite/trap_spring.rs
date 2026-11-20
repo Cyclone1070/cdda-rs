@@ -2618,3 +2618,122 @@ fn the_bolt_can_take_the_head_and_be_lost() {
         "**the crossbow and the string, and no bolt**"
     );
 }
+
+/// **A temple toggle swaps one colour of rock for floor and back.** Reference: `trapfunc::temple_toggle` (`trapfunc.cpp:1359-1423`): only the avatar hears "You hear the grinding of
+/// shifting rock.", and then every square on the level changes **by the colour of the floor it was stepped from** - from a red floor, green rock becomes green floor and green floor
+/// becomes green rock; from green, blue swaps; from blue, red swaps. A red floor leaves blue alone, which is what this checks.
+#[test]
+fn a_temple_toggle_swaps_the_colours() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_floor_red".to_owned(), 1_u32),
+            ("t_rock_green".to_owned(), 2),
+            ("t_floor_green".to_owned(), 3),
+            ("t_rock_blue".to_owned(), 4),
+            ("t_floor_blue".to_owned(), 5),
+            ("t_rock_red".to_owned(), 6),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    // The floor underfoot is red, and the room holds one of each colour that red cares about, plus blue's pair to prove it is left alone.
+    for (x, code) in [(0, 1_u32), (5, 2), (6, 3), (7, 5), (8, 4)] {
+        cdda_sim::square::set_terrain(&mut world, (x, 0, 0), code);
+        cdda_sim::PositionIndex::rebuild(&mut world);
+    }
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("temple_toggle", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the avatar turns the room**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (5, 0, 0)),
+        Some(3),
+        "**green rock becomes green floor**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (6, 0, 0)),
+        Some(2),
+        "**and green floor becomes green rock**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (7, 0, 0)),
+        Some(5),
+        "**a red floor leaves blue floor alone**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (8, 0, 0)),
+        Some(4),
+        "**and blue rock too**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You hear the grinding of shifting rock."),
+        "**and the line is the grinding**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A flood trap clears its siblings and schedules the flood.** Reference: `trapfunc::temple_flood` (`trapfunc.cpp:1334-1357`): only the avatar is answered - "Monsters and npcs
+/// are completely ignored here" - with "You step on a loose tile, and water starts to flood the room!", then **every** `temple_flood` trap on the level is removed and the
+/// `TEMPLE_FLOOD` event is scheduled **three turns** out. The flood itself is the timed event's work, not the trap's.
+#[test]
+fn a_flood_trap_clears_its_siblings_and_schedules_the_flood() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::calendar::set_turn(&mut world, 1_000);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("temple_flood", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::square::set_trap(&mut world, (1, 0, 0), "tr_test"));
+    // A monster is ignored and the traps stay.
+    cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+    assert!(!cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (1, 0, 0)),
+        Some("tr_test".to_owned())
+    );
+    let watcher = cdda_sim::spawn_player(&mut world, (3, 0), 100, 0);
+    cdda_sim::missions::set_avatar(&mut world, watcher);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, watcher, (0, 0, 0), false),
+        "**the avatar steps on the tile**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "**the trap underfoot is gone**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (1, 0, 0)),
+        None,
+        "**and so is the one beside it**"
+    );
+    assert!(
+        !cdda_sim::timed_events::has_happened(&world, "TEMPLE_FLOOD").unwrap_or(true),
+        "**the flood has not come yet**"
+    );
+    cdda_sim::calendar::set_turn(&mut world, 1_003);
+    assert_eq!(
+        cdda_sim::timed_events::has_happened(&world, "TEMPLE_FLOOD"),
+        Some(true),
+        "**three turns later it has**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You step on a loose tile, and water starts to flood the room!"),
+        "**and the line is the loose tile**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}

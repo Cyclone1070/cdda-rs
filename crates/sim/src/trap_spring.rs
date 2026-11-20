@@ -55,6 +55,8 @@ pub fn spring_with(
         Some("snake") => return snake(world, square),
         Some("shadow") => return shadow(world, who, square),
         Some("crossbow") => return crossbow(world, who, square),
+        Some("temple_toggle") => return temple_toggle(world, who, square),
+        Some("temple_flood") => return temple_flood(world, who, square),
         Some("glow") => return glow(world, who, square),
         Some("lava") => return lava(world, who, square),
         Some("pit_spikes") => return spiked_pit(world, who, square, &Spiked::SPIKES),
@@ -319,6 +321,159 @@ fn snake(world: &mut World, square: (i32, i32, i32)) -> bool {
         crate::square::remove_trap(world, square);
     }
     true
+}
+
+/// **A temple's colours turn when the player steps on the right floor.**
+///
+/// Reference: `trapfunc::temple_toggle` (`trapfunc.cpp:1359-1423`). Only the avatar is answered, with "You hear the grinding of shifting rock." The **floor underfoot** decides which
+/// pair swaps: from a red floor, green rock becomes green floor and green floor becomes green rock; from green, blue swaps; from blue, red swaps. Then - if all eight neighbours are
+/// impassable and at least one of them is one of the three rocks - one of those rocks at random becomes its floor.
+///
+/// The port walks the **terrain entities**, which is the same set the reference's double loop over `MAPSIZE_X`/`MAPSIZE_Y` visits, without a per-square array to walk.
+///
+/// **A deliberate divergence**: when every neighbour is impassable but none of them is a coloured rock, the reference calls `random_entry` on an empty vector - undefined behaviour.
+/// The port answers nothing rather than reading past the end, and there is no test for that branch because the reference has no defined behaviour to pin.
+fn temple_toggle(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    if crate::missions::avatar(world) != Some(who) {
+        return false;
+    }
+    crate::messages::push(world, "You hear the grinding of shifting rock.");
+    let Some(underfoot) = crate::square::terrain_at(world, square) else {
+        return true;
+    };
+    let red = terrain_code(world, "t_floor_red");
+    let green = terrain_code(world, "t_floor_green");
+    let blue = terrain_code(world, "t_floor_blue");
+    let (rock, floor) = if Some(underfoot) == red {
+        (terrain_code(world, "t_rock_green"), green)
+    } else if Some(underfoot) == green {
+        (terrain_code(world, "t_rock_blue"), blue)
+    } else if Some(underfoot) == blue {
+        (terrain_code(world, "t_rock_red"), red)
+    } else {
+        (None, None)
+    };
+    let mut swaps: Vec<((i32, i32, i32), u32)> = Vec::new();
+    if let (Some(rock), Some(floor)) = (rock, floor) {
+        let mut query = world.query::<(&crate::square::Terrain, &crate::Position)>();
+        for (terrain, at) in query.iter(world) {
+            let here = (at.x, at.y, at.z);
+            if terrain.code == rock {
+                swaps.push((here, floor));
+            } else if terrain.code == floor {
+                swaps.push((here, rock));
+            }
+        }
+    }
+    for (at, code) in swaps {
+        crate::square::set_terrain(world, at, code);
+    }
+    // **A room with no way out is opened**: `if( blocked_tiles.size() == 8 )`, keep the coloured rocks and turn one of them into its floor.
+    let mut rocks = Vec::new();
+    for dx in -1..=1 {
+        for dy in -1..=1 {
+            if (dx, dy) == (0, 0) {
+                continue;
+            }
+            let at = (square.0 + dx, square.1 + dy, square.2);
+            if !square_is_impassable(world, at) {
+                continue;
+            }
+            let code = crate::square::terrain_at(world, at);
+            let matching = [
+                (
+                    terrain_code(world, "t_rock_red"),
+                    terrain_code(world, "t_floor_red"),
+                ),
+                (terrain_code(world, "t_rock_green"), green),
+                (terrain_code(world, "t_rock_blue"), blue),
+            ]
+            .into_iter()
+            .find(|(rock, _)| code.is_some() && *rock == code);
+            if let Some((_, floor)) = matching
+                && let Some(floor) = floor
+            {
+                rocks.push((at, floor));
+            }
+        }
+    }
+    if rocks.len() == 8
+        && let Some(mut rolls) = crate::singletons::take_rolls(world)
+    {
+        #[allow(clippy::cast_possible_truncation)]
+        let top = i32::try_from(rocks.len()).unwrap_or(1) - 1;
+        let pick = usize::try_from(rolls.rng(0, top)).unwrap_or(0);
+        crate::singletons::put_rolls(world, rolls);
+        if let Some((at, code)) = rocks.get(pick).copied() {
+            crate::square::set_terrain(world, at, code);
+        }
+    }
+    true
+}
+
+/// **A loose tile starts a flood.**
+///
+/// Reference: `trapfunc::temple_flood` (`trapfunc.cpp:1334-1357`). Only the avatar is answered - "Monsters and npcs are completely ignored here" - with "You step on a loose tile, and
+/// water starts to flood the room!"; then **every** `temple_flood` trap on the level is removed and `TEMPLE_FLOOD` is scheduled three turns out.
+///
+/// **Named gap**: the flood itself is the timed event's work (`timed_event.cpp:223-291`: water spreads a ring a turn), not the trap's, and the port schedules the event without a
+/// processor for it yet. The trap's half - the line, the trap removal and the schedule - is exact.
+fn temple_flood(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    if crate::missions::avatar(world) != Some(who) {
+        return false;
+    }
+    crate::messages::push(
+        world,
+        "You step on a loose tile, and water starts to flood the room!",
+    );
+    // **Every square whose trap is a `temple_flood` one**, which is the reference's `here.tr_at( tmp ) == tr_temple_flood`: the square's trap is an **id**, and the id's action is
+    // what says which rule it is - so the registry is asked rather than the square's own string compared.
+    let ids: Vec<String> = {
+        let mut query = world.query::<&crate::square::Trap>();
+        query.iter(world).map(|trap| trap.kind.clone()).collect()
+    };
+    let floods: Vec<String> = ids
+        .into_iter()
+        .filter(|id| {
+            crate::trap_registry::get(world, id)
+                .is_some_and(|trap| trap.action.as_deref() == Some("temple_flood"))
+        })
+        .collect();
+    let mut siblings: Vec<(i32, i32, i32)> = Vec::new();
+    let mut query = world.query::<(&crate::square::Trap, &crate::Position)>();
+    for (trap, at) in query.iter(world) {
+        if floods.contains(&trap.kind) {
+            siblings.push((at.x, at.y, at.z));
+        }
+    }
+    for at in siblings {
+        crate::square::remove_trap(world, at);
+    }
+    crate::timed_events::schedule(world, "TEMPLE_FLOOD", 3);
+    let _ = square;
+    true
+}
+
+/// The terrain code the loader registered for a name, if it registered one.
+fn terrain_code(world: &World, name: &str) -> Option<u32> {
+    let holder = crate::singletons::holder::<crate::mapgen_update::TheTerrainCodes>(world)?;
+    world
+        .get::<crate::mapgen_update::TerrainCodes>(holder)?
+        .0
+        .get(name)
+        .copied()
+}
+
+/// Whether a square's terrain has no move cost, which is what "impassable" means in the port.
+///
+/// A square with no terrain, or with a code the table does not know, is **not** impassable - the same convention [`crate::sees`] uses for a world with no prototypes: nothing loaded
+/// means air, not a wall.
+fn square_is_impassable(world: &World, square: (i32, i32, i32)) -> bool {
+    let Some(code) = crate::square::terrain_at(world, square) else {
+        return false;
+    };
+    crate::singletons::prototypes(world)
+        .is_some_and(|prototypes| prototypes.terrain.move_cost(code) == Some(0))
 }
 
 /// **A shadow trap calls a shadow, but only for the player.**
