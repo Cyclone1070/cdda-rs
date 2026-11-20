@@ -39898,3 +39898,25 @@ and a dressed one fills as much as a fresh one. That is a named gap, not an appr
 grav chute and no rider, so they take the ordinary fall. And the corpse flags above.
 
 The trap ledger moves to **109 of 125 traps answered, 16 unported**.
+
+## A light snare and a tripwire (round 266)
+
+**A light snare** (`trapfunc::snare_light`, `trapfunc.cpp:687-711`): "Snap!" at volume four of the **combat** kind comes first, the snare is destroyed by springing whatever happens,
+a tiny or **small** creature takes the `lightsnare` effect for a hundred turns and is told, and the trap's own kit falls on the square it was on. The kit is a **kind** the data
+names, so the drop is one lookup (`light_snare_kit`) rather than an invented item.
+
+**A tripwire** (`trapfunc::tripwire`, `:405-462`): a tiny creature squeezes under it; anyone else is told and then the rule splits in two - a monster takes `rng( 1, 4 )` of pure
+damage when `rng( 0, 10 ) > dodge`, and a character is put down on a random empty square next to the wire, spends `speed * 1.5` moves, and takes `rng( 1, 4 )` from every part when
+`rng( 5, 20 ) > dexterity`.
+
+**A port-shaped question the test forced.** `g->is_empty` asks whether anything is standing on a square; the port's index **also holds the square's terrain**, so asking the index
+whether it is empty answers "no" for every square in a loaded level - and the first version moved nobody. "Empty" in the port is "no creature", and that is now what the rule asks.
+The same shape of bug as the census finding "501 refused": a query whose question was one word off.
+
+Five mutations, five catches - but the **kit drop survived the first pass**, because no test looked for the item. Asserting that the kit lies on the square kills it. A mutation
+survives only where nothing is being asked.
+
+The trap ledger moves to **111 of 125 traps answered, 14 unported**.
+
+**Named gaps.** The monster's `stumble()` - the reference's "the monster falls over" movement rule - is not ported, so a monster keeps its footing and only takes the damage. The
+rider branches are not ported, as elsewhere.

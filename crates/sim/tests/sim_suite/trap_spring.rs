@@ -1692,3 +1692,170 @@ fn a_tiny_animal_is_not_hurt_by_a_pit() {
         hp_before
     );
 }
+
+/// **A light snare snaps shut on a small animal's leg.** Reference: `trapfunc::snare_light` (`trapfunc.cpp:687-711`): "Snap!" at volume four of the **combat** kind, the trap is
+/// destroyed whatever happens, a tiny or **small** creature takes the `lightsnare` effect for a hundred turns and is told, and the trap's kit falls on the square.
+#[test]
+fn a_light_snare_snaps_on_a_small_animal() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+        creature.size = cdda_sim::CreatureSize::Small;
+    }
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[cdda_sim::effect_registry::bare("lightsnare")],
+    );
+    // The kit the reference spawns on the square is a **kind**, so the test installs it by name.
+    cdda_sim::item_registry::set_item_types(&mut world, &[a_kind("light_snare_kit")]);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("snare_light", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the snare springs**"
+    );
+    let sounds = cdda_sim::sounds::heard_this_turn(&mut world);
+    let snap = sounds.last().cloned().expect("a snap was heard");
+    assert_eq!(snap.description, "Snap!");
+    assert_eq!(snap.volume, 4, "**at volume four**");
+    assert_eq!(snap.category, cdda_sim::sounds::SoundCategory::Combat);
+    assert!(
+        cdda_sim::applied_effects::has(&world, who, "lightsnare"),
+        "**a small creature is caught**: {:?}",
+        cdda_sim::applied_effects::worn(&world, who)
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("A snare closes on your leg")),
+        "**and told so**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "**the snare is destroyed by springing**"
+    );
+    // **The kit comes back**: "Always get trap components back on triggering tile" - the snare's own kit lies where the snare was.
+    let kit = cdda_sim::item_registry::id_of(&mut world, "light_snare_kit");
+    let lying: Vec<_> = cdda_sim::items_at(&mut world, (0, 0))
+        .into_iter()
+        .filter(|item| {
+            world
+                .get::<cdda_sim::GroundItem>(*item)
+                .is_some_and(|ground| Some(ground.kind) == kit)
+        })
+        .collect();
+    assert_eq!(
+        lying.len(),
+        1,
+        "**the light snare kit is on the square the snare was on**"
+    );
+}
+
+/// **A big creature only sets the snare off.** Reference: `:697` - the effect needs `size == tiny || size == small`, so a medium creature hears the snap, loses the trap and walks
+/// on with nothing on its leg.
+#[test]
+fn a_light_snare_does_not_catch_a_medium_creature() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[cdda_sim::effect_registry::bare("lightsnare")],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("snare_light", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert!(
+        !cdda_sim::applied_effects::has(&world, who, "lightsnare"),
+        "**a medium creature is not caught**"
+    );
+    assert_eq!(cdda_sim::square::trap_at(&world, (0, 0, 0)), None);
+}
+
+/// **A tripwire moves the walker and can hurt them.** Reference: `trapfunc::tripwire` (`trapfunc.cpp:405-462`): a tiny creature squeezes under it; anyone else is told ("You trip
+/// over a tripwire!"), is put down on a **random empty square next to it**, spends `speed * 1.5` moves, and - if `rng( 5, 20 ) > dexterity` - loses `rng( 1, 4 )` from every part.
+#[test]
+fn a_tripwire_moves_the_walker_and_hurts_them() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    // A dexterity of zero, so the trip takes: `rng( 5, 20 ) > dex` is true for every draw.
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dexterity { base: 0 });
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("tripwire", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    let moves_before = cdda_sim::creature::moves_left(&world, who);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the wire is tripped**"
+    );
+    let at = world
+        .get::<cdda_sim::Position>(who)
+        .map(|at| (at.x, at.y, at.z));
+    assert_ne!(
+        at,
+        Some((0, 0, 0)),
+        "**the walker is moved off the wire**: {at:?}"
+    );
+    if let Some((x, y, _)) = at {
+        assert!(
+            x.abs() <= 1 && y.abs() <= 1,
+            "**to a square next to the wire at the origin**: {at:?}"
+        );
+    }
+    assert_eq!(
+        cdda_sim::creature::moves_left(&world, who),
+        moves_before - 150,
+        "**and loses a turn and a half**"
+    );
+    assert!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0) < hp_before,
+        "**the trip hurts**: {hp_before} -> {:?}",
+        cdda_sim::creature::health_of(&world, who)
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("You trip over a tripwire")),
+        "**and is told why**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A nimble walker trips but is not hurt.** `rng( 5, 20 ) > dexterity` is the whole gate: a dexterity of thirty takes every draw, so the trip costs the move and nothing else.
+#[test]
+fn a_nimble_walker_trips_without_being_hurt() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dexterity { base: 30 });
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("tripwire", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.75));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before,
+        "**a dexterity of thirty takes a five-to-twenty roll**"
+    );
+}

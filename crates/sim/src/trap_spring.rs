@@ -51,6 +51,8 @@ pub fn spring_with(
         Some("caltrops") => return sharp_ground(world, who, square, &Sharp::CALTROPS),
         Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
         Some("pit") => return pit(world, who, square),
+        Some("snare_light") => return snare_light(world, who, square),
+        Some("tripwire") => return tripwire(world, who, square),
         Some("drain") => return drain(world, who),
         Some("hum") => return hum(world, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
@@ -254,6 +256,138 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
         crate::sounds::SoundCategory::Combat,
     );
     crate::square::remove_trap(world, square);
+    true
+}
+
+/// **A light snare snaps shut on a small animal's leg.**
+///
+/// Reference: `trapfunc::snare_light` (`trapfunc.cpp:687-711`). The sound comes **before** the trap is removed and whatever happens next: "Snap!" at volume four of the combat
+/// kind. A snare is destroyed by springing, always. A tiny or **small** creature is caught - the `lightsnare` effect for a hundred turns and a line - and the trap's own kit falls
+/// on the square it was on, which is what `here.spawn_item( p, itype_light_snare_kit )` does.
+///
+/// **Not ported**: the mount branch, as with the other traps - the reference tells a rider about its mount, and the port has no rider.
+fn snare_light(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        4,
+        "Snap!",
+        crate::sounds::SoundCategory::Combat,
+    );
+    crate::square::remove_trap(world, square);
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if matches!(size, crate::CreatureSize::Tiny | crate::CreatureSize::Small)
+        && let Some(kind) = crate::effect_registry::kind_named(world, "lightsnare")
+    {
+        crate::applied_effects::add(
+            world,
+            who,
+            crate::effects::ActiveEffect::new(&kind, 100, 100),
+        );
+        let line = if crate::missions::avatar(world) == Some(who) {
+            "A snare closes on your leg.".to_owned()
+        } else {
+            format!("A snare closes on {}s leg.", name_of(world, who))
+        };
+        crate::messages::push(world, &line);
+    }
+    // "Always get trap components back on triggering tile": the kit is a **kind** the data names, so the drop is one lookup rather than an invented item.
+    if let Some(kind) = crate::item_registry::id_of(world, "light_snare_kit") {
+        crate::drop_item(world, (square.0, square.1), kind, 1);
+    }
+    true
+}
+
+/// **A tripwire puts the walker down and may hurt them.**
+///
+/// Reference: `trapfunc::tripwire` (`trapfunc.cpp:405-462`). A tiny creature squeezes under it. Anyone else is told ("You trip over a tripwire!"), and then the two halves part:
+///
+/// - a **monster** stumbles (its own movement rule) and, if `rng( 0, 10 ) > dodge`, takes `rng( 1, 4 )` of pure damage to its torso;
+/// - a **character** is put down on a random empty square next to the wire, spends `speed * 1.5` moves, and - if `rng( 5, 20 ) > dexterity` - loses `rng( 1, 4 )` from every part.
+///
+/// **Not ported**: the monster's `stumble()` - the reference's own "the monster falls over" movement rule, which the port has no equivalent of - so a monster keeps its footing
+/// here and only takes the damage; and the rider branches, as elsewhere.
+fn tripwire(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if size == crate::CreatureSize::Tiny {
+        return false;
+    }
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You trip over a tripwire!".to_owned()
+    } else {
+        format!("{} trips over a tripwire!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    if is_a_monster(world, who) {
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            return true;
+        };
+        let tripped = rolls.rng(0, 10);
+        let damage = rolls.rng(1, 4);
+        crate::singletons::put_rolls(world, rolls);
+        let dodge = world
+            .get::<crate::creature::Dodge>(who)
+            .map_or(0, |dodge| dodge.points);
+        if tripped > dodge {
+            #[allow(clippy::cast_precision_loss)]
+            crate::creature::hurt(world, who, damage as f32);
+        }
+        return true;
+    }
+    // A character is moved to a random empty square next to the wire (`g->is_empty`), which in the port is a square with no creature in it.
+    let mut empty = Vec::new();
+    for dx in -1..=1 {
+        for dy in -1..=1 {
+            let at = (square.0 + dx, square.1 + dy, square.2);
+            if (dx, dy) == (0, 0) {
+                continue;
+            }
+            // `g->is_empty` asks whether anything is **standing** there; the port's index also holds the square's terrain, so "empty" is "no creature".
+            let occupied = crate::index(world).is_some_and(|index| {
+                index
+                    .at_level(at.0, at.1, at.2)
+                    .iter()
+                    .any(|entity| world.get::<crate::creature::Creature>(*entity).is_some())
+            });
+            if !occupied {
+                empty.push(at);
+            }
+        }
+    }
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    let spot = if empty.is_empty() {
+        None
+    } else {
+        let pick = rolls.rng(0, i32::try_from(empty.len()).unwrap_or(1) - 1);
+        usize::try_from(pick)
+            .ok()
+            .and_then(|index| empty.get(index))
+            .copied()
+    };
+    let tripped = rolls.rng(5, 20);
+    let damage = rolls.rng(1, 4);
+    crate::singletons::put_rolls(world, rolls);
+    if let Some((x, y, z)) = spot
+        && let Some(mut at) = world.get_mut::<crate::Position>(who)
+    {
+        at.x = x;
+        at.y = y;
+        at.z = z;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let cost = f64::from(crate::creature::speed_of(world, who)) * 1.5;
+    crate::creature::spend_moves(world, who, cost);
+    let dexterity = crate::creature::effective_dexterity(world, who);
+    if tripped > dexterity {
+        #[allow(clippy::cast_precision_loss)]
+        crate::creature::hurt(world, who, damage as f32);
+    }
     true
 }
 
