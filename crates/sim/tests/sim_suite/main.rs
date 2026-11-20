@@ -228,6 +228,7 @@ mod spell_walls;
 mod spellcasting;
 mod spread_gas;
 mod squares;
+mod street_layout;
 mod summon_drops;
 mod summon_group;
 mod summon_lease;

@@ -104,6 +104,7 @@ pub mod spell_targets;
 pub mod spell_types;
 pub mod spellcasting;
 pub mod square;
+pub mod street_layout;
 pub mod summoned;
 pub mod teleport;
 pub mod timed_events;

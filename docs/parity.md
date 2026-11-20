@@ -39743,3 +39743,26 @@ Three mutations, three catches: the subtype list reversed (the bridge becomes a 
 **Named gap.** `oter_t::type_is` compares the **type** an overmap terrain declares; the port has not loaded that declaration and reads the id's shape instead (`road_nesw` is of
 type `road`), which is the same answer for every directional terrain in the data and a named approximation for the rest. The street builder (`overmap::lay_out_street`,
 `:6628`) and the pathfinding above it are not ported - this round is the data and the pick they will call.
+
+## Laying out a street (round 259)
+
+Reference: `overmap::lay_out_street` (`overmap.cpp:6628-6695`). A street is not drawn in one go: it is **walked**, one tile at a time, and the walk stops at the first thing it may
+not cross. `street_layout::lay_out_street` ports the walk, with the reference's stops in its order:
+
+- **the map's edge**, with one tile of margin (`inbounds( pos, 1 )`);
+- **a river or a ravine**, refused *before* the connection is asked - a city street is not a road that crosses water;
+- **ground the connection has no subtype for**;
+- **three roads beside the tile**, off the street's own line - "stop roads from running right next to each other" - and the count is checked after every column of the 3×3,
+  as the reference checks it;
+- **another road of the same connection**, once past the first tile, so two streets meet rather than run alongside;
+- and the reference's one extension: if the tile *beyond* the asked length is already a road, the street reaches one further so it joins.
+
+Four mutations, four catches: the edge margin removed, the crowd threshold raised, the "stop at a road" rule disabled, and the crowd check removed entirely.
+
+**Two readings the tests corrected.** A river is **not** crossed by a city street even when the connection has a bridge subtype - the bridge belongs to the inter-city roads that
+pathfind, not to this walk. And the crowd check runs **before** a tile is taken, so a crowd around the source stops the street at nothing, which is why `build_city_street`
+bails on a path of one node or fewer.
+
+**Named gaps.** `build_city_street` (`:6232`) - the side streets and the buildings hung off them - and `build_connection` (`:6697`), which turns a path into directional terrain
+ids, are not ported: this round is the walk those two call. `city_tiles.insert( pos )`, the reference's marking of the walk's tiles as city, is not done either, because the port's
+city tiles are set in one place (`cities::set_tiles`) and the flood fill that consumes them is not ported.
