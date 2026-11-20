@@ -153,21 +153,47 @@ pub fn write(
             }
             // **Items come last** (`mapgen.cpp:5510-5530`): a symbol's item is placed with a chance out of a hundred - one hundred always - and an amount the dice answer between.
             if let Some(placement) = mapgen.items.get(&symbol)
-                && let Some(item) = placement.item.as_deref()
                 && (placement.chance >= 100
                     || rolls
                         .as_mut()
                         .is_none_or(|rolls| rolls.x_in_y(f64::from(placement.chance), 100.0)))
-                && let Some(kind) = crate::item_registry::id_of(world, item)
             {
                 let count = match rolls.as_mut() {
                     Some(rolls) => rolls.rng(placement.amount.0, placement.amount.1),
                     None => placement.amount.0,
-                };
-                for _ in 0..count.max(0) {
-                    crate::drop_item(world, (at.0, at.1), kind, 1);
                 }
-                drew = true;
+                .max(0);
+                if let Some(item) = placement.item.as_deref() {
+                    if let Some(kind) = crate::item_registry::id_of(world, item) {
+                        for _ in 0..count {
+                            crate::drop_item(world, (at.0, at.1), kind, 1);
+                        }
+                        drew = true;
+                    }
+                } else if let Some(group) = placement.group.as_deref() {
+                    // **A group is drawn once per amount** (`jmapgen_item_group::apply`, `mapgen.cpp:5360-5400`): the square gets a member of the group rather than a named thing,
+                    // and the group's own rules decide whether that member is anything at all - a draw of nothing is a square with nothing on it, not an error.
+                    //
+                    // The group's own draw takes the dice, so the writer hands them back first and picks them up again after: one generator, one holder at a time, and no second
+                    // copy of the dice anywhere.
+                    for _ in 0..count {
+                        if let Some(held) = rolls.take() {
+                            crate::singletons::put_rolls(world, held);
+                        }
+                        let produced = crate::item_groups::draw(world, group);
+                        rolls = crate::singletons::take_rolls(world);
+                        if let Some(produced) = produced {
+                            for (id, amount) in produced {
+                                if let Some(kind) = crate::item_registry::id_of(world, &id) {
+                                    for _ in 0..amount.max(0) {
+                                        crate::drop_item(world, (at.0, at.1), kind, 1);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    drew = true;
+                }
             }
             if drew && filled.is_none() {
                 written += 1;

@@ -39608,3 +39608,18 @@ Two mutations, two catches: the drop removed, and the map's first placement used
 
 **Named gaps.** Item **groups** (`"group": ...` and a bare group id) are not expanded here - that is the layer the forest replay measured at 589-601 dice per chunk, and it is
 the next one. A placement's `repeat`, its `x`/`y` offsets and its per-item `damage`/`ammo` are not read either; the port places an item at the square the symbol sits on.
+
+## Item groups on the drawn squares (round 252)
+
+Reference: `jmapgen_item_group::apply` (`mapgen.cpp:5360-5400`). A symbol's `items` entry may name an item **group** - as `"group": "id"` or as a bare string - and the group is
+drawn from **once per amount**, so the square gets a member of the group rather than a named thing. The port read a named item and skipped groups entirely.
+
+- `ItemPlacement` gained `group: Option<String>`, and the loader now reads `"group"` and the bare-string form instead of skipping the latter as unreadable;
+- the writer expands a group through `crate::item_groups::draw`, the same loader the loot path uses, so a mapgen and a corpse cannot disagree about what a group means;
+- **the dice are lent, not duplicated.** The group's own draw takes the generator, so the writer puts it back before the draw and picks it up again afterwards - one generator,
+  one holder, no second copy of the dice anywhere. A rule that made a second generator would make a replay disagree with itself.
+
+Two mutations, two catches: the group drawn once instead of per amount, and the group's own amount ignored.
+
+**Named gap.** The mapgen's group draw is the reference's **`item_from`** rule, not its `place_items` machinery: the reference also applies a spawn rate per chunk and can place a
+group over a whole area (`"repeat"`, `x`/`y` offsets). The port draws one group per square, which is the shape the data uses for rooms.

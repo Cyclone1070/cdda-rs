@@ -292,6 +292,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
             'I',
             cdda_content::mapgen::ItemPlacement {
                 item: Some("rock".to_owned()),
+                group: None,
                 chance: 100,
                 amount: (3, 3),
             },
@@ -318,5 +319,88 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         cdda_sim::items_at(&mut world, (1, 0)).len(),
         0,
         "and the plain square has nothing on it"
+    );
+}
+
+/// **A mapgen symbol may name an item group instead of an item**, and the group is expanded where the symbol sits. Reference: `jmapgen_item_group::apply`
+/// (`mapgen.cpp:5360-5400`): a group is drawn from once per placement, so the square gets a random member of the group rather than a named thing - and a spawn rate
+/// scales how often the group produces anything at all.
+#[test]
+fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rag",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    cdda_sim::item_groups::set_groups(
+        &mut world,
+        [(
+            "loot_group".to_owned(),
+            cdda_content::item_group_draw::Definition {
+                id: "loot_group".to_owned(),
+                distribution: false,
+                entries: vec![cdda_content::item_group_draw::Entry::Item {
+                    id: "rag".to_owned(),
+                    probability: 100,
+                    count: (1, 1),
+                    event: None,
+                }],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    );
+    let grouped = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["G.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('G', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: [(
+            'G',
+            cdda_content::mapgen::ItemPlacement {
+                item: None,
+                group: Some("loot_group".to_owned()),
+                chance: 100,
+                amount: (2, 2),
+            },
+        )]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), grouped)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0)),
+        Some(2),
+        "two squares drawn"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        2,
+        "**the group is drawn once per amount, and both rags are here**"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        0,
+        "and the plain square has nothing"
     );
 }

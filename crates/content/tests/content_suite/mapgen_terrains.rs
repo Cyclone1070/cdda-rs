@@ -117,9 +117,11 @@ fn a_mapgen_carries_the_items_its_symbols_place() {
     );
     assert_eq!(plain.amount, (1, 1), "and places one");
     assert_eq!(
-        items.get(&'c'),
-        None,
-        "a group id is not an item, and is not read"
+        items
+            .get(&'c')
+            .and_then(|placement| placement.group.as_deref()),
+        Some("livingroom"),
+        "**a bare string is a group, and is read as one**"
     );
 }
 

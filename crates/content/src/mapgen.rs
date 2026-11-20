@@ -151,6 +151,8 @@ pub struct MapgenObject {
 pub struct ItemPlacement {
     /// The item id the symbol places.
     pub item: Option<String>,
+    /// The item **group** the symbol draws from, when it names one instead of an item (`jmapgen_item_group::apply`, `mapgen.cpp:5360-5400`).
+    pub group: Option<String>,
     /// How likely it is to be there at all, out of a hundred: one hundred is always.
     pub chance: i32,
     /// How many, as a range the dice answer between.
@@ -178,11 +180,22 @@ fn read_items(inner: &cdda_json::Object) -> BTreeMap<char, ItemPlacement> {
                     Some(cdda_json::Value::Str(id)) => Some(id.clone()),
                     _ => None,
                 },
+                group: match entry.get("group") {
+                    Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                    _ => None,
+                },
                 chance: match entry.get("chance") {
                     Some(cdda_json::Value::Int(chance)) => i32::try_from(*chance).unwrap_or(100),
                     _ => 100,
                 },
                 amount: read_amount(entry.get("amount")),
+            },
+            // A bare string is a group id, which is now read rather than skipped: `"items": { "c": "livingroom" }`.
+            cdda_json::Value::Str(group) => ItemPlacement {
+                item: None,
+                group: Some(group.clone()),
+                chance: 100,
+                amount: (1, 1),
             },
             _ => continue,
         };
