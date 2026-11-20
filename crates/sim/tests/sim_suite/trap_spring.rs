@@ -353,6 +353,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         furniture: std::collections::BTreeMap::new(),
         weight: 100,
         fields: Vec::new(),
+        fill_ter: None,
     }
 }
 

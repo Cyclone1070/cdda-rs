@@ -24,6 +24,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         furniture: BTreeMap::new(),
         weight,
         fields: Vec::new(),
+        fill_ter: None,
     }
 }
 
@@ -109,5 +110,56 @@ fn a_tile_with_one_mapgen_draws_it_and_a_tile_with_none_draws_nothing() {
         cdda_sim::mapgen_tile::generate(&mut empty, "house", (0, 0, 0)),
         None,
         "**a zero weight is not a choice**"
+    );
+}
+
+/// **A mapgen's `fill_ter` fills the chunk, and the rows are drawn on top of it.** Reference: `mapgen_function_json::generate` (`mapgen.cpp:5100-5110`) fills the whole chunk with
+/// `fill_ter` before the rows are read, and `:5168-5172` is where the member is loaded - which is why a six-square map in a twenty-four-square chunk leaves the rest at that
+/// terrain rather than blank, and why a mapgen that names no `fill_ter` must explain every character it writes.
+#[test]
+fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
+    let mut world = a_world(Vec::new());
+    let mut filling = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["#".to_owned()],
+        terrain: [('#', "t_house_two".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: Some("t_house_one".to_owned()),
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), filling.clone())]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    let written = cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        written,
+        Some(24 * 24),
+        "**the fill and the row together are the whole chunk**: {written:?}"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(12),
+        "the row is drawn on top of the fill"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (23, 23, 0)),
+        Some(11),
+        "and the far corner is the fill"
+    );
+
+    // **A mapgen with no `fill_ter` writes only what its rows say**, which is what an update mapgen relies on: it must not pave the rest of the tile.
+    let mut bare = a_world(Vec::new());
+    filling.fill_ter = None;
+    cdda_sim::mapgen_update::set_mapgens(&mut bare, [("house".to_owned(), filling)]);
+    cdda_sim::singletons::put_rolls(&mut bare, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut bare, "house", (0, 0, 0)),
+        Some(1),
+        "**one square, because one square was drawn**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&bare, (10, 10, 0)),
+        Some(0),
+        "and the rest of the tile is untouched"
     );
 }

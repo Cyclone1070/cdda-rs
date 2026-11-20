@@ -77,7 +77,29 @@ pub fn write(
         .and_then(|holder| world.get::<TerrainCodes>(holder))
         .map(|codes| codes.0.clone())
         .unwrap_or_default();
-    let mut written = 0;
+    // **The fill comes first**, the whole chunk at the mapgen's own terrain (`mapgen.cpp:5100-5110`), so a map that draws six squares still fills its twenty-four. The count is
+    // of squares **touched**, so a row drawn over a filled square is not counted twice: a chunk is a chunk however many layers land on it.
+    let side = crate::overmap::SQUARES_PER_OMT;
+    let filled = mapgen
+        .fill_ter
+        .as_deref()
+        .and_then(|fill| codes.get(fill).copied());
+    if let Some(code) = filled {
+        for column in 0..side {
+            for row in 0..side {
+                crate::square::set_terrain(
+                    world,
+                    (origin.0 + column, origin.1 + row, origin.2),
+                    code,
+                );
+            }
+        }
+    }
+    let mut written = if filled.is_some() {
+        usize::try_from(side * side).unwrap_or(0)
+    } else {
+        0
+    };
     for (row, line) in mapgen.rows.iter().enumerate() {
         for (column, symbol) in line.chars().enumerate() {
             let Some(terrain) = mapgen.terrain.get(&symbol) else {
@@ -90,7 +112,9 @@ pub fn write(
                 continue;
             };
             crate::square::set_terrain(world, (origin.0 + column, origin.1 + row, origin.2), code);
-            written += 1;
+            if filled.is_none() {
+                written += 1;
+            }
         }
     }
     written

@@ -134,6 +134,9 @@ pub struct MapgenObject {
     pub weight: i32,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
+    /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
+    /// twenty-four-square chunk at one terrain rather than blank.
+    pub fill_ter: Option<String>,
 }
 
 /// One `place_fields` entry: a field scattered over a rectangle.
@@ -308,6 +311,13 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
             }
             table
         };
+        // Reference: `if( jo.has_member( "fill_ter" ) ) fill_ter = cata::make_value<mapgen_value<ter_id>>(...)` (`mapgen.cpp:5168-5172`). The member may be a palette
+        // reference or a weighted list, which the port does not read yet; a plain terrain id is what the data overwhelmingly writes, and the rest is refused here rather
+        // than guessed at.
+        let fill_ter = match inner.get("fill_ter") {
+            Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+            _ => None,
+        };
         for om_terrain in &om_terrains {
             out.push(MapgenObject {
                 om_terrain: om_terrain.clone(),
@@ -315,6 +325,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 terrain: symbols("terrain"),
                 furniture: symbols("furniture"),
                 fields: read_placements(inner),
+                fill_ter: fill_ter.clone(),
                 weight: match object.get("weight") {
                     Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1000),
                     _ => 1000,

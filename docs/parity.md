@@ -39541,3 +39541,21 @@ mapgen is always picked; a terrain whose only mapgen weighs **zero** draws nothi
 **A dose of humility from the dice.** The first version of the weight test seeded a fresh generator per iteration and counted 400 to nothing for the light mapgen. The rule was
 right and the test was wrong: `MinStdRand0`'s *first* draw is `16807 * seed`, which for small seeds lands in the same quarter of a two-billion range, so a per-seed loop
 measures the seeding rather than the weights. One generator and four hundred successive draws measure the weights.
+
+## The chunk a mapgen fills (round 248)
+
+Reference: `mapgen_function_json::generate` (`mapgen.cpp:5100-5110`), with the member loaded at `:5168-5172`. A mapgen may name a **`fill_ter`**, and the whole chunk is
+filled with it **before** the rows are drawn, which is why a map that writes six squares still leaves a twenty-four-square chunk paved rather than blank - and why a mapgen
+without one must explain every character it writes.
+
+The port read the rows and never the fill, so a map that wrote part of a tile left the rest at whatever happened to be there. Three parts:
+
+- `MapgenObject` carries `fill_ter: Option<String>`; the loader reads a plain terrain id and leaves anything else unread rather than guessing (`fill_ter` may be a palette
+  reference or a weighted list upstream, and the port reads neither yet - named, not hidden);
+- the one writer fills the chunk first, then draws the rows on top of it, so a row always wins over the fill;
+- **the count is of squares touched**, not of writes: a row drawn over a filled square is not counted twice, because a chunk is a chunk however many layers land on it.
+
+Three mutations, three catches: the fill skipped, the count kept as writes (577 for a 576-square chunk), and the chunk drawn at the wrong side.
+
+Tested at both ends: the loader reads a fill and reports none when there is none; and a world where a one-square map with `fill_ter` covers all 576 squares, the row on top of the
+fill, the far corner at the fill; with a mapgen without one, exactly one square is written and the rest of the tile is untouched.
