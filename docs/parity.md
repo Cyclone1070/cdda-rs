@@ -39592,3 +39592,19 @@ Two mutations, two catches: the placement removed, and the map's first trap set 
 
 **Named gap.** A mapgen's trap layer may also name **lists** of traps with `chance` (a randomised trap), and the port reads a single id per symbol; the rest is refused rather
 than guessed at.
+
+## Items on the drawn squares (round 251)
+
+Reference: `jmapgen_item_group` (`mapgen.cpp:5320-5340`), with the layer placed last in `mapgen_function_json::generate` (`:5510-5530`). A symbol's item is placed with a
+**chance** out of a hundred (a hundred is always there) and an **amount** the dice answer between, which is how a room is furnished with loot rather than described.
+
+- `MapgenObject` carries `items: BTreeMap<char, ItemPlacement>`, and `ItemPlacement` keeps exactly the two facts a square needs: which item, and how often;
+- the loader reads `item`, `chance` and `amount` - a number or a two-number range - and **leaves a bare string out**, because a bare string is an item *group*, which the port
+  reads as loot elsewhere but not here yet;
+- the writer takes the dice **once for the whole write**: a layer that stopped mid-chunk would leave the generator half-spent, and a caller that held the rolls would have to
+  hand them back for every square. A world with no generator still places the **minimum** amount rather than nothing, which is the same choice the bear trap makes.
+
+Two mutations, two catches: the drop removed, and the map's first placement used on every square.
+
+**Named gaps.** Item **groups** (`"group": ...` and a bare group id) are not expanded here - that is the layer the forest replay measured at 589-601 dice per chunk, and it is
+the next one. A placement's `repeat`, its `x`/`y` offsets and its per-item `damage`/`ammo` are not read either; the port places an item at the square the symbol sits on.

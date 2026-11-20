@@ -87,6 +87,9 @@ pub fn write(
     mapgen: &cdda_content::mapgen::MapgenObject,
     origin: (i32, i32, i32),
 ) -> usize {
+    // **The dice are taken once for the whole write**, because a layer that stopped mid-chunk would leave the generator half-spent - and a caller that held them would have to
+    // hand them back for every square.
+    let mut rolls = crate::singletons::take_rolls(world);
     let codes = crate::singletons::holder::<TheTerrainCodes>(world)
         .and_then(|holder| world.get::<TerrainCodes>(holder))
         .map(|codes| codes.0.clone())
@@ -148,10 +151,31 @@ pub fn write(
                 crate::square::set_trap(world, at, trap);
                 drew = true;
             }
+            // **Items come last** (`mapgen.cpp:5510-5530`): a symbol's item is placed with a chance out of a hundred - one hundred always - and an amount the dice answer between.
+            if let Some(placement) = mapgen.items.get(&symbol)
+                && let Some(item) = placement.item.as_deref()
+                && (placement.chance >= 100
+                    || rolls
+                        .as_mut()
+                        .is_none_or(|rolls| rolls.x_in_y(f64::from(placement.chance), 100.0)))
+                && let Some(kind) = crate::item_registry::id_of(world, item)
+            {
+                let count = match rolls.as_mut() {
+                    Some(rolls) => rolls.rng(placement.amount.0, placement.amount.1),
+                    None => placement.amount.0,
+                };
+                for _ in 0..count.max(0) {
+                    crate::drop_item(world, (at.0, at.1), kind, 1);
+                }
+                drew = true;
+            }
             if drew && filled.is_none() {
                 written += 1;
             }
         }
+    }
+    if let Some(rolls) = rolls {
+        crate::singletons::put_rolls(world, rolls);
     }
     written
 }

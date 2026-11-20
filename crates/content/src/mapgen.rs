@@ -132,6 +132,8 @@ pub struct MapgenObject {
     pub furniture: BTreeMap<char, String>,
     /// The traps a symbol sets (`mapgen.cpp:5470-5480`), placed after the furniture: a minefield is drawn as characters, not placed piece by piece.
     pub traps: BTreeMap<char, String>,
+    /// The items a symbol places (`jmapgen_item_group`), the last layer a character can carry.
+    pub items: BTreeMap<char, ItemPlacement>,
     /// How likely this one is when several build the same terrain.
     pub weight: i32,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
@@ -139,6 +141,82 @@ pub struct MapgenObject {
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
     /// twenty-four-square chunk at one terrain rather than blank.
     pub fill_ter: Option<String>,
+}
+
+/// One `items` entry: an item a symbol places (`jmapgen_item_group`, `mapgen.cpp:5320-5340`).
+///
+/// The reference's item placement carries several shapes - a single `item`, a `group`, a `chance`, an `amount` range, a `repeat` - and the port reads the two that matter to a
+/// square: **which item**, and **how often it is there**. A group would need the item-group machinery the loader already has for loot, which is the next layer rather than this one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemPlacement {
+    /// The item id the symbol places.
+    pub item: Option<String>,
+    /// How likely it is to be there at all, out of a hundred: one hundred is always.
+    pub chance: i32,
+    /// How many, as a range the dice answer between.
+    pub amount: (i32, i32),
+}
+
+/// The `items` map: which item each symbol places, and how many.
+///
+/// Reference: `jmapgen_item_group::load` (`mapgen.cpp:5320-5340`). A symbol's value is either a string - an item **group** id, which the port does not read yet - or an object
+/// naming an `item`, a `group`, a `chance` out of a hundred (defaulting to one hundred) and an `amount` that is a number or a range. The two shapes are told apart here so the
+/// writer never has to guess which it was given.
+fn read_items(inner: &cdda_json::Object) -> BTreeMap<char, ItemPlacement> {
+    let mut items = BTreeMap::new();
+    let Some(cdda_json::Value::Object(map)) = inner.get("items") else {
+        return items;
+    };
+    for (symbol, value) in map.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let placement = match value {
+            // An object is a placement; anything else is a group id, which this layer does not read.
+            cdda_json::Value::Object(entry) => ItemPlacement {
+                item: match entry.get("item") {
+                    Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                    _ => None,
+                },
+                chance: match entry.get("chance") {
+                    Some(cdda_json::Value::Int(chance)) => i32::try_from(*chance).unwrap_or(100),
+                    _ => 100,
+                },
+                amount: read_amount(entry.get("amount")),
+            },
+            _ => continue,
+        };
+        items.insert(symbol, placement);
+    }
+    items
+}
+
+/// An `amount` that is a number or a two-number range, defaulting to one.
+fn read_amount(value: Option<&cdda_json::Value>) -> (i32, i32) {
+    match value {
+        Some(cdda_json::Value::Int(one)) => {
+            let one = i32::try_from(*one).unwrap_or(1);
+            (one, one)
+        }
+        Some(cdda_json::Value::Array(numbers)) => {
+            let low = numbers
+                .first()
+                .and_then(|one| match one {
+                    cdda_json::Value::Int(value) => i32::try_from(*value).ok(),
+                    _ => None,
+                })
+                .unwrap_or(1);
+            let high = numbers
+                .get(1)
+                .and_then(|one| match one {
+                    cdda_json::Value::Int(value) => i32::try_from(*value).ok(),
+                    _ => None,
+                })
+                .unwrap_or(low);
+            (low, high)
+        }
+        _ => (1, 1),
+    }
 }
 
 /// One `place_fields` entry: a field scattered over a rectangle.
@@ -327,6 +405,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 terrain: symbols("terrain"),
                 furniture: symbols("furniture"),
                 traps: symbols("traps"),
+                items: read_items(inner),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 weight: match object.get("weight") {

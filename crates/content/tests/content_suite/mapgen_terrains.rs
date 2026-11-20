@@ -92,6 +92,37 @@ fn a_mapgen_carries_the_traps_its_symbols_set() {
     );
 }
 
+/// **A mapgen's `items` symbols are read as placements**: an item, a chance out of a hundred that defaults to certainty, and an amount that may be a number or a range
+/// (`jmapgen_item_group::load`, `mapgen.cpp:5320-5340`). A bare string is an item **group**, which this layer does not read yet, and the loader leaves it out rather than
+/// pretending it is an item.
+#[test]
+fn a_mapgen_carries_the_items_its_symbols_place() {
+    let found = objects(
+        r#"{"type": "mapgen", "method": "json", "om_terrain": "house",
+            "object": {"rows": ["abc"], "terrain": {"a": "t_floor", "b": "t_floor", "c": "t_floor"},
+                       "items": {"a": {"item": "rock", "chance": 70, "amount": [1, 3]},
+                                 "b": {"item": "rock"},
+                                 "c": "livingroom"}}}"#,
+    );
+    assert_eq!(found.len(), 1);
+    let items = &found[0].items;
+    let rock = items.get(&'a').expect("the ranged one is read");
+    assert_eq!(rock.item.as_deref(), Some("rock"));
+    assert_eq!(rock.chance, 70, "**the chance is read**");
+    assert_eq!(rock.amount, (1, 3), "and the range");
+    let plain = items.get(&'b').expect("the bare one is read");
+    assert_eq!(
+        plain.chance, 100,
+        "**a placement with no chance is certain**"
+    );
+    assert_eq!(plain.amount, (1, 1), "and places one");
+    assert_eq!(
+        items.get(&'c'),
+        None,
+        "a group id is not an item, and is not read"
+    );
+}
+
 /// **A single string still reads as one**, so the shapes agree.
 #[test]
 fn one_terrain_is_still_one() {

@@ -23,6 +23,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         terrain: [('#', terrain.to_owned())].into_iter().collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
+        items: BTreeMap::new(),
         weight,
         fields: Vec::new(),
         fill_ter: None,
@@ -126,6 +127,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         terrain: [('#', "t_house_two".to_owned())].into_iter().collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
+        items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
@@ -187,6 +189,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         .collect(),
         furniture: [('F', "f_desk".to_owned())].into_iter().collect(),
         traps: BTreeMap::new(),
+        items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -231,6 +234,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         .collect(),
         furniture: BTreeMap::new(),
         traps: [('T', "tr_bear".to_owned())].into_iter().collect(),
+        items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -251,5 +255,68 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         cdda_sim::square::trap_at(&world, (1, 0, 0)),
         None,
         "and the plain square has none"
+    );
+}
+
+/// **A mapgen's item symbols place items on the squares its rows say.** Reference: `jmapgen_item_group` (`mapgen.cpp:5320-5340`): a symbol's item is placed with a `chance`
+/// out of a hundred and an `amount` the dice answer between, and a chance of one hundred is always there - which is how a room is furnished with loot rather than described.
+#[test]
+fn a_mapgens_items_land_on_the_square_its_rows_say() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let stocked = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["I.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('I', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: [(
+            'I',
+            cdda_content::mapgen::ItemPlacement {
+                item: Some("rock".to_owned()),
+                chance: 100,
+                amount: (3, 3),
+            },
+        )]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), stocked)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0)),
+        Some(2),
+        "two squares drawn"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        3,
+        "**three rocks, because the amount says three**"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        0,
+        "and the plain square has nothing on it"
     );
 }
