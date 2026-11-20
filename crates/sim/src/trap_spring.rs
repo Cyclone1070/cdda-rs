@@ -50,6 +50,7 @@ pub fn spring_with(
         Some("bubble") => return bubble(world, who, square),
         Some("caltrops") => return sharp_ground(world, who, square, &Sharp::CALTROPS),
         Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
+        Some("pit") => return pit(world, who, square),
         Some("drain") => return drain(world, who),
         Some("hum") => return hum(world, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
@@ -254,6 +255,111 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
     );
     crate::square::remove_trap(world, square);
     true
+}
+
+/// **A pit is a hole to fall into.**
+///
+/// Reference: `trapfunc::pit` (`trapfunc.cpp:960-1004`). A tiny creature is too small to be hurt by the fall; anyone else is told ("You fall in a pit!"), takes the `in_pit`
+/// effect, and then - unless they dodge it - takes `eff * rng( 10, 20 ) - rng( dodge, dodge * 5 )`: a share of it dealt to every part (`hurtall`), and the rest as a bash hit on
+/// **each** leg.
+///
+/// `eff` is [`pit_effectiveness`] - a pit fills with the corpses in it, and a full one is not a pit.
+///
+/// **Not ported**: the reference's flying and bionic branches (`can_fly`, `bio_shock_absorber`), which the port's creatures have no component for, and the ridden branch, because
+/// a monster rider is not a thing the port models. Those creatures take the ordinary fall here, which is what the reference does for everything without wings or a grav chute.
+fn pit(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if size == crate::CreatureSize::Tiny {
+        return false;
+    }
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You fall in a pit!".to_owned()
+    } else {
+        format!("{} falls in a pit!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    if let Some(kind) = crate::effect_registry::kind_named(world, "in_pit") {
+        crate::applied_effects::add(world, who, crate::effects::ActiveEffect::new(&kind, 1, 1));
+    }
+    let effectiveness = pit_effectiveness(world, (square.0, square.1));
+    if is_a_monster(world, who) {
+        // A monster's legs take the fall, each rolled on its own (`:997-1001`).
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            return true;
+        };
+        let left = rolls.rng(10, 20);
+        let right = rolls.rng(10, 20);
+        crate::singletons::put_rolls(world, rolls);
+        #[allow(clippy::cast_precision_loss)]
+        let left = effectiveness * left as f32;
+        #[allow(clippy::cast_precision_loss)]
+        let right = effectiveness * right as f32;
+        crate::creature::hurt(world, who, left + right);
+        return true;
+    }
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    let fall = rolls.rng(10, 20);
+    let dodge = world
+        .get::<crate::creature::Dodge>(who)
+        .map_or(0, |dodge| dodge.points);
+    let eased = rolls.rng(dodge, dodge * 5);
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+    let damage = (effectiveness * fall as f32) as i32 - eased;
+    // **The draw for the whole-body share is only made when the fall hurt**, because the reference draws it inside the branch that has damage to spend.
+    let share = if damage > 0 {
+        rolls.rng(damage / 2, damage)
+    } else {
+        0
+    };
+    crate::singletons::put_rolls(world, rolls);
+    if damage <= 0 {
+        let line = if crate::missions::avatar(world) == Some(who) {
+            "You land nimbly.".to_owned()
+        } else {
+            format!("{} lands nimbly.", name_of(world, who))
+        };
+        crate::messages::push(world, &line);
+        return true;
+    }
+    crate::messages::push(world, "You hurt yourself!");
+    // `hurtall( rng( damage / 2, damage ) )`: one harm to every part, drawn from half the damage to all of it; then the same `damage` as a bash hit on **each** leg.
+    #[allow(clippy::cast_precision_loss)]
+    let share = share as f32;
+    crate::creature::hurt(world, who, share);
+    for leg in ["leg_l", "leg_r"] {
+        let stops = crate::creature::armour_on(world, who, leg, Some("bash"));
+        #[allow(clippy::cast_precision_loss)]
+        let through = (damage - stops).max(0) as f32;
+        crate::creature::hurt(world, who, through);
+    }
+    true
+}
+
+/// How much of a pit is still a pit: one, less the corpses filling it.
+///
+/// Reference: `pit_effectiveness` (`trapfunc.cpp:113-126`) - the corpses' own volumes summed against ten zombies' worth, **625,000 ml**, floored at zero. A corpse's volume is
+/// [`crate::corpse_volume`]'s answer for it, which is the creature's own size quartered and dressed, not the container it is carried as.
+fn pit_effectiveness(world: &mut World, square: (i32, i32)) -> f32 {
+    let mut filled = 0.0_f32;
+    for item in crate::items_at(world, square) {
+        let Some(corpse) = world.get::<crate::CorpseOf>(item).copied() else {
+            continue;
+        };
+        #[allow(clippy::cast_precision_loss)]
+        // A corpse's own flags (`FIELD_DRESS`, `GIBBED`, `SKINNED`) decide how much of it is left; the port reads them through the item's flags when it sizes a corpse elsewhere and
+        // not from here, so a pit is filled by whole corpses. Named as a gap rather than passed off as exact.
+        let volume =
+            crate::corpse_volume(corpse.monster_volume_ml, &std::collections::BTreeSet::new());
+        #[allow(clippy::cast_precision_loss)]
+        {
+            filled += volume as f32;
+        }
+    }
+    (1.0 - filled / 625_000.0).max(0.0)
 }
 
 /// What one of the data's sharp-on-the-ground traps does, with the numbers that tell them apart.

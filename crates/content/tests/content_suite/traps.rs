@@ -334,7 +334,7 @@ fn the_reference_tree_holds_the_trap_actions_the_port_answers() {
         Some(16),
         "the reference's own do-nothing"
     );
-    // A hundred and eight of a hundred and twenty-five traps therefore have an answer; the remaining seventeen name seventeen named functions. Pinned so the frontier cannot
+    // A hundred and nine of a hundred and twenty-five traps therefore have an answer; the remaining sixteen name sixteen named functions. Pinned so the frontier cannot
     // drift without the number moving with it.
     let answered: usize = [
         "eocs",
@@ -352,15 +352,16 @@ fn the_reference_tree_holds_the_trap_actions_the_port_answers() {
         "drain",
         "caltrops",
         "board",
+        "pit",
     ]
     .iter()
     .map(|action| counts.get(*action).copied().unwrap_or(0))
     .sum();
-    assert_eq!(answered, 108, "traps whose action the port answers");
+    assert_eq!(answered, 109, "traps whose action the port answers");
     assert_eq!(
         total - answered,
-        17,
-        "**and seventeen that name a function the port has no rule for**"
+        16,
+        "**and sixteen that name a function the port has no rule for**"
     );
     // **Every unported action is a single trap**: what is left is one trap per function, so the frontier is a list of singletons and each round can take several.
     assert_eq!(

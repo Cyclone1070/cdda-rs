@@ -39875,3 +39875,26 @@ The trap ledger moves to **108 of 125 traps answered, 17 unported**.
 
 **Named gap.** `trap::on_disarmed` drops the trap's `drops` item when it is disarmed; the port takes the trap away and places nothing, because the drop is a rule the port has not
 written.
+
+## A pit (round 265)
+
+Reference: `trapfunc::pit` (`trapfunc.cpp:960-1004`) and `pit_effectiveness` (`:113-126`).
+
+**A pit is a hole to fall into.** A tiny creature is too small to be hurt by the fall; anyone else is told ("You fall in a pit!"), takes the `in_pit` effect, and then - unless
+they dodge it - takes `eff * rng( 10, 20 ) - rng( dodge, dodge * 5 )`: a share of it dealt to every part (`hurtall`), and the same `damage` as a bash hit on **each** leg. A
+monster's legs take `eff * rng( 10, 20 )` each.
+
+**A pit fills with its dead.** `pit_effectiveness` sums the corpses lying in the square against ten zombies' worth, **625,000 ml**, floored at zero - a full pit is not a pit, and
+the fall to nothing proves it. Four tests: the counted fall, the nimble landing, the filled pit, the tiny animal.
+
+Five mutations, five catches - but the **leg damage survived the first pass**: the test only asked "is health lower". Counting the whole fall - five to the body and ten to each leg,
+twenty-five - is what pins the two leg hits, which is the third time this stretch that a rule hid behind a comparison instead of a number.
+
+**Two mistakes of my own, both caught by the compiler.** The first version read a `dodge_of` and an `item_flags` that do not exist as public functions; the second cast `f32 -> f32`
+in the monster branch, which clippy refuses. The port's dodge is a component read directly, and a corpse's flags are not reachable from here - so **a pit is filled by whole corpses**
+and a dressed one fills as much as a fresh one. That is a named gap, not an approximation I am pretending is exact.
+
+**Named gaps.** The reference's flying and bionic branches (`can_fly`, `bio_shock_absorber`) and its monster-rider branch are not ported: the port's creatures have no wings, no
+grav chute and no rider, so they take the ordinary fall. And the corpse flags above.
+
+The trap ledger moves to **109 of 125 traps answered, 16 unported**.

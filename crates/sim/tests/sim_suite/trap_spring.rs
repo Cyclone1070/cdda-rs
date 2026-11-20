@@ -1546,3 +1546,149 @@ fn a_board_cuts_less_and_disarms_more() {
         cdda_sim::messages::lines(&world)
     );
 }
+
+/// A pit's own effectiveness, which is one unless corpses have filled it. Reference: `pit_effectiveness` (`trapfunc.cpp:113-126`) - the corpses on the square, each measured at its
+/// own volume, against ten zombies' worth (625,000 ml).
+fn a_pit_world() -> (World, Entity) {
+    let (mut world, who) = a_world();
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("leg_r", "leg"),
+        ],
+    });
+    give_the_walker_a_turn(&mut world, who);
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dodge { points: 0 });
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("pit", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    (world, who)
+}
+
+/// **A person falls in a pit and hurts themself.** Reference: `trapfunc::pit` (`trapfunc.cpp:960-1004`): a tiny creature is too small to be hurt by the fall; anyone else is told
+/// ("You fall in a pit!"), takes the `in_pit` effect, and then - unless they dodge it - `eff * rng( 10, 20 ) - rng( dodge, dodge * 5 )` damage: `hurtall` for a share of it and
+/// a bash hit on **each** leg.
+#[test]
+fn a_person_falls_in_a_pit_and_hurts_themselves() {
+    let (mut world, who) = a_pit_world();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the pit is fallen into**"
+    );
+    // **The whole fall, counted**: a ten-point fall, five of it dealt to the body (`rng( damage / 2, damage )` at the bottom of its range) and ten to each leg, so twenty-five
+    // points are gone and the arithmetic says which rule did it.
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        25,
+        "**five to the body and ten to each leg**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "You fall in a pit!"),
+        "**the fall is announced**: {lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line == "You hurt yourself!"),
+        "**and the pain with it**: {lines:?}"
+    );
+}
+
+/// **A nimble person lands unhurt.** Reference: `:986-996` - the damage is reduced by `rng( dodge, dodge * 5 )`, so a dodge of thirty takes the ten-to-twenty fall to nothing and
+/// the line becomes "You land nimbly."
+#[test]
+fn a_nimble_person_lands_unhurt() {
+    let (mut world, who) = a_pit_world();
+    world
+        .entity_mut(who)
+        .insert(cdda_sim::creature::Dodge { points: 30 });
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before,
+        "**a dodge of thirty takes a ten-point fall**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You land nimbly."),
+        "**and the walker says so**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A pit full of corpses does nothing.** Reference: `pit_effectiveness` (`:113-126`) - ten zombies' worth of corpse fills the pit, so a creature that falls in takes **no**
+/// damage at all: the effectiveness multiplies the fall to zero.
+#[test]
+fn a_pit_full_of_corpses_does_nothing() {
+    let (mut world, who) = a_pit_world();
+    let corpse = world.spawn(()).id();
+    world.entity_mut(corpse).insert((
+        cdda_sim::Position { x: 0, y: 0, z: 0 },
+        cdda_sim::GroundItem {
+            kind: cdda_sim::ItemTypeId(1),
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 625_000,
+        },
+    ));
+    cdda_sim::PositionIndex::rebuild(&mut world);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before,
+        "**a filled pit is not a pit**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You land nimbly."),
+        "**and the fall is a soft one**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **A tiny animal is not hurt by a pit.** Reference: `:967-970` - "tiny animals aren't hurt by falling into pits", so nothing happens at all.
+#[test]
+fn a_tiny_animal_is_not_hurt_by_a_pit() {
+    let (mut world, who) = a_pit_world();
+    if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+        creature.size = cdda_sim::CreatureSize::Tiny;
+    }
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        !cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the pit does not answer a tiny animal**"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before
+    );
+}
