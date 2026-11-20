@@ -39993,3 +39993,26 @@ check changes nothing, and writing a world with an opaque wall is a prototype ta
 worse than naming it.
 
 The trap ledger moves to **117 of 125 traps answered, 8 unported**.
+
+## A shadow and a crossbow (round 270)
+
+**A shadow** (`trapfunc::shadow`, `trapfunc.cpp:1493-1520`) answers **only the avatar** - "Monsters and npcs are completely ignored here" - and then does what the snake does: ten tries
+at a square five out that it can see, and the first shadow that lands removes the trap.
+
+**A crossbow** (`trapfunc::crossbow`, `:468-563`) is the richest trap so far. A character is hit when `!one_in( 4 ) && rng( 8, 20 ) > dodge`; a ten-sided roll picks the part - a
+**foot** one in ten, a **leg** three, the **torso** six, the **head** one - the bolt deals `rng( 20, 30 )` of cut, and is lost one in ten. A monster's chance to be hit is by
+**size**: one in fifty for tiny, eight for small, six for medium, four for large and one for huge. The trap always leaves a crossbow and a string, and a bolt unless it was lost.
+
+**A correction to the last round, found by reading the line again.** The snake's "A shadowy snake forms nearby." is `spawned->add_msg_if_npc( ... )` on the **spawned monster**, and a
+monster is not an NPC - so the reference says nothing. My snake said it anyway, and a test asserted the wrong behaviour. The port now says nothing, and the test asserts that: a rule
+that is never reached has to be deleted, not pinned in place.
+
+**A die drawn where the reference draws it.** The crossbow's left-or-right die belongs to the foot and leg arms of the switch only; drawing it for the torso and head put the port one
+roll ahead of the reference, which a recording caught at draw three (`(20, 30)` asked where the reference asked `(0, 1)`). The recording's **bounds** are what make that visible.
+
+**The size ladder is the test.** At a tenth of the way through every range, `one_in( 4 )` is true and `one_in( 6 )` is false - so the boundary sits between medium and large, and one
+run of five sizes pins the whole ladder. `one_in( 1 )` is a certainty (`chance <= 1`), which is why the huge monster always takes the bolt.
+
+Six mutations, six catches: the avatar gate, the trap removal, the dodge gate, the size ladder, the head face, and the lost bolt.
+
+The trap ledger moves to **119 of 125 traps answered, 6 unported**.

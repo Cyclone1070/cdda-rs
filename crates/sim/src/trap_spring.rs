@@ -53,6 +53,8 @@ pub fn spring_with(
         Some("pit") => return pit(world, who, square),
         Some("blade") => return blade(world, who),
         Some("snake") => return snake(world, square),
+        Some("shadow") => return shadow(world, who, square),
+        Some("crossbow") => return crossbow(world, who, square),
         Some("glow") => return glow(world, who, square),
         Some("lava") => return lava(world, who, square),
         Some("pit_spikes") => return spiked_pit(world, who, square, &Spiked::SPIKES),
@@ -311,12 +313,179 @@ fn snake(world: &mut World, square: (i32, i32, i32)) -> bool {
         && let Some(kind) = crate::monster_registry::id_of(world, "mon_shadow_snake")
     {
         let hp = crate::monster_registry::hit_points(world, kind).max(1);
-        let spawned = crate::spawn_monster(world, (at.0, at.1), kind, hp);
-        crate::messages::push(world, "A shadowy snake forms nearby.");
-        let _ = spawned;
+        // **The snake's line is the spawned creature's own**, `spawned->add_msg_if_npc( ... )`, and a monster is not an NPC - so the reference says nothing here. An earlier version of
+        // this port said it anyway; the correction is that the message is only ever an NPC's, which the port has no NPC monster to be.
+        let _ = crate::spawn_monster(world, (at.0, at.1), kind, hp);
         crate::square::remove_trap(world, square);
     }
     true
+}
+
+/// **A shadow trap calls a shadow, but only for the player.**
+///
+/// Reference: `trapfunc::shadow` (`trapfunc.cpp:1493-1520`). It answers **only the avatar** - "Monsters and npcs are completely ignored here" - and then does what the snake does:
+/// ten tries at a square five out that it can see, and the first shadow that lands removes the trap. The line is the spawned monster's own `add_msg_if_npc`, which a monster never
+/// says.
+///
+/// **Not ported**: `reset_special_rng( "DISAPPEAR" )`, as with the snake - the port's monsters have no special cooldowns.
+fn shadow(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    if crate::missions::avatar(world) != Some(who) {
+        return false;
+    }
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    let mut spot = None;
+    for _ in 0..10 {
+        let out = rolls.rng(-5, 5);
+        let edge = if rolls.one_in(2) { -5 } else { 5 };
+        let at = if rolls.one_in(2) {
+            (square.0 + out, square.1 + edge)
+        } else {
+            (square.0 + edge, square.1 + out)
+        };
+        if !crate::sees(world, at, (square.0, square.1), 10) {
+            continue;
+        }
+        spot = Some(at);
+        break;
+    }
+    crate::singletons::put_rolls(world, rolls);
+    if let Some(at) = spot
+        && let Some(kind) = crate::monster_registry::id_of(world, "mon_shadow")
+    {
+        let hp = crate::monster_registry::hit_points(world, kind).max(1);
+        let _ = crate::spawn_monster(world, at, kind, hp);
+        crate::square::remove_trap(world, square);
+    }
+    true
+}
+
+/// **A crossbow trap shoots whoever trips it, and leaves its parts behind.**
+///
+/// Reference: `trapfunc::crossbow` (`trapfunc.cpp:468-563`). "You trigger a crossbow trap!" comes first and the trap is always consumed. A character is hit when
+/// `!one_in( 4 ) && rng( 8, 20 ) > dodge`: a ten-sided roll picks the part - a **foot** one time in ten, a **leg** three, the **torso** six, the **head** one, each of the first two
+/// choosing left or right - the bolt deals `rng( 20, 30 )` of cut, and it is lost one time in ten. A monster's chance to be hit is by **size** - one in fifty for tiny, eight for
+/// small, six for medium, four for large, one for huge - and its torso takes the bolt; the line is only said when the avatar can see it.
+///
+/// The trap always leaves a crossbow and a string, and a bolt unless it was lost.
+///
+/// **Not ported**: the ridden branch, as elsewhere.
+fn crossbow(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You trigger a crossbow trap!".to_owned()
+    } else {
+        format!("{} triggers a crossbow trap!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    let mut add_bolt = true;
+    if is_a_monster(world, who) {
+        let size = world
+            .get::<crate::creature::Creature>(who)
+            .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+        let chance = match size {
+            crate::CreatureSize::Tiny => 50,
+            crate::CreatureSize::Small => 8,
+            crate::CreatureSize::Medium => 6,
+            crate::CreatureSize::Large => 4,
+            crate::CreatureSize::Huge => 1,
+        };
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            return true;
+        };
+        let hit = rolls.one_in(chance);
+        let damage = rolls.rng(20, 30);
+        let lost = rolls.one_in(10);
+        crate::singletons::put_rolls(world, rolls);
+        let seen = sees_the_square(world, (square.0, square.1));
+        if hit {
+            if seen {
+                crate::messages::push(
+                    world,
+                    &format!("A bolt shoots out and hits the {}!", name_of(world, who)),
+                );
+            }
+            let stops = crate::creature::armour_on(world, who, "torso", Some("cut"));
+            #[allow(clippy::cast_precision_loss)]
+            crate::creature::hurt(world, who, (damage - stops).max(0) as f32);
+            add_bolt = !lost;
+        } else if seen {
+            crate::messages::push(
+                world,
+                &format!("A bolt shoots out, but misses the {}.", name_of(world, who)),
+            );
+        }
+    } else {
+        let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+            return true;
+        };
+        let rolled = rolls.one_in(4);
+        let beat = rolls.rng(8, 20);
+        let dodge = world
+            .get::<crate::creature::Dodge>(who)
+            .map_or(0, |dodge| dodge.points);
+        if !rolled && beat > dodge {
+            let part_roll = rolls.rng(1, 10);
+            // **The left-or-right die is only rolled for a part that has two**, which is the reference's own switch: the head and the torso answer without it, so a replay of the
+            // reference's dice would otherwise be one draw out of step from the second hit onwards.
+            let part = match part_roll {
+                1 => {
+                    if rolls.one_in(2) {
+                        "foot_r"
+                    } else {
+                        "foot_l"
+                    }
+                }
+                2..=4 => {
+                    if rolls.one_in(2) {
+                        "leg_r"
+                    } else {
+                        "leg_l"
+                    }
+                }
+                10 => "head",
+                _ => "torso",
+            };
+            let damage = rolls.rng(20, 30);
+            let lost = rolls.one_in(10);
+            crate::singletons::put_rolls(world, rolls);
+            if crate::missions::avatar(world) == Some(who) {
+                crate::messages::push(world, &format!("Your {} is hit!", part.replace('_', " ")));
+            }
+            let stops = crate::creature::armour_on(world, who, part, Some("cut"));
+            #[allow(clippy::cast_precision_loss)]
+            crate::creature::hurt(world, who, (damage - stops).max(0) as f32);
+            add_bolt = !lost;
+        } else {
+            crate::singletons::put_rolls(world, rolls);
+            let line = if crate::missions::avatar(world) == Some(who) {
+                "You dodge the shot!".to_owned()
+            } else {
+                format!("{} dodges the shot!", name_of(world, who))
+            };
+            crate::messages::push(world, &line);
+        }
+    }
+    crate::square::remove_trap(world, square);
+    // "here.spawn_item( p, itype_crossbow ); here.spawn_item( p, itype_string_36 );" and a bolt unless it was lost.
+    for name in ["crossbow", "string_36"] {
+        if let Some(kind) = crate::item_registry::id_of(world, name) {
+            crate::drop_item(world, (square.0, square.1), kind, 1);
+        }
+    }
+    if add_bolt && let Some(kind) = crate::item_registry::id_of(world, "bolt_steel") {
+        crate::drop_item(world, (square.0, square.1), kind, 1);
+    }
+    true
+}
+
+/// Whether the avatar can see a square - `get_player_view().sees( here, *z )`, which the crossbow asks before it says a line about a monster.
+fn sees_the_square(world: &World, square: (i32, i32)) -> bool {
+    crate::missions::avatar(world).is_some_and(|avatar| {
+        world
+            .get::<crate::Position>(avatar)
+            .is_none_or(|at| crate::sees(world, (at.x, at.y), square, 20))
+    })
 }
 
 /// **A glow trap radiates, flashes, or only glows.**

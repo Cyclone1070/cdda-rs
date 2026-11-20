@@ -2190,11 +2190,12 @@ fn a_snake_hisses_and_summons_a_shadow_snake() {
     };
     assert_eq!(Some(placed.0), snake, "**and it is the shadow snake**");
     assert_eq!((placed.1, placed.2), (-5, -5), "**five squares out**");
+    // **And nothing is said**: the reference's line is `spawned->add_msg_if_npc( ... )` on the snake itself, and a monster is not an NPC.
     assert!(
-        cdda_sim::messages::lines(&world)
+        !cdda_sim::messages::lines(&world)
             .iter()
-            .any(|line| line == "A shadowy snake forms nearby."),
-        "**and the line is the snake's own**: {:?}",
+            .any(|line| line.contains("shadowy snake")),
+        "**a monster's own line is never said**: {:?}",
         cdda_sim::messages::lines(&world)
     );
 }
@@ -2293,5 +2294,327 @@ fn a_glow_trap_talks_to_a_person() {
     assert!(
         effects.iter().any(|id| id == "deaf" || id == "blind"),
         "**the flashbang reached the person**: {effects:?}"
+    );
+}
+
+/// A world with a crossbow trap, a person standing on it with every part a bolt can reach, and the trap's parts registered.
+fn a_crossbow_person_world() -> (World, Entity) {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("leg_r", "leg"),
+            a_part("foot_l", "foot"),
+            a_part("foot_r", "foot"),
+            a_part("head", "head"),
+        ],
+    });
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            a_kind("crossbow"),
+            a_kind("string_36"),
+            a_kind("bolt_steel"),
+        ],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("crossbow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    (world, who)
+}
+
+/// A world with a crossbow trap, a monster of the given size standing on it, an avatar somewhere else to see it, and the trap's parts registered.
+fn a_crossbow_world_with_monster(size: cdda_sim::CreatureSize) -> (World, Entity) {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+    if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+        creature.size = size;
+        "zombie".clone_into(&mut creature.name);
+    }
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            a_kind("crossbow"),
+            a_kind("string_36"),
+            a_kind("bolt_steel"),
+        ],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("crossbow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    let watcher = cdda_sim::spawn_player(&mut world, (3, 0), 100, 0);
+    cdda_sim::missions::set_avatar(&mut world, watcher);
+    (world, who)
+}
+
+/// **A crossbow trap shoots the person who trips it, and leaves its parts.** Reference: `trapfunc::crossbow` (`trapfunc.cpp:468-563`): "You trigger a crossbow trap!", then - unless
+/// one in four and then `rng( 8, 20 ) > dodge` both say otherwise - a ten-sided roll picks the part (a foot, then a leg, then the torso six times in ten, then the head), the bolt
+/// deals `rng( 20, 30 )` of cut, and one time in ten the bolt is lost. The trap always leaves a **crossbow** and a **string**, and a bolt unless it was lost.
+#[test]
+fn a_crossbow_trap_shoots_the_person_who_trips_it() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("leg_r", "leg"),
+            a_part("foot_l", "foot"),
+            a_part("foot_r", "foot"),
+            a_part("head", "head"),
+        ],
+    });
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            a_kind("crossbow"),
+            a_kind("string_36"),
+            a_kind("bolt_steel"),
+        ],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("crossbow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // Halfway through every range: not dodged, `rng( 8, 20 )` is fourteen, the ten-sided roll is six - the torso - and the bolt is not lost.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.5));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the crossbow fires**"
+    );
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        25,
+        "**twenty-five points of cut**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "You trigger a crossbow trap!"),
+        "**the trap announces itself**: {lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line == "Your torso is hit!"),
+        "**and names the part**: {lines:?}"
+    );
+    assert_eq!(cdda_sim::square::trap_at(&world, (0, 0, 0)), None);
+    let lying = cdda_sim::items_at(&mut world, (0, 0));
+    let mut kinds: Vec<String> = lying
+        .into_iter()
+        .filter_map(|item| {
+            let kind = world.get::<cdda_sim::GroundItem>(item)?.kind;
+            cdda_sim::item_registry::name_of(&mut world, kind)
+        })
+        .collect();
+    kinds.sort();
+    assert_eq!(
+        kinds,
+        ["bolt_steel", "crossbow", "string_36"],
+        "**the trap's own parts, and its bolt**"
+    );
+}
+
+/// **A lucky trip dodges the bolt.** The reference's gate is `!one_in( 4 ) && rng( 8, 20 ) > dodge`: the lowest dice make `one_in( 4 )` true, so nothing is fired at the person, the
+/// line says the shot was dodged, and the trap still leaves its crossbow, its string **and** its bolt - `add_bolt` starts true and only a hit can lose it.
+#[test]
+fn a_lucky_trip_dodges_the_crossbow_bolt() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            a_kind("crossbow"),
+            a_kind("string_36"),
+            a_kind("bolt_steel"),
+        ],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("crossbow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before,
+        "**the shot was dodged**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "You dodge the shot!"),
+        "**and the line says so**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        3,
+        "**the crossbow, the string and the bolt are all left behind**"
+    );
+}
+
+/// **A crossbow's chance to hit a monster is its size.** Reference: `trapfunc.cpp:525-548` - one in **fifty** for a tiny monster, eight for small, six for medium, four for large and
+/// one for huge. A tenth of the way through every range puts the boundary between medium and large: the same dice hit the large and huge monsters and miss the three smaller ones.
+#[test]
+fn a_crossbow_hits_a_big_monster_more_often_than_a_small_one() {
+    let cases = [
+        (cdda_sim::CreatureSize::Tiny, false),
+        (cdda_sim::CreatureSize::Small, false),
+        (cdda_sim::CreatureSize::Medium, false),
+        (cdda_sim::CreatureSize::Large, true),
+        (cdda_sim::CreatureSize::Huge, true),
+    ];
+    for (size, hit) in cases {
+        let (mut world, who) = a_crossbow_world_with_monster(size);
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.1));
+        let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+        assert!(cdda_sim::trap_spring::spring_with(
+            &mut world,
+            who,
+            (0, 0, 0),
+            false
+        ));
+        let lost = hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+        if hit {
+            assert_eq!(
+                lost,
+                21,
+                "**{size:?} takes the bolt**: one in {} hits",
+                match size {
+                    cdda_sim::CreatureSize::Large => 4,
+                    _ => 1,
+                }
+            );
+            assert!(
+                cdda_sim::messages::lines(&world)
+                    .iter()
+                    .any(|line| line.contains("A bolt shoots out and hits")),
+                "**and the line says so**: {:?}",
+                cdda_sim::messages::lines(&world)
+            );
+        } else {
+            assert_eq!(lost, 0, "**{size:?} is missed**");
+            assert!(
+                cdda_sim::messages::lines(&world)
+                    .iter()
+                    .any(|line| line.contains("A bolt shoots out, but misses")),
+                "**and the line says the bolt missed**: {:?}",
+                cdda_sim::messages::lines(&world)
+            );
+        }
+    }
+}
+
+/// **A shadow trap answers only the player, and calls a shadow.** Reference: `trapfunc::shadow` (`trapfunc.cpp:1493-1520`): "Monsters and npcs are completely ignored here" - so a
+/// monster stepping on it gets nothing and the trap stays - while the avatar gets ten tries at a square five out that it can see, and the first shadow that lands removes the trap.
+#[test]
+fn a_shadow_answers_only_the_player() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_shadow",
+            hp: 30,
+        }],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("shadow", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    // A monster is ignored, and the trap is still there.
+    cdda_sim::creature::set_kind(&mut world, who, cdda_sim::MonsterKindId(1));
+    assert!(
+        !cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**a monster is ignored**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "**and the trap is untouched**"
+    );
+    // The avatar is not, and a shadow forms five squares out.
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the avatar calls a shadow**"
+    );
+    assert_eq!(cdda_sim::square::trap_at(&world, (0, 0, 0)), None);
+    let shadow = cdda_sim::monster_registry::id_of(&mut world, "mon_shadow").map(|kind| kind.0);
+    let mut query = world.query::<(&cdda_sim::creature::CreatureKind, &cdda_sim::Position)>();
+    let found: Vec<(u32, i32, i32)> = query
+        .iter(&world)
+        .map(|(kind, at)| (kind.0.0, at.x, at.y))
+        .collect();
+    let placed = found
+        .iter()
+        .find(|(kind, _, _)| Some(*kind) == shadow)
+        .expect("a shadow was placed");
+    assert_eq!((placed.1, placed.2), (-5, -5), "**five squares out**");
+    assert!(
+        !cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("shadow forms")),
+        "**and nothing is said**: the line is the monster's own `add_msg_if_npc`"
+    );
+}
+
+/// **The bolt can take the head, and it has to be lost.** The ten-sided roll's tenth face is the **head** where five to nine are the torso, and the bolt is lost only on a hit that
+/// then rolls one in ten - which a recording says exactly: not dodged, a fifteen that beats no dodge, a six for the torso... and here a ten for the head, twenty-five of cut, then the
+/// losing roll.
+#[test]
+fn the_bolt_can_take_the_head_and_be_lost() {
+    let (mut world, who) = a_crossbow_person_world();
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.99));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        30,
+        "**the bottom... no: the top of the bolt's range, on the head**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "Your head is hit!"),
+        "**the tenth face is the head**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    // **A bolt that is rolled away is not left behind**: the recording hits the torso and then loses the bolt on the one-in-ten.
+    let (mut world, who) = a_crossbow_person_world();
+    let text = "int 0 3 1\nint 8 20 15\nint 1 10 6\nint 20 30 25\nint 0 9 0\n";
+    let recording = cdda_core_types::rng::Recording::parse(text).expect("five dice parse");
+    cdda_sim::singletons::put_rolls(
+        &mut world,
+        cdda_core_types::rng::Rolls::replaying(recording.clone()),
+    );
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(cdda_sim::trap_spring::spring_with(
+        &mut world,
+        who,
+        (0, 0, 0),
+        false
+    ));
+    assert_eq!(
+        hp_before - cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        25,
+        "**twenty-five on the torso**"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        2,
+        "**the crossbow and the string, and no bolt**"
     );
 }
