@@ -39824,3 +39824,26 @@ the same sliver of the range. Spreading the seeds by three hundred covers every 
 Four mutations, four catches: the cot's turn not spent, the monster check dropped (a person trips), a band widened, and the hum made violence.
 
 The trap ledger moves to **104 of 125 traps answered, 21 unported** - still one trap per unported action.
+
+## Bubble wrap and a drain (round 263)
+
+Two more of the frontier's singletons.
+
+**Bubble wrap** (`trapfunc::bubble`, `trapfunc.cpp:133-148`): a tiny creature sets nothing off; anyone else is told, the square pops at volume **eighteen** as an **alarm** - the
+wrap exists to be noticed - and the wrap is consumed. Nobody is hurt and no move is spent.
+
+**A drain** (`trapfunc::drain`, `:1549-1564`): "You feel your life force sapping away."; a character takes `hurtall( 1 )` - **one harm to each body part**, three points on a
+three-part body - and a monster takes one point. The trap is **not** removed: a drain is a place, not a one-shot, so the same square drains again on the next step.
+
+Two lessons from the mutations.
+
+**One test had to be re-pointed, not fixed.** `a_trap_the_port_cannot_act_on_stays_where_it_is` used `bubble` as its example of an unported action - so porting bubble made that
+test fail, correctly. It now uses `lava`, and its doc says that its action moves as the frontier moves. A guard test whose example gets ported is a guard test that must move with
+it.
+
+**One mutation survived until the assertion got a number.** `hurtall` replaced by a single hurt passed a test that only asked "is health lower". Counting the points - three parts,
+three points - kills it. "Something happened" is not a rule.
+
+Three mutations caught, and the fourth after the test counted: the tiny-creature check, the pop's volume, the wrap's removal, and the per-part harm.
+
+The trap ledger moves to **106 of 125 traps answered, 19 unported**.

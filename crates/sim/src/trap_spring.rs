@@ -47,6 +47,8 @@ pub fn spring_with(
         Some("glass") => return broken_glass(world, who, square),
         Some("caltrops_glass") => return glass_caltrops(world, who, square),
         Some("cot") => return cot(world, who),
+        Some("bubble") => return bubble(world, who, square),
+        Some("drain") => return drain(world, who),
         Some("hum") => return hum(world, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
         Some("beartrap") => return bear_trap(world, who, square),
@@ -249,6 +251,66 @@ fn broken_glass(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool
         crate::sounds::SoundCategory::Combat,
     );
     crate::square::remove_trap(world, square);
+    true
+}
+
+/// **Bubble wrap pops and is gone, and a tiny animal walks round it.**
+///
+/// Reference: `trapfunc::bubble` (`trapfunc.cpp:133-148`). A tiny creature sets nothing off - there is not enough weight on the bubbles - and anyone else is told, then the square
+/// pops at volume **eighteen** as an **alarm**, because the wrap exists to be noticed, and the wrap is consumed. Nobody is hurt and no move is spent.
+fn bubble(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if size == crate::CreatureSize::Tiny {
+        return false;
+    }
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You step on some bubble wrap!".to_owned()
+    } else {
+        format!("{} steps on some bubble wrap!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        18,
+        "Pop!",
+        crate::sounds::SoundCategory::Alarm,
+    );
+    crate::square::remove_trap(world, square);
+    true
+}
+
+/// **A draining trap takes a point of life from every part of a person, and never moves.**
+///
+/// Reference: `trapfunc::drain` (`trapfunc.cpp:1549-1564`): "You feel your life force sapping away."; a character takes `hurtall( 1 )` - one harm to **each** body part - and a
+/// monster takes one point of pure damage to its torso. The trap is **not** removed: a drain is a place, not a one-shot.
+fn drain(world: &mut World, who: Entity) -> bool {
+    // `add_msg_if_player`: only a person is told what it feels. A monster simply loses the point.
+    if crate::missions::avatar(world) == Some(who) || crate::npcs::is_npc(world, who) {
+        crate::messages::push(world, "You feel your life force sapping away.");
+    }
+    if is_a_monster(world, who) {
+        crate::creature::hurt(world, who, 1.0);
+        return true;
+    }
+    // `hurtall( 1 )`: a point to **every** part. The port's body carries the parts, so the loop is the same fact without the reference's array.
+    let parts: Vec<String> = world
+        .get::<crate::creature::Body>(who)
+        .map(|body| body.parts.iter().map(|part| part.name.clone()).collect())
+        .unwrap_or_default();
+    if parts.is_empty() {
+        // A creature with no parts listed still loses a point: `hurtall` reaches every part it has, and a creature with none is damaged as a whole.
+        crate::creature::hurt(world, who, 1.0);
+        return true;
+    }
+    for part in &parts {
+        let stops = crate::creature::armour_on(world, who, part, None);
+        #[allow(clippy::cast_precision_loss)]
+        let through = (1 - stops).max(0) as f32;
+        crate::creature::hurt(world, who, through);
+    }
     true
 }
 

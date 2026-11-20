@@ -101,12 +101,12 @@ fn the_program_is_handed_the_traps_square() {
     );
 }
 
-/// **A trap whose action is not `eocs` is left alone.** The named actions are their own rules and are not ported; half-triggering one - removing the trap without doing what
-/// it does - would be worse than leaving it set.
+/// **A trap whose action has no rule is left alone.** The named actions are their own rules, and one the port has not ported yet - `lava` here - is not half-triggered: removing
+/// the trap without doing what it does would be worse than leaving it set. This test's action moves as the frontier moves; when nothing is left it has nothing to say.
 #[test]
 fn a_trap_the_port_cannot_act_on_stays_where_it_is() {
     let (mut world, who) = a_world();
-    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("bubble", &[])]);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("lava", &[])]);
     assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
     assert!(
         !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
@@ -1292,4 +1292,95 @@ fn a_humming_trap_says_how_loud_it_is() {
             sound.description, sound.volume
         );
     }
+}
+
+/// **Bubble wrap pops and is gone, and a tiny animal walks round it.** Reference: `trapfunc::bubble` (`trapfunc.cpp:133-148`): a tiny creature sets nothing off; anyone else is told
+/// ("You step on some bubble wrap!"), the square pops at volume **eighteen** as an **alarm**, and the wrap is consumed. It hurts nobody.
+#[test]
+fn bubble_wrap_pops_and_is_gone() {
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    let mut trap = a_trap("bubble", &[]);
+    trap.name = "bubble wrap".to_owned();
+    cdda_sim::trap_registry::set_traps(&mut world, &[trap]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**a person pops it**"
+    );
+    let sounds = cdda_sim::sounds::heard_this_turn(&mut world);
+    let pop = sounds.last().cloned().expect("a pop was heard");
+    assert_eq!(pop.description, "Pop!", "**it says what it sounds like**");
+    assert_eq!(pop.volume, 18, "**at eighteen**");
+    assert_eq!(
+        pop.category,
+        cdda_sim::sounds::SoundCategory::Alarm,
+        "**as an alarm** - it is meant to be noticed"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0),
+        hp_before,
+        "**and it hurts nobody**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "**the wrap is consumed**"
+    );
+    // A tiny animal walks round it: nothing pops and the wrap stays for the next foot.
+    let (mut world, who) = a_world();
+    give_the_walker_a_turn(&mut world, who);
+    if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+        creature.size = cdda_sim::CreatureSize::Tiny;
+    }
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("bubble", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**a tiny animal does not pop the wrap**"
+    );
+    assert!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)).is_some(),
+        "**and the wrap is still there**"
+    );
+}
+
+/// **A draining trap takes a point of life from every part of a person, and never moves.** Reference: `trapfunc::drain` (`trapfunc.cpp:1549-1564`): "You feel your life force sapping
+/// away.", `hurtall( 1 )` for a character - one harm to **each** body part - or one point of pure damage to a monster's torso, and the trap stays where it is.
+#[test]
+fn a_drain_takes_a_point_from_every_part() {
+    let (mut world, who) = a_world();
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("head", "head"),
+            a_part("leg_l", "leg"),
+        ],
+    });
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("drain", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**the drain runs**"
+    );
+    // **A point per part**: the body has three, so three points go, not one. A drain that took a single point would be a different rule - `hurtall` is a point to *each* part.
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who),
+        Some(97),
+        "**three parts, three points**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("life force sapping away")),
+        "**and the walker feels it**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)).is_some(),
+        "**the trap does not move** - a drain is a place, not a one-shot"
+    );
 }
