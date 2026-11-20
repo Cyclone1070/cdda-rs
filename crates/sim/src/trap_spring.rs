@@ -46,6 +46,7 @@ pub fn spring_with(
         Some("spell") => return cast_its_spell(world, who, square, &trap, &kind),
         Some("glass") => return broken_glass(world, who, square),
         Some("shotgun") => return shotgun_trap(world, who, square, &kind),
+        Some("beartrap") => return bear_trap(world, who, square),
         _ => {}
     }
     if trap.action.as_deref() != Some("eocs") || trap.eocs.is_empty() {
@@ -361,6 +362,100 @@ fn shotgun_trap(world: &mut World, who: Entity, square: (i32, i32, i32), kind: &
     }
     crate::square::remove_trap(world, square);
     true
+}
+
+/// **A bear trap snaps on a leg** - the most physical rule of the lot, and the one that hurts on purpose.
+///
+/// Reference: `trapfunc::beartrap` (`trapfunc.cpp:189-231`):
+///
+/// - a **tiny** animal does not set it off: there is nothing of it between the jaws (`:191-194`);
+/// - "SNAP!" at volume eight, then the trap is removed **before** the jaws are read;
+/// - the jaws close on a part that touches the ground and are announced, `<npcname>` replaced by the creature's own name, and a rider hears about its mount first;
+/// - the `beartrap` effect goes on the creature and the jaws deal **twelve bash and eighteen cut**, each against the part's own armour;
+/// - a cut that drew blood may infect the wound: one in a hundred and twenty-eight, one in five hundred and twelve for a creature that resists infection (`INFRESIST`).
+fn bear_trap(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if size == crate::CreatureSize::Tiny {
+        return false;
+    }
+    crate::sounds::make_a_sound_of_kind(
+        world,
+        square,
+        8,
+        "SNAP!",
+        crate::sounds::SoundCategory::Combat,
+    );
+    crate::square::remove_trap(world, square);
+    // **The jaws close whether or not there are dice**, so a world without a generator still hurts: the part and the infection roll are the only things the dice decide, and
+    // without them the bite lands on the creature with no part to answer for it.
+    let (part, infected) = match crate::singletons::take_rolls(world) {
+        Some(mut rolls) => {
+            let part = ground_contact_part(world, who, &mut rolls);
+            let infected = rolls.one_in(tetanus_chance(world, who));
+            crate::singletons::put_rolls(world, rolls);
+            (part, infected)
+        }
+        None => (None, false),
+    };
+    let name = world
+        .get::<crate::creature::Creature>(who)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    let shown = part
+        .clone()
+        .map_or_else(|| "leg".to_owned(), |at| at.replace('_', " "));
+    let line = if crate::missions::avatar(world) == Some(who) {
+        format!("A bear trap closes on your {shown}!")
+    } else {
+        format!("A bear trap closes on {name}'s {shown}!")
+    };
+    crate::messages::push(world, &line);
+    if world.get::<crate::vehicles::Riding>(who).is_some() {
+        crate::messages::push(world, &format!("Your {name} is caught by a beartrap!"));
+    }
+    // Reference: `c->add_effect( effect_beartrap, 1_turns, hit, true )` - one turn, on the part. The port's effects do not carry a part, so the effect goes on the
+    // creature; the part decides the armour and the message, which is the same substitution the wound rules already make.
+    // An effect the world has not loaded is still a bite: the jaws land whether or not the effect data arrived, which is what keeps a census world from losing the damage.
+    if let Some(kind) = crate::effect_registry::kind_named(world, "beartrap") {
+        crate::applied_effects::add(world, who, crate::effects::ActiveEffect::new(&kind, 1, 1));
+    }
+    // **Two damage types, two answers.** Reference: `damage_instance d; d.add_damage( damage_bash, 12 ); d.add_damage( damage_cut, 18 );` then `deal_damage`, which asks the
+    // part's own figure for each type (`creature.cpp`, `absorb_hit`).
+    let (bash_armour, cut_armour) = part.as_deref().map_or((0, 0), |hit| {
+        (
+            crate::creature::armour_on(world, who, hit, Some("bash")),
+            crate::creature::armour_on(world, who, hit, Some("cut")),
+        )
+    });
+    let bash = (12 - bash_armour).max(0);
+    let cut = (18 - cut_armour).max(0);
+    #[allow(clippy::cast_precision_loss)]
+    crate::creature::hurt(world, who, (bash + cut) as f32);
+    // The wound may fester, but only where the jaws drew blood and only for a creature infection can take hold of.
+    if cut > 0
+        && infected
+        && !crate::traits::has_trait(world, who, "IMMUNE_INFECTION")
+        && let Some(tetanus) = crate::effect_registry::kind_named(world, "tetanus")
+    {
+        crate::applied_effects::add(
+            world,
+            who,
+            crate::effects::ActiveEffect::new(&tetanus, 1, 1),
+        );
+    }
+    true
+}
+
+/// How likely the jaws are to infect a wound: one in a hundred and twenty-eight, or one in five hundred and twelve for a creature that resists infection.
+///
+/// Reference: `const int chance_in = you->has_trait( trait_INFRESIST ) ? 512 : 128;` (`trapfunc.cpp:220`).
+fn tetanus_chance(world: &World, creature: Entity) -> i32 {
+    if crate::traits::has_trait(world, creature, "INFRESIST") {
+        512
+    } else {
+        128
+    }
 }
 
 /// The part a shotgun's single shell hits: a ten-sided roll, as `switch( rng( 1, 10 ) )` reads it (`trapfunc.cpp:589-612`).

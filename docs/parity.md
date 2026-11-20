@@ -39497,3 +39497,24 @@ mutation - which is exactly how the first version of the test failed.
 visibility rules exist, but the trap path does not consult them yet.
 
 **The trap ledger moved to 96 of 125** - thirty-two traps still name functions with no rule, the largest now `beartrap` with two.
+
+## The bear trap (round 246)
+
+Reference: `trapfunc::beartrap` (`trapfunc.cpp:189-231`), two traps. Five parts, all ported:
+
+- a **tiny** animal does not set it off - there is nothing of it between the jaws;
+- "SNAP!" at volume eight, then the trap is removed **before** the jaws are read;
+- the jaws close on a part that touches the ground and are announced in the reference's two voices, with a rider hearing about its mount first;
+- the `beartrap` effect goes on the creature, and the jaws deal **twelve bash and eighteen cut**, each type against the part's own figure - which is why a leg wearing four
+  points of cut armour takes twenty-six and not thirty;
+- a cut that drew blood may infect the wound: one in one hundred and twenty-eight, one in five hundred and twelve with `INFRESIST`, and never for `IMMUNE_INFECTION`.
+
+Five mutations, five catches: the tiny guard removed, the armour ignored, the two damage types flattened to their unarmoured sum, the effect skipped, and (from the test's own
+first draft) the dice treated as required - a bite that only lands when a generator exists would give a census world a trap that cannot hurt anyone.
+
+**Named divergences, both structural and both stated rather than hidden.** The reference puts the `beartrap` effect **on the part**; the port's `ActiveEffect` carries an id,
+an intensity and a duration and no body part, so the effect goes on the creature, with the part deciding the armour and the message - the same substitution the wound rules
+already make. And the jaws' message names the part in the player's language ("your left leg"); the port names it by its id with underscores opened up ("leg l"), because it
+has no part-display grammar yet.
+
+**The trap ledger moved to 98 of 125**; twenty-seven traps still name functions with no rule, the largest now `landmine` with two.

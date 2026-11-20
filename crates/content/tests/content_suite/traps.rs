@@ -336,18 +336,26 @@ fn the_reference_tree_holds_the_trap_actions_the_port_answers() {
     );
     // Ninety-one of a hundred and twenty-four traps therefore have an answer; the remaining thirty-three name thirty named functions, the commonest of which is `shotgun`
     // with three. Pinned so the frontier cannot drift without the number moving with it.
-    let answered: usize = ["eocs", "map_regen", "spell", "none", "glass", "shotgun"]
-        .iter()
-        .map(|action| counts.get(*action).copied().unwrap_or(0))
-        .sum();
-    assert_eq!(answered, 96, "traps whose action the port answers");
+    let answered: usize = [
+        "eocs",
+        "map_regen",
+        "spell",
+        "none",
+        "glass",
+        "shotgun",
+        "beartrap",
+    ]
+    .iter()
+    .map(|action| counts.get(*action).copied().unwrap_or(0))
+    .sum();
+    assert_eq!(answered, 98, "traps whose action the port answers");
     assert_eq!(
         total - answered,
-        29,
+        27,
         "**and thirty-two that name a function the port has no rule for**"
     );
     assert_eq!(
-        counts.get("beartrap").copied(),
+        counts.get("landmine").copied(),
         Some(2),
         "the largest of the actions still unported"
     );

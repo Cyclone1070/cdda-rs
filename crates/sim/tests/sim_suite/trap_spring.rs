@@ -848,3 +848,177 @@ fn a_kind(id: &str) -> cdda_sim::item_registry::Kind<'_> {
         to_hit: 0,
     }
 }
+
+/// **A bear trap snaps on a leg.** Reference: `trapfunc::beartrap` (`trapfunc.cpp:189-231`) - two traps in the data, and the most physical rule of the lot:
+///
+/// - a **tiny** animal does not set it off at all: there is nothing of it in the jaws;
+/// - "SNAP!" at volume eight, then the trap is removed **before** the jaws are read;
+/// - the jaws close on a part that touches the ground, and are announced ("A bear trap closes on your <part>!") - and a rider hears about its mount first;
+/// - the `beartrap` effect goes on the creature, and the jaws deal twelve bash and eighteen cut to the part they closed on;
+/// - a cut that drew blood may infect the wound: one in a hundred and twenty-eight, one in five hundred and twelve for a creature that resists infection.
+///
+/// The numbers are what the test pins: thirty points through a body wearing nothing is twelve plus eighteen, and the same body with four points of cut armour
+/// takes twenty-six, which is the only way to see that the two damage types were answered separately.
+#[test]
+fn a_bear_trap_closes_on_a_leg() {
+    let (mut world, who) = a_world();
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("torso", "torso"),
+            a_part("leg_l", "leg"),
+            a_part("foot_l", "foot"),
+        ],
+    });
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    cdda_sim::missions::set_avatar(&mut world, who);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    // The effect the jaws leave behind is data, so the test installs the two ids it names.
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[
+            cdda_sim::effect_registry::bare("beartrap"),
+            cdda_sim::effect_registry::bare("tetanus"),
+        ],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("beartrap", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**the jaws close**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        None,
+        "and the trap is gone"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who),
+        Some(70),
+        "**twelve bash and eighteen cut, and the body wore nothing**"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, who, "beartrap"),
+        "**the jaws are still on it**: {:?}",
+        cdda_sim::applied_effects::worn(&world, who)
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.starts_with("A bear trap closes on your ")),
+        "and the walker is told where: {:#?}",
+        cdda_sim::messages::lines(&world)
+    );
+}
+
+/// **Armour on the leg takes the cut and leaves the bash.** `damage_instance` carries both types and each meets its own figure.
+#[test]
+fn a_bear_trap_takes_the_cut_armour_off_its_bite() {
+    let (mut world, who) = a_world();
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![a_part("leg_l", "leg"), a_part("foot_l", "foot")],
+    });
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("beartrap", &[])]);
+    let cover = cdda_sim::creature::Garment {
+        layers: ["leg_l", "foot_l"]
+            .iter()
+            .map(|name| {
+                (
+                    (*name).to_owned(),
+                    cdda_content::armour::Layer {
+                        damage_type: "cut".to_owned(),
+                        resist: 4.0,
+                        thickness: 1.0,
+                        cover: 100,
+                    },
+                )
+            })
+            .collect(),
+        vitals: Vec::new(),
+    };
+    give_the_walker_a_turn(&mut world, who);
+    let garment = world.spawn(cover).id();
+    assert_eq!(
+        cdda_sim::creature::wear(&mut world, who, garment),
+        cdda_sim::creature::Wore::Worn,
+        "the garment goes on"
+    );
+    cdda_sim::creature::dress(&mut world);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who),
+        Some(74),
+        "**twelve bash plus fourteen cut**: eighteen less the four points the leg wears"
+    );
+}
+
+/// **A tiny animal does not set a bear trap off.** Reference: `trapfunc.cpp:191-194` - the jaws are not for something that small, and nothing happens at all.
+#[test]
+fn a_bear_trap_ignores_a_tiny_animal() {
+    let (mut world, who) = a_world();
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    if let Some(mut creature) = world.get_mut::<cdda_sim::creature::Creature>(who) {
+        creature.size = cdda_sim::CreatureSize::Tiny;
+    }
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("beartrap", &[])]);
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(
+        !cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)),
+        "**nothing happens**"
+    );
+    assert_eq!(
+        cdda_sim::creature::health_of(&world, who),
+        Some(100),
+        "and nothing was hurt"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)),
+        Some("tr_test".to_owned()),
+        "and the trap is still set"
+    );
+}
+
+/// **A wound the jaws drew blood from may fester**, and one they did not cannot. Reference: `trapfunc.cpp:218-224` - the tetanus roll happens only when the character is
+/// not `INFECTION_IMMUNE` and the **cut** actually got through, at one in a hundred and twenty-eight (one in five hundred and twelve with `INFRESIST`).
+///
+/// **The dice are driven, not hoped for.** `Rolls::fixed` answers every draw with the same number, so the low run is a bite that festered and the high run is a bite that
+/// did not - which pins both sides of the chance instead of counting a rate over seeds and calling a drifting one right.
+#[test]
+fn the_wound_may_fester() {
+    let (mut world, who) = a_world();
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![a_part("leg_l", "leg"), a_part("foot_l", "foot")],
+    });
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[
+            cdda_sim::effect_registry::bare("beartrap"),
+            cdda_sim::effect_registry::bare("tetanus"),
+        ],
+    );
+    cdda_sim::trap_registry::set_traps(&mut world, &[a_trap("beartrap", &[])]);
+
+    // A low draw is one in a hundred and twenty-eight: the bite festers.
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert!(
+        cdda_sim::applied_effects::has(&world, who, "tetanus"),
+        "**the wound festered**: {:?}",
+        cdda_sim::applied_effects::worn(&world, who)
+    );
+
+    // A high draw is not: the same bite leaves nothing behind.
+    cdda_sim::creature::set_health(&mut world, who, 100);
+    cdda_sim::applied_effects::remove(&mut world, who, "tetanus");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.999));
+    assert!(cdda_sim::square::set_trap(&mut world, (0, 0, 0), "tr_test"));
+    assert!(cdda_sim::trap_spring::spring(&mut world, who, (0, 0, 0)));
+    assert!(
+        !cdda_sim::applied_effects::has(&world, who, "tetanus"),
+        "**and the high draw does not fester**"
+    );
+}
