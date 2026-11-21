@@ -40235,3 +40235,19 @@ there is no state in which a tile has terrain and no tile.
 half a level, and the rule under test silently skipped it.
 
 **The mutation** is the marker's creation disabled (`if false && …`): the new test fails at `left: 0, right: 1`, and the revert's `take` returns zero.
+
+## A mapgen's monster entry can name a group (round 285)
+
+`jmapgen_monster` reads a `group` member (`mapgen.cpp:3110-3120`) as an alternative to `monster`, and its `apply` asks the group for its member once per entry
+(`:3266-3275`) - so a pack is **the group's answer repeated**, not a fresh draw per member. The port read the `group` member into the object and then skipped the entry:
+a mapgen that placed a horde placed nothing, and the field was there the whole time as a comment saying it was not drawn yet.
+
+The writer now draws through `monster_groups::pick`, the same weighted draw the loot and dialogue paths use, so a mapgen and a spawn point cannot disagree about what a
+group means.
+
+**Named gap**: the reference scales the chance by `SPAWN_DENSITY`, rolls `roll_remainder` for the count and carries a mission target; the port draws at density one - which
+is its existing model for the single-monster form and is stated there.
+
+**Two mutations, one of them mine and worthless.** The first replaced the pick with `None::<String>.or(pick(...))` - which is just `pick(...)`, so the test passed and proved
+nothing about the code. The second made the branch `continue` without drawing, and the test fails at `left: 0, right: 2`. **A mutation that is semantically the same
+program is not a mutation**; the check is not "did I change the text" but "is this a different rule".

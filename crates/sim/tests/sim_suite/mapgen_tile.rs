@@ -540,3 +540,78 @@ fn a_mapgens_predecessor_is_drawn_first() {
         "**and the predecessor's wall stands where the roof drew nothing**"
     );
 }
+
+/// **A `place_monster` entry that names a group draws one member from it.** Reference: `jmapgen_monster` reads `group` (`mapgen.cpp:3110-3120`) and its `apply` asks
+/// `MonsterGroupManager::GetResultFromGroup` for the member, once per entry (`:3266-3275`) - so a pack is the **group's answer repeated**, not a fresh draw per member.
+/// The port read the `group` member and then skipped the entry, so a mapgen that places a horde placed nothing.
+#[test]
+fn a_mapgens_place_monster_draws_from_a_group() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_zombie",
+                hp: 40,
+            },
+            cdda_sim::monster_registry::MonsterKind {
+                id: "mon_dog",
+                hp: 25,
+            },
+        ],
+    );
+    // A group whose only member is the zombie, so the draw has one answer and the test cannot pass on a lucky weight.
+    cdda_sim::monster_groups::set_groups(
+        &mut world,
+        vec![cdda_content::monster_groups::MonsterGroup {
+            id: "beasts".to_owned(),
+            entries: vec![cdda_content::monster_groups::MonsterGroupEntry {
+                kind: cdda_content::monster_groups::EntryKind::Monster("mon_zombie".to_owned()),
+                weight: 1,
+            }],
+        }],
+    );
+    let horde = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["..".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: vec![cdda_content::mapgen::MonsterPlacement {
+            monster: None,
+            group: Some("beasts".to_owned()),
+            chance: 100,
+            pack_size: (2, 2),
+            x: (1, 1),
+            y: (0, 0),
+        }],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), horde)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    assert_eq!(
+        cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0)),
+        Some(2),
+        "two squares drawn"
+    );
+    // **The hit points are what names the member**: a monster spawned from a kind carries that kind's health, so the group's answer is visible in the numbers - the
+    // zombie is the only member with forty, where the other kind in the registry has twenty-five.
+    let spawned: Vec<i32> = world
+        .query::<(Entity, &cdda_sim::creature::Creature)>()
+        .iter(&world)
+        .map(|(entity, _)| cdda_sim::creature::health_of(&world, entity).unwrap_or(0))
+        .collect();
+    assert_eq!(
+        spawned.len(),
+        2,
+        "**the group answered once and the pack repeated it**: {spawned:?}"
+    );
+    assert!(
+        spawned.iter().all(|hp| *hp == 40),
+        "**and the member is the group's**: {spawned:?}"
+    );
+}

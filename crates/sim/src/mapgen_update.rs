@@ -276,11 +276,23 @@ fn place_monsters(
             None => placement.pack_size.0,
         }
         .max(0);
-        let Some(monster) = placement.monster.as_deref() else {
-            // A group is not drawn from here yet: the reference's monster-group draw carries its own weights and its own dice.
-            continue;
+        // **An entry may name a group instead of a monster** (`mapgen.cpp:3110-3120`, `3266-3275`): `jmapgen_monster` reads `group` and calls the group's own draw, which
+        // answers one member per `apply` - so the pack below is the group's answer repeated, not a draw per member.
+        let monster = if let Some(monster) = placement.monster.as_deref() {
+            monster.to_owned()
+        } else {
+            let Some(group) = placement.group.as_deref() else {
+                continue;
+            };
+            let Some(rolls) = rolls.as_mut() else {
+                continue;
+            };
+            let Some(picked) = crate::monster_groups::pick(world, group, rolls) else {
+                continue;
+            };
+            picked
         };
-        let Some(kind) = crate::monster_registry::id_of(world, monster) else {
+        let Some(kind) = crate::monster_registry::id_of(world, &monster) else {
             continue;
         };
         let hp = crate::monster_registry::hit_points(world, kind);
