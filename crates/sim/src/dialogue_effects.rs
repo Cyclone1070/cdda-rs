@@ -1168,8 +1168,15 @@ fn revert_location(
             None => return Applied::CannotAnswer,
         },
     };
-    // Reference: `calendar::turn + dov_time_in_future.evaluate( d ) + 1_seconds` (`npctalk.cpp:4904`) - the extra second syncs the event with the turn's own events.
-    crate::timed_events::schedule(world, &event, turns.saturating_add(1));
+    // Reference: `calendar::turn + dov_time_in_future.evaluate( d ) + 1_seconds` (`npctalk.cpp:4904`) - the extra second syncs the event with the turn's own events - and
+    // `timed_events::add( REVERT_SUBMAP, ..., map_square, ... )` **names the square**, because the event reverts that submap and not the whole map.
+    crate::timed_events::schedule_carrying_at(
+        world,
+        &event,
+        turns.saturating_add(1),
+        "",
+        Some((x, y, z)),
+    );
     Applied::Done
 }
 

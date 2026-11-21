@@ -213,6 +213,13 @@ pub fn process_due(world: &mut World, speaker: Entity) {
             let _ = crate::mapgen_update::apply(world, &event.text, place);
             continue;
         }
+        // **A revert puts back the squares the event names** (`timed_event.cpp:336-340`): its submap, not every square the store remembers.
+        if key == "REVERT_SUBMAP"
+            && let Some(place) = event.place
+        {
+            let _ = crate::revert::restore_at(world, place);
+            continue;
+        }
         // **The temple's flood is one step of a rising water level**, and it schedules the next step itself: `timed_event.cpp:271-274` adds `TEMPLE_FLOOD` again two or
         // three turns out, and stops when a step changes nothing because the chamber is full.
         if key == "TEMPLE_FLOOD" {

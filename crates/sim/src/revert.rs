@@ -65,10 +65,29 @@ pub fn take(world: &mut World, center: (i32, i32, i32)) -> usize {
 /// Reference: `timed_event.cpp:336-340` with `submap::revert_submap` (`submap.cpp:322-347`): each remembered tile's terrain and furniture are copied back, and a
 /// tile that had no furniture loses the one it has. Answers how many squares were put back.
 pub fn restore(world: &mut World) -> usize {
+    restore_where(world, None)
+}
+
+/// Puts back **only the squares around one place**, which is what a `REVERT_SUBMAP` event does.
+///
+/// Reference: `timed_event.cpp:336-340` reverts the submap the event names, not the whole map: two reverts pending in different places are two different events, and
+/// firing one must not fire the other.
+pub fn restore_at(world: &mut World, center: (i32, i32, i32)) -> usize {
+    restore_where(world, Some(center))
+}
+
+fn restore_where(world: &mut World, around: Option<(i32, i32, i32)>) -> usize {
     let remembered: Vec<(Entity, (i32, i32, i32), Snapshot)> = {
         let mut query = world.query::<(Entity, &crate::Position, &Snapshot)>();
         query
             .iter(world)
+            .filter(|(_, position, _)| {
+                around.is_none_or(|center| {
+                    position.z == center.2
+                        && (position.x - center.0).abs() <= REVERT_RADIUS
+                        && (position.y - center.1).abs() <= REVERT_RADIUS
+                })
+            })
             .map(|(entity, position, snapshot)| {
                 (entity, (position.x, position.y, position.z), *snapshot)
             })

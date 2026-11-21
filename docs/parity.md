@@ -40206,3 +40206,17 @@ against itself, so the centre in `points_in_radius` is harmless), and the module
 **The mutations that mattered:** the floor's condition narrowed to "beside deep" fails at `left: Some(32), right: Some(31)`; the first mutation I tried - the shallow
 branch testing for *shallow* neighbours - **passed**, because the reference's own `points_in_radius` includes the square itself, so a shallow square always has a shallow
 neighbour. A mutation that the reference's semantics make unfalsifiable is not evidence either way.
+
+## A revert puts back its own square, and nothing else (round 283)
+
+`f_revert_location` (`npctalk.cpp:4884-4918`) schedules `REVERT_SUBMAP` **with the map square**, and `submap::revert_submap` (`submap.cpp:322-347`) reverts that submap.
+The port scheduled the event with **no square** and its processor restored **every** square the store remembered - so two reverts pending in different places were one
+event that fired both. Now `revert_location` names its square (`schedule_carrying_at`), `revert::restore_at` puts back only the squares within `REVERT_RADIUS` of it, and
+the processor's `REVERT_SUBMAP` arm calls that. `revert::restore` (everything) stays for the QA path and the older tests.
+
+**A latent inconsistency the new test found, and did not fix:** `square::set_terrain` on a square that has no ground spawns `(Position, Ground, Terrain)` **without the
+`Square` marker**, while `load_level` gives every square one. So ground made by the setter is invisible to `square::squares` and to `revert::take` - a second way to make a
+square, which is one way too many. This round's fixture therefore loads a level, which is the real path; the setter's marker is the next round's first item.
+
+**The mutation** is `restore_at` ignoring its centre (restoring everything): the far square, whose own revert is still pending, comes back too, and the test fails at
+`left: Some(1), right: Some(2)`.
