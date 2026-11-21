@@ -2645,10 +2645,10 @@ fn add_var(
     } else {
         match value {
             cdda_content::dialogue::VarValue::One(one) => {
-                let Some(text) = crate::conditions::text_of(world, speaker, listener, one) else {
-                    return Applied::CannotAnswer;
-                };
-                crate::dialogue_values::Value::Text(text)
+                // **An unset variable contributes the empty string** (`read_var_value`'s default) rather than stopping the effect.
+                crate::dialogue_values::Value::Text(
+                    crate::conditions::text_of(world, speaker, listener, one).unwrap_or_default(),
+                )
             }
             cdda_content::dialogue::VarValue::Many(choices) => {
                 let mut dice = crate::singletons::take_rolls(world);
@@ -3649,11 +3649,10 @@ pub fn run_effect(
         Effect::RevealMap { target, radius } => {
             // Reference: `f_reveal_map` (`npctalk.cpp:7752-7760`): the `var_info` names a square, `radius` is a `dbl_or_var` that defaults to zero, and the square is
             // projected to an overmap tile before the reveal (`project_to<coords::omt>`), which the overmap module's own `SQUARES_PER_OMT` division is.
-            let Some((x, y, _)) =
-                crate::dialogue_values::position_of(world, speaker, listener, target)
-            else {
-                return Applied::CannotAnswer;
-            };
+            // **An unset target is the origin** (`math_parser_diag_value.cpp:62-70`): the reference reads the square and reveals there, so a program that reveals
+            // around wherever a previous step found reveals around (0, 0) when that step found nothing.
+            let (x, y, _) = crate::dialogue_values::position_of(world, speaker, listener, target)
+                .unwrap_or((0, 0, 0));
             let distance = match radius {
                 None => 0,
                 Some(given) => {

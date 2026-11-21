@@ -40134,3 +40134,21 @@ test is the next batch's first item, with an assertion that can fail.
 
 **The batch ran two rules through one build, one mutation run and one gate.** Both mutations were caught in the same mutation build, which is what makes batching safe:
 the rules live in different functions, so no test can mask another's mutation.
+
+## An unset target is the origin, and an unset value is empty (round 279)
+
+Two rules that were **written and withdrawn last round** come back with tests that can fail.
+
+**`reveal_map` on an unset target reveals at overmap tile (0, 0).** `f_reveal_map` (`npctalk.cpp:7752-7760`) reads the variable's square; an unset variable reads as
+`tripoint_abs_ms()`, absolute square (0, 0) (`math_parser_diag_value.cpp:62-70`), which projects to overmap tile (0, 0). The withdrawn test asked whether (0, 0) was seen
+after a reveal of radius two - which the old refusal could not satisfy, but a mutated origin at (1, 1) could, because **radius two covers the origin**. The new test reveals
+with radius zero and compares the **set difference** before and after, so the only thing it can see is the tile the rule chose.
+
+**The mutation that proved it took three tries, and each failure was informative.** (1, 1) is the *same overmap tile* as (0, 0) - twenty-four squares to a tile - so a
+mutation to (1, 1) was invisible to the overmap and the test passed. Mutating to absolute square (24, 0, 0) moves it one tile over, and the test fails at
+`left: [(1, 0, 0)], right: [(0, 0, 0)]`. **A mutation has to be visible in the units the assertion reads**, not merely different in the units the code writes.
+
+**`u_add_var` whose value was never set stores the empty string**, the same `read_var_value` default the string-variable rule uses, so the effect stores an empty answer
+instead of stopping.
+
+Both rules passed through one build, one mutation build and one gate - the batch cycle the last round's analysis asked for.

@@ -3081,3 +3081,58 @@ fn a_set_string_var_from_an_unset_source_stores_nothing() {
         "**and nothing is what was stored**"
     );
 }
+
+/// **A `reveal_map` whose target was never set reveals around the origin.** Reference: `f_reveal_map` (`npctalk.cpp:7752-7760`) reads the variable's square - an unset
+/// variable reads as `tripoint_abs_ms()`, absolute square (0, 0) (`math_parser_diag_value.cpp:62-70`, port round 238) - and projects it to overmap tile (0, 0).
+///
+/// **The assertion is the difference, not the presence**: a first version asked whether tile (0, 0) was seen, which the old behaviour and a mutated origin at (1, 1)
+/// both satisfied because the reveal covered a radius. Radius zero plus a before/after difference makes the tile the rule chose the only thing the test can see.
+#[test]
+fn a_reveal_map_with_an_unset_target_reveals_at_the_origin() {
+    let mut world = World::new();
+    let who = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (5, 5, 0));
+    let before = cdda_sim::overmap::seen_tiles(&world);
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"reveal_map": {"global_val": "nowhere"}, "radius": 0}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("a reveal with an unset target is readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, who, None, &effect),
+        Applied::Done,
+        "**an unset target is the origin, not a refusal**"
+    );
+    let mut revealed: Vec<(i32, i32, i32)> = cdda_sim::overmap::seen_tiles(&world)
+        .into_iter()
+        .filter(|tile| !before.contains(tile))
+        .collect();
+    revealed.sort_unstable();
+    assert_eq!(
+        revealed,
+        vec![(0, 0, 0)],
+        "**the reveal covers the origin and nothing else**"
+    );
+}
+
+/// **A `u_add_var` whose value was never set stores nothing.** Reference: `f_add_var` (`npctalk.cpp:3589-3610`) evaluates its value with `read_var_value`, whose
+/// answer for a variable that does not exist is the empty string; refusing threw the effect away instead of storing the empty answer.
+#[test]
+fn an_add_var_from_an_unset_source_stores_nothing() {
+    let mut world = World::new();
+    let who = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"u_add_var": "stored", "value": {"u_val": "missing"}}"#.as_slice())
+            .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, who, None, &effect),
+        Applied::Done,
+        "**an unset source is the empty string, not a refusal**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_values::text_of(&world, who, "stored"),
+        Some(String::new()),
+        "**and nothing is what was stored**"
+    );
+}
