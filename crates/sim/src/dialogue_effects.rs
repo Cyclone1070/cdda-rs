@@ -2796,6 +2796,7 @@ fn run_mapgen_update(
         updates,
         target,
         om_terrain,
+        time_in_future,
     } = effect
     else {
         return Applied::CannotAnswer;
@@ -2844,6 +2845,21 @@ fn run_mapgen_update(
     let Some(place) = placed else {
         return Applied::CannotAnswer;
     };
+    // **A positive `time_in_future` schedules instead of applying** (`npctalk.cpp:4853-4868`): the update lands when the event comes due, through the same apply rule,
+    // and an event that is never processed is the named gap below the schedule rather than a reason to run the update early.
+    let after = roll_duration(world, speaker, listener, time_in_future).unwrap_or(0);
+    if after > 0 {
+        for name in &names {
+            crate::timed_events::schedule_carrying_at(
+                world,
+                "UPDATE_MAPGEN",
+                after.saturating_add(1),
+                name,
+                Some(place),
+            );
+        }
+        return Applied::Done;
+    }
     for name in &names {
         if crate::mapgen_update::apply(world, name, place).is_none() {
             return Applied::CannotAnswer;

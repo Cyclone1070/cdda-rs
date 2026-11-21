@@ -23,6 +23,11 @@ pub struct TimedEvent {
     pub due: i64,
     /// The text it carries, empty when it carries none.
     pub text: String,
+    /// The square it happens on, for the events that name one.
+    ///
+    /// Reference: `timed_event`'s `point` member (`timed_event.h:20-60`), which `UPDATE_MAPGEN` and `REVERT_LOCATION` fill with where the work is to be done. The port
+    /// carries it here rather than folding a square into the text, because every reader of the text would then have to parse it.
+    pub place: Option<(i32, i32, i32)>,
 }
 
 /// Marks the one entity that holds the world's timed events.
@@ -41,6 +46,20 @@ pub fn schedule(world: &mut World, key: &str, turns: i64) {
 ///
 /// Reference: `timed_events::add( OVERRIDE_PLACE, ..., string_id )` (`npctalk.cpp:4810-4814`) - the same event, with the name in it.
 pub fn schedule_carrying(world: &mut World, key: &str, turns: i64, text: &str) {
+    schedule_carrying_at(world, key, turns, text, None);
+}
+
+/// Schedules an event that carries text **and a square**, which is what an update mapgen in the future needs.
+///
+/// Reference: `timed_events::add( UPDATE_MAPGEN, tif, -1, project_to<coords::ms>( omt_pos ), ..., update_id, key )` (`npctalk.cpp:4854-4860`): the event holds the
+/// place, the update's id as its string, and an optional key that later recognises it.
+pub fn schedule_carrying_at(
+    world: &mut World,
+    key: &str,
+    turns: i64,
+    text: &str,
+    place: Option<(i32, i32, i32)>,
+) {
     let Some(now) = crate::calendar::of(world).map(|calendar| calendar.turn) else {
         return;
     };
@@ -52,6 +71,7 @@ pub fn schedule_carrying(world: &mut World, key: &str, turns: i64, text: &str) {
             TimedEvent {
                 due,
                 text: text.to_owned(),
+                place,
             },
         );
     }
@@ -74,6 +94,15 @@ pub fn has_happened(world: &World, key: &str) -> Option<bool> {
 pub fn holder(world: &World) -> Option<Entity> {
     let mut query = world.try_query_filtered::<Entity, With<TheTimedEvents>>()?;
     query.iter(world).next()
+}
+
+/// The square a named event was scheduled for, or nothing when it names none.
+///
+/// Reference: `timed_event`'s `point` member (`timed_event.h:20-60`) - `UPDATE_MAPGEN` and `REVERT_LOCATION` fill it with where the work is to be done.
+#[must_use]
+pub fn place_of(world: &World, key: &str) -> Option<(i32, i32, i32)> {
+    let events = world.get::<TimedEvents>(holder(world)?)?;
+    events.0.get(key).and_then(|event| event.place)
 }
 
 /// The text an event carries, while it is still pending.

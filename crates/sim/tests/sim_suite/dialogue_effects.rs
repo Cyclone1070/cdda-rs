@@ -3136,3 +3136,47 @@ fn an_add_var_from_an_unset_source_stores_nothing() {
         "**and nothing is what was stored**"
     );
 }
+
+/// **A `mapgen_update` that says "in the future" is scheduled, not applied now.** Reference: `f_mapgen_update` (`npctalk.cpp:4853-4868`) reads
+/// `time_in_future`; a positive duration adds an `UPDATE_MAPGEN` timed event carrying the place and the update's id, and applies nothing until that event runs.
+/// The port applied it immediately, which is the opposite of what the data asked for.
+///
+/// **The event's place is the plan's**, and it is a real member of the store: the reference's `timed_event` holds a `point`, so the port's holds one too rather than
+/// folding a square into the text.
+#[test]
+fn a_mapgen_update_in_the_future_is_scheduled_and_not_applied() {
+    let (mut world, survivor) = a_wall_update_world();
+    cdda_sim::calendar::set_turn(&mut world, 0);
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"mapgen_update": "lab_wall_opens", "time_in_future": "10 turns"}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a mapgen update with a delay is readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        Applied::Done,
+        "**the schedule is the effect's answer**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 2, 0)),
+        Some(0),
+        "**and nothing was written yet**"
+    );
+    assert_eq!(
+        cdda_sim::timed_events::place_of(&world, "UPDATE_MAPGEN"),
+        Some((2, 2, 0)),
+        "**the event carries where the update will land**"
+    );
+    assert_eq!(
+        cdda_sim::timed_events::text_of(&world, "UPDATE_MAPGEN").as_deref(),
+        Some("lab_wall_opens"),
+        "**and which update it is**"
+    );
+    assert_eq!(
+        cdda_sim::timed_events::has_happened(&world, "UPDATE_MAPGEN"),
+        Some(false),
+        "**ten turns out is not yet due**"
+    );
+}

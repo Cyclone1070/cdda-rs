@@ -40152,3 +40152,18 @@ mutation to (1, 1) was invisible to the overmap and the test passed. Mutating to
 instead of stopping.
 
 Both rules passed through one build, one mutation build and one gate - the batch cycle the last round's analysis asked for.
+
+## An update can be ordered for later (round 280)
+
+`f_mapgen_update` (`npctalk.cpp:4853-4868`) reads `time_in_future`, and a positive duration **schedules** an `UPDATE_MAPGEN` timed event carrying the place and the
+update's id instead of applying anything. The port applied the update immediately - the opposite of what the data asked for - so an update the data meant to happen after
+the player left happened under their feet.
+
+**The event's place is a member of the store, because the reference's is.** `timed_event` holds a `point` (`timed_event.h:20-60`), and the port's `TimedEvent` now holds
+one too rather than folding a square into the text where every reader would have to parse it out. `schedule_carrying_at` writes it, `place_of` reads it.
+
+**What this does not do: fire it.** No turn processor for timed events exists yet, so a scheduled `UPDATE_MAPGEN` waits forever - the schedule is exact and the firing is
+the next rule. That is a named gap, not a silent one: the test asserts the event is queued with its place and that **nothing was written yet**.
+
+**The mutation** is the branch inverted (`after > 0` to `after < 0`), and the test fails at `left: Some(7), right: Some(0)` - the update applied immediately, which is the
+behaviour this rule removed.

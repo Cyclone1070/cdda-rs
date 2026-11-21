@@ -3638,6 +3638,11 @@ pub enum Effect {
         target: Option<AssignmentTarget>,
         /// The overmap terrain to apply it at, found by searching; the speaker's own square when neither this nor `target` is named.
         om_terrain: Option<StringSource>,
+        /// How long to wait before applying it, when the data says to wait at all.
+        ///
+        /// Reference: `f_mapgen_update` (`npctalk.cpp:4853-4868`): a positive `time_in_future` **schedules** the update as a `UPDATE_MAPGEN` timed event instead of
+        /// applying it now, and the event carries the place and the update's id.
+        time_in_future: EffectDuration,
     },
     /// Give a creature a morale point.
     ///
@@ -4520,6 +4525,10 @@ fn read_mapgen_update(object: &cdda_json::Object) -> Option<Effect> {
         updates,
         target,
         om_terrain,
+        time_in_future: read_effect_duration(
+            object.get("time_in_future"),
+            EffectDuration::Turns(Some(0)),
+        )?,
     })
 }
 
