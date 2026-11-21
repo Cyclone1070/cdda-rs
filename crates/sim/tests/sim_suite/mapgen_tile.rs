@@ -446,6 +446,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
             pack_size: (2, 2),
             x: (1, 1),
             y: (0, 0),
+            friendly: false,
         }],
         weight: 1,
         fields: Vec::new(),
@@ -585,6 +586,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
             pack_size: (2, 2),
             x: (1, 1),
             y: (0, 0),
+            friendly: false,
         }],
         weight: 1,
         fields: Vec::new(),
@@ -613,5 +615,61 @@ fn a_mapgens_place_monster_draws_from_a_group() {
     assert!(
         spawned.iter().all(|hp| *hp == 40),
         "**and the member is the group's**: {spawned:?}"
+    );
+}
+
+/// **A mapgen can place monsters that are on the player's side.** Reference: `jmapgen_monster`'s `friendly` (`mapgen.cpp:3124`) is passed to `add_spawn`
+/// (`:3268-3270`) and becomes `monster::friendly = -1` - **friendly for good**, the same mark the dialogue's `f_spawn_monster` writes.
+///
+/// The test also pins the bug this rule surfaced: `make_friendly` clamped its count at zero, so `-1` was stored as `0`, and `is_friendly` asks whether the count is zero -
+/// a friendly spawn was **not friendly**. Both halves ride the same store, so one test can see both.
+#[test]
+fn a_mapgen_can_place_monsters_on_the_players_side() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_zombie",
+            hp: 40,
+        }],
+    );
+    let loyal = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["..".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: vec![cdda_content::mapgen::MonsterPlacement {
+            monster: Some("mon_zombie".to_owned()),
+            group: None,
+            chance: 100,
+            pack_size: (1, 1),
+            x: (0, 0),
+            y: (0, 0),
+            friendly: true,
+        }],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), loyal)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let spawned: Vec<Entity> = world
+        .query::<(Entity, &cdda_sim::creature::Creature)>()
+        .iter(&world)
+        .map(|(entity, _)| entity)
+        .collect();
+    assert_eq!(spawned.len(), 1, "one zombie was placed");
+    assert!(
+        cdda_sim::friendly::is_friendly(&world, spawned[0]),
+        "**and it is on the player's side**"
+    );
+    assert_eq!(
+        cdda_sim::friendly::turns_of(&world, spawned[0]),
+        cdda_sim::friendly::FOR_EVER,
+        "**for good, not for a count of turns**"
     );
 }

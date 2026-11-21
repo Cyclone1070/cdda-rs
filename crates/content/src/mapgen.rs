@@ -234,6 +234,7 @@ fn read_monsters(inner: &cdda_json::Object) -> Vec<MonsterPlacement> {
             pack_size: read_amount(entry.get("pack_size")),
             x: read_amount(entry.get("x")),
             y: read_amount(entry.get("y")),
+            friendly: matches!(entry.get("friendly"), Some(cdda_json::Value::Bool(true))),
         });
     }
     placements
@@ -282,6 +283,10 @@ pub struct MonsterPlacement {
     pub x: (i32, i32),
     /// The rows it may stand in, as a range.
     pub y: (i32, i32),
+    /// Whether the spawn is on the player's side.
+    ///
+    /// Reference: `jmapgen_monster`'s `friendly` (`mapgen.cpp:3124`), which `add_spawn` passes to the monster as `friendly = -1` - friendly for good, not for a count.
+    pub friendly: bool,
 }
 
 /// One `place_fields` entry: a field scattered over a rectangle.

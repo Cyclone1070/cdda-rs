@@ -2492,8 +2492,9 @@ fn spawn_monsters(
     Applied::Done
 }
 
-/// What a spawn marked friendly by data is marked with: the reference's `monster::friendly = -1`, which is "friendly for good" rather than for a count of turns.
-const FOREVER_FRIENDLY: i32 = -1;
+/// What a spawn marked friendly by data is marked with: [`crate::friendly::FOR_EVER`], the reference's `monster::friendly = -1` - "friendly for good" rather than for a
+/// count of turns.
+const FOREVER_FRIENDLY: i32 = crate::friendly::FOR_EVER;
 
 /// Gives one spawn the marks the data asks for: imagined, friendly, and how long it stays.
 ///

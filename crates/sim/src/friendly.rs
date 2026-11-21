@@ -16,15 +16,22 @@ pub struct Friendly {
     pub turns: i32,
 }
 
+/// A creature marked this way is on the player's side **for good**.
+///
+/// Reference: `monster::friendly = -1` (`monster.cpp`), which the game never counts down - the timed form is a positive count. It is a constant rather than a magic
+/// number so the two callers that mean "for good" cannot drift apart.
+pub const FOR_EVER: i32 = -1;
+
 /// Makes a creature friendly for a number of turns, replacing anything it had before.
+///
+/// **The count is kept as given**: a negative count is [`FOR_EVER`], not zero. Clamping it at zero turned `f_spawn_monster`'s `friendly: true` into a creature that
+/// was not friendly at all, because `is_friendly` asks whether the count is zero - the reference's own `monster::friendly != 0`.
 pub fn make_friendly(
     world: &mut bevy_ecs::prelude::World,
     creature: bevy_ecs::prelude::Entity,
     turns: i32,
 ) {
-    world.entity_mut(creature).insert(Friendly {
-        turns: turns.max(0),
-    });
+    world.entity_mut(creature).insert(Friendly { turns });
 }
 
 /// Adds to how long a creature stays friendly, which is what a charm spell does.

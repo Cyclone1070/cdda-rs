@@ -40251,3 +40251,19 @@ is its existing model for the single-monster form and is stated there.
 **Two mutations, one of them mine and worthless.** The first replaced the pick with `None::<String>.or(pick(...))` - which is just `pick(...)`, so the test passed and proved
 nothing about the code. The second made the branch `continue` without drawing, and the test fails at `left: 0, right: 2`. **A mutation that is semantically the same
 program is not a mutation**; the check is not "did I change the text" but "is this a different rule".
+
+## Friendly for good, not for zero (round 286)
+
+`monster::friendly = -1` is the reference's "on the player's side for good" and a positive count is the timed form. The port's `make_friendly` clamped its count at zero -
+so the dialogue's `f_spawn_monster` with `friendly: true` (round 246) stored **0**, and `is_friendly` asks whether the count is zero. **A friendly spawn was not friendly**,
+and the mark was there in the store the whole time, saying zero. The count is now kept as given, `FOR_EVER` is a public constant rather than two private `-1`s, and the
+constant's doc says which of the two forms it is.
+
+**A mapgen can place monsters on the player's side.** `jmapgen_monster`'s `friendly` (`mapgen.cpp:3124`) is passed to `add_spawn` (`:3268-3270`); the port's placement model
+carries the flag and the writer marks the spawn with `FOR_EVER`. The test pins both halves at once - the flag reaches the store, and the count it reaches it with is the one
+that means "for good".
+
+**The mutation** is the clamp put back: the mapgen test fails on `is_friendly`, because a permanent ally stored as zero is nobody's ally.
+
+**Named gap, unchanged**: nothing counts the timed form down yet - there is no per-turn decay of `Friendly` - so a charmed monster stays charmed until something else writes
+the component. The reference decrements in `monster::turn`; that is a separate rule.

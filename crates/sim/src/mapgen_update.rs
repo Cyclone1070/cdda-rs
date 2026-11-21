@@ -305,7 +305,11 @@ fn place_monsters(
                 Some(rolls) => rolls.rng(placement.y.0, placement.y.1),
                 None => placement.y.0,
             };
-            crate::spawn_monster(world, (origin.0 + x, origin.1 + y), kind, hp);
+            let spawn = crate::spawn_monster(world, (origin.0 + x, origin.1 + y), kind, hp);
+            // Reference: `add_spawn( ..., friendly, ... )` (`mapgen.cpp:3268-3270`) - a monster a mapgen marks friendly is on the player's side for good.
+            if placement.friendly {
+                crate::friendly::make_friendly(world, spawn, crate::friendly::FOR_EVER);
+            }
         }
     }
 }
