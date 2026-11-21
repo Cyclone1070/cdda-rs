@@ -441,7 +441,7 @@ fn note(world: &mut World, stage: TurnStage) {
 fn scheduled_stage(world: &mut World) {
     note(world, TurnStage::Scheduled);
     if let Some(speaker) = crate::missions::avatar(world) {
-        crate::scheduled::run_due(world, speaker);
+        crate::timed_events::process_due(world, speaker);
     }
 }
 

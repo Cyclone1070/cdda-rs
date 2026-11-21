@@ -11,13 +11,21 @@ use bevy_ecs::prelude::{Entity, With, World};
 /// A key with no turn is an event nobody has scheduled; a key with a turn in the past has **happened**, which is the reference's own reading
 /// (`timed_event::turn_` compared against the calendar).
 #[derive(bevy_ecs::prelude::Component, Debug, Clone, Default, PartialEq)]
-pub struct TimedEvents(pub std::collections::BTreeMap<String, TimedEvent>);
+pub struct TimedEvents {
+    /// The events, by the name they are known by.
+    pub events: std::collections::BTreeMap<String, TimedEvent>,
+    /// How many effect-payload events have ever been scheduled, which is what makes their keys distinct.
+    ///
+    /// Reference: the dialogue's delayed calls all arrive as one `timed_event_type`, so a second one due on the same turn would **replace** the first. The port keeps
+    /// them all, and counts so a key is never reused - a counter, not a length, because erasing one must not let the next take its name.
+    pub scheduled: u64,
+}
 
 /// One scheduled event: when it is due, and the text it carries.
 ///
 /// Reference: `timed_event` (`timed_event.h:20-60`) holds a type, a turn and a **string** - the reference puts a place's new name in it for `OVERRIDE_PLACE` and reads it back
 /// from the display (`display.cpp:1243-1246`). The port keeps the same pair rather than a bare turn, because an event with no payload cannot rename anything.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct TimedEvent {
     /// The turn it comes due.
     pub due: i64,
@@ -28,6 +36,10 @@ pub struct TimedEvent {
     /// Reference: `timed_event`'s `point` member (`timed_event.h:20-60`), which `UPDATE_MAPGEN` and `REVERT_LOCATION` fill with where the work is to be done. The port
     /// carries it here rather than folding a square into the text, because every reader of the text would then have to parse it.
     pub place: Option<(i32, i32, i32)>,
+    /// An effect to run when it comes due, for the events the dialogue scheduled.
+    ///
+    /// Reference: `timed_event`'s `effect_on_condition` payload (`timed_event.h:20-60`), which is how `run_eocs` with a `time_in_future` runs later.
+    pub effect: Option<cdda_content::dialogue::Effect>,
 }
 
 /// Marks the one entity that holds the world's timed events.
@@ -66,12 +78,13 @@ pub fn schedule_carrying_at(
     let due = now.saturating_add(turns);
     let element = crate::singletons::singleton::<TimedEvents, TheTimedEvents>(world);
     if let Some(mut events) = world.get_mut::<TimedEvents>(element) {
-        events.0.insert(
+        events.events.insert(
             key.to_owned(),
             TimedEvent {
                 due,
                 text: text.to_owned(),
                 place,
+                effect: None,
             },
         );
     }
@@ -86,7 +99,7 @@ pub fn has_happened(world: &World, key: &str) -> Option<bool> {
     let now = crate::calendar::of(world).map(|calendar| calendar.turn)?;
     let element = holder(world)?;
     let events = world.get::<TimedEvents>(element)?;
-    Some(events.0.get(key).is_some_and(|event| event.due <= now))
+    Some(events.events.get(key).is_some_and(|event| event.due <= now))
 }
 
 /// The entity holding the timed events, when the world has one.
@@ -102,7 +115,7 @@ pub fn holder(world: &World) -> Option<Entity> {
 #[must_use]
 pub fn place_of(world: &World, key: &str) -> Option<(i32, i32, i32)> {
     let events = world.get::<TimedEvents>(holder(world)?)?;
-    events.0.get(key).and_then(|event| event.place)
+    events.events.get(key).and_then(|event| event.place)
 }
 
 /// The text an event carries, while it is still pending.
@@ -115,8 +128,102 @@ pub fn text_of(world: &World, key: &str) -> Option<String> {
     let element = holder(world)?;
     world
         .get::<TimedEvents>(element)?
-        .0
+        .events
         .get(key)
         .filter(|event| event.due > now)
         .map(|event| event.text.clone())
+}
+
+/// Schedules a dialogue effect to run `turns` from now.
+///
+/// Reference: `f_run_eocs`' `time_in_future` (`npctalk.cpp:6332-6338`) queues the call as a timed event; the key is the port's own, because the reference keys its map by
+/// event **type** and would drop a second call due the same turn, where the data means both to run.
+pub fn schedule_effect(world: &mut World, turns: i64, effect: cdda_content::dialogue::Effect) {
+    let Some(now) = crate::calendar::of(world).map(|calendar| calendar.turn) else {
+        return;
+    };
+    let due = now.saturating_add(turns);
+    let element = crate::singletons::singleton::<TimedEvents, TheTimedEvents>(world);
+    let Some(mut events) = world.get_mut::<TimedEvents>(element) else {
+        return;
+    };
+    let ordinal = events.scheduled;
+    events.scheduled = events.scheduled.saturating_add(1);
+    // Zero padded, so the key's order is the order the effects were scheduled in even past nine of them.
+    let key = format!("@effect:{ordinal:012}");
+    events.events.insert(
+        key,
+        TimedEvent {
+            due,
+            text: String::new(),
+            place: None,
+            effect: Some(effect),
+        },
+    );
+}
+
+/// How many events are waiting, of any kind.
+#[must_use]
+pub fn waiting(world: &World) -> usize {
+    holder(world)
+        .and_then(|element| world.get::<TimedEvents>(element))
+        .map_or(0, |events| events.events.len())
+}
+
+/// Runs every event due at or before the current turn, and takes each out before running it.
+///
+/// Reference: `timed_events::process` (`timed_event.cpp:100-130`): it walks the map, erases each event whose turn has come, then processes it - so an event that
+/// schedules itself again is not erased a second time by this pass. `UPDATE_MAPGEN` applies its update at the square it carries, a dialogue payload runs through the
+/// program runner (which carries the depth a nested call needs), and any other name is a generic event that has simply happened - the reference's own `default`.
+pub fn process_due(world: &mut World, speaker: Entity) {
+    let Some(now) = crate::calendar::of(world).map(|calendar| calendar.turn) else {
+        return;
+    };
+    let Some(element) = holder(world) else {
+        return;
+    };
+    let due: Vec<(String, TimedEvent)> = world
+        .get::<TimedEvents>(element)
+        .map(|events| {
+            events
+                .events
+                .iter()
+                .filter(|(_, event)| event.due <= now)
+                .map(|(key, event)| (key.clone(), event.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    if due.is_empty() {
+        return;
+    }
+    // **Taken out before they run**, so a handler that looks at the store sees the event as gone.
+    if let Some(mut events) = world.get_mut::<TimedEvents>(element) {
+        for (key, _) in &due {
+            events.events.remove(key);
+        }
+    }
+    for (key, event) in due {
+        if let Some(effect) = event.effect {
+            run_payload(world, speaker, &effect);
+            continue;
+        }
+        if key == "UPDATE_MAPGEN"
+            && let Some(place) = event.place
+        {
+            let _ = crate::mapgen_update::apply(world, &event.text, place);
+        }
+    }
+}
+
+/// Runs one dialogue payload the way the turn loop runs a scheduled effect.
+fn run_payload(world: &mut World, speaker: Entity, effect: &cdda_content::dialogue::Effect) {
+    // A scheduled call is a `run_eocs` payload, and a call is run by the **program runner** - which carries the depth a nested call needs - rather than by the
+    // single-effect runner.
+    if let cdda_content::dialogue::Effect::RunEoc(programs) = effect {
+        for program in programs {
+            let _ = crate::eoc_registry::run_ref(world, speaker, None, program, 0);
+        }
+        return;
+    }
+    let _ = crate::dialogue_effects::run_effect(world, speaker, None, effect);
 }

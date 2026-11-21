@@ -4133,7 +4133,7 @@ fn a_delayed_run_eocs_waits_for_its_turn_and_runs_once() {
         "scheduling is the whole effect"
     );
     assert_eq!(
-        cdda_sim::scheduled::waiting(&mut world),
+        cdda_sim::timed_events::waiting(&world),
         1,
         "one thing is waiting"
     );
@@ -4144,7 +4144,7 @@ fn a_delayed_run_eocs_waits_for_its_turn_and_runs_once() {
         "and nothing has run yet"
     );
     cdda_sim::calendar::set_turn(&mut world, 101);
-    cdda_sim::scheduled::run_due(&mut world, survivor);
+    cdda_sim::timed_events::process_due(&mut world, survivor);
     assert!(
         !cdda_sim::messages::lines(&world)
             .iter()
@@ -4152,7 +4152,7 @@ fn a_delayed_run_eocs_waits_for_its_turn_and_runs_once() {
         "a turn early is still too early"
     );
     cdda_sim::calendar::set_turn(&mut world, 102);
-    cdda_sim::scheduled::run_due(&mut world, survivor);
+    cdda_sim::timed_events::process_due(&mut world, survivor);
     let lines = cdda_sim::messages::lines(&world);
     assert_eq!(
         lines
@@ -4162,7 +4162,7 @@ fn a_delayed_run_eocs_waits_for_its_turn_and_runs_once() {
         1,
         "two seconds later, once: {lines:?}"
     );
-    cdda_sim::scheduled::run_due(&mut world, survivor);
+    cdda_sim::timed_events::process_due(&mut world, survivor);
     assert_eq!(
         cdda_sim::messages::lines(&world)
             .iter()
@@ -4300,7 +4300,7 @@ fn a_postponed_transform_waits_and_then_turns_the_ground() {
         "nothing has changed yet"
     );
     cdda_sim::calendar::set_turn(&mut world, 51);
-    cdda_sim::scheduled::run_due(&mut world, survivor);
+    cdda_sim::timed_events::process_due(&mut world, survivor);
     assert_eq!(
         cdda_sim::square::terrain_at(&world, (4, 0, 0)),
         Some(2),

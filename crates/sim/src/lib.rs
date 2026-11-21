@@ -153,7 +153,6 @@ pub mod recipes_known;
 pub mod revert;
 pub mod scent;
 pub mod scent_table;
-pub mod scheduled;
 pub mod temperature;
 pub mod terrain_table;
 pub mod terrain_transform;

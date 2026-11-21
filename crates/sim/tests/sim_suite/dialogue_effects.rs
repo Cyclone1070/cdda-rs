@@ -3180,3 +3180,54 @@ fn a_mapgen_update_in_the_future_is_scheduled_and_not_applied() {
         "**ten turns out is not yet due**"
     );
 }
+
+/// **A scheduled update lands on its turn, through the one store that holds future events.** Reference: `timed_events::process` (`timed_event.cpp:100-130`) erases each
+/// event whose turn has come and then processes it; `UPDATE_MAPGEN` applies its update at the square the event carries.
+///
+/// The port used to keep **two** stores for work in the future - one keyed by turn for dialogue payloads and one by name for everything else - which is the second source of
+/// truth the architecture forbids. They are one store now, so this test and the dialogue test in `probe.rs` are the same mechanism seen from two sides.
+#[test]
+fn a_scheduled_mapgen_update_lands_when_its_turn_comes() {
+    let (mut world, survivor) = a_wall_update_world();
+    cdda_sim::calendar::set_turn(&mut world, 0);
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"mapgen_update": "lab_wall_opens", "time_in_future": "10 turns"}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        Applied::Done
+    );
+    assert_eq!(
+        cdda_sim::timed_events::waiting(&world),
+        1,
+        "one event is waiting"
+    );
+    cdda_sim::calendar::set_turn(&mut world, 10);
+    cdda_sim::timed_events::process_due(&mut world, survivor);
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 2, 0)),
+        Some(0),
+        "**a turn early is still too early**"
+    );
+    assert_eq!(
+        cdda_sim::timed_events::waiting(&world),
+        1,
+        "and it is still waiting"
+    );
+    cdda_sim::calendar::set_turn(&mut world, 11);
+    cdda_sim::timed_events::process_due(&mut world, survivor);
+    assert_eq!(
+        cdda_sim::timed_events::waiting(&world),
+        0,
+        "**the event is taken out before it runs**"
+    );
+    assert!(
+        matches!(cdda_sim::square::terrain_at(&world, (2, 2, 0)), Some(7 | 8)),
+        "**and the update applied**: {:?}",
+        cdda_sim::square::terrain_at(&world, (2, 2, 0))
+    );
+}

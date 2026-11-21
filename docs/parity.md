@@ -40167,3 +40167,23 @@ the next rule. That is a named gap, not a silent one: the test asserts the event
 
 **The mutation** is the branch inverted (`after > 0` to `after < 0`), and the test fails at `left: Some(7), right: Some(0)` - the update applied immediately, which is the
 behaviour this rule removed.
+
+## One store for everything in the future (round 281)
+
+The port had **two** stores for work to be done later: `scheduled::ScheduledEffects`, keyed by turn and holding dialogue payloads, and `timed_events::TimedEvents`, keyed by
+name and holding a turn, text and square. That is exactly the second source of truth the architecture forbids - two maps of the same concept, two runners, two answers to
+"what is due", and a bug waiting for the first rule that needed both.
+
+They are one store now. `TimedEvent` holds `due`, `text`, `place` and `effect`; the reference's `timed_event` (`timed_event.h:20-60`) holds exactly that set (a turn, a
+`string_id`, a `point`, an optional effect-on-condition). `scheduled.rs` is deleted, and its five call sites name `timed_events` instead.
+
+**`process_due` is the reference's `timed_events::process`** (`timed_event.cpp:100-130`): it takes each event out of the store **before** running it - so a handler that
+looks at the store sees it gone, and an event that reschedules itself is not erased twice - then dispatches. `UPDATE_MAPGEN` applies its update at the square it carries, a
+dialogue payload goes through the program runner (which carries the depth a nested call needs, as the old scheduled store did), and any other name has simply happened.
+
+**One divergence, stated:** the reference keys its map by event **type**, so two dialogue calls due on the same turn would replace each other. The data means both to run, and
+the port keeps them under zero-padded keys from a counter - so the order they were scheduled in is the order they run, past nine of them.
+
+**The test that proves the loop closes** is `a_scheduled_mapgen_update_lands_when_its_turn_comes`: a turn early the square is untouched and the event still waits; on its
+turn the event is gone and the update has applied. Together with `a_delayed_run_eocs_waits_for_its_turn_and_runs_once` in `probe.rs`, both payload shapes now ride the
+same store and the same processor.

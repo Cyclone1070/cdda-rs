@@ -813,7 +813,7 @@ fn run_later(
     let Some(turns) = crate::dialogue_effects::wait_turns(world, speaker, listener, after) else {
         return Applied::CannotAnswer;
     };
-    crate::scheduled::schedule_effect(world, turns, (**effect).clone());
+    crate::timed_events::schedule_effect(world, turns, (**effect).clone());
     Applied::Done
 }
 
@@ -833,7 +833,7 @@ fn run_eoc_later(
     let Some(turns) = wait_turns(world, speaker, listener, after) else {
         return Applied::CannotAnswer;
     };
-    crate::scheduled::schedule_effect(world, turns, Effect::RunEoc(programs.clone()));
+    crate::timed_events::schedule_effect(world, turns, Effect::RunEoc(programs.clone()));
     Applied::Done
 }
 
