@@ -3231,3 +3231,74 @@ fn a_scheduled_mapgen_update_lands_when_its_turn_comes() {
         cdda_sim::square::terrain_at(&world, (2, 2, 0))
     );
 }
+
+/// **The temple's flood rises one ring a step, and schedules itself until the chamber is full.** Reference: `timed_event_type::TEMPLE_FLOOD`
+/// (`timed_event.cpp:223-280`): shallow water beside deep water becomes deep, a rock floor beside any water becomes shallow, every decision is made from the level **as it
+/// stood at the start of the step**, the player's own square decides which line is printed, and the event adds itself again two or three turns out - stopping the first
+/// time a step changes nothing.
+#[test]
+fn the_temple_flood_rises_a_ring_a_step_and_stops_when_full() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_water_dp".to_owned(), 30),
+            ("t_water_sh".to_owned(), 31),
+            ("t_rock_floor".to_owned(), 32),
+            ("t_rock".to_owned(), 33),
+        ],
+    );
+    for x in 0..3 {
+        cdda_sim::square::set_terrain(&mut world, (x, 0, 0), 33);
+    }
+    // A line: floor, shallow, deep - so the floor floods shallow and the shallow floods deep in one step. **The deep square is what makes it a flood**: a level with no
+    // deep water changes nothing, which is the second half of this test.
+    cdda_sim::square::set_terrain(&mut world, (0, 0, 0), 32);
+    cdda_sim::square::set_terrain(&mut world, (1, 0, 0), 31);
+    cdda_sim::square::set_terrain(&mut world, (2, 0, 0), 30);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, survivor);
+    cdda_sim::calendar::set_turn(&mut world, 10);
+    cdda_sim::timed_events::schedule(&mut world, "TEMPLE_FLOOD", 0);
+    cdda_sim::timed_events::process_due(&mut world, survivor);
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 0, 0)),
+        Some(30),
+        "**the shallow square became deep**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(31),
+        "**and the floor beside it became shallow in the same step**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line.contains("to your knees")),
+        "**the player's square decided the line**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert_eq!(
+        cdda_sim::timed_events::waiting(&world),
+        1,
+        "**and the flood is scheduled again**"
+    );
+    // **It keeps going until a step changes nothing**, which is the reference's own stop: each step deepens what the last one made shallow, so the line takes two more
+    // steps to fill and the third finds nothing to do.
+    for turn in [100, 200, 300] {
+        cdda_sim::calendar::set_turn(&mut world, turn);
+        cdda_sim::timed_events::process_due(&mut world, survivor);
+    }
+    assert_eq!(
+        cdda_sim::timed_events::waiting(&world),
+        0,
+        "**a step that changes nothing ends the flood**"
+    );
+    for x in 0..3 {
+        assert_eq!(
+            cdda_sim::square::terrain_at(&world, (x, 0, 0)),
+            Some(30),
+            "**the line is all deep water**"
+        );
+    }
+}

@@ -481,8 +481,8 @@ fn temple_toggle(world: &mut World, who: Entity, square: (i32, i32, i32)) -> boo
 /// Reference: `trapfunc::temple_flood` (`trapfunc.cpp:1334-1357`). Only the avatar is answered - "Monsters and npcs are completely ignored here" - with "You step on a loose tile, and
 /// water starts to flood the room!"; then **every** `temple_flood` trap on the level is removed and `TEMPLE_FLOOD` is scheduled three turns out.
 ///
-/// **Named gap**: the flood itself is the timed event's work (`timed_event.cpp:223-291`: water spreads a ring a turn), not the trap's, and the port schedules the event without a
-/// processor for it yet. The trap's half - the line, the trap removal and the schedule - is exact.
+/// **The flood itself is the timed event's work** (`timed_event.cpp:223-291`: water rises a ring a step), not the trap's: the trap's half - the line, the trap removal and the
+/// schedule - is exact, and [`crate::temple_flood`] carries the rise from there.
 fn temple_flood(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
     if crate::missions::avatar(world) != Some(who) {
         return false;

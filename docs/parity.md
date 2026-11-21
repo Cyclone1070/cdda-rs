@@ -40187,3 +40187,22 @@ the port keeps them under zero-padded keys from a counter - so the order they we
 **The test that proves the loop closes** is `a_scheduled_mapgen_update_lands_when_its_turn_comes`: a turn early the square is untouched and the event still waits; on its
 turn the event is gone and the update has applied. Together with `a_delayed_run_eocs_waits_for_its_turn_and_runs_once` in `probe.rs`, both payload shapes now ride the
 same store and the same processor.
+
+## The temple floods until it is full (round 282)
+
+The trap that starts the flood was exact last round and the flood itself had **no processor** - `TEMPLE_FLOOD` was scheduled and then either sat in the store forever or,
+after the stores were merged, was consumed and did nothing. Both are wrong in the same way: the water never rose.
+
+`crate::temple_flood` is `timed_event_type::TEMPLE_FLOOD` (`timed_event.cpp:223-280`): shallow water beside deep water becomes deep, a rock floor beside any water becomes
+shallow, the player's own square decides which line is printed ("Water quickly floods up to your knees." / "Water fills nearly to the ceiling!"), and the event schedules
+itself again two or three turns out - stopping the first time a step changes nothing, which is the reference's "we finished flooding the entire chamber".
+
+**Decisions come from the level as it stood at the start of the step**, which is the reference's buffer copy: a square that became deep this step must not count as shallow
+for its neighbours in the same step. The test's fixture cannot tell that apart from applying each change immediately (the reference's own predicate never matches a square
+against itself, so the centre in `points_in_radius` is harmless), and the module doc says so rather than implying the test proves it.
+
+**Named gap**: the deep-water case is followed by a forced swim (`avatar_action::swim`), which the port has not built; the line and the cave-in are.
+
+**The mutations that mattered:** the floor's condition narrowed to "beside deep" fails at `left: Some(32), right: Some(31)`; the first mutation I tried - the shallow
+branch testing for *shallow* neighbours - **passed**, because the reference's own `points_in_radius` includes the square itself, so a shallow square always has a shallow
+neighbour. A mutation that the reference's semantics make unfalsifiable is not evidence either way.

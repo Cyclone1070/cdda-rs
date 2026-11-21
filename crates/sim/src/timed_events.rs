@@ -211,6 +211,23 @@ pub fn process_due(world: &mut World, speaker: Entity) {
             && let Some(place) = event.place
         {
             let _ = crate::mapgen_update::apply(world, &event.text, place);
+            continue;
+        }
+        // **The temple's flood is one step of a rising water level**, and it schedules the next step itself: `timed_event.cpp:271-274` adds `TEMPLE_FLOOD` again two or
+        // three turns out, and stops when a step changes nothing because the chamber is full.
+        if key == "TEMPLE_FLOOD" {
+            let flood = crate::temple_flood::run(world);
+            if let Some(line) = crate::temple_flood::line(flood.reached_player) {
+                crate::messages::push(world, line);
+            }
+            if flood.flooded {
+                let mut rolls = crate::singletons::take_rolls(world);
+                let turns = rolls.as_mut().map_or(2, |dice| i64::from(dice.rng(2, 3)));
+                if let Some(dice) = rolls.take() {
+                    crate::singletons::put_rolls(world, dice);
+                }
+                schedule(world, "TEMPLE_FLOOD", turns);
+            }
         }
     }
 }
