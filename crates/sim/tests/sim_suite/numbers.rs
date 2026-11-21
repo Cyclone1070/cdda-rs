@@ -69,10 +69,12 @@ pub const NOW: Census = Census {
     // make due still succeeds. The climate-less case is the port's own, so it answers `Done` rather than pretending the rule refused.
     // **482 after round 276**: a `u_location_variable` search that finds nothing runs its `false_eocs` and answers `Done` (`npctalk.cpp:4374-4378`), where the port used to
     // refuse - so one more program in the fresh world reaches its end.
-    ran: 482,
+    // **506 after round 277**: a `mapgen_update` with no tile in sight now lands where the speaker stands, and one aimed at an unset variable at the origin, so the programs
+    // that aimed them stop refusing - twenty-four of them in a fresh world.
+    ran: 506,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
-    silent: 360,
+    silent: 363,
     // Silent because the data gives the program no effects at all - a stub, not a rule the port is missing.
     empty_programs: 23,
     // The same programs run in a world that has terrain, an overmap and a player who answers, which is what a game has.
@@ -90,7 +92,9 @@ pub const NOW: Census = Census {
     // **501 after round 240's last fix**: the census overmap laid its tiles down a five-wide column, and a tile more than 540 overmap tiles away is outside the reach of the
     // data's own searches (`search_range` defaults to `OMAPX * 3`), so two thirds of the ids sat where nothing could find them. Spread across the widest reachable square,
     // nine more programs run and `mapgen_update`'s refusals fall 23 to 14.
-    ran_in_a_built_world: 501,
+    // **512 after round 277**: the same mapgen-update fallbacks that carried twenty-four programs in the fresh world carry eleven more here, where the aiming forms the
+    // fresh world cannot resolve land on the player's own tile.
+    ran_in_a_built_world: 512,
     // 205 after round 1439: the program `reveal_map` unblocked reads but refuses at run, because a radius the data draws needs dice a fresh world has not got.
     // 206 after round 1484: the beggar program reads now and refuses when it runs, because the condition it filters on asks a vitamin the item's own table has not got.
     // 207 after round 1489: the `has_ammo` program reads now and refuses at run, because the item it asks about is one a fresh world has not got in hand.
@@ -100,8 +104,8 @@ pub const NOW: Census = Census {
     // **213 after round 155**: the same two teleport programs join the refusals, and they are refused for a reason the record can name.
     // **211 after round 239**, down two with `next_weather`: the effect answers, so the two programs whose last entry it was run. The invariant beside this ledger is what caught
     // it - 481 + 213 came to 694 against 692 readable, and a census that does not add up is wrong rather than out of date.
-    // **210 after round 276**, down one with the location search's false branch: the program that used to refuse when its search came up empty now runs.
-    refused_at_run: 210,
+    // **186 after round 277**, down twenty-four with the mapgen update's fallbacks: every program that used to refuse because its update had nowhere to land now runs.
+    refused_at_run: 186,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.

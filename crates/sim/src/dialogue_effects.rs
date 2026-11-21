@@ -2796,7 +2796,13 @@ fn run_mapgen_update(
     // names a tile to search for, and with neither the update lands where the speaker stands.
     let here = world.get::<crate::Position>(speaker).copied();
     let placed = if let Some(target) = target {
-        crate::dialogue_values::position_of(world, speaker, listener, target)
+        // **An unset variable reads as the origin**, not as nothing: `read_var_value` on a variable that was never set answers `tripoint_abs_ms()` - absolute square
+        // (0, 0) (`math_parser_diag_value.cpp:62-70`, port round 238) - and `f_mapgen_update` projects that to overmap tile (0, 0) and applies the update there
+        // (`npctalk.cpp:4843-4845`). Refusing would drop an update the reference performs.
+        Some(
+            crate::dialogue_values::position_of(world, speaker, listener, target)
+                .unwrap_or((0, 0, 0)),
+        )
     } else if let Some(wanted) = om_terrain {
         let Some(at) = here else {
             return Applied::CannotAnswer;
@@ -2805,13 +2811,18 @@ fn run_mapgen_update(
             return Applied::CannotAnswer;
         };
         let tile = crate::overmap::tile_of(at.x, at.y);
-        crate::overmap::nearest_with_terrain(world, tile, &name, SEARCH_RANGE, 0).map(|(x, y)| {
-            (
-                x * crate::overmap::SQUARES_PER_OMT,
-                y * crate::overmap::SQUARES_PER_OMT,
-                at.z,
-            )
-        })
+        // **A search that finds nothing leaves the target at the origin**, which is where `get_om_terrain_pos` starts it (`mission_util.cpp:321-334`): the
+        // update then lands where the speaker stands, exactly as an aim with no `om_terrain` would.
+        crate::overmap::nearest_with_terrain(world, tile, &name, SEARCH_RANGE, 0).map_or(
+            Some((at.x, at.y, at.z)),
+            |(x, y)| {
+                Some((
+                    x * crate::overmap::SQUARES_PER_OMT,
+                    y * crate::overmap::SQUARES_PER_OMT,
+                    at.z,
+                ))
+            },
+        )
     } else {
         here.map(|at| (at.x, at.y, at.z))
     };

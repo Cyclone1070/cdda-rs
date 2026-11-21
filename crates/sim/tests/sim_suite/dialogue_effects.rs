@@ -1394,6 +1394,102 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
     );
 }
 
+/// A `lab_wall_opens` mapgen writing rock and rock floor over a two-by-two, for the aiming tests below.
+fn a_wall_update_world() -> (World, bevy_ecs::prelude::Entity) {
+    use std::collections::BTreeMap;
+
+    let mut world = World::new();
+    let mut level = cdda_core_types::level::Level::new();
+    for x in 0..8 {
+        for y in 0..8 {
+            level.set_terrain(x, y, 0, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (2, 2, 0));
+    let mapgen = cdda_content::mapgen::MapgenObject {
+        om_terrain: "lab_wall_opens".to_owned(),
+        rows: vec!["AB".to_owned()],
+        terrain: [('A', "t_rock".to_owned()), ('B', "t_rock_floor".to_owned())]
+            .into_iter()
+            .collect::<BTreeMap<char, String>>(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        weight: 100,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_wall_opens".to_owned(), mapgen)]);
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_rock".to_owned(), 7u32),
+            ("t_rock_floor".to_owned(), 8u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    (world, survivor)
+}
+
+/// **An `om_terrain` aim with nothing to find lands where the speaker stands**, not nowhere.
+///
+/// Reference: `mission_util::get_om_terrain_pos` (`mission_util.cpp:321-346`): `target_pos` starts at the origin and is only **moved** when
+/// `find_or_create_om_terrain` answers - so a search that finds nothing leaves the target at the origin, and `f_mapgen_update` (`npctalk.cpp:4851`) applies the
+/// update there. The port refused, which is the same mistake the location variable had: an empty search is an answer, not a hole in the rule.
+#[test]
+fn a_mapgen_update_with_no_tile_in_sight_lands_where_the_speaker_stands() {
+    let (mut world, survivor) = a_wall_update_world();
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"mapgen_update": "lab_wall_opens", "om_terrain": "lab_finale"}"#.as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("an om_terrain aim is readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        Applied::Done,
+        "**nothing to find is not a refusal**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 2, 0)),
+        Some(7),
+        "**the update landed on the speaker's square**"
+    );
+}
+
+/// **A `target_var` that holds nothing means the origin**, which is what an unset variable reads as.
+///
+/// Reference: `f_mapgen_update` (`npctalk.cpp:4843-4845`) reads the variable's square and projects it to an overmap tile; an unset variable reads as
+/// `tripoint_abs_ms()` - the origin (`math_parser_diag_value.cpp:62-70`, port round 238) - so the update lands at overmap tile (0, 0), whose top-left is
+/// absolute square (0, 0). The port refused instead of applying it there.
+#[test]
+fn a_mapgen_update_aimed_at_an_unset_variable_lands_at_the_origin() {
+    let (mut world, survivor) = a_wall_update_world();
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"mapgen_update": "lab_wall_opens", "target_var": {"global_val": "nowhere"}}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a target_var aim is readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &effect),
+        Applied::Done,
+        "**an unset target is the origin, not a refusal**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(7),
+        "**the update landed at absolute square (0, 0)**"
+    );
+}
+
 /// An update mapgen may place fields instead of terrain, which is how a scenario fills a room with smoke.
 ///
 /// Reference: `mapgen::place_fields` (`mapgen.cpp`): `repeat` patches inside a rectangle, each at a strength rolled between the two ends, and a
@@ -1546,7 +1642,8 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
         "and not where the speaker stands now, which is five squares away"
     );
 
-    // A target variable that was never set refuses rather than landing somewhere else.
+    // **A target variable that was never set reads as the origin** (`math_parser_diag_value.cpp:62-70`), so the update lands at absolute square (0, 0) - not a refusal,
+    // and not where the speaker stands.
     let unset = cdda_content::dialogue::read_effect(
         &cdda_json::parse(
             br#"{"mapgen_update": "open_the_wall", "target_var": {"u_val": "nowhere"}}"#.as_slice(),
@@ -1556,7 +1653,13 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
     .expect("readable");
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &unset),
-        Applied::CannotAnswer
+        Applied::Done,
+        "**an unset target is the origin, not a refusal**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(4),
+        "**and the update is written there**"
     );
 }
 

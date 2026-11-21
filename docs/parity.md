@@ -40096,3 +40096,22 @@ reference's - and it failed the moment the rule was right. It now expects `Done`
 
 **What is still not run.** A search that finds nothing now answers `Done`, but `mission_util::get_om_terrain_pos`'s own falses - a `target_params` that names a terrain the
 port cannot search for, or a level it cannot reach - still refuse, because they are data the port does not hold rather than a branch the program wrote.
+
+## A mapgen update with nothing to aim at lands at the origin (round 277)
+
+Two aiming forms of `f_mapgen_update` (`npctalk.cpp:4817-4871`) used to refuse when their target came up empty. Neither is a refusal in the reference, and both are the same
+shape as the location search's false branch last round: **a search that finds nothing leaves the target where it started.**
+
+- **`om_terrain` with no tile in sight.** `mission_util::get_om_terrain_pos` (`mission_util.cpp:321-346`) starts `target_pos` at the origin and only moves it when
+  `find_or_create_om_terrain` answers, so an empty search applies the update **where the speaker stands**.
+- **`target_var` that was never set.** `read_var_value` on an unset variable answers `tripoint_abs_ms()` - absolute square (0, 0) (`math_parser_diag_value.cpp:62-70`, the
+  port's round 238) - so the update lands at overmap tile (0, 0).
+
+**The old tests were the obstacle, twice.** One asserted `CannotAnswer` for an unset `target_var` in so many words ("refuses rather than landing somewhere else"), and another
+asserted the same for a search that found nothing. Both now expect `Done` and check where the update was written.
+
+**The mutation** was made twice: the first attempt silently did nothing because `cargo fmt` had reflowed the expression the replacement matched on - **a mutation that changes
+no text reads as a passing test**, which is why the second attempt checked that the string was actually gone. It was caught by both aiming tests.
+
+**What this does not close yet.** `time_in_future > 0` schedules the update as a timed event instead of applying it (`npctalk.cpp:4854-4860`); the port applies it immediately,
+because it has no `UPDATE_MAPGEN` event. That is a named gap and the next half of this rule.
