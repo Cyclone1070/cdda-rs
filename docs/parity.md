@@ -40061,3 +40061,21 @@ NPC - the same correction the snake needed last round. The port says nothing the
 
 The trap ledger moves to **122 of 125 traps answered, 3 unported** - `boobytrap`, `goo` and `sinkhole`, each waiting on a subsystem: an active item with a fuse, part-scoped
 effects and a monster's `poly`, and a grapnel/rope inventory check with a terrain change.
+
+## A terrain can be named by a variable (round 275)
+
+`mission_util::parse_mission_om_target` (`mission_util.cpp:391-396`) reads `target_params`' `om_terrain` with `get_str_or_var( ..., "om_terrain", true )` - **a literal
+or a variable** - and the data leans on it: `effects_on_condition/generalized_eocs.json:26-27` passes `{ "context_val": "omt" }`, because the tile is chosen by an
+earlier program. The port read `Value::Str` only, so every one of those programs refused to load, and the census counted the refusal against the rule rather than
+against the reading of it.
+
+The reader now takes a `StringSource` and the runner resolves it in the speaker's context with `text_of`, the same shape `mapgen_update`'s `om_terrain` aim already
+had. The search is unchanged: the resolved name finds the nearest tile of that terrain, and the variable holds the tile's top-left square - where a mapgen update
+lands.
+
+**The mutation that the test exists for** is the plausible slip of using the variable's **name** instead of the terrain it holds: the focused test fails at once,
+because "omt" is not a terrain.
+
+**Named gap, unchanged by this round.** `f_location_variable` runs its `false_eocs` when a search finds nothing and its `true_eocs` when it does
+(`npctalk.cpp:4370-4380`); the port's `LocationVariableSearch` carries neither, so a search that finds nothing still answers `CannotAnswer` instead of running the
+false branch. That is the next half of this rule.

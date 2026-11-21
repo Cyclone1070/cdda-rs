@@ -3405,8 +3405,11 @@ pub enum Effect {
         scope: String,
         /// The variable's name.
         name: String,
-        /// The overmap terrain to look for.
-        om_terrain: String,
+        /// The overmap terrain to look for, which the data may name **by a variable**.
+        ///
+        /// Reference: `mission_util::parse_mission_om_target` (`mission_util.cpp:391-396`) reads it with `get_str_or_var( ..., "om_terrain", true )`, and
+        /// `effects_on_condition/generalized_eocs.json:26-27` passes `{ "context_val": "omt" }` - the tile chosen by an earlier program.
+        om_terrain: StringSource,
         /// How far out to search, in overmap tiles.
         search_range: i32,
         /// How near a tile may be and still count; closer ones are skipped.
@@ -5322,9 +5325,7 @@ fn read_terrain_target(
         return None;
     };
 
-    let Value::Str(wanted) = params.get("om_terrain")? else {
-        return None;
-    };
+    let wanted = read_string_source(params.get("om_terrain")?)?;
     // `om_special` names an overmap special whose terrain the reference looks up in the special's table. The port has no such table - but when `om_terrain` is
     // given beside it, `mission_util::get_om_terrain_pos` uses **the terrain** and never consults the special, so the pair is read and the special ignored.
     // `cant_see` says the tile need not be visible, and the port never checks visibility here, so it is read and ignored too. A `target_params` naming **only** a
@@ -5385,7 +5386,7 @@ fn read_terrain_target(
         furniture,
         scope,
         name,
-        om_terrain: wanted.clone(),
+        om_terrain: wanted,
         search_range,
         min_distance,
         min_radius,

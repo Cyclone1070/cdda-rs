@@ -21,6 +21,7 @@ Usage:
 """
 
 import argparse
+import base64
 import os
 import pathlib
 import subprocess
@@ -155,19 +156,73 @@ def ssh_args() -> list[str]:
 GATE_TIMEOUT = int(os.environ.get("GATE_TIMEOUT", "2400"))
 
 
+#: How long to wait between looks at a detached job, in seconds.
+POLL_SECONDS = float(os.environ.get("CVE_POLL_SECONDS", "20"))
+
+
+def ssh_quiet(command: str, timeout: float = 120) -> tuple[int, str]:
+    """Runs one **short** command on the remote and returns its code and output.
+
+    A short command is a different animal from a long one: it either answers in seconds or its session is dead, and a dead session costs one call rather than the run.
+    """
+    try:
+        finished = subprocess.run(
+            [*ssh_args(), command], capture_output=True, text=True, timeout=timeout, check=False
+        )
+        return finished.returncode, finished.stdout
+    except subprocess.TimeoutExpired:
+        return 124, ""
+
+
 def run(command: str, label: str, jobs: int) -> int:
-    """Runs one command on the remote and returns its exit code."""
+    """Runs one command on the remote and returns its exit code.
+
+    **The job is detached and polled, not streamed.** Every long job used to be one ssh session whose stdout was the job's - and when the far side went quiet the session
+    died, taking the result with it: the suite had finished and passed, but the gate reported the session's 255. A detached job writes its own log and its own exit code on
+    the remote, and each poll is a short call that can fail on its own without losing either.
+    """
     command = command.replace("{jobs}", str(jobs))
     print(f"\n=== {label} on {REMOTE}\n$ {command}\n", flush=True)
-    # The rustup toolchain lives in the user's home and is newer than the distribution's, so it must come first.
-    try:
-        return subprocess.run(
-            [*ssh_args(), f"cd {REMOTE_DIR} && export PATH=$HOME/.cargo/bin:$PATH && {command}"],
-            timeout=GATE_TIMEOUT,
-        ).returncode
-    except subprocess.TimeoutExpired:
+    slug = "".join(character if character.isalnum() else "-" for character in label.lower()).strip("-")
+    script = f"/tmp/cve-gate-{slug}.sh"
+    log = f"/tmp/cve-gate-{slug}.log"
+    code_file = f"/tmp/cve-gate-{slug}.rc"
+    # The script is carried as base64 because a command may hold quotes of its own - `find ... -exec touch {} +` does - and a quoted heredoc through two shells is a way to
+    # get that wrong slowly.
+    # **The exit code is written by the script**, not by the shell that launches it: the launcher is gone by the time the job ends, and a code nobody wrote is a job the poll
+    # waits on until the gate gives up - which is exactly what the first version of this did.
+    encoded = base64.b64encode(
+        (
+            f"cd {REMOTE_DIR} && export PATH=$HOME/.cargo/bin:$PATH\n"
+            f"{command}\n"
+            f"echo $? > {code_file}\n"
+        ).encode()
+    ).decode()
+    launch = (
+        f"echo {encoded} | base64 -d > {script} && rm -f {code_file} && "
+        f"( setsid nohup bash {script} > {log} 2>&1 < /dev/null & ) ; echo launched"
+    )
+    attempt(f"launch {label}", [*ssh_args(), launch])
+    started = time.time()
+    code = None
+    while time.time() - started < GATE_TIMEOUT:
+        time.sleep(POLL_SECONDS)
+        answer, output = ssh_quiet(f"cat {code_file} 2>/dev/null")
+        if answer == 0 and output.strip():
+            try:
+                code = int(output.strip().splitlines()[0])
+            except ValueError:
+                code = 125
+            break
+        # A poll that cannot answer at all is not the job failing; the next poll asks again.
+    if code is None:
         print(f"\n=== {label}: gave up after {GATE_TIMEOUT}s", flush=True)
-        return 124
+        code = 124
+    # The log is printed once the job is over, so the reader sees what it said without a session having to survive it.
+    attempt(f"read {label} log", [*ssh_args(), f"cat {log} 2>/dev/null"], check=False)
+    if code != 0:
+        print(f"\n=== {label} failed with {code}", flush=True)
+    return code
 
 
 def main() -> int:

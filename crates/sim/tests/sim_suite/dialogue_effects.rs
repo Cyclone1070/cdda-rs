@@ -1890,6 +1890,59 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
     }
 }
 
+/// **A terrain can be named by a variable, and the data does it that way.**
+///
+/// Reference: `mission_util::parse_mission_om_target` (`mission_util.cpp:391-396`) reads `om_terrain` with `get_str_or_var( ..., "om_terrain", true )` - a literal
+/// **or** a variable - and the data leans on that: `effects_on_condition/generalized_eocs.json:26-27` passes `{ "context_val": "omt" }`, because the tile is chosen
+/// by an earlier program. A reader that only accepts a literal refuses every one of those programs, which is not a gap in the rule but in the reading of it.
+///
+/// The search itself is unchanged: the variable is resolved in the speaker's context, and the square stored is the found tile's top-left.
+#[test]
+fn a_location_variable_takes_its_terrain_from_a_variable() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (1, 1, 0));
+    let store = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_location_variable": {"u_val": "lab"}, "target_params": {"om_terrain": {"context_val": "omt"}}}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("**an om_terrain named by a variable is readable**");
+    cdda_sim::overmap::set_terrain(&mut world, (2, 1), "lab_finale");
+    cdda_sim::dialogue_context::put(
+        &mut world,
+        survivor,
+        [("omt".to_owned(), "lab_finale".to_owned())]
+            .into_iter()
+            .collect(),
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::Done,
+        "**the context names the terrain, and the search finds it**"
+    );
+    let stored = cdda_sim::dialogue_values::position_of(
+        &mut world,
+        survivor,
+        None,
+        &cdda_content::dialogue::AssignmentTarget::Variable {
+            scope: "u_val".to_owned(),
+            name: "lab".to_owned(),
+        },
+    )
+    .expect("the variable holds a square");
+    assert_eq!(
+        stored,
+        (
+            2 * cdda_sim::overmap::SQUARES_PER_OMT,
+            cdda_sim::overmap::SQUARES_PER_OMT,
+            0
+        ),
+        "the square is the tile's top-left, which is where a mapgen update lands"
+    );
+}
+
 /// A mission target names how far out to search, how near a tile may be, and which level - and the port reads all three.
 ///
 /// Reference: `mission_util::parse_mission_om_target` (`mission_util.cpp:425-450`) reads `search_range` (default `OMAPX * 3`), `min_distance` and `z`;

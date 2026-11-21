@@ -329,7 +329,12 @@ fn say_snippet(
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` naming an overmap terrain. The port searches the overmap the way
 /// `om_terrain` aiming does, and stores the tile's **top-left square**, which is the square a mapgen update lands on when that tile is its target.
-fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Applied {
+fn search_location(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    effect: &Effect,
+) -> Applied {
     let Effect::LocationVariableSearch {
         scope,
         name,
@@ -350,10 +355,15 @@ fn search_location(world: &mut World, speaker: Entity, effect: &Effect) -> Appli
     let Some(at) = world.get::<crate::Position>(speaker).copied() else {
         return Applied::CannotAnswer;
     };
+    // **The terrain may be named by a variable**, which is how the data passes a tile an earlier program chose (`generalized_eocs.json:26-27`): the reference reads it
+    // with `get_str_or_var` (`mission_util.cpp:395`) and evaluates it in the speaker's context.
+    let Some(wanted) = crate::conditions::text_of(world, speaker, listener, om_terrain) else {
+        return Applied::CannotAnswer;
+    };
     // A furniture search compares the **name** the data writes against the furniture on each square, which `furniture_types` turns into the code a square carries.
     let tile = crate::overmap::tile_of(at.x, at.y);
     let Some((x, y)) =
-        crate::overmap::nearest_with_terrain(world, tile, om_terrain, *search_range, *min_distance)
+        crate::overmap::nearest_with_terrain(world, tile, &wanted, *search_range, *min_distance)
     else {
         return Applied::CannotAnswer;
     };
@@ -3494,7 +3504,7 @@ pub fn run_effect(
         Effect::AssignMission { .. } => give_mission(world, speaker, listener, effect),
         Effect::AddVar { .. } => add_var(world, speaker, listener, effect),
         Effect::LoseVar { name, scope } => lose_var(world, speaker, listener, name, scope),
-        Effect::LocationVariableSearch { .. } => search_location(world, speaker, effect),
+        Effect::LocationVariableSearch { .. } => search_location(world, speaker, listener, effect),
         Effect::LocationVariableRadius { .. } => nearby_location(world, speaker, effect),
         Effect::RunEocSelector { .. } => run_selector(world, speaker, listener, effect),
         Effect::RemoveEffects { .. } => run_remove_effects(world, speaker, listener, effect),

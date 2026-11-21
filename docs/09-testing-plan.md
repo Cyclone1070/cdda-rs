@@ -29,9 +29,19 @@ failure is **transport**: an exit code of 255 (rsync's dropped connection) or 12
 once, because retrying it would only make the gate slower at saying the same thing. The rsync is given its
 own `-e` with keepalives for the same reason: a stalled transfer must fail and be retried, not hang.
 
-That retry was earned. One round lost a full gate to an `rsync` that returned 255 halfway through the
-copy - nothing checked, nothing wrong with the tree - and another lost a test run whose remote half had
-already passed while the session carrying it stayed open. The retry is proved by fault injection: a shim
+**A long job is detached and polled, not streamed.** Every job used to be one ssh session whose stdout
+was the job's, and when the far side went quiet the session died taking the result with it: the suite
+had finished and passed, but the gate reported the session's `255`. Now each job is written to a remote
+script, launched with `setsid nohup`, and left to write its own log and its own exit code; the gate
+polls for the code with short calls that can each fail on their own without losing either. The job's
+log is printed once it is over. **A result that depends on a session surviving the job is a result the
+job does not own.**
+
+That retry was earned, and so was the detachment. One round lost a full gate to an `rsync` that
+returned 255 halfway through the copy - nothing checked, nothing wrong with the tree - and another lost
+a test run whose remote half had already passed while the session carrying it stayed open. The machine
+is reached over a tailnet and goes away for minutes at a time; both failures were the link, and neither
+was the port. The retry is proved by fault injection: a shim
 `rsync` that returns 255 for its first two calls recovers on the third and reports green, and the same
 shim with `CVE_SYNC_ATTEMPTS=1` fails with `copy <path> failed after 1 attempt(s)`. **A gate that can
 only be trusted when the network is perfect is not a gate.**
