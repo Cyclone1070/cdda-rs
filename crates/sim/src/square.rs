@@ -273,6 +273,24 @@ pub fn set_terrain(world: &mut World, square: (i32, i32, i32), code: u32) {
         ))
         .id();
     crate::singletons::index_mut(world).insert(entity, square);
+    // **A square that has no ground still has a square**: the marker is what `squares()` and the revert's memory walk, and ground without one is half a square.
+    // Reference: `map::ter_set` writes into a tile that always exists; there is no state in which a tile has terrain and no tile.
+    if !entities_at(world, square)
+        .iter()
+        .any(|entity| world.get::<Square>(*entity).is_some())
+    {
+        let marker = world
+            .spawn((
+                Position {
+                    x: square.0,
+                    y: square.1,
+                    z: square.2,
+                },
+                Square,
+            ))
+            .id();
+        crate::singletons::index_mut(world).insert(marker, square);
+    }
 }
 
 /// Writes a square's furniture code onto its furniture, making furniture if the square has none.

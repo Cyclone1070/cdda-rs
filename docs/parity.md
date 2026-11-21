@@ -40220,3 +40220,18 @@ square, which is one way too many. This round's fixture therefore loads a level,
 
 **The mutation** is `restore_at` ignoring its centre (restoring everything): the far square, whose own revert is still pending, comes back too, and the test fails at
 `left: Some(1), right: Some(2)`.
+
+## One way to make a square (round 284)
+
+The port had two: `load_level`'s `materialise` makes a `Square` marker entity for every square, and `square::set_terrain` on a square with no ground spawned
+`(Position, Ground, Terrain)` **without one**. So terrain written onto a bare square existed for lookups and not for `squares()` - which is what the revert's memory walks,
+what the light and field sweeps walk, and what any test counting squares counts. A square that exists for one reader and not another is the second source of truth the
+architecture forbids, wearing a smaller hat.
+
+`set_terrain` now leaves a square behind: if no `Square` marker stands at the coordinate, it makes one. Reference: `map::ter_set` writes into a tile that always exists;
+there is no state in which a tile has terrain and no tile.
+
+**This is the inconsistency the last round's revert test found**, and it is why that test had to be rewritten around a loaded level: a fixture built with `set_terrain` was
+half a level, and the rule under test silently skipped it.
+
+**The mutation** is the marker's creation disabled (`if false && …`): the new test fails at `left: 0, right: 1`, and the revert's `take` returns zero.

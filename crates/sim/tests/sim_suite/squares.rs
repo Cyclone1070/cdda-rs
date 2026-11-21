@@ -296,3 +296,31 @@ fn a_turn_runs_on_a_world_that_is_only_entities() {
         "the fire took its turn: the store supplied its fuel"
     );
 }
+
+/// **Terrain written onto a square that has none still leaves a square.** A square is an entity with the `Square` marker (`materialise` makes one for every square of
+/// the level); terrain written by `set_terrain` where no ground stood used to spawn **ground without the marker**, so the square existed for terrain lookups and not for
+/// `squares()` or for the revert's memory - one way to make a square, and one way to make half of one.
+///
+/// Reference: `map::ter_set` creates the tile inside a submap that always exists; there is no state in which a tile has terrain and no tile.
+#[test]
+fn terrain_written_where_no_ground_stood_leaves_a_square() {
+    let mut world = World::new();
+    let before = squares(&world).len();
+    cdda_sim::square::set_terrain(&mut world, (3, 3, 0), WALL);
+    assert_eq!(
+        terrain_at(&world, (3, 3, 0)),
+        Some(WALL),
+        "the terrain is there"
+    );
+    assert_eq!(
+        squares(&world).len(),
+        before + 1,
+        "**and so is the square**: ground without a square entity is half a square"
+    );
+    // The revert's memory is what this broke first: it walks the squares, so a square that `squares()` cannot see is one it silently skips.
+    assert_eq!(
+        cdda_sim::revert::take(&mut world, (3, 3, 0)),
+        1,
+        "**and a revert can remember it**"
+    );
+}
