@@ -40267,3 +40267,20 @@ that means "for good".
 
 **Named gap, unchanged**: nothing counts the timed form down yet - there is no per-turn decay of `Friendly` - so a charmed monster stays charmed until something else writes
 the component. The reference decrements in `monster::turn`; that is a separate rule.
+
+## A charm is spent by a turn, not by a step (round 287)
+
+`monster::move` decrements a positive `friendly` (`monmove.cpp:946-948`) and the `-1` form is not a count at all, so a charmed monster walks off its charm one turn at a time.
+The port had the count and nothing that spent it: a monster charmed for two turns stayed charmed for ever, which is the same bug as last round's clamp seen from the other
+side - the store held a number nothing read.
+
+**Where the decrement sits was the round's real question, and the first answer was wrong.** I put it in the walk loop, on the reasoning that the reference decrements in
+`monster::move`. The test caught what that means: a monster that **arrives** at its goal leaves the walkers list, so it kept its charm for good - a bug the rule was
+supposed to remove. The reference's monsters call `move()` **every turn** (a charmed creature with nowhere to go wanders); the port's only walk when they have somewhere in
+mind. So the decrement moved to the pass every creature takes a turn in, beside the effect tick, and the test walks one monster to its goal on the first turn and checks
+the charm still runs out.
+
+**Named gap**: the reference skips the decrement for stunned and harnessed monsters (its early returns come first). The port's turn pass has neither gate, so a stunned
+monster still spends its charm.
+
+**The mutation** removes the decrement entirely: the test fails at `left: 2, right: 1`, the charm never spent.

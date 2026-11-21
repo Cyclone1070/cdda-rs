@@ -52,6 +52,21 @@ pub fn charm(
     });
 }
 
+/// Spends one turn of a timed friendship.
+///
+/// Reference: `monster::move` (`monmove.cpp:946-948`): `if( friendly > 0 ) { --friendly; }` - one a turn, and never for the `-1` form. At zero the creature is nobody's ally,
+/// which is what `is_friendly`'s "the count is zero" already means.
+///
+/// **Named gap**: the reference decrements inside `monster::move` after its stunned and harnessed early returns, so a stunned monster keeps its friendship; the port's
+/// walk loop has neither gate, and this runs for every creature that walks.
+pub fn spend_a_turn(world: &mut bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity) {
+    if let Some(mut held) = world.get_mut::<Friendly>(creature)
+        && held.turns > 0
+    {
+        held.turns -= 1;
+    }
+}
+
 /// Whether a creature is on the player's side.
 #[must_use]
 pub fn is_friendly(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity) -> bool {

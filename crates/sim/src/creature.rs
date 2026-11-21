@@ -2750,6 +2750,16 @@ pub fn take_turns(world: &mut World) {
     for creature in wearing {
         crate::applied_effects::spend_a_turn(world, creature);
     }
+    // **A charm is spent by a turn, not by a step.** Reference: `monster::move` decrements a positive `friendly` (`monmove.cpp:946-948`), and every monster calls `move` each
+    // turn - a charmed creature that has nowhere to go wanders instead of standing still. The port's monsters only walk when they have somewhere in mind, so the decrement
+    // sits in the pass every creature takes a turn in; putting it in the walk loop let a monster that arrived keep its charm for good.
+    let taking_turns: Vec<Entity> = world
+        .query_filtered::<Entity, With<crate::creature::Creature>>()
+        .iter(world)
+        .collect();
+    for creature in taking_turns {
+        crate::friendly::spend_a_turn(world, creature);
+    }
     let busy: Vec<(Entity, String, Option<Entity>)> = world
         .query::<(Entity, &Doing)>()
         .iter(world)

@@ -113,3 +113,62 @@ fn a_healthy_monster_resists_and_a_friendly_one_is_left_alone() {
         "so the count has not moved"
     );
 }
+
+/// **A charm runs out, one turn at a time, and a friendship for good never does.** Reference: `monster::move` (`monmove.cpp:946-948`) decrements a positive `friendly`
+/// before the monster walks; the `-1` form is not a count and is never touched. At zero the creature is nobody's ally - which `is_friendly` already reads as "the count is
+/// zero" - so the monster that was charmed two turns ago attacks again.
+#[test]
+fn a_charm_spends_a_turn_of_itself_and_a_friendship_for_good_does_not() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let told = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, told);
+    let charmed = world
+        .spawn((
+            cdda_sim::Position { x: 5, y: 5, z: 0 },
+            cdda_sim::creature::Creature {
+                name: "the dog".to_owned(),
+                size: cdda_sim::CreatureSize::Medium,
+            },
+            cdda_sim::creature::Moves::default(),
+        ))
+        .id();
+    cdda_sim::creature::set_goal(&mut world, charmed, (9, 9, 0));
+    cdda_sim::friendly::make_friendly(&mut world, charmed, 2);
+    let loyal = world
+        .spawn((
+            cdda_sim::Position { x: 8, y: 8, z: 0 },
+            cdda_sim::creature::Creature {
+                name: "the pet".to_owned(),
+                size: cdda_sim::CreatureSize::Medium,
+            },
+            cdda_sim::creature::Moves::default(),
+        ))
+        .id();
+    cdda_sim::creature::set_goal(&mut world, loyal, (12, 12, 0));
+    cdda_sim::friendly::make_friendly(&mut world, loyal, cdda_sim::friendly::FOR_EVER);
+    cdda_sim::creature::take_turns(&mut world);
+    assert_eq!(
+        cdda_sim::friendly::turns_of(&world, charmed),
+        1,
+        "**one turn of the charm is spent by one turn of walking**"
+    );
+    assert!(
+        cdda_sim::friendly::is_friendly(&world, charmed),
+        "and it is still on the player's side"
+    );
+    cdda_sim::creature::take_turns(&mut world);
+    assert_eq!(
+        cdda_sim::friendly::turns_of(&world, charmed),
+        0,
+        "**two turns spend it all**"
+    );
+    assert!(
+        !cdda_sim::friendly::is_friendly(&world, charmed),
+        "**and the dog is nobody's ally again**"
+    );
+    assert_eq!(
+        cdda_sim::friendly::turns_of(&world, loyal),
+        cdda_sim::friendly::FOR_EVER,
+        "**a friendship for good does not count down**"
+    );
+}
