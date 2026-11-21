@@ -127,9 +127,6 @@ fn write_to_store(
     op: cdda_content::dialogue::AssignmentOp,
     value: f64,
 ) -> Applied {
-    let Some(cdda_content::dialogue::Expression::Text(key)) = arguments.first() else {
-        return Applied::CannotAnswer;
-    };
     // The short listener spelling (`n_skill`) means the same scope as the long one, and a write has to land on the same creature a read would ask about.
     let normalized = crate::conditions::normalized_spelling(name);
     let about_listener = normalized.starts_with("npc_");
@@ -139,6 +136,25 @@ fn write_to_store(
     let store = normalized
         .trim_start_matches("npc_")
         .trim_start_matches("u_");
+    // **`pain` is the one store with no keyword argument**: `pain_ass` (`math_parser_diag.cpp:884-900`) takes only a `type` kwarg, whose default is `raw` - a plain
+    // set - so `u_pain() += 10` is a write with nothing to resolve. The `perceived` form adds instead, and it needs the kwargs the port does not read; that is a named gap.
+    if store == "pain" {
+        let Some(current) = world
+            .get::<crate::creature::Pain>(target)
+            .map(|pain| f64::from(pain.0))
+        else {
+            return Applied::CannotAnswer;
+        };
+        let Some(result) = apply_op(op, current, value) else {
+            return Applied::CannotAnswer;
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        crate::creature::set_pain(world, target, result as i32);
+        return Applied::Done;
+    }
+    let Some(cdda_content::dialogue::Expression::Text(key)) = arguments.first() else {
+        return Applied::CannotAnswer;
+    };
     let (current, writes) = match store {
         "hp" => (
             crate::creature::health_of(world, target).map(f64::from),
@@ -2093,10 +2109,9 @@ fn set_string_var(
     };
     let text = match value {
         cdda_content::dialogue::VarValue::One(one) => {
-            let Some(text) = crate::conditions::text_of(world, speaker, listener, one) else {
-                return Applied::CannotAnswer;
-            };
-            text
+            // **A variable that was never set reads as the empty string** (`read_var_value`'s default), and a stored empty string is an answer: the program that expected
+            // a name finds none of them.
+            crate::conditions::text_of(world, speaker, listener, one).unwrap_or_default()
         }
         cdda_content::dialogue::VarValue::Many(choices) => {
             let Some(drawn) = draw_one_of(world, choices.len()) else {

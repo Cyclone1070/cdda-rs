@@ -1902,11 +1902,12 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
     )
     .expect("an om_terrain aim is readable");
 
-    // No tile of that terrain anywhere: the port refuses rather than creating one.
+    // No tile of that terrain anywhere: **the update lands where the speaker stands**, because `get_om_terrain_pos` starts its answer at the origin and nothing moved it
+    // (`mission_util.cpp:321-334`). It is answered, not refused - the same correction the location search needed.
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &aimed),
-        Applied::CannotAnswer,
-        "a search that finds nothing refuses"
+        Applied::Done,
+        "**a search that finds nothing is an answer**"
     );
 
     // Two tiles of it, one nearer: the nearer is the one the update lands on.
@@ -3010,5 +3011,73 @@ fn next_weather_makes_the_sky_due_now() {
     assert!(
         cdda_sim::weather::next_is_due(&world, 100),
         "and the weather is due on this very turn"
+    );
+}
+
+/// **Pain can be written from a `math` statement.** The data raises pain directly - `["u_pain()", "+=", "10"]` in the portal-storm programs - and the reference's
+/// `pain_ass` (`math_parser_diag.cpp:884-900`) writes it with `set_pain`, which floors the result at zero. The port answered the *read* half of `u_pain()` and refused
+/// the write, so every program that hurt the player refused at that statement.
+#[test]
+fn a_math_statement_can_add_to_pain() {
+    let mut world = World::new();
+    let who = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    world.entity_mut(who).insert(cdda_sim::creature::Pain(0));
+    let raise = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"math": ["u_pain()", "+=", "10"]}"#.as_slice()).expect("json"),
+    )
+    .expect("a pain assignment is readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, who, None, &raise),
+        Applied::Done,
+        "**the write the port could not do**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Pain>(who)
+            .map(|pain| pain.0),
+        Some(10)
+    );
+    // **`set_pain` floors at zero** (`creature.cpp:2189-2196`), so a subtraction past it leaves none rather than a negative number.
+    let lower = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(br#"{"math": ["u_pain()", "-=", "30"]}"#.as_slice()).expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, who, None, &lower),
+        Applied::Done
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Pain>(who)
+            .map(|pain| pain.0),
+        Some(0),
+        "**and pain never goes below zero**"
+    );
+}
+
+/// **A `set_string_var` from a variable that was never set stores nothing.** Reference: `f_set_string_var` (`npctalk.cpp:5809-5866`) evaluates its source with
+/// `read_var_value`, whose answer for a variable that does not exist is the empty string - and a stored empty string is an answer, where refusing throws the whole
+/// effect away. The mutation this test exists for is the one the batch run caught: storing the name instead of the value's default.
+#[test]
+fn a_set_string_var_from_an_unset_source_stores_nothing() {
+    let mut world = World::new();
+    let who = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let effect = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"set_string_var": {"u_val": "missing"}, "target_var": {"u_val": "stored"}}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("readable");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, who, None, &effect),
+        Applied::Done,
+        "**an unset source is the empty string, not a refusal**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_values::text_of(&world, who, "stored"),
+        Some(String::new()),
+        "**and nothing is what was stored**"
     );
 }

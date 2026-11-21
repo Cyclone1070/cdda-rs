@@ -40115,3 +40115,22 @@ no text reads as a passing test**, which is why the second attempt checked that 
 
 **What this does not close yet.** `time_in_future > 0` schedules the update as a timed event instead of applying it (`npctalk.cpp:4854-4860`); the port applies it immediately,
 because it has no `UPDATE_MAPGEN` event. That is a named gap and the next half of this rule.
+
+## Pain is writable, and an unset string reads empty (round 278)
+
+**`u_pain()` is a store with a writer.** The data raises pain with `["u_pain()", "+=", 10]` - the portal-storm and twisting-blade programs - and `pain_ass`
+(`math_parser_diag.cpp:884-900`) is the reference's setter: `raw` (the default, and the only form without a `type` kwarg) calls `set_pain`, which **floors at zero**
+(`creature.cpp:2189-2196`). The port answered the read half and refused the write, so five programs stopped at their first statement. `creature::set_pain` is now the one
+writer, and `mod_pain` goes through it so the floor cannot disagree between them. **Named gap**: `type: "perceived"` adds instead of setting, and it needs kwargs the
+port's math reader does not carry.
+
+**`set_string_var` from a variable that was never set stores the empty string.** `read_var_value`'s default for a missing name is `""`, and a stored empty string is an
+answer - the program that expected a name simply finds none. Refusing threw the whole effect away.
+
+**Two rules were written and then withdrawn, and the reason is the point of the batch discipline.** `reveal_map` on an unset target and `u_add_var` from an unset
+source are the same shape as the string case, and both changes were made - but the reveal rule's test **passed under a mutation that moved the origin to (1, 1)**, so it
+did not distinguish the change from the old behaviour, and `add_var` had no test of its own at all. Both changes were reverted rather than claimed; the withdrawn reveal
+test is the next batch's first item, with an assertion that can fail.
+
+**The batch ran two rules through one build, one mutation run and one gate.** Both mutations were caught in the same mutation build, which is what makes batching safe:
+the rules live in different functions, so no test can mask another's mutation.

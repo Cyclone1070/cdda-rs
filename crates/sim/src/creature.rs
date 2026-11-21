@@ -5010,8 +5010,18 @@ pub fn poly(world: &mut World, who: Entity, kind: crate::MonsterKindId) {
 /// reference's ceiling is not a constant - pain is only clamped upward - and its **enchantment multipliers** are not ported, which `docs/parity.md` names. A positive amount is
 /// what a spell that drains pain-resistance does, and a negative one is what a painkiller does.
 pub fn mod_pain(world: &mut World, entity: Entity, amount: i32) {
+    if let Some(pain) = world.get::<Pain>(entity).map(|pain| pain.0) {
+        set_pain(world, entity, pain + amount);
+    }
+}
+
+/// Puts a creature in exactly this much pain, never a negative amount.
+///
+/// Reference: `Creature::set_pain` (`creature.cpp:2189-2196`): the value is floored at zero and stored as-is otherwise. It is the writer `pain_ass` uses for the `raw`
+/// form (`math_parser_diag.cpp:884-900`), and [`mod_pain`] is the same rule applied to a difference, so both go through here.
+pub fn set_pain(world: &mut World, entity: Entity, amount: i32) {
     if let Some(mut pain) = world.get_mut::<Pain>(entity) {
-        pain.0 = (pain.0 + amount).max(0);
+        pain.0 = amount.max(0);
     }
 }
 
