@@ -40079,3 +40079,20 @@ because "omt" is not a terrain.
 **Named gap, unchanged by this round.** `f_location_variable` runs its `false_eocs` when a search finds nothing and its `true_eocs` when it does
 (`npctalk.cpp:4370-4380`); the port's `LocationVariableSearch` carries neither, so a search that finds nothing still answers `CannotAnswer` instead of running the
 false branch. That is the next half of this rule.
+
+## A search that finds nothing runs its false branch (round 276)
+
+`f_location_variable` (`npctalk.cpp:4370-4400`) answers a failed search **with the program's own plan for it**: `if( !found ) { run_eoc_vector( false_eocs, d ); return; }`
+after the target search, and `run_eoc_vector( true_eocs, d )` once the value is written. The port refused instead, which threw that plan away - and the census counted the
+refusal as a missing rule when the rule was the branch.
+
+Both lists are read from the effect object (`:4258-4259`), not from the member, and both are run through the same `run_eoc_vector` path the port's other branches use. **The
+square is written before `true_eocs` run**, so the branch can read the variable the search just set, and a branch the port cannot answer is reported rather than swallowed.
+
+**The old test was the thing in the way.** `a_location_variable_can_hold_the_nearest_tile_of_a_terrain` asserted `CannotAnswer` for an empty search - a port behaviour, not the
+reference's - and it failed the moment the rule was right. It now expects `Done`, and the new test watches which branch ran by having each side say a different line.
+
+**The mutation** is the one this round removed: an empty search refusing instead of branching, and the focused test fails on "an empty search is an answer, not a refusal".
+
+**What is still not run.** A search that finds nothing now answers `Done`, but `mission_util::get_om_terrain_pos`'s own falses - a `target_params` that names a terrain the
+port cannot search for, or a level it cannot reach - still refuse, because they are data the port does not hold rather than a branch the program wrote.

@@ -1843,10 +1843,11 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
     )
     .expect("a terrain target is readable");
 
-    // Nothing of that terrain on the overmap: the port refuses rather than inventing a square.
+    // Nothing of that terrain on the overmap: the search is **answered** - it runs its false branch, which this one does not have - and no square is invented.
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
-        Applied::CannotAnswer
+        Applied::Done,
+        "**an empty search is an answer**: the false branch runs (npctalk.cpp:4374-4378)"
     );
 
     cdda_sim::overmap::set_terrain(&mut world, (2, 1), "lab_finale");
@@ -1888,6 +1889,83 @@ fn a_location_variable_can_hold_the_nearest_tile_of_a_terrain() {
             "{text} asks something the port cannot answer"
         );
     }
+}
+
+/// **A search that finds nothing runs its false branch, and a search that finds something runs its true one.**
+///
+/// Reference: `f_location_variable` (`npctalk.cpp:4370-4392`): `if( !found ) { run_eoc_vector( false_eocs, d ); return; }` after the target search, and
+/// `run_eoc_vector( true_eocs, d )` after the value is written. The branch is the **answer** to a search that came up empty - refusing instead throws away the
+/// program's own plan for that case, which is what the data writes `false_eocs` to say.
+///
+/// Both branches here are inline programs that say a line, so the assertion is about which one ran; the position is checked too, because a found search writes the
+/// square **and** runs the branch.
+#[test]
+fn a_location_search_runs_the_branch_it_found() {
+    let mut world = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (1, 1, 0));
+    let store = cdda_content::dialogue::read_effect(
+        &cdda_json::parse(
+            br#"{"u_location_variable": {"u_val": "lab"}, "target_params": {"om_terrain": "lab_finale"},
+                 "true_eocs": [{"u_message": "found it"}], "false_eocs": [{"u_message": "nothing here"}]}"#
+                .as_slice(),
+        )
+        .expect("json"),
+    )
+    .expect("a search with two branches is readable");
+
+    // Nothing of that terrain: the **false** branch runs, and the effect is answered.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::Done,
+        "**an empty search is an answer, not a refusal**"
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "nothing here"),
+        "**the false branch ran**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert_eq!(
+        cdda_sim::dialogue_values::position_of(
+            &mut world,
+            survivor,
+            None,
+            &cdda_content::dialogue::AssignmentTarget::Variable {
+                scope: "u_val".to_owned(),
+                name: "lab".to_owned(),
+            },
+        ),
+        None,
+        "**and no square was written**"
+    );
+
+    // With a tile, the **true** branch runs and the square is written.
+    cdda_sim::overmap::set_terrain(&mut world, (2, 1), "lab_finale");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store),
+        Applied::Done
+    );
+    assert!(
+        cdda_sim::messages::lines(&world)
+            .iter()
+            .any(|line| line == "found it"),
+        "**the true branch ran**: {:?}",
+        cdda_sim::messages::lines(&world)
+    );
+    assert!(
+        cdda_sim::dialogue_values::position_of(
+            &mut world,
+            survivor,
+            None,
+            &cdda_content::dialogue::AssignmentTarget::Variable {
+                scope: "u_val".to_owned(),
+                name: "lab".to_owned(),
+            },
+        )
+        .is_some(),
+        "**and the found square is written**"
+    );
 }
 
 /// **A terrain can be named by a variable, and the data does it that way.**
@@ -1993,10 +2071,12 @@ fn a_mission_target_names_its_range_its_distance_and_its_level() {
     );
     assert_eq!(read_square(&mut world), Some((15 * near, 10 * near, 0)));
 
-    // A minimum distance past every candidate refuses: the search has nothing to offer rather than offering the closest thing.
+    // A minimum distance past every candidate finds nothing, and **a search that finds nothing is answered** - its false branch runs, and this one has none - rather than
+    // offering the closest thing.
     assert_eq!(
         cdda_sim::dialogue_effects::run_effect(&mut world, survivor, None, &store_in("9", "0")),
-        Applied::CannotAnswer
+        Applied::Done,
+        "**an empty search runs its false branch** (npctalk.cpp:4374-4378)"
     );
 }
 

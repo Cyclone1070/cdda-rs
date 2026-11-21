@@ -3432,6 +3432,15 @@ pub enum Effect {
         z: Option<i32>,
         /// Whether the square goes to the listener's variables rather than the speaker's.
         listener: bool,
+        /// The programs to run when the search **found** something, after the square is written.
+        ///
+        /// Reference: `f_location_variable` (`npctalk.cpp:4400`) ends with `run_eoc_vector( true_eocs, d )`.
+        then: Vec<ProgramRef>,
+        /// The programs to run when the search **found nothing**.
+        ///
+        /// Reference: `f_location_variable` (`npctalk.cpp:4374-4378`): a search that comes up empty runs `false_eocs` and returns - the branch is the program's own plan
+        /// for the empty case, so answering it with a refusal would throw that plan away.
+        otherwise: Vec<ProgramRef>,
     },
     /// Set a dialogue variable.
     ///
@@ -5382,6 +5391,9 @@ fn read_terrain_target(
         Some(_) => return None,
     };
     let (scope, name) = named_variable(target)?;
+    // **The branches live beside the member, not inside it**: `f_location_variable` reads them from the effect object it was handed (`npctalk.cpp:4258-4259`).
+    let then = read_program_refs(object.get("true_eocs"))?;
+    let otherwise = read_program_refs(object.get("false_eocs"))?;
     Some(Effect::LocationVariableSearch {
         furniture,
         scope,
@@ -5395,6 +5407,8 @@ fn read_terrain_target(
         target_max_radius,
         z,
         listener,
+        then,
+        otherwise,
     })
 }
 

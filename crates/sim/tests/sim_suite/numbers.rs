@@ -67,7 +67,9 @@ pub const NOW: Census = Census {
     // (`f_teleport` calls `teleport_to_point`), so a target on a square a world with no floor cannot stand on refuses instead of writing a position onto nothing.
     // **481 after round 239**: `next_weather` answers even in a world with no climate, because the reference's weather manager always exists and an effect that has nothing to
     // make due still succeeds. The climate-less case is the port's own, so it answers `Done` rather than pretending the rule refused.
-    ran: 481,
+    // **482 after round 276**: a `u_location_variable` search that finds nothing runs its `false_eocs` and answers `Done` (`npctalk.cpp:4374-4378`), where the port used to
+    // refuse - so one more program in the fresh world reaches its end.
+    ran: 482,
     // Of those, how many answered `Done` without changing anything the world can see: four in five of them, because a program whose condition is
     // false for a fresh world legitimately does nothing - and a program whose condition could not be READ does nothing too, and used to count as a run.
     silent: 360,
@@ -98,7 +100,8 @@ pub const NOW: Census = Census {
     // **213 after round 155**: the same two teleport programs join the refusals, and they are refused for a reason the record can name.
     // **211 after round 239**, down two with `next_weather`: the effect answers, so the two programs whose last entry it was run. The invariant beside this ledger is what caught
     // it - 481 + 213 came to 694 against 692 readable, and a census that does not add up is wrong rather than out of date.
-    refused_at_run: 211,
+    // **210 after round 276**, down one with the location search's false branch: the program that used to refuse when its search came up empty now runs.
+    refused_at_run: 210,
     // 74 leaves and 1,547 effects after round 1048 read the `npc_mutate_category` spelling; **73 and 1,548** after round 1049 read `offer_mission`.
     // Each reader that lands moves three numbers, and one of them may rise - see the runs' own comments.
     // 31 after round 1430: the `u_activate_trait` reader took one leaf with it.

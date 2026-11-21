@@ -325,7 +325,26 @@ fn say_snippet(
     Applied::Done
 }
 
-/// Stores the nearest overmap tile of a terrain in a dialogue variable.
+/// Runs a branch list of a location search, answering whether every program in it could be answered.
+///
+/// Reference: `run_eoc_vector` (`npctalk.cpp`): the programs run in order, and a program that cannot be answered stops the list.
+fn run_refs(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    programs: &[cdda_content::dialogue::ProgramRef],
+) -> Applied {
+    for program in programs {
+        if crate::eoc_registry::run_ref(world, speaker, listener, program, 1)
+            == Applied::CannotAnswer
+        {
+            return Applied::CannotAnswer;
+        }
+    }
+    Applied::Done
+}
+
+/// Finds the nearest overmap tile of a terrain and stores it in a dialogue variable.
 ///
 /// Reference: `f_location_variable` (`npctalk.cpp:4194`) with a `target_params` naming an overmap terrain. The port searches the overmap the way
 /// `om_terrain` aiming does, and stores the tile's **top-left square**, which is the square a mapgen update lands on when that tile is its target.
@@ -347,6 +366,8 @@ fn search_location(
         target_max_radius,
         z,
         furniture,
+        then,
+        otherwise,
         ..
     } = effect
     else {
@@ -365,7 +386,8 @@ fn search_location(
     let Some((x, y)) =
         crate::overmap::nearest_with_terrain(world, tile, &wanted, *search_range, *min_distance)
     else {
-        return Applied::CannotAnswer;
+        // **A search that finds nothing runs the false branch** (`npctalk.cpp:4374-4378`), which is the program's own plan for an empty search.
+        return run_refs(world, speaker, listener, otherwise);
     };
     let found = (
         x * crate::overmap::SQUARES_PER_OMT,
@@ -389,7 +411,7 @@ fn search_location(
             (at.x, at.y),
             *target_min_radius,
         ) else {
-            return Applied::CannotAnswer;
+            return run_refs(world, speaker, listener, otherwise);
         };
         let holder = crate::dialogue_values::holder_for(world, speaker, scope == "global_val");
         crate::dialogue_values::set(
@@ -406,7 +428,7 @@ fn search_location(
     }
     let square = if *max_radius > 0 {
         let Some(drawn) = draw_near(world, found, *min_radius, *max_radius) else {
-            return Applied::CannotAnswer;
+            return run_refs(world, speaker, listener, otherwise);
         };
         drawn
     } else {
@@ -425,7 +447,9 @@ fn search_location(
             z: square.2,
         },
     );
-    Applied::Done
+    // **The square is written before the branch runs**, so `true_eocs` can read the variable the search just set (`npctalk.cpp:4398-4400`), and a branch that cannot
+    // be answered is reported rather than swallowed.
+    run_refs(world, speaker, listener, then)
 }
 
 /// Stores a square found by looking around the actor.
