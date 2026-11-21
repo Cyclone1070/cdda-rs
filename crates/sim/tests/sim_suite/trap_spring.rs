@@ -356,6 +356,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         monsters: Vec::new(),
         weight: 100,
         fields: Vec::new(),
+        toilets: std::collections::BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }

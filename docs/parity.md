@@ -40284,3 +40284,18 @@ the charm still runs out.
 monster still spends its charm.
 
 **The mutation** removes the decrement entirely: the test fails at `left: 2, right: 1`, the charm never spent.
+
+## Every bathroom was an empty square (round 288)
+
+`jmapgen_toilet` (`mapgen.cpp:2824-2845`) is one of the mapgen's smallest pieces and one of its most used: the data names a `toilets` symbol **298 times**, and the port read
+the member not at all. So every toilet in every map was a bare square where a fixture stood - a visible hole in every house, bathroom and prison cell, and one of those gaps
+that is invisible in a census because no rule refuses: the square simply stays empty.
+
+The rule is three lines of reference and three of port: the furniture is `f_toilet`, the item is `water` with the entry's `amount` as **charges**, and an amount of zero means
+`place_toilet`'s own default of twenty-four (`map.h:1679`). The amount is a range in the data and is rolled when the square is drawn, with the furniture phase it belongs to.
+
+**The mutation** is the default at six instead of twenty-four: the test fails at `left: [6], right: [24]`.
+
+**What this round cost, and why**: the field had to be threaded through **seventeen** `MapgenObject` literals in three test files, and a regular expression that tried to
+insert it beside `traps:` matched a multi-line array and broke the file - restored from git and redone against a line every fixture has. The lesson is the batch's: a model
+field is a change to every fixture, so the fixture insertion wants a shape that is single-line everywhere (**`fill_ter:`** here), chosen after looking, not assumed.

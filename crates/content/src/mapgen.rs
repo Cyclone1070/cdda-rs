@@ -138,6 +138,8 @@ pub struct MapgenObject {
     pub monsters: Vec<MonsterPlacement>,
     /// How likely this one is when several build the same terrain.
     pub weight: i32,
+    /// The toilets a symbol places (`jmapgen_toilet`, `mapgen.cpp:2824-2845`): furniture with water in it, and the **amount** is charges in the water.
+    pub toilets: BTreeMap<char, (i32, i32)>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -477,6 +479,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 traps: symbols("traps"),
                 items: read_items(inner),
                 monsters: read_monsters(inner),
+                toilets: read_toilets(inner.get("toilets")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -663,6 +666,28 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// Reads a mapgen's `toilets` object: each symbol's **amount**, the charges of water in it.
+///
+/// Reference: `jmapgen_toilet` (`mapgen.cpp:2824-2845`) reads `amount` as a `jmapgen_int` defaulting to zero, and a zero means `place_toilet`'s own default of 24 charges
+/// (`map.h:1679`). The port keeps the zero rather than substituting here, because the roll happens when the square is drawn.
+fn read_toilets(object: Option<&cdda_json::Value>) -> std::collections::BTreeMap<char, (i32, i32)> {
+    let mut into = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return into;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let amount = match value {
+            cdda_json::Value::Object(spec) => read_amount(spec.get("amount")),
+            _ => read_amount(None),
+        };
+        into.insert(symbol, amount);
+    }
+    into
+}
+
 fn read_terrain_map(terrain: &Object, into: &mut std::collections::BTreeMap<char, String>) {
     for (symbol, value) in terrain.members() {
         let Some(symbol) = symbol.chars().next() else {

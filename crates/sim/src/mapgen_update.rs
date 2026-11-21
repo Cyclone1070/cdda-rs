@@ -188,6 +188,26 @@ fn draw_one_square(
         crate::square::set_furniture(world, at, code);
         drew = true;
     }
+    // **A toilet is furniture with water in it** (`mapgen.cpp:2836-2844`, `place_toilet` at `:7296-7301`): the furniture is `f_toilet`, the item is `water` with the entry's
+    // charges, and an amount of zero means the reference's default of 24 (`map.h:1679`).
+    if let Some(amount) = mapgen.toilets.get(&symbol) {
+        let rolled = match rolls.as_mut() {
+            Some(rolls) if amount.1 > amount.0 => rolls.rng(amount.0, amount.1),
+            _ => amount.0,
+        };
+        let charges = if rolled > 0 {
+            rolled
+        } else {
+            DEFAULT_TOILET_CHARGES
+        };
+        if let Some(code) = crate::furniture_types::code_of(world, "f_toilet") {
+            crate::square::set_furniture(world, at, code);
+            drew = true;
+        }
+        if let Some(kind) = crate::item_registry::id_of(world, "water") {
+            crate::drop_item(world, (at.0, at.1), kind, charges);
+        }
+    }
     // **Traps come after furniture** (`mapgen.cpp:5470-5480`), and a trap square is a drawn square even when the map names no terrain or furniture for it.
     if let Some(trap) = mapgen.traps.get(&symbol) {
         crate::square::set_trap(world, at, trap);
@@ -196,6 +216,9 @@ fn draw_one_square(
     drew |= place_the_items(world, mapgen, at, symbol, rolls);
     drew
 }
+
+/// What a toilet holds when the data names no amount: `place_toilet`'s own default (`map.h:1679`).
+const DEFAULT_TOILET_CHARGES: i32 = 24;
 
 /// Places the items a symbol carries, and answers whether it placed any. Reference: `jmapgen_item_group::apply` (`mapgen.cpp:5360-5400`).
 fn place_the_items(

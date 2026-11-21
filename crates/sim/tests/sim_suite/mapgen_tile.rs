@@ -27,6 +27,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         monsters: Vec::new(),
         weight,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -133,6 +134,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -197,6 +199,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -244,6 +247,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -310,6 +314,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -395,6 +400,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -450,6 +456,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         }],
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -496,6 +503,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -509,6 +517,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         monsters: Vec::new(),
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -590,6 +599,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         }],
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -651,6 +661,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         }],
         weight: 1,
         fields: Vec::new(),
+        toilets: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -671,5 +682,69 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         cdda_sim::friendly::turns_of(&world, spawned[0]),
         cdda_sim::friendly::FOR_EVER,
         "**for good, not for a count of turns**"
+    );
+}
+
+/// **A mapgen's toilet is furniture with water in it.** Reference: `jmapgen_toilet` (`mapgen.cpp:2824-2845`) reads an `amount` of charges and calls `place_toilet`, which
+/// sets `f_toilet` and drops a `water` item with those charges (`mapgen.cpp:7296-7301`); an amount of zero means the default of twenty-four (`map.h:1679`).
+///
+/// The member is one the data uses **298 times** and the port read not at all, so every bathroom in every map was an empty square where a toilet stands.
+#[test]
+fn a_mapgens_toilet_is_furniture_with_water_in_it() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::furniture_types::set_types(&mut world, [("f_toilet".to_owned(), 44u32)]);
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "water",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let bathroom = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["T.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('T', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: [('T', (0, 0))].into_iter().collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), bathroom)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (0, 0, 0)),
+        Some(44),
+        "**the toilet is furniture on the square**"
+    );
+    let water: Vec<i32> = cdda_sim::items_at(&mut world, (0, 0))
+        .into_iter()
+        .filter_map(|item| {
+            world
+                .get::<cdda_sim::GroundItem>(item)
+                .map(|held| held.charges)
+        })
+        .collect();
+    assert_eq!(
+        water,
+        vec![24],
+        "**and the data's default of twenty-four charges is in it**"
     );
 }
