@@ -36,6 +36,8 @@ const READ: &[&str] = &[
     "place_terrain",
     "place_furniture",
     "place_traps",
+    "item",
+    "fields",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -92,11 +94,9 @@ const NAMED_GAPS: &[&str] = &[
 /// Five more the census found once the first thirty-one were named.
 const MORE_GAPS: &[&str] = &[
     // The symbol form of a field patch (the coordinate form, `place_fields`, is read).
-    "fields",
     // A mapgen's own flags, which the overmap rules read (P9).
     "flags",
     // The single-item symbol map, whose group form (`items`) is read.
-    "item",
     // The legacy `mapping` key.
     "mapping",
     // The rectangle form of `npcs`.

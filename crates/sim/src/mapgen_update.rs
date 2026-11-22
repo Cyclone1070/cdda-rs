@@ -226,6 +226,8 @@ fn draw_one_square(
         drew = true;
     }
     drew |= place_the_items(world, mapgen, at, symbol, rolls);
+    drew |= place_the_single_item(world, mapgen, at, symbol, rolls);
+    drew |= place_the_field_symbol(world, mapgen, at, symbol, rolls);
     drew |= place_the_liquid(world, mapgen, at, symbol, rolls);
     drew
 }
@@ -783,6 +785,77 @@ fn place_the_sealed_item(
     if let Some(code) = crate::furniture_types::code_of(world, &sealed.furniture) {
         crate::square::set_furniture(world, at, code);
     }
+    true
+}
+
+/// Places the single item a symbol carries, and answers whether it placed any.
+///
+/// Reference: `jmapgen_spawn_item::apply` (`mapgen.cpp:3500-3520`): a chance of a hundred is **one** spawn; anything less is `roll_remainder( chance / 100 )` spawns, and each
+/// spawn drops `amount` items. The `repeat` member multiplies the whole thing, as every piece's does.
+fn place_the_single_item(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(placement) = mapgen.items_single.get(&symbol) else {
+        return false;
+    };
+    let spawns = if placement.chance == 100 {
+        1
+    } else {
+        match rolls.as_mut() {
+            Some(dice) => roll_remainder(dice, f64::from(placement.chance) / 100.0),
+            None => 0,
+        }
+    };
+    let Some(kind) = crate::item_registry::id_of(world, &placement.item) else {
+        return false;
+    };
+    for _ in 0..spawns {
+        let count = match rolls.as_mut() {
+            Some(dice) => dice.rng(placement.amount.0, placement.amount.1),
+            None => placement.amount.0,
+        };
+        for _ in 0..count.max(0) {
+            crate::drop_item(world, (at.0, at.1), kind, 1);
+        }
+    }
+    true
+}
+
+/// Places the field patch a symbol carries, and answers whether it placed one.
+///
+/// Reference: `jmapgen_field::apply` (`mapgen.cpp:2564-2581`): a **percentage** chance, and a strength picked from the list the data writes. **Named gap**: the `remove`
+/// member, which takes a field away rather than adding one, and `age` are not read.
+fn place_the_field_symbol(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(patch) = mapgen.field_symbols.get(&symbol) else {
+        return false;
+    };
+    let Some(field) = crate::field_registry::id_of(world, &patch.field) else {
+        return false;
+    };
+    if patch.chance < 100
+        && !rolls
+            .as_mut()
+            .is_none_or(|dice| dice.x_in_y(f64::from(patch.chance), 100.0))
+    {
+        return false;
+    }
+    let strength = match rolls.as_mut() {
+        Some(dice) if patch.intensity.1 > patch.intensity.0 => {
+            dice.rng(patch.intensity.0, patch.intensity.1)
+        }
+        _ => patch.intensity.0,
+    };
+    crate::add_field_strength(world, at, field, strength);
     true
 }
 

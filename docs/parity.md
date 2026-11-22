@@ -40489,3 +40489,19 @@ says why.
 repeats landing on each other).
 
 The census moves all three to the read list: **22 of 63 members read**.
+
+## Two symbol maps the loader never read (round 299)
+
+`item` and `fields` are the two symbol maps left over from the item layer: **the single item** (`jmapgen_spawn_item`, `mapgen.cpp:3477-3525`) and **the field patch**
+(`jmapgen_field`, `:2542-2584`). The port read the group form of items and the **rectangle** form of fields, and neither symbol form - so a shed's axe, a desk's book and a
+smoke-filled corridor were missing while their group and rectangle cousins worked.
+
+The chance conventions are all three in play again, and this time side by side:
+- `item` is a **percentage of a spawn**: a hundred is exactly **one** spawn and anything less is `roll_remainder( chance / 100 )` (`:3512-3516`), then `amount` items per spawn;
+- `fields` is a **percentage** of the patch being there at all (`x_in_y( chance, 100 )`, `:2575`), with the strength picked from the list the data writes.
+
+**Named gaps**: `jmapgen_field`'s `remove` (take a field away) and `age` are not read; `jmapgen_spawn_item`'s `variant`, `faction` and `custom-flags` are not read either.
+
+**The mutation** drops one item instead of `amount`: the test fails at `left: 1, right: 2`.
+
+The census moves both to the read list: **24 of 63 members read**.

@@ -39,6 +39,8 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -157,6 +159,8 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -233,6 +237,8 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -292,6 +298,8 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -370,6 +378,8 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -467,6 +477,8 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -529,6 +541,8 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -592,6 +606,8 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -617,6 +633,8 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -705,6 +723,8 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -778,6 +798,8 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -853,6 +875,8 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -959,6 +983,8 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1054,6 +1080,8 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1151,6 +1179,8 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1233,6 +1263,8 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1348,6 +1380,8 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1414,6 +1448,8 @@ fn a_sign_is_furniture_that_carries_words() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1514,6 +1550,8 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1580,6 +1618,8 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1617,6 +1657,8 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1686,6 +1728,8 @@ fn a_nested_marker_inside_the_chunk_shifts_its_chunk_up_and_left() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1723,6 +1767,8 @@ fn a_nested_marker_inside_the_chunk_shifts_its_chunk_up_and_left() {
         place_terrain: Vec::new(),
         place_furniture: Vec::new(),
         place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1805,6 +1851,8 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
             y: (2, 2),
             repeat: (1, 1),
         }],
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1834,5 +1882,97 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         cdda_sim::square::trap_at(&world, (2, 2, 0)),
         Some("tr_bear".to_owned()),
         "**and the trap did too**"
+    );
+}
+
+/// **The `item` symbol map is the single-item form of the item layer.** Reference: `jmapgen_spawn_item::apply` (`mapgen.cpp:3500-3520`) - a chance of a hundred is **one**
+/// spawn, anything less is `roll_remainder( chance / 100 )`, and each spawn drops `amount` items.
+///
+/// The port read the **group** form (`items`) and not this one, and this is the form the data uses most: it is how a mapgen puts one specific thing on one specific square -
+/// the axe in the shed, the book on the desk, the cigarettes on the table.
+///
+/// The same fixture checks the **field symbol map** (`fields`, `jmapgen_field`), which is the third of the symbol maps the loader left unread: a patch of smoke on the square
+/// the row drew.
+#[test]
+fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rag",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_smoke", 1, 3)]);
+    let room = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["IF".to_owned()],
+        terrain: [
+            ('I', "t_house_one".to_owned()),
+            ('F', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: [(
+            'I',
+            cdda_content::mapgen::SingleItemPlacement {
+                item: "rag".to_owned(),
+                amount: (2, 2),
+                chance: 100,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        field_symbols: [(
+            'F',
+            cdda_content::mapgen::FieldPatch {
+                field: "fd_smoke".to_owned(),
+                intensity: (3, 3),
+                chance: 100,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(29));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        2,
+        "**one spawn of two rags, because a chance of a hundred is one spawn**"
+    );
+    let smoke = cdda_sim::field_registry::id_of(&mut world, "fd_smoke").expect("the field");
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (1, 0, 0), smoke),
+        3,
+        "**and the smoke is on its own square at the strength the data wrote**"
     );
 }

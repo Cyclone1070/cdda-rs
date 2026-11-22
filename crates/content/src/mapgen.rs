@@ -162,6 +162,10 @@ pub struct MapgenObject {
     pub place_furniture: Vec<AreaSet>,
     /// Traps scattered over a rectangle (`place_traps`): a minefield is this, not a symbol map.
     pub place_traps: Vec<AreaSet>,
+    /// The single items a symbol places (`jmapgen_spawn_item` under `item`): the port read the group form and not this one, and the data uses this one most.
+    pub items_single: BTreeMap<char, SingleItemPlacement>,
+    /// The field patches a symbol places (`jmapgen_field` under `fields`): smoke, fire and blood as **symbols**, not rectangles.
+    pub field_symbols: BTreeMap<char, FieldPatch>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -513,6 +517,8 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_terrain: read_area_sets(inner.get("place_terrain"), "ter"),
                 place_furniture: read_area_sets(inner.get("place_furniture"), "furn"),
                 place_traps: read_area_sets(inner.get("place_traps"), "trap"),
+                items_single: read_single_items(inner.get("item")),
+                field_symbols: read_field_symbols(inner.get("fields")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -699,6 +705,104 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `item` entry: a **single item** a symbol places (`jmapgen_spawn_item`, `mapgen.cpp:3477-3525`).
+///
+/// The chance is the reference's percentage-of-a-spawn: a hundred is **one** spawn, and anything less is `roll_remainder( chance / 100 )` spawns, each of which drops
+/// `amount` items (`:3512-3519`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SingleItemPlacement {
+    /// The item id.
+    pub item: String,
+    /// How many each spawn drops, as a range.
+    pub amount: (i32, i32),
+    /// A percentage of one spawn.
+    pub chance: i32,
+}
+
+/// Reads a mapgen's `item` object, the single-item symbol map.
+fn read_single_items(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, SingleItemPlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(item)) = spec.get("item") else {
+            continue;
+        };
+        placed.insert(
+            symbol,
+            SingleItemPlacement {
+                item: item.clone(),
+                amount: span(spec.get("amount")),
+                chance: match spec.get("chance") {
+                    Some(cdda_json::Value::Int(value)) => {
+                        i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                    }
+                    _ => 100,
+                },
+            },
+        );
+    }
+    placed
+}
+
+/// One `fields` entry: a field patch a symbol places (`jmapgen_field`, `mapgen.cpp:2542-2584`).
+///
+/// The chance is a percentage (`x_in_y( chance, 100 )`, `:2575`), the intensity is drawn from a **list** of allowed strengths, and `remove` takes the field away instead of
+/// adding it. **Named gap**: `remove` and `age` are not read - the port's fields carry no age yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldPatch {
+    /// The field's id.
+    pub field: String,
+    /// The strengths it may take, any one of which the game picks.
+    pub intensity: (i32, i32),
+    /// A percentage chance of the patch being placed.
+    pub chance: i32,
+}
+
+/// Reads a mapgen's `fields` object, the symbol map of field patches.
+fn read_field_symbols(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, FieldPatch> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(field)) = spec.get("field") else {
+            continue;
+        };
+        placed.insert(
+            symbol,
+            FieldPatch {
+                field: field.clone(),
+                intensity: span(spec.get("intensity")),
+                chance: match spec.get("chance") {
+                    Some(cdda_json::Value::Int(value)) => {
+                        i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                    }
+                    _ => 100,
+                },
+            },
+        );
+    }
+    placed
+}
+
 /// One `place_terrain`, `place_furniture` or `place_traps` entry: **a random square per repeat** in a rectangle.
 ///
 /// Reference: `jmapgen_objects::apply` (`mapgen.cpp:6161-6164`) applies the piece `repeat` times at `where.x.get(), where.y.get()` - and a `jmapgen_int`'s `get` draws
