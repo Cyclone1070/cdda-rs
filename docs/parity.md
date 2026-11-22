@@ -40564,3 +40564,24 @@ this one; reading what I had written did.
 **The mutation** has the symbol map answer "drew one" without spawning: the test fails at `left: 0, right: 1`.
 
 The census moves `monster` to the read list: **27 of 63 members read**.
+
+## The sign belongs to the layer (round 303)
+
+`place_nested` is the rectangle form of the nested piece - the same `jmapgen_nested`, **1,382 uses**, with the dice choosing the marker instead of a symbol - and reading it
+meant re-reading the anchoring, which the previous round had got **backwards**.
+
+What the reference actually does, and I had missed:
+- **A nested chunk's rows are setmaps, and `jmapgen_setmap::apply` ADDS the offset** (`mapgen.cpp:5627-5631`). So the nested square `( col, row )` stands at
+  `marker + ( col, row )` - the chunk sits **at** its marker and hangs off the edge it crosses, where I had it sliding **up and left**.
+- The `-offset` in `jmapgen_objects::apply` (`:6145`) belongs to the **objects** of a nested chunk, not to its rows. Two layers, two signs.
+
+The correction came from the **data**, not from my reading: `place_nested` entries put a 4×4 sewer blockage at `x: 10`, `y: [ 0, 20 ]` - a marker in the middle of the chunk. Under
+my old sign that chunk's every square landed outside the submap and the feature drew **nothing at all**, which is not a feature anyone would write 1,382 times.
+
+**The uncomfortable part, recorded because it is the honest part**: the previous round's sign test *passed*, because it encoded the same mistake the code did - I worked out
+what to assert from the implementation rather than from the reference, and then called it proof. A test written that way pins whatever the code does; it cannot pin the rule.
+The test now says where the marker's squares land for a marker **inside** the chunk, which is the case the data actually writes.
+
+**The mutation** flips the sign back: the test fails at `left: Some(0), right: Some(91)` - the marker's own square empty, the chunk gone up and left.
+
+The census moves `place_nested` to the read list: **28 of 63 members read**.

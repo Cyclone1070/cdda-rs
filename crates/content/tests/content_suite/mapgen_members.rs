@@ -41,6 +41,7 @@ const READ: &[&str] = &[
     "computers",
     "remove_all",
     "monster",
+    "place_nested",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -49,7 +50,6 @@ const READ: &[&str] = &[
 /// The members the loader ignores, each with the reason it is ignored - and each with the reference's own site where the reason is not obvious.
 const NAMED_GAPS: &[&str] = &[
     // A nested mapgen with its own weighted list, and the machinery to choose one and stitch it into the chunk.
-    "place_nested",
     // The parameterised form of every symbol map: `place_terrain`, `place_furniture`, `place_traps`, `place_items`, ... draw over a **rectangle** rather than from
     // rows, and each is the symbol map's rule with a range. The data writes both; the port reads the row form.
     "place_item",

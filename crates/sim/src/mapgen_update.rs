@@ -131,6 +131,7 @@ pub fn write(
     // **The nested phase comes after the terrain and the objects** (`mapgen.h:88-97`: `removal`, `terrain`, `furniture`, `default_`, `nested_mapgen`, ...), so a nested chunk
     // drawn at a marker is not overwritten by the outer rows drawn after that marker - which is exactly what putting it inside the per-square pass did.
     draw_the_nested_mapgens(world, mapgen, origin, &codes, &furniture_codes, &mut rolls);
+    place_the_nested_areas(world, mapgen, origin, &codes, &furniture_codes, &mut rolls);
     place_monsters(world, mapgen, origin, &mut rolls);
     place_area_items(world, mapgen, origin, &mut rolls);
     place_area_sets(world, mapgen, origin, &mut rolls);
@@ -515,7 +516,16 @@ fn draw_the_nested_mapgens(
                 continue;
             };
             let at = (origin.0 + column, origin.1 + row, origin.2);
-            draw_the_nested_mapgen(world, mapgen, at, symbol, codes, furniture_codes, rolls);
+            draw_the_nested_mapgen(
+                world,
+                mapgen,
+                at,
+                symbol,
+                origin,
+                codes,
+                furniture_codes,
+                rolls,
+            );
         }
     }
 }
@@ -530,22 +540,72 @@ fn draw_the_nested_mapgens(
 ///
 /// **Named gaps**: `else_chunks` and every neighbour condition (`neighbors`, `joins`, `flags`, `flags_any`, `predecessors`, `check_z`) are not evaluated; a nested mapgen id
 /// registered with several weighted functions takes its first; and nesting is followed **four deep** so a data error cannot recurse for ever.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the chunk's origin came on top of the layers a square is drawn from; the drawing context is worth its own type and is not this round's work"
+)]
 fn draw_the_nested_mapgen(
     world: &mut World,
     mapgen: &cdda_content::mapgen::MapgenObject,
     at: (i32, i32, i32),
     symbol: char,
+    origin: (i32, i32, i32),
     codes: &BTreeMap<String, u32>,
     furniture_codes: &BTreeMap<String, u32>,
     rolls: &mut Option<cdda_core_types::rng::Rolls>,
 ) -> bool {
-    draw_the_nested_mapgen_to_depth(world, mapgen, at, symbol, codes, furniture_codes, rolls, 0)
+    let Some(nested) = mapgen.nested.get(&symbol) else {
+        return false;
+    };
+    draw_a_nested_chunk(
+        world,
+        &nested.chunks,
+        at,
+        (origin.0, origin.1),
+        codes,
+        furniture_codes,
+        rolls,
+        0,
+    )
+}
+
+/// Draws every `place_nested` entry: the same piece as the symbol map, with a **rectangle** for its square.
+///
+/// Reference: `jmapgen_nested::nest` is called with `( x.get(), y.get(), z.get() )` (`mapgen.cpp:4502`), so the piece draws one square from its own range - the symbol form
+/// fixes that square to the symbol's own, the rectangle form leaves it to the dice. **1,382 uses** in the data.
+fn place_the_nested_areas(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    codes: &BTreeMap<String, u32>,
+    furniture_codes: &BTreeMap<String, u32>,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_nested {
+        let (x, y) = match rolls.as_mut() {
+            Some(dice) => (
+                dice.rng(entry.x.0, entry.x.1),
+                dice.rng(entry.y.0, entry.y.1),
+            ),
+            None => (entry.x.0, entry.y.0),
+        };
+        draw_a_nested_chunk(
+            world,
+            &entry.chunks,
+            (origin.0 + x, origin.1 + y, origin.2),
+            (origin.0, origin.1),
+            codes,
+            furniture_codes,
+            rolls,
+            0,
+        );
+    }
 }
 
 /// The recorder: how deep the nesting has gone, so the fourth level is the last.
 const NESTING_DEPTH_LIMIT: u8 = 4;
 
-/// The body of [`draw_the_nested_mapgen`], carrying how deep it already is.
+/// Draws one nested chunk at a marker, then follows any nesting the chunk itself carries.
 ///
 /// The offset is measured from the **outer chunk's origin** to the marker: the nested square at that distance lands on the outer square zero. That is why a nested mapgen whose
 /// marker sits at the chunk's corner draws into the whole chunk, and one whose marker sits inside it draws mostly outside - which the reference's own anchoring does too.
@@ -553,11 +613,11 @@ const NESTING_DEPTH_LIMIT: u8 = 4;
     clippy::too_many_arguments,
     reason = "the layers a square is drawn from, as every other drawing helper here takes them"
 )]
-fn draw_the_nested_mapgen_to_depth(
+fn draw_a_nested_chunk(
     world: &mut World,
-    mapgen: &cdda_content::mapgen::MapgenObject,
+    chunks: &[(String, i32)],
     at: (i32, i32, i32),
-    symbol: char,
+    bounds: (i32, i32),
     codes: &BTreeMap<String, u32>,
     furniture_codes: &BTreeMap<String, u32>,
     rolls: &mut Option<cdda_core_types::rng::Rolls>,
@@ -566,12 +626,9 @@ fn draw_the_nested_mapgen_to_depth(
     if depth >= NESTING_DEPTH_LIMIT {
         return false;
     }
-    let Some(nested) = mapgen.nested.get(&symbol) else {
-        return false;
-    };
     let chosen = match rolls.as_mut() {
-        Some(dice) => pick_by_weight(dice, &nested.chunks),
-        None => nested.chunks.first().map(|(id, _)| id.clone()),
+        Some(dice) => pick_by_weight(dice, chunks),
+        None => chunks.first().map(|(id, _)| id.clone()),
     };
     let Some(chosen) = chosen else {
         return false;
@@ -588,35 +645,35 @@ fn draw_the_nested_mapgen_to_depth(
     let Some(inner) = found else {
         return false;
     };
-    // The outer mapgen's own origin is the square four-and-twenty back from the marker when the marker is at the chunk's edge; the port keeps the marker's **relative**
-    // position, because that is what the reference subtracts.
-    let offset = (at.0.rem_euclid(SIDE), at.1.rem_euclid(SIDE));
-    let outer = (at.0 - offset.0, at.1 - offset.1, at.2);
     let mut drew = false;
     for (row, line) in inner.rows.iter().enumerate() {
         for (column, glyph) in line.chars().enumerate() {
             let (Ok(column), Ok(row)) = (i32::try_from(column), i32::try_from(row)) else {
                 continue;
             };
-            let spot = (outer.0 + column - offset.0, outer.1 + row - offset.1, at.2);
-            // The reference clips at the submap's bounds; the port clips at the chunk's.
-            if !(0..SIDE).contains(&(spot.0 - outer.0)) || !(0..SIDE).contains(&(spot.1 - outer.1))
+            // **A nested chunk's rows stand at the marker plus their own square** (`jmapgen_setmap::apply` adds the offset, `mapgen.cpp:5627-5631`), and the reference clips
+            // at the submap's edge - which is what makes a chunk placed near the edge lose the part that hangs over it.
+            let spot = (at.0 + column, at.1 + row, at.2);
+            if !(bounds.0..bounds.0 + SIDE).contains(&spot.0)
+                || !(bounds.1..bounds.1 + SIDE).contains(&spot.1)
             {
                 continue;
             }
             if draw_one_square(world, &inner, spot, glyph, codes, furniture_codes, rolls) {
                 drew = true;
             }
-            drew |= draw_the_nested_mapgen_to_depth(
-                world,
-                &inner,
-                spot,
-                glyph,
-                codes,
-                furniture_codes,
-                rolls,
-                depth + 1,
-            );
+            if let Some(deeper) = inner.nested.get(&glyph) {
+                drew |= draw_a_nested_chunk(
+                    world,
+                    &deeper.chunks,
+                    spot,
+                    bounds,
+                    codes,
+                    furniture_codes,
+                    rolls,
+                    depth + 1,
+                );
+            }
         }
     }
     drew

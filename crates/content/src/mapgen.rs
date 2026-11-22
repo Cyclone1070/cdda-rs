@@ -173,6 +173,8 @@ pub struct MapgenObject {
     /// The monsters a symbol places (`jmapgen_monster` under `monster`): 1,748 uses in the data, the most of any member, and a symbol is how a mapgen says "a zombie stands
     /// here" without naming a rectangle.
     pub monster_symbols: BTreeMap<char, SymbolMonster>,
+    /// Nested mapgens placed over a rectangle instead of at a symbol (`place_nested`): the same piece as `nested`, 1,382 times, with the dice choosing the marker.
+    pub place_nested: Vec<AreaNested>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -529,6 +531,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 computers: read_computers(inner.get("computers")),
                 remove_all: read_remove_areas(inner.get("remove_all")),
                 monster_symbols: read_monster_symbols(inner.get("monster")),
+                place_nested: read_area_nested(inner.get("place_nested")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -715,6 +718,38 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `place_nested` entry: a nested chunk whose marker the dice pick from a rectangle (`jmapgen_nested`, `mapgen.cpp:4490-4505`).
+///
+/// The chunks are the same weighted list the symbol form carries; only the square's source differs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaNested {
+    /// The columns the marker may land in.
+    pub x: (i32, i32),
+    /// The rows the marker may land in.
+    pub y: (i32, i32),
+    /// The weighted chunks it may draw.
+    pub chunks: Vec<(String, i32)>,
+}
+
+/// Reads a mapgen's `place_nested` list.
+fn read_area_nested(list: Option<&cdda_json::Value>) -> Vec<AreaNested> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        placed.push(AreaNested {
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            chunks: read_chunks(one.get("chunks")),
+        });
+    }
+    placed
+}
+
 /// One `monster` entry: a monster a **symbol** places (`jmapgen_monster`, `mapgen.cpp:3095-3280`).
 ///
 /// The piece is the same one `place_monster` uses: it may name a monster or a group, it has a chance out of a hundred, a pack size and a friendly flag. The difference is
@@ -1054,33 +1089,38 @@ fn read_nested(
         let cdda_json::Value::Object(spec) = value else {
             continue;
         };
-        let Some(cdda_json::Value::Array(chunks)) = spec.get("chunks") else {
-            continue;
-        };
-        let mut entries = Vec::new();
-        for chunk in chunks {
-            // The data writes a chunk as a pair, `[ "id", weight ]`, and sometimes as a bare id.
-            match chunk {
-                cdda_json::Value::Array(pair) => {
-                    if let Some(cdda_json::Value::Str(id)) = pair.first() {
-                        let weight = match pair.get(1) {
-                            Some(cdda_json::Value::Int(value)) => {
-                                i32::try_from(*value).unwrap_or(100).max(0)
-                            }
-                            _ => 100,
-                        };
-                        entries.push((id.clone(), weight));
-                    }
-                }
-                cdda_json::Value::Str(id) => entries.push((id.clone(), 100)),
-                _ => {}
-            }
-        }
+        let entries = read_chunks(spec.get("chunks"));
         if !entries.is_empty() {
             placed.insert(symbol, NestedPlacement { chunks: entries });
         }
     }
     placed
+}
+
+/// Reads a nested chunk list: the data writes a chunk as a pair, `[ "id", weight ]`, and sometimes as a bare id.
+fn read_chunks(list: Option<&cdda_json::Value>) -> Vec<(String, i32)> {
+    let Some(cdda_json::Value::Array(chunks)) = list else {
+        return Vec::new();
+    };
+    let mut entries = Vec::new();
+    for chunk in chunks {
+        match chunk {
+            cdda_json::Value::Array(pair) => {
+                if let Some(cdda_json::Value::Str(id)) = pair.first() {
+                    let weight = match pair.get(1) {
+                        Some(cdda_json::Value::Int(value)) => {
+                            i32::try_from(*value).unwrap_or(100).max(0)
+                        }
+                        _ => 100,
+                    };
+                    entries.push((id.clone(), weight));
+                }
+            }
+            cdda_json::Value::Str(id) => entries.push((id.clone(), 100)),
+            _ => {}
+        }
+    }
+    entries
 }
 
 /// One `gaspumps` entry: a pump's fuel capacity and, when the data says, which fuel (`jmapgen_gaspump`, `mapgen.cpp:2850-2895`).
