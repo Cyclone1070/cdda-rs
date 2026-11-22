@@ -40606,3 +40606,19 @@ The snippet form (`snippet` instead of `signage`) is also unread: it needs the s
 mutation covers the symbol map and the rectangle list at once - which is what sharing a rule is for.
 
 The census moves `place_item` and `place_signs` to the read list: **30 of 63 members read**.
+
+## The last of the pair forms (round 305)
+
+`place_liquids` (`mapgen.cpp:5398`, **40 uses**) is the rectangle form of the `liquids` symbol map - the same `jmapgen_liquid_item`, the same one-in-**n** chance, the same hundred
+that a fuel's charges are multiplied by. It went in as one rule with two square sources, like `monster`, `place_item` and `place_signs` before it.
+
+**Why the fuel branch is the assertion**: with two square sources sharing a shape, a test that checks "a puddle appeared" passes even when the rule behind it is a copy of the
+wrong half. Two amounts of gasoline must be **two hundred** charges, not two - so the test names the number that only the shared rule can produce.
+
+**Named gap**: a liquid's amount may be omitted, in which case the reference uses the **item type's own count** (`mapgen.cpp:2918-2925`); the port's item registry carries no
+count, so an omitted amount is one charge and the reason is written beside the constant.
+
+**The mutation** stops multiplying a fuel by a hundred: the test fails at `left: Some(2), right: Some(200)`.
+
+The census moves `place_liquids` to the read list: **31 of 63 members read**. What is left is not more of the same: `mapgensize`, `rotation`, `parameters` and `set` are the
+mapgen's own envelope rather than its contents, `place_vehicles`/`vehicles` wait on the vehicle store, and `place_monsters`/`monsters` are the density spawner.

@@ -179,6 +179,8 @@ pub struct MapgenObject {
     pub place_item: Vec<AreaSingleItem>,
     /// Signs placed over a rectangle (`place_signs`, 127 uses): the `signs` symbol map with the square written out.
     pub place_signs: Vec<AreaSign>,
+    /// Liquids placed over a rectangle (`place_liquids`, `mapgen.cpp:5398`): the `liquids` symbol map with the square written out.
+    pub place_liquids: Vec<AreaLiquid>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -538,6 +540,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_nested: read_area_nested(inner.get("place_nested")),
                 place_item: read_area_single_items(inner.get("place_item")),
                 place_signs: read_area_signs(inner.get("place_signs")),
+                place_liquids: read_area_liquids(inner.get("place_liquids")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -724,6 +727,48 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `place_liquids` entry: a liquid whose square the entry writes out (`jmapgen_liquid_item` under `place_liquids`, `mapgen.cpp:5398`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaLiquid {
+    /// The liquid's item id.
+    pub liquid: String,
+    /// The charges, before the hundred the piece multiplies in.
+    pub amount: (i32, i32),
+    /// The one-in-**n** chance the piece uses, which is the opposite of a percentage.
+    pub chance: i32,
+    /// The columns it may land in.
+    pub x: (i32, i32),
+    /// The rows it may land in.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_liquids` list.
+fn read_area_liquids(list: Option<&cdda_json::Value>) -> Vec<AreaLiquid> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(liquid)) = one.get("liquid") else {
+            continue;
+        };
+        placed.push(AreaLiquid {
+            liquid: liquid.clone(),
+            amount: span(one.get("amount")),
+            chance: match one.get("chance") {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1).max(1),
+                _ => 1,
+            },
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One `place_item` entry: a single item whose square the entry writes out (`jmapgen_spawn_item` under `place_item`, `mapgen.cpp:5390`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AreaSingleItem {

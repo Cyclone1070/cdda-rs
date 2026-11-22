@@ -137,6 +137,7 @@ pub fn write(
     place_area_sets(world, mapgen, origin, &mut rolls);
     place_item_areas(world, mapgen, origin, &mut rolls);
     place_sign_areas(world, mapgen, origin, &mut rolls);
+    place_liquid_areas(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     if let Some(rolls) = rolls {
         crate::singletons::put_rolls(world, rolls);
@@ -1090,39 +1091,79 @@ fn place_the_liquid(
     let Some(placement) = mapgen.liquids.get(&symbol) else {
         return false;
     };
+    place_one_liquid(
+        world,
+        &placement.liquid,
+        placement.amount,
+        placement.chance,
+        at,
+        rolls,
+    )
+}
+
+/// The one shape of the liquid rule, whichever form the data wrote: the one-in-n chance, the amount, and the hundred that fuels get.
+fn place_one_liquid(
+    world: &mut World,
+    liquid: &str,
+    amount: (i32, i32),
+    chance: i32,
+    at: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
     // `one_in( chance.get() )`: a chance of one is always, and a bigger number is rarer - the opposite of the item group's percentage.
-    if placement.chance > 1 {
+    if chance > 1 {
         let Some(dice) = rolls.as_mut() else {
             return false;
         };
-        if !dice.one_in(placement.chance) {
+        if !dice.one_in(chance) {
             return false;
         }
     }
-    let Some(kind) = crate::item_registry::id_of(world, &placement.liquid) else {
+    let Some(kind) = crate::item_registry::id_of(world, liquid) else {
         return false;
     };
-    let mut charges = if placement.amount.0 > -1 {
+    let mut charges = if amount.0 > -1 {
         match rolls.as_mut() {
-            Some(dice) if placement.amount.1 > placement.amount.0 => {
-                dice.rng(placement.amount.0, placement.amount.1)
-            }
-            _ => placement.amount.0,
+            Some(dice) if amount.1 > amount.0 => dice.rng(amount.0, amount.1),
+            _ => amount.0,
         }
     } else {
         // The item type's own count, which the port's registry does not carry: one charge is the count every liquid in the data that omits an amount has.
         ONE_CHARGE
     };
-    if matches!(
-        placement.liquid.as_str(),
-        "gasoline" | "avgas" | "diesel" | "jp8"
-    ) {
+    if matches!(liquid, "gasoline" | "avgas" | "diesel" | "jp8") {
         charges *= FUEL_CHARGES_PER_UNIT;
     }
     if charges > 0 {
         crate::drop_item(world, (at.0, at.1), kind, charges);
     }
     true
+}
+
+/// Places every `place_liquids` entry: the `liquids` symbol map with the square written out.
+fn place_liquid_areas(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_liquids {
+        let (x, y) = match rolls.as_mut() {
+            Some(dice) => (
+                dice.rng(entry.x.0, entry.x.1),
+                dice.rng(entry.y.0, entry.y.1),
+            ),
+            None => (entry.x.0, entry.y.0),
+        };
+        place_one_liquid(
+            world,
+            &entry.liquid,
+            entry.amount,
+            entry.chance,
+            (origin.0 + x, origin.1 + y, origin.2),
+            rolls,
+        );
+    }
 }
 
 /// The reference's `migrated == itype_gasoline || avgas || diesel || jp8` branch multiplies a fuel's charges by this (`mapgen.cpp:2929-2934`).

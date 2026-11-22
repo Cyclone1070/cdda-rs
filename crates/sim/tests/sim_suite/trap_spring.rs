@@ -376,6 +376,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
+        place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
