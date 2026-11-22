@@ -41,6 +41,7 @@ const READ: &[&str] = &[
     "computers",
     "remove_all",
     "monster",
+    "rotation",
     "place_nested",
     "place_item",
     "place_signs",
@@ -84,7 +85,6 @@ const NAMED_GAPS: &[&str] = &[
     "parameters",
     "mapgensize",
     "set",
-    "rotation",
     // Factions and the owner of a chunk are P9.
     "faction_owner",
     // A predecessor that only applies when the request asks for one (`expects_predecessor`), and its fallback.

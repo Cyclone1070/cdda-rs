@@ -44,6 +44,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -171,6 +172,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -256,6 +258,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -324,6 +327,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -411,6 +415,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -517,6 +522,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -588,6 +594,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -660,6 +667,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -694,6 +702,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -791,6 +800,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -873,6 +883,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -957,6 +968,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1072,6 +1084,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1176,6 +1189,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1282,6 +1296,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1373,6 +1388,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1497,6 +1513,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1572,6 +1589,7 @@ fn a_sign_is_furniture_that_carries_words() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1681,6 +1699,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1756,6 +1775,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1802,6 +1822,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1878,6 +1899,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1924,6 +1946,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2020,6 +2043,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2130,6 +2154,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2206,6 +2231,7 @@ fn a_terminal_is_furniture_and_a_record() {
         .collect(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2301,6 +2327,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
             y: (0, 0),
         }],
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2389,6 +2416,7 @@ fn a_monster_can_be_a_symbol() {
         )]
         .into_iter()
         .collect(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2454,6 +2482,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2488,6 +2517,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: vec![cdda_content::mapgen::AreaNested {
             x: (10, 10),
             y: (5, 5),
@@ -2575,6 +2605,7 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: vec![cdda_content::mapgen::AreaSingleItem {
             item: "rag".to_owned(),
@@ -2662,6 +2693,7 @@ fn a_rectangle_can_place_a_liquid() {
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2690,5 +2722,96 @@ fn a_rectangle_can_place_a_liquid() {
         charge,
         Some(200),
         "**two amounts of gasoline is two hundred charges, because a fuel counts in hundreds**"
+    );
+}
+
+/// **A rotated mapgen is the whole chunk turned, not its rows re-read.** Reference: `mapgen_function_json::generate` draws at rotation zero into a pre-rotated map and rotates
+/// it back (`mapgen.cpp:6072-6096`), which leaves everything it drew turned by `rot`; `point::rotate( 1, dim )` sends `( 0, 0 )` to `( dim.y - 1, 0 )`, a quarter turn
+/// **clockwise**.
+///
+/// The data writes `rotation` **2,198 times**, so a port that ignores it draws every rotated mapgen in the wrong orientation - and the layers would still agree with each other,
+/// which is what makes the bug look like nothing at all. The test pins a terrain square, a furniture square and an item, because "the chunk was turned" has to be true of
+/// every layer at once.
+#[test]
+fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
+    let mut world = a_world(Vec::new());
+    let turned = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["AF.".to_owned(), "...".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('A', "t_rubble".to_owned()),
+            ('F', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: [(
+            'F',
+            cdda_content::mapgen::FieldPatch {
+                field: "fd_smoke".to_owned(),
+                intensity: (1, 1),
+                chance: 100,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        computers: BTreeMap::new(),
+        remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
+        rotation: (1, 1),
+        place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
+        place_liquids: Vec::new(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: Some("t_house_one".to_owned()),
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_house_one".to_owned(), 11u32),
+            ("t_rubble".to_owned(), 77u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    cdda_sim::field_registry::set_field_names(&mut world, &[("fd_smoke", 1, 3)]);
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), turned)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(59));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (23, 0, 0)),
+        Some(77),
+        "**the rubble stood at ( 0, 0 ) and a clockwise quarter turn puts it at ( 23, 0 )**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (22, 0, 0)),
+        Some(11),
+        "**and the square it came from is the fill again**"
+    );
+    let smoke = cdda_sim::field_registry::id_of(&mut world, "fd_smoke").expect("the field");
+    assert_eq!(
+        cdda_sim::field_strength_at(&world, (23, 1, 0), smoke),
+        1,
+        "**the smoke that stood at ( 1, 0 ) is at ( 23, 1 ), one square below the rubble**"
     );
 }

@@ -40622,3 +40622,23 @@ count, so an omitted amount is one charge and the reason is written beside the c
 
 The census moves `place_liquids` to the read list: **31 of 63 members read**. What is left is not more of the same: `mapgensize`, `rotation`, `parameters` and `set` are the
 mapgen's own envelope rather than its contents, `place_vehicles`/`vehicles` wait on the vehicle store, and `place_monsters`/`monsters` are the density spawner.
+
+## The chunk turns (round 306)
+
+The data writes `rotation` **2,198 times**, and the port read none of them: every rotated mapgen was drawn in the wrong orientation. What makes this class of bug invisible is
+that the layers still agree with each other - terrain, furniture and items are all rotated by the same zero - so nothing on the map looks like a mistake until you compare it
+with the world it was supposed to build.
+
+**The reference's mechanism is two rotations that cancel**, and reading it as one is what makes it comprehensible: `mapgen_function_json::generate` rotates the map by `4 -
+rot` *before* drawing, draws at rotation zero, and rotates it back by `rot` afterwards (`mapgen.cpp:6072-6096`). Everything already standing returns to where it was; everything
+just drawn ends up turned by `rot`. The port skips the dance and turns the drawn content directly, after every phase, in **one pass over the chunk**.
+
+**The square-level rule** is `point::rotate( turns, dim )` (`point.cpp:25-40`), whose turn 1 sends `( 0, 0 )` to `( dim.y - 1, 0 )` - a quarter turn **clockwise**. The port's
+`mapgen_rotation::turn_a_point` is that function, case for case.
+
+**Two things this round did not do**, both named: the overmap terrain's own rotation (`ter.get_rotation()`, `:6076-6096`) is not read because the port's overmap terrain carries
+no orientation yet, and a thing whose *art* turns rather than its *position* (a rotated furniture symbol) is not modelled - the chunk moves, the glyphs do not.
+
+**The mutation** turns the other way, using case 3 where case 1 belongs: the test fails at `left: Some(11), right: Some(77)` - the rubble went down instead of right.
+
+The census moves `rotation` to the read list: **32 of 63 members read**.

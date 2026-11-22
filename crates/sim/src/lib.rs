@@ -25,6 +25,7 @@ pub mod field_spread;
 pub mod field_table;
 pub mod flag_registry;
 pub mod mapgen_place;
+pub mod mapgen_rotation;
 pub mod mapgen_tile;
 pub mod mapgen_update;
 pub mod memory;

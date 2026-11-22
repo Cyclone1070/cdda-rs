@@ -373,6 +373,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         computers: std::collections::BTreeMap::new(),
         remove_all: Vec::new(),
         monster_symbols: std::collections::BTreeMap::new(),
+        rotation: (0, 0),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),

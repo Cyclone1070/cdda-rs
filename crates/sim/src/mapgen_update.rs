@@ -90,6 +90,14 @@ pub fn write(
     // **The dice are taken once for the whole write**, because a layer that stopped mid-chunk would leave the generator half-spent - and a caller that held them would have to
     // hand them back for every square.
     let mut rolls = crate::singletons::take_rolls(world);
+    // **The rotation is drawn first**, because the reference draws it before it draws anything else (`mapgen.cpp:6072`) - and it is a dice roll, so where it comes in the
+    // stream is part of the mapgen's result.
+    let turns = match rolls.as_mut() {
+        Some(dice) if mapgen.rotation.1 > mapgen.rotation.0 => {
+            dice.rng(mapgen.rotation.0, mapgen.rotation.1).rem_euclid(4)
+        }
+        _ => mapgen.rotation.0.rem_euclid(4),
+    };
     let codes = crate::singletons::holder::<TheTerrainCodes>(world)
         .and_then(|holder| world.get::<TerrainCodes>(holder))
         .map(|codes| codes.0.clone())
@@ -139,6 +147,8 @@ pub fn write(
     place_sign_areas(world, mapgen, origin, &mut rolls);
     place_liquid_areas(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
+    // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
+    crate::mapgen_rotation::rotate_chunk(world, origin, turns);
     if let Some(rolls) = rolls {
         crate::singletons::put_rolls(world, rolls);
     }

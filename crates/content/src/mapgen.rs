@@ -173,6 +173,8 @@ pub struct MapgenObject {
     /// The monsters a symbol places (`jmapgen_monster` under `monster`): 1,748 uses in the data, the most of any member, and a symbol is how a mapgen says "a zombie stands
     /// here" without naming a rectangle.
     pub monster_symbols: BTreeMap<char, SymbolMonster>,
+    /// How far the whole chunk is turned, as a range of quarter turns (`mapgen.cpp:5172-5173`, `6072`): **2,198 uses**, and a mapgen without it is not turned at all.
+    pub rotation: (i32, i32),
     /// Nested mapgens placed over a rectangle instead of at a symbol (`place_nested`): the same piece as `nested`, 1,382 times, with the dice choosing the marker.
     pub place_nested: Vec<AreaNested>,
     /// Single items placed over a rectangle (`place_item`, 165 uses): the `item` symbol map with the square written out.
@@ -537,6 +539,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 computers: read_computers(inner.get("computers")),
                 remove_all: read_remove_areas(inner.get("remove_all")),
                 monster_symbols: read_monster_symbols(inner.get("monster")),
+                rotation: span(inner.get("rotation")),
                 place_nested: read_area_nested(inner.get("place_nested")),
                 place_item: read_area_single_items(inner.get("place_item")),
                 place_signs: read_area_signs(inner.get("place_signs")),
