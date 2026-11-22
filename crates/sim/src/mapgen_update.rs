@@ -228,6 +228,7 @@ fn draw_one_square(
     drew |= place_the_items(world, mapgen, at, symbol, rolls);
     drew |= place_the_single_item(world, mapgen, at, symbol, rolls);
     drew |= place_the_field_symbol(world, mapgen, at, symbol, rolls);
+    drew |= place_the_computer(world, mapgen, at, symbol);
     drew |= place_the_liquid(world, mapgen, at, symbol, rolls);
     drew
 }
@@ -785,6 +786,44 @@ fn place_the_sealed_item(
     if let Some(code) = crate::furniture_types::code_of(world, &sealed.furniture) {
         crate::square::set_furniture(world, at, code);
     }
+    true
+}
+
+/// Places a computer terminal: its console furniture and the record it holds, and answers whether it placed one.
+///
+/// Reference: `jmapgen_computer::apply` (`mapgen.cpp:3878-3905`): the furniture is `f_console`, and `add_computer` stores the record with its name, security and options -
+/// which is what a later hacking pass reads. The port stores the record as a component on the square, so the furniture and the terminal are two things a square carries.
+fn place_the_computer(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+) -> bool {
+    let Some(computer) = mapgen.computers.get(&symbol) else {
+        return false;
+    };
+    if let Some(code) = crate::furniture_types::code_of(world, "f_console") {
+        crate::square::set_furniture(world, at, code);
+    }
+    crate::computer_terminal::set(
+        world,
+        at,
+        crate::computer_terminal::Computer {
+            name: computer.name.clone(),
+            access_denied: computer.access_denied.clone(),
+            security: computer.security,
+            options: computer
+                .options
+                .iter()
+                .map(|(name, action)| crate::computer_terminal::TerminalOption {
+                    name: name.clone(),
+                    action: action.clone(),
+                })
+                .collect(),
+            eocs: computer.eocs.clone(),
+            chat_topics: computer.chat_topics.clone(),
+        },
+    );
     true
 }
 

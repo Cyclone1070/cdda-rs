@@ -40505,3 +40505,22 @@ The chance conventions are all three in play again, and this time side by side:
 **The mutation** drops one item instead of `amount`: the test fails at `left: 1, right: 2`.
 
 The census moves both to the read list: **24 of 63 members read**.
+
+## The console with a record (round 300)
+
+`jmapgen_computer` (`mapgen.cpp:3841-3912`) is a terminal, used **85 times**: every lab, church, vault and bunker console. The port read none of them, so every console was
+furniture with **nothing behind it**.
+
+The rule is a record, not a behaviour: the furniture is `f_console`, and the square carries a `computer_terminal::Computer` - a **name**, an **access-refused message**, a
+**security level**, and the **options** the terminal offers as name-and-action pairs. Storing the pair as text is deliberate: it keeps the record a record, so the hacking pass
+that lands later reads data rather than reaching for behaviour that is not there yet.
+
+**Named gaps**: an option's own parameters (`ter_set`, `furn_set`, an elevator's target), the `failures` list, `target` and the mission tie-in, and what a `chat_topic`
+contains.
+
+**A rename the compiler forced**: the option type was first called `Option`, which shadowed `std::option::Option` in its own module and broke the signatures that return one.
+It is `TerminalOption` - the compiler refusing a name that hides a fundamental type is the right kind of refusal.
+
+**The mutation** blanks every action: the test fails at `left: [TerminalOption { name: "Toll Bells", action: "" }], right: [ ... action: "toll" ]`.
+
+The census moves `computers` to the read list: **25 of 63 members read**.

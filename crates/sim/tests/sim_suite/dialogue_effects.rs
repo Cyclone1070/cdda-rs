@@ -1341,6 +1341,7 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         place_traps: Vec::new(),
         items_single: BTreeMap::new(),
         field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -1447,6 +1448,7 @@ fn a_wall_update_world() -> (World, bevy_ecs::prelude::Entity) {
         place_traps: Vec::new(),
         items_single: BTreeMap::new(),
         field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -1563,6 +1565,7 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
         place_traps: Vec::new(),
         items_single: BTreeMap::new(),
         field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
         fields: vec![cdda_content::mapgen::Placement {
@@ -1652,6 +1655,7 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
         place_traps: Vec::new(),
         items_single: BTreeMap::new(),
         field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -1955,6 +1959,7 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
         place_traps: Vec::new(),
         items_single: BTreeMap::new(),
         field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };

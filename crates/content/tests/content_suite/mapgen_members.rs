@@ -38,6 +38,7 @@ const READ: &[&str] = &[
     "place_traps",
     "item",
     "fields",
+    "computers",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -67,7 +68,6 @@ const NAMED_GAPS: &[&str] = &[
     "monsters",
     "monster",
     // Furniture with contents or text: each needs the thing it holds or says before it can be placed honestly.
-    "computers",
     // Vehicles are P8.
     "vehicles",
     "remove_vehicles",

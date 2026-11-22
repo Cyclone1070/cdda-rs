@@ -370,6 +370,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         place_traps: Vec::new(),
         items_single: std::collections::BTreeMap::new(),
         field_symbols: std::collections::BTreeMap::new(),
+        computers: std::collections::BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }

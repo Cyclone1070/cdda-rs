@@ -166,6 +166,8 @@ pub struct MapgenObject {
     pub items_single: BTreeMap<char, SingleItemPlacement>,
     /// The field patches a symbol places (`jmapgen_field` under `fields`): smoke, fire and blood as **symbols**, not rectangles.
     pub field_symbols: BTreeMap<char, FieldPatch>,
+    /// Computer terminals (`jmapgen_computer`, `mapgen.cpp:3841-3912`): 85 times in the data, and each one is a **record** - a name, a security level and the actions it offers.
+    pub computers: BTreeMap<char, ComputerPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -519,6 +521,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_traps: read_area_sets(inner.get("place_traps"), "trap"),
                 items_single: read_single_items(inner.get("item")),
                 field_symbols: read_field_symbols(inner.get("fields")),
+                computers: read_computers(inner.get("computers")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -705,6 +708,95 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `computers` entry: a terminal's record (`jmapgen_computer`, `mapgen.cpp:3841-3912`).
+///
+/// The record is what a hacking pass will read: a name, a refusal message, a security level, and the actions the terminal offers. **Named gaps**: an option's own
+/// parameters (`ter_set`, `furn_set`, an elevator's target), the `failures` list, `target` and `chat_topics`' content are not carried; the port keeps the names and actions
+/// the data writes so the record is the reference's record and not a summary of it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputerPlacement {
+    /// What the terminal calls itself.
+    pub name: String,
+    /// What it says when access is refused.
+    pub access_denied: String,
+    /// The security level a hack has to beat.
+    pub security: i32,
+    /// The actions it offers, as name-and-action pairs.
+    pub options: Vec<(String, String)>,
+    /// The effect-on-conditions the data attaches.
+    pub eocs: Vec<String>,
+    /// The chat topics it can start.
+    pub chat_topics: Vec<String>,
+}
+
+/// Reads a mapgen's `computers` object.
+fn read_computers(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, ComputerPlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let text = |name: &str| match spec.get(name) {
+            Some(cdda_json::Value::Str(text)) => text.clone(),
+            _ => String::new(),
+        };
+        let list = |name: &str| -> Vec<String> {
+            match spec.get(name) {
+                Some(cdda_json::Value::Array(entries)) => entries
+                    .iter()
+                    .filter_map(|entry| match entry {
+                        cdda_json::Value::Str(text) => Some(text.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            }
+        };
+        let options = match spec.get("options") {
+            Some(cdda_json::Value::Array(entries)) => entries
+                .iter()
+                .filter_map(|entry| match entry {
+                    cdda_json::Value::Object(option) => Some((
+                        match option.get("name") {
+                            Some(cdda_json::Value::Str(name)) => name.clone(),
+                            _ => String::new(),
+                        },
+                        match option.get("action") {
+                            Some(cdda_json::Value::Str(action)) => action.clone(),
+                            _ => String::new(),
+                        },
+                    )),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        placed.insert(
+            symbol,
+            ComputerPlacement {
+                name: text("name"),
+                access_denied: text("access_denied"),
+                security: match spec.get("security") {
+                    Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(0),
+                    _ => 0,
+                },
+                options,
+                eocs: list("eocs"),
+                chat_topics: list("chat_topics"),
+            },
+        );
+    }
+    placed
+}
+
 /// One `item` entry: a **single item** a symbol places (`jmapgen_spawn_item`, `mapgen.cpp:3477-3525`).
 ///
 /// The chance is the reference's percentage-of-a-spawn: a hundred is **one** spawn, and anything less is `roll_remainder( chance / 100 )` spawns, each of which drops

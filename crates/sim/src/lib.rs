@@ -51,6 +51,7 @@ pub mod transform;
 pub use cdda_content::blood;
 pub mod body;
 pub mod choices;
+pub mod computer_terminal;
 pub mod conditions;
 pub mod containment;
 pub mod craft_roll;
