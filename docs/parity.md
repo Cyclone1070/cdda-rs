@@ -40524,3 +40524,24 @@ It is `TerminalOption` - the compiler refusing a name that hides a fundamental t
 **The mutation** blanks every action: the test fails at `left: [TerminalOption { name: "Toll Bells", action: "" }], right: [ ... action: "toll" ]`.
 
 The census moves `computers` to the read list: **25 of 63 members read**.
+
+## What a mapgen unsets (round 301)
+
+`remove_all` (`jmapgen_remove_all`, `mapgen.cpp:4169-4205`) is the only member that **takes things away**, and the data uses it 16 times: a stairwell cut through a house, a
+vault dug out of a basement, a room a later overlay clears. It is how a mapgen undoes what a predecessor or an earlier pass left behind.
+
+Two rules, and both are easy to get wrong:
+- **Its rectangle is filled, not sampled.** `apply` walks `tripoint_range( start, end )` (`:4183`), so the rectangle *is* the area - there is no `repeat` here, and this is the
+  one rectangle in a mapgen that behaves that way.
+- **It is the first phase there is.** `mapgen.h:88-97` lists `removal` before `terrain`, so it runs **before the fill and the rows**, which is what lets it clear a square
+  the mapgen itself does not redraw. Put it after the rows and it would only erase what those rows just wrote.
+
+It clears furniture (`furn_clear`), items (`i_clear`), traps and fields. **Named gaps**: graffiti (the port has no graffiti store) and the vehicle cache uncache (no
+vehicles).
+
+**A detail the test taught**: `set_furniture( world, at, 0 )` **despawns** the furniture entity rather than storing code zero, so the reader answers `None` - "no furniture
+stands here" - and not `Some(0)`. The test now asserts the honest reading, and says why.
+
+**The mutation** stops despawning the items: the test fails at `left: 1, right: 0` - the rag survives a room that was supposed to be stripped.
+
+The census moves `remove_all` to the read list: **26 of 63 members read**.

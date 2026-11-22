@@ -39,6 +39,7 @@ const READ: &[&str] = &[
     "item",
     "fields",
     "computers",
+    "remove_all",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -72,7 +73,6 @@ const NAMED_GAPS: &[&str] = &[
     "vehicles",
     "remove_vehicles",
     // Clearing a square needs the removal phase and every layer it clears.
-    "remove_all",
     // Rubble is a terrain and an item together.
     "rubble",
     // NPCs need templates and the NPC store, which is P7.

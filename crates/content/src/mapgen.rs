@@ -168,6 +168,8 @@ pub struct MapgenObject {
     pub field_symbols: BTreeMap<char, FieldPatch>,
     /// Computer terminals (`jmapgen_computer`, `mapgen.cpp:3841-3912`): 85 times in the data, and each one is a **record** - a name, a security level and the actions it offers.
     pub computers: BTreeMap<char, ComputerPlacement>,
+    /// Strips a rectangle down to its terrain before the rest is drawn (`jmapgen_remove_all`, `mapgen.cpp:4169-4205`): the **first phase** of a mapgen.
+    pub remove_all: Vec<RemoveArea>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -522,6 +524,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 items_single: read_single_items(inner.get("item")),
                 field_symbols: read_field_symbols(inner.get("fields")),
                 computers: read_computers(inner.get("computers")),
+                remove_all: read_remove_areas(inner.get("remove_all")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -708,6 +711,36 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `remove_all` entry: a rectangle stripped of furniture, items, traps and fields (`jmapgen_remove_all`, `mapgen.cpp:4169-4205`).
+///
+/// Unlike every other rectangle in a mapgen this one is **filled**: `apply` walks `tripoint_range( start, end )` (`:4183`) and clears each square, so the rectangle is the
+/// area itself and there is no `repeat`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveArea {
+    /// The columns.
+    pub x: (i32, i32),
+    /// The rows.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `remove_all` list.
+fn read_remove_areas(list: Option<&cdda_json::Value>) -> Vec<RemoveArea> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        placed.push(RemoveArea {
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One `computers` entry: a terminal's record (`jmapgen_computer`, `mapgen.cpp:3841-3912`).
 ///
 /// The record is what a hacking pass will read: a name, a refusal message, a security level, and the actions the terminal offers. **Named gaps**: an option's own

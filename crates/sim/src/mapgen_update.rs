@@ -94,6 +94,9 @@ pub fn write(
         .and_then(|holder| world.get::<TerrainCodes>(holder))
         .map(|codes| codes.0.clone())
         .unwrap_or_default();
+    // **The removal phase is the first phase there is** (`mapgen.h:88-97` lists `removal` before `terrain`), so a `remove_all` strips its squares before the fill and the
+    // rows put anything back - which is what makes it able to clear a room the mapgen itself does not draw.
+    remove_everything(world, mapgen, origin);
     // **The fill comes first**, the whole chunk at the mapgen's own terrain (`mapgen.cpp:5100-5110`), so a map that draws six squares still fills its twenty-four. The count is
     // of squares **touched**, so a row drawn over a filled square is not counted twice: a chunk is a chunk however many layers land on it.
     let side = crate::overmap::SQUARES_PER_OMT;
@@ -235,6 +238,46 @@ fn draw_one_square(
 
 /// What a toilet holds when the data names no amount: `place_toilet`'s own default (`map.h:1679`).
 const DEFAULT_TOILET_CHARGES: i32 = 24;
+
+/// Strips the squares of every `remove_all` rectangle: furniture, items, traps and fields.
+///
+/// Reference: `jmapgen_remove_all::apply` (`mapgen.cpp:4177-4205`): `furn_clear`, `i_clear`, `remove_trap`, `clear_fields` and `delete_graffiti` on **every** square of the
+/// rectangle. **Named gap**: the port has no graffiti to delete and no vehicle to uncache; both are named with the stores they belong to.
+fn remove_everything(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+) {
+    for area in &mapgen.remove_all {
+        for x in area.x.0..=area.x.1 {
+            for y in area.y.0..=area.y.1 {
+                if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+                    continue;
+                }
+                let at = (origin.0 + x, origin.1 + y, origin.2);
+                crate::square::set_furniture(world, at, 0);
+                for item in crate::items_at(world, (at.0, at.1)) {
+                    world.despawn(item);
+                }
+                crate::square::remove_trap(world, at);
+                clear_fields(world, at);
+            }
+        }
+    }
+}
+
+/// Takes every field off a square.
+fn clear_fields(world: &mut World, at: (i32, i32, i32)) {
+    let standing: Vec<bevy_ecs::prelude::Entity> = world
+        .query::<(bevy_ecs::prelude::Entity, &crate::Position, &crate::Field)>()
+        .iter(world)
+        .filter(|(_entity, position, _field)| (position.x, position.y, position.z) == at)
+        .map(|(entity, _position, _field)| entity)
+        .collect();
+    for entity in standing {
+        world.despawn(entity);
+    }
+}
 
 /// Scatters terrain, furniture and traps over their rectangles.
 ///
