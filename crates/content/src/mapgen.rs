@@ -175,6 +175,10 @@ pub struct MapgenObject {
     pub monster_symbols: BTreeMap<char, SymbolMonster>,
     /// Nested mapgens placed over a rectangle instead of at a symbol (`place_nested`): the same piece as `nested`, 1,382 times, with the dice choosing the marker.
     pub place_nested: Vec<AreaNested>,
+    /// Single items placed over a rectangle (`place_item`, 165 uses): the `item` symbol map with the square written out.
+    pub place_item: Vec<AreaSingleItem>,
+    /// Signs placed over a rectangle (`place_signs`, 127 uses): the `signs` symbol map with the square written out.
+    pub place_signs: Vec<AreaSign>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -532,6 +536,8 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 remove_all: read_remove_areas(inner.get("remove_all")),
                 monster_symbols: read_monster_symbols(inner.get("monster")),
                 place_nested: read_area_nested(inner.get("place_nested")),
+                place_item: read_area_single_items(inner.get("place_item")),
+                place_signs: read_area_signs(inner.get("place_signs")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -718,6 +724,89 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `place_item` entry: a single item whose square the entry writes out (`jmapgen_spawn_item` under `place_item`, `mapgen.cpp:5390`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaSingleItem {
+    /// The item id.
+    pub item: String,
+    /// How many each spawn drops, as a range.
+    pub amount: (i32, i32),
+    /// A percentage of one spawn.
+    pub chance: i32,
+    /// The columns it may land in.
+    pub x: (i32, i32),
+    /// The rows it may land in.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_item` list.
+fn read_area_single_items(list: Option<&cdda_json::Value>) -> Vec<AreaSingleItem> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(item)) = one.get("item") else {
+            continue;
+        };
+        placed.push(AreaSingleItem {
+            item: item.clone(),
+            amount: span(one.get("amount")),
+            chance: match one.get("chance") {
+                Some(cdda_json::Value::Int(value)) => {
+                    i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                }
+                _ => 100,
+            },
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
+/// One `place_signs` entry: a sign whose square the entry writes out (`jmapgen_sign` under `place_signs`, `mapgen.cpp:5393`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaSign {
+    /// The furniture it stands as.
+    pub furniture: String,
+    /// What it says.
+    pub text: String,
+    /// The columns it may land in.
+    pub x: (i32, i32),
+    /// The rows it may land in.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_signs` list.
+fn read_area_signs(list: Option<&cdda_json::Value>) -> Vec<AreaSign> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        placed.push(AreaSign {
+            furniture: match one.get("furniture") {
+                Some(cdda_json::Value::Str(id)) => id.clone(),
+                _ => "f_sign".to_owned(),
+            },
+            text: match one.get("signage") {
+                Some(cdda_json::Value::Str(text)) => text.clone(),
+                _ => String::new(),
+            },
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One `place_nested` entry: a nested chunk whose marker the dice pick from a rectangle (`jmapgen_nested`, `mapgen.cpp:4490-4505`).
 ///
 /// The chunks are the same weighted list the symbol form carries; only the square's source differs.

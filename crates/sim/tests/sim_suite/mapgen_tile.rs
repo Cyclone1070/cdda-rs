@@ -45,6 +45,8 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -169,6 +171,8 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -251,6 +255,8 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -316,6 +322,8 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -400,6 +408,8 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -503,6 +513,8 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -571,6 +583,8 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -640,6 +654,8 @@ fn a_mapgens_predecessor_is_drawn_first() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -671,6 +687,8 @@ fn a_mapgens_predecessor_is_drawn_first() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -765,6 +783,8 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -844,6 +864,8 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -925,6 +947,8 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1037,6 +1061,8 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1138,6 +1164,8 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1241,6 +1269,8 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1329,6 +1359,8 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1450,6 +1482,8 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1522,6 +1556,8 @@ fn a_sign_is_furniture_that_carries_words() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1628,6 +1664,8 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1700,6 +1738,8 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1743,6 +1783,8 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1816,6 +1858,8 @@ fn a_nested_chunk_stands_at_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1859,6 +1903,8 @@ fn a_nested_chunk_stands_at_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1952,6 +1998,8 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2059,6 +2107,8 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2132,6 +2182,8 @@ fn a_terminal_is_furniture_and_a_record() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2224,6 +2276,8 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         }],
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2309,6 +2363,8 @@ fn a_monster_can_be_a_symbol() {
         .into_iter()
         .collect(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2371,6 +2427,8 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2406,6 +2464,8 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
             y: (5, 5),
             chunks: vec![("nested_room".to_owned(), 100)],
         }],
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2434,5 +2494,92 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         cdda_sim::square::terrain_at(&world, (9, 5, 0)),
         Some(11),
         "**one square before the marker is still the outer floor**"
+    );
+}
+
+/// **The rectangle forms of two symbol maps.** `jmapgen_spawn_item` is loaded under `item` (the symbol map) and under **`place_item`** (`mapgen.cpp:5390`, 165 uses);
+/// `jmapgen_sign` under `signs` and under **`place_signs`** (`:5393`, 127 uses). Same pieces, same rules, squares written out instead of symbols.
+///
+/// The test puts both on fixed squares, so it pins what the rectangle form **is** - the same placement the symbol form makes, at the square the entry names - and not the
+/// rectangle's dice, which the area-set test already covers.
+#[test]
+fn a_rectangle_can_place_a_single_item_and_a_sign() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rag",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    cdda_sim::furniture_types::set_types(&mut world, [("f_sign".to_owned(), 87u32)]);
+    let room = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["....".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
+        remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
+        place_nested: Vec::new(),
+        place_item: vec![cdda_content::mapgen::AreaSingleItem {
+            item: "rag".to_owned(),
+            amount: (2, 2),
+            chance: 100,
+            x: (1, 1),
+            y: (0, 0),
+        }],
+        place_signs: vec![cdda_content::mapgen::AreaSign {
+            furniture: "f_sign".to_owned(),
+            text: "No Entry".to_owned(),
+            x: (3, 3),
+            y: (0, 0),
+        }],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(47));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        2,
+        "**two rags on the square the entry named**"
+    );
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (3, 0, 0)),
+        Some(87),
+        "**the sign's furniture on its own square**"
+    );
+    assert_eq!(
+        cdda_sim::signage::text_at(&world, (3, 0, 0)),
+        Some("No Entry".to_owned()),
+        "**and the words it says**"
     );
 }

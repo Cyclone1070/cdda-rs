@@ -42,6 +42,8 @@ const READ: &[&str] = &[
     "remove_all",
     "monster",
     "place_nested",
+    "place_item",
+    "place_signs",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -52,14 +54,12 @@ const NAMED_GAPS: &[&str] = &[
     // A nested mapgen with its own weighted list, and the machinery to choose one and stitch it into the chunk.
     // The parameterised form of every symbol map: `place_terrain`, `place_furniture`, `place_traps`, `place_items`, ... draw over a **rectangle** rather than from
     // rows, and each is the symbol map's rule with a range. The data writes both; the port reads the row form.
-    "place_item",
     "place_monsters",
     "place_liquids",
     "place_rubble",
     "place_toilets",
     "place_vendingmachines",
     "place_computers",
-    "place_signs",
     "place_graffiti",
     "place_corpses",
     "place_zones",

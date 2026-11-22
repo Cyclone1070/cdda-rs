@@ -135,6 +135,8 @@ pub fn write(
     place_monsters(world, mapgen, origin, &mut rolls);
     place_area_items(world, mapgen, origin, &mut rolls);
     place_area_sets(world, mapgen, origin, &mut rolls);
+    place_item_areas(world, mapgen, origin, &mut rolls);
+    place_sign_areas(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     if let Some(rolls) = rolls {
         crate::singletons::put_rolls(world, rolls);
@@ -773,12 +775,7 @@ fn place_the_sign(
     let Some(sign) = mapgen.signs.get(&symbol) else {
         return false;
     };
-    if let Some(code) = crate::furniture_types::code_of(world, &sign.furniture) {
-        crate::square::set_furniture(world, at, code);
-    }
-    if !sign.text.is_empty() {
-        crate::signage::set_text(world, at, &sign.text);
-    }
+    place_one_sign(world, &sign.furniture, &sign.text, at);
     true
 }
 
@@ -928,6 +925,97 @@ fn place_the_computer(
     true
 }
 
+/// Places every `place_item` entry: the `item` symbol map with the square written out.
+fn place_item_areas(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_item {
+        let (x, y) = match rolls.as_mut() {
+            Some(dice) => (
+                dice.rng(entry.x.0, entry.x.1),
+                dice.rng(entry.y.0, entry.y.1),
+            ),
+            None => (entry.x.0, entry.y.0),
+        };
+        place_one_item(
+            world,
+            &entry.item,
+            entry.amount,
+            entry.chance,
+            (origin.0 + x, origin.1 + y, origin.2),
+            rolls,
+        );
+    }
+}
+
+/// Places every `place_signs` entry: the `signs` symbol map with the square written out.
+fn place_sign_areas(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_signs {
+        let (x, y) = match rolls.as_mut() {
+            Some(dice) => (
+                dice.rng(entry.x.0, entry.x.1),
+                dice.rng(entry.y.0, entry.y.1),
+            ),
+            None => (entry.x.0, entry.y.0),
+        };
+        place_one_sign(
+            world,
+            &entry.furniture,
+            &entry.text,
+            (origin.0 + x, origin.1 + y, origin.2),
+        );
+    }
+}
+
+/// The one shape of the single-item rule, whichever form the data wrote.
+fn place_one_item(
+    world: &mut World,
+    item: &str,
+    amount: (i32, i32),
+    chance: i32,
+    at: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    let spawns = if chance == 100 {
+        1
+    } else {
+        match rolls.as_mut() {
+            Some(dice) => roll_remainder(dice, f64::from(chance) / 100.0),
+            None => 0,
+        }
+    };
+    let Some(kind) = crate::item_registry::id_of(world, item) else {
+        return;
+    };
+    for _ in 0..spawns {
+        let count = match rolls.as_mut() {
+            Some(dice) => dice.rng(amount.0, amount.1),
+            None => amount.0,
+        };
+        for _ in 0..count.max(0) {
+            crate::drop_item(world, (at.0, at.1), kind, 1);
+        }
+    }
+}
+
+/// The one shape of the sign rule, whichever form the data wrote.
+fn place_one_sign(world: &mut World, furniture: &str, text: &str, at: (i32, i32, i32)) {
+    if let Some(code) = crate::furniture_types::code_of(world, furniture) {
+        crate::square::set_furniture(world, at, code);
+    }
+    if !text.is_empty() {
+        crate::signage::set_text(world, at, text);
+    }
+}
+
 /// Places the single item a symbol carries, and answers whether it placed any.
 ///
 /// Reference: `jmapgen_spawn_item::apply` (`mapgen.cpp:3500-3520`): a chance of a hundred is **one** spawn; anything less is `roll_remainder( chance / 100 )` spawns, and each
@@ -942,26 +1030,14 @@ fn place_the_single_item(
     let Some(placement) = mapgen.items_single.get(&symbol) else {
         return false;
     };
-    let spawns = if placement.chance == 100 {
-        1
-    } else {
-        match rolls.as_mut() {
-            Some(dice) => roll_remainder(dice, f64::from(placement.chance) / 100.0),
-            None => 0,
-        }
-    };
-    let Some(kind) = crate::item_registry::id_of(world, &placement.item) else {
-        return false;
-    };
-    for _ in 0..spawns {
-        let count = match rolls.as_mut() {
-            Some(dice) => dice.rng(placement.amount.0, placement.amount.1),
-            None => placement.amount.0,
-        };
-        for _ in 0..count.max(0) {
-            crate::drop_item(world, (at.0, at.1), kind, 1);
-        }
-    }
+    place_one_item(
+        world,
+        &placement.item,
+        placement.amount,
+        placement.chance,
+        at,
+        rolls,
+    );
     true
 }
 

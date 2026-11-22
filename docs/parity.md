@@ -40585,3 +40585,24 @@ The test now says where the marker's squares land for a marker **inside** the ch
 **The mutation** flips the sign back: the test fails at `left: Some(0), right: Some(91)` - the marker's own square empty, the chunk gone up and left.
 
 The census moves `place_nested` to the read list: **28 of 63 members read**.
+
+## Two more rectangles that are the same pieces (round 304)
+
+The loader names a piece twice whenever the data needs both a symbol map and a rectangle list, and the port had read one of each pair:
+
+| Piece | Symbol map | Rectangle list | Uses of the rectangle |
+|---|---|---|---|
+| `jmapgen_spawn_item` | `item` | **`place_item`** (`mapgen.cpp:5390`) | 165 |
+| `jmapgen_sign` | `signs` | **`place_signs`** (`:5393`) | 127 |
+
+Both went in as **one rule with two square sources**, the same way `monster` and `place_monster` did last round: `place_one_item` and `place_one_sign` are the rules, and the
+symbol forms and the area forms differ only in where they get their square. The older symbol-map tests still pass, which is the check that the shared shape kept its meaning.
+
+**Named gap**: `jmapgen_sign` clears the furniture before it sets its own (`furn_set( NULL )` then `furn_set( sign_furniture )`, `:2704-2705`) so a sign can replace a wall;
+the port's `set_furniture` replaces in one step, so the clear is a no-op here - but a sign whose furniture carries extra state on the square would need the two-step version.
+The snippet form (`snippet` instead of `signage`) is also unread: it needs the snippet pool.
+
+**The mutation** makes the item rule drop one item instead of `amount`: the test fails at `left: 1, right: 2`. Because both square sources now share the rule, that single
+mutation covers the symbol map and the rectangle list at once - which is what sharing a rule is for.
+
+The census moves `place_item` and `place_signs` to the read list: **30 of 63 members read**.
