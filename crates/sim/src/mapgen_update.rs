@@ -190,6 +190,9 @@ fn draw_one_square(
         crate::square::set_furniture(world, at, code);
         drew = true;
     }
+    // **Furniture with something inside it** (`jmapgen_sealed_item`, `mapgen.cpp:4049-4060`): the contents are placed first and the furniture is set **over** them, so a
+    // locker's contents are inside the locker rather than on the floor beside it.
+    drew |= place_the_sealed_item(world, mapgen, at, symbol, rolls);
     // **A toilet is furniture with water in it** (`mapgen.cpp:2836-2844`, `place_toilet` at `:7296-7301`): the furniture is `f_toilet`, the item is `water` with the entry's
     // charges, and an amount of zero means the reference's default of 24 (`map.h:1679`).
     if let Some(amount) = mapgen.toilets.get(&symbol) {
@@ -366,6 +369,69 @@ fn roll_remainder(dice: &mut cdda_core_types::rng::Rolls, value: f64) -> i32 {
     } else {
         whole
     }
+}
+
+/// Places what a symbol's sealed furniture holds, and answers whether it placed any.
+///
+/// Reference: `jmapgen_sealed_item::apply` (`mapgen.cpp:4049-4060`). The **chance** is a percentage of the whole entry, checked **before** anything is placed; the contents
+/// follow; the furniture goes on top last. An entry with neither an item nor a group is one the reference complains about and the reader refuses, so a sealed square always
+/// holds something.
+fn place_the_sealed_item(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(sealed) = mapgen.sealed_items.get(&symbol) else {
+        return false;
+    };
+    if sealed.chance < 100
+        && !rolls
+            .as_mut()
+            .is_none_or(|rolls| rolls.x_in_y(f64::from(sealed.chance), 100.0))
+    {
+        return false;
+    }
+    if let Some(item) = sealed.item.as_ref()
+        && rolls
+            .as_mut()
+            .is_none_or(|rolls| item.chance >= 100 || rolls.x_in_y(f64::from(item.chance), 100.0))
+        && let Some(kind) = crate::item_registry::id_of(world, &item.id)
+    {
+        let count = match rolls.as_mut() {
+            Some(rolls) => rolls.rng(item.amount.0, item.amount.1),
+            None => item.amount.0,
+        };
+        for _ in 0..count.max(0) {
+            crate::drop_item(world, (at.0, at.1), kind, 1);
+        }
+    }
+    if let Some(group) = sealed.group.as_ref()
+        && rolls
+            .as_mut()
+            .is_none_or(|rolls| group.chance >= 100 || rolls.x_in_y(f64::from(group.chance), 100.0))
+    {
+        if let Some(held) = rolls.take() {
+            crate::singletons::put_rolls(world, held);
+        }
+        let produced = crate::item_groups::draw(world, &group.group);
+        *rolls = crate::singletons::take_rolls(world);
+        if let Some(produced) = produced {
+            for (id, amount) in produced {
+                if let Some(kind) = crate::item_registry::id_of(world, &id) {
+                    for _ in 0..amount.max(0) {
+                        crate::drop_item(world, (at.0, at.1), kind, 1);
+                    }
+                }
+            }
+        }
+    }
+    // The furniture goes on **last**, over what it holds.
+    if let Some(code) = crate::furniture_types::code_of(world, &sealed.furniture) {
+        crate::square::set_furniture(world, at, code);
+    }
+    true
 }
 
 /// Places the liquid a symbol carries, and answers whether it placed any.

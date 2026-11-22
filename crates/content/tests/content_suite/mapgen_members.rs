@@ -28,6 +28,7 @@ const READ: &[&str] = &[
     "liquids",
     "place_items",
     "place_loot",
+    "sealed_item",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -64,7 +65,6 @@ const NAMED_GAPS: &[&str] = &[
     "vendingmachines",
     "gaspumps",
     "computers",
-    "sealed_item",
     "signs",
     // Vehicles are P8.
     "vehicles",

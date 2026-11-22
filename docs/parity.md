@@ -40382,3 +40382,19 @@ It looks like `place_items` and is not:
 **The mutation** makes the chance `chance > 0 || chance == 0`, which places everything always: the test fails at `left: 2, right: 0` on the entry the data said never to place.
 
 The census moves `place_loot` to the read list: **14 of 63 members read**.
+
+## The locker's contents (round 293)
+
+`jmapgen_sealed_item` (`mapgen.cpp:3913-4060`) is furniture placed **over** what it holds, used **77 times** in the data: every locker, cabinet, crate and vending machine that
+is not empty. The port read none of them, so every one was a bare furniture square holding nothing - the same class of hole as the toilets, and just as invisible.
+
+The order is the rule: **the contents are placed first and the furniture is set last** (`:4049-4060`), which is what makes a locker's contents *inside* the locker rather than
+on the floor beside it. The chance is a percentage of the whole entry and is checked before anything is placed; the entry carries a single `item` (with its own amount and
+chance) or an `items` group (with its own chance), and the reference wants at least one of the two (`:3937-3941`) - an entry with neither is refused by the reader.
+
+**Named gaps**: the `PLANT` furniture validation (`:3955-4020`) and `jmapgen_spawn_item`'s other members (`prob`, `custom_flags`, `variant`) are not read; the port's sealed
+items carry an id, an amount and a chance.
+
+**The mutation** drops the furniture placement: the test fails at `left: None, right: Some(51)` - the rags are on the floor of a square with no locker on it.
+
+The census moves `sealed_item` to the read list: **15 of 63 members read**.

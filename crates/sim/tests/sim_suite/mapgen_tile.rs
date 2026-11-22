@@ -31,6 +31,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -141,6 +142,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -209,6 +211,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -260,6 +263,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -330,6 +334,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -419,6 +424,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -473,6 +479,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
             friendly: false,
         }],
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -528,6 +535,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -545,6 +553,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -625,6 +634,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
             friendly: false,
         }],
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -690,6 +700,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
             friendly: true,
         }],
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -757,6 +768,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -855,6 +867,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         .collect(),
         place_items: Vec::new(),
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -942,6 +955,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
             y: (0, 1),
         }],
         place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1031,6 +1045,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
                 y: (0, 0),
             },
         ],
+        sealed_items: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1048,5 +1063,80 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         cdda_sim::items_at(&mut world, (3, 0)).len(),
         0,
         "**and a chance of zero places nothing at all**"
+    );
+}
+
+/// **A locker holds what the mapgen puts in it.** Reference: `jmapgen_sealed_item::apply` (`mapgen.cpp:4049-4060`) - the chance is a percentage of the whole entry, the
+/// contents are placed, and the furniture is set **over** them last. That order is the rule: a locker's contents are inside it, not on the floor beside it.
+///
+/// The data uses `sealed_item` **77 times**: every locker, cabinet, crate and vending machine that is not empty. The port read none of them, so every one was a bare
+/// furniture square holding nothing.
+#[test]
+fn a_sealed_item_is_furniture_with_something_inside_it() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::furniture_types::set_types(&mut world, [("f_locker".to_owned(), 51u32)]);
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rag",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let lockers = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["L.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('L', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: [(
+            'L',
+            cdda_content::mapgen::SealedPlacement {
+                furniture: "f_locker".to_owned(),
+                chance: 100,
+                item: Some(cdda_content::mapgen::SealedItem {
+                    id: "rag".to_owned(),
+                    amount: (2, 2),
+                    chance: 100,
+                }),
+                group: None,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), lockers)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (0, 0, 0)),
+        Some(51),
+        "**the locker is furniture on the square**"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (0, 0)).len(),
+        2,
+        "**and the two rags are in it, on the same square as the furniture**"
     );
 }

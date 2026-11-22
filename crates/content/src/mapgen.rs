@@ -146,6 +146,8 @@ pub struct MapgenObject {
     pub place_items: Vec<AreaItemPlacement>,
     /// The single items and groups dropped on one random square of a rectangle (`jmapgen_loot`, `mapgen.cpp:3019-3072`), which is the mapgen's most used member: 669 times.
     pub place_loot: Vec<LootPlacement>,
+    /// Furniture with something **inside** it (`jmapgen_sealed_item`, `mapgen.cpp:3913-4040`): a locker and its contents, 77 times in the data.
+    pub sealed_items: BTreeMap<char, SealedPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -489,6 +491,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 liquids: read_liquids(inner.get("liquids")),
                 place_items: read_area_items(inner.get("place_items")),
                 place_loot: read_loot(inner.get("place_loot")),
+                sealed_items: read_sealed(inner.get("sealed_item")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -675,6 +678,112 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `sealed_item` entry: furniture placed **over** what it holds (`jmapgen_sealed_item`, `mapgen.cpp:3913-4040`).
+///
+/// The artist is explicit: the furniture is cleared, the item or group is placed, and the furniture is set back **on top** (`:4049-4060`) - so the contents are inside it,
+/// not beside it, which is what makes a locker's contents stay put until it is opened or broken.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SealedPlacement {
+    /// The furniture that seals it.
+    pub furniture: String,
+    /// A percentage chance of the entry being placed at all; a hundred is always.
+    pub chance: i32,
+    /// The single item inside, when the entry names one.
+    pub item: Option<SealedItem>,
+    /// The item group inside, when it names one instead. The reference wants at least one of the two (`:3937-3941`).
+    pub group: Option<SealedGroup>,
+}
+
+/// The single item a sealed square holds: `jmapgen_spawn_item`'s three numbers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SealedItem {
+    /// The item id.
+    pub id: String,
+    /// How many, as a range.
+    pub amount: (i32, i32),
+    /// A percentage chance of it being there at all.
+    pub chance: i32,
+}
+
+/// The item group a sealed square holds: `jmapgen_item_group`'s group and chance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SealedGroup {
+    /// The group id - the member is called `item` and holds a group, as in `place_items`.
+    pub group: String,
+    /// A percentage chance of the group being drawn at all.
+    pub chance: i32,
+}
+
+/// Reads a mapgen's `sealed_item` object.
+fn read_sealed(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, SealedPlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(furniture)) = spec.get("furniture") else {
+            continue;
+        };
+        let item = match spec.get("item") {
+            Some(cdda_json::Value::Object(inner)) => match inner.get("item") {
+                Some(cdda_json::Value::Str(id)) => Some(SealedItem {
+                    id: id.clone(),
+                    amount: span(inner.get("amount")),
+                    chance: match inner.get("chance") {
+                        Some(cdda_json::Value::Int(value)) => {
+                            i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                        }
+                        _ => 100,
+                    },
+                }),
+                _ => None,
+            },
+            _ => None,
+        };
+        let group = match spec.get("items") {
+            Some(cdda_json::Value::Object(inner)) => match inner.get("item") {
+                Some(cdda_json::Value::Str(id)) => Some(SealedGroup {
+                    group: id.clone(),
+                    chance: match inner.get("chance") {
+                        Some(cdda_json::Value::Int(value)) => {
+                            i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                        }
+                        _ => 100,
+                    },
+                }),
+                _ => None,
+            },
+            _ => None,
+        };
+        if item.is_none() && group.is_none() {
+            continue;
+        }
+        placed.insert(
+            symbol,
+            SealedPlacement {
+                furniture: furniture.clone(),
+                chance: match spec.get("chance") {
+                    Some(cdda_json::Value::Int(value)) => {
+                        i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                    }
+                    _ => 100,
+                },
+                item,
+                group,
+            },
+        );
+    }
+    placed
+}
+
 /// One `place_loot` entry: **one** item or group, on one random square of a rectangle (`jmapgen_loot`, `mapgen.cpp:3019-3072`).
 ///
 /// Two members make it different from `place_items` even though both name a rectangle: the chance is a percentage of **being placed at all** (`rng( 0, 99 ) < chance`,
