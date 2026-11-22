@@ -191,6 +191,7 @@ fn draw_one_square(
         drew = true;
     }
     drew |= place_the_vending_machine(world, mapgen, at, symbol, rolls);
+    drew |= place_the_sign(world, mapgen, at, symbol);
     // **Furniture with something inside it** (`jmapgen_sealed_item`, `mapgen.cpp:4049-4060`): the contents are placed first and the furniture is set **over** them, so a
     // locker's contents are inside the locker rather than on the floor beside it.
     drew |= place_the_sealed_item(world, mapgen, at, symbol, rolls);
@@ -370,6 +371,28 @@ fn roll_remainder(dice: &mut cdda_core_types::rng::Rolls, value: f64) -> i32 {
     } else {
         whole
     }
+}
+
+/// Writes a sign: the furniture and the words on it, and answers whether it wrote any.
+///
+/// Reference: `jmapgen_sign::apply` (`mapgen.cpp:2701-2721`): the furniture (default `f_sign`) goes on the square and `set_signage` stores the text. The reference also
+/// replaces tags such as a city name in that text (`apply_all_tags`, `:2719`), which the port has no overmap city for - the words are stored as written.
+fn place_the_sign(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+) -> bool {
+    let Some(sign) = mapgen.signs.get(&symbol) else {
+        return false;
+    };
+    if let Some(code) = crate::furniture_types::code_of(world, &sign.furniture) {
+        crate::square::set_furniture(world, at, code);
+    }
+    if !sign.text.is_empty() {
+        crate::signage::set_text(world, at, &sign.text);
+    }
+    true
 }
 
 /// Places a vending machine: the furniture its flags choose, and the stock it holds, and answers whether it placed any.

@@ -95,6 +95,7 @@ pub mod pockets;
 pub mod reading;
 pub mod routing;
 pub mod sight;
+pub mod signage;
 pub mod singletons;
 pub mod sounds;
 pub mod spell_area;

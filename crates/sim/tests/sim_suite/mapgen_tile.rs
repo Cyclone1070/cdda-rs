@@ -33,6 +33,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -145,6 +146,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -215,6 +217,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -268,6 +271,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -340,6 +344,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -431,6 +436,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -487,6 +493,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -544,6 +551,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -563,6 +571,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -645,6 +654,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -712,6 +722,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -781,6 +792,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -881,6 +893,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -970,6 +983,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         place_loot: Vec::new(),
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1061,6 +1075,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         ],
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1137,6 +1152,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         .into_iter()
         .collect(),
         vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1246,6 +1262,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         ]
         .into_iter()
         .collect(),
+        signs: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1268,5 +1285,66 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         cdda_sim::items_at(&mut world, (0, 0)).len(),
         2,
         "**and it is stocked**"
+    );
+}
+
+/// **A sign is furniture that carries words.** Reference: `jmapgen_sign::apply` (`mapgen.cpp:2701-2721`): the furniture (default `f_sign`) goes on the square and
+/// `set_signage` stores the text, which is the part a player reads - a shop's name, a lab's warning, a graffito.
+///
+/// The data uses `signs` **31 times**. The port read none of them and had no place to put the words, so every sign was silent furniture.
+#[test]
+fn a_sign_is_furniture_that_carries_words() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::furniture_types::set_types(&mut world, [("f_sign".to_owned(), 71u32)]);
+    let shop = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["S.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('S', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: [(
+            'S',
+            cdda_content::mapgen::SignPlacement {
+                furniture: "f_sign".to_owned(),
+                text: "OPEN".to_owned(),
+            },
+        )]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shop)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (0, 0, 0)),
+        Some(71),
+        "**the sign is furniture**"
+    );
+    assert_eq!(
+        cdda_sim::signage::text_at(&world, (0, 0, 0)),
+        Some("OPEN".to_owned()),
+        "**and it says what the data wrote**"
+    );
+    assert_eq!(
+        cdda_sim::signage::census(&mut world),
+        1,
+        "**one sign in the store, not a copy beside it**"
     );
 }

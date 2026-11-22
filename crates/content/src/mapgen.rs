@@ -150,6 +150,8 @@ pub struct MapgenObject {
     pub sealed_items: BTreeMap<char, SealedPlacement>,
     /// Vending machines (`jmapgen_vending_machine`, `mapgen.cpp:2784-2819`): 118 times in the data, and each one is furniture **plus a stock**.
     pub vending_machines: BTreeMap<char, VendingPlacement>,
+    /// Signs and graffiti (`jmapgen_sign`, `mapgen.cpp:2683-2724`): furniture that carries **words**.
+    pub signs: BTreeMap<char, SignPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -495,6 +497,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_loot: read_loot(inner.get("place_loot")),
                 sealed_items: read_sealed(inner.get("sealed_item")),
                 vending_machines: read_vending(inner.get("vendingmachines")),
+                signs: read_signs(inner.get("signs")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -681,6 +684,50 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `signs` entry: furniture that carries words (`jmapgen_sign`, `mapgen.cpp:2683-2724`).
+///
+/// The furniture defaults to `f_sign` and must carry the reference's `SIGN` flag; the text comes from `signage` (a written string) or a `snippet` category the game rolls
+/// from. **Named gap**: there is no snippet registry in the port, so a `snippet` entry places the furniture and **no text** - the reference would roll one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignPlacement {
+    /// The furniture the words sit on.
+    pub furniture: String,
+    /// What it says, when the data writes it out.
+    pub text: String,
+}
+
+/// Reads a mapgen's `signs` object.
+fn read_signs(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, SignPlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        placed.insert(
+            symbol,
+            SignPlacement {
+                furniture: match spec.get("furniture") {
+                    Some(cdda_json::Value::Str(id)) => id.clone(),
+                    _ => "f_sign".to_owned(),
+                },
+                text: match spec.get("signage") {
+                    Some(cdda_json::Value::Str(text)) => text.clone(),
+                    _ => String::new(),
+                },
+            },
+        );
+    }
+    placed
+}
+
 /// One `vendingmachines` entry: furniture **plus a stock** (`jmapgen_vending_machine`, `mapgen.cpp:2784-2819`).
 ///
 /// Four flags choose the furniture - `place_vending` (`mapgen.cpp:7306-7336`) picks among six ids by `powered`, `reinforced` and `networked` - and the `item_group` is the

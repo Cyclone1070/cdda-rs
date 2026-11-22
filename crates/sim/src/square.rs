@@ -206,7 +206,7 @@ pub fn squares(world: &World) -> Vec<Entity> {
 ///
 /// A slice rather than a copy: this is asked once per ray and once per drawn square, and an
 /// allocation per question is the difference between a sweep and a stutter.
-fn entities_at(world: &World, square: (i32, i32, i32)) -> &[Entity] {
+pub(crate) fn entities_at(world: &World, square: (i32, i32, i32)) -> &[Entity] {
     match crate::singletons::index(world) {
         Some(index) => index.at_level(square.0, square.1, square.2),
         None => &[],

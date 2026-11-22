@@ -30,6 +30,7 @@ const READ: &[&str] = &[
     "place_loot",
     "sealed_item",
     "vendingmachines",
+    "signs",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -65,7 +66,6 @@ const NAMED_GAPS: &[&str] = &[
     // Furniture with contents or text: each needs the thing it holds or says before it can be placed honestly.
     "gaspumps",
     "computers",
-    "signs",
     // Vehicles are P8.
     "vehicles",
     "remove_vehicles",

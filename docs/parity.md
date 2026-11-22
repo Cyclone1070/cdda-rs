@@ -40415,3 +40415,19 @@ shards in the squares around it instead of stocking it. The port stocks every ma
 **The mutation** drops `powered` from the choice (`match (false, ...)`): the test fails at `left: None, right: Some(62)` - the armoured machine is drawn as the dark one.
 
 The census moves `vendingmachines` to the read list: **16 of 63 members read**.
+
+## Words on a wall (round 295)
+
+`jmapgen_sign` (`mapgen.cpp:2683-2724`) is furniture that carries **words**, used **31 times** in the data: a shop's name, a lab's warning, a graffito. The port read none of
+them and had **nowhere to put the words** - so every sign was silent furniture, which is the same shape of gap as an unread member and a different one: the furniture was drawn
+correctly, and the part a player reads was missing.
+
+The words are their own component on the square's own entity (`signage::Sign`), written by `signage::set_text` and read by `signage::text_at`, with a `census` that counts
+them - one store, one copy, and the test asserts the count so a second copy cannot hide.
+
+**Named gaps**: the reference rolls a `snippet` category for text the data does not write out, and substitutes tags such as the city's name (`apply_all_tags`, `:2719`); the port
+has neither a snippet registry nor a city, so a snippet sign gets the furniture and **no words**.
+
+**The mutation** skips `set_text`: the test fails at `left: None, right: Some("OPEN")` - a sign standing on a wall saying nothing.
+
+The census moves `signs` to the read list: **17 of 63 members read**.
