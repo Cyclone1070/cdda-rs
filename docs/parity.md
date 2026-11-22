@@ -40325,3 +40325,22 @@ name in both lists (a disagreement about the same square).
 
 **The mutation** removes `toilets` from the read list: the census fails at `1 members are neither read nor named as gaps: ["toilets"]` - which is what the hole looked like
 before round 288 read it.
+
+## A bottle on the counter (round 290)
+
+`jmapgen_liquid_item` (`mapgen.cpp:2900-2944`) is the mapgen's liquid layer, used **106 times** in the data: a kitchen's clean water, a garage's gasoline, a hospital's blood.
+Four numbers make the rule, and three of them are easy to get wrong in a way nothing notices:
+
+- **`chance` is one-in-n**, not a percentage - the reference's `chance( jsi, "chance", 1, 1 )` defaults to **1**, meaning always. The item group's `chance` is the opposite
+  convention, so the two members in the same mapgen read differently on purpose.
+- **`amount` `-1` means "leave the item type's own count alone"**, which is why the reader carries a range that may be negative rather than clamping it.
+- **A fuel is counted in hundreds**: `gasoline`, `avgas`, `diesel` and `jp8` get `charges *= 100` (`:2929-2934`). That is one branch, and the test's gasoline square is the only
+  place its absence is visible.
+- A negative or zero result places **nothing** (`:2936`).
+
+**Named gap**: the port's item registry carries no default charge count, so a liquid the data gives no amount for gets **one** charge. Every liquid in the data that omits an
+amount has a count of one, but that is a fact about this data, not about the rule.
+
+**The mutation** is the fuel multiply at `* 1`: the test fails at `left: [1], right: [100]`.
+
+The census moves `liquids` from the gap list to the read list: **12 of 63 members read**.

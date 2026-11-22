@@ -25,6 +25,7 @@ const READ: &[&str] = &[
     "place_monster",
     "place_fields",
     "toilets",
+    "liquids",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -65,8 +66,6 @@ const NAMED_GAPS: &[&str] = &[
     "computers",
     "sealed_item",
     "signs",
-    // Items in a container, and items chosen from a group over an area.
-    "liquids",
     // Vehicles are P8.
     "vehicles",
     "remove_vehicles",

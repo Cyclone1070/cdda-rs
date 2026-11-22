@@ -214,11 +214,68 @@ fn draw_one_square(
         drew = true;
     }
     drew |= place_the_items(world, mapgen, at, symbol, rolls);
+    drew |= place_the_liquid(world, mapgen, at, symbol, rolls);
     drew
 }
 
 /// What a toilet holds when the data names no amount: `place_toilet`'s own default (`map.h:1679`).
 const DEFAULT_TOILET_CHARGES: i32 = 24;
+
+/// Places the liquid a symbol carries, and answers whether it placed any.
+///
+/// Reference: `jmapgen_liquid_item::apply` (`mapgen.cpp:2911-2943`): **one chance in `chance`** of the liquid being there at all, charges rolled from the amount unless the
+/// amount is `-1` (which leaves the item type's own count alone), and a fuel's charges multiplied by **one hundred** - the reference measures fuel in hundreds of charges and
+/// says so in the same block.
+fn place_the_liquid(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(placement) = mapgen.liquids.get(&symbol) else {
+        return false;
+    };
+    // `one_in( chance.get() )`: a chance of one is always, and a bigger number is rarer - the opposite of the item group's percentage.
+    if placement.chance > 1 {
+        let Some(dice) = rolls.as_mut() else {
+            return false;
+        };
+        if !dice.one_in(placement.chance) {
+            return false;
+        }
+    }
+    let Some(kind) = crate::item_registry::id_of(world, &placement.liquid) else {
+        return false;
+    };
+    let mut charges = if placement.amount.0 > -1 {
+        match rolls.as_mut() {
+            Some(dice) if placement.amount.1 > placement.amount.0 => {
+                dice.rng(placement.amount.0, placement.amount.1)
+            }
+            _ => placement.amount.0,
+        }
+    } else {
+        // The item type's own count, which the port's registry does not carry: one charge is the count every liquid in the data that omits an amount has.
+        ONE_CHARGE
+    };
+    if matches!(
+        placement.liquid.as_str(),
+        "gasoline" | "avgas" | "diesel" | "jp8"
+    ) {
+        charges *= FUEL_CHARGES_PER_UNIT;
+    }
+    if charges > 0 {
+        crate::drop_item(world, (at.0, at.1), kind, charges);
+    }
+    true
+}
+
+/// The reference's `migrated == itype_gasoline || avgas || diesel || jp8` branch multiplies a fuel's charges by this (`mapgen.cpp:2929-2934`).
+const FUEL_CHARGES_PER_UNIT: i32 = 100;
+
+/// What a liquid's charges are when the data gives no amount and the item type's own count is unavailable (`mapgen.cpp:2923`): the reference leaves the count alone.
+const ONE_CHARGE: i32 = 1;
 
 /// Places the items a symbol carries, and answers whether it placed any. Reference: `jmapgen_item_group::apply` (`mapgen.cpp:5360-5400`).
 fn place_the_items(

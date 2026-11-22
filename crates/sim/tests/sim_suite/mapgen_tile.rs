@@ -28,6 +28,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         weight,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -135,6 +136,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -200,6 +202,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -248,6 +251,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -315,6 +319,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -401,6 +406,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -457,6 +463,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -504,6 +511,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -518,6 +526,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -600,6 +609,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -662,6 +672,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -721,6 +732,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         items: BTreeMap::new(),
         monsters: Vec::new(),
         toilets: [('T', (0, 0))].into_iter().collect(),
+        liquids: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -746,5 +758,103 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         water,
         vec![24],
         "**and the data's default of twenty-four charges is in it**"
+    );
+}
+
+/// **A mapgen's liquid is a bottle on the counter.** Reference: `jmapgen_liquid_item` (`mapgen.cpp:2900-2944`) - one chance in `chance` of being there, charges drawn from the
+/// `amount` range, and a **fuel** multiplied by a hundred because the reference counts fuel in hundreds of charges (`:2929-2934`).
+///
+/// The data uses `liquids` **106 times**: every kitchen's water, every garage's gasoline, every hospital's blood was an empty square.
+#[test]
+fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "water_clean",
+                volume_ml: 0,
+                weight_g: 0,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "gasoline",
+                volume_ml: 0,
+                weight_g: 0,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+        ],
+    );
+    let kitchen = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["WG".to_owned()],
+        terrain: [
+            ('W', "t_house_one".to_owned()),
+            ('G', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: [
+            (
+                'W',
+                cdda_content::mapgen::LiquidPlacement {
+                    liquid: "water_clean".to_owned(),
+                    amount: (2, 2),
+                    chance: 1,
+                },
+            ),
+            (
+                'G',
+                cdda_content::mapgen::LiquidPlacement {
+                    liquid: "gasoline".to_owned(),
+                    amount: (1, 1),
+                    chance: 1,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), kitchen)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let charges_at = |world: &mut World, spot| -> Vec<i32> {
+        cdda_sim::items_at(world, spot)
+            .into_iter()
+            .filter_map(|item| {
+                world
+                    .get::<cdda_sim::GroundItem>(item)
+                    .map(|held| held.charges)
+            })
+            .collect()
+    };
+    assert_eq!(
+        charges_at(&mut world, (0, 0)),
+        vec![2],
+        "**the water is two charges, as the data's amount says**"
+    );
+    assert_eq!(
+        charges_at(&mut world, (1, 0)),
+        vec![100],
+        "**and the fuel is a hundred times one, because fuel is counted in hundreds**"
     );
 }

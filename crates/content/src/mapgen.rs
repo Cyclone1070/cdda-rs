@@ -140,6 +140,8 @@ pub struct MapgenObject {
     pub weight: i32,
     /// The toilets a symbol places (`jmapgen_toilet`, `mapgen.cpp:2824-2845`): furniture with water in it, and the **amount** is charges in the water.
     pub toilets: BTreeMap<char, (i32, i32)>,
+    /// The liquids a symbol places (`jmapgen_liquid_item`, `mapgen.cpp:2900-2944`): a bottle of water on a counter is this, not an item group.
+    pub liquids: BTreeMap<char, LiquidPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -480,6 +482,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 items: read_items(inner),
                 monsters: read_monsters(inner),
                 toilets: read_toilets(inner.get("toilets")),
+                liquids: read_liquids(inner.get("liquids")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -666,6 +669,51 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `liquids` entry: a liquid on the floor, in charges (`jmapgen_liquid_item`, `mapgen.cpp:2900-2944`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiquidPlacement {
+    /// The liquid's item id.
+    pub liquid: String,
+    /// How many charges, as a range the dice answer between. **`-1` means "whatever the item type's own count is"**, which is the reference's default.
+    pub amount: (i32, i32),
+    /// One chance in this many of being there at all: the reference's `chance( jsi, "chance", 1, 1 )` is a **1-in-n** draw, not a percentage.
+    pub chance: i32,
+}
+
+/// Reads a mapgen's `liquids` object, each symbol's liquid, amount and chance.
+fn read_liquids(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, LiquidPlacement> {
+    let mut into = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return into;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let liquid = match spec.get("liquid") {
+            Some(cdda_json::Value::Str(id)) => id.clone(),
+            _ => continue,
+        };
+        into.insert(
+            symbol,
+            LiquidPlacement {
+                liquid,
+                amount: read_amount(spec.get("amount")),
+                chance: match spec.get("chance") {
+                    Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1).max(1),
+                    _ => 1,
+                },
+            },
+        );
+    }
+    into
+}
+
 /// Reads a mapgen's `toilets` object: each symbol's **amount**, the charges of water in it.
 ///
 /// Reference: `jmapgen_toilet` (`mapgen.cpp:2824-2845`) reads `amount` as a `jmapgen_int` defaulting to zero, and a zero means `place_toilet`'s own default of 24 charges
