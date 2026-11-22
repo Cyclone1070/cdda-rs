@@ -152,6 +152,8 @@ pub struct MapgenObject {
     pub vending_machines: BTreeMap<char, VendingPlacement>,
     /// Signs and graffiti (`jmapgen_sign`, `mapgen.cpp:2683-2724`): furniture that carries **words**.
     pub signs: BTreeMap<char, SignPlacement>,
+    /// Gas pumps (`jmapgen_gaspump`, `mapgen.cpp:2850-2895`): a **terrain** and the fuel in it, which is what a station's forecourt is made of.
+    pub gas_pumps: BTreeMap<char, GasPumpPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -498,6 +500,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 sealed_items: read_sealed(inner.get("sealed_item")),
                 vending_machines: read_vending(inner.get("vendingmachines")),
                 signs: read_signs(inner.get("signs")),
+                gas_pumps: read_gas_pumps(inner.get("gaspumps")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -684,6 +687,47 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `gaspumps` entry: a pump's fuel capacity and, when the data says, which fuel (`jmapgen_gaspump`, `mapgen.cpp:2850-2895`).
+///
+/// The `amount` is in **tens of litres of fuel**: the reference multiplies it by a hundred (`:2877`), so an amount of one is a hundred charges. No amount means a
+/// randomly filled pump - ten thousand to fifty thousand charges (`:2879-2881`) - and no `fuel` means diesel one time in four and gasoline otherwise (`mapgen.cpp:7294`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GasPumpPlacement {
+    /// The amount's range, before the hundred.
+    pub amount: (i32, i32),
+    /// Which fuel, when the data names one.
+    pub fuel: Option<String>,
+}
+
+/// Reads a mapgen's `gaspumps` object.
+fn read_gas_pumps(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, GasPumpPlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        placed.insert(
+            symbol,
+            GasPumpPlacement {
+                amount: span(spec.get("amount")),
+                fuel: match spec.get("fuel") {
+                    Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                    _ => None,
+                },
+            },
+        );
+    }
+    placed
+}
+
 /// One `signs` entry: furniture that carries words (`jmapgen_sign`, `mapgen.cpp:2683-2724`).
 ///
 /// The furniture defaults to `f_sign` and must carry the reference's `SIGN` flag; the text comes from `signage` (a written string) or a `snippet` category the game rolls

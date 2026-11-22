@@ -34,6 +34,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -147,6 +148,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -218,6 +220,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -272,6 +275,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -345,6 +349,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -437,6 +442,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -494,6 +500,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -552,6 +559,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -572,6 +580,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -655,6 +664,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -723,6 +733,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -793,6 +804,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -894,6 +906,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -984,6 +997,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1076,6 +1090,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         sealed_items: BTreeMap::new(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1153,6 +1168,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         .collect(),
         vending_machines: BTreeMap::new(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1263,6 +1279,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         .into_iter()
         .collect(),
         signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1324,6 +1341,7 @@ fn a_sign_is_furniture_that_carries_words() {
         )]
         .into_iter()
         .collect(),
+        gas_pumps: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1346,5 +1364,104 @@ fn a_sign_is_furniture_that_carries_words() {
         cdda_sim::signage::census(&mut world),
         1,
         "**one sign in the store, not a copy beside it**"
+    );
+}
+
+/// **A gas pump is terrain with fuel in it.** Reference: `jmapgen_gaspump::apply` (`mapgen.cpp:2872-2892`) and `place_gas_pump` (`:7278-7295`): the charges are the
+/// `amount` **times a hundred**, no amount is a randomly filled pump, and the square becomes **terrain** - `t_gas_pump` or `t_diesel_pump` - rather than furniture.
+///
+/// The data uses `gaspumps` **29 times**, and the distinction from a toilet matters: a pump is not furniture standing on a floor, it is the ground itself, which is why the
+/// test reads terrain and not furniture.
+#[test]
+fn a_gas_pump_is_terrain_with_fuel_in_it() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_gas_pump".to_owned(), 81u32),
+            ("t_diesel_pump".to_owned(), 82u32),
+        ],
+    );
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "gasoline",
+                volume_ml: 0,
+                weight_g: 0,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "diesel",
+                volume_ml: 0,
+                weight_g: 0,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+        ],
+    );
+    let forecourt = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["G.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('G', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: [(
+            'G',
+            cdda_content::mapgen::GasPumpPlacement {
+                amount: (1, 1),
+                fuel: Some("diesel".to_owned()),
+            },
+        )]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), forecourt)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(13));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(82),
+        "**the diesel pump is the ground itself**"
+    );
+    let charges: Vec<i32> = cdda_sim::items_at(&mut world, (0, 0))
+        .into_iter()
+        .filter_map(|item| {
+            world
+                .get::<cdda_sim::GroundItem>(item)
+                .map(|held| held.charges)
+        })
+        .collect();
+    assert_eq!(
+        charges,
+        vec![100],
+        "**an amount of one is a hundred charges of fuel**"
     );
 }

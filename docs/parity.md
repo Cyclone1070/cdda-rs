@@ -40431,3 +40431,20 @@ has neither a snippet registry nor a city, so a snippet sign gets the furniture 
 **The mutation** skips `set_text`: the test fails at `left: None, right: Some("OPEN")` - a sign standing on a wall saying nothing.
 
 The census moves `signs` to the read list: **17 of 63 members read**.
+
+## The forecourt (round 296)
+
+`jmapgen_gaspump` (`mapgen.cpp:2850-2895`) is a pump, used **29 times**, and it is the first mapgen piece the port has met that writes a **terrain** rather than a furniture or an
+item and then puts something **in** it: `place_gas_pump` (`:7278-7295`) sets the square to the fuel's own `pump_terrain` (`t_gas_pump`, `t_diesel_pump`, `t_jp8_pump`,
+`t_avgas_pump`, from `materials.json`) and adds the fuel item with the charges.
+
+Three numbers, all worth pinning:
+- the `amount` is **multiplied by a hundred** (`:2877`), the same hundred the liquid layer uses for fuel (round 290) - the data counts fuel in a unit of a hundred charges;
+- **no amount is a full pump**: ten thousand to fifty thousand charges drawn at random (`:2879-2881`);
+- **no `fuel` is diesel one time in four** and gasoline otherwise (`:7294`), which is the only place the pump's own terrain is decided by a coin flip.
+
+**Named gap**: the reference's `fuel` member may name a fuel through a mapgen **parameter**; the port reads a plain id.
+
+**The mutation** drops the hundred: the test fails at `left: [1], right: [100]` - a pump holding one charge of diesel instead of a hundred.
+
+The census moves `gaspumps` to the read list: **18 of 63 members read**.

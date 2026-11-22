@@ -192,6 +192,7 @@ fn draw_one_square(
     }
     drew |= place_the_vending_machine(world, mapgen, at, symbol, rolls);
     drew |= place_the_sign(world, mapgen, at, symbol);
+    drew |= place_the_gas_pump(world, mapgen, at, symbol, rolls);
     // **Furniture with something inside it** (`jmapgen_sealed_item`, `mapgen.cpp:4049-4060`): the contents are placed first and the furniture is set **over** them, so a
     // locker's contents are inside the locker rather than on the floor beside it.
     drew |= place_the_sealed_item(world, mapgen, at, symbol, rolls);
@@ -372,6 +373,65 @@ fn roll_remainder(dice: &mut cdda_core_types::rng::Rolls, value: f64) -> i32 {
         whole
     }
 }
+
+/// Puts a gas pump on a square: the terrain it stands on and the fuel in it, and answers whether it placed one.
+///
+/// Reference: `jmapgen_gaspump::apply` (`mapgen.cpp:2872-2892`) and `place_gas_pump` (`:7278-7295`):
+/// - the charges are the `amount` **times a hundred**, and no amount is a randomly filled pump of ten to fifty thousand charges;
+/// - no `fuel` member picks **diesel one time in four** and gasoline otherwise;
+/// - the square becomes **terrain**, not furniture: the pump is `t_gas_pump` or `t_diesel_pump` according to the fuel's own `pump_terrain` (`materials.json`).
+fn place_the_gas_pump(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(pump) = mapgen.gas_pumps.get(&symbol) else {
+        return false;
+    };
+    let mut charges = match rolls.as_mut() {
+        Some(dice) if pump.amount.1 > pump.amount.0 => dice.rng(pump.amount.0, pump.amount.1),
+        _ => pump.amount.0,
+    }
+    .max(0)
+        * FUEL_CHARGES_PER_UNIT;
+    if charges == 0 {
+        charges = match rolls.as_mut() {
+            Some(dice) => dice.rng(EMPTY_PUMP_LOW, EMPTY_PUMP_HIGH),
+            None => EMPTY_PUMP_LOW,
+        };
+    }
+    let fuel = if let Some(named) = pump.fuel.as_deref() {
+        named.to_owned()
+    } else {
+        // `one_in( 4 ) ? itype_diesel : itype_gasoline` (`mapgen.cpp:7294`): drawn once, because the draw is the decision.
+        let diesel = rolls.as_mut().is_some_and(|dice| dice.one_in(4));
+        if diesel {
+            "diesel".to_owned()
+        } else {
+            "gasoline".to_owned()
+        }
+    };
+    let terrain = match fuel.as_str() {
+        "diesel" => "t_diesel_pump",
+        "jp8" => "t_jp8_pump",
+        "avgas" => "t_avgas_pump",
+        _ => "t_gas_pump",
+    };
+    if let Some(code) = crate::terrain_types::code_of(world, terrain) {
+        crate::square::set_terrain(world, at, code);
+    }
+    if let Some(kind) = crate::item_registry::id_of(world, &fuel) {
+        crate::drop_item(world, (at.0, at.1), kind, charges);
+    }
+    true
+}
+
+/// The reference's `charges = rng( 10000, 50000 )` for a pump the data gives no amount (`mapgen.cpp:2879-2881`).
+const EMPTY_PUMP_LOW: i32 = 10_000;
+/// The top of the same range.
+const EMPTY_PUMP_HIGH: i32 = 50_000;
 
 /// Writes a sign: the furniture and the words on it, and answers whether it wrote any.
 ///
