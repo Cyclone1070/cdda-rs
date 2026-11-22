@@ -40545,3 +40545,22 @@ stands here" - and not `Some(0)`. The test now asserts the honest reading, and s
 **The mutation** stops despawning the items: the test fails at `left: 1, right: 0` - the rag survives a room that was supposed to be stripped.
 
 The census moves `remove_all` to the read list: **26 of 63 members read**.
+
+## A monster can be a symbol (round 302)
+
+`jmapgen_monster` is loaded **twice** (`mapgen.cpp:5130`, `:5402`): under **`monster`** as a symbol map and under `place_monster` as a rectangle list. The piece is the same -
+a monster or a group, a chance out of a hundred, a pack size, a friendly flag - and only the **square** differs.
+
+The symbol map has **1,748 uses**, more than any other member, and the port read only the rectangle form: every monster a mapgen draws *as a symbol* was missing. The batch
+matters more than the number: 1,748 is larger than every remaining gap combined except `place_nested`.
+
+**One rule, one shape.** The spawn logic moved into a single `spawn_one( world, spawn, at, rolls )` used by both forms, with an internal `Spawn` carrying the five fields
+either form can write. Two data shapes, one rule - and the rectangle form's behaviour is unchanged, which its older test still proves.
+
+**A bug caught while refactoring**: the first version of the shared helper checked a placeholder `spawn_is_friendly(entity)` that always answered false, which would have
+silently un-friended every mapgen spawn. The friendly flag belongs to the **entry**, not to the monster, so the helper reads `spawn.friendly`. The compiler could not catch
+this one; reading what I had written did.
+
+**The mutation** has the symbol map answer "drew one" without spawning: the test fails at `left: 0, right: 1`.
+
+The census moves `monster` to the read list: **27 of 63 members read**.

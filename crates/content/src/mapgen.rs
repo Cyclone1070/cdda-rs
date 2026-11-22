@@ -170,6 +170,9 @@ pub struct MapgenObject {
     pub computers: BTreeMap<char, ComputerPlacement>,
     /// Strips a rectangle down to its terrain before the rest is drawn (`jmapgen_remove_all`, `mapgen.cpp:4169-4205`): the **first phase** of a mapgen.
     pub remove_all: Vec<RemoveArea>,
+    /// The monsters a symbol places (`jmapgen_monster` under `monster`): 1,748 uses in the data, the most of any member, and a symbol is how a mapgen says "a zombie stands
+    /// here" without naming a rectangle.
+    pub monster_symbols: BTreeMap<char, SymbolMonster>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -525,6 +528,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 field_symbols: read_field_symbols(inner.get("fields")),
                 computers: read_computers(inner.get("computers")),
                 remove_all: read_remove_areas(inner.get("remove_all")),
+                monster_symbols: read_monster_symbols(inner.get("monster")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -711,6 +715,62 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `monster` entry: a monster a **symbol** places (`jmapgen_monster`, `mapgen.cpp:3095-3280`).
+///
+/// The piece is the same one `place_monster` uses: it may name a monster or a group, it has a chance out of a hundred, a pack size and a friendly flag. The difference is
+/// where the square comes from - here the row's symbol, there the entry's rectangle - so the type carries no square at all and the writer supplies one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolMonster {
+    /// The monster id, when the entry names one.
+    pub monster: Option<String>,
+    /// The monster group, when the entry names one instead.
+    pub group: Option<String>,
+    /// How likely the spawn is at all, out of a hundred.
+    pub chance: i32,
+    /// How many, as a range.
+    pub pack_size: (i32, i32),
+    /// Whether the spawn is on the player's side.
+    pub friendly: bool,
+}
+
+/// Reads a mapgen's `monster` object, the symbol map of monsters.
+fn read_monster_symbols(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, SymbolMonster> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let named = |name: &str| match spec.get(name) {
+            Some(cdda_json::Value::Str(text)) => Some(text.clone()),
+            _ => None,
+        };
+        placed.insert(
+            symbol,
+            SymbolMonster {
+                monster: named("monster"),
+                group: named("group"),
+                chance: match spec.get("chance") {
+                    Some(cdda_json::Value::Int(value)) => {
+                        i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                    }
+                    _ => 100,
+                },
+                pack_size: span(spec.get("pack_size")),
+                friendly: matches!(spec.get("friendly"), Some(cdda_json::Value::Bool(true))),
+            },
+        );
+    }
+    placed
+}
+
 /// One `remove_all` entry: a rectangle stripped of furniture, items, traps and fields (`jmapgen_remove_all`, `mapgen.cpp:4169-4205`).
 ///
 /// Unlike every other rectangle in a mapgen this one is **filled**: `apply` walks `tripoint_range( start, end )` (`:4183`) and clears each square, so the rectangle is the

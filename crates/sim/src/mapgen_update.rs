@@ -232,6 +232,7 @@ fn draw_one_square(
     drew |= place_the_single_item(world, mapgen, at, symbol, rolls);
     drew |= place_the_field_symbol(world, mapgen, at, symbol, rolls);
     drew |= place_the_computer(world, mapgen, at, symbol);
+    drew |= place_the_monster_symbol(world, mapgen, at, symbol, rolls);
     drew |= place_the_liquid(world, mapgen, at, symbol, rolls);
     drew
 }
@@ -1064,52 +1065,115 @@ fn place_monsters(
     rolls: &mut Option<cdda_core_types::rng::Rolls>,
 ) {
     for placement in &mapgen.monsters {
-        if placement.chance < 100
-            && !rolls
-                .as_mut()
-                .is_none_or(|rolls| rolls.x_in_y(f64::from(placement.chance), 100.0))
-        {
-            continue;
-        }
-        let count = match rolls.as_mut() {
-            Some(rolls) => rolls.rng(placement.pack_size.0, placement.pack_size.1),
-            None => placement.pack_size.0,
-        }
-        .max(0);
-        // **An entry may name a group instead of a monster** (`mapgen.cpp:3110-3120`, `3266-3275`): `jmapgen_monster` reads `group` and calls the group's own draw, which
-        // answers one member per `apply` - so the pack below is the group's answer repeated, not a draw per member.
-        let monster = if let Some(monster) = placement.monster.as_deref() {
-            monster.to_owned()
-        } else {
-            let Some(group) = placement.group.as_deref() else {
-                continue;
-            };
-            let Some(rolls) = rolls.as_mut() else {
-                continue;
-            };
-            let Some(picked) = crate::monster_groups::pick(world, group, rolls) else {
-                continue;
-            };
-            picked
+        let x = match rolls.as_mut() {
+            Some(rolls) => rolls.rng(placement.x.0, placement.x.1),
+            None => placement.x.0,
         };
-        let Some(kind) = crate::monster_registry::id_of(world, &monster) else {
-            continue;
+        let y = match rolls.as_mut() {
+            Some(rolls) => rolls.rng(placement.y.0, placement.y.1),
+            None => placement.y.0,
         };
-        let hp = crate::monster_registry::hit_points(world, kind);
-        for _ in 0..count {
-            let x = match rolls.as_mut() {
-                Some(rolls) => rolls.rng(placement.x.0, placement.x.1),
-                None => placement.x.0,
-            };
-            let y = match rolls.as_mut() {
-                Some(rolls) => rolls.rng(placement.y.0, placement.y.1),
-                None => placement.y.0,
-            };
-            let spawn = crate::spawn_monster(world, (origin.0 + x, origin.1 + y), kind, hp);
-            // Reference: `add_spawn( ..., friendly, ... )` (`mapgen.cpp:3268-3270`) - a monster a mapgen marks friendly is on the player's side for good.
-            if placement.friendly {
-                crate::friendly::make_friendly(world, spawn, crate::friendly::FOR_EVER);
-            }
+        spawn_one(
+            world,
+            &Spawn {
+                monster: placement.monster.clone(),
+                group: placement.group.clone(),
+                chance: placement.chance,
+                pack_size: placement.pack_size,
+                friendly: placement.friendly,
+            },
+            (origin.0 + x, origin.1 + y),
+            rolls,
+        );
+    }
+}
+
+/// Places the monster a symbol carries, and answers whether it placed one.
+///
+/// The square is the symbol's, so this is [`place_monsters`] with one rectangle replaced by a point - the same `jmapgen_monster`, the same chance, the same pack.
+fn place_the_monster_symbol(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(entry) = mapgen.monster_symbols.get(&symbol) else {
+        return false;
+    };
+    spawn_one(
+        world,
+        &Spawn {
+            monster: entry.monster.clone(),
+            group: entry.group.clone(),
+            chance: entry.chance,
+            pack_size: entry.pack_size,
+            friendly: entry.friendly,
+        },
+        (at.0, at.1),
+        rolls,
+    );
+    true
+}
+
+/// The one shape the spawn rule takes, whichever way the data wrote it.
+struct Spawn {
+    /// The monster id, when the entry names one.
+    monster: Option<String>,
+    /// The monster group, when the entry names one instead.
+    group: Option<String>,
+    /// How likely the spawn is at all, out of a hundred.
+    chance: i32,
+    /// How many, as a range.
+    pack_size: (i32, i32),
+    /// Whether the spawn is on the player's side.
+    friendly: bool,
+}
+
+/// Applies the spawn rule once: the chance, the pack, the group draw and the friendly flag.
+fn spawn_one(
+    world: &mut World,
+    spawn: &Spawn,
+    at: (i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    if spawn.chance < 100
+        && !rolls
+            .as_mut()
+            .is_none_or(|rolls| rolls.x_in_y(f64::from(spawn.chance), 100.0))
+    {
+        return;
+    }
+    let count = match rolls.as_mut() {
+        Some(rolls) => rolls.rng(spawn.pack_size.0, spawn.pack_size.1),
+        None => spawn.pack_size.0,
+    }
+    .max(0);
+    // **An entry may name a group instead of a monster** (`mapgen.cpp:3110-3120`, `3266-3275`): `jmapgen_monster` reads `group` and calls the group's own draw, which
+    // answers one member per `apply` - so the pack below is the group's answer repeated, not a draw per member.
+    let monster = if let Some(monster) = spawn.monster.as_deref() {
+        monster.to_owned()
+    } else {
+        let Some(group) = spawn.group.as_deref() else {
+            return;
+        };
+        let Some(rolls) = rolls.as_mut() else {
+            return;
+        };
+        let Some(picked) = crate::monster_groups::pick(world, group, rolls) else {
+            return;
+        };
+        picked
+    };
+    let Some(kind) = crate::monster_registry::id_of(world, &monster) else {
+        return;
+    };
+    let hp = crate::monster_registry::hit_points(world, kind);
+    for _ in 0..count {
+        let made = crate::spawn_monster(world, at, kind, hp);
+        // Reference: `add_spawn( ..., friendly, ... )` (`mapgen.cpp:3268-3270`) - a monster a mapgen marks friendly is on the player's side for good.
+        if spawn.friendly {
+            crate::friendly::make_friendly(world, made, crate::friendly::FOR_EVER);
         }
     }
 }

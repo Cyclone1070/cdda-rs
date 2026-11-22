@@ -40,6 +40,7 @@ const READ: &[&str] = &[
     "fields",
     "computers",
     "remove_all",
+    "monster",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -67,7 +68,6 @@ const NAMED_GAPS: &[&str] = &[
     "place_ter_furn_transforms",
     // A spawn point: the monster group, its density and the map's spawn inventory, which is a subsystem of its own.
     "monsters",
-    "monster",
     // Furniture with contents or text: each needs the thing it holds or says before it can be placed honestly.
     // Vehicles are P8.
     "vehicles",

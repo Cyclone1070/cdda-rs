@@ -43,6 +43,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -165,6 +166,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -245,6 +247,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -308,6 +311,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -390,6 +394,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -491,6 +496,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -557,6 +563,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -624,6 +631,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -653,6 +661,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -745,6 +754,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -822,6 +832,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -901,6 +912,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1011,6 +1023,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1110,6 +1123,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1211,6 +1225,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1297,6 +1312,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1416,6 +1432,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1486,6 +1503,7 @@ fn a_sign_is_furniture_that_carries_words() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1590,6 +1608,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1660,6 +1679,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1701,6 +1721,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1774,6 +1795,7 @@ fn a_nested_marker_inside_the_chunk_shifts_its_chunk_up_and_left() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1815,6 +1837,7 @@ fn a_nested_marker_inside_the_chunk_shifts_its_chunk_up_and_left() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1901,6 +1924,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         field_symbols: BTreeMap::new(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2006,6 +2030,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         .collect(),
         computers: BTreeMap::new(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2077,6 +2102,7 @@ fn a_terminal_is_furniture_and_a_record() {
         .into_iter()
         .collect(),
         remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2167,6 +2193,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
             x: (0, 0),
             y: (0, 0),
         }],
+        monster_symbols: BTreeMap::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -2194,5 +2221,78 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         cdda_sim::items_at(&mut world, (1, 0)).len(),
         1,
         "**and the rag is still on it**"
+    );
+}
+
+/// **A monster can be a symbol, and that is how the data most often says it.** Reference: `jmapgen_monster` is loaded under **`monster`** as a symbol map (`mapgen.cpp:5130`)
+/// and under `place_monster` as a rectangle list (`:5402`); the piece is the same, the square is what differs. The symbol map has **1,748 uses** in the data - more than any
+/// other member - and the port read only the rectangle form, so every monster drawn as a symbol on a map was missing.
+#[test]
+fn a_monster_can_be_a_symbol() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::monster_registry::set_monster_types(
+        &mut world,
+        &[cdda_sim::monster_registry::MonsterKind {
+            id: "mon_zombie",
+            hp: 80,
+        }],
+    );
+    let house = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["Z.".to_owned()],
+        terrain: [
+            ('.', "t_house_one".to_owned()),
+            ('Z', "t_house_one".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
+        remove_all: Vec::new(),
+        monster_symbols: [(
+            'Z',
+            cdda_content::mapgen::SymbolMonster {
+                monster: Some("mon_zombie".to_owned()),
+                group: None,
+                chance: 100,
+                pack_size: (1, 1),
+                friendly: false,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), house)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(41));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::creature::creature_at(&world, (0, 0, 0)).len(),
+        1,
+        "**one zombie on the symbol's square**"
+    );
+    assert!(
+        cdda_sim::creature::creature_at(&world, (1, 0, 0)).is_empty(),
+        "**and the plain square is empty**"
     );
 }
