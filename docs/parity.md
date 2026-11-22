@@ -40398,3 +40398,20 @@ items carry an id, an amount and a chance.
 **The mutation** drops the furniture placement: the test fails at `left: None, right: Some(51)` - the rags are on the floor of a square with no locker on it.
 
 The census moves `sealed_item` to the read list: **15 of 63 members read**.
+
+## The machine in the shop (round 294)
+
+`jmapgen_vending_machine` (`mapgen.cpp:2784-2819`) is furniture **plus a stock**, used **118 times** in the data. `place_vending` (`:7306-7336`) chooses one of **six** furniture
+ids from three flags - `powered`, `reinforced`, `networked` - and then stocks the square with the machine's item group at one hundred per cent, which in `place_items`' convention
+is **one draw** (round 291).
+
+The port had no vending machine at all: every machine in every shop was a bare square, and the six-way furniture choice - the only thing that tells a dark machine from a lit
+one at a glance - went nowhere. The test takes two machines whose flags differ in more than one place, so the choice itself is checked rather than "some furniture was
+written": no power is `f_vending_c_off`, powered and armoured is `f_vending_reinforced`, and both are stocked.
+
+**Named gap**: a `lootable` machine may be found ransacked - the reference's `!one_in( days since the cataclysm + 4 )` branch (`:7327-7335`) bashes it and scatters glass
+shards in the squares around it instead of stocking it. The port stocks every machine: that branch needs the day count and a bash, and neither is this writer's business yet.
+
+**The mutation** drops `powered` from the choice (`match (false, ...)`): the test fails at `left: None, right: Some(62)` - the armoured machine is drawn as the dark one.
+
+The census moves `vendingmachines` to the read list: **16 of 63 members read**.

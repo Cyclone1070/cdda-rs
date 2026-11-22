@@ -148,6 +148,8 @@ pub struct MapgenObject {
     pub place_loot: Vec<LootPlacement>,
     /// Furniture with something **inside** it (`jmapgen_sealed_item`, `mapgen.cpp:3913-4040`): a locker and its contents, 77 times in the data.
     pub sealed_items: BTreeMap<char, SealedPlacement>,
+    /// Vending machines (`jmapgen_vending_machine`, `mapgen.cpp:2784-2819`): 118 times in the data, and each one is furniture **plus a stock**.
+    pub vending_machines: BTreeMap<char, VendingPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -492,6 +494,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_items: read_area_items(inner.get("place_items")),
                 place_loot: read_loot(inner.get("place_loot")),
                 sealed_items: read_sealed(inner.get("sealed_item")),
+                vending_machines: read_vending(inner.get("vendingmachines")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -678,6 +681,62 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `vendingmachines` entry: furniture **plus a stock** (`jmapgen_vending_machine`, `mapgen.cpp:2784-2819`).
+///
+/// Four flags choose the furniture - `place_vending` (`mapgen.cpp:7306-7336`) picks among six ids by `powered`, `reinforced` and `networked` - and the `item_group` is the
+/// machine's stock, defaulting to `default_vending_machine` when the data names none (`:2797-2801`).
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the reference's three furniture flags are independent booleans (`powered`, `reinforced`, `networked`) that choose among six ids, and `lootable` is a fourth, different axis; an enum would have to spell out a cross product the data writes directly"
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VendingPlacement {
+    /// The item group the machine is stocked with.
+    pub group: String,
+    /// Whether the machine is armoured, which chooses the `_reinforced` furniture.
+    pub reinforced: bool,
+    /// Whether it stands connected to a network, which chooses the `_networked` furniture.
+    pub networked: bool,
+    /// Whether it has power, which chooses the lit furniture over the `_off` one.
+    pub powered: bool,
+    /// Whether it may be found ransacked. **Named gap**: the port stocks every machine; the reference's ransack branch needs the day count and a bash.
+    pub lootable: bool,
+}
+
+/// Reads a mapgen's `vendingmachines` object.
+fn read_vending(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, VendingPlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let group = match spec.get("item_group") {
+            Some(cdda_json::Value::Str(id)) => id.clone(),
+            _ => "default_vending_machine".to_owned(),
+        };
+        let flag = |name: &str| matches!(spec.get(name), Some(cdda_json::Value::Bool(true)));
+        placed.insert(
+            symbol,
+            VendingPlacement {
+                group,
+                reinforced: flag("reinforced"),
+                networked: flag("networked"),
+                powered: flag("powered"),
+                lootable: flag("lootable"),
+            },
+        );
+    }
+    placed
+}
+
 /// One `sealed_item` entry: furniture placed **over** what it holds (`jmapgen_sealed_item`, `mapgen.cpp:3913-4040`).
 ///
 /// The artist is explicit: the furniture is cleared, the item or group is placed, and the furniture is set back **on top** (`:4049-4060`) - so the contents are inside it,

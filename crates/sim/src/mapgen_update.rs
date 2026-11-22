@@ -190,6 +190,7 @@ fn draw_one_square(
         crate::square::set_furniture(world, at, code);
         drew = true;
     }
+    drew |= place_the_vending_machine(world, mapgen, at, symbol, rolls);
     // **Furniture with something inside it** (`jmapgen_sealed_item`, `mapgen.cpp:4049-4060`): the contents are placed first and the furniture is set **over** them, so a
     // locker's contents are inside the locker rather than on the floor beside it.
     drew |= place_the_sealed_item(world, mapgen, at, symbol, rolls);
@@ -369,6 +370,51 @@ fn roll_remainder(dice: &mut cdda_core_types::rng::Rolls, value: f64) -> i32 {
     } else {
         whole
     }
+}
+
+/// Places a vending machine: the furniture its flags choose, and the stock it holds, and answers whether it placed any.
+///
+/// Reference: `jmapgen_vending_machine::apply` (`mapgen.cpp:2803-2812`) calls `place_vending` (`:7306-7336`), which sets one of six furniture ids and then stocks the square
+/// with the machine's item group (`place_items( type, 100, p, p, ... )` - one hundred per cent is **one draw**, as in every other `place_items` call).
+///
+/// **Named gap**: a `lootable` machine may be found ransacked - the reference's `!one_in( days_since_cataclysm + 4 )` branch (`:7327-7335`) bashes the machine and scatters
+/// glass instead of stocking it. The port stocks every machine; that branch needs the day count and a bash, and the day count is a calendar read the writer does not do.
+fn place_the_vending_machine(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(machine) = mapgen.vending_machines.get(&symbol) else {
+        return false;
+    };
+    let furniture = match (machine.powered, machine.reinforced, machine.networked) {
+        (false, false, _) => "f_vending_c_off",
+        (false, true, _) => "f_vending_reinforced_off",
+        (true, false, true) => "f_vending_c_networked",
+        (true, false, false) => "f_vending_c",
+        (true, true, true) => "f_vending_reinforced_networked",
+        (true, true, false) => "f_vending_reinforced",
+    };
+    if let Some(code) = crate::furniture_types::code_of(world, furniture) {
+        crate::square::set_furniture(world, at, code);
+    }
+    if let Some(held) = rolls.take() {
+        crate::singletons::put_rolls(world, held);
+    }
+    let produced = crate::item_groups::draw(world, &machine.group);
+    *rolls = crate::singletons::take_rolls(world);
+    if let Some(produced) = produced {
+        for (id, amount) in produced {
+            if let Some(kind) = crate::item_registry::id_of(world, &id) {
+                for _ in 0..amount.max(0) {
+                    crate::drop_item(world, (at.0, at.1), kind, 1);
+                }
+            }
+        }
+    }
+    true
 }
 
 /// Places what a symbol's sealed furniture holds, and answers whether it placed any.
