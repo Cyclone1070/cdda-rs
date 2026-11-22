@@ -42,6 +42,7 @@ const READ: &[&str] = &[
     "remove_all",
     "monster",
     "rotation",
+    "set",
     "place_nested",
     "place_item",
     "place_signs",
@@ -84,7 +85,6 @@ const NAMED_GAPS: &[&str] = &[
     // A mapgen's own parameters and the size it is drawn at, which the overmap special supplies (P9).
     "parameters",
     "mapgensize",
-    "set",
     // Factions and the owner of a chunk are P9.
     "faction_owner",
     // A predecessor that only applies when the request asks for one (`expects_predecessor`), and its fallback.

@@ -146,6 +146,7 @@ pub fn write(
     place_item_areas(world, mapgen, origin, &mut rolls);
     place_sign_areas(world, mapgen, origin, &mut rolls);
     place_liquid_areas(world, mapgen, origin, &mut rolls);
+    place_set_points(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -934,6 +935,55 @@ fn place_the_computer(
         },
     );
     true
+}
+
+/// Places every `set` point entry: `repeat` draws from the rectangle, each writing one layer.
+///
+/// Reference: `jmapgen_setmap::apply` (`mapgen.cpp:5622-5640`): a **chance of one in n** (`one_in( chance )`), a `repeat`, and a square drawn from the entry's range - the
+/// same shape as the area setters, which is why this reuses their spot rule instead of inventing a second one.
+fn place_set_points(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.set_points {
+        let count = match rolls.as_mut() {
+            Some(dice) if entry.repeat.1 > entry.repeat.0 => {
+                dice.rng(entry.repeat.0, entry.repeat.1)
+            }
+            _ => entry.repeat.0,
+        }
+        .max(0);
+        for _ in 0..count {
+            let (x, y) = match rolls.as_mut() {
+                Some(dice) => (
+                    dice.rng(entry.x.0, entry.x.1),
+                    dice.rng(entry.y.0, entry.y.1),
+                ),
+                None => (entry.x.0, entry.y.0),
+            };
+            if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+                continue;
+            }
+            let at = (origin.0 + x, origin.1 + y, origin.2);
+            match entry.kind {
+                cdda_content::mapgen::SetKind::Terrain => {
+                    if let Some(code) = crate::terrain_types::code_of(world, &entry.id) {
+                        crate::square::set_terrain(world, at, code);
+                    }
+                }
+                cdda_content::mapgen::SetKind::Furniture => {
+                    if let Some(code) = crate::furniture_types::code_of(world, &entry.id) {
+                        crate::square::set_furniture(world, at, code);
+                    }
+                }
+                cdda_content::mapgen::SetKind::Trap => {
+                    crate::square::set_trap(world, at, &entry.id);
+                }
+            }
+        }
+    }
 }
 
 /// Places every `place_item` entry: the `item` symbol map with the square written out.

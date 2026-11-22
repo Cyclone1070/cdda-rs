@@ -175,6 +175,8 @@ pub struct MapgenObject {
     pub monster_symbols: BTreeMap<char, SymbolMonster>,
     /// How far the whole chunk is turned, as a range of quarter turns (`mapgen.cpp:5172-5173`, `6072`): **2,198 uses**, and a mapgen without it is not turned at all.
     pub rotation: (i32, i32),
+    /// The `set` list's **point** entries (`jmapgen_setmap`, `mapgen.cpp:5432-5480`): 1,129 of them, and the oldest way the data says "this square is that".
+    pub set_points: Vec<SetPoint>,
     /// Nested mapgens placed over a rectangle instead of at a symbol (`place_nested`): the same piece as `nested`, 1,382 times, with the dice choosing the marker.
     pub place_nested: Vec<AreaNested>,
     /// Single items placed over a rectangle (`place_item`, 165 uses): the `item` symbol map with the square written out.
@@ -540,6 +542,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 remove_all: read_remove_areas(inner.get("remove_all")),
                 monster_symbols: read_monster_symbols(inner.get("monster")),
                 rotation: span(inner.get("rotation")),
+                set_points: read_set_points(inner.get("set")),
                 place_nested: read_area_nested(inner.get("place_nested")),
                 place_item: read_area_single_items(inner.get("place_item")),
                 place_signs: read_area_signs(inner.get("place_signs")),
@@ -730,6 +733,69 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// Which layer a `set` point writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetKind {
+    /// Terrain.
+    Terrain,
+    /// Furniture.
+    Furniture,
+    /// A trap.
+    Trap,
+}
+
+/// One `set` entry with a **point** form: one square, one layer (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
+///
+/// **Named gaps**: the `line` and `square` forms (163 and 82 entries) draw shapes and are not read; `variable`, `bash`, `burn`, `radiation` and the three `*_remove` ops are
+/// not read either. What is read is the 1,063 point entries that name terrain, furniture or a trap.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetPoint {
+    /// Which layer it writes.
+    pub kind: SetKind,
+    /// The id it writes there.
+    pub id: String,
+    /// The columns it may land in.
+    pub x: (i32, i32),
+    /// The rows it may land in.
+    pub y: (i32, i32),
+    /// How many squares it writes, as a range: a point entry is drawn `repeat` times like any other piece.
+    pub repeat: (i32, i32),
+}
+
+/// Reads a mapgen's `set` list, keeping the point entries that name terrain, furniture or a trap.
+fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let op = ["point", "set"].iter().find_map(|key| match one.get(key) {
+            Some(cdda_json::Value::Str(op)) => Some(op.as_str()),
+            _ => None,
+        });
+        let kind = match op {
+            Some("terrain") => SetKind::Terrain,
+            Some("furniture") => SetKind::Furniture,
+            Some("trap") => SetKind::Trap,
+            _ => continue,
+        };
+        let Some(cdda_json::Value::Str(id)) = one.get("id") else {
+            continue;
+        };
+        placed.push(SetPoint {
+            kind,
+            id: id.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            repeat: span(one.get("repeat")),
+        });
+    }
+    placed
+}
+
 /// One `place_liquids` entry: a liquid whose square the entry writes out (`jmapgen_liquid_item` under `place_liquids`, `mapgen.cpp:5398`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AreaLiquid {

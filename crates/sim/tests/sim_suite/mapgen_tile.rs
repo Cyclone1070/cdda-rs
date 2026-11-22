@@ -45,6 +45,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -173,6 +174,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -259,6 +261,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -328,6 +331,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -416,6 +420,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -523,6 +528,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -595,6 +601,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -668,6 +675,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -703,6 +711,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -801,6 +810,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -884,6 +894,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -969,6 +980,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1085,6 +1097,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1190,6 +1203,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1297,6 +1311,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1389,6 +1404,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1514,6 +1530,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1590,6 +1607,7 @@ fn a_sign_is_furniture_that_carries_words() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1700,6 +1718,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1776,6 +1795,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1823,6 +1843,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1900,6 +1921,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -1947,6 +1969,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2044,6 +2067,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2155,6 +2179,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2232,6 +2257,7 @@ fn a_terminal_is_furniture_and_a_record() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2328,6 +2354,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         }],
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2417,6 +2444,7 @@ fn a_monster_can_be_a_symbol() {
         .into_iter()
         .collect(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2483,6 +2511,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2518,6 +2547,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: vec![cdda_content::mapgen::AreaNested {
             x: (10, 10),
             y: (5, 5),
@@ -2606,6 +2636,7 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: vec![cdda_content::mapgen::AreaSingleItem {
             item: "rag".to_owned(),
@@ -2694,6 +2725,7 @@ fn a_rectangle_can_place_a_liquid() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (0, 0),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2776,6 +2808,7 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
         remove_all: Vec::new(),
         monster_symbols: BTreeMap::new(),
         rotation: (1, 1),
+        set_points: Vec::new(),
         place_nested: Vec::new(),
         place_item: Vec::new(),
         place_signs: Vec::new(),
@@ -2813,5 +2846,101 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
         cdda_sim::field_strength_at(&world, (23, 1, 0), smoke),
         1,
         "**the smoke that stood at ( 1, 0 ) is at ( 23, 1 ), one square below the rubble**"
+    );
+}
+
+/// **The `set` list is the oldest way the data names one square's layer, and it is still the most common.** Reference: `jmapgen_setmap::apply` (`mapgen.cpp:5622-5640`):
+/// `one_in( chance )`, then `repeat` squares drawn from the entry's range, each writing terrain, furniture or a trap.
+///
+/// The data writes 1,374 `set` entries, **1,129 of them point entries**, and 1,063 of those name one of the three layers the port has. A mapgen that reads symbols and not
+/// `set` draws its walls and never its scattered dirt, its underbrush or its traps - which is why the test checks all three layers on one mapgen.
+#[test]
+fn a_set_point_writes_the_layer_it_names() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_house_one".to_owned(), 11u32),
+            ("t_dirt".to_owned(), 66u32),
+        ]
+        .into_iter()
+        .collect::<std::collections::BTreeMap<_, _>>(),
+    );
+    cdda_sim::furniture_types::set_types(&mut world, [("f_underbrush".to_owned(), 67u32)]);
+    let scattered = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["....".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
+        remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
+        place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
+        place_liquids: Vec::new(),
+        set_points: vec![
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::Terrain,
+                id: "t_dirt".to_owned(),
+                x: (2, 2),
+                y: (0, 0),
+                repeat: (1, 1),
+            },
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::Furniture,
+                id: "f_underbrush".to_owned(),
+                x: (3, 3),
+                y: (0, 0),
+                repeat: (1, 1),
+            },
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::Trap,
+                id: "tr_bear".to_owned(),
+                x: (1, 1),
+                y: (0, 0),
+                repeat: (1, 1),
+            },
+        ],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), scattered)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(61));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 0, 0)),
+        Some(66),
+        "**the dirt the set point named**"
+    );
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (3, 0, 0)),
+        Some(67),
+        "**the underbrush on its own square**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (1, 0, 0)),
+        Some("tr_bear".to_owned()),
+        "**and the trap on its own**"
     );
 }

@@ -40642,3 +40642,18 @@ no orientation yet, and a thing whose *art* turns rather than its *position* (a 
 **The mutation** turns the other way, using case 3 where case 1 belongs: the test fails at `left: Some(11), right: Some(77)` - the rubble went down instead of right.
 
 The census moves `rotation` to the read list: **32 of 63 members read**.
+
+## The oldest way to say it (round 307)
+
+`set` is the mapgen's first vocabulary and still its most used: **1,374 entries**, of which **1,129 are point entries** and 1,063 of those name terrain, furniture or a trap. The port
+read symbols and rectangles and not this, so a mapgen's scattered dirt, its underbrush and its traps were missing while its walls stood.
+
+The rule is the area setters' rule, and it is worth saying why that is not laziness: `jmapgen_setmap::apply` (`mapgen.cpp:5622-5640`) draws `repeat` squares from the entry's
+range - the same "field of candidates" as `place_terrain` - so reusing the spot rule is reading the reference correctly rather than simplifying it.
+
+**Named gaps**, all counted in the data: the `line` form (163 entries) and `square` form (82, and it draws an **outline**, not a fill); `variable` (230),
+`bash` (45), `radiation` (26), `burn` (2) and the three `*_remove` ops - none of them read.
+
+**The mutation** skips the trap write: the test fails at `left: None, right: Some("tr_bear")`.
+
+The census moves `set` to the read list: **33 of 63 members read**.
