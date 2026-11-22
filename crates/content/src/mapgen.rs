@@ -142,6 +142,8 @@ pub struct MapgenObject {
     pub toilets: BTreeMap<char, (i32, i32)>,
     /// The liquids a symbol places (`jmapgen_liquid_item`, `mapgen.cpp:2900-2944`): a bottle of water on a counter is this, not an item group.
     pub liquids: BTreeMap<char, LiquidPlacement>,
+    /// The item groups scattered over a rectangle (`jmapgen_item_group`, `mapgen.cpp:2983-3016`): how a room's drawers and counters get their contents, 428 times in the data.
+    pub place_items: Vec<AreaItemPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -483,6 +485,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 monsters: read_monsters(inner),
                 toilets: read_toilets(inner.get("toilets")),
                 liquids: read_liquids(inner.get("liquids")),
+                place_items: read_area_items(inner.get("place_items")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -669,6 +672,51 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `place_items` entry: an item **group** scattered over a rectangle (`jmapgen_item_group`, `mapgen.cpp:2983-3016`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaItemPlacement {
+    /// The group id - the member is called `item` and holds a **group**, which is the reference's own spelling.
+    pub group: String,
+    /// A **percentage**, unlike the symbol maps' one-in-n: `chance( jsi, "chance", 100, 100 )` (`mapgen.cpp:2990`).
+    pub chance: i32,
+    /// How many times the entry is placed, as a range.
+    pub repeat: (i32, i32),
+    /// The columns.
+    pub x: (i32, i32),
+    /// The rows.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_items` list.
+fn read_area_items(list: Option<&cdda_json::Value>) -> Vec<AreaItemPlacement> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        // A plain group name; an inline array of entries is a group the data writes on the spot, which this reader does not take.
+        let Some(cdda_json::Value::Str(group)) = one.get("item") else {
+            continue;
+        };
+        placed.push(AreaItemPlacement {
+            group: group.clone(),
+            chance: match one.get("chance") {
+                Some(cdda_json::Value::Int(value)) => {
+                    i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                }
+                _ => 100,
+            },
+            repeat: span(one.get("repeat")),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One `liquids` entry: a liquid on the floor, in charges (`jmapgen_liquid_item`, `mapgen.cpp:2900-2944`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiquidPlacement {

@@ -126,6 +126,7 @@ pub fn write(
         written += drew_squares;
     }
     place_monsters(world, mapgen, origin, &mut rolls);
+    place_area_items(world, mapgen, origin, &mut rolls);
     if let Some(rolls) = rolls {
         crate::singletons::put_rolls(world, rolls);
     }
@@ -220,6 +221,92 @@ fn draw_one_square(
 
 /// What a toilet holds when the data names no amount: `place_toilet`'s own default (`map.h:1679`).
 const DEFAULT_TOILET_CHARGES: i32 = 24;
+
+/// Scatters the mapgen's item groups over their rectangles, once per chunk.
+///
+/// Reference: `jmapgen_item_group::apply` (`mapgen.cpp:3009-3015`) calls `map::place_items` (`:7376-7420`), which:
+/// - draws `roll_remainder( chance / 100 )` spawns, so `chance` is a **percentage of one spawn**, not a per-square chance;
+/// - picks a **random square in the rectangle** for each spawn;
+/// - creates the group there, which may make several items that belong together.
+///
+/// The `repeat` range is applied the way the reference's `jmapgen_objects` applies it: the entry is placed that many times, each placement rolling its own count.
+///
+/// **Named gap**: the reference refuses squares whose terrain is impassable unless it is flagged `PLACE_ITEM` (`:7401-7415`), retrying up to twenty times. The port's terrain
+/// table carries no move cost or flags here, so any square in the rectangle can take the spawn.
+fn place_area_items(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    if mapgen.place_items.is_empty() {
+        return;
+    }
+    let side = crate::overmap::SQUARES_PER_OMT;
+    for entry in &mapgen.place_items {
+        let times = match rolls.as_mut() {
+            Some(dice) if entry.repeat.1 > entry.repeat.0 => {
+                dice.rng(entry.repeat.0, entry.repeat.1)
+            }
+            _ => entry.repeat.0,
+        };
+        for _ in 0..times.max(0) {
+            let spawns = match rolls.as_mut() {
+                Some(dice) => roll_remainder(dice, f64::from(entry.chance) / 100.0),
+                None => 0,
+            };
+            for _ in 0..spawns {
+                let (x, y) = match rolls.as_mut() {
+                    Some(dice) => (
+                        dice.rng(entry.x.0, entry.x.1),
+                        dice.rng(entry.y.0, entry.y.1),
+                    ),
+                    None => (entry.x.0, entry.y.0),
+                };
+                // The data's rectangles are inside the chunk; one that reaches past it is clamped away rather than written into the next room.
+                if !(0..side).contains(&x) || !(0..side).contains(&y) {
+                    continue;
+                }
+                if let Some(held) = rolls.take() {
+                    crate::singletons::put_rolls(world, held);
+                }
+                let produced = crate::item_groups::draw(world, &entry.group);
+                *rolls = crate::singletons::take_rolls(world);
+                if let Some(produced) = produced {
+                    for (id, amount) in produced {
+                        if let Some(kind) = crate::item_registry::id_of(world, &id) {
+                            for _ in 0..amount.max(0) {
+                                crate::drop_item(world, (origin.0 + x, origin.1 + y), kind, 1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The reference's `roll_remainder` (`mapgen.cpp:7397`): a fractional count's whole part, and the fraction as a chance of one more.
+fn roll_remainder(dice: &mut cdda_core_types::rng::Rolls, value: f64) -> i32 {
+    if value <= 0.0 {
+        return 0;
+    }
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the value is positive and small: a percentage over a hundred"
+    )]
+    let whole = value.floor() as i32;
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the fraction is between zero and one, so it fits a percentage"
+    )]
+    let fraction = ((value - value.floor()) * 100.0).round() as i32;
+    if fraction > 0 && dice.x_in_y(f64::from(fraction), 100.0) {
+        whole + 1
+    } else {
+        whole
+    }
+}
 
 /// Places the liquid a symbol carries, and answers whether it placed any.
 ///

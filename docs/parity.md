@@ -40344,3 +40344,23 @@ amount has a count of one, but that is a fact about this data, not about the rul
 **The mutation** is the fuel multiply at `* 1`: the test fails at `left: [1], right: [100]`.
 
 The census moves `liquids` from the gap list to the read list: **12 of 63 members read**.
+
+## The room's drawers (round 291)
+
+`jmapgen_item_group` (`mapgen.cpp:2983-3016`) is the mapgen's **area** item layer: a group scattered over a rectangle, used **428 times** in the data - a kitchen's drawers, a
+surgery's tray, a soldier's kit. Without it every room in every map is furnished and **empty**, which is what the port's were.
+
+Three rules, each a place to get it wrong:
+
+- **`chance` is a percentage of one spawn**, not a per-square chance: `place_items` draws `roll_remainder( chance / 100 )` spawns (`:7397`), so 100 is one spawn and 50 is one
+  spawn half the time. That is the **third** chance convention in the same file (one-in-n for symbol items, percentage for `items`, percentage-of-a-spawn here), and the mapgen's
+  own data uses all three.
+- **The square is random inside the rectangle** (`:7411-7413`), so a drawer's contents land anywhere in it - the point of the member.
+- **`repeat` places the entry again**, each placement rolling its own count, which is how the reference's `jmapgen_objects` applies it.
+
+**Named gap**: the reference refuses a square whose terrain is impassable unless it is flagged `PLACE_ITEM`, retrying up to twenty times (`:7401-7415`). The port's terrain table
+carries no move cost or flags in the mapgen writer, so any square in the rectangle can take a spawn.
+
+**The mutation** is `repeat` ignored (`for _ in 0..1`): the test fails at `left: 1, right: 3`.
+
+The census moves `place_items` to the read list: **13 of 63 members read**.
