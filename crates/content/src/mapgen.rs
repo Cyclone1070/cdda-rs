@@ -156,6 +156,12 @@ pub struct MapgenObject {
     pub gas_pumps: BTreeMap<char, GasPumpPlacement>,
     /// Nested mapgens (`jmapgen_nested`, `mapgen.cpp:4206-4500`): a whole chunk, drawn shifted, 335 times in the data - the way a room's interior is chosen.
     pub nested: BTreeMap<char, NestedPlacement>,
+    /// Terrain scattered over a rectangle (`jmapgen_terrain` placed through `place_terrain`): a **random square per repeat**, not the whole box.
+    pub place_terrain: Vec<AreaSet>,
+    /// Furniture scattered over a rectangle (`place_furniture`): the same shape as terrain, a different layer.
+    pub place_furniture: Vec<AreaSet>,
+    /// Traps scattered over a rectangle (`place_traps`): a minefield is this, not a symbol map.
+    pub place_traps: Vec<AreaSet>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -504,6 +510,9 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 signs: read_signs(inner.get("signs")),
                 gas_pumps: read_gas_pumps(inner.get("gaspumps")),
                 nested: read_nested(inner.get("nested")),
+                place_terrain: read_area_sets(inner.get("place_terrain"), "ter"),
+                place_furniture: read_area_sets(inner.get("place_furniture"), "furn"),
+                place_traps: read_area_sets(inner.get("place_traps"), "trap"),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -690,6 +699,46 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `place_terrain`, `place_furniture` or `place_traps` entry: **a random square per repeat** in a rectangle.
+///
+/// Reference: `jmapgen_objects::apply` (`mapgen.cpp:6161-6164`) applies the piece `repeat` times at `where.x.get(), where.y.get()` - and a `jmapgen_int`'s `get` draws
+/// **one** value from its range, so a rectangle is a field of candidate squares, not a box that is filled. The data relies on this: a minefield is `repeat: 200` over a
+/// 24×24 rectangle, not a wall of traps on every square.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaSet {
+    /// The id placed: a terrain, a furniture or a trap, according to which list it came from.
+    pub id: String,
+    /// The columns it may land on.
+    pub x: (i32, i32),
+    /// The rows it may land on.
+    pub y: (i32, i32),
+    /// How many squares get it.
+    pub repeat: (i32, i32),
+}
+
+/// Reads one of the three `place_*` lists, each entry naming its id under `member`.
+fn read_area_sets(list: Option<&cdda_json::Value>, member: &str) -> Vec<AreaSet> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(id)) = one.get(member) else {
+            continue;
+        };
+        placed.push(AreaSet {
+            id: id.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            repeat: span(one.get("repeat")),
+        });
+    }
+    placed
+}
+
 /// One `nested` entry: the weighted list of nested mapgens a symbol may draw (`jmapgen_nested`, `mapgen.cpp:4206-4500`).
 ///
 /// The reference keeps **two** lists - `chunks` and `else_chunks` - and chooses between them by the neighbours' terrain, joins, flags, predecessors and z level

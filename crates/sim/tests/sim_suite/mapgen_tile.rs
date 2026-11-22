@@ -36,6 +36,9 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -151,6 +154,9 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -224,6 +230,9 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -280,6 +289,9 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -355,6 +367,9 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -449,6 +464,9 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -508,6 +526,9 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -568,6 +589,9 @@ fn a_mapgens_predecessor_is_drawn_first() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -590,6 +614,9 @@ fn a_mapgens_predecessor_is_drawn_first() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -675,6 +702,9 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -745,6 +775,9 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -817,6 +850,9 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -920,6 +956,9 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1012,6 +1051,9 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1106,6 +1148,9 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1185,6 +1230,9 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1297,6 +1345,9 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1360,6 +1411,9 @@ fn a_sign_is_furniture_that_carries_words() {
         .collect(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1457,6 +1511,9 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         .into_iter()
         .collect(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1520,6 +1577,9 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1554,6 +1614,9 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         )]
         .into_iter()
         .collect(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1620,6 +1683,9 @@ fn a_nested_marker_inside_the_chunk_shifts_its_chunk_up_and_left() {
         signs: BTreeMap::new(),
         gas_pumps: BTreeMap::new(),
         nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1654,6 +1720,9 @@ fn a_nested_marker_inside_the_chunk_shifts_its_chunk_up_and_left() {
         )]
         .into_iter()
         .collect(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -1677,5 +1746,93 @@ fn a_nested_marker_inside_the_chunk_shifts_its_chunk_up_and_left() {
         cdda_sim::square::terrain_at(&world, (1, 1, 0)),
         Some(11),
         "**and the rest fell outside the chunk and was clipped away**"
+    );
+}
+
+/// **A rectangle is a field of candidates, not a box that is filled.** Reference: `jmapgen_objects::apply` (`mapgen.cpp:6161-6164`) applies a piece `repeat` times, and each
+/// application draws **one** square from the rectangle (`jmapgen_int::get`) - so `place_terrain` with `repeat: 4` over a 3×3 box writes **four** squares, not nine.
+///
+/// The data uses `place_terrain` 56 times, `place_furniture` 65 and `place_traps` 35, and the convention is the one that reads most easily backwards: a minefield is
+/// `repeat: 200` over a whole chunk, which is nothing like "fill the chunk with traps".
+#[test]
+fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_house_one".to_owned(), 11u32),
+            ("t_rubble".to_owned(), 77u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    // The rows resolve through the mapgen's own code table and the objects through the type registries, which is the split the loader has: a row's symbol names a
+    // terrain in the mapgen, and a `place_terrain` entry names one in the terrain table.
+    cdda_sim::terrain_types::set_types(&mut world, [("t_rubble".to_owned(), 77u32)]);
+    cdda_sim::furniture_types::set_types(&mut world, [("f_rubble".to_owned(), 78u32)]);
+    let field = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["...".to_owned(), "...".to_owned(), "...".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: vec![cdda_content::mapgen::AreaSet {
+            id: "t_rubble".to_owned(),
+            x: (0, 2),
+            y: (0, 2),
+            repeat: (4, 4),
+        }],
+        place_furniture: vec![cdda_content::mapgen::AreaSet {
+            id: "f_rubble".to_owned(),
+            x: (0, 0),
+            y: (0, 0),
+            repeat: (1, 1),
+        }],
+        place_traps: vec![cdda_content::mapgen::AreaSet {
+            id: "tr_bear".to_owned(),
+            x: (2, 2),
+            y: (2, 2),
+            repeat: (1, 1),
+        }],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), field)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(23));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let mut rubbled = 0;
+    for x in 0..3 {
+        for y in 0..3 {
+            if cdda_sim::square::terrain_at(&world, (x, y, 0)) == Some(77) {
+                rubbled += 1;
+            }
+        }
+    }
+    assert_eq!(
+        rubbled, 4,
+        "**four squares of nine, because repeat is four**"
+    );
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (0, 0, 0)),
+        Some(78),
+        "**the furniture went where its rectangle said**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (2, 2, 0)),
+        Some("tr_bear".to_owned()),
+        "**and the trap did too**"
     );
 }

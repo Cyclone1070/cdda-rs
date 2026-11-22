@@ -365,6 +365,9 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         signs: std::collections::BTreeMap::new(),
         gas_pumps: std::collections::BTreeMap::new(),
         nested: std::collections::BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }

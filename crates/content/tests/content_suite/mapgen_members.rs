@@ -33,6 +33,9 @@ const READ: &[&str] = &[
     "signs",
     "gaspumps",
     "nested",
+    "place_terrain",
+    "place_furniture",
+    "place_traps",
     "fill_ter",
     "predecessor_mapgen",
     "palettes",
@@ -44,9 +47,6 @@ const NAMED_GAPS: &[&str] = &[
     "place_nested",
     // The parameterised form of every symbol map: `place_terrain`, `place_furniture`, `place_traps`, `place_items`, ... draw over a **rectangle** rather than from
     // rows, and each is the symbol map's rule with a range. The data writes both; the port reads the row form.
-    "place_terrain",
-    "place_furniture",
-    "place_traps",
     "place_item",
     "place_monsters",
     "place_liquids",

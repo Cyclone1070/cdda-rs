@@ -130,6 +130,7 @@ pub fn write(
     draw_the_nested_mapgens(world, mapgen, origin, &codes, &furniture_codes, &mut rolls);
     place_monsters(world, mapgen, origin, &mut rolls);
     place_area_items(world, mapgen, origin, &mut rolls);
+    place_area_sets(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     if let Some(rolls) = rolls {
         crate::singletons::put_rolls(world, rolls);
@@ -231,6 +232,75 @@ fn draw_one_square(
 
 /// What a toilet holds when the data names no amount: `place_toilet`'s own default (`map.h:1679`).
 const DEFAULT_TOILET_CHARGES: i32 = 24;
+
+/// Scatters terrain, furniture and traps over their rectangles.
+///
+/// Reference: `jmapgen_objects::apply` (`mapgen.cpp:6161-6164`): each entry is applied `repeat` times, and each application draws **one** square from the rectangle
+/// (`jmapgen_int::get`), so a rectangle is a field of candidates and never a box that is filled.
+fn place_area_sets(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_terrain {
+        for spot in repeat_spots(rolls, entry) {
+            if let Some(code) = crate::terrain_types::code_of(world, &entry.id) {
+                crate::square::set_terrain(
+                    world,
+                    (origin.0 + spot.0, origin.1 + spot.1, origin.2),
+                    code,
+                );
+            }
+        }
+    }
+    for entry in &mapgen.place_furniture {
+        for spot in repeat_spots(rolls, entry) {
+            if let Some(code) = crate::furniture_types::code_of(world, &entry.id) {
+                crate::square::set_furniture(
+                    world,
+                    (origin.0 + spot.0, origin.1 + spot.1, origin.2),
+                    code,
+                );
+            }
+        }
+    }
+    for entry in &mapgen.place_traps {
+        for spot in repeat_spots(rolls, entry) {
+            crate::square::set_trap(
+                world,
+                (origin.0 + spot.0, origin.1 + spot.1, origin.2),
+                &entry.id,
+            );
+        }
+    }
+}
+
+/// The squares one entry lands on: `repeat` draws from its rectangle, kept **inside the chunk**.
+fn repeat_spots(
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+    entry: &cdda_content::mapgen::AreaSet,
+) -> Vec<(i32, i32)> {
+    let count = match rolls.as_mut() {
+        Some(dice) if entry.repeat.1 > entry.repeat.0 => dice.rng(entry.repeat.0, entry.repeat.1),
+        _ => entry.repeat.0,
+    }
+    .max(0);
+    let mut spots = Vec::new();
+    for _ in 0..count {
+        let (x, y) = match rolls.as_mut() {
+            Some(dice) => (
+                dice.rng(entry.x.0, entry.x.1),
+                dice.rng(entry.y.0, entry.y.1),
+            ),
+            None => (entry.x.0, entry.y.0),
+        };
+        if (0..SIDE).contains(&x) && (0..SIDE).contains(&y) {
+            spots.push((x, y));
+        }
+    }
+    spots
+}
 
 /// Scatters the mapgen's item groups over their rectangles, once per chunk.
 ///

@@ -40469,3 +40469,23 @@ weighted functions takes its first; nesting is followed four deep.
 **The mutation** flips the shift to `+ offset`: the anchoring test fails at `left: Some(11), right: Some(91)`, which is what "the nested chunk went the wrong way" looks like.
 
 The census moves `nested` to the read list: **19 of 63 members read**.
+
+## A rectangle is a field of candidates (round 298)
+
+Three members, one shape, **156 uses between them**: `place_terrain` (56), `place_furniture` (65) and `place_traps` (35). Each is a list of entries naming an id, a rectangle
+and a `repeat`, and the convention is the one that reads backwards:
+
+- **The rectangle is a field of candidate squares, not a box that is filled.** `jmapgen_objects::apply` (`mapgen.cpp:6161-6164`) applies the piece `repeat` times, and each
+  application draws **one** square from the rectangle (`jmapgen_int::get`). So `place_terrain` with `repeat: 4` over a 3×3 box writes **four** squares - and a minefield is
+  `repeat: 200` over a whole chunk, which is nothing like "a trap on every square".
+- The three lists differ only in **which layer** they write: terrain, furniture or trap. One model, three writers, one test that pins the convention on the terrain list and
+  proves the other two land where their rectangles say.
+
+**What the test cost**: the first run wrote nothing, because the writer resolves ids through the **type registries** while the test had only filled the mapgen's own code
+table - the split the loader really has (a row's symbol names a terrain *in the mapgen*; a `place_terrain` entry names one *in the terrain table*). The test now fills both and
+says why.
+
+**The mutation** fills the whole rectangle instead of drawing `repeat` squares: the test fails at `left: 7, right: 4` (seven distinct squares of the nine, from four draws with
+repeats landing on each other).
+
+The census moves all three to the read list: **22 of 63 members read**.
