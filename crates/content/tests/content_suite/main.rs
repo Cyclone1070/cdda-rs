@@ -102,6 +102,7 @@ mod mapdata;
 mod mapgen;
 mod mapgen_draw;
 mod mapgen_keys;
+mod mapgen_members;
 mod mapgen_objects;
 mod mapgen_place;
 mod mapgen_terrains;

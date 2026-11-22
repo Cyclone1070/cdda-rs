@@ -40299,3 +40299,29 @@ The rule is three lines of reference and three of port: the furniture is `f_toil
 **What this round cost, and why**: the field had to be threaded through **seventeen** `MapgenObject` literals in three test files, and a regular expression that tried to
 insert it beside `traps:` matched a multi-line array and broke the file - restored from git and redone against a line every fixture has. The lesson is the batch's: a model
 field is a change to every fixture, so the fixture insertion wants a shape that is single-line everywhere (**`fill_ter:`** here), chosen after looking, not assumed.
+
+## The mapgen census: what the data writes, and what the port reads (round 289)
+
+The refusal censuses count programs that stop, and round 288's toilet found the class they cannot see: **a member the loader ignores stops nothing**. The chunk is drawn without its
+toilets, its vending machines or its nested rooms, and no rule refuses - the square is simply emptier than the reference's.
+
+`content_suite::mapgen_members` is the instrument for that class. It walks the data's `mapgen` and `palette` objects, collects every member name inside `object`, and requires each
+one to be **read** (with a port test behind it) or **named as a gap** (with the reference site that says what it will take to read it). The numbers now:
+
+| Census | Now |
+|---|---|
+members the data writes | **63** |
+read by the loader | **11** |
+named gaps | **47** |
+comments (`//`, `//1`-`//4`) | 5 |
+unclassified | **0** |
+
+The 47 named gaps are the mapgen TODO list, written by the data rather than by intuition: the parameterised `place_*` rectangle forms (13), nested mapgens (2), the
+`monsters`/`monster` spawn-point maps (2), furniture with contents or text (5), liquids, vehicles (2), `remove_all`, rubble, NPCs (2), terrain/furniture transforms,
+parameters/mapgensize/set/rotation, faction ownership, and the predecessor fallback.
+
+**The test refuses in three directions, not one**: an unclassified member (silently ignored), a name in the ledger the data never writes (**a claim nobody can check**), and a
+name in both lists (a disagreement about the same square).
+
+**The mutation** removes `toilets` from the read list: the census fails at `1 members are neither read nor named as gaps: ["toilets"]` - which is what the hole looked like
+before round 288 read it.
