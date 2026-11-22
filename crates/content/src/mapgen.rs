@@ -144,6 +144,8 @@ pub struct MapgenObject {
     pub liquids: BTreeMap<char, LiquidPlacement>,
     /// The item groups scattered over a rectangle (`jmapgen_item_group`, `mapgen.cpp:2983-3016`): how a room's drawers and counters get their contents, 428 times in the data.
     pub place_items: Vec<AreaItemPlacement>,
+    /// The single items and groups dropped on one random square of a rectangle (`jmapgen_loot`, `mapgen.cpp:3019-3072`), which is the mapgen's most used member: 669 times.
+    pub place_loot: Vec<LootPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -486,6 +488,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 toilets: read_toilets(inner.get("toilets")),
                 liquids: read_liquids(inner.get("liquids")),
                 place_items: read_area_items(inner.get("place_items")),
+                place_loot: read_loot(inner.get("place_loot")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -672,6 +675,62 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `place_loot` entry: **one** item or group, on one random square of a rectangle (`jmapgen_loot`, `mapgen.cpp:3019-3072`).
+///
+/// Two members make it different from `place_items` even though both name a rectangle: the chance is a percentage of **being placed at all** (`rng( 0, 99 ) < chance`,
+/// `:3058`), and there is **no `repeat`** - the class parses none, so one entry is one roll.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LootPlacement {
+    /// The single item id, when the entry names one.
+    pub item: Option<String>,
+    /// The item group id, when it names one instead. The reference requires exactly one of the two (`:3032-3034`).
+    pub group: Option<String>,
+    /// The percentage chance of placing anything at all.
+    pub chance: i32,
+    /// The columns.
+    pub x: (i32, i32),
+    /// The rows.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_loot` list.
+fn read_loot(list: Option<&cdda_json::Value>) -> Vec<LootPlacement> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let item = match one.get("item") {
+            Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+            _ => None,
+        };
+        let group = match one.get("group") {
+            Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+            _ => None,
+        };
+        // The reference throws on both or neither (`:3032`); a reader that silently took one would place loot the data did not ask for.
+        if item.is_some() == group.is_some() {
+            continue;
+        }
+        placed.push(LootPlacement {
+            item,
+            group,
+            chance: match one.get("chance") {
+                Some(cdda_json::Value::Int(value)) => {
+                    i32::try_from(*value).unwrap_or(100).clamp(0, 100)
+                }
+                _ => 100,
+            },
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One `place_items` entry: an item **group** scattered over a rectangle (`jmapgen_item_group`, `mapgen.cpp:2983-3016`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AreaItemPlacement {

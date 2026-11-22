@@ -359,6 +359,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         toilets: std::collections::BTreeMap::new(),
         liquids: std::collections::BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }

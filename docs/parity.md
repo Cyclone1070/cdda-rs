@@ -40364,3 +40364,21 @@ carries no move cost or flags in the mapgen writer, so any square in the rectang
 **The mutation** is `repeat` ignored (`for _ in 0..1`): the test fails at `left: 1, right: 3`.
 
 The census moves `place_items` to the read list: **13 of 63 members read**.
+
+## The gun in the safe (round 292)
+
+`jmapgen_loot` (`mapgen.cpp:3019-3072`) is the mapgen's **most used member, 669 times**, and it is the shape the data uses for the thing you came into the room for: the gun in the
+safe, the first aid kit on the shelf, the wallet on the corpse.
+
+It looks like `place_items` and is not:
+
+- **The chance is a percentage of placing anything at all** (`rng( 0, 99 ) < chance`, `:3058`) - not a percentage of a spawn count. A hundred is always, zero is never, and
+  fifty is one roll in two.
+- **An entry names a single `item` or a `group`, and the reference throws on both or neither** (`:3032-3034`). The reader refuses such an entry rather than picking one, because a
+  reader that picked would place loot the data did not ask for.
+- **There is no `repeat`**: the class parses none, so one entry is one roll. That is the opposite of the item group one member away.
+- A group entry draws once and its items land on the same square - a gun and its magazine together, which is the point of a group.
+
+**The mutation** makes the chance `chance > 0 || chance == 0`, which places everything always: the test fails at `left: 2, right: 0` on the entry the data said never to place.
+
+The census moves `place_loot` to the read list: **14 of 63 members read**.

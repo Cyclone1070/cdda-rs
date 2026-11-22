@@ -127,6 +127,7 @@ pub fn write(
     }
     place_monsters(world, mapgen, origin, &mut rolls);
     place_area_items(world, mapgen, origin, &mut rolls);
+    place_loot(world, mapgen, origin, &mut rolls);
     if let Some(rolls) = rolls {
         crate::singletons::put_rolls(world, rolls);
     }
@@ -279,6 +280,65 @@ fn place_area_items(
                                 crate::drop_item(world, (origin.0 + x, origin.1 + y), kind, 1);
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Drops the mapgen's loot: one item or group per entry, on one random square of its rectangle.
+///
+/// Reference: `jmapgen_loot::apply` (`mapgen.cpp:3056-3065`): `rng( 0, 99 ) < chance` is a **percentage** of placing anything at all, the square is a random point in the
+/// rectangle, and there is no repeat - one entry is one roll. The item is spawned directly; the group is drawn as any other group.
+fn place_loot(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    if mapgen.place_loot.is_empty() {
+        return;
+    }
+    let side = crate::overmap::SQUARES_PER_OMT;
+    for entry in &mapgen.place_loot {
+        let placed = match rolls.as_mut() {
+            Some(dice) => dice.x_in_y(f64::from(entry.chance), 100.0),
+            None => false,
+        };
+        if !placed {
+            continue;
+        }
+        let (x, y) = match rolls.as_mut() {
+            Some(dice) => (
+                dice.rng(entry.x.0, entry.x.1),
+                dice.rng(entry.y.0, entry.y.1),
+            ),
+            None => (entry.x.0, entry.y.0),
+        };
+        if !(0..side).contains(&x) || !(0..side).contains(&y) {
+            continue;
+        }
+        let at = (origin.0 + x, origin.1 + y);
+        if let Some(item) = entry.item.as_deref() {
+            if let Some(kind) = crate::item_registry::id_of(world, item) {
+                crate::drop_item(world, at, kind, 1);
+            }
+            continue;
+        }
+        let Some(group) = entry.group.as_deref() else {
+            continue;
+        };
+        if let Some(held) = rolls.take() {
+            crate::singletons::put_rolls(world, held);
+        }
+        let produced = crate::item_groups::draw(world, group);
+        *rolls = crate::singletons::take_rolls(world);
+        if let Some(produced) = produced {
+            for (id, amount) in produced {
+                if let Some(kind) = crate::item_registry::id_of(world, &id) {
+                    for _ in 0..amount.max(0) {
+                        crate::drop_item(world, at, kind, 1);
                     }
                 }
             }

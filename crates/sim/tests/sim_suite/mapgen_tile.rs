@@ -30,6 +30,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     }
@@ -139,6 +140,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
     };
@@ -206,6 +208,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -256,6 +259,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -325,6 +329,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -413,6 +418,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -466,6 +472,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
             y: (0, 0),
             friendly: false,
         }],
+        place_loot: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -520,6 +527,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
     };
@@ -536,6 +544,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         toilets: BTreeMap::new(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
     };
@@ -615,6 +624,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
             y: (0, 0),
             friendly: false,
         }],
+        place_loot: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -679,6 +689,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
             y: (0, 0),
             friendly: true,
         }],
+        place_loot: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         toilets: BTreeMap::new(),
@@ -745,6 +756,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         toilets: [('T', (0, 0))].into_iter().collect(),
         liquids: BTreeMap::new(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -842,6 +854,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         .into_iter()
         .collect(),
         place_items: Vec::new(),
+        place_loot: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -928,6 +941,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
             x: (0, 1),
             y: (0, 1),
         }],
+        place_loot: Vec::new(),
         weight: 1,
         fields: Vec::new(),
         fill_ter: None,
@@ -945,5 +959,94 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
     assert_eq!(
         rags, 3,
         "**three placements of one rag each, scattered inside the rectangle**"
+    );
+}
+
+/// **A mapgen drops loot on one square of a rectangle.** Reference: `jmapgen_loot::apply` (`mapgen.cpp:3056-3065`) - `rng(0, 99) < chance` is a **percentage** of placing
+/// anything at all, the square is a random point in the rectangle, and there is **no repeat**: one entry is one roll.
+///
+/// `place_loot` is the mapgen's **most used member, 669 times**, and it is the one shape the data uses for the thing you came to the room for: the gun in the safe, the
+/// first aid kit on the shelf, the corpse's wallet.
+#[test]
+fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rag",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    cdda_sim::item_groups::set_groups(
+        &mut world,
+        [(
+            "kit".to_owned(),
+            cdda_content::item_group_draw::Definition {
+                id: "kit".to_owned(),
+                distribution: false,
+                entries: vec![cdda_content::item_group_draw::Entry::Item {
+                    id: "rag".to_owned(),
+                    probability: 100,
+                    count: (2, 2),
+                    event: None,
+                }],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    );
+    let looting = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["....".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: vec![
+            // A single item, always there, on the third column.
+            cdda_content::mapgen::LootPlacement {
+                item: Some("rag".to_owned()),
+                group: None,
+                chance: 100,
+                x: (2, 2),
+                y: (0, 0),
+            },
+            // A group, never there, on the last column: the chance is a percentage of **placing anything at all**.
+            cdda_content::mapgen::LootPlacement {
+                item: None,
+                group: Some("kit".to_owned()),
+                chance: 0,
+                x: (3, 3),
+                y: (0, 0),
+            },
+        ],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), looting)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (2, 0)).len(),
+        1,
+        "**the single item is on its square**"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (3, 0)).len(),
+        0,
+        "**and a chance of zero places nothing at all**"
     );
 }
