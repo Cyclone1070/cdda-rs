@@ -125,6 +125,9 @@ pub fn write(
     if filled.is_none() {
         written += drew_squares;
     }
+    // **The nested phase comes after the terrain and the objects** (`mapgen.h:88-97`: `removal`, `terrain`, `furniture`, `default_`, `nested_mapgen`, ...), so a nested chunk
+    // drawn at a marker is not overwritten by the outer rows drawn after that marker - which is exactly what putting it inside the per-square pass did.
+    draw_the_nested_mapgens(world, mapgen, origin, &codes, &furniture_codes, &mut rolls);
     place_monsters(world, mapgen, origin, &mut rolls);
     place_area_items(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
@@ -372,6 +375,156 @@ fn roll_remainder(dice: &mut cdda_core_types::rng::Rolls, value: f64) -> i32 {
     } else {
         whole
     }
+}
+
+/// Draws every nested mapgen the chunk's rows name, in row order, once the outer rows are down.
+fn draw_the_nested_mapgens(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    codes: &BTreeMap<String, u32>,
+    furniture_codes: &BTreeMap<String, u32>,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    if mapgen.nested.is_empty() {
+        return;
+    }
+    for (row, line) in mapgen.rows.iter().enumerate() {
+        for (column, symbol) in line.chars().enumerate() {
+            if !mapgen.nested.contains_key(&symbol) {
+                continue;
+            }
+            let (Ok(column), Ok(row)) = (i32::try_from(column), i32::try_from(row)) else {
+                continue;
+            };
+            let at = (origin.0 + column, origin.1 + row, origin.2);
+            draw_the_nested_mapgen(world, mapgen, at, symbol, codes, furniture_codes, rolls);
+        }
+    }
+}
+
+/// Draws a nested mapgen at a symbol, and answers whether it drew one.
+///
+/// Reference: `jmapgen_nested::apply` (`mapgen.cpp:4488-4514`):
+/// - a nested mapgen id is picked from the weighted `chunks` list;
+/// - the function registered under that id is picked (by weight, in the reference - the port takes the first and names that below);
+/// - `nest` applies the nested mapgen's own pieces **with the marker's offset subtracted** (`:6145`, `where.offset( -offset.raw() )`), so the nested chunk is drawn displaced:
+///   its square `at - origin` lands on the marker's square and the rest extends up and left of it.
+///
+/// **Named gaps**: `else_chunks` and every neighbour condition (`neighbors`, `joins`, `flags`, `flags_any`, `predecessors`, `check_z`) are not evaluated; a nested mapgen id
+/// registered with several weighted functions takes its first; and nesting is followed **four deep** so a data error cannot recurse for ever.
+fn draw_the_nested_mapgen(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    codes: &BTreeMap<String, u32>,
+    furniture_codes: &BTreeMap<String, u32>,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    draw_the_nested_mapgen_to_depth(world, mapgen, at, symbol, codes, furniture_codes, rolls, 0)
+}
+
+/// The recorder: how deep the nesting has gone, so the fourth level is the last.
+const NESTING_DEPTH_LIMIT: u8 = 4;
+
+/// The body of [`draw_the_nested_mapgen`], carrying how deep it already is.
+///
+/// The offset is measured from the **outer chunk's origin** to the marker: the nested square at that distance lands on the outer square zero. That is why a nested mapgen whose
+/// marker sits at the chunk's corner draws into the whole chunk, and one whose marker sits inside it draws mostly outside - which the reference's own anchoring does too.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the layers a square is drawn from, as every other drawing helper here takes them"
+)]
+fn draw_the_nested_mapgen_to_depth(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    codes: &BTreeMap<String, u32>,
+    furniture_codes: &BTreeMap<String, u32>,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+    depth: u8,
+) -> bool {
+    if depth >= NESTING_DEPTH_LIMIT {
+        return false;
+    }
+    let Some(nested) = mapgen.nested.get(&symbol) else {
+        return false;
+    };
+    let chosen = match rolls.as_mut() {
+        Some(dice) => pick_by_weight(dice, &nested.chunks),
+        None => nested.chunks.first().map(|(id, _)| id.clone()),
+    };
+    let Some(chosen) = chosen else {
+        return false;
+    };
+    let found = crate::singletons::holder::<TheMapgens>(world)
+        .and_then(|holder| world.get::<Mapgens>(holder))
+        .and_then(|mapgens| {
+            mapgens
+                .0
+                .get(&chosen)
+                .and_then(|filed| filed.first())
+                .cloned()
+        });
+    let Some(inner) = found else {
+        return false;
+    };
+    // The outer mapgen's own origin is the square four-and-twenty back from the marker when the marker is at the chunk's edge; the port keeps the marker's **relative**
+    // position, because that is what the reference subtracts.
+    let offset = (at.0.rem_euclid(SIDE), at.1.rem_euclid(SIDE));
+    let outer = (at.0 - offset.0, at.1 - offset.1, at.2);
+    let mut drew = false;
+    for (row, line) in inner.rows.iter().enumerate() {
+        for (column, glyph) in line.chars().enumerate() {
+            let (Ok(column), Ok(row)) = (i32::try_from(column), i32::try_from(row)) else {
+                continue;
+            };
+            let spot = (outer.0 + column - offset.0, outer.1 + row - offset.1, at.2);
+            // The reference clips at the submap's bounds; the port clips at the chunk's.
+            if !(0..SIDE).contains(&(spot.0 - outer.0)) || !(0..SIDE).contains(&(spot.1 - outer.1))
+            {
+                continue;
+            }
+            if draw_one_square(world, &inner, spot, glyph, codes, furniture_codes, rolls) {
+                drew = true;
+            }
+            drew |= draw_the_nested_mapgen_to_depth(
+                world,
+                &inner,
+                spot,
+                glyph,
+                codes,
+                furniture_codes,
+                rolls,
+                depth + 1,
+            );
+        }
+    }
+    drew
+}
+
+/// The chunk's side, in squares.
+const SIDE: i32 = 24;
+
+/// Picks an id from a weighted list, which is the reference's `weighted_dbl_or_var_list::pick`.
+fn pick_by_weight(
+    dice: &mut cdda_core_types::rng::Rolls,
+    entries: &[(String, i32)],
+) -> Option<String> {
+    let total: i32 = entries.iter().map(|(_, weight)| (*weight).max(0)).sum();
+    if total <= 0 {
+        return None;
+    }
+    let mut roll = dice.rng(0, total - 1);
+    for (id, weight) in entries {
+        roll -= (*weight).max(0);
+        if roll < 0 {
+            return Some(id.clone());
+        }
+    }
+    entries.last().map(|(id, _)| id.clone())
 }
 
 /// Puts a gas pump on a square: the terrain it stands on and the fuel in it, and answers whether it placed one.

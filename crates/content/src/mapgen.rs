@@ -154,6 +154,8 @@ pub struct MapgenObject {
     pub signs: BTreeMap<char, SignPlacement>,
     /// Gas pumps (`jmapgen_gaspump`, `mapgen.cpp:2850-2895`): a **terrain** and the fuel in it, which is what a station's forecourt is made of.
     pub gas_pumps: BTreeMap<char, GasPumpPlacement>,
+    /// Nested mapgens (`jmapgen_nested`, `mapgen.cpp:4206-4500`): a whole chunk, drawn shifted, 335 times in the data - the way a room's interior is chosen.
+    pub nested: BTreeMap<char, NestedPlacement>,
     /// The fields the mapgen places, which is how an update fills a room with smoke rather than writing terrain.
     pub fields: Vec<Placement>,
     /// The terrain the whole chunk is filled with before the rows are drawn on it (`mapgen.cpp:5168-5172`), which is why a map may write six squares and leave a
@@ -501,6 +503,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 vending_machines: read_vending(inner.get("vendingmachines")),
                 signs: read_signs(inner.get("signs")),
                 gas_pumps: read_gas_pumps(inner.get("gaspumps")),
+                nested: read_nested(inner.get("nested")),
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
@@ -687,6 +690,61 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `nested` entry: the weighted list of nested mapgens a symbol may draw (`jmapgen_nested`, `mapgen.cpp:4206-4500`).
+///
+/// The reference keeps **two** lists - `chunks` and `else_chunks` - and chooses between them by the neighbours' terrain, joins, flags, predecessors and z level
+/// (`:4488-4496`). **Named gap**: the port reads `chunks` only; a mapgen whose `else_chunks` the data wrote gets the `chunks` list, and the neighbour conditions are not
+/// evaluated. That is a deliberate first slice: the weighted list and the anchoring are the part every nested mapgen uses.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NestedPlacement {
+    /// The nested mapgen ids and their weights, as the data writes them under `chunks`.
+    pub chunks: Vec<(String, i32)>,
+}
+
+/// Reads a mapgen's `nested` object.
+fn read_nested(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, NestedPlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let Some(cdda_json::Value::Array(chunks)) = spec.get("chunks") else {
+            continue;
+        };
+        let mut entries = Vec::new();
+        for chunk in chunks {
+            // The data writes a chunk as a pair, `[ "id", weight ]`, and sometimes as a bare id.
+            match chunk {
+                cdda_json::Value::Array(pair) => {
+                    if let Some(cdda_json::Value::Str(id)) = pair.first() {
+                        let weight = match pair.get(1) {
+                            Some(cdda_json::Value::Int(value)) => {
+                                i32::try_from(*value).unwrap_or(100).max(0)
+                            }
+                            _ => 100,
+                        };
+                        entries.push((id.clone(), weight));
+                    }
+                }
+                cdda_json::Value::Str(id) => entries.push((id.clone(), 100)),
+                _ => {}
+            }
+        }
+        if !entries.is_empty() {
+            placed.insert(symbol, NestedPlacement { chunks: entries });
+        }
+    }
+    placed
+}
+
 /// One `gaspumps` entry: a pump's fuel capacity and, when the data says, which fuel (`jmapgen_gaspump`, `mapgen.cpp:2850-2895`).
 ///
 /// The `amount` is in **tens of litres of fuel**: the reference multiplies it by a hundred (`:2877`), so an amount of one is a hundred charges. No amount means a

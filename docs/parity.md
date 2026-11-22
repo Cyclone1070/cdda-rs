@@ -40448,3 +40448,24 @@ Three numbers, all worth pinning:
 **The mutation** drops the hundred: the test fails at `left: [1], right: [100]` - a pump holding one charge of diesel instead of a hundred.
 
 The census moves `gaspumps` to the read list: **18 of 63 members read**.
+
+## The room inside the house (round 297, first slice)
+
+`jmapgen_nested` (`mapgen.cpp:4206-4514`) is how a map gets a room inside it: the outer chunk is walls and doors, and **335** nested placements choose what stands inside - a
+kitchen, a bedroom, a bathroom, a lab's vault. It is the last of the mapgen's big members and the first one that draws **another mapgen**.
+
+Three rules, and the port had none of them:
+
+- **The id is chosen from a weighted list** (`chunks`, `:4432-4440`), and the function filed under the id is chosen again by weight.
+- **The nested chunk is drawn shifted by minus the marker's position** (`:6145`, `where.offset( -offset.raw() )`): the nested square standing at the marker lands on the outer
+  chunk's origin, and everything else extends **up and left** of it, clipped at the submap's edge. That is why the data places nesting markers at the chunk's own corner.
+- **The nested phase runs after terrain and objects** (`mapgen.h:88-97`: `removal`, `terrain`, `furniture`, `default_`, `nested_mapgen`, ...). My first implementation drew it
+  inside the per-square pass, and the test caught the consequence at once: the outer rows drawn **after** the marker overwrote the nested chunk. A phase is an order, not a
+  convenience.
+
+**Named gaps**: `else_chunks` and every neighbour condition (`neighbors`, `joins`, `flags`, `flags_any`, `predecessors`, `check_z`) are not evaluated; an id filed with several
+weighted functions takes its first; nesting is followed four deep.
+
+**The mutation** flips the shift to `+ offset`: the anchoring test fails at `left: Some(11), right: Some(91)`, which is what "the nested chunk went the wrong way" looks like.
+
+The census moves `nested` to the read list: **19 of 63 members read**.
