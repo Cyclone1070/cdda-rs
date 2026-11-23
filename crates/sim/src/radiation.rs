@@ -27,6 +27,12 @@ pub fn dose_at(world: &World, square: (i32, i32, i32)) -> i32 {
         .unwrap_or(0)
 }
 
+/// Sets a square's radiation to a dose, as `map::set_radiation` does (`mapgen.cpp:5676-5679`): an absolute write, not an adjustment, and a dose of zero takes the component
+/// off through [`adjust`].
+pub fn set(world: &mut World, square: (i32, i32, i32), dose: i32) {
+    adjust(world, square, dose - dose_at(world, square));
+}
+
 /// Adds to a square's radiation, as `map::adjust_radiation` does.
 ///
 /// A square left at zero loses the component, so an untouched map holds nothing and a square that has

@@ -40676,3 +40676,20 @@ from its body. The record now carries the correction instead of quietly dropping
 
 **The mutation** puts the line's start back into the walk: the test fails at `left: Some(66), right: Some(11)` - the first square of the road got written when the reference
 leaves it alone.
+
+## The hot square (round 309)
+
+`set`'s radiation entries - **26 of them** in the data - are the odd one out among the `set` ops: every other op names an **id** under `id`, and this one names a **number**
+under `amount` (`mapgen.cpp:1712-1713`). The port read the id ops and dropped these, so a reactor's hot spots, a lab's spill and a crater's floor were clean ground.
+
+The rule is an **absolute write**, not an addition: `m.set_radiation( target_pos, val.get() )` (`:5676-5679`). The port's `radiation::set` is expressed through the existing
+`adjust` - set is "adjust by the difference" - so the component's own rule (a square at zero carries none) stays in one place instead of being copied into the mapgen writer.
+
+**Named gap**: the radiation op is point-only in the reference's op table, and so it is here; `amount` is a range and is drawn per application, which is why the test's dose is a
+single value and the code still rolls.
+
+**The mutation** adds instead of sets: the test fails at `left: 42, right: 30` - twelve already on the square plus the entry's thirty, which is exactly the confusion the
+assertion was written to catch.
+
+The census already counts `set` as read; radiation is part of that member, and the note records it so the next reader knows how much of `set` is covered: point, line and square
+for terrain, furniture and traps, plus radiation - and not `variable`, `bash`, `burn` or the three `*_remove` ops.

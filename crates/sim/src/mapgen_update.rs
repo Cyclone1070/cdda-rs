@@ -147,6 +147,7 @@ pub fn write(
     place_sign_areas(world, mapgen, origin, &mut rolls);
     place_liquid_areas(world, mapgen, origin, &mut rolls);
     place_set_points(world, mapgen, origin, &mut rolls);
+    place_set_radiation(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -973,6 +974,40 @@ fn place_set_points(
                 }
                 write_the_layer(world, entry, (origin.0 + x, origin.1 + y, origin.2));
             }
+        }
+    }
+}
+
+/// Places every `set` radiation entry: `repeat` squares from the range, each set to a dose the dice answer.
+///
+/// Reference: `jmapgen_setmap::apply`'s `JMAPGEN_SETMAP_RADIATION` arm (`mapgen.cpp:5676-5679`): `m.set_radiation( target_pos, val.get() )` - an **absolute** write, and its
+/// range is the dose's, not the square's.
+fn place_set_radiation(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.set_radiation {
+        let count = match rolls.as_mut() {
+            Some(dice) if entry.repeat.1 > entry.repeat.0 => {
+                dice.rng(entry.repeat.0, entry.repeat.1)
+            }
+            _ => entry.repeat.0,
+        }
+        .max(0);
+        for _ in 0..count {
+            let (x, y) = roll_a_square(rolls, entry.x, entry.y);
+            let dose = match rolls.as_mut() {
+                Some(dice) if entry.amount.1 > entry.amount.0 => {
+                    dice.rng(entry.amount.0, entry.amount.1)
+                }
+                _ => entry.amount.0,
+            };
+            if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+                continue;
+            }
+            crate::radiation::set(world, (origin.0 + x, origin.1 + y, origin.2), dose);
         }
     }
 }

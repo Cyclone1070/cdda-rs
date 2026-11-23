@@ -177,6 +177,8 @@ pub struct MapgenObject {
     pub rotation: (i32, i32),
     /// The `set` list's **point** entries (`jmapgen_setmap`, `mapgen.cpp:5432-5480`): 1,129 of them, and the oldest way the data says "this square is that".
     pub set_points: Vec<SetPoint>,
+    /// The `set` list's radiation entries (`mapgen.cpp:1712-1713`, `5676-5679`): 26 of them, and the only `set` op whose value is a **number**, not an id.
+    pub set_radiation: Vec<SetRadiation>,
     /// Nested mapgens placed over a rectangle instead of at a symbol (`place_nested`): the same piece as `nested`, 1,382 times, with the dice choosing the marker.
     pub place_nested: Vec<AreaNested>,
     /// Single items placed over a rectangle (`place_item`, 165 uses): the `item` symbol map with the square written out.
@@ -543,6 +545,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 monster_symbols: read_monster_symbols(inner.get("monster")),
                 rotation: span(inner.get("rotation")),
                 set_points: read_set_points(inner.get("set")),
+                set_radiation: read_set_radiation(inner.get("set")),
                 place_nested: read_area_nested(inner.get("place_nested")),
                 place_item: read_area_single_items(inner.get("place_item")),
                 place_signs: read_area_signs(inner.get("place_signs")),
@@ -733,6 +736,45 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `set` radiation entry: an absolute dose on one square or a range of squares (`mapgen.cpp:1712-1713`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetRadiation {
+    /// The dose, as a range the dice answer between.
+    pub amount: (i32, i32),
+    /// The columns it may land in.
+    pub x: (i32, i32),
+    /// The rows it may land in.
+    pub y: (i32, i32),
+    /// How many squares it writes, as a range.
+    pub repeat: (i32, i32),
+}
+
+/// Reads the `radiation` entries of a mapgen's `set` list.
+fn read_set_radiation(list: Option<&cdda_json::Value>) -> Vec<SetRadiation> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let is_radiation = ["point", "set"].iter().any(
+            |key| matches!(one.get(key), Some(cdda_json::Value::Str(op)) if op == "radiation"),
+        );
+        if !is_radiation {
+            continue;
+        }
+        placed.push(SetRadiation {
+            amount: span(one.get("amount")),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            repeat: span(one.get("repeat")),
+        });
+    }
+    placed
+}
+
 /// Which layer a `set` point writes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetKind {
