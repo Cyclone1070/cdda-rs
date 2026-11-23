@@ -40763,3 +40763,23 @@ answered `Some(0)`: the fallback *had* drawn, but its terrain did not resolve an
 truth the architecture forbids, and here it bit a test rather than the game.
 
 **The mutation** drops the fallback branch: the test fails at `left: Some(0), right: Some(66)`.
+
+## The chunk's own size (round 314)
+
+`mapgensize` - 105 mapgens spell out the default 24 and about a hundred more declare a smaller chunk - was not read, so every placement was measured against a 24-square frame.
+
+Two rules hang on it (`mapgen.cpp:5105-5110`, `:5130-5140`):
+- **the fill is the chunk's own size**, not the overmap tile's: a 4x4 piece fills sixteen squares;
+- **`check_inbounds` defers a placement outside the declared size.** A palette written for 24 squares and reused at 4x4 does not get its furniture clipped to the edge - the entry is
+  dropped, and the port now drops it too (`in_bounds`, one helper the six placers share).
+
+That second one is not a cosmetic difference: a 1x1 nested piece with a `place_furniture` at x: 10 was putting furniture ten squares away, in the wall of whatever stood next door.
+
+**Named gap**: `mapgensize` also states the number of rows a chunk must have, and the port's rows are clipped by their own length rather than checked against the size - a
+malformed chunk is drawn shorter instead of deferred. The row-count check is a loader-side deferral and is listed here rather than pretended.
+
+**A fixture lesson, paid in six failed compiles**: adding a field to `MapgenObject` is not a regex job when the same file also builds other structs with a `weight:` member - my
+`weight: 1,` anchor put `mapgensize` into a `MonsterGroupEntry` and missed every literal that used a different weight. The reliable pass is to find each `MapgenObject {` literal by
+brace matching and add the field there; the record says so for the next field.
+
+**The mutation** measures against 24 again: the test fails at `left: Some(97), right: None` - furniture ten squares into a four-square chunk.

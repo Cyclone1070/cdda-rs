@@ -136,6 +136,11 @@ pub struct MapgenObject {
     pub items: BTreeMap<char, ItemPlacement>,
     /// The monsters the mapgen places (`jmapgen_monster`), which are named by coordinate rather than by symbol.
     pub monsters: Vec<MonsterPlacement>,
+    /// How big the chunk is, in squares (`mapgen.cpp:5105-5110` reads `mapgensize`, whose default is the overmap tile's 24).
+    ///
+    /// A **nested** chunk declares its own, and a small one is the common case: a 4x4 sewer blockage or a 1x1 piece of furniture. The size is what the reference's
+    /// `check_inbounds` compares a placement's coordinates against (`:5130-5140`), so an entry naming a square outside the chunk is deferred rather than drawn.
+    pub mapgensize: (i32, i32),
     /// How likely this one is when several build the same terrain.
     pub weight: i32,
     /// The toilets a symbol places (`jmapgen_toilet`, `mapgen.cpp:2824-2845`): furniture with water in it, and the **amount** is charges in the water.
@@ -205,6 +210,39 @@ pub struct MapgenObject {
     /// Its presence is what the reference's `expects_predecessor` answers (`:6101-6104`): a mapgen that expects a predecessor falls back to this one when the mapgendata
     /// has none to offer. 57 of the data's mapgens declare one.
     pub fallback_predecessor_mapgen: Option<String>,
+}
+
+/// The chunk side a mapgen has when it declares none: the overmap tile's, in squares (`mapgen.cpp:5105-5110`).
+pub const DEFAULT_SIDE: i32 = 24;
+
+impl MapgenObject {
+    /// The chunk's side, which is what a placement outside of is deferred by (`check_inbounds`, `mapgen.cpp:5130-5140`).
+    #[must_use]
+    pub fn size(&self) -> (i32, i32) {
+        self.mapgensize
+    }
+}
+
+/// Reads a mapgen's declared size, or the overmap tile's when it declares none.
+fn read_size(value: Option<&cdda_json::Value>) -> (i32, i32) {
+    let Some(cdda_json::Value::Array(pair)) = value else {
+        return (DEFAULT_SIDE, DEFAULT_SIDE);
+    };
+    let one = match pair.first() {
+        Some(cdda_json::Value::Int(value)) => Some(*value),
+        _ => None,
+    };
+    let other = match pair.get(1) {
+        Some(cdda_json::Value::Int(value)) => Some(*value),
+        _ => None,
+    };
+    match (one, other) {
+        (Some(x), Some(y)) => (
+            i32::try_from(x).unwrap_or(DEFAULT_SIDE),
+            i32::try_from(y).unwrap_or(DEFAULT_SIDE),
+        ),
+        _ => (DEFAULT_SIDE, DEFAULT_SIDE),
+    }
 }
 
 /// One `items` entry: an item a symbol places (`jmapgen_item_group`, `mapgen.cpp:5320-5340`).
@@ -574,6 +612,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                     Some(cdda_json::Value::Str(pre)) if pre != "null" => Some(pre.clone()),
                     _ => None,
                 },
+                mapgensize: read_size(inner.get("mapgensize")),
                 weight: match object.get("weight") {
                     Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(1000),
                     _ => 1000,

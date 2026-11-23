@@ -107,14 +107,15 @@ pub fn write(
     remove_everything(world, mapgen, origin);
     // **The fill comes first**, the whole chunk at the mapgen's own terrain (`mapgen.cpp:5100-5110`), so a map that draws six squares still fills its twenty-four. The count is
     // of squares **touched**, so a row drawn over a filled square is not counted twice: a chunk is a chunk however many layers land on it.
-    let side = crate::overmap::SQUARES_PER_OMT;
+    // A chunk fills **its own size**, which is the overmap tile's 24 unless it declares a smaller one (`mapgen.cpp:5105-5110`, `:5130-5140`).
+    let (side, side_y) = mapgen.size();
     let filled = mapgen
         .fill_ter
         .as_deref()
         .and_then(|fill| codes.get(fill).copied());
     if let Some(code) = filled {
         for column in 0..side {
-            for row in 0..side {
+            for row in 0..side_y {
                 crate::square::set_terrain(
                     world,
                     (origin.0 + column, origin.1 + row, origin.2),
@@ -128,7 +129,7 @@ pub fn write(
         .map(|codes| codes.0.clone())
         .unwrap_or_default();
     let mut written = if filled.is_some() {
-        usize::try_from(side * side).unwrap_or(0)
+        usize::try_from(side * side_y).unwrap_or(0)
     } else {
         0
     };
@@ -271,7 +272,7 @@ fn remove_everything(
     for area in &mapgen.remove_all {
         for x in area.x.0..=area.x.1 {
             for y in area.y.0..=area.y.1 {
-                if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+                if !in_bounds(mapgen, x, y) {
                     continue;
                 }
                 let at = (origin.0 + x, origin.1 + y, origin.2);
@@ -310,7 +311,7 @@ fn place_area_sets(
     rolls: &mut Option<cdda_core_types::rng::Rolls>,
 ) {
     for entry in &mapgen.place_terrain {
-        for spot in repeat_spots(rolls, entry) {
+        for spot in repeat_spots(mapgen, rolls, entry) {
             if let Some(code) = crate::terrain_types::code_of(world, &entry.id) {
                 crate::square::set_terrain(
                     world,
@@ -321,7 +322,7 @@ fn place_area_sets(
         }
     }
     for entry in &mapgen.place_furniture {
-        for spot in repeat_spots(rolls, entry) {
+        for spot in repeat_spots(mapgen, rolls, entry) {
             if let Some(code) = crate::furniture_types::code_of(world, &entry.id) {
                 crate::square::set_furniture(
                     world,
@@ -332,7 +333,7 @@ fn place_area_sets(
         }
     }
     for entry in &mapgen.place_traps {
-        for spot in repeat_spots(rolls, entry) {
+        for spot in repeat_spots(mapgen, rolls, entry) {
             crate::square::set_trap(
                 world,
                 (origin.0 + spot.0, origin.1 + spot.1, origin.2),
@@ -344,6 +345,7 @@ fn place_area_sets(
 
 /// The squares one entry lands on: `repeat` draws from its rectangle, kept **inside the chunk**.
 fn repeat_spots(
+    mapgen: &cdda_content::mapgen::MapgenObject,
     rolls: &mut Option<cdda_core_types::rng::Rolls>,
     entry: &cdda_content::mapgen::AreaSet,
 ) -> Vec<(i32, i32)> {
@@ -361,7 +363,7 @@ fn repeat_spots(
             ),
             None => (entry.x.0, entry.y.0),
         };
-        if (0..SIDE).contains(&x) && (0..SIDE).contains(&y) {
+        if in_bounds(mapgen, x, y) {
             spots.push((x, y));
         }
     }
@@ -700,6 +702,15 @@ fn draw_a_nested_chunk(
 /// The chunk's side, in squares.
 const SIDE: i32 = 24;
 
+/// Whether a placement's square is inside the chunk the mapgen declares.
+///
+/// Reference: `check_inbounds` (`mapgen.cpp:5130-5140`) refuses a placement whose coordinates fall outside `mapgensize`, and the loader **defers** the whole entry rather than
+/// clipping it - so a 1x1 nested chunk cannot place furniture at x: 10, which is a real thing the data writes when a palette is reused at a smaller size.
+fn in_bounds(mapgen: &cdda_content::mapgen::MapgenObject, x: i32, y: i32) -> bool {
+    let (side, side_y) = mapgen.size();
+    (0..side).contains(&x) && (0..side_y).contains(&y)
+}
+
 /// Picks an id from a weighted list, which is the reference's `weighted_dbl_or_var_list::pick`.
 fn pick_by_weight(
     dice: &mut cdda_core_types::rng::Rolls,
@@ -972,7 +983,7 @@ fn place_set_points(
                 }
             };
             for (x, y) in drawn {
-                if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+                if !in_bounds(mapgen, x, y) {
                     continue;
                 }
                 write_the_layer(world, entry, (origin.0 + x, origin.1 + y, origin.2));
@@ -1005,7 +1016,7 @@ fn place_rubble_areas(
 ) {
     for entry in &mapgen.place_rubble {
         let (x, y) = roll_a_square(rolls, entry.x, entry.y);
-        if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+        if !in_bounds(mapgen, x, y) {
             continue;
         }
         make_rubble(
@@ -1099,7 +1110,7 @@ fn place_set_variables(
     let holder = crate::dialogue_values::ensure_global(world);
     for entry in &mapgen.set_variables {
         let (x, y) = roll_a_square(rolls, entry.x, entry.y);
-        if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+        if !in_bounds(mapgen, x, y) {
             continue;
         }
         crate::dialogue_values::set(
@@ -1141,7 +1152,7 @@ fn place_set_radiation(
                 }
                 _ => entry.amount.0,
             };
-            if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+            if !in_bounds(mapgen, x, y) {
                 continue;
             }
             crate::radiation::set(world, (origin.0 + x, origin.1 + y, origin.2), dose);

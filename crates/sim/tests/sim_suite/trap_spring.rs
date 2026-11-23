@@ -348,6 +348,7 @@ fn a_map_regen_trap_ignores_a_monster() {
 fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
     cdda_content::mapgen::MapgenObject {
         om_terrain: id.to_owned(),
+        mapgensize: (24, 24),
         rows: vec![".".to_owned()],
         terrain: [('.', "t_floor".to_owned())].into_iter().collect(),
         furniture: std::collections::BTreeMap::new(),
