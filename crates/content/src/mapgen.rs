@@ -261,6 +261,45 @@ pub struct ItemPlacement {
     pub amount: (i32, i32),
 }
 
+/// Reads a mapgen's `mapping` object into the three symbol tables it may fill.
+///
+/// Reference: the palette reader's `mapping` member, whose entries are **bundles**: `{ "L": { "furniture": "f_locker", "items": [ ... ] } }`. A member already given by the flat
+/// tables keeps its value, because the flat table is the more specific statement and the mapping is the palette's fallback - which is the order the reference's own palette merge
+/// produces.
+///
+/// The terrain and furniture members are read; the item members are a **named gap** (see below), because a bundle lists them and the symbol table holds one per symbol.
+fn read_mapping(
+    mapping: Option<&cdda_json::Value>,
+    terrain: &mut BTreeMap<char, String>,
+    furniture: &mut BTreeMap<char, String>,
+) {
+    let Some(cdda_json::Value::Object(members)) = mapping else {
+        return;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        let cdda_json::Value::Object(bundle) = value else {
+            // A bare string is a terrain id, which is the shortest form the member has.
+            if let cdda_json::Value::Str(id) = value {
+                terrain.entry(symbol).or_insert_with(|| id.clone());
+            }
+            continue;
+        };
+        if let Some(cdda_json::Value::Str(id)) = bundle.get("terrain") {
+            terrain.entry(symbol).or_insert_with(|| id.clone());
+        }
+        if let Some(cdda_json::Value::Str(id)) = bundle.get("furniture") {
+            furniture.entry(symbol).or_insert_with(|| id.clone());
+        }
+        // **Named gap**: a bundle's `items` and `item` members are not read here. A bundle states its items as a *list* of placements
+        // (`"items": [ { "item": "bed", "chance": 60 }, ... ]`), and the port's symbol table holds **one** placement per symbol - so reading them needs the table to become a
+        // list first, which is a change to the model and the writer rather than to this reader. Reading only the first would drop the rest silently, and that is the failure this
+        // project refuses.
+    }
+}
+
 /// The `items` map: which item each symbol places, and how many.
 ///
 /// Reference: `jmapgen_item_group::load` (`mapgen.cpp:5320-5340`). A symbol's value is either a string - an item **group** id, which the port does not read yet - or an object
@@ -566,14 +605,25 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
             Some(cdda_json::Value::Str(id)) => Some(id.clone()),
             _ => None,
         };
+        // **`mapping` is the third way the data names a symbol** (`mapgen.cpp`, the palette reader): one object per symbol holding a bundle of members - a terrain, a
+        // furniture, an item group, a single item - where `terrain`, `furniture` and `items` are one member each per symbol. Seven mapgens use it, and a loader that reads
+        // only the three flat tables draws their symbols as nothing at all.
+        let mut mapped_terrain = symbols("terrain");
+        let mut mapped_furniture = symbols("furniture");
+        let mapped_items = read_items(inner);
+        read_mapping(
+            inner.get("mapping"),
+            &mut mapped_terrain,
+            &mut mapped_furniture,
+        );
         for om_terrain in &om_terrains {
             out.push(MapgenObject {
                 om_terrain: om_terrain.clone(),
                 rows: rows.clone(),
-                terrain: symbols("terrain"),
-                furniture: symbols("furniture"),
+                terrain: mapped_terrain.clone(),
+                furniture: mapped_furniture.clone(),
                 traps: symbols("traps"),
-                items: read_items(inner),
+                items: mapped_items.clone(),
                 monsters: read_monsters(inner),
                 toilets: read_toilets(inner.get("toilets")),
                 liquids: read_liquids(inner.get("liquids")),

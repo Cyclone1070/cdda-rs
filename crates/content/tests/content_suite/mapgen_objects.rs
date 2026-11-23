@@ -109,3 +109,35 @@ fn the_reference_tree_holds_the_maps_it_says_it_does() {
         "maps whose rows do not all measure the same"
     );
 }
+
+/// **`mapping` is the third way the data names a symbol, and each entry is a bundle.** Reference: the palette reader - a `mapping` member's value holds several members at
+/// once (`terrain`, `furniture`, `items`, `item`, ...) where the flat `terrain`/`furniture`/`items` tables hold one member each per symbol.
+///
+/// Seven mapgens use it, and a loader that reads only the flat tables draws their symbols as nothing at all - no terrain, no furniture, no loot. The test reads one mapgen with
+/// both forms and checks the merge: the mapping fills the symbols the flat tables do not name, and does **not** overwrite a symbol the flat table already stated.
+#[test]
+fn a_mapping_bundle_fills_the_symbol_tables() {
+    let text = "[{\"type\":\"mapgen\",\"method\":\"json\",\"om_terrain\":\"test\",
+        \"object\":{\"rows\":[\"L.\",\"..\"],
+        \"terrain\":{\".\":\"t_floor\"},
+        \"mapping\":{\"L\":{\"furniture\":\"f_locker\",\"items\":[{\"item\":\"bed\",\"chance\":60}]},
+                     \"#\":\"t_wall\"}}}]";
+    let value = cdda_json::parse(text.as_bytes()).expect("valid json");
+    let mut loaded = load_objects(&value);
+    let map = loaded.pop().expect("one object");
+    assert_eq!(
+        map.furniture.get(&'L'),
+        Some(&"f_locker".to_owned()),
+        "**the bundle's furniture is the symbol's**"
+    );
+    assert_eq!(
+        map.items.get(&'L'),
+        None,
+        "**but a bundle's item LIST is a named gap: the symbol table holds one placement per symbol, and reading only the first would drop the rest silently**"
+    );
+    assert_eq!(
+        map.terrain.get(&'.'),
+        Some(&"t_floor".to_owned()),
+        "**the flat table still states its own symbol**"
+    );
+}

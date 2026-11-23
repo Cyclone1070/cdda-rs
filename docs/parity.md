@@ -40783,3 +40783,24 @@ malformed chunk is drawn shorter instead of deferred. The row-count check is a l
 brace matching and add the field there; the record says so for the next field.
 
 **The mutation** measures against 24 again: the test fails at `left: Some(97), right: None` - furniture ten squares into a four-square chunk.
+
+## Three ways to name a symbol (round 315)
+
+The data names what a glyph means in three shapes, and the port read two: the flat `terrain`/`furniture`/`items` tables, and the legacy `mapping` key not at all.
+
+`mapping` is a **bundle** per symbol - one object holding several members at once:
+
+```json
+"mapping": { "L": { "furniture": "f_locker", "items": [ { "item": "bed", "chance": 60 } ] } }
+```
+
+Seven mapgens use it, and a loader that reads only the flat tables draws their symbols as nothing: no terrain, no furniture, no loot.
+
+**What is read**: a bundle's `terrain` (or a bare string, which is a terrain id) and its `furniture`. A symbol the flat tables already state keeps its value - the flat table is the more
+specific statement, and that is the order the reference's own palette merge produces.
+
+**What is not, and why it stays in the census**: a bundle's `items`/`item` members. A bundle states items as a **list** of placements, and the port's symbol table holds *one*
+`ItemPlacement` per symbol. Reading only the first would drop the rest silently - the exact failure the member census exists to prevent - so `mapping` stays in `NAMED_GAPS` with
+the partial read written into its reason, and the model change (the symbol table becoming a list) is its own round.
+
+**The mutation** inserts a fixed id instead of the bundle's: the test fails at `left: Some("f_fridge"), right: Some("f_locker")`.
