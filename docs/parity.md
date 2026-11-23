@@ -40747,3 +40747,19 @@ citation on it; the removal op was the caller it had been waiting for.
 needs a bash system to call - and `burn` (2), which needs terrain flags the port does not load yet.
 
 **The mutation** makes `item_remove` a no-op: the test fails on the item still on the square.
+
+## What a mapgen expects underneath (round 313)
+
+`predecessor_mapgen` was already read and drawn; `fallback_predecessor_mapgen` - **57 entries** - was not read at all, so every mapgen that declares one drew on whatever the level
+already had.
+
+The reference's rule (`mapgen.cpp:6047-6062`): a mapgen with `predecessor_mapgen` draws that; a mapgen with a **fallback** *expects* a predecessor (`expects_predecessor`,
+`:6101-6104`), and when the `mapgendata` has none to offer it draws the fallback instead. A chunk generated on its own has no predecessor chain, so the fallback is the branch
+the port is always in - which is why the rule is one line here and a branch there.
+
+**The test cost one correction and taught a lesson about the fixture**, not the rule: `a_world` fills the mapgen writer's code table with two ids and materialises a level at
+terrain 0, so a third terrain the test wants (`t_grass`) has to go into **that** table - `mapgen_update::set_terrain_codes` - rather than into a second registry. The first run
+answered `Some(0)`: the fallback *had* drawn, but its terrain did not resolve and the materialised zero showed through. Two tables for one question is exactly the second source of
+truth the architecture forbids, and here it bit a test rather than the game.
+
+**The mutation** drops the fallback branch: the test fails at `left: Some(0), right: Some(66)`.

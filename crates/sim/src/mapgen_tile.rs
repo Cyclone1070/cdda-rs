@@ -60,7 +60,14 @@ fn generate_below(
     let picked = picked?;
     // **The predecessor is drawn first** (`mapgen.cpp:6047-6062`): the mapgen under this one writes its whole chunk, and this one's rows then draw on top of it. A roof keeps
     // the walls of the house below exactly because of this order, and reversing it would leave a roof on bare ground.
-    if let Some(predecessor) = picked.predecessor_mapgen.as_deref()
+    // **A mapgen that expects a predecessor gets its fallback when the place has none** (`mapgen.cpp:6047-6062`): `predecessor_mapgen` names the one to draw, and
+    // `fallback_predecessor_mapgen` is what `expects_predecessor` answers with when the mapgendata carries no predecessor of its own. A chunk generated on its own has none,
+    // so the fallback is the rule that matters here - 57 of the data's mapgens declare one and would otherwise draw on bare ground.
+    let below = picked
+        .predecessor_mapgen
+        .as_deref()
+        .or(picked.fallback_predecessor_mapgen.as_deref());
+    if let Some(predecessor) = below
         && depth < DEEPEST_PREDECESSOR
     {
         generate_below(world, predecessor, origin, depth + 1);

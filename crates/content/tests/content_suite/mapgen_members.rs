@@ -51,6 +51,7 @@ const READ: &[&str] = &[
     "place_liquids",
     "fill_ter",
     "predecessor_mapgen",
+    "fallback_predecessor_mapgen",
     "palettes",
 ];
 
@@ -88,7 +89,6 @@ const NAMED_GAPS: &[&str] = &[
     // Factions and the owner of a chunk are P9.
     "faction_owner",
     // A predecessor that only applies when the request asks for one (`expects_predecessor`), and its fallback.
-    "fallback_predecessor_mapgen",
 ];
 
 /// Five more the census found once the first thirty-one were named.

@@ -200,6 +200,11 @@ pub struct MapgenObject {
     pub fill_ter: Option<String>,
     /// The terrain whose mapgen is drawn **first**, under this one's rows (`mapgen.cpp:5176-5180` and `:6047-6050`): how a roof keeps the walls of the house below it.
     pub predecessor_mapgen: Option<String>,
+    /// The mapgen drawn below when the **place** has no predecessor of its own (`mapgen.cpp:5182`, `:6055-6062`).
+    ///
+    /// Its presence is what the reference's `expects_predecessor` answers (`:6101-6104`): a mapgen that expects a predecessor falls back to this one when the mapgendata
+    /// has none to offer. 57 of the data's mapgens declare one.
+    pub fallback_predecessor_mapgen: Option<String>,
 }
 
 /// One `items` entry: an item a symbol places (`jmapgen_item_group`, `mapgen.cpp:5320-5340`).
@@ -562,6 +567,10 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 fields: read_placements(inner),
                 fill_ter: fill_ter.clone(),
                 predecessor_mapgen: match inner.get("predecessor_mapgen") {
+                    Some(cdda_json::Value::Str(pre)) if pre != "null" => Some(pre.clone()),
+                    _ => None,
+                },
+                fallback_predecessor_mapgen: match inner.get("fallback_predecessor_mapgen") {
                     Some(cdda_json::Value::Str(pre)) if pre != "null" => Some(pre.clone()),
                     _ => None,
                 },

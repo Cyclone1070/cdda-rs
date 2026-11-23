@@ -56,6 +56,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     }
 }
 
@@ -189,6 +190,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         place_liquids: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), filling.clone())]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -280,6 +282,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), furnished)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -354,6 +357,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("field".to_owned(), trapped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -447,6 +451,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), stocked)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -559,6 +564,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), grouped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -641,6 +647,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         place_items: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), haunted)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -714,6 +721,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     let roof = MapgenObject {
         om_terrain: "house".to_owned(),
@@ -754,6 +762,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -862,6 +871,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         place_items: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), horde)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -950,6 +960,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         place_items: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), loyal)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -1037,6 +1048,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), bathroom)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -1158,6 +1170,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), kitchen)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -1268,6 +1281,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), scattered)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
@@ -1380,6 +1394,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), looting)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
@@ -1477,6 +1492,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), lockers)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
@@ -1607,6 +1623,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), machines)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
@@ -1688,6 +1705,7 @@ fn a_sign_is_furniture_that_carries_words() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shop)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
@@ -1803,6 +1821,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), forecourt)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(13));
@@ -1884,6 +1903,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     let house = MapgenObject {
         om_terrain: "house".to_owned(),
@@ -1936,6 +1956,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -2018,6 +2039,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     let house = MapgenObject {
         om_terrain: "house".to_owned(),
@@ -2070,6 +2092,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -2172,6 +2195,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), field)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(23));
@@ -2288,6 +2312,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(29));
@@ -2370,6 +2395,7 @@ fn a_terminal_is_furniture_and_a_record() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), church)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(31));
@@ -2471,6 +2497,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), stripped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(37));
@@ -2565,6 +2592,7 @@ fn a_monster_can_be_a_symbol() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), house)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(41));
@@ -2636,6 +2664,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     let house = MapgenObject {
         om_terrain: "house".to_owned(),
@@ -2680,6 +2709,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -2780,6 +2810,7 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(47));
@@ -2868,6 +2899,7 @@ fn a_rectangle_can_place_a_liquid() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(53));
@@ -2949,6 +2981,7 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
         fields: Vec::new(),
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_terrain_codes(
         &mut world,
@@ -3069,6 +3102,7 @@ fn a_set_point_writes_the_layer_it_names() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), scattered)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(61));
@@ -3184,6 +3218,7 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shapes)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(67));
@@ -3275,6 +3310,7 @@ fn a_set_radiation_entry_writes_a_dose() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), hotspot)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(71));
@@ -3377,6 +3413,7 @@ fn rubble_is_furniture_and_debris() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), collapsed)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(73));
@@ -3450,6 +3487,7 @@ fn a_set_variable_names_a_square_in_the_global_store() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), lab)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(79));
@@ -3548,6 +3586,7 @@ fn a_set_removal_takes_away_what_it_names() {
         fields: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), swept)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(83));
@@ -3566,4 +3605,99 @@ fn a_set_removal_takes_away_what_it_names() {
         0,
         "**and neither removal touched a square it did not name**"
     );
+}
+
+/// **A mapgen that expects a predecessor draws its fallback when the place has none.** Reference: `mapgen.cpp:6047-6062` - `predecessor_mapgen` names the mapgen to draw
+/// underneath, and `fallback_predecessor_mapgen` is what `expects_predecessor` answers with (`:6101-6104`) when the `mapgendata` carries no predecessor of its own.
+///
+/// 57 of the data's mapgens declare a fallback, and they are the ones that say "I sit on a field" or "I sit on a road": without the rule they draw on bare ground, and every
+/// square their own rows do not cover stays empty. The test's outer rows map only their first two squares, so the last two can only come from the fallback.
+#[test]
+fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
+    let mut world = a_world(Vec::new());
+    // The mapgen writer reads its own code table, which `a_world` fills with two ids; the fallback's terrain has to be in **that** table, not in a second one.
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_house_one".to_owned(), 11u32),
+            ("t_house_two".to_owned(), 12u32),
+            ("t_grass".to_owned(), 66u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let field = MapgenObject {
+        om_terrain: "field".to_owned(),
+        rows: vec!["....".to_owned()],
+        terrain: [('.', "t_grass".to_owned())].into_iter().collect(),
+        ..a_plain_mapgen()
+    };
+    let house = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["..~~".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        fallback_predecessor_mapgen: Some("field".to_owned()),
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(
+        &mut world,
+        [("field".to_owned(), field), ("house".to_owned(), house)],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(89));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(11),
+        "**the mapgen's own rows still draw on top**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (3, 0, 0)),
+        Some(66),
+        "**and the squares the rows leave alone are the fallback's grass**"
+    );
+}
+
+/// A mapgen with every list empty, for a test that only wants a few of them filled.
+fn a_plain_mapgen() -> MapgenObject {
+    MapgenObject {
+        om_terrain: String::new(),
+        rows: Vec::new(),
+        terrain: BTreeMap::new(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
+        remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
+        place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
+        place_liquids: Vec::new(),
+        set_points: Vec::new(),
+        set_radiation: Vec::new(),
+        set_variables: Vec::new(),
+        rubble: BTreeMap::new(),
+        place_rubble: Vec::new(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
+    }
 }

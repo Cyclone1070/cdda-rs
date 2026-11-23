@@ -385,6 +385,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         place_liquids: Vec::new(),
         fill_ter: None,
         predecessor_mapgen: None,
+        fallback_predecessor_mapgen: None,
     }
 }
 
