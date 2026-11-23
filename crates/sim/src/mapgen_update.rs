@@ -956,32 +956,54 @@ fn place_set_points(
         }
         .max(0);
         for _ in 0..count {
-            let (x, y) = match rolls.as_mut() {
-                Some(dice) => (
-                    dice.rng(entry.x.0, entry.x.1),
-                    dice.rng(entry.y.0, entry.y.1),
-                ),
-                None => (entry.x.0, entry.y.0),
+            let corner = roll_a_square(rolls, entry.x, entry.y);
+            let opposite = roll_a_square(rolls, entry.x2, entry.y2);
+            let drawn = match entry.shape {
+                cdda_content::mapgen::SetShape::Point => crate::mapgen_shapes::point(corner),
+                cdda_content::mapgen::SetShape::Line => {
+                    crate::mapgen_shapes::line(corner, opposite)
+                }
+                cdda_content::mapgen::SetShape::Square => {
+                    crate::mapgen_shapes::square(corner, opposite)
+                }
             };
-            if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
-                continue;
+            for (x, y) in drawn {
+                if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+                    continue;
+                }
+                write_the_layer(world, entry, (origin.0 + x, origin.1 + y, origin.2));
             }
-            let at = (origin.0 + x, origin.1 + y, origin.2);
-            match entry.kind {
-                cdda_content::mapgen::SetKind::Terrain => {
-                    if let Some(code) = crate::terrain_types::code_of(world, &entry.id) {
-                        crate::square::set_terrain(world, at, code);
-                    }
-                }
-                cdda_content::mapgen::SetKind::Furniture => {
-                    if let Some(code) = crate::furniture_types::code_of(world, &entry.id) {
-                        crate::square::set_furniture(world, at, code);
-                    }
-                }
-                cdda_content::mapgen::SetKind::Trap => {
-                    crate::square::set_trap(world, at, &entry.id);
-                }
+        }
+    }
+}
+
+/// Draws one square from a range, or its first end when the dice are spent.
+fn roll_a_square(
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+    x: (i32, i32),
+    y: (i32, i32),
+) -> (i32, i32) {
+    match rolls.as_mut() {
+        Some(dice) => (dice.rng(x.0, x.1), dice.rng(y.0, y.1)),
+        None => (x.0, y.0),
+    }
+}
+
+/// Writes one layer of a `set` entry on one square.
+fn write_the_layer(world: &mut World, entry: &cdda_content::mapgen::SetPoint, at: (i32, i32, i32)) {
+    match entry.kind {
+        cdda_content::mapgen::SetKind::Terrain => {
+            if let Some(code) = crate::terrain_types::code_of(world, &entry.id) {
+                crate::square::set_terrain(world, at, code);
             }
+        }
+        cdda_content::mapgen::SetKind::Furniture => {
+            if let Some(code) = crate::furniture_types::code_of(world, &entry.id) {
+                crate::square::set_furniture(world, at, code);
+            }
+        }
+        cdda_content::mapgen::SetKind::Trap => {
+            crate::square::set_trap(world, at, &entry.id);
         }
     }
 }

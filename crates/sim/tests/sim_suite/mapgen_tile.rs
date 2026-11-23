@@ -2900,23 +2900,32 @@ fn a_set_point_writes_the_layer_it_names() {
         set_points: vec![
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Terrain,
+                shape: cdda_content::mapgen::SetShape::Point,
                 id: "t_dirt".to_owned(),
                 x: (2, 2),
                 y: (0, 0),
+                x2: (2, 2),
+                y2: (0, 0),
                 repeat: (1, 1),
             },
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Furniture,
+                shape: cdda_content::mapgen::SetShape::Point,
                 id: "f_underbrush".to_owned(),
                 x: (3, 3),
                 y: (0, 0),
+                x2: (3, 3),
+                y2: (0, 0),
                 repeat: (1, 1),
             },
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Trap,
+                shape: cdda_content::mapgen::SetShape::Point,
                 id: "tr_bear".to_owned(),
                 x: (1, 1),
                 y: (0, 0),
+                x2: (1, 1),
+                y2: (0, 0),
                 repeat: (1, 1),
             },
         ],
@@ -2942,5 +2951,133 @@ fn a_set_point_writes_the_layer_it_names() {
         cdda_sim::square::trap_at(&world, (1, 0, 0)),
         Some("tr_bear".to_owned()),
         "**and the trap on its own**"
+    );
+}
+
+/// **The three shapes a `set` entry can draw, and the one rule each gets wrong if it is guessed.** Reference: `jmapgen_setmap::apply` (`mapgen.cpp:5622-5800`).
+///
+/// - a **line** is `line_to( p1, p2 )` (`line.cpp:224-238`), which starts walking at `p1` and returns the cells **after** it - so a line does **not** write its own first
+///   square. That is the rule worth a test, because "draw a line from A to B" reads as if it includes A;
+/// - a **square** is `draw_square` (`drawing_primitives.cpp:22-36`), which **fills** the rectangle between the corners, both included - not an outline;
+/// - a **point** is one square.
+///
+/// The shapes are 245 of the data's `set` entries (163 lines, 82 squares), and they are how a mapgen draws a road across a chunk or a fence around a yard.
+#[test]
+fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_house_one".to_owned(), 11u32),
+            ("t_dirt".to_owned(), 66u32),
+        ]
+        .into_iter()
+        .collect::<std::collections::BTreeMap<_, _>>(),
+    );
+    let shapes = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec![
+            "......".to_owned(),
+            "......".to_owned(),
+            "......".to_owned(),
+        ],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
+        remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
+        place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
+        place_liquids: Vec::new(),
+        set_points: vec![
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::Terrain,
+                shape: cdda_content::mapgen::SetShape::Point,
+                id: "t_dirt".to_owned(),
+                x: (0, 0),
+                y: (2, 2),
+                x2: (0, 0),
+                y2: (2, 2),
+                repeat: (1, 1),
+            },
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::Terrain,
+                shape: cdda_content::mapgen::SetShape::Line,
+                id: "t_dirt".to_owned(),
+                x: (0, 0),
+                y: (0, 0),
+                x2: (3, 3),
+                y2: (0, 0),
+                repeat: (1, 1),
+            },
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::Terrain,
+                shape: cdda_content::mapgen::SetShape::Square,
+                id: "t_dirt".to_owned(),
+                x: (4, 4),
+                y: (1, 1),
+                x2: (5, 5),
+                y2: (2, 2),
+                repeat: (1, 1),
+            },
+        ],
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shapes)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(67));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 2, 0)),
+        Some(66),
+        "**the point wrote its square**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(11),
+        "**the line did NOT write its own first square - line_to returns the cells after p1**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (1, 0, 0)),
+        Some(66),
+        "**but it wrote the one after it**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (3, 0, 0)),
+        Some(66),
+        "**and its last, p2 included**"
+    );
+    for (x, y) in [(4, 1), (5, 1), (4, 2), (5, 2)] {
+        assert_eq!(
+            cdda_sim::square::terrain_at(&world, (x, y, 0)),
+            Some(66),
+            "**the square filled ({x}, {y})**"
+        );
+    }
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (4, 0, 0)),
+        Some(11),
+        "**and drew nothing above its top edge**"
     );
 }

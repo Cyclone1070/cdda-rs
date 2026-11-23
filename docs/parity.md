@@ -40651,9 +40651,28 @@ read symbols and rectangles and not this, so a mapgen's scattered dirt, its unde
 The rule is the area setters' rule, and it is worth saying why that is not laziness: `jmapgen_setmap::apply` (`mapgen.cpp:5622-5640`) draws `repeat` squares from the entry's
 range - the same "field of candidates" as `place_terrain` - so reusing the spot rule is reading the reference correctly rather than simplifying it.
 
-**Named gaps**, all counted in the data: the `line` form (163 entries) and `square` form (82, and it draws an **outline**, not a fill); `variable` (230),
-`bash` (45), `radiation` (26), `burn` (2) and the three `*_remove` ops - none of them read.
+**Named gaps**, all counted in the data: the `line` form (163 entries) and `square` form (82); `variable` (230), `bash` (45), `radiation` (26), `burn` (2) and the three
+`*_remove` ops - none of them read. **Correction** (round 308): I wrote here that a `square` entry draws an outline. It does not - `draw_square` fills the rectangle - and the
+round that read the shapes found it by transcribing `drawing_primitives.cpp:22-36` instead of trusting the note.
 
 **The mutation** skips the trap write: the test fails at `left: None, right: Some("tr_bear")`.
 
 The census moves `set` to the read list: **33 of 63 members read**.
+
+## Three shapes, three quirks (round 308)
+
+The `set` list's shapes, 245 entries between them (163 lines, 82 squares), and each has one rule that reading "draw a line from A to B" gets wrong:
+
+- **A line does not write its own first square.** `line_to` (`line.cpp:224-238`) starts the Bresenham walk at `p1` and collects the cells it **arrives at**, so `p1` is only
+  in the line when `p1 == p2`. A mapgen's road starts one square along from the corner it names - and the corner keeps whatever the fill put there.
+- **A square fills, and both corners are included.** `draw_square` (`drawing_primitives.cpp:22-36`) swaps the corners into order and draws every square between them.
+- **A point is one square**, drawn from the entry's ranges - the rule the last round already had.
+
+The Bresenham walk itself is transcribed from `line.cpp:25-70`, case for case: the `a.x == a.y` branch first, then the wider-than-tall and taller-than-wide branches with their
+`t` accumulator, because a tie in a diagonal line decides which squares a road covers.
+
+**A note corrected by the work**: last round's record said a `square` entry draws an *outline*. It does not, and the claim was written from the name of the function rather than
+from its body. The record now carries the correction instead of quietly dropping the sentence.
+
+**The mutation** puts the line's start back into the walk: the test fails at `left: Some(66), right: Some(11)` - the first square of the road got written when the reference
+leaves it alone.

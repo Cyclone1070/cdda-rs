@@ -744,21 +744,37 @@ pub enum SetKind {
     Trap,
 }
 
-/// One `set` entry with a **point** form: one square, one layer (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
+/// The shape a `set` entry draws (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetShape {
+    /// One square, drawn from the entry's ranges.
+    Point,
+    /// A Bresenham line from `( x, y )` to `( x2, y2 )` - **which does not include its own start** (`line_to` returns the cells after `p1`, `line.cpp:224-238`).
+    Line,
+    /// A filled rectangle between the two corners, both included (`draw_square`, `drawing_primitives.cpp:22-36`).
+    Square,
+}
+
+/// One `set` entry that writes terrain, furniture or a trap (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
 ///
-/// **Named gaps**: the `line` and `square` forms (163 and 82 entries) draw shapes and are not read; `variable`, `bash`, `burn`, `radiation` and the three `*_remove` ops are
-/// not read either. What is read is the 1,063 point entries that name terrain, furniture or a trap.
+/// **Named gaps**: `variable`, `bash`, `burn`, `radiation` and the three `*_remove` ops are not read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetPoint {
     /// Which layer it writes.
     pub kind: SetKind,
+    /// What shape it draws.
+    pub shape: SetShape,
     /// The id it writes there.
     pub id: String,
-    /// The columns it may land in.
+    /// The columns its first corner may land in.
     pub x: (i32, i32),
-    /// The rows it may land in.
+    /// The rows its first corner may land in.
     pub y: (i32, i32),
-    /// How many squares it writes, as a range: a point entry is drawn `repeat` times like any other piece.
+    /// The columns its second corner may land in, for a line or a square.
+    pub x2: (i32, i32),
+    /// The rows its second corner may land in, for a line or a square.
+    pub y2: (i32, i32),
+    /// How many times it draws, as a range: a point entry is drawn `repeat` times like any other piece, and a line or a square once per repeat.
     pub repeat: (i32, i32),
 }
 
@@ -772,24 +788,37 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
         let cdda_json::Value::Object(one) = entry else {
             continue;
         };
-        let op = ["point", "set"].iter().find_map(|key| match one.get(key) {
-            Some(cdda_json::Value::Str(op)) => Some(op.as_str()),
-            _ => None,
-        });
+        let named = ["point", "set", "line", "square"]
+            .iter()
+            .find_map(|key| match one.get(key) {
+                Some(cdda_json::Value::Str(op)) => Some((*key, op.as_str())),
+                _ => None,
+            });
+        let Some((form, op)) = named else {
+            continue;
+        };
         let kind = match op {
-            Some("terrain") => SetKind::Terrain,
-            Some("furniture") => SetKind::Furniture,
-            Some("trap") => SetKind::Trap,
+            "terrain" => SetKind::Terrain,
+            "furniture" => SetKind::Furniture,
+            "trap" => SetKind::Trap,
             _ => continue,
+        };
+        let shape = match form {
+            "line" => SetShape::Line,
+            "square" => SetShape::Square,
+            _ => SetShape::Point,
         };
         let Some(cdda_json::Value::Str(id)) = one.get("id") else {
             continue;
         };
         placed.push(SetPoint {
             kind,
+            shape,
             id: id.clone(),
             x: span(one.get("x")),
             y: span(one.get("y")),
+            x2: span(one.get("x2")),
+            y2: span(one.get("y2")),
             repeat: span(one.get("repeat")),
         });
     }
