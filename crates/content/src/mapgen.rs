@@ -641,7 +641,14 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 field_symbols: read_field_symbols(inner.get("fields")),
                 computers: read_computers(inner.get("computers")),
                 remove_all: read_remove_areas(inner.get("remove_all")),
-                monster_symbols: read_monster_symbols(inner.get("monster")),
+                monster_symbols: {
+                    // **Two members name the monster a glyph stands for**, and the data uses both: `monster`, whose values are ids, and `monsters`, whose values are
+                    // objects (`{ "Z": { "monster": "GROUP_VANILLA_NO_FERAL" } }`). 68 entries use the second form, and reading only the first left their glyphs empty.
+                    // The flat member is read last so it wins a symbol both name, which is what "the more specific statement" means here.
+                    let mut monsters = read_monster_symbols_of(inner.get("monsters"), true);
+                    monsters.extend(read_monster_symbols(inner.get("monster")));
+                    monsters
+                },
                 rotation: span(inner.get("rotation")),
                 set_points: read_set_points(inner.get("set")),
                 set_radiation: read_set_radiation(inner.get("set")),
@@ -1299,6 +1306,18 @@ pub struct SymbolMonster {
 fn read_monster_symbols(
     object: Option<&cdda_json::Value>,
 ) -> std::collections::BTreeMap<char, SymbolMonster> {
+    read_monster_symbols_of(object, false)
+}
+
+/// Reads a monster symbol map, and how its `monster` key is meant.
+///
+/// The two members disagree about that key, and the data is the reason: `monster`'s values name a **monster**, while `monsters`' values name a **group** under the same key
+/// (`jmapgen_monster_group`'s `id( jsi.get_member( "monster" ) )` is a `mongroup_id`, `mapgen.cpp:3088`). One reader with a flag keeps the shapes in one place instead of two
+/// nearly identical walkers.
+fn read_monster_symbols_of(
+    object: Option<&cdda_json::Value>,
+    monster_means_group: bool,
+) -> std::collections::BTreeMap<char, SymbolMonster> {
     let mut placed = std::collections::BTreeMap::new();
     let Some(cdda_json::Value::Object(members)) = object else {
         return placed;
@@ -1317,8 +1336,16 @@ fn read_monster_symbols(
         placed.insert(
             symbol,
             SymbolMonster {
-                monster: named("monster"),
-                group: named("group"),
+                monster: if monster_means_group {
+                    None
+                } else {
+                    named("monster")
+                },
+                group: if monster_means_group {
+                    named("monster")
+                } else {
+                    named("group")
+                },
                 chance: match spec.get("chance") {
                     Some(cdda_json::Value::Int(value)) => {
                         i32::try_from(*value).unwrap_or(100).clamp(0, 100)

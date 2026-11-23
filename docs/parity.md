@@ -40804,3 +40804,23 @@ specific statement, and that is the order the reference's own palette merge prod
 the partial read written into its reason, and the model change (the symbol table becoming a list) is its own round.
 
 **The mutation** inserts a fixed id instead of the bundle's: the test fails at `left: Some("f_fridge"), right: Some("f_locker")`.
+
+## A glyph's monster, two ways (round 316)
+
+The data writes a mapgen's monsters under two members, and they are not synonyms:
+- `monster` - 1,748 uses - whose values are **objects** naming a `monster` (a monster id) or a `group`;
+- `monsters` - 68 uses - whose values are objects too, but whose `monster` key names a **group** (`jmapgen_monster_group`'s `id` is a `mongroup_id`, `mapgen.cpp:3088`).
+
+The port read only the first, so 68 mapgens placed no monsters where they say they do.
+
+The two members disagree about what the `monster` key means, and that is not an accident of the data: the flat member is the per-symbol monster placement, and the plural one is
+the **group** placement written as a bundle. One reader with a flag (`read_monster_symbols_of( object, monster_means_group )`) keeps that difference in one place instead of two
+nearly identical walkers.
+
+**The test cost two runs and taught the shape**: the flat member's values in the data are objects, not bare strings (`"monster": { "_": { "monster": "mon_turret_searchlight" } }`),
+so a test written with strings proves nothing about either form. The second run had it right and the mutation - pointing the reader at the flat member only - fails at
+`left: None, right: Some("GROUP_VANILLA_NO_FERAL")`.
+
+**Named gap**: `place_monsters` (388 entries) - the **density** spawner - is still unread. It is not a symbol table at all: it is `map::place_spawns` (`mapgen.cpp:7231-7281`),
+whose count is `roll_remainder( density * SPAWN_DENSITY * rng_float( 10, 50 ) )` and whose picks decrement a shared quantity by each entry's cost multiplier. That is its own
+round, named here so the census keeps counting it.

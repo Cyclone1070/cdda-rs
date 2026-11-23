@@ -41,6 +41,7 @@ const READ: &[&str] = &[
     "computers",
     "remove_all",
     "monster",
+    "monsters",
     "rotation",
     "set",
     "rubble",
@@ -72,7 +73,6 @@ const NAMED_GAPS: &[&str] = &[
     "place_variables",
     "place_ter_furn_transforms",
     // A spawn point: the monster group, its density and the map's spawn inventory, which is a subsystem of its own.
-    "monsters",
     // Furniture with contents or text: each needs the thing it holds or says before it can be placed honestly.
     // Vehicles are P8.
     "vehicles",

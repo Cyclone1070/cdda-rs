@@ -141,3 +141,34 @@ fn a_mapping_bundle_fills_the_symbol_tables() {
         "**the flat table still states its own symbol**"
     );
 }
+
+/// **A glyph's monster may be written in two members, and the data uses both.** Reference: `jmapgen_monster` reads `monster` (values are ids) and `monsters` (values are objects
+/// naming a `monster` or a `group`), and both fill the same per-symbol table.
+///
+/// 68 entries use the object form - `"monsters": { "Z": { "monster": "GROUP_VANILLA_NO_FERAL" } }` - and a loader that reads only the flat member leaves those glyphs standing
+/// empty, which is a mapgen that places no monsters where it says it does.
+#[test]
+fn a_glyph_can_name_its_monster_in_either_member() {
+    let text = "[{\"type\":\"mapgen\",\"method\":\"json\",\"om_terrain\":\"test\",
+        \"object\":{\"rows\":[\"Zz\"],
+        \"terrain\":{\"Z\":\"t_floor\",\"z\":\"t_floor\"},
+        \"monsters\":{\"Z\":{\"monster\":\"GROUP_VANILLA_NO_FERAL\"}},
+        \"monster\":{\"z\":{\"monster\":\"mon_zombie\"}}}}]";
+    let value = cdda_json::parse(text.as_bytes()).expect("valid json");
+    let mut loaded = load_objects(&value);
+    let map = loaded.pop().expect("one object");
+    assert_eq!(
+        map.monster_symbols
+            .get(&'Z')
+            .and_then(|one| one.group.clone()),
+        Some("GROUP_VANILLA_NO_FERAL".to_owned()),
+        "**the object member names a group**"
+    );
+    assert_eq!(
+        map.monster_symbols
+            .get(&'z')
+            .and_then(|one| one.monster.clone()),
+        Some("mon_zombie".to_owned()),
+        "**and the flat member still names a monster**"
+    );
+}
