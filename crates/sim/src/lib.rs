@@ -49,6 +49,7 @@ pub mod run_cost;
 pub mod seeing;
 pub mod snippets;
 pub mod transform;
+pub mod zones;
 /// What a monster bleeds and splatters into lives beside the monster data it reads, so the sim re-exports it.
 pub use cdda_content::blood;
 pub mod body;

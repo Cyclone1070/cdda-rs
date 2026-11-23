@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
     MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: id.to_owned(),
         rows: vec!["##".to_owned(), "##".to_owned()],
         terrain: [('#', terrain.to_owned())].into_iter().collect(),
@@ -154,6 +155,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
     let mut world = a_world(Vec::new());
     let mut filling = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["#".to_owned()],
         terrain: [('#', "t_house_two".to_owned())].into_iter().collect(),
@@ -242,6 +244,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
     );
     let furnished = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![".F.".to_owned()],
         terrain: [
@@ -318,6 +321,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
     let mut world = a_world(Vec::new());
     let trapped = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "field".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
@@ -403,6 +407,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
     );
     let stocked = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["I.".to_owned()],
         terrain: [
@@ -517,6 +522,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
     );
     let grouped = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
@@ -608,6 +614,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
     );
     let haunted = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -690,6 +697,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
     let mut world = a_world(Vec::new());
     let walls = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house_inside".to_owned(),
         // Two rows of walls, and the roof covers only the first: the second row is the predecessor showing through.
         rows: vec!["##".to_owned(), "##".to_owned()],
@@ -733,6 +741,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
     };
     let roof = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -835,6 +844,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
     );
     let horde = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -925,6 +935,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
     );
     let loyal = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -1017,6 +1028,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
     );
     let bathroom = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
@@ -1121,6 +1133,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
     );
     let kitchen = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["WG".to_owned()],
         terrain: [
@@ -1251,6 +1264,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
     );
     let scattered = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned(), "..".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -1354,6 +1368,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
     );
     let looting = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -1451,6 +1466,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
     );
     let lockers = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["L.".to_owned()],
         terrain: [
@@ -1574,6 +1590,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
     );
     let machines = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["VR".to_owned()],
         terrain: [
@@ -1672,6 +1689,7 @@ fn a_sign_is_furniture_that_carries_words() {
     cdda_sim::furniture_types::set_types(&mut world, [("f_sign".to_owned(), 71u32)]);
     let shop = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["S.".to_owned()],
         terrain: [
@@ -1789,6 +1807,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
     );
     let forecourt = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
@@ -1884,49 +1903,14 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         .collect(),
     );
     let room = MapgenObject {
-        mapgensize: (24, 24),
         om_terrain: "nested_room".to_owned(),
         rows: vec!["NN".to_owned(), "NN".to_owned()],
         terrain: [('N', "t_nested_floor".to_owned())].into_iter().collect(),
-        furniture: BTreeMap::new(),
-        traps: BTreeMap::new(),
-        items: BTreeMap::new(),
-        monsters: Vec::new(),
-        toilets: BTreeMap::new(),
-        liquids: BTreeMap::new(),
-        place_items: Vec::new(),
-        place_loot: Vec::new(),
-        sealed_items: BTreeMap::new(),
-        vending_machines: BTreeMap::new(),
-        signs: BTreeMap::new(),
-        gas_pumps: BTreeMap::new(),
-        nested: BTreeMap::new(),
-        place_terrain: Vec::new(),
-        place_furniture: Vec::new(),
-        place_traps: Vec::new(),
-        items_single: BTreeMap::new(),
-        field_symbols: BTreeMap::new(),
-        computers: BTreeMap::new(),
-        remove_all: Vec::new(),
-        monster_symbols: BTreeMap::new(),
-        rotation: (0, 0),
-        set_points: Vec::new(),
-        set_radiation: Vec::new(),
-        set_variables: Vec::new(),
-        rubble: BTreeMap::new(),
-        place_rubble: Vec::new(),
-        place_nested: Vec::new(),
-        place_item: Vec::new(),
-        place_signs: Vec::new(),
-        place_liquids: Vec::new(),
-        weight: 1,
-        fields: Vec::new(),
-        fill_ter: None,
-        predecessor_mapgen: None,
-        fallback_predecessor_mapgen: None,
+        ..a_plain_mapgen()
     };
     let house = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["n...".to_owned(), "....".to_owned()],
         terrain: [
@@ -2022,49 +2006,14 @@ fn a_nested_chunk_stands_at_its_marker() {
         .collect(),
     );
     let room = MapgenObject {
-        mapgensize: (24, 24),
         om_terrain: "nested_room".to_owned(),
         rows: vec!["NN".to_owned(), "NN".to_owned()],
         terrain: [('N', "t_nested_floor".to_owned())].into_iter().collect(),
-        furniture: BTreeMap::new(),
-        traps: BTreeMap::new(),
-        items: BTreeMap::new(),
-        monsters: Vec::new(),
-        toilets: BTreeMap::new(),
-        liquids: BTreeMap::new(),
-        place_items: Vec::new(),
-        place_loot: Vec::new(),
-        sealed_items: BTreeMap::new(),
-        vending_machines: BTreeMap::new(),
-        signs: BTreeMap::new(),
-        gas_pumps: BTreeMap::new(),
-        nested: BTreeMap::new(),
-        place_terrain: Vec::new(),
-        place_furniture: Vec::new(),
-        place_traps: Vec::new(),
-        items_single: BTreeMap::new(),
-        field_symbols: BTreeMap::new(),
-        computers: BTreeMap::new(),
-        remove_all: Vec::new(),
-        monster_symbols: BTreeMap::new(),
-        rotation: (0, 0),
-        set_points: Vec::new(),
-        set_radiation: Vec::new(),
-        set_variables: Vec::new(),
-        rubble: BTreeMap::new(),
-        place_rubble: Vec::new(),
-        place_nested: Vec::new(),
-        place_item: Vec::new(),
-        place_signs: Vec::new(),
-        place_liquids: Vec::new(),
-        weight: 1,
-        fields: Vec::new(),
-        fill_ter: None,
-        predecessor_mapgen: None,
-        fallback_predecessor_mapgen: None,
+        ..a_plain_mapgen()
     };
     let house = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned(), ".n..".to_owned()],
         terrain: [
@@ -2166,6 +2115,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
     cdda_sim::furniture_types::set_types(&mut world, [("f_rubble".to_owned(), 78u32)]);
     let field = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["...".to_owned(), "...".to_owned(), "...".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -2276,6 +2226,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
     cdda_sim::field_registry::set_field_names(&mut world, &[("fd_smoke", 1, 3)]);
     let room = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["IF".to_owned()],
         terrain: [
@@ -2366,6 +2317,7 @@ fn a_terminal_is_furniture_and_a_record() {
     cdda_sim::furniture_types::set_types(&mut world, [("f_console".to_owned(), 85u32)]);
     let church = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["C.".to_owned()],
         terrain: [
@@ -2483,6 +2435,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
     cdda_sim::drop_item(&mut world, (1, 0), rag, 1);
     let stripped = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -2566,6 +2519,7 @@ fn a_monster_can_be_a_symbol() {
     );
     let house = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["Z.".to_owned()],
         terrain: [
@@ -2655,6 +2609,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
     );
     let room = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "nested_room".to_owned(),
         rows: vec!["NN".to_owned(), "NN".to_owned()],
         terrain: [('N', "t_nested_floor".to_owned())].into_iter().collect(),
@@ -2697,6 +2652,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
     };
     let house = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![".".repeat(24); 24],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -2792,6 +2748,7 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
     cdda_sim::furniture_types::set_types(&mut world, [("f_sign".to_owned(), 87u32)]);
     let room = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -2887,6 +2844,7 @@ fn a_rectangle_can_place_a_liquid() {
     );
     let room = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -2961,6 +2919,7 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
     let mut world = a_world(Vec::new());
     let turned = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["AF.".to_owned(), "...".to_owned()],
         terrain: [
@@ -3067,6 +3026,7 @@ fn a_set_point_writes_the_layer_it_names() {
     cdda_sim::furniture_types::set_types(&mut world, [("f_underbrush".to_owned(), 67u32)]);
     let scattered = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -3180,6 +3140,7 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
     );
     let shapes = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![
             "......".to_owned(),
@@ -3303,6 +3264,7 @@ fn a_set_radiation_entry_writes_a_dose() {
     cdda_sim::radiation::set(&mut world, (4, 4, 0), 12);
     let hotspot = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -3397,6 +3359,7 @@ fn rubble_is_furniture_and_debris() {
     );
     let collapsed = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["R..".to_owned()],
         terrain: [
@@ -3483,6 +3446,7 @@ fn a_set_variable_names_a_square_in_the_global_store() {
     let mut world = a_world(Vec::new());
     let lab = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -3566,6 +3530,7 @@ fn a_set_removal_takes_away_what_it_names() {
     cdda_sim::square::set_trap(&mut world, (3, 0, 0), "tr_bear");
     let swept = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -3667,6 +3632,7 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
     );
     let field = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "field".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', "t_grass".to_owned())].into_iter().collect(),
@@ -3674,6 +3640,7 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
     };
     let house = MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..~~".to_owned()],
         terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
@@ -3702,6 +3669,7 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
 fn a_plain_mapgen() -> MapgenObject {
     MapgenObject {
         mapgensize: (24, 24),
+        place_zones: Vec::new(),
         om_terrain: String::new(),
         rows: Vec::new(),
         terrain: BTreeMap::new(),
@@ -3798,5 +3766,54 @@ fn a_small_chunk_refuses_a_placement_outside_its_size() {
         cdda_sim::square::furniture_at(&world, (2, 1, 0)),
         Some(97),
         "**the one inside it is**"
+    );
+}
+
+/// **A zone is a labelled rectangle, and it covers every square inside it.** Reference: `jmapgen_zone::apply` (`mapgen.cpp:4064-4073`) turns the entry's two corner ranges
+/// into absolute squares and records the zone over the rectangle between them.
+///
+/// The data writes 66 of them, and a zone is how a map says "this room is a base's workshop", "this is a stockpile", or "do not investigate this area" before anything stands
+/// there. The test reads a square **inside** the rectangle and one just outside it, because a zone that covered the whole chunk would pass a test that only asked about the
+/// middle.
+#[test]
+fn a_zone_covers_the_rectangle_it_names() {
+    let mut world = a_world(Vec::new());
+    let base = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["....".to_owned()],
+        place_zones: vec![cdda_content::mapgen::AreaZone {
+            kind: "ZONE_STOCKPILE".to_owned(),
+            faction: "no_faction".to_owned(),
+            name: "the pile".to_owned(),
+            filter: String::new(),
+            x: (2, 2),
+            y: (3, 3),
+            x2: (5, 5),
+            y2: (6, 6),
+        }],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), base)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(101));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(cdda_sim::zones::census(&mut world), 1, "**one zone**");
+    let inside = cdda_sim::zones::zones_at(&mut world, (4, 5, 0));
+    assert_eq!(
+        inside.len(),
+        1,
+        "**the square inside the rectangle is covered**"
+    );
+    assert_eq!(
+        inside.first().map(|zone| zone.kind.clone()),
+        Some("ZONE_STOCKPILE".to_owned())
+    );
+    assert_eq!(
+        inside.first().map(|zone| zone.name.clone()),
+        Some("the pile".to_owned()),
+        "**and it kept its name**"
+    );
+    assert!(
+        cdda_sim::zones::zones_at(&mut world, (6, 5, 0)).is_empty(),
+        "**a square one column past the corner is not**"
     );
 }

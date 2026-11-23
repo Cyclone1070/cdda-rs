@@ -40824,3 +40824,23 @@ so a test written with strings proves nothing about either form. The second run 
 **Named gap**: `place_monsters` (388 entries) - the **density** spawner - is still unread. It is not a symbol table at all: it is `map::place_spawns` (`mapgen.cpp:7231-7281`),
 whose count is `roll_remainder( density * SPAWN_DENSITY * rng_float( 10, 50 ) )` and whose picks decrement a shared quantity by each entry's cost multiplier. That is its own
 round, named here so the census keeps counting it.
+
+## A zone is a rectangle with a name on it (round 317)
+
+`place_zones` - **66 entries** - was not read. A zone is the reference's way of labelling squares the map does not otherwise mark: a base's workshop, a camp's stockpile, an
+area a faction's NPCs must not investigate. `jmapgen_zone::apply` (`mapgen.cpp:4064-4073`) turns the entry's two corner ranges into absolute squares and hands the rectangle to
+`mapgen_place_zone`, together with a type, a faction, a name and a filter.
+
+The port had no zones at all, so this round is the first half of the feature and says so:
+
+- **A zone is one entity** carrying its type, faction, name and filter, with a `Position` at its near corner and a `FarCorner` beside it. The reference keeps zones in a
+  manager beside the map; the port's architecture says a zone is a thing with a life of its own, and a rectangle is a property of the zone rather than of every square it
+  touches. `zones::zones_at` answers the squares by testing the rectangle, so there is still exactly one place a zone's shape is understood.
+- **What is not done**: the reference's zone manager also *merges* zones of one type and faction, and the game's rules look zones up by type and faction rather than by square.
+  The port can answer "which zones cover this square" and count them; the faction and type lookups arrive with the faction work, and this note is where that is recorded rather
+  than pretended.
+
+**The first run cost one correction**: I gave `Zone` a `far` field *and* a `FarCorner` component, which is two places for one corner - the kind of second source the architecture
+forbids - and the compiler refused the initialiser that named only one of them. The corner lives in `FarCorner`.
+
+**The mutation** records the zone at the origin instead of its far corner: the test fails at `left: 0, right: 1` - the square inside the rectangle is covered by nothing.

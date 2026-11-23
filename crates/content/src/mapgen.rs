@@ -186,6 +186,9 @@ pub struct MapgenObject {
     pub set_radiation: Vec<SetRadiation>,
     /// The `set` list's **variable** entries (`mapgen.cpp:1736-1737`, `5735-5737`): 230 of them, each naming a square the rest of the game will read by name.
     pub set_variables: Vec<SetVariable>,
+    /// The zones a mapgen records over a rectangle (`jmapgen_zone`, `mapgen.cpp:4044-4073`): 66 entries, and how a map says "this room is a workshop" or "do not
+    /// investigate this area" before anything stands in it.
+    pub place_zones: Vec<AreaZone>,
     /// Rubble a symbol places (`jmapgen_make_rubble` under `rubble`, `mapgen.cpp:3796-3837`): furniture, a floor, and the debris that goes with it.
     pub rubble: BTreeMap<char, RubblePlacement>,
     /// Rubble placed over a rectangle (`place_rubble`, `:5409`): the same piece with the square written out.
@@ -653,6 +656,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 set_points: read_set_points(inner.get("set")),
                 set_radiation: read_set_radiation(inner.get("set")),
                 set_variables: read_set_variables(inner.get("set")),
+                place_zones: read_area_zones(inner.get("place_zones")),
                 rubble: read_rubble(inner.get("rubble")),
                 place_rubble: read_area_rubble(inner.get("place_rubble")),
                 place_nested: read_area_nested(inner.get("place_nested")),
@@ -850,6 +854,62 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One zone a mapgen records over a rectangle (`jmapgen_zone`, `mapgen.cpp:4044-4073`).
+///
+/// A zone is the reference's way of labelling **squares the map does not otherwise mark**: a base's workshop, a camp's stockpile, an area the NPCs of a faction must not
+/// investigate. It names a type, a faction that owns it, and optionally a name and a filter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaZone {
+    /// The zone's type, which is what the game's own rules ask about.
+    pub kind: String,
+    /// The faction that owns it.
+    pub faction: String,
+    /// Its name, when the data gives it one.
+    pub name: String,
+    /// Its filter, when the data gives it one.
+    pub filter: String,
+    /// The columns of its first corner.
+    pub x: (i32, i32),
+    /// The rows of its first corner.
+    pub y: (i32, i32),
+    /// The columns of its opposite corner.
+    pub x2: (i32, i32),
+    /// The rows of its opposite corner.
+    pub y2: (i32, i32),
+}
+
+/// Reads a mapgen's `place_zones` list.
+fn read_area_zones(list: Option<&cdda_json::Value>) -> Vec<AreaZone> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let named = |name: &str| match one.get(name) {
+            Some(cdda_json::Value::Str(text)) => text.clone(),
+            _ => String::new(),
+        };
+        let kind = named("type");
+        if kind.is_empty() {
+            continue;
+        }
+        placed.push(AreaZone {
+            kind,
+            faction: named("faction"),
+            name: named("name"),
+            filter: named("filter"),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            x2: span(one.get("x2")),
+            y2: span(one.get("y2")),
+        });
+    }
+    placed
+}
+
 /// One `set` variable entry: a name given to one square (`mapgen.cpp:1736-1737`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetVariable {

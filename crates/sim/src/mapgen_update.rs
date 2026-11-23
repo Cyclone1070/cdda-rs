@@ -151,6 +151,7 @@ pub fn write(
     place_set_radiation(world, mapgen, origin, &mut rolls);
     place_rubble_areas(world, mapgen, origin, &mut rolls);
     place_set_variables(world, mapgen, origin, &mut rolls);
+    place_the_zones(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1122,6 +1123,31 @@ fn place_set_variables(
                 y: origin.1 + y,
                 z: origin.2,
             },
+        );
+    }
+}
+
+/// Records every zone a mapgen names.
+///
+/// Reference: `jmapgen_zone::apply` (`mapgen.cpp:4064-4072`) turns the entry's two corner rectanges into absolute squares and hands them to `mapgen_place_zone`. The reference's
+/// **zones phase** runs after everything else the map draws, because a zone labels squares rather than filling them; the port places them last for the same reason.
+fn place_the_zones(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_zones {
+        let near = roll_a_square(rolls, entry.x, entry.y);
+        let far = roll_a_square(rolls, entry.x2, entry.y2);
+        crate::zones::place(
+            world,
+            (origin.0 + near.0, origin.1 + near.1, origin.2),
+            (origin.0 + far.0, origin.1 + far.1),
+            &entry.kind,
+            &entry.faction,
+            &entry.name,
+            &entry.filter,
         );
     }
 }
