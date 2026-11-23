@@ -40711,3 +40711,20 @@ through one rule.
 test now sums **charges** - which is what a stack is - and says in its message why one of the numbers is not a count of things.
 
 **The mutation** drops no nails: the test fails on the charge total, which cannot reach its floor without them.
+
+## A name for a square (round 311)
+
+The last of `set`'s point ops is `variable` - **230 entries** - and it is not a write to the map at all. `jmapgen_setmap`'s variable arm (`mapgen.cpp:5735-5737`) queues
+`name -> absolute square`, and `set_queued_points()` empties that queue into **`global_variables`** when the map is finished (`:6098`, `:8762-8769`).
+
+That is the bridge between a map and everything that later refers to a place by name: a mission's target, a teleporter's destination, a dialogue's `u_location_variable`. The port
+already had the one place those live - the global dialogue-value singleton - so the writer goes there instead of starting a store of its own; a per-mapgen store would be a second
+source of truth with a shorter life than the values it holds.
+
+**A reader can answer nothing; a writer cannot.** `global_holder` returns `None` when a world has no global store, which is right for a reader and useless for a writer. The smoke
+test found it: the writer's `else { return }` silently dropped every variable in a fresh world. `dialogue_values::ensure_global` now creates the singleton the way the reference
+creates `global_variables` at game start, and the writer uses that.
+
+**The mutation** names the chunk's origin instead of the entry's square: the test fails at `left: Some(Position { x: 0, y: 0, z: 0 }), right: Some(Position { x: 9, y: 13, z: 0 })`.
+
+`set` now covers point/line/square for terrain, furniture and traps, radiation, and variables; **not** `bash` (45), `burn` (2) or the three `*_remove` ops.

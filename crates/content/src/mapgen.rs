@@ -179,6 +179,8 @@ pub struct MapgenObject {
     pub set_points: Vec<SetPoint>,
     /// The `set` list's radiation entries (`mapgen.cpp:1712-1713`, `5676-5679`): 26 of them, and the only `set` op whose value is a **number**, not an id.
     pub set_radiation: Vec<SetRadiation>,
+    /// The `set` list's **variable** entries (`mapgen.cpp:1736-1737`, `5735-5737`): 230 of them, each naming a square the rest of the game will read by name.
+    pub set_variables: Vec<SetVariable>,
     /// Rubble a symbol places (`jmapgen_make_rubble` under `rubble`, `mapgen.cpp:3796-3837`): furniture, a floor, and the debris that goes with it.
     pub rubble: BTreeMap<char, RubblePlacement>,
     /// Rubble placed over a rectangle (`place_rubble`, `:5409`): the same piece with the square written out.
@@ -550,6 +552,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 rotation: span(inner.get("rotation")),
                 set_points: read_set_points(inner.get("set")),
                 set_radiation: read_set_radiation(inner.get("set")),
+                set_variables: read_set_variables(inner.get("set")),
                 rubble: read_rubble(inner.get("rubble")),
                 place_rubble: read_area_rubble(inner.get("place_rubble")),
                 place_nested: read_area_nested(inner.get("place_nested")),
@@ -742,6 +745,45 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `set` variable entry: a name given to one square (`mapgen.cpp:1736-1737`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetVariable {
+    /// The name, which the rest of the game reads the square under.
+    pub name: String,
+    /// The columns it may land in.
+    pub x: (i32, i32),
+    /// The rows it may land in.
+    pub y: (i32, i32),
+}
+
+/// Reads the `variable` entries of a mapgen's `set` list.
+fn read_set_variables(list: Option<&cdda_json::Value>) -> Vec<SetVariable> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let is_variable = ["point", "set"]
+            .iter()
+            .any(|key| matches!(one.get(key), Some(cdda_json::Value::Str(op)) if op == "variable"));
+        if !is_variable {
+            continue;
+        }
+        let Some(cdda_json::Value::Str(name)) = one.get("id") else {
+            continue;
+        };
+        placed.push(SetVariable {
+            name: name.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One `rubble` entry: what a rubble square is made of (`jmapgen_make_rubble`, `mapgen.cpp:3796-3837`).
 ///
 /// The defaults are the reference's: `f_rubble` furniture, `t_dirt` floor, no items, no overwrite (`:3799-3811`). **Named gap**: the non-overwrite branch first destroys bashable

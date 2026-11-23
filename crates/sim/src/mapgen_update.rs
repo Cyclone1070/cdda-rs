@@ -149,6 +149,7 @@ pub fn write(
     place_set_points(world, mapgen, origin, &mut rolls);
     place_set_radiation(world, mapgen, origin, &mut rolls);
     place_rubble_areas(world, mapgen, origin, &mut rolls);
+    place_set_variables(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1078,6 +1079,39 @@ fn roll_between(rolls: &mut Option<cdda_core_types::rng::Rolls>, range: (i32, i3
 fn drop_if_known(world: &mut World, at: (i32, i32, i32), id: &str, charges: i32) {
     if let Some(kind) = crate::item_registry::id_of(world, id) {
         crate::drop_item(world, (at.0, at.1), kind, charges);
+    }
+}
+
+/// Names the squares the data asks to be named, in the **global** value store.
+///
+/// Reference: `queued_points` are collected while the map is drawn and written into `global_variables` at the very end (`mapgen.cpp:5737`, `6098`, `8762-8769`), so a
+/// variable names a square of the world and every later reader - a mission target, a teleporter, a dialogue - reads it from one place. The port already has that one place:
+/// the global values singleton, which is why this writes there rather than starting a store of its own.
+fn place_set_variables(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    if mapgen.set_variables.is_empty() {
+        return;
+    }
+    let holder = crate::dialogue_values::ensure_global(world);
+    for entry in &mapgen.set_variables {
+        let (x, y) = roll_a_square(rolls, entry.x, entry.y);
+        if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+            continue;
+        }
+        crate::dialogue_values::set(
+            world,
+            holder,
+            &entry.name,
+            crate::dialogue_values::Value::Position {
+                x: origin.0 + x,
+                y: origin.1 + y,
+                z: origin.2,
+            },
+        );
     }
 }
 

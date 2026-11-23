@@ -193,6 +193,14 @@ pub fn global_holder(world: &World) -> Option<Entity> {
     query.iter(world).next()
 }
 
+/// The global holder, created if the world does not have one yet.
+///
+/// A reader can answer nothing when there is no store (`global_holder`), but a **writer** has to have somewhere to write: the reference creates `global_variables` when the
+/// game starts, and a mapgen's `set` variables are the first thing that may touch it in a fresh world.
+pub fn ensure_global(world: &mut World) -> Entity {
+    singletons::singleton::<DialogueValues, TheGlobalValues>(world)
+}
+
 /// The holder a variable's scope names, and nothing when the scope is one the port cannot resolve.
 ///
 /// `holder_for` answers for a scope with a creature in hand; this one answers when there is none.
