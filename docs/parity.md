@@ -40728,3 +40728,22 @@ creates `global_variables` at game start, and the writer uses that.
 **The mutation** names the chunk's origin instead of the entry's square: the test fails at `left: Some(Position { x: 0, y: 0, z: 0 }), right: Some(Position { x: 9, y: 13, z: 0 })`.
 
 `set` now covers point/line/square for terrain, furniture and traps, radiation, and variables; **not** `bash` (45), `burn` (2) or the three `*_remove` ops.
+
+## What a mapgen takes away (round 312)
+
+`set` has four **removal** ops, and they are the only ops in the list that name no id - which is what makes them removals rather than writes: `trap_remove` (3 entries),
+`item_remove` (10), `field_remove` (4), `creature_remove` (1). They let a mapgen *undo*: a shop whose stock came from a predecessor, a swept corridor, a corpse taken away.
+
+Each clears one thing on one square (`mapgen.cpp:5627-5655`), and the port already had the four rules under their own names - `square::remove_trap`, the items at a square, the
+fields at a square, the creatures at a square - so the op is a switch over those, not new machinery.
+
+**One correction from the first run**: I wrote the trap removal as `set_trap( world, at, "" )`, which the port's `set_trap` refused because a trap was already there - the guard
+that stops a mapgen overwriting a trap. The test caught it at `left: Some("tr_bear"), right: None`. `remove_trap` was already in the code, with the reference's `here.remove_trap`
+citation on it; the removal op was the caller it had been waiting for.
+
+**The creature arm** keeps the reference's exception: the avatar is not killed by a mapgen that clears its square (`:5631-5633`).
+
+**Named gaps now closed or stated**: `set` covers point/line/square for terrain, furniture and traps, the four removals, radiation and variables. Still open: `bash` (44) - it
+needs a bash system to call - and `burn` (2), which needs terrain flags the port does not load yet.
+
+**The mutation** makes `item_remove` a no-op: the test fails on the item still on the square.

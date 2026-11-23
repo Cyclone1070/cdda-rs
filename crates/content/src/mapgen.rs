@@ -910,7 +910,7 @@ fn read_set_radiation(list: Option<&cdda_json::Value>) -> Vec<SetRadiation> {
     placed
 }
 
-/// Which layer a `set` point writes.
+/// Which layer a `set` point writes, or what it takes away.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetKind {
     /// Terrain.
@@ -919,6 +919,14 @@ pub enum SetKind {
     Furniture,
     /// A trap.
     Trap,
+    /// A trap's removal (`mapgen.cpp:5589-5592`, `trap_remove`).
+    TrapRemove,
+    /// The items on the square (`item_remove`).
+    ItemRemove,
+    /// The fields on the square (`field_remove`).
+    FieldRemove,
+    /// The creature standing there (`creature_remove`).
+    CreatureRemove,
 }
 
 /// The shape a `set` entry draws (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
@@ -978,20 +986,32 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             "terrain" => SetKind::Terrain,
             "furniture" => SetKind::Furniture,
             "trap" => SetKind::Trap,
+            "trap_remove" => SetKind::TrapRemove,
+            "item_remove" => SetKind::ItemRemove,
+            "field_remove" => SetKind::FieldRemove,
+            "creature_remove" => SetKind::CreatureRemove,
             _ => continue,
+        };
+        // A removal names no id: that is what makes it a removal rather than a write.
+        let id = match kind {
+            SetKind::TrapRemove
+            | SetKind::ItemRemove
+            | SetKind::FieldRemove
+            | SetKind::CreatureRemove => String::new(),
+            _ => match one.get("id") {
+                Some(cdda_json::Value::Str(id)) => id.clone(),
+                _ => continue,
+            },
         };
         let shape = match form {
             "line" => SetShape::Line,
             "square" => SetShape::Square,
             _ => SetShape::Point,
         };
-        let Some(cdda_json::Value::Str(id)) = one.get("id") else {
-            continue;
-        };
         placed.push(SetPoint {
             kind,
             shape,
-            id: id.clone(),
+            id,
             x: span(one.get("x")),
             y: span(one.get("y")),
             x2: span(one.get("x2")),

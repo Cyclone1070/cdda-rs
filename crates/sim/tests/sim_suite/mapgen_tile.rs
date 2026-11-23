@@ -3461,3 +3461,109 @@ fn a_set_variable_names_a_square_in_the_global_store() {
         "**the name holds the square the entry named, in world coordinates**"
     );
 }
+
+/// **The `set` list can also take things away, and a removal names no id.** Reference: `jmapgen_setmap`'s removal arms (`mapgen.cpp:5627-5655`): `trap_remove` clears the trap,
+/// `item_remove` clears the items, `field_remove` clears the fields, and `creature_remove` kills what stands there.
+///
+/// The data writes 18 of them (3 `trap_remove`, 10 `item_remove`, 4 `field_remove`, 1 `creature_remove`), and they are the op that makes a mapgen able to *undo*: a shop whose
+/// stock was placed by a predecessor, a cleared corridor, a corpse taken away. The test puts an item and a trap on two squares and takes them off, because a removal that removes
+/// nothing is indistinguishable from one that removes everything.
+#[test]
+fn a_set_removal_takes_away_what_it_names() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "rock",
+            volume_ml: 0,
+            weight_g: 0,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let kind = cdda_sim::item_registry::id_of(&mut world, "rock").expect("rock");
+    cdda_sim::drop_item(&mut world, (2, 0), kind, 1);
+    cdda_sim::square::set_trap(&mut world, (3, 0, 0), "tr_bear");
+    let swept = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["....".to_owned()],
+        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        furniture: BTreeMap::new(),
+        traps: BTreeMap::new(),
+        items: BTreeMap::new(),
+        monsters: Vec::new(),
+        toilets: BTreeMap::new(),
+        liquids: BTreeMap::new(),
+        place_items: Vec::new(),
+        place_loot: Vec::new(),
+        sealed_items: BTreeMap::new(),
+        vending_machines: BTreeMap::new(),
+        signs: BTreeMap::new(),
+        gas_pumps: BTreeMap::new(),
+        nested: BTreeMap::new(),
+        place_terrain: Vec::new(),
+        place_furniture: Vec::new(),
+        place_traps: Vec::new(),
+        items_single: BTreeMap::new(),
+        field_symbols: BTreeMap::new(),
+        computers: BTreeMap::new(),
+        remove_all: Vec::new(),
+        monster_symbols: BTreeMap::new(),
+        rotation: (0, 0),
+        place_nested: Vec::new(),
+        place_item: Vec::new(),
+        place_signs: Vec::new(),
+        place_liquids: Vec::new(),
+        set_points: vec![
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::ItemRemove,
+                shape: cdda_content::mapgen::SetShape::Point,
+                id: String::new(),
+                x: (2, 2),
+                y: (0, 0),
+                x2: (2, 2),
+                y2: (0, 0),
+                repeat: (1, 1),
+            },
+            cdda_content::mapgen::SetPoint {
+                kind: cdda_content::mapgen::SetKind::TrapRemove,
+                shape: cdda_content::mapgen::SetShape::Point,
+                id: String::new(),
+                x: (3, 3),
+                y: (0, 0),
+                x2: (3, 3),
+                y2: (0, 0),
+                repeat: (1, 1),
+            },
+        ],
+        set_radiation: Vec::new(),
+        set_variables: Vec::new(),
+        rubble: BTreeMap::new(),
+        place_rubble: Vec::new(),
+        weight: 1,
+        fields: Vec::new(),
+        fill_ter: None,
+        predecessor_mapgen: None,
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), swept)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(83));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert!(
+        cdda_sim::items_at(&mut world, (2, 0)).is_empty(),
+        "**item_remove took the rock off the square**"
+    );
+    assert_eq!(
+        cdda_sim::square::trap_at(&world, (3, 0, 0)),
+        None,
+        "**trap_remove took the trap off the square**"
+    );
+    assert_eq!(
+        cdda_sim::items_at(&mut world, (1, 0)).len(),
+        0,
+        "**and neither removal touched a square it did not name**"
+    );
+}

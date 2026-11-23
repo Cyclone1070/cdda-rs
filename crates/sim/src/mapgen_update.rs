@@ -1149,6 +1149,43 @@ fn place_set_radiation(
     }
 }
 
+/// Takes every item off a square (`map::i_clear`, `mapgen.cpp:5688-5690`).
+fn clear_the_items(world: &mut World, at: (i32, i32, i32)) {
+    for item in crate::items_at(world, (at.0, at.1)) {
+        world.despawn(item);
+    }
+}
+
+/// Takes every field off a square (`mapgen.cpp:5691-5693`).
+///
+/// The reference calls a helper that walks the square's field list; the port's fields are separate components on entities at the square, so the walk is the same query by a
+/// different name. A field's strength is the thing carried, and a square with fields of several kinds loses all of them - which is what "clear the square" means.
+fn clear_the_fields(world: &mut World, at: (i32, i32, i32)) {
+    let fields: Vec<Entity> = {
+        let mut query = world.query::<(Entity, &crate::Position, &crate::Field)>();
+        query
+            .iter(world)
+            .filter(|(_, spot, _)| spot.x == at.0 && spot.y == at.1 && spot.z == at.2)
+            .map(|(entity, _, _)| entity)
+            .collect()
+    };
+    for field in fields {
+        world.despawn(field);
+    }
+}
+
+/// Kills whatever creature stands on a square, unless it is the player (`mapgen.cpp:5678-5685`).
+fn kill_the_creature(world: &mut World, at: (i32, i32, i32)) {
+    for creature in crate::creature::creature_at(world, at) {
+        if world.get::<crate::missions::TheAvatar>(creature).is_some()
+            || world.get::<crate::Player>(creature).is_some()
+        {
+            continue;
+        }
+        world.despawn(creature);
+    }
+}
+
 /// Draws one square from a range, or its first end when the dice are spent.
 fn roll_a_square(
     rolls: &mut Option<cdda_core_types::rng::Rolls>,
@@ -1177,6 +1214,12 @@ fn write_the_layer(world: &mut World, entry: &cdda_content::mapgen::SetPoint, at
         cdda_content::mapgen::SetKind::Trap => {
             crate::square::set_trap(world, at, &entry.id);
         }
+        // Reference: `jmapgen_setmap::apply`'s removal arms (`mapgen.cpp:5627-5655`). A removal names no id, and each clears one thing on one square:
+        // the trap, the items, the fields, or the creature standing there.
+        cdda_content::mapgen::SetKind::TrapRemove => crate::square::remove_trap(world, at),
+        cdda_content::mapgen::SetKind::ItemRemove => clear_the_items(world, at),
+        cdda_content::mapgen::SetKind::FieldRemove => clear_the_fields(world, at),
+        cdda_content::mapgen::SetKind::CreatureRemove => kill_the_creature(world, at),
     }
 }
 
