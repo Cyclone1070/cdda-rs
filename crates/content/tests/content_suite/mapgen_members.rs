@@ -43,6 +43,8 @@ const READ: &[&str] = &[
     "monster",
     "rotation",
     "set",
+    "rubble",
+    "place_rubble",
     "place_nested",
     "place_item",
     "place_signs",
@@ -58,7 +60,6 @@ const NAMED_GAPS: &[&str] = &[
     // The parameterised form of every symbol map: `place_terrain`, `place_furniture`, `place_traps`, `place_items`, ... draw over a **rectangle** rather than from
     // rows, and each is the symbol map's rule with a range. The data writes both; the port reads the row form.
     "place_monsters",
-    "place_rubble",
     "place_toilets",
     "place_vendingmachines",
     "place_computers",
@@ -76,7 +77,6 @@ const NAMED_GAPS: &[&str] = &[
     "remove_vehicles",
     // Clearing a square needs the removal phase and every layer it clears.
     // Rubble is a terrain and an item together.
-    "rubble",
     // NPCs need templates and the NPC store, which is P7.
     "npcs",
     "remove_npcs",

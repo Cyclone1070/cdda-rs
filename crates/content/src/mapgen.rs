@@ -179,6 +179,10 @@ pub struct MapgenObject {
     pub set_points: Vec<SetPoint>,
     /// The `set` list's radiation entries (`mapgen.cpp:1712-1713`, `5676-5679`): 26 of them, and the only `set` op whose value is a **number**, not an id.
     pub set_radiation: Vec<SetRadiation>,
+    /// Rubble a symbol places (`jmapgen_make_rubble` under `rubble`, `mapgen.cpp:3796-3837`): furniture, a floor, and the debris that goes with it.
+    pub rubble: BTreeMap<char, RubblePlacement>,
+    /// Rubble placed over a rectangle (`place_rubble`, `:5409`): the same piece with the square written out.
+    pub place_rubble: Vec<AreaRubble>,
     /// Nested mapgens placed over a rectangle instead of at a symbol (`place_nested`): the same piece as `nested`, 1,382 times, with the dice choosing the marker.
     pub place_nested: Vec<AreaNested>,
     /// Single items placed over a rectangle (`place_item`, 165 uses): the `item` symbol map with the square written out.
@@ -546,6 +550,8 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 rotation: span(inner.get("rotation")),
                 set_points: read_set_points(inner.get("set")),
                 set_radiation: read_set_radiation(inner.get("set")),
+                rubble: read_rubble(inner.get("rubble")),
+                place_rubble: read_area_rubble(inner.get("place_rubble")),
                 place_nested: read_area_nested(inner.get("place_nested")),
                 place_item: read_area_single_items(inner.get("place_item")),
                 place_signs: read_area_signs(inner.get("place_signs")),
@@ -736,6 +742,93 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One `rubble` entry: what a rubble square is made of (`jmapgen_make_rubble`, `mapgen.cpp:3796-3837`).
+///
+/// The defaults are the reference's: `f_rubble` furniture, `t_dirt` floor, no items, no overwrite (`:3799-3811`). **Named gap**: the non-overwrite branch first destroys bashable
+/// furniture and terrain (`:3246-3257`), and the port's terrain and furniture carry no bash results yet, so only the impassable-check part is missed - the furniture is set and the
+/// floor is left alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RubblePlacement {
+    /// The furniture the debris stands as.
+    pub rubble_type: String,
+    /// The floor under it, used when `overwrite` is set.
+    pub floor_type: String,
+    /// Whether the debris drops items.
+    pub items: bool,
+    /// Whether the floor is forced - the reference's `overwrite` (`:3242-3244`).
+    pub overwrite: bool,
+}
+
+/// One `place_rubble` entry: rubble whose square the entry writes out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaRubble {
+    /// What the rubble is made of.
+    pub rubble: RubblePlacement,
+    /// The columns it may land in.
+    pub x: (i32, i32),
+    /// The rows it may land in.
+    pub y: (i32, i32),
+}
+
+/// Reads one rubble specification, from either form.
+fn read_one_rubble(spec: &cdda_json::Value) -> Option<RubblePlacement> {
+    let cdda_json::Value::Object(one) = spec else {
+        return None;
+    };
+    Some(RubblePlacement {
+        rubble_type: match one.get("rubble_type") {
+            Some(cdda_json::Value::Str(id)) => id.clone(),
+            _ => "f_rubble".to_owned(),
+        },
+        floor_type: match one.get("floor_type") {
+            Some(cdda_json::Value::Str(id)) => id.clone(),
+            _ => "t_dirt".to_owned(),
+        },
+        items: matches!(one.get("items"), Some(cdda_json::Value::Bool(true))),
+        overwrite: matches!(one.get("overwrite"), Some(cdda_json::Value::Bool(true))),
+    })
+}
+
+/// Reads a mapgen's `rubble` object, the symbol map.
+fn read_rubble(
+    object: Option<&cdda_json::Value>,
+) -> std::collections::BTreeMap<char, RubblePlacement> {
+    let mut placed = std::collections::BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return placed;
+    };
+    for (symbol, value) in members.members() {
+        let Some(symbol) = symbol.chars().next() else {
+            continue;
+        };
+        if let Some(rubble) = read_one_rubble(value) {
+            placed.insert(symbol, rubble);
+        }
+    }
+    placed
+}
+
+/// Reads a mapgen's `place_rubble` list.
+fn read_area_rubble(list: Option<&cdda_json::Value>) -> Vec<AreaRubble> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        if let Some(rubble) = read_one_rubble(entry) {
+            placed.push(AreaRubble {
+                rubble,
+                x: span(one.get("x")),
+                y: span(one.get("y")),
+            });
+        }
+    }
+    placed
+}
+
 /// One `set` radiation entry: an absolute dose on one square or a range of squares (`mapgen.cpp:1712-1713`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetRadiation {

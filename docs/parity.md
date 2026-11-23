@@ -40693,3 +40693,21 @@ assertion was written to catch.
 
 The census already counts `set` as read; radiation is part of that member, and the note records it so the next reader knows how much of `set` is covered: point, line and square
 for terrain, furniture and traps, plus radiation - and not `variable`, `bash`, `burn` or the three `*_remove` ops.
+
+## Rubble (round 310)
+
+`jmapgen_make_rubble` (`mapgen.cpp:3796-3837`) writes rubble 12 times as a symbol map and 23 times as a rectangle list - another pair of the same piece, so the port reads both
+through one rule.
+
+`map::make_rubble` (`map.cpp:3239-3291`) has two branches and one surprising table:
+- **`overwrite`** forces the floor and the furniture (`:3242-3244`); without it the furniture is set and the floor is left alone, after destroying what bashable furniture and
+  impassable terrain were there (`:3246-3257`). **Named gap**: the port's terrain and furniture carry no bash results, so the destruction and the impassable check are not done -
+  the furniture is set and the floor is untouched.
+- **The debris is three hardcoded lists keyed by furniture id** (`:3268-3290`): wreckage drops a steel chunk, scrap and one-in-five pipe and wire; rock rubble drops one to three
+  rocks; plain rubble drops two to eight splinters **and twenty to fifty nails**. The port copies the lists rather than inventing a table for them, because the reference does not
+  have one - the comment in the source says so in as many words ("Still hardcoded, but a step up from the old stuff").
+
+**A test lesson this round cost twice**: the first assertion counted **entities**, and the nails are a single stack of charges, so a correct implementation answered seven. The
+test now sums **charges** - which is what a stack is - and says in its message why one of the numbers is not a count of things.
+
+**The mutation** drops no nails: the test fails on the charge total, which cannot reach its floor without them.

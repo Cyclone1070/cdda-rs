@@ -148,6 +148,7 @@ pub fn write(
     place_liquid_areas(world, mapgen, origin, &mut rolls);
     place_set_points(world, mapgen, origin, &mut rolls);
     place_set_radiation(world, mapgen, origin, &mut rolls);
+    place_rubble_areas(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -249,6 +250,7 @@ fn draw_one_square(
     drew |= place_the_field_symbol(world, mapgen, at, symbol, rolls);
     drew |= place_the_computer(world, mapgen, at, symbol);
     drew |= place_the_monster_symbol(world, mapgen, at, symbol, rolls);
+    drew |= place_the_rubble(world, mapgen, at, symbol, rolls);
     drew |= place_the_liquid(world, mapgen, at, symbol, rolls);
     drew
 }
@@ -975,6 +977,107 @@ fn place_set_points(
                 write_the_layer(world, entry, (origin.0 + x, origin.1 + y, origin.2));
             }
         }
+    }
+}
+
+/// Places the rubble a symbol carries, and answers whether it placed any.
+fn place_the_rubble(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    at: (i32, i32, i32),
+    symbol: char,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
+    let Some(placement) = mapgen.rubble.get(&symbol) else {
+        return false;
+    };
+    make_rubble(world, at, placement, rolls);
+    true
+}
+
+/// Places every `place_rubble` entry.
+fn place_rubble_areas(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_rubble {
+        let (x, y) = roll_a_square(rolls, entry.x, entry.y);
+        if !(0..SIDE).contains(&x) || !(0..SIDE).contains(&y) {
+            continue;
+        }
+        make_rubble(
+            world,
+            (origin.0 + x, origin.1 + y, origin.2),
+            &entry.rubble,
+            rolls,
+        );
+    }
+}
+
+/// Makes one square of rubble, the way `map::make_rubble` does (`map.cpp:3239-3291`).
+///
+/// Two branches: `overwrite` forces the floor and the furniture; otherwise the furniture is set and the floor is left alone. The debris depends on the furniture - **the three
+/// hardcoded lists** the reference keeps in this one function (`:3268-3290`), and the port copies the lists rather than inventing a table for them.
+fn make_rubble(
+    world: &mut World,
+    at: (i32, i32, i32),
+    placement: &cdda_content::mapgen::RubblePlacement,
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    if placement.overwrite
+        && let Some(code) = crate::terrain_types::code_of(world, &placement.floor_type)
+    {
+        crate::square::set_terrain(world, at, code);
+    }
+    if let Some(code) = crate::furniture_types::code_of(world, &placement.rubble_type) {
+        crate::square::set_furniture(world, at, code);
+    }
+    if !placement.items {
+        return;
+    }
+    // The reference's three lists, by furniture id (`map.cpp:3269-3290`).
+    match placement.rubble_type.as_str() {
+        "f_wreckage" => {
+            drop_if_known(world, at, "steel_chunk", 1);
+            drop_if_known(world, at, "scrap", 1);
+            if rolls.as_mut().is_some_and(|dice| dice.one_in(5)) {
+                drop_if_known(world, at, "pipe", 1);
+                drop_if_known(world, at, "wire", 1);
+            }
+        }
+        "f_rubble_rock" => {
+            let count = roll_between(rolls, (1, 3));
+            for _ in 0..count {
+                drop_if_known(world, at, "rock", 1);
+            }
+        }
+        _ => {
+            let splinters = roll_between(rolls, (2, 8));
+            for _ in 0..splinters {
+                drop_if_known(world, at, "splinter", 1);
+            }
+            let nails = roll_between(rolls, (20, 50));
+            if nails > 0 {
+                drop_if_known(world, at, "nail", nails);
+            }
+        }
+    }
+}
+
+/// Draws a number from a range, or its first end when the dice are spent.
+fn roll_between(rolls: &mut Option<cdda_core_types::rng::Rolls>, range: (i32, i32)) -> i32 {
+    match rolls.as_mut() {
+        Some(dice) if range.1 > range.0 => dice.rng(range.0, range.1),
+        _ => range.0,
+    }
+}
+
+/// Drops an item when the registry knows it, which is what a hardcoded id needs: the reference's ids are the data's, and a port without one is not a crash.
+fn drop_if_known(world: &mut World, at: (i32, i32, i32), id: &str, charges: i32) {
+    if let Some(kind) = crate::item_registry::id_of(world, id) {
+        crate::drop_item(world, (at.0, at.1), kind, charges);
     }
 }
 
