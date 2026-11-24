@@ -47,6 +47,7 @@ const READ: &[&str] = &[
     "place_zones",
     "place_monsters",
     "place_vehicles",
+    "place_ter_furn_transforms",
     "parameters",
     "mapping",
     "rubble",
@@ -73,7 +74,6 @@ const NAMED_GAPS: &[&str] = &[
     "place_graffiti",
     "place_corpses",
     "place_variables",
-    "place_ter_furn_transforms",
     // A spawn point: the monster group, its density and the map's spawn inventory, which is a subsystem of its own.
     // Furniture with contents or text: each needs the thing it holds or says before it can be placed honestly.
     // Vehicles are P8.

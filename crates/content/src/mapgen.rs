@@ -225,6 +225,9 @@ pub struct MapgenObject {
     pub set_variables: Vec<SetVariable>,
     /// The **density** spawner (`jmapgen_monster_group`, `mapgen.cpp:3080-3100`): 388 entries, and the only way the data fills a military base or a lab with what lives there.
     pub place_monsters: Vec<AreaMonsters>,
+    /// The terrain/furniture transforms a mapgen applies over a rectangle (`jmapgen_ter_furn_transform`, `mapgen.cpp:3766-3791`): 45 entries, and how a map says "there is a
+    /// window here, and it has been broken out" without naming the broken shape in its rows.
+    pub place_ter_furn_transforms: Vec<AreaTransform>,
     /// The vehicles a mapgen parks (`jmapgen_vehicle`, `mapgen.cpp:3180-3200`): 500 entries, and the only thing that fills a parking lot.
     pub place_vehicles: Vec<AreaVehicles>,
     /// The zones a mapgen records over a rectangle (`jmapgen_zone`, `mapgen.cpp:4044-4073`): 66 entries, and how a map says "this room is a workshop" or "do not
@@ -833,6 +836,9 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_zones: read_area_zones(inner.get("place_zones")),
                 place_monsters: read_area_monsters(inner.get("place_monsters")),
                 place_vehicles: read_area_vehicles(inner.get("place_vehicles")),
+                place_ter_furn_transforms: read_area_transforms(
+                    inner.get("place_ter_furn_transforms"),
+                ),
                 rubble: read_rubble(inner.get("rubble")),
                 place_rubble: read_area_rubble(inner.get("place_rubble")),
                 place_nested: read_area_nested(inner.get("place_nested")),
@@ -1032,6 +1038,39 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One terrain/furniture transform over a rectangle (`jmapgen_ter_furn_transform`, `mapgen.cpp:3766-3791`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaTransform {
+    /// The transform's id, which names a `ter_furn_transform` the content holds.
+    pub transform: String,
+    /// The columns the transform covers.
+    pub x: (i32, i32),
+    /// The rows the transform covers.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_ter_furn_transforms` list.
+fn read_area_transforms(list: Option<&cdda_json::Value>) -> Vec<AreaTransform> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(transform)) = one.get("transform") else {
+            continue;
+        };
+        placed.push(AreaTransform {
+            transform: transform.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One vehicle a mapgen parks (`jmapgen_vehicle`, `mapgen.cpp:3180-3200`).
 ///
 /// The `vehicle` member names either a prototype or a **vehicle group** (`vehicle_group`, 111 mapgens use the group form), and the placement rule draws from the group when it is

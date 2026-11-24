@@ -1322,6 +1322,7 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         rows: vec!["AB".to_owned()],
         terrain: [
             ('A', Piece::Id("t_rock".to_owned())),
@@ -1450,6 +1451,7 @@ fn a_wall_update_world() -> (World, bevy_ecs::prelude::Entity) {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         rows: vec!["AB".to_owned()],
         terrain: [
             ('A', Piece::Id("t_rock".to_owned())),
@@ -1591,6 +1593,7 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         rows: Vec::new(),
         terrain: BTreeMap::new(),
         furniture: BTreeMap::new(),
@@ -1696,6 +1699,7 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         rows: vec!["A".to_owned()],
         terrain: [('A', Piece::Id("t_floor".to_owned()))]
             .into_iter()
@@ -2018,6 +2022,7 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         rows: vec!["A".to_owned()],
         terrain: [('A', Piece::Id("t_rock".to_owned()))]
             .into_iter()

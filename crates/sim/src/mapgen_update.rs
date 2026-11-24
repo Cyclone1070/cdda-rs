@@ -158,6 +158,7 @@ pub fn write(
     place_the_zones(world, mapgen, origin, &mut rolls);
     spawn_by_density(world, mapgen, origin, &mut rolls);
     park_the_vehicles(world, mapgen, origin, &mut rolls);
+    apply_the_transforms(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1132,6 +1133,42 @@ fn place_set_variables(
                 z: origin.2,
             },
         );
+    }
+}
+
+/// Applies the terrain/furniture transforms a mapgen names.
+///
+/// Reference: `jmapgen_ter_furn_transform::apply` (`mapgen.cpp:3773-3784`): the entry's two ranges are the **rectangle** it walks - `for ix in x.val..=x.valmax, iy in
+/// y.val..=y.valmax` - and each square gets `ter_furn_transform::transform` once. There is no repetition and no chance: a transform is a fact about the map, not a spawn.
+fn apply_the_transforms(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    // **The ranges are the rectangle, not a rolled square**: `jmapgen_int::val` and `valmax` are the two ends of the member itself, so a transform covers every square between
+    // them and draws no dice. That is the difference between this rule and a symbol placement, and the test pins it.
+    let _ = rolls;
+    for entry in &mapgen.place_ter_furn_transforms {
+        let (x1, x2) = if entry.x.0 <= entry.x.1 {
+            (entry.x.0, entry.x.1)
+        } else {
+            (entry.x.1, entry.x.0)
+        };
+        let (y1, y2) = if entry.y.0 <= entry.y.1 {
+            (entry.y.0, entry.y.1)
+        } else {
+            (entry.y.1, entry.y.0)
+        };
+        for x in x1..=x2 {
+            for y in y1..=y2 {
+                crate::terrain_transform::apply_at(
+                    world,
+                    &entry.transform,
+                    (origin.0 + x, origin.1 + y, origin.2),
+                );
+            }
+        }
     }
 }
 

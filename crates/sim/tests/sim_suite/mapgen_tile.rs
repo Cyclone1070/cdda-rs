@@ -23,6 +23,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: id.to_owned(),
         rows: vec!["##".to_owned(), "##".to_owned()],
         terrain: [('#', Piece::Id(terrain.to_owned()))].into_iter().collect(),
@@ -162,6 +163,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["#".to_owned()],
         terrain: [('#', Piece::Id("t_house_two".to_owned()))]
@@ -256,6 +258,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![".F.".to_owned()],
         terrain: [
@@ -338,6 +341,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "field".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
@@ -427,6 +431,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["I.".to_owned()],
         terrain: [
@@ -545,6 +550,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
@@ -640,6 +646,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -728,6 +735,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house_inside".to_owned(),
         // Two rows of walls, and the roof covers only the first: the second row is the predecessor showing through.
         rows: vec!["##".to_owned(), "##".to_owned()],
@@ -777,6 +785,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -887,6 +896,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -983,6 +993,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -1081,6 +1092,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
@@ -1189,6 +1201,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["WG".to_owned()],
         terrain: [
@@ -1323,6 +1336,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned(), "..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -1432,6 +1446,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -1535,6 +1550,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["L.".to_owned()],
         terrain: [
@@ -1725,6 +1741,7 @@ fn a_sign_is_furniture_that_carries_words() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["S.".to_owned()],
         terrain: [
@@ -1846,6 +1863,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
@@ -1954,6 +1972,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["n...".to_owned(), "....".to_owned()],
         terrain: [
@@ -2062,6 +2081,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned(), ".n..".to_owned()],
         terrain: [
@@ -2167,6 +2187,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["...".to_owned(), "...".to_owned(), "...".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2283,6 +2304,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["IF".to_owned()],
         terrain: [
@@ -2377,6 +2399,7 @@ fn a_terminal_is_furniture_and_a_record() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["C.".to_owned()],
         terrain: [
@@ -2498,6 +2521,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2587,6 +2611,7 @@ fn a_monster_can_be_a_symbol() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["Z.".to_owned()],
         terrain: [
@@ -2688,6 +2713,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![".".repeat(24); 24],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2789,6 +2815,7 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2890,6 +2917,7 @@ fn a_rectangle_can_place_a_liquid() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2970,6 +2998,7 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["AF.".to_owned(), "...".to_owned()],
         terrain: [
@@ -3080,6 +3109,7 @@ fn a_set_point_writes_the_layer_it_names() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3199,6 +3229,7 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![
             "......".to_owned(),
@@ -3328,6 +3359,7 @@ fn a_set_radiation_entry_writes_a_dose() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3428,6 +3460,7 @@ fn rubble_is_furniture_and_debris() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["R..".to_owned()],
         terrain: [
@@ -3518,6 +3551,7 @@ fn a_set_variable_names_a_square_in_the_global_store() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3607,6 +3641,7 @@ fn a_set_removal_takes_away_what_it_names() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3714,6 +3749,7 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "field".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_grass".to_owned()))]
@@ -3726,6 +3762,7 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..~~".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3759,6 +3796,7 @@ fn a_plain_mapgen() -> MapgenObject {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         place_vehicles: Vec::new(),
+        place_ter_furn_transforms: Vec::new(),
         om_terrain: String::new(),
         rows: Vec::new(),
         terrain: BTreeMap::new(),
@@ -4244,5 +4282,70 @@ fn a_mapping_bundle_places_every_item_it_lists() {
     assert_eq!(
         on_the_bed, 2,
         "**both placements landed on the square, not just the first**"
+    );
+}
+
+/// **A mapgen applies a transform over a rectangle, square by square.** Reference: `jmapgen_ter_furn_transform::apply` (`mapgen.cpp:3773-3784`) - the entry's two ranges are a
+/// **rectangle** walked in both directions, each square getting `ter_furn_transform::transform` once. No repetition, no chance: a transform is a fact about the map, not a spawn.
+///
+/// 45 mapgen entries use it, and it is how the data says "there is a window here, and it has been broken out" without spelling the broken shape in its rows.
+#[test]
+fn a_mapgen_transforms_the_rectangle_it_names() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_window".to_owned(), 61u32),
+            ("t_window_broken".to_owned(), 62u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    // **Two registries, on purpose**: the mapgen reads ids through its own code table, and the transform rule resolves a square's code back to a name through the terrain
+    // types table. A test that installed only the first drew the windows and transformed nothing.
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_window".to_owned(), 61u32),
+            ("t_window_broken".to_owned(), 62u32),
+        ],
+    );
+    cdda_sim::terrain_transform::set_transforms(
+        &mut world,
+        [(
+            "break_windows".to_owned(),
+            [("t_window".to_owned(), "t_window_broken".to_owned())]
+                .into_iter()
+                .collect(),
+        )],
+    );
+    let shop = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["www".to_owned(), "www".to_owned()],
+        terrain: [('w', Piece::Id("t_window".to_owned()))]
+            .into_iter()
+            .collect(),
+        place_ter_furn_transforms: vec![cdda_content::mapgen::AreaTransform {
+            transform: "break_windows".to_owned(),
+            x: (1, 2),
+            y: (0, 1),
+        }],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shop)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(127));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let row: Vec<Option<u32>> = (0..3)
+        .map(|x| cdda_sim::square::terrain_at(&world, (x, 0, 0)))
+        .collect();
+    assert_eq!(
+        row,
+        vec![Some(61), Some(62), Some(62)],
+        "**the rectangle's columns are broken and the others are not: {row:?}**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (2, 1, 0)),
+        Some(62),
+        "**and every row inside the rectangle, not only the first**"
     );
 }

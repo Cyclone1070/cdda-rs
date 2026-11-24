@@ -40918,3 +40918,20 @@ bundle's `item` (one) and `items` (many) both feed that list, and a bare string 
 
 The test goes through the loader on purpose - the JSON text the data writes, parsed and loaded - because the gap was a **loading** gap: it asserts the loader read two
 placements and then that both landed on the square. The mutation reads only the first placement of the list: one item lands where the bed should hold two.
+
+## A transform over a rectangle (round 323)
+
+`place_ter_furn_transforms` - **45 entries** - was not read. It is how the data says "there is a window here, and it has been broken out" without spelling the broken shape in its
+rows: `jmapgen_ter_furn_transform::apply` (`mapgen.cpp:3773-3784`) walks the entry's two ranges as a **rectangle** and calls `ter_furn_transform::transform` once per square.
+
+**The difference from every other placement is the shape of the member**: a symbol placement names a *square* to roll, and a transform names a *rectangle* to walk -
+`jmapgen_int::val` and `valmax` are the two ends of the member itself. The first version of the writer rolled a square like every other rule, and the test caught it as a
+rectangle one row tall. The rule now takes the ranges as they are and draws nothing.
+
+**The test cost two corrections, both instructive:**
+- the transform rule resolves a square's code back to a **name** through the terrain-types table, which is *not* the table the mapgen reads ids through - so a world with only
+  the mapgen's code table transforms nothing. Two registries, two installs; the note in the test says so;
+- the second assertion asked that "every row inside the rectangle" be transformed while the entry's `y` range was one row tall. The assertion was wrong, not the rule: the
+  fixture now names two rows and the test checks both.
+
+The mutation transforms only the rectangle's near corner: columns 2 and 3 stay windows and the row assertion fails.
