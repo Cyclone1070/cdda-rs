@@ -1459,6 +1459,8 @@ pub enum SetKind {
     CreatureRemove,
     /// A hit on the square (`bash`, `mapgen.cpp:5696-5699`): the mapgen bashes it once at strength 9999, silently, which is how a "collapsed" room is drawn.
     Bash,
+    /// Radiation on the square (`radiation`, `mapgen.cpp:5672-5675`), whose amount is the entry's `amount`.
+    Radiation,
 }
 
 /// The shape a `set` entry draws (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
@@ -1493,6 +1495,8 @@ pub struct SetPoint {
     pub y2: (i32, i32),
     /// How many times it draws, as a range: a point entry is drawn `repeat` times like any other piece, and a line or a square once per repeat.
     pub repeat: (i32, i32),
+    /// The **amount** a radiation entry sets, as a range rolled per square - which is how a reactor asks for a room at 1000 and a corridor at 100. Zero for every other kind.
+    pub amount: (i32, i32),
 }
 
 /// Reads a mapgen's `set` list, keeping the point entries that name terrain, furniture or a trap.
@@ -1523,6 +1527,7 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             "field_remove" => SetKind::FieldRemove,
             "creature_remove" => SetKind::CreatureRemove,
             "bash" => SetKind::Bash,
+            "radiation" => SetKind::Radiation,
             _ => continue,
         };
         // A removal names no id: that is what makes it a removal rather than a write.
@@ -1531,7 +1536,8 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             | SetKind::ItemRemove
             | SetKind::FieldRemove
             | SetKind::CreatureRemove
-            | SetKind::Bash => String::new(),
+            | SetKind::Bash
+            | SetKind::Radiation => String::new(),
             _ => match one.get("id") {
                 Some(cdda_json::Value::Str(id)) => id.clone(),
                 _ => continue,
@@ -1551,6 +1557,7 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             x2: span(one.get("x2")),
             y2: span(one.get("y2")),
             repeat: span(one.get("repeat")),
+            amount: span(one.get("amount")),
         });
     }
     placed

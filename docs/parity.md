@@ -40970,4 +40970,23 @@ That is why the arm takes the writer's dice rather than calling `bash_square`, w
 The test gives the square a wall whose bash block names its rubble and a `set` point aimed at it, and asserts the wall became the rubble its own block names - the bash module's
 rule, reached through the mapgen. The mutation removes the arm: the wall stays a wall.
 
-**Still open in this area**: `burn` is the same shape of set point (`JMAPGEN_SETMAP_BURN`) and is not read - 2 uses - and `variable` is a third. Both are named here.
+**Still open in this area**: `burn` is the same shape of set point (`JMAPGEN_SETMAP_BURN`) and is not read - 2 uses. (`variable` is **not** a gap: the `set` reader has
+recognised `{"point": "variable"}` since the variables round, which is why the 230 entries that use it are already read. An earlier version of this note said otherwise, and the
+note was wrong rather than the code.)
+
+## A dose, as a set point (round 326)
+
+`radiation` as a **set point** - **10 uses**, all in the microlab reactor - was not read: the `set` list's operation list has a `radiation` entry whose value is the entry's
+**`amount`**, applied by `jmapgen_setmap::apply` as `m.set_radiation( target_pos, val.get() )` (`mapgen.cpp:5672-5675`), rolled per square.
+
+The port already had the writing side (`radiation::set`, from the `set_radiation` areas round) and the shape machinery (point, line, square); the round is the **kind** and its
+**amount** field, which the `SetPoint` record did not have - every other kind names an `id`, and radiation names a number instead. That is why the field is a range on the record
+rather than a second struct: the shape, the repetition and the rectangle were already the record's.
+
+The data writes the **`square`** form (`{ "square": "radiation", "amount": 1000, ... }`), which the reader had handled since the shapes round and which the test therefore uses: a
+square shape, a dose read inside it and a clean square outside.
+
+The mutation sets zero instead of the amount: the two inside squares read 0 and the test's first assertion fails.
+
+**A correction to the previous round's note**: it said `variable` was the third unread set kind. It is not - the `set` reader has recognised `{"point": "variable"}` since the
+variables round. The note was wrong, and a wrong note in this file is worse than no note, because it is what the next round reads instead of the code.

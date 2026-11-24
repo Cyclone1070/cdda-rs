@@ -3181,6 +3181,7 @@ fn a_set_point_writes_the_layer_it_names() {
                 x2: (2, 2),
                 y2: (0, 0),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Furniture,
@@ -3191,6 +3192,7 @@ fn a_set_point_writes_the_layer_it_names() {
                 x2: (3, 3),
                 y2: (0, 0),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Trap,
@@ -3201,6 +3203,7 @@ fn a_set_point_writes_the_layer_it_names() {
                 x2: (1, 1),
                 y2: (0, 0),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
         ],
         set_radiation: Vec::new(),
@@ -3255,12 +3258,6 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
         .collect::<std::collections::BTreeMap<_, _>>(),
     );
     let shapes = MapgenObject {
-        mapgensize: (24, 24),
-        place_zones: Vec::new(),
-        place_monsters: Vec::new(),
-        place_vehicles: Vec::new(),
-        place_ter_furn_transforms: Vec::new(),
-        place_graffiti: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![
             "......".to_owned(),
@@ -3270,32 +3267,6 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
             .into_iter()
             .collect(),
-        furniture: BTreeMap::new(),
-        traps: BTreeMap::new(),
-        items: BTreeMap::new(),
-        monsters: Vec::new(),
-        toilets: BTreeMap::new(),
-        liquids: BTreeMap::new(),
-        place_items: Vec::new(),
-        place_loot: Vec::new(),
-        sealed_items: BTreeMap::new(),
-        vending_machines: BTreeMap::new(),
-        signs: BTreeMap::new(),
-        gas_pumps: BTreeMap::new(),
-        nested: BTreeMap::new(),
-        place_terrain: Vec::new(),
-        place_furniture: Vec::new(),
-        place_traps: Vec::new(),
-        items_single: BTreeMap::new(),
-        field_symbols: BTreeMap::new(),
-        computers: BTreeMap::new(),
-        remove_all: Vec::new(),
-        monster_symbols: BTreeMap::new(),
-        rotation: (0, 0),
-        place_nested: Vec::new(),
-        place_item: Vec::new(),
-        place_signs: Vec::new(),
-        place_liquids: Vec::new(),
         set_points: vec![
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Terrain,
@@ -3306,6 +3277,7 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
                 x2: (0, 0),
                 y2: (2, 2),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Terrain,
@@ -3316,6 +3288,7 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
                 x2: (3, 3),
                 y2: (0, 0),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::Terrain,
@@ -3326,18 +3299,10 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
                 x2: (5, 5),
                 y2: (2, 2),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
         ],
-        set_radiation: Vec::new(),
-        set_variables: Vec::new(),
-        rubble: BTreeMap::new(),
-        place_rubble: Vec::new(),
-        weight: 1,
-        fields: Vec::new(),
-        fill_ter: None,
-        predecessor_mapgen: None,
-        fallback_predecessor_mapgen: None,
-        parameters: BTreeMap::new(),
+        ..a_plain_mapgen()
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shapes)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(67));
@@ -3718,6 +3683,7 @@ fn a_set_removal_takes_away_what_it_names() {
                 x2: (2, 2),
                 y2: (0, 0),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
             cdda_content::mapgen::SetPoint {
                 kind: cdda_content::mapgen::SetKind::TrapRemove,
@@ -3728,6 +3694,7 @@ fn a_set_removal_takes_away_what_it_names() {
                 x2: (3, 3),
                 y2: (0, 0),
                 repeat: (1, 1),
+                amount: (0, 0),
             },
         ],
         set_radiation: Vec::new(),
@@ -4542,6 +4509,7 @@ fn a_bash_set_point_hits_the_square() {
             x2: (0, 0),
             y2: (0, 0),
             repeat: (1, 1),
+            amount: (0, 0),
         }],
         ..a_plain_mapgen()
     };
@@ -4553,5 +4521,52 @@ fn a_bash_set_point_hits_the_square() {
         after.and_then(|code| cdda_sim::terrain_types::name_of(&world, code)),
         Some("t_wall_rubble".to_owned()),
         "**the bash broke the wall into what its own bash block names**"
+    );
+}
+
+/// **A radiation set point sets the dose on every square of its shape.** Reference: `jmapgen_setmap::apply`'s `JMAPGEN_SETMAP_RADIATION` arm (`mapgen.cpp:5672-5675`):
+/// `m.set_radiation( target_pos, val.get() )`, where the value is the entry's **`amount`** rolled per square. The data uses it ten times, all in the microlab reactor - a room
+/// at 1000, a corridor at 100, a hot cell at 10000.
+///
+/// The test names a square shape because that is the form the data writes (`{ "square": "radiation", "amount": 1000, ... }`), and reads a square inside it and one outside.
+#[test]
+fn a_radiation_set_point_sets_the_dose() {
+    let mut world = a_world(Vec::new());
+    let reactor = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["....".to_owned(), "....".to_owned(), "....".to_owned()],
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
+        set_points: vec![cdda_content::mapgen::SetPoint {
+            kind: cdda_content::mapgen::SetKind::Radiation,
+            shape: cdda_content::mapgen::SetShape::Square,
+            id: String::new(),
+            x: (1, 1),
+            y: (1, 1),
+            x2: (2, 2),
+            y2: (2, 2),
+            repeat: (1, 1),
+            amount: (250, 250),
+        }],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), reactor)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(139));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::radiation::dose_at(&world, (1, 1, 0)),
+        250,
+        "**the first square of the shape carries the dose**"
+    );
+    assert_eq!(
+        cdda_sim::radiation::dose_at(&world, (2, 2, 0)),
+        250,
+        "**and the far one too, because a square shape fills**"
+    );
+    assert_eq!(
+        cdda_sim::radiation::dose_at(&world, (0, 0, 0)),
+        0,
+        "**while a square outside the shape is clean**"
     );
 }
