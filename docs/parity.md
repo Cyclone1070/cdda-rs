@@ -41047,3 +41047,23 @@ The mutation drops the chain: the variable is never written, and the test's `val
 
 **What is left of the mapgen family**: `faction_owner` (150 uses, needs factions), `place_npcs` (22, needs NPC class templates), and the `burn` set point. Everything else in the
 family is read.
+
+## 150 rooms that belong to somebody (round 330)
+
+`faction_owner` is the **commonest member left in the mapgen family** - 150 uses - and it is the one whose rule is not about the map at all: `jmapgen_faction::apply`
+(`mapgen.cpp:2662-2670`) walks the entry's **ranges** as a rectangle and calls `map::apply_faction_ownership` (`:7355-7371`), which stamps a faction's name on every **item**
+standing on each square and on the **vehicle** there only when it has no owner yet.
+
+Two things about it are worth the port's attention:
+
+- **The rectangle is the range, not a rolled corner.** Every other area in this writer rolls a corner and a second corner; this one takes `x.val` to `x.valmax` and walks the
+  whole rectangle. That is the reference's `jmapgen_int` doubling as a rectangle here, and the test asserts the reader keeps both ends.
+- **Ownership is a name, not a pointer.** The port stores `Owner(String)` on the thing, because that is what a later rule asks ("is this yours"), and because the faction system
+  proper - relations, camps, missions - is P9 and none of it is needed to write a name.
+
+**Named gap, in the writer's comment**: the reference skips a **null** faction id (`chosen_id.is_null()`), which is a faction the loader did not recognise. The port has no faction
+registry to ask, so it stamps every id as written. That is the one place this rule can differ, and it differs only for data that names a faction the game does not have.
+
+The mutation stamps the rectangle's first corner instead of the rectangle: one rock owned instead of four.
+
+**What is left**: `place_npcs` (22 uses, needs NPC class templates) and the `burn` set point. The family is otherwise complete.

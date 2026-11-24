@@ -228,6 +228,9 @@ pub struct MapgenObject {
     /// The terrain/furniture transforms a mapgen applies over a rectangle (`jmapgen_ter_furn_transform`, `mapgen.cpp:3766-3791`): 45 entries, and how a map says "there is a
     /// window here, and it has been broken out" without naming the broken shape in its rows.
     pub place_ter_furn_transforms: Vec<AreaTransform>,
+    /// Who owns what a mapgen draws (`faction_owner`, `mapgen.cpp:2650-2674`): 150 uses, the commonest member left. The rectangle is the entry's **ranges**, not a rolled
+    /// corner - the reference walks `points_in_rectangle( x.val, y.val, x.valmax, y.valmax )`.
+    pub faction_owner: Vec<AreaFaction>,
     /// The corpses a mapgen lays out (`place_corpses`, `mapgen.cpp:5397`): two entries in the data, each a monster group a body is drawn from and how many days old it is.
     pub place_corpses: Vec<AreaCorpse>,
     /// The graffiti a mapgen writes (`jmapgen_graffiti`, `mapgen.cpp:2738-2780`): 13 entries, each a piece of text or a snippet category the generation draws a line from.
@@ -847,6 +850,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_vehicles: read_area_vehicles(inner.get("place_vehicles")),
                 place_graffiti: read_area_graffiti(inner.get("place_graffiti")),
                 place_corpses: read_area_corpses(inner.get("place_corpses")),
+                faction_owner: read_area_factions(inner.get("faction_owner")),
                 place_ter_furn_transforms: read_area_transforms(
                     inner.get("place_ter_furn_transforms"),
                 ),
@@ -1049,6 +1053,39 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One faction ownership area (`jmapgen_faction`, `mapgen.cpp:2650-2674`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaFaction {
+    /// The faction whose name is stamped on everything in the rectangle.
+    pub id: String,
+    /// The columns, as a range: the rectangle is the range itself.
+    pub x: (i32, i32),
+    /// The rows, as a range.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `faction_owner` list.
+fn read_area_factions(list: Option<&cdda_json::Value>) -> Vec<AreaFaction> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(id)) = one.get("id") else {
+            continue;
+        };
+        placed.push(AreaFaction {
+            id: id.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One corpse a mapgen lays out (`jmapgen_corpse`, `mapgen.cpp:2955-2975`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AreaCorpse {

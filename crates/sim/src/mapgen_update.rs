@@ -161,6 +161,7 @@ pub fn write(
     apply_the_transforms(world, mapgen, origin, &mut rolls);
     write_the_graffiti(world, mapgen, origin, &mut rolls);
     place_the_corpses(world, mapgen, origin, &mut rolls);
+    own_what_the_mapgen_names(world, mapgen, origin);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1135,6 +1136,29 @@ fn place_set_variables(
                 y: origin.1 + y,
                 z: origin.2,
             },
+        );
+    }
+}
+
+/// Stamps the faction ownership a mapgen names on the squares it covers.
+///
+/// Reference: `jmapgen_faction::apply` (`mapgen.cpp:2662-2670`): the entry's **ranges** are the rectangle (`x.val` to `x.valmax`), and the ownership lands on the items and the
+/// unowned vehicle of every square in it. The reference skips a null faction id; the port has no faction registry to ask, so every id the data writes is stamped as written -
+/// **named gap**, and the one place this rule can differ.
+fn own_what_the_mapgen_names(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+) {
+    for entry in &mapgen.faction_owner {
+        crate::ownership::own_the_rectangle(
+            world,
+            origin.0 + entry.x.0,
+            origin.1 + entry.y.0,
+            origin.0 + entry.x.1,
+            origin.1 + entry.y.1,
+            origin.2,
+            &entry.id,
         );
     }
 }

@@ -51,6 +51,7 @@ const READ: &[&str] = &[
     "place_graffiti",
     "place_corpses",
     "place_variables",
+    "faction_owner",
     "parameters",
     "mapping",
     "rubble",
@@ -88,7 +89,6 @@ const NAMED_GAPS: &[&str] = &[
     "ter_furn_transforms",
     // A mapgen's own parameters and the size it is drawn at, which the overmap special supplies (P9).
     // Factions and the owner of a chunk are P9.
-    "faction_owner",
     // A predecessor that only applies when the request asks for one (`expects_predecessor`), and its fallback.
 ];
 

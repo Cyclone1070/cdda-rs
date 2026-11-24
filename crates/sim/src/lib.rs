@@ -156,6 +156,7 @@ pub mod mapsquare;
 pub mod math_functions;
 pub mod needs;
 pub mod noise;
+pub mod ownership;
 pub mod recipes_known;
 pub mod revert;
 pub mod scent;
