@@ -114,3 +114,40 @@ fn a_group_that_does_not_exist_produces_nothing() {
         None
     );
 }
+
+/// **A corpse is chosen uniformly over the group's flattened list, not by weight.** Reference: `jmapgen_corpse::apply` (`mapgen.cpp:2965-2974`), which calls
+/// `GetMonstersFromGroup( group, true )` - every entry's monster, nested groups expanded, nothing dropped or repeated by weight - and then `random_entry_ref`, a uniform pick
+/// over that vector.
+///
+/// The test uses the same `GROUP_GOO` the weighted test uses, where `mon_shoggoth` carries weight one in a thousand: by weight it would appear about once in a thousand draws,
+/// and uniformly it appears about one draw in six. The threshold is wide enough that neither the seed nor the corpus can decide the answer.
+#[test]
+fn a_corpse_is_chosen_uniformly_over_the_flattened_group() {
+    let groups = load();
+    let flat = cdda_content::monster_groups::flatten("GROUP_GOO", &groups);
+    assert_eq!(flat.len(), 6, "six entries, and no nested group to expand");
+    let mut rolls = Rolls::new(99);
+    let draws = 600;
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for _ in 0..draws {
+        let picked = cdda_content::monster_groups::pick_flat("GROUP_GOO", &groups, &mut rolls)
+            .expect("a monster");
+        *counts.entry(picked).or_insert(0) += 1;
+    }
+    let shoggoths = counts.get("mon_shoggoth").copied().unwrap_or(0);
+    assert!(
+        shoggoths > 50,
+        "**a weight-one monster is chosen about one draw in six, not one in a thousand**: {shoggoths} of {draws}"
+    );
+    // **Six entries, five names**: `GROUP_GOO` lists `mon_blob_small` twice (weights 200 and 100), and the reference's flatten keeps both - so the name is twice as likely as
+    // the others, which is the data's two entries and not its weights. This is the duplication the flatten preserves, seen from the pick's side.
+    assert_eq!(
+        flat.iter().filter(|name| *name == "mon_blob_small").count(),
+        2
+    );
+    assert_eq!(
+        counts.len(),
+        5,
+        "**five distinct monsters, because one of the six entries names a monster the list already had**"
+    );
+}

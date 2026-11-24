@@ -232,3 +232,46 @@ fn collect_into(value: &Value, by_id: &mut BTreeMap<String, Vec<MonsterGroupEntr
         }
     }
 }
+
+/// Every monster a group names, **flattened**, with nested groups expanded and no weight consideration.
+///
+/// Reference: `MonsterGroupManager::GetMonstersFromGroup( group, true )` (`mongroup.cpp`), which walks the group's entries and pushes each monster's name once - a nested group
+/// contributes all of its own monsters - so a name that two entries both list appears **twice**. That duplication is the rule, not an accident: `jmapgen_corpse` follows the
+/// flatten with `random_entry_ref`, a uniform pick over the vector, so the data's weights are not consulted at all on that path.
+#[must_use]
+pub fn flatten(group_id: &str, groups: &[MonsterGroup]) -> Vec<String> {
+    let mut flat = Vec::new();
+    let mut stack = vec![group_id.to_owned()];
+    // A chain in the data is a few deep; the bound is what stops a group that names itself.
+    for _ in 0..8 {
+        let Some(current) = stack.pop() else {
+            return flat;
+        };
+        let Some(group) = groups.iter().find(|group| group.id == current) else {
+            return flat;
+        };
+        for entry in &group.entries {
+            match &entry.kind {
+                EntryKind::Monster(id) => flat.push(id.clone()),
+                EntryKind::Group(id) => stack.push(id.clone()),
+            }
+        }
+    }
+    flat
+}
+
+/// Picks one monster from the flattened list, **uniformly**.
+///
+/// Reference: `jmapgen_corpse::apply` (`mapgen.cpp:2965-2974`): `GetMonstersFromGroup` then `random_entry_ref( monster_group )`, which is a uniform choice over the vector. A
+/// weighted pick here would answer differently from the reference on any group whose entries carry weights, which is most of them.
+#[must_use]
+pub fn pick_flat(group_id: &str, groups: &[MonsterGroup], rolls: &mut Rolls) -> Option<String> {
+    let flat = flatten(group_id, groups);
+    if flat.is_empty() {
+        return None;
+    }
+    let roll = rolls
+        .rng(0, i32::try_from(flat.len()).unwrap_or(1) - 1)
+        .max(0);
+    flat.get(usize::try_from(roll).unwrap_or(0)).cloned()
+}

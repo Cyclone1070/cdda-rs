@@ -41,3 +41,18 @@ pub fn pick(world: &World, group: &str, dice: &mut cdda_core_types::rng::Rolls) 
         .and_then(|holder| world.get::<MonsterGroups>(holder))?;
     cdda_content::monster_groups::pick_monster(group, &groups.0, dice)
 }
+
+/// Picks a monster out of a group the way a corpse is chosen: over the **flattened** list, uniformly.
+///
+/// Reference: `jmapgen_corpse::apply` (`mapgen.cpp:2965-2974`) - `GetMonstersFromGroup( group, true )` then `random_entry_ref`, a uniform choice over the vector. The store's
+/// weighted [`pick`] is the spawner's rule; this is the corpse's, and they are different rules on purpose.
+#[must_use]
+pub fn pick_flat(
+    world: &World,
+    group_id: &str,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) -> Option<String> {
+    let groups = crate::singletons::holder::<TheMonsterGroups>(world)
+        .and_then(|holder| world.get::<MonsterGroups>(holder))?;
+    cdda_content::monster_groups::pick_flat(group_id, &groups.0, rolls)
+}

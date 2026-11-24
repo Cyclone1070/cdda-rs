@@ -40990,3 +40990,23 @@ The mutation sets zero instead of the amount: the two inside squares read 0 and 
 
 **A correction to the previous round's note**: it said `variable` was the third unread set kind. It is not - the `set` reader has recognised `{"point": "variable"}` since the
 variables round. The note was wrong, and a wrong note in this file is worse than no note, because it is what the next round reads instead of the code.
+
+## A corpse's monster is not chosen by weight (round 327)
+
+`place_corpses` - **2 uses** - is still unread, and this round found out why it is not a one-liner: `jmapgen_corpse::apply` (`mapgen.cpp:2965-2974`) does not pick a monster the way
+every spawner here does. It calls `GetMonstersFromGroup( group, true )`, which **flattens** the group - each entry contributes its monster's name once, a nested group contributes
+all of its own - and then `random_entry_ref`, which is a **uniform** choice over that vector. The data's weights are not consulted at all on this path.
+
+That is a second rule for the same question, and it is not a bug in the reference: a corpse on a map is a piece of set dressing chosen from a list, and the weights are the
+spawner's. The port now carries it as `monster_groups::flatten` and `pick_flat`, beside the weighted `pick_monster` and `pick_entry`, with a comment at each saying which caller
+wants which.
+
+**The flatten keeps duplicates, and that is load-bearing.** `GROUP_GOO` lists `mon_blob_small` twice (weights 200 and 100), so the flattened list has six entries and five names,
+and the small blob comes up twice as often as its neighbours - twice because of its two **entries**, not because of its weight. The test found this the hard way: its first run
+counted distinct monsters and got 5 where it expected 6, and the reason was the rule, not a bug.
+
+The mutation makes `pick_flat` call the weighted `pick_monster`: the weight-one shoggoth then appears about once in a thousand draws instead of one in six, and the test's "more than
+50 of 600" assertion fails.
+
+**Why `place_corpses` itself waits**: the corpse constructor needs a monster's `revives` flag and its volume per kind, and the reaping path gets both from the dead monster it is
+already holding. Exposing them per kind is the next round's first step; the pick above is the second.
