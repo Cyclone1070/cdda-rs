@@ -1457,6 +1457,8 @@ pub enum SetKind {
     FieldRemove,
     /// The creature standing there (`creature_remove`).
     CreatureRemove,
+    /// A hit on the square (`bash`, `mapgen.cpp:5696-5699`): the mapgen bashes it once at strength 9999, silently, which is how a "collapsed" room is drawn.
+    Bash,
 }
 
 /// The shape a `set` entry draws (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
@@ -1520,6 +1522,7 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             "item_remove" => SetKind::ItemRemove,
             "field_remove" => SetKind::FieldRemove,
             "creature_remove" => SetKind::CreatureRemove,
+            "bash" => SetKind::Bash,
             _ => continue,
         };
         // A removal names no id: that is what makes it a removal rather than a write.
@@ -1527,7 +1530,8 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             SetKind::TrapRemove
             | SetKind::ItemRemove
             | SetKind::FieldRemove
-            | SetKind::CreatureRemove => String::new(),
+            | SetKind::CreatureRemove
+            | SetKind::Bash => String::new(),
             _ => match one.get("id") {
                 Some(cdda_json::Value::Str(id)) => id.clone(),
                 _ => continue,

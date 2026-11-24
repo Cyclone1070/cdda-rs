@@ -4471,3 +4471,87 @@ fn a_mapgen_writes_graffiti_and_remove_all_scrubs_it() {
         "**and a remove_all over that square takes it away**"
     );
 }
+
+/// **A `bash` set point hits the square once, hard.** Reference: `jmapgen_setmap::apply`'s `JMAPGEN_SETMAP_BASH` arm (`mapgen.cpp:5696-5699`): `m.bash( target_pos, 9999, true )`
+/// - one hit at strength 9999, silent. It is how the data draws a room that has been broken open without naming the broken shape in its rows.
+///
+/// The test gives the square a bashable wall and a set point aimed at it, and asserts the wall became what the wall's own bash block says it becomes - which is the bash
+/// module's rule, reached through the mapgen.
+#[test]
+fn a_bash_set_point_hits_the_square() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [("t_wall".to_owned(), 71u32), ("t_floor".to_owned(), 72u32)]
+            .into_iter()
+            .collect(),
+    );
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_wall".to_owned(), 71u32),
+            ("t_floor".to_owned(), 72u32),
+            ("t_wall_rubble".to_owned(), 73u32),
+        ],
+    );
+    cdda_sim::bash::set_data(
+        &mut world,
+        [cdda_content::mapdata::MapData {
+            kind: cdda_content::mapdata::MapDataKind::Terrain,
+            id: "t_wall".to_owned(),
+            name: "t_wall".to_owned(),
+            symbol: [35; 4],
+            color: [cdda_core_types::colors::NcColor::default(); 4],
+            move_cost: 0,
+            light: 0,
+            coverage: 0,
+            transparent: false,
+            examine: None,
+            heat_radiation: 0,
+            flags: std::collections::BTreeSet::new(),
+            bash: Some(cdda_content::mapdata::BashInfo {
+                str_min: 0,
+                str_max: 1,
+                str_min_blocked: 0,
+                str_max_blocked: 1,
+                str_min_supported: 0,
+                str_max_supported: 1,
+                destroy_only: false,
+                bash_below: false,
+                sound_vol: -1,
+                sound_fail_vol: -1,
+                set: "t_wall_rubble".to_owned(),
+                set_from_above: None,
+                drop_group: None,
+            }),
+            roof: None,
+        }],
+    );
+    let broken = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["w".to_owned()],
+        terrain: [('w', Piece::Id("t_wall".to_owned()))]
+            .into_iter()
+            .collect(),
+        set_points: vec![cdda_content::mapgen::SetPoint {
+            kind: cdda_content::mapgen::SetKind::Bash,
+            shape: cdda_content::mapgen::SetShape::Point,
+            id: String::new(),
+            x: (0, 0),
+            y: (0, 0),
+            x2: (0, 0),
+            y2: (0, 0),
+            repeat: (1, 1),
+        }],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), broken)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(137));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let after = cdda_sim::square::terrain_at(&world, (0, 0, 0));
+    assert_eq!(
+        after.and_then(|code| cdda_sim::terrain_types::name_of(&world, code)),
+        Some("t_wall_rubble".to_owned()),
+        "**the bash broke the wall into what its own bash block names**"
+    );
+}

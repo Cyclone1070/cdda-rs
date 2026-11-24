@@ -40955,3 +40955,19 @@ already there, so the test now writes on a chunk that already carries the words 
 city, and the snippet placeholders (`<given_name>`, ...) are not expanded at all.
 
 The mutation writes the snippet category's **name** instead of drawing a line from it: `billboard_ad_snippets` where the square should say `EAT AT JOE'S`.
+
+## One hard hit from a mapgen (round 325)
+
+`bash` as a **`set` point** - **44 uses** - was not read: the `set` list's `point` values include `bash`, and `jmapgen_setmap::apply`'s arm for it is three lines, `m.bash( target_pos,
+9999, true )` (`mapgen.cpp:5696-5699`): one hit at strength 9999, silent. It is how the data draws a room that has been broken open without naming the broken shape in its rows.
+
+The port already had the rule - `bash::bash_square_with_rolls` reads the square, calls the pure `bash` decision and writes the answer back - so the round is the **set kind** and
+one arm, which is what a `set` point layer is for: the shape (point, line, square) and the repetition are the layer's, and what a kind *does* is one branch.
+
+The hit draws from the write's own stream, because the reference's bash draws inside its own strength check and where that lands in the sequence is part of the mapgen's result.
+That is why the arm takes the writer's dice rather than calling `bash_square`, which would take and put the store's own copy.
+
+The test gives the square a wall whose bash block names its rubble and a `set` point aimed at it, and asserts the wall became the rubble its own block names - the bash module's
+rule, reached through the mapgen. The mutation removes the arm: the wall stays a wall.
+
+**Still open in this area**: `burn` is the same shape of set point (`JMAPGEN_SETMAP_BURN`) and is not read - 2 uses - and `variable` is a third. Both are named here.

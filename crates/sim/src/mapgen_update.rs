@@ -998,7 +998,7 @@ fn place_set_points(
                 if !in_bounds(mapgen, x, y) {
                     continue;
                 }
-                write_the_layer(world, entry, (origin.0 + x, origin.1 + y, origin.2));
+                write_the_layer(world, entry, (origin.0 + x, origin.1 + y, origin.2), rolls);
             }
         }
     }
@@ -1496,7 +1496,12 @@ fn roll_a_square(
 }
 
 /// Writes one layer of a `set` entry on one square.
-fn write_the_layer(world: &mut World, entry: &cdda_content::mapgen::SetPoint, at: (i32, i32, i32)) {
+fn write_the_layer(
+    world: &mut World,
+    entry: &cdda_content::mapgen::SetPoint,
+    at: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
     match entry.kind {
         cdda_content::mapgen::SetKind::Terrain => {
             if let Some(code) = crate::terrain_types::code_of(world, &entry.id) {
@@ -1517,6 +1522,13 @@ fn write_the_layer(world: &mut World, entry: &cdda_content::mapgen::SetPoint, at
         cdda_content::mapgen::SetKind::ItemRemove => clear_the_items(world, at),
         cdda_content::mapgen::SetKind::FieldRemove => clear_the_fields(world, at),
         cdda_content::mapgen::SetKind::CreatureRemove => kill_the_creature(world, at),
+        // **A mapgen's bash is one hit at strength 9999, silent** (`mapgen.cpp:5696-5699`: `m.bash( target_pos, 9999, true )`), which is how the data draws a room that has
+        // been broken open. The hit draws from the write's own stream, so where it lands in the sequence is part of the mapgen's result.
+        cdda_content::mapgen::SetKind::Bash => {
+            if let Some(dice) = rolls.as_mut() {
+                crate::bash::bash_square_with_rolls(world, at, 9999, true, dice);
+            }
+        }
     }
 }
 
