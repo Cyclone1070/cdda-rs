@@ -40904,3 +40904,17 @@ and dry. Both are their own rules and both are named in the writer's doc comment
 The test pins the three things the rule can get wrong: the **prototype** lands on its square facing the heading the entry names (90 degrees), the **group** form draws out of
 the group and parks what it drew, and a one-in-fifty entry does **not** fire, so its square stays empty. The mutation removes the group branch: the group entry then names no
 prototype, nothing is parked, and the assertion that a vehicle stands on that square fails.
+
+## A bundle's items are a list (round 322)
+
+`mapping` was the last member the census counted as **partly** read: a bundle's `terrain` and `furniture` were read, and its item members were not, because a bundle states them
+as a **list** (`"items": [ { "item": "rock" }, { "item": "nail" } ]`) and the port's symbol table held **one** placement per symbol. Reading only the first would have dropped
+the rest silently, which is the failure this project refuses, so the member stayed named instead.
+
+The fix is the model, not the reader: `items` is now `BTreeMap<char, Vec<ItemPlacement>>` - a list per symbol - and the writer places every placement on the square. The
+bundle's `item` (one) and `items` (many) both feed that list, and a bare string is still read as a group id, which is what the `items` map has always done.
+
+**`mapping` leaves the named gaps entirely**, which is the first census row this port has been able to *close* rather than narrow.
+
+The test goes through the loader on purpose - the JSON text the data writes, parsed and loaded - because the gap was a **loading** gap: it asserts the loader read two
+placements and then that both landed on the square. The mutation reads only the first placement of the list: one item lands where the bed should hold two.

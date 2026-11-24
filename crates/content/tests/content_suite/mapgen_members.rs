@@ -48,6 +48,7 @@ const READ: &[&str] = &[
     "place_monsters",
     "place_vehicles",
     "parameters",
+    "mapping",
     "rubble",
     "place_rubble",
     "place_nested",
@@ -97,9 +98,6 @@ const MORE_GAPS: &[&str] = &[
     // A mapgen's own flags, which the overmap rules read (P9).
     "flags",
     // The single-item symbol map, whose group form (`items`) is read.
-    // Partly read: a bundle's `terrain` and `furniture` are read, and its **item** members are not, because a bundle lists them and the symbol table holds one placement
-    // per symbol. Reading only the first would drop the rest silently, so the member stays named until the table becomes a list.
-    "mapping",
     // The rectangle form of `npcs`.
     "place_npcs",
 ];

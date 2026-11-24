@@ -1696,9 +1696,23 @@ fn place_the_items(
     symbol: char,
     rolls: &mut Option<cdda_core_types::rng::Rolls>,
 ) -> bool {
-    let Some(placement) = mapgen.items.get(&symbol) else {
+    let Some(placements) = mapgen.items.get(&symbol) else {
         return false;
     };
+    let mut placed = false;
+    for placement in placements {
+        placed |= place_one_item_placement(world, placement, at, rolls);
+    }
+    placed
+}
+
+/// Places one placement, in either of the two shapes the data writes it.
+fn place_one_item_placement(
+    world: &mut World,
+    placement: &cdda_content::mapgen::ItemPlacement,
+    at: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) -> bool {
     if placement.chance < 100
         && !rolls
             .as_mut()

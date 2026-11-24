@@ -132,9 +132,17 @@ fn a_mapping_bundle_fills_the_symbol_tables() {
         "**the bundle's furniture is the symbol's**"
     );
     assert_eq!(
-        map.items.get(&'L'),
-        None,
-        "**but a bundle's item LIST is a named gap: the symbol table holds one placement per symbol, and reading only the first would drop the rest silently**"
+        map.items.get(&'L').map(Vec::len),
+        Some(1),
+        "**and the bundle's item list lands on the symbol: one placement here, and every placement of a longer list**"
+    );
+    assert_eq!(
+        map.items
+            .get(&'L')
+            .and_then(|placements| placements.first())
+            .and_then(|placement| placement.item.as_deref()),
+        Some("bed"),
+        "**the placement is the item the bundle names**"
     );
     assert_eq!(
         map.terrain.get(&'.'),

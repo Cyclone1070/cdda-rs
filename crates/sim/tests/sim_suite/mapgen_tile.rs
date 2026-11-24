@@ -439,12 +439,12 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         traps: BTreeMap::new(),
         items: [(
             'I',
-            cdda_content::mapgen::ItemPlacement {
+            vec![cdda_content::mapgen::ItemPlacement {
                 item: Some("rock".to_owned()),
                 group: None,
                 chance: 100,
                 amount: (3, 3),
-            },
+            }],
         )]
         .into_iter()
         .collect(),
@@ -557,12 +557,12 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         traps: BTreeMap::new(),
         items: [(
             'G',
-            cdda_content::mapgen::ItemPlacement {
+            vec![cdda_content::mapgen::ItemPlacement {
                 item: None,
                 group: Some("loot_group".to_owned()),
                 chance: 100,
                 amount: (2, 2),
-            },
+            }],
         )]
         .into_iter()
         .collect(),
@@ -4184,5 +4184,65 @@ fn a_mapgen_parks_a_vehicle_where_it_says() {
     assert!(
         !parked.iter().any(|(at, _)| *at == (7, 7, 0)),
         "**the one-in-fifty entry did not fire, so that square is empty: {parked:?}**"
+    );
+}
+
+/// **A `mapping` bundle's item list lands on the symbol, every placement of it.** Reference: `mapgen_palette::load`'s per-symbol reader (`mapgen.cpp:5360-5400`), which accepts
+/// `item` and `items` in one bundle - and a bundle's `items` is a **list**, because a bed has a pillow and a blanket on it.
+///
+/// The port held one placement per symbol, so this member had nowhere to go and was named a gap. The round that made the table a list is the round that closes the gap, and this
+/// test is the reason: the loader reads both placements, and the writer places both on the square.
+#[test]
+fn a_mapping_bundle_places_every_item_it_lists() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "rock",
+                volume_ml: 250,
+                weight_g: 657,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "nail",
+                volume_ml: 0,
+                weight_g: 4,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+        ],
+    );
+    let text = r#"{"type": "mapgen", "method": "json", "om_terrain": "house",
+        "object": {"rows": ["B"], "mapping": {"B": {"terrain": "t_floor",
+            "items": [ {"item": "rock"}, {"item": "nail"} ]}}}}"#;
+    let value = cdda_json::parse(text.as_bytes()).expect("json");
+    let loaded = cdda_content::mapgen::load_objects(&value);
+    let bed = loaded.first().expect("one mapgen");
+    assert_eq!(
+        bed.items.get(&'B').map(Vec::len),
+        Some(2),
+        "**the loader read both placements out of the bundle**"
+    );
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [("t_floor".to_owned(), 11u32)].into_iter().collect(),
+    );
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), bed.clone())]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(113));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let on_the_bed = cdda_sim::items_at(&mut world, (0, 0)).len();
+    assert_eq!(
+        on_the_bed, 2,
+        "**both placements landed on the square, not just the first**"
     );
 }

@@ -169,8 +169,8 @@ pub struct MapgenObject {
     pub parameters: BTreeMap<String, MapgenParameter>,
     /// The traps a symbol sets (`mapgen.cpp:5470-5480`), placed after the furniture: a minefield is drawn as characters, not placed piece by piece.
     pub traps: BTreeMap<char, String>,
-    /// The items a symbol places (`jmapgen_item_group`), the last layer a character can carry.
-    pub items: BTreeMap<char, ItemPlacement>,
+    /// The items a symbol places (`jmapgen_item_group`), the last layer a character can carry - **a list per symbol**, because a `mapping` bundle may name several.
+    pub items: BTreeMap<char, Vec<ItemPlacement>>,
     /// The monsters the mapgen places (`jmapgen_monster`), which are named by coordinate rather than by symbol.
     pub monsters: Vec<MonsterPlacement>,
     /// How big the chunk is, in squares (`mapgen.cpp:5105-5110` reads `mapgensize`, whose default is the overmap tile's 24).
@@ -405,6 +405,7 @@ fn read_mapping(
     mapping: Option<&cdda_json::Value>,
     terrain: &mut BTreeMap<char, Piece>,
     furniture: &mut BTreeMap<char, Piece>,
+    items: &mut BTreeMap<char, Vec<ItemPlacement>>,
 ) {
     let Some(cdda_json::Value::Object(members)) = mapping else {
         return;
@@ -428,10 +429,58 @@ fn read_mapping(
         if let Some(piece) = bundle.get("furniture").and_then(read_piece) {
             furniture.entry(symbol).or_insert(piece);
         }
-        // **Named gap**: a bundle's `items` and `item` members are not read here. A bundle states its items as a *list* of placements
-        // (`"items": [ { "item": "bed", "chance": 60 }, ... ]`), and the port's symbol table holds **one** placement per symbol - so reading them needs the table to become a
-        // list first, which is a change to the model and the writer rather than to this reader. Reading only the first would drop the rest silently, and that is the failure this
-        // project refuses.
+        // **A bundle's items are a list** (`"items": [ { "item": "bed", "chance": 60 }, ... ]`), and several may land on the symbol: the table holds a list per symbol for
+        // exactly this member, and reading only the first would drop the rest silently.
+        for placement in read_bundle_items(bundle) {
+            items.entry(symbol).or_default().push(placement);
+        }
+    }
+}
+
+/// Reads a `mapping` bundle's item members: `items` is a list of placements, `item` a single one.
+///
+/// Reference: `mapgen_palette::load`'s per-symbol reader (`mapgen.cpp:5360-5400`), which accepts `item`, `items` and `item_group` in one bundle. The port reads `item` and
+/// `items`; a bare string member is a group id and is read the same way the `items` map reads one.
+fn read_bundle_items(bundle: &cdda_json::Object) -> Vec<ItemPlacement> {
+    let mut placements = Vec::new();
+    if let Some(placement) = bundle.get("item").and_then(read_item_placement) {
+        placements.push(placement);
+    }
+    if let Some(cdda_json::Value::Array(list)) = bundle.get("items") {
+        for entry in list {
+            if let Some(placement) = read_item_placement(entry) {
+                placements.push(placement);
+            }
+        }
+    }
+    placements
+}
+
+/// Reads one item placement from either shape the data writes it in.
+fn read_item_placement(value: &cdda_json::Value) -> Option<ItemPlacement> {
+    match value {
+        cdda_json::Value::Object(entry) => Some(ItemPlacement {
+            item: match entry.get("item") {
+                Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                _ => None,
+            },
+            group: match entry.get("group") {
+                Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                _ => None,
+            },
+            chance: match entry.get("chance") {
+                Some(cdda_json::Value::Int(chance)) => i32::try_from(*chance).unwrap_or(100),
+                _ => 100,
+            },
+            amount: read_amount(entry.get("amount")),
+        }),
+        cdda_json::Value::Str(group) => Some(ItemPlacement {
+            item: None,
+            group: Some(group.clone()),
+            chance: 100,
+            amount: (1, 1),
+        }),
+        _ => None,
     }
 }
 
@@ -440,7 +489,7 @@ fn read_mapping(
 /// Reference: `jmapgen_item_group::load` (`mapgen.cpp:5320-5340`). A symbol's value is either a string - an item **group** id, which the port does not read yet - or an object
 /// naming an `item`, a `group`, a `chance` out of a hundred (defaulting to one hundred) and an `amount` that is a number or a range. The two shapes are told apart here so the
 /// writer never has to guess which it was given.
-fn read_items(inner: &cdda_json::Object) -> BTreeMap<char, ItemPlacement> {
+fn read_items(inner: &cdda_json::Object) -> BTreeMap<char, Vec<ItemPlacement>> {
     let mut items = BTreeMap::new();
     let Some(cdda_json::Value::Object(map)) = inner.get("items") else {
         return items;
@@ -475,7 +524,7 @@ fn read_items(inner: &cdda_json::Object) -> BTreeMap<char, ItemPlacement> {
             },
             _ => continue,
         };
-        items.insert(symbol, placement);
+        items.entry(symbol).or_default().push(placement);
     }
     items
 }
@@ -736,11 +785,12 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
         // only the three flat tables draws their symbols as nothing at all.
         let mut mapped_terrain = symbols("terrain");
         let mut mapped_furniture = symbols("furniture");
-        let mapped_items = read_items(inner);
+        let mut mapped_items = read_items(inner);
         read_mapping(
             inner.get("mapping"),
             &mut mapped_terrain,
             &mut mapped_furniture,
+            &mut mapped_items,
         );
         for om_terrain in &om_terrains {
             out.push(MapgenObject {

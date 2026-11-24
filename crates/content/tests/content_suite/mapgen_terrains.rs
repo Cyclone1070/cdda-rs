@@ -106,11 +106,17 @@ fn a_mapgen_carries_the_items_its_symbols_place() {
     );
     assert_eq!(found.len(), 1);
     let items = &found[0].items;
-    let rock = items.get(&'a').expect("the ranged one is read");
+    let rock = items
+        .get(&'a')
+        .and_then(|placements| placements.first())
+        .expect("the ranged one is read");
     assert_eq!(rock.item.as_deref(), Some("rock"));
     assert_eq!(rock.chance, 70, "**the chance is read**");
     assert_eq!(rock.amount, (1, 3), "and the range");
-    let plain = items.get(&'b').expect("the bare one is read");
+    let plain = items
+        .get(&'b')
+        .and_then(|placements| placements.first())
+        .expect("the bare one is read");
     assert_eq!(
         plain.chance, 100,
         "**a placement with no chance is certain**"
@@ -119,6 +125,7 @@ fn a_mapgen_carries_the_items_its_symbols_place() {
     assert_eq!(
         items
             .get(&'c')
+            .and_then(|placements| placements.first())
             .and_then(|placement| placement.group.as_deref()),
         Some("livingroom"),
         "**a bare string is a group, and is read as one**"
