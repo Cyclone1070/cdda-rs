@@ -160,6 +160,7 @@ pub fn write(
     park_the_vehicles(world, mapgen, origin, &mut rolls);
     apply_the_transforms(world, mapgen, origin, &mut rolls);
     write_the_graffiti(world, mapgen, origin, &mut rolls);
+    place_the_corpses(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1135,6 +1136,51 @@ fn place_set_variables(
                 z: origin.2,
             },
         );
+    }
+}
+
+/// Lays out the corpses a mapgen names.
+///
+/// Reference: `jmapgen_corpse::apply` (`mapgen.cpp:2965-2974`): a monster is drawn **uniformly** from the group's flattened list, made into a corpse item dated `age` days
+/// before now (but never before the cataclysm), and dropped on the square.
+///
+/// **Named gap**: the reference adds the entry's `z` to the square's height; the port's area members carry no `z`, as with every other area in this writer.
+fn place_the_corpses(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    if mapgen.place_corpses.is_empty() {
+        return;
+    }
+    for entry in &mapgen.place_corpses {
+        let (x, y) = roll_a_square(rolls, entry.x, entry.y);
+        let square = (origin.0 + x, origin.1 + y);
+        let Some(dice) = rolls.as_mut() else {
+            continue;
+        };
+        let Some(name) = crate::monster_groups::pick_flat(world, &entry.group, dice) else {
+            continue;
+        };
+        let Some(kind) = crate::monster_registry::id_of(world, &name) else {
+            continue;
+        };
+        let Some((corpse_item, volumes_ml)) = crate::creature::corpse_kind(world) else {
+            continue;
+        };
+        let now = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
+        let died_on = (now - i64::from(entry.age_days) * crate::calendar::TURNS_PER_DAY)
+            .max(crate::calendar::of(world).map_or(0, |calendar| calendar.start_of_cataclysm));
+        // The flag is asked **before** the corpse entity is borrowed, because asking it needs the world mutably.
+        let revives = crate::monster_registry::kind_has_flag(world, kind, "REVIVES");
+        let corpse = crate::drop_item(world, square, corpse_item, 1);
+        world.entity_mut(corpse).insert(crate::CorpseOf {
+            kind,
+            died_on,
+            revives,
+            monster_volume_ml: volumes_ml.get(&kind).copied().unwrap_or(0),
+        });
     }
 }
 

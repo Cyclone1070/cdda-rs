@@ -41010,3 +41010,22 @@ The mutation makes `pick_flat` call the weighted `pick_monster`: the weight-one 
 
 **Why `place_corpses` itself waits**: the corpse constructor needs a monster's `revives` flag and its volume per kind, and the reaping path gets both from the dead monster it is
 already holding. Exposing them per kind is the next round's first step; the pick above is the second.
+
+## A body laid out by a mapgen (round 328)
+
+`place_corpses` - **2 uses** - closes the pair the last round opened. The rule (`jmapgen_corpse`, `mapgen.cpp:2955-2975`) is: pick a monster **uniformly** over the group's flattened
+list (the last round's `pick_flat`), make a corpse item of that kind dated `age` days back but never before the cataclysm, and drop it.
+
+Two things had to be reachable for the writer to exist, and neither was: a monster kind's `REVIVES` flag (`monster_registry::kind_has_flag`, which the registry had) and the
+corpse's volume per kind (`creature::corpse_kind`, which returns the store the reaper uses). Both were already in the world; the round is the member, the reader, and a writer that
+joins them to `drop_item` and `CorpseOf`.
+
+**One borrow error taught the order inside the writer**: `kind_has_flag` wants the world mutably and so does `entity_mut`, so the flag is asked **before** the corpse entity is
+borrowed. That is the kind of thing the store's single-ownership rule makes visible at compile time instead of at run time.
+
+**Named gap, in the writer's comment**: the reference adds the entry's `z` to the square's height, and the port's area members carry no `z` - as with every other area in this
+writer. It is named rather than silently ignored.
+
+The mutation dates every body today instead of `age` days back, and the test's `died_on` assertion fails.
+
+The members still unread are now `faction_owner` (150, needs factions), `place_npcs` (22, needs NPC class templates) and `place_variables`, plus the `burn` set point.

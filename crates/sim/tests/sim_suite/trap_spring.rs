@@ -354,6 +354,7 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         place_vehicles: Vec::new(),
         place_ter_furn_transforms: Vec::new(),
         place_graffiti: Vec::new(),
+        place_corpses: Vec::new(),
         rows: vec![".".to_owned()],
         terrain: [('.', Piece::Id("t_floor".to_owned()))]
             .into_iter()
