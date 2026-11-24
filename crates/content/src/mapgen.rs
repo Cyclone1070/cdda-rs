@@ -186,6 +186,8 @@ pub struct MapgenObject {
     pub set_radiation: Vec<SetRadiation>,
     /// The `set` list's **variable** entries (`mapgen.cpp:1736-1737`, `5735-5737`): 230 of them, each naming a square the rest of the game will read by name.
     pub set_variables: Vec<SetVariable>,
+    /// The **density** spawner (`jmapgen_monster_group`, `mapgen.cpp:3080-3100`): 388 entries, and the only way the data fills a military base or a lab with what lives there.
+    pub place_monsters: Vec<AreaMonsters>,
     /// The zones a mapgen records over a rectangle (`jmapgen_zone`, `mapgen.cpp:4044-4073`): 66 entries, and how a map says "this room is a workshop" or "do not
     /// investigate this area" before anything stands in it.
     pub place_zones: Vec<AreaZone>,
@@ -657,6 +659,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 set_radiation: read_set_radiation(inner.get("set")),
                 set_variables: read_set_variables(inner.get("set")),
                 place_zones: read_area_zones(inner.get("place_zones")),
+                place_monsters: read_area_monsters(inner.get("place_monsters")),
                 rubble: read_rubble(inner.get("rubble")),
                 place_rubble: read_area_rubble(inner.get("place_rubble")),
                 place_nested: read_area_nested(inner.get("place_nested")),
@@ -854,6 +857,64 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One density spawner entry: a group, a rectangle, and how thickly it fills it (`jmapgen_monster_group`, `mapgen.cpp:3080-3100`).
+///
+/// The density is a **float in the data** and a whole number here, in thousandths, because the model compares exactly and a float does not: the data writes one or two
+/// decimals, so a thousandth is finer than anything it can say.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaMonsters {
+    /// The monster group drawn from.
+    pub group: String,
+    /// The columns of the rectangle.
+    pub x: (i32, i32),
+    /// The rows of the rectangle.
+    pub y: (i32, i32),
+    /// The one-in-n chance the whole entry fires at all (`chance`, default 1).
+    pub chance: (i32, i32),
+    /// How thickly it fills, in thousandths of the reference's density. A negative value means "the map's own density", which the port reads as
+    /// [`SPAWN_DENSITY_DEFAULT`](crate::mapgen::SPAWN_DENSITY_DEFAULT) because it has no overmap density to ask.
+    pub density_thousandths: i32,
+}
+
+/// The spawn density the reference's option defaults to (`SPAWN_DENSITY`, `options.json`), in thousandths.
+pub const SPAWN_DENSITY_DEFAULT: i32 = 1000;
+
+/// Reads a mapgen's `place_monsters` list.
+fn read_area_monsters(list: Option<&cdda_json::Value>) -> Vec<AreaMonsters> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(group)) = one.get("monster") else {
+            continue;
+        };
+        let density_thousandths = match one.get("density") {
+            Some(cdda_json::Value::Float(density)) => {
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "the data writes one or two decimals, so a thousandth is finer than anything it can say"
+                )]
+                let thousandths = (density * 1000.0).round() as i32;
+                thousandths
+            }
+            Some(cdda_json::Value::Int(density)) => i32::try_from(*density).unwrap_or(0) * 1000,
+            _ => -1000,
+        };
+        placed.push(AreaMonsters {
+            group: group.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            chance: span(one.get("chance")),
+            density_thousandths,
+        });
+    }
+    placed
+}
+
 /// One zone a mapgen records over a rectangle (`jmapgen_zone`, `mapgen.cpp:4044-4073`).
 ///
 /// A zone is the reference's way of labelling **squares the map does not otherwise mark**: a base's workshop, a camp's stockpile, an area the NPCs of a faction must not

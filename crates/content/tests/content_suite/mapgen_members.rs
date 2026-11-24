@@ -45,6 +45,7 @@ const READ: &[&str] = &[
     "rotation",
     "set",
     "place_zones",
+    "place_monsters",
     "rubble",
     "place_rubble",
     "place_nested",
@@ -63,7 +64,6 @@ const NAMED_GAPS: &[&str] = &[
     // A nested mapgen with its own weighted list, and the machinery to choose one and stitch it into the chunk.
     // The parameterised form of every symbol map: `place_terrain`, `place_furniture`, `place_traps`, `place_items`, ... draw over a **rectangle** rather than from
     // rows, and each is the symbol map's rule with a range. The data writes both; the port reads the row form.
-    "place_monsters",
     "place_toilets",
     "place_vendingmachines",
     "place_computers",

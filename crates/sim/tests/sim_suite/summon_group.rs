@@ -48,6 +48,8 @@ fn a_world(seed: u32) -> (World, Entity) {
                 entries: vec![MonsterGroupEntry {
                     kind: EntryKind::Monster("mon_zombie".to_owned()),
                     weight: 1,
+                    cost_multiplier: 1,
+                    pack: (1, 1),
                 }],
             },
             // A group that names another group, which is how the data lets a broad family borrow a finer weight.
@@ -56,6 +58,8 @@ fn a_world(seed: u32) -> (World, Entity) {
                 entries: vec![MonsterGroupEntry {
                     kind: EntryKind::Group("GROUP_ONLY_ZOMBIES".to_owned()),
                     weight: 1,
+                    cost_multiplier: 1,
+                    pack: (1, 1),
                 }],
             },
         ],

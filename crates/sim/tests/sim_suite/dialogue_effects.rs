@@ -1319,6 +1319,7 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         om_terrain: "lab_wall_opens".to_owned(),
         mapgensize: (24, 24),
         place_zones: Vec::new(),
+        place_monsters: Vec::new(),
         rows: vec!["AB".to_owned()],
         terrain: [('A', "t_rock".to_owned()), ('B', "t_rock_floor".to_owned())]
             .into_iter()
@@ -1441,6 +1442,7 @@ fn a_wall_update_world() -> (World, bevy_ecs::prelude::Entity) {
         om_terrain: "lab_wall_opens".to_owned(),
         mapgensize: (24, 24),
         place_zones: Vec::new(),
+        place_monsters: Vec::new(),
         rows: vec!["AB".to_owned()],
         terrain: [('A', "t_rock".to_owned()), ('B', "t_rock_floor".to_owned())]
             .into_iter()
@@ -1576,6 +1578,7 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
         om_terrain: "SCENARIO_SMOKE".to_owned(),
         mapgensize: (24, 24),
         place_zones: Vec::new(),
+        place_monsters: Vec::new(),
         rows: Vec::new(),
         terrain: BTreeMap::new(),
         furniture: BTreeMap::new(),
@@ -1678,6 +1681,7 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
         om_terrain: "open_the_wall".to_owned(),
         mapgensize: (24, 24),
         place_zones: Vec::new(),
+        place_monsters: Vec::new(),
         rows: vec!["A".to_owned()],
         terrain: [('A', "t_floor".to_owned())]
             .into_iter()
@@ -1997,6 +2001,7 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
         om_terrain: "lab_finale".to_owned(),
         mapgensize: (24, 24),
         place_zones: Vec::new(),
+        place_monsters: Vec::new(),
         rows: vec!["A".to_owned()],
         terrain: [('A', "t_rock".to_owned())]
             .into_iter()

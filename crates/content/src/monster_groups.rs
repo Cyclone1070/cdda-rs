@@ -33,6 +33,11 @@ pub struct MonsterGroupEntry {
     pub kind: EntryKind,
     /// How often this entry is chosen relative to the others.
     pub weight: i32,
+    /// What one of this entry costs against a spawner's budget (`cost_multiplier`, `mongroup.cpp:249-254`): the density spawner decrements a shared quantity by
+    /// `max( 1, cost_multiplier * pack_size )` for every one it places, which is what stops a dense area from filling with the most expensive monster.
+    pub cost_multiplier: i32,
+    /// How many of this entry arrive together, as a range (`pack_size`, or the legacy `pack_minimum`/`pack_maximum` pair).
+    pub pack: (i32, i32),
 }
 
 /// A group of monsters a spawn point may pick from.
@@ -103,6 +108,44 @@ pub fn pick_monster(group_id: &str, groups: &[MonsterGroup], rolls: &mut Rolls) 
     None
 }
 
+/// Picks a monster out of a group **and keeps the entry it came from**, which is what a spawner needs: the pack it arrives in and what it costs against the budget.
+///
+/// Reference: `MonsterGroupManager::GetResultFromGroup` (`mongroup.cpp:196-254`), whose result carries `pack_size` and whose `quantity` is decremented by
+/// `max( 1, cost_multiplier * pack_size )`. [`pick_monster`] answers the name alone because a caller that only needs a name is the common case; this one answers what a
+/// spawner needs and resolves a nested group to the entry that finally named a monster.
+pub fn pick_entry(
+    group_id: &str,
+    groups: &[MonsterGroup],
+    rolls: &mut Rolls,
+) -> Option<(String, i32, (i32, i32))> {
+    let mut current = group_id;
+    for _ in 0..8 {
+        let group = groups.iter().find(|group| group.id == current)?;
+        let entries: Vec<(EntryKind, i32)> = group
+            .entries
+            .iter()
+            .map(|entry| (entry.kind.clone(), entry.weight))
+            .collect();
+        let list = WeightedList::from_entries(entries);
+        let kind = list.pick(rolls)?.clone();
+        // The entry the pick landed on, by its kind: the first one that names what was picked.
+        let chosen = group
+            .entries
+            .iter()
+            .find(|entry| entry.kind == kind)
+            .cloned()?;
+        match kind {
+            EntryKind::Monster(id) => {
+                return Some((id, chosen.cost_multiplier, chosen.pack));
+            }
+            EntryKind::Group(id) => {
+                current = groups.iter().find(|group| group.id == id)?.id.as_str();
+            }
+        }
+    }
+    None
+}
+
 /// Reads groups out of prototypes already in hand, which is how a test or a mod hands them over without a file.
 #[must_use]
 pub fn load_objects(prototypes: &[Value]) -> Vec<MonsterGroup> {
@@ -154,7 +197,38 @@ fn collect_into(value: &Value, by_id: &mut BTreeMap<String, Vec<MonsterGroupEntr
                 Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(1),
                 _ => 1,
             };
-            entries.push(MonsterGroupEntry { kind, weight });
+            // An entry with no cost counts as **one**, and one with no pack arrives **alone** (`mongroup.cpp:496-510`).
+            let cost_multiplier = match entry.get("cost_multiplier") {
+                Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(1),
+                _ => 1,
+            };
+            let pack = if let Some(Value::Array(pair)) = entry.get("pack_size") {
+                let low = match pair.first() {
+                    Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(1),
+                    _ => 1,
+                };
+                let high = match pair.get(1) {
+                    Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(low),
+                    _ => low,
+                };
+                (low, high)
+            } else {
+                let low = match entry.get("pack_minimum") {
+                    Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(1),
+                    _ => 1,
+                };
+                let high = match entry.get("pack_maximum") {
+                    Some(Value::Int(number)) => i32::try_from(*number).unwrap_or(low),
+                    _ => low,
+                };
+                (low, high)
+            };
+            entries.push(MonsterGroupEntry {
+                kind,
+                weight,
+                cost_multiplier,
+                pack,
+            });
         }
     }
 }

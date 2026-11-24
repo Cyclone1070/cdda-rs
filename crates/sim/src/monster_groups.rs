@@ -19,6 +19,18 @@ pub fn set_groups(world: &mut World, groups: Vec<cdda_content::monster_groups::M
     world.entity_mut(holder).insert(MonsterGroups(groups));
 }
 
+/// Picks a monster **and the entry it came from**, for a spawner that needs the pack and the cost.
+#[must_use]
+pub fn pick_entry(
+    world: &World,
+    group: &str,
+    dice: &mut cdda_core_types::rng::Rolls,
+) -> Option<(String, i32, (i32, i32))> {
+    let groups = crate::singletons::holder::<TheMonsterGroups>(world)
+        .and_then(|holder| world.get::<MonsterGroups>(holder))?;
+    cdda_content::monster_groups::pick_entry(group, &groups.0, dice)
+}
+
 /// Picks a monster out of a group, resolving nested groups by weight.
 ///
 /// Reference: `MonsterGroupManager::GetMonsterFromGroup` (`mongroup.cpp`), whose pick walks the group's weights and repeats inside a nested group. The port

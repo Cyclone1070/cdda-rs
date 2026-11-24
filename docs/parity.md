@@ -40844,3 +40844,24 @@ The port had no zones at all, so this round is the first half of the feature and
 forbids - and the compiler refused the initialiser that named only one of them. The corner lives in `FarCorner`.
 
 **The mutation** records the zone at the origin instead of its far corner: the test fails at `left: 0, right: 1` - the square inside the rectangle is covered by nothing.
+
+## The density spawner (round 318)
+
+`place_monsters` - **388 entries** - is the only way the data fills a military base, a lab or a mall with what lives there, and it is not a symbol table: it is
+`jmapgen_monster_group::apply` (`mapgen.cpp:3093-3100`) handing a rectangle to `map::place_spawns` (`:7231-7281`). Three rules, in order:
+
+- **`one_in( chance )`** - the whole entry may not fire;
+- **`num = roll_remainder( density * SPAWN_DENSITY * rng_float( 10.0, 50.0 ) )`** - which is why a density of a tenth still fills a room: ten to fifty times a tenth, rounded;
+- **the budget is spent by cost** - every result placed decrements it by `max( 1, cost_multiplier * pack_size )`, which is what stops the expensive monster from filling the room.
+
+The port's monster-group entry gained the two numbers this needs (`cost_multiplier`, and the `pack_size` range or the legacy `pack_minimum`/`pack_maximum` pair), and
+`pick_entry` answers the **entry** as well as its monster id, because a spawner needs the pack and the cost and the old `pick` threw them away.
+
+**Named gap**: the reference retries a square up to ten times when it is impassable (`:7267-7271`). The port's squares carry no passability flag yet, so every drawn square is
+used - recorded here rather than silently changed. The **animals** option (`SPAWN_ANIMAL_DENSITY`) is likewise not consulted; the port has no animal flag on a group yet, so
+`SPAWN_DENSITY`'s default of one applies to everything.
+
+**The mutation taught the round's real lesson.** The first test asked `creature_at( (0,0,0) )` for the creatures - so a spawner that ignored density altogether still passed,
+because the monsters it wrongly placed in the dry corner were never looked at. The check "a test that cannot fail proves nothing" caught a test that *looked* like it could
+fail. It now asks `creature::creatures`, every creature in the world, and the same mutation fails at `(12, 12, 0)` - a monster where the zero-density entry should have left
+nothing.

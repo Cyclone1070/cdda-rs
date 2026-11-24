@@ -152,6 +152,7 @@ pub fn write(
     place_rubble_areas(world, mapgen, origin, &mut rolls);
     place_set_variables(world, mapgen, origin, &mut rolls);
     place_the_zones(world, mapgen, origin, &mut rolls);
+    spawn_by_density(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1124,6 +1125,74 @@ fn place_set_variables(
                 z: origin.2,
             },
         );
+    }
+}
+
+/// Fills a rectangle with what a group holds, at the entry's density.
+///
+/// Reference: `jmapgen_monster_group::apply` (`mapgen.cpp:3093-3100`) hands the entry to `map::place_spawns` (`:7231-7281`), whose rules are, in order:
+///
+/// - `one_in( chance )` - the whole entry may not fire at all;
+/// - `multiplier = density * SPAWN_DENSITY`, and `num = roll_remainder( multiplier * rng_float( 10.0, 50.0 ) )`, which is why a density of a tenth still places a handful of
+///   monsters in a room: ten to fifty times a tenth, rounded;
+/// - while the budget is positive: pick a square in the rectangle, ask the group for a result, place it `pack` times, and **decrement the budget by
+///   `max( 1, cost * pack )`** - the entry's cost is what stops the expensive monster from filling the room.
+///
+/// The reference retries a square up to ten times when it is impassable; the port's squares have no passability flag yet, so every drawn square is used, which is
+/// logged here rather than silently changed.
+fn spawn_by_density(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_monsters {
+        let chance = match rolls.as_mut() {
+            Some(dice) if entry.chance.1 > entry.chance.0 => {
+                dice.rng(entry.chance.0, entry.chance.1)
+            }
+            _ => entry.chance.0,
+        };
+        let Some(dice) = rolls.as_mut() else {
+            continue;
+        };
+        if !dice.one_in(chance.max(1)) {
+            continue;
+        }
+        let density = if entry.density_thousandths < 0 {
+            cdda_content::mapgen::SPAWN_DENSITY_DEFAULT
+        } else {
+            entry.density_thousandths
+        };
+        let multiplier = f64::from(density) / 1000.0;
+        let thenum = multiplier * dice.rng_float(10.0, 50.0);
+        let mut budget = dice.roll_remainder(thenum);
+        // A budget that cannot be spent is not spent: the loop is bounded by the budget decreasing every pass.
+        while budget > 0 {
+            let (x, y) = (
+                dice.rng(entry.x.0, entry.x.1),
+                dice.rng(entry.y.0, entry.y.1),
+            );
+            let Some((monster, cost, pack)) =
+                crate::monster_groups::pick_entry(world, &entry.group, dice)
+            else {
+                break;
+            };
+            let pack_size = if pack.1 > pack.0 {
+                dice.rng(pack.0, pack.1)
+            } else {
+                pack.0
+            }
+            .max(1);
+            let Some(kind) = crate::monster_registry::id_of(world, &monster) else {
+                break;
+            };
+            let hp = crate::monster_registry::hit_points(world, kind);
+            for _ in 0..pack_size {
+                crate::spawn_monster(world, (origin.0 + x, origin.1 + y), kind, hp);
+            }
+            budget -= (cost * pack_size).max(1);
+        }
     }
 }
 
