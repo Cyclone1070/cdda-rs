@@ -2,6 +2,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
+use cdda_content::mapgen::Piece;
 use cdda_content::mapgen::{MapgenObject, load_objects};
 use std::path::Path;
 
@@ -127,7 +128,7 @@ fn a_mapping_bundle_fills_the_symbol_tables() {
     let map = loaded.pop().expect("one object");
     assert_eq!(
         map.furniture.get(&'L'),
-        Some(&"f_locker".to_owned()),
+        Some(&Piece::Id("f_locker".to_owned())),
         "**the bundle's furniture is the symbol's**"
     );
     assert_eq!(
@@ -137,7 +138,7 @@ fn a_mapping_bundle_fills_the_symbol_tables() {
     );
     assert_eq!(
         map.terrain.get(&'.'),
-        Some(&"t_floor".to_owned()),
+        Some(&Piece::Id("t_floor".to_owned())),
         "**the flat table still states its own symbol**"
     );
 }

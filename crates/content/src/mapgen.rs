@@ -115,6 +115,41 @@ pub fn keys_of(object: &Object) -> MapgenKeys {
     keys
 }
 
+/// What a symbol resolves to: an id, or a **parameter** whose value the generation draws (`mapgen_value`, `mapgen.cpp:470-520`).
+///
+/// A palette declares parameters (`parameters`) and names them in its symbol tables as `{ "param": "wall_type", "fallback": "t_null" }`. The value is drawn **once per
+/// generation** and used for every square the symbol covers, which is why it is resolved before the rows are drawn rather than at each square.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Piece {
+    /// The id itself.
+    Id(String),
+    /// A parameter's name, and the id to use when the generation has no value for it.
+    Param {
+        /// The parameter's name.
+        name: String,
+        /// The id to use when the parameter has no value.
+        fallback: Option<String>,
+    },
+}
+
+impl Piece {
+    /// The id this piece names, when it names one outright.
+    #[must_use]
+    pub fn id(&self) -> Option<&str> {
+        match self {
+            Piece::Id(id) => Some(id),
+            Piece::Param { .. } => None,
+        }
+    }
+}
+
+/// A parameter a palette declares: a value the generation draws once (`mapgen.cpp:440-470`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MapgenParameter {
+    /// The ids it may take, each with its weight.
+    pub values: Vec<(String, i32)>,
+}
+
 /// One mapgen object as the JSON states it: the rows of glyphs and what each glyph means.
 ///
 /// Reference: `mapgen::load` for `method: "json"` (`src/mapgen.cpp`), which reads `rows` and resolves each
@@ -126,10 +161,12 @@ pub struct MapgenObject {
     pub om_terrain: String,
     /// The rows, top to bottom.
     pub rows: Vec<String>,
-    /// What each character means, as terrain ids.
-    pub terrain: BTreeMap<char, String>,
-    /// What each character means, as furniture ids.
-    pub furniture: BTreeMap<char, String>,
+    /// What each character means, as terrain ids or a parameter naming one.
+    pub terrain: BTreeMap<char, Piece>,
+    /// What each character means, as furniture ids or a parameter naming one.
+    pub furniture: BTreeMap<char, Piece>,
+    /// The parameters this mapgen declares, which its symbol tables name (`mapgen.cpp:440-470`).
+    pub parameters: BTreeMap<String, MapgenParameter>,
     /// The traps a symbol sets (`mapgen.cpp:5470-5480`), placed after the furniture: a minefield is drawn as characters, not placed piece by piece.
     pub traps: BTreeMap<char, String>,
     /// The items a symbol places (`jmapgen_item_group`), the last layer a character can carry.
@@ -217,6 +254,95 @@ pub struct MapgenObject {
     pub fallback_predecessor_mapgen: Option<String>,
 }
 
+/// Reads a symbol table whose values are plain ids (`traps`, `signs`, `vending_machines`, `toilets`).
+fn read_plain_symbols(inner: &cdda_json::Object, key: &str) -> BTreeMap<char, String> {
+    let mut table = BTreeMap::new();
+    if let Some(cdda_json::Value::Object(map)) = inner.get(key) {
+        for (symbol, id) in map.members() {
+            if let (Some(character), cdda_json::Value::Str(id)) = (symbol.chars().next(), id) {
+                table.insert(character, id.clone());
+            }
+        }
+    }
+    table
+}
+
+/// Reads a symbol table whose values may name a parameter (`terrain`, `furniture`).
+fn read_piece_symbols(inner: &cdda_json::Object, key: &str) -> BTreeMap<char, Piece> {
+    let mut table = BTreeMap::new();
+    if let Some(cdda_json::Value::Object(map)) = inner.get(key) {
+        for (symbol, value) in map.members() {
+            let (Some(character), Some(piece)) = (symbol.chars().next(), read_piece(value)) else {
+                continue;
+            };
+            table.insert(character, piece);
+        }
+    }
+    table
+}
+
+/// Reads one symbol's value: an id, or a parameter reference (`mapgen.cpp:470-520`).
+fn read_piece(value: &cdda_json::Value) -> Option<Piece> {
+    match value {
+        cdda_json::Value::Str(id) => Some(Piece::Id(id.clone())),
+        cdda_json::Value::Object(entry) => {
+            let name = match entry.get("param") {
+                Some(cdda_json::Value::Str(name)) => name.clone(),
+                _ => return None,
+            };
+            Some(Piece::Param {
+                name,
+                fallback: match entry.get("fallback") {
+                    Some(cdda_json::Value::Str(id)) => Some(id.clone()),
+                    _ => None,
+                },
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Reads a mapgen's `parameters`, whose values are weighted id lists (`mapgen.cpp:440-470`).
+fn read_parameters(object: Option<&cdda_json::Value>) -> BTreeMap<String, MapgenParameter> {
+    let mut parameters = BTreeMap::new();
+    let Some(cdda_json::Value::Object(members)) = object else {
+        return parameters;
+    };
+    for (name, value) in members.members() {
+        let cdda_json::Value::Object(spec) = value else {
+            continue;
+        };
+        let Some(cdda_json::Value::Object(default)) = spec.get("default") else {
+            continue;
+        };
+        let Some(cdda_json::Value::Array(distribution)) = default.get("distribution") else {
+            continue;
+        };
+        let mut values = Vec::new();
+        for entry in distribution {
+            match entry {
+                cdda_json::Value::Str(id) => values.push((id.clone(), 1)),
+                cdda_json::Value::Array(pair) => {
+                    let id = match pair.first() {
+                        Some(cdda_json::Value::Str(id)) => id.clone(),
+                        _ => continue,
+                    };
+                    let weight = match pair.get(1) {
+                        Some(cdda_json::Value::Int(weight)) => i32::try_from(*weight).unwrap_or(1),
+                        _ => 1,
+                    };
+                    values.push((id, weight));
+                }
+                _ => {}
+            }
+        }
+        if !values.is_empty() {
+            parameters.insert(name.clone(), MapgenParameter { values });
+        }
+    }
+    parameters
+}
+
 /// The chunk side a mapgen has when it declares none: the overmap tile's, in squares (`mapgen.cpp:5105-5110`).
 pub const DEFAULT_SIDE: i32 = 24;
 
@@ -275,8 +401,8 @@ pub struct ItemPlacement {
 /// The terrain and furniture members are read; the item members are a **named gap** (see below), because a bundle lists them and the symbol table holds one per symbol.
 fn read_mapping(
     mapping: Option<&cdda_json::Value>,
-    terrain: &mut BTreeMap<char, String>,
-    furniture: &mut BTreeMap<char, String>,
+    terrain: &mut BTreeMap<char, Piece>,
+    furniture: &mut BTreeMap<char, Piece>,
 ) {
     let Some(cdda_json::Value::Object(members)) = mapping else {
         return;
@@ -288,15 +414,17 @@ fn read_mapping(
         let cdda_json::Value::Object(bundle) = value else {
             // A bare string is a terrain id, which is the shortest form the member has.
             if let cdda_json::Value::Str(id) = value {
-                terrain.entry(symbol).or_insert_with(|| id.clone());
+                terrain
+                    .entry(symbol)
+                    .or_insert_with(|| Piece::Id(id.clone()));
             }
             continue;
         };
-        if let Some(cdda_json::Value::Str(id)) = bundle.get("terrain") {
-            terrain.entry(symbol).or_insert_with(|| id.clone());
+        if let Some(piece) = bundle.get("terrain").and_then(read_piece) {
+            terrain.entry(symbol).or_insert(piece);
         }
-        if let Some(cdda_json::Value::Str(id)) = bundle.get("furniture") {
-            furniture.entry(symbol).or_insert_with(|| id.clone());
+        if let Some(piece) = bundle.get("furniture").and_then(read_piece) {
+            furniture.entry(symbol).or_insert(piece);
         }
         // **Named gap**: a bundle's `items` and `item` members are not read here. A bundle states its items as a *list* of placements
         // (`"items": [ { "item": "bed", "chance": 60 }, ... ]`), and the port's symbol table holds **one** placement per symbol - so reading them needs the table to become a
@@ -471,11 +599,12 @@ impl MapgenObject {
         self.rows.iter().all(|row| row.chars().count() == width)
     }
 
-    /// The terrain id at a square, if the rows cover it.
+    /// The terrain id at a square, if the rows cover it **and the symbol names one outright** - a symbol naming a parameter answers nothing here, because the id is not known
+    /// until a generation draws it.
     #[must_use]
     pub fn terrain_at(&self, x: usize, y: usize) -> Option<&str> {
         let symbol = self.rows.get(y)?.chars().nth(x)?;
-        self.terrain.get(&symbol).map(String::as_str)
+        self.terrain.get(&symbol).and_then(Piece::id)
     }
 }
 
@@ -590,19 +719,9 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 _ => None,
             })
             .collect();
-        let symbols = |key: &str| {
-            let mut table = BTreeMap::new();
-            if let Some(cdda_json::Value::Object(map)) = inner.get(key) {
-                for (symbol, id) in map.members() {
-                    if let (Some(character), cdda_json::Value::Str(id)) =
-                        (symbol.chars().next(), id)
-                    {
-                        table.insert(character, id.clone());
-                    }
-                }
-            }
-            table
-        };
+        // The traps and other plain tables name ids only, so they keep the string form the pieces replaced above.
+        let symbols_plain = |key: &str| read_plain_symbols(inner, key);
+        let symbols = |key: &str| read_piece_symbols(inner, key);
         // Reference: `if( jo.has_member( "fill_ter" ) ) fill_ter = cata::make_value<mapgen_value<ter_id>>(...)` (`mapgen.cpp:5168-5172`). The member may be a palette
         // reference or a weighted list, which the port does not read yet; a plain terrain id is what the data overwhelmingly writes, and the rest is refused here rather
         // than guessed at.
@@ -627,7 +746,8 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 rows: rows.clone(),
                 terrain: mapped_terrain.clone(),
                 furniture: mapped_furniture.clone(),
-                traps: symbols("traps"),
+                parameters: read_parameters(inner.get("parameters")),
+                traps: symbols_plain("traps"),
                 items: mapped_items.clone(),
                 monsters: read_monsters(inner),
                 toilets: read_toilets(inner.get("toilets")),
@@ -755,9 +875,11 @@ impl MapgenObject {
                 };
                 let (x, y) = (origin.0 + dx, origin.1 + dy);
                 let terrain = match self.terrain.get(&symbol) {
-                    Some(id) => {
-                        let resolved = terrain_id_of(id);
-                        if resolved.is_none() {
+                    Some(piece) => {
+                        // A symbol naming a parameter has no id until a generation draws it; this preview answers the blank floor for it, which is what an unknown
+                        // symbol looks like too - the difference is that a parameter is **not** pushed to `unknown_symbols`, because it is not unknown, it is undrawn.
+                        let resolved = piece.id().and_then(&terrain_id_of);
+                        if resolved.is_none() && piece.id().is_some() {
                             placed.unknown_symbols.push(symbol);
                         }
                         resolved.unwrap_or(blank)
@@ -774,8 +896,8 @@ impl MapgenObject {
                 };
                 level.set_terrain(x, y, terrain, blank);
                 placed.squares += 1;
-                if let Some(furniture) = self.furniture.get(&symbol) {
-                    placed.furniture.push((x, y, furniture.clone()));
+                if let Some(furniture) = self.furniture.get(&symbol).and_then(Piece::id) {
+                    placed.furniture.push((x, y, furniture.to_owned()));
                 }
             }
         }

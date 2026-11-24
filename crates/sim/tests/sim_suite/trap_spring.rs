@@ -272,7 +272,7 @@ fn a_map_regen_trap_rebuilds_the_tile_and_is_removed() {
             .collect(),
     );
     let mut update = a_mapgen("godco_update");
-    update.terrain.insert('#', "t_wall".to_owned());
+    update.terrain.insert('#', Piece::Id("t_wall".to_owned()));
     update.rows = vec!["##".to_owned(), "##".to_owned()];
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("godco_update".to_owned(), update)]);
 
@@ -322,7 +322,7 @@ fn a_map_regen_trap_ignores_a_monster() {
             .collect(),
     );
     let mut update = a_mapgen("godco_update");
-    update.terrain.insert('#', "t_wall".to_owned());
+    update.terrain.insert('#', Piece::Id("t_wall".to_owned()));
     update.rows = vec!["##".to_owned()];
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("godco_update".to_owned(), update)]);
     let mut trap = a_trap("map_regen", &[]);
@@ -352,8 +352,11 @@ fn a_mapgen(id: &str) -> cdda_content::mapgen::MapgenObject {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         rows: vec![".".to_owned()],
-        terrain: [('.', "t_floor".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_floor".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: std::collections::BTreeMap::new(),
+        parameters: std::collections::BTreeMap::new(),
         traps: std::collections::BTreeMap::new(),
         items: std::collections::BTreeMap::new(),
         monsters: Vec::new(),
@@ -442,6 +445,7 @@ fn an_unconsumed_spell_trap_stays_set() {
     );
 }
 
+use cdda_content::mapgen::Piece;
 use cdda_content::spells::Scaling;
 
 /// A spell the port can perform, installed under a name: `summon` is one of the effects it has a rule for.

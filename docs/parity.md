@@ -40865,3 +40865,25 @@ used - recorded here rather than silently changed. The **animals** option (`SPAW
 because the monsters it wrongly placed in the dry corner were never looked at. The check "a test that cannot fail proves nothing" caught a test that *looked* like it could
 fail. It now asks `creature::creatures`, every creature in the world, and the same mutation fails at `(12, 12, 0)` - a monster where the zero-density entry should have left
 nothing.
+
+## A parameter is drawn once (round 320)
+
+`parameters` - **302 palettes declare them, 832 symbols name one** - were not read, and the symbol tables that name one were not read either: the port's tables held a plain
+`String`, so `{ "param": "wall", "fallback": "t_null" }` had nowhere to go. The frame is `mapgen_palette::resolve_parameters` (`mapgen.cpp:440-520`), called **once per
+generation**: each parameter takes one weighted value from its `default.distribution`, and every symbol naming it becomes that value - which is what makes a palette's variant
+**coherent**: one wall type for the whole chunk, not one per square.
+
+The model changed shape rather than growing beside the old one: `terrain` and `furniture` are `BTreeMap<char, Piece>`, where a `Piece` is either an id or
+`{ param, fallback }`. That is the whole reason the round cost what it did - every fixture that said `(' ', "t_floor")` had to say what it meant - and the conversion was done
+by rewriting **inside** the terrain and furniture arrays only, because the other tables (`traps`, `signs`, `vending_machines`, `toilets`) still hold plain strings and a blanket
+rewrite would have changed types the writer does not want changed.
+
+**The bug the test caught was mine, and it was the shape of a plausible optimisation**: `resolve_parameters` returned early when a palette declared no parameters, which looks
+right and is wrong - a palette that declares none may still **name** one, and then its fallback is the answer. The test's second half exists for that: an undeclared parameter
+draws its fallback (`Some(0)` before the fix, `Some(43)` after).
+
+**The mutation** makes the resolver read the fallback only: the six walls are then drawn as nothing at all and the count assertion fails - the drawn value is what the squares
+carry, not a coincidence of the fallback.
+
+Still open in this area, named so it is not mistaken for done: a `mapping` bundle's `items` list needs the symbol table to become a list of placements, and `mapgen_value`'s
+**switch** form (a parameter whose value depends on the terrain, `mapgen.cpp:520-560`) is not read - only the flat `distribution` is.

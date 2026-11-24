@@ -743,8 +743,11 @@ fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Pr
     let mut fields: Vec<(String, u32)> = Vec::new();
     for (_, mapgen) in &mapgens {
         for terrain in mapgen.terrain.values() {
+            let Some(id) = terrain.id() else {
+                continue;
+            };
             let next = u32::try_from(codes.len() + 1).unwrap_or(1);
-            codes.entry(terrain.clone()).or_insert(next);
+            codes.entry(id.to_owned()).or_insert(next);
         }
         for placement in &mapgen.fields {
             if !fields.iter().any(|(known, _)| known == &placement.field) {
@@ -1555,8 +1558,11 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
     let mut fields: Vec<(String, u32)> = Vec::new();
     for (_, mapgen) in &mapgens {
         for terrain in mapgen.terrain.values() {
+            let Some(id) = terrain.id() else {
+                continue;
+            };
             let next = u32::try_from(codes.len() + 1).unwrap_or(1);
-            codes.entry(terrain.clone()).or_insert(next);
+            codes.entry(id.to_owned()).or_insert(next);
         }
         for placement in &mapgen.fields {
             if !fields.iter().any(|(known, _)| known == &placement.field) {

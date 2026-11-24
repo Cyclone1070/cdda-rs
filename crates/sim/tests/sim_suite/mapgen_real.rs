@@ -13,6 +13,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_content::mapgen::MapgenObject;
+use cdda_content::mapgen::Piece;
 use std::collections::BTreeMap;
 
 /// Where the reference tree's mapgens live, beside this crate.
@@ -65,8 +66,11 @@ fn a_world(mapgens: &[(String, MapgenObject)]) -> (World, BTreeMap<String, u32>)
     let mut codes: BTreeMap<String, u32> = BTreeMap::new();
     for (_, mapgen) in mapgens {
         for terrain in mapgen.terrain.values() {
+            let Some(id) = terrain.id() else {
+                continue;
+            };
             let next = u32::try_from(codes.len() + 1).unwrap_or(1);
-            codes.entry(terrain.clone()).or_insert(next);
+            codes.entry(id.to_owned()).or_insert(next);
         }
         if let Some(fill) = mapgen.fill_ter.as_deref() {
             let next = u32::try_from(codes.len() + 1).unwrap_or(1);
@@ -75,6 +79,15 @@ fn a_world(mapgens: &[(String, MapgenObject)]) -> (World, BTreeMap<String, u32>)
     }
     cdda_sim::mapgen_update::set_terrain_codes(&mut world, codes.clone());
     (world, codes)
+}
+
+/// The id a piece names, or the **fallback** of a parameter it names without one being drawn - a fallback is terrain the palette names too, and a test that forgot it called
+/// the mapgen's own square a stray.
+fn piece_id_or_fallback(piece: &Piece) -> Option<&str> {
+    match piece {
+        Piece::Id(id) => Some(id),
+        Piece::Param { fallback, .. } => fallback.as_deref(),
+    }
 }
 
 /// **A real mapgen draws a real chunk.** The test picks the mapgen with the most distinguishable terrain among those that name no monsters, items or traps - so the draw is
@@ -109,12 +122,31 @@ fn a_real_mapgen_draws_its_own_chunk() {
         chosen.0
     );
     // The chunk is drawn from the mapgen's own terrain symbols **and** its fill, so both are "its own": a fill square is the mapgen's answer, not a stray.
-    let own: Vec<u32> = chosen
-        .1
-        .terrain
-        .values()
-        .chain(chosen.1.fill_ter.iter())
-        .filter_map(|terrain| codes.get(terrain).copied())
+    // A symbol naming a **parameter** draws one of the parameter's own values, so those are the mapgen's own terrain as well - the set is what the palette can draw, not what
+    // its rows spell out.
+    // **Every mapgen filed under that terrain id**, not the one this test picked: an overmap terrain may hold several mapgens and the writer draws the one it draws, so the set
+    // of "its own" terrain is the union of what all of them name.
+    let filed: Vec<&cdda_content::mapgen::MapgenObject> = mapgens
+        .iter()
+        .filter(|(id, _)| id == &chosen.0)
+        .map(|(_, mapgen)| mapgen)
+        .collect();
+    let own: Vec<u32> = filed
+        .iter()
+        .flat_map(|mapgen| {
+            mapgen
+                .terrain
+                .values()
+                .filter_map(piece_id_or_fallback)
+                .chain(
+                    mapgen
+                        .parameters
+                        .values()
+                        .flat_map(|parameter| parameter.values.iter().map(|(id, _)| id.as_str())),
+                )
+                .chain(mapgen.fill_ter.as_deref())
+        })
+        .filter_map(|id| codes.get(id).copied())
         .collect();
     let side = cdda_sim::overmap::SQUARES_PER_OMT;
     let mut drawn = 0;
@@ -127,7 +159,11 @@ fn a_real_mapgen_draws_its_own_chunk() {
                 drawn += 1;
                 assert!(
                     own.contains(&terrain),
-                    "**every drawn square is one of the mapgen's own terrains**: ({x}, {y}) holds {terrain}"
+                    "**every drawn square is one of the mapgen's own terrains**: ({x}, {y}) holds {terrain} = {:?}",
+                    codes
+                        .iter()
+                        .find(|(_, code)| **code == terrain)
+                        .map(|(id, _)| id)
                 );
             }
         }
@@ -141,7 +177,7 @@ fn a_real_mapgen_draws_its_own_chunk() {
     let known = chosen.1.rows.first().and_then(|row| {
         row.chars().enumerate().find_map(|(column, symbol)| {
             let terrain = chosen.1.terrain.get(&symbol)?;
-            Some((column, symbol, codes.get(terrain).copied()?))
+            Some((column, symbol, codes.get(terrain.id()?).copied()?))
         })
     });
     if let Some((column, symbol, code)) = known {
@@ -156,7 +192,7 @@ fn a_real_mapgen_draws_its_own_chunk() {
         .1
         .terrain
         .values()
-        .filter_map(|terrain| codes.get(terrain).copied())
+        .filter_map(|terrain| terrain.id().and_then(|id| codes.get(id).copied()))
         .collect();
     if distinct.len() > 1 {
         let drawn_terrains: std::collections::BTreeSet<u32> = (0..side)

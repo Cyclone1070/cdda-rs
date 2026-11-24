@@ -13,6 +13,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_content::mapgen::MapgenObject;
+use cdda_content::mapgen::Piece;
 use std::collections::BTreeMap;
 
 /// A mapgen that draws one symbol, `#`, as the terrain it is given.
@@ -23,8 +24,9 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         place_monsters: Vec::new(),
         om_terrain: id.to_owned(),
         rows: vec!["##".to_owned(), "##".to_owned()],
-        terrain: [('#', terrain.to_owned())].into_iter().collect(),
+        terrain: [('#', Piece::Id(terrain.to_owned()))].into_iter().collect(),
         furniture: BTreeMap::new(),
+        parameters: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
         monsters: Vec::new(),
@@ -160,7 +162,9 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["#".to_owned()],
-        terrain: [('#', "t_house_two".to_owned())].into_iter().collect(),
+        terrain: [('#', Piece::Id("t_house_two".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -197,6 +201,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), filling.clone())]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -251,12 +256,14 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         om_terrain: "house".to_owned(),
         rows: vec![".F.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('F', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('F', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
-        furniture: [('F', "f_desk".to_owned())].into_iter().collect(),
+        furniture: [('F', Piece::Id("f_desk".to_owned()))]
+            .into_iter()
+            .collect(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
         monsters: Vec::new(),
@@ -292,6 +299,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), furnished)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -329,8 +337,8 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         om_terrain: "field".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('T', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('T', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -370,6 +378,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("field".to_owned(), trapped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -416,8 +425,8 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         om_terrain: "house".to_owned(),
         rows: vec!["I.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('I', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('I', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -467,6 +476,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), stocked)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -532,8 +542,8 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('G', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('G', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -583,6 +593,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), grouped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -624,7 +635,9 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -669,6 +682,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), haunted)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -709,7 +723,9 @@ fn a_mapgens_predecessor_is_drawn_first() {
         om_terrain: "house_inside".to_owned(),
         // Two rows of walls, and the roof covers only the first: the second row is the predecessor showing through.
         rows: vec!["##".to_owned(), "##".to_owned()],
-        terrain: [('#', "t_house_two".to_owned())].into_iter().collect(),
+        terrain: [('#', Piece::Id("t_house_two".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -746,6 +762,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     let roof = MapgenObject {
         mapgensize: (24, 24),
@@ -753,7 +770,9 @@ fn a_mapgens_predecessor_is_drawn_first() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -790,6 +809,7 @@ fn a_mapgens_predecessor_is_drawn_first() {
         fill_ter: None,
         predecessor_mapgen: Some("house_inside".to_owned()),
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -859,7 +879,9 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -904,6 +926,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), horde)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -951,7 +974,9 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -996,6 +1021,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), loyal)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -1046,8 +1072,8 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         om_terrain: "house".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('T', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('T', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -1087,6 +1113,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), bathroom)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -1152,8 +1179,8 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         om_terrain: "house".to_owned(),
         rows: vec!["WG".to_owned()],
         terrain: [
-            ('W', "t_house_one".to_owned()),
-            ('G', "t_house_one".to_owned()),
+            ('W', Piece::Id("t_house_one".to_owned())),
+            ('G', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -1212,6 +1239,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), kitchen)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
@@ -1283,7 +1311,9 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned(), "..".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -1326,6 +1356,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), scattered)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
@@ -1388,7 +1419,9 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -1442,6 +1475,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), looting)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(7));
@@ -1488,8 +1522,8 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         om_terrain: "house".to_owned(),
         rows: vec!["L.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('L', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('L', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -1543,6 +1577,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), lockers)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(3));
@@ -1607,26 +1642,14 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         .collect(),
     );
     let machines = MapgenObject {
-        mapgensize: (24, 24),
-        place_zones: Vec::new(),
-        place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["VR".to_owned()],
         terrain: [
-            ('V', "t_house_one".to_owned()),
-            ('R', "t_house_one".to_owned()),
+            ('V', Piece::Id("t_house_one".to_owned())),
+            ('R', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
-        furniture: BTreeMap::new(),
-        traps: BTreeMap::new(),
-        items: BTreeMap::new(),
-        monsters: Vec::new(),
-        toilets: BTreeMap::new(),
-        liquids: BTreeMap::new(),
-        place_items: Vec::new(),
-        place_loot: Vec::new(),
-        sealed_items: BTreeMap::new(),
         vending_machines: [
             (
                 'V',
@@ -1651,32 +1674,7 @@ fn a_vending_machine_is_furniture_and_a_stock() {
         ]
         .into_iter()
         .collect(),
-        signs: BTreeMap::new(),
-        gas_pumps: BTreeMap::new(),
-        nested: BTreeMap::new(),
-        place_terrain: Vec::new(),
-        place_furniture: Vec::new(),
-        place_traps: Vec::new(),
-        items_single: BTreeMap::new(),
-        field_symbols: BTreeMap::new(),
-        computers: BTreeMap::new(),
-        remove_all: Vec::new(),
-        monster_symbols: BTreeMap::new(),
-        rotation: (0, 0),
-        set_points: Vec::new(),
-        set_radiation: Vec::new(),
-        set_variables: Vec::new(),
-        rubble: BTreeMap::new(),
-        place_rubble: Vec::new(),
-        place_nested: Vec::new(),
-        place_item: Vec::new(),
-        place_signs: Vec::new(),
-        place_liquids: Vec::new(),
-        weight: 1,
-        fields: Vec::new(),
-        fill_ter: None,
-        predecessor_mapgen: None,
-        fallback_predecessor_mapgen: None,
+        ..a_plain_mapgen()
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), machines)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(11));
@@ -1713,8 +1711,8 @@ fn a_sign_is_furniture_that_carries_words() {
         om_terrain: "house".to_owned(),
         rows: vec!["S.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('S', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('S', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -1762,6 +1760,7 @@ fn a_sign_is_furniture_that_carries_words() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shop)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(5));
@@ -1832,8 +1831,8 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('G', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('G', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -1881,6 +1880,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), forecourt)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(13));
@@ -1926,7 +1926,9 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
     let room = MapgenObject {
         om_terrain: "nested_room".to_owned(),
         rows: vec!["NN".to_owned(), "NN".to_owned()],
-        terrain: [('N', "t_nested_floor".to_owned())].into_iter().collect(),
+        terrain: [('N', Piece::Id("t_nested_floor".to_owned()))]
+            .into_iter()
+            .collect(),
         ..a_plain_mapgen()
     };
     let house = MapgenObject {
@@ -1936,8 +1938,8 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         om_terrain: "house".to_owned(),
         rows: vec!["n...".to_owned(), "....".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('n', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('n', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -1984,6 +1986,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -2030,7 +2033,9 @@ fn a_nested_chunk_stands_at_its_marker() {
     let room = MapgenObject {
         om_terrain: "nested_room".to_owned(),
         rows: vec!["NN".to_owned(), "NN".to_owned()],
-        terrain: [('N', "t_nested_floor".to_owned())].into_iter().collect(),
+        terrain: [('N', Piece::Id("t_nested_floor".to_owned()))]
+            .into_iter()
+            .collect(),
         ..a_plain_mapgen()
     };
     let house = MapgenObject {
@@ -2040,8 +2045,8 @@ fn a_nested_chunk_stands_at_its_marker() {
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned(), ".n..".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('n', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('n', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -2088,6 +2093,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -2142,7 +2148,9 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["...".to_owned(), "...".to_owned(), "...".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -2194,6 +2202,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), field)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(23));
@@ -2255,8 +2264,8 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         om_terrain: "house".to_owned(),
         rows: vec!["IF".to_owned()],
         terrain: [
-            ('I', "t_house_one".to_owned()),
-            ('F', "t_house_one".to_owned()),
+            ('I', Piece::Id("t_house_one".to_owned())),
+            ('F', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -2314,6 +2323,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(29));
@@ -2347,8 +2357,8 @@ fn a_terminal_is_furniture_and_a_record() {
         om_terrain: "house".to_owned(),
         rows: vec!["C.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('C', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('C', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -2400,6 +2410,7 @@ fn a_terminal_is_furniture_and_a_record() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), church)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(31));
@@ -2465,7 +2476,9 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -2505,6 +2518,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), stripped)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(37));
@@ -2551,8 +2565,8 @@ fn a_monster_can_be_a_symbol() {
         om_terrain: "house".to_owned(),
         rows: vec!["Z.".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('Z', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('Z', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -2603,6 +2617,7 @@ fn a_monster_can_be_a_symbol() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), house)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(41));
@@ -2636,48 +2651,12 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         .collect(),
     );
     let room = MapgenObject {
-        mapgensize: (24, 24),
-        place_zones: Vec::new(),
-        place_monsters: Vec::new(),
         om_terrain: "nested_room".to_owned(),
         rows: vec!["NN".to_owned(), "NN".to_owned()],
-        terrain: [('N', "t_nested_floor".to_owned())].into_iter().collect(),
-        furniture: BTreeMap::new(),
-        traps: BTreeMap::new(),
-        items: BTreeMap::new(),
-        monsters: Vec::new(),
-        toilets: BTreeMap::new(),
-        liquids: BTreeMap::new(),
-        place_items: Vec::new(),
-        place_loot: Vec::new(),
-        sealed_items: BTreeMap::new(),
-        vending_machines: BTreeMap::new(),
-        signs: BTreeMap::new(),
-        gas_pumps: BTreeMap::new(),
-        nested: BTreeMap::new(),
-        place_terrain: Vec::new(),
-        place_furniture: Vec::new(),
-        place_traps: Vec::new(),
-        items_single: BTreeMap::new(),
-        field_symbols: BTreeMap::new(),
-        computers: BTreeMap::new(),
-        remove_all: Vec::new(),
-        monster_symbols: BTreeMap::new(),
-        rotation: (0, 0),
-        set_points: Vec::new(),
-        set_radiation: Vec::new(),
-        set_variables: Vec::new(),
-        rubble: BTreeMap::new(),
-        place_rubble: Vec::new(),
-        place_nested: Vec::new(),
-        place_item: Vec::new(),
-        place_signs: Vec::new(),
-        place_liquids: Vec::new(),
-        weight: 1,
-        fields: Vec::new(),
-        fill_ter: None,
-        predecessor_mapgen: None,
-        fallback_predecessor_mapgen: None,
+        terrain: [('N', Piece::Id("t_nested_floor".to_owned()))]
+            .into_iter()
+            .collect(),
+        ..a_plain_mapgen()
     };
     let house = MapgenObject {
         mapgensize: (24, 24),
@@ -2685,7 +2664,9 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![".".repeat(24); 24],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -2726,6 +2707,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(
         &mut world,
@@ -2782,7 +2764,9 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -2830,6 +2814,7 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(47));
@@ -2879,7 +2864,9 @@ fn a_rectangle_can_place_a_liquid() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -2922,6 +2909,7 @@ fn a_rectangle_can_place_a_liquid() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), room)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(53));
@@ -2956,9 +2944,9 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
         om_terrain: "house".to_owned(),
         rows: vec!["AF.".to_owned(), "...".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('A', "t_rubble".to_owned()),
-            ('F', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('A', Piece::Id("t_rubble".to_owned())),
+            ('F', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -3007,6 +2995,7 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
         fill_ter: Some("t_house_one".to_owned()),
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_terrain_codes(
         &mut world,
@@ -3063,7 +3052,9 @@ fn a_set_point_writes_the_layer_it_names() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -3131,6 +3122,7 @@ fn a_set_point_writes_the_layer_it_names() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), scattered)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(61));
@@ -3182,7 +3174,9 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
             "......".to_owned(),
             "......".to_owned(),
         ],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -3250,6 +3244,7 @@ fn a_set_entry_draws_a_point_a_line_or_a_filled_square() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), shapes)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(67));
@@ -3303,7 +3298,9 @@ fn a_set_radiation_entry_writes_a_dose() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -3345,6 +3342,7 @@ fn a_set_radiation_entry_writes_a_dose() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), hotspot)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(71));
@@ -3400,8 +3398,8 @@ fn rubble_is_furniture_and_debris() {
         om_terrain: "house".to_owned(),
         rows: vec!["R..".to_owned()],
         terrain: [
-            ('.', "t_house_one".to_owned()),
-            ('R', "t_house_one".to_owned()),
+            ('.', Piece::Id("t_house_one".to_owned())),
+            ('R', Piece::Id("t_house_one".to_owned())),
         ]
         .into_iter()
         .collect(),
@@ -3451,6 +3449,7 @@ fn rubble_is_furniture_and_debris() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), collapsed)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(73));
@@ -3487,7 +3486,9 @@ fn a_set_variable_names_a_square_in_the_global_store() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -3528,6 +3529,7 @@ fn a_set_variable_names_a_square_in_the_global_store() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), lab)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(79));
@@ -3572,7 +3574,9 @@ fn a_set_removal_takes_away_what_it_names() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -3630,6 +3634,7 @@ fn a_set_removal_takes_away_what_it_names() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), swept)]);
     cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(83));
@@ -3675,7 +3680,9 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
         place_monsters: Vec::new(),
         om_terrain: "field".to_owned(),
         rows: vec!["....".to_owned()],
-        terrain: [('.', "t_grass".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_grass".to_owned()))]
+            .into_iter()
+            .collect(),
         ..a_plain_mapgen()
     };
     let house = MapgenObject {
@@ -3684,7 +3691,9 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
         place_monsters: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..~~".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         fallback_predecessor_mapgen: Some("field".to_owned()),
         ..a_plain_mapgen()
     };
@@ -3716,6 +3725,7 @@ fn a_plain_mapgen() -> MapgenObject {
         rows: Vec::new(),
         terrain: BTreeMap::new(),
         furniture: BTreeMap::new(),
+        parameters: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
         monsters: Vec::new(),
@@ -3895,7 +3905,9 @@ fn the_density_spawner_fills_its_rectangle() {
     let infested = MapgenObject {
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned(), "....".to_owned(), "....".to_owned()],
-        terrain: [('.', "t_house_one".to_owned())].into_iter().collect(),
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
         place_monsters: vec![
             cdda_content::mapgen::AreaMonsters {
                 group: "GROUP_TEST".to_owned(),
@@ -3942,5 +3954,91 @@ fn the_density_spawner_fills_its_rectangle() {
     assert!(
         in_the_dry_corner.is_empty(),
         "**the zero-density entry placed nothing: {in_the_dry_corner:?}**"
+    );
+}
+
+/// **A palette's parameter is drawn once, and every symbol that names it takes that one value.** Reference: `mapgen_palette::resolve_parameters`
+/// (`mapgen.cpp:440-520`), called once per generation: each parameter takes one weighted value from its `default.distribution`, and every `{ "param": name }` in the symbol
+/// tables becomes it - which is what makes a palette's variant **coherent** instead of one wall type per square.
+///
+/// 302 palettes declare parameters and 832 symbols name one, so a port without them draws the fallback everywhere, or nothing at all.
+#[test]
+fn a_parameter_is_drawn_once_for_the_whole_chunk() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_wall_a".to_owned(), 41u32),
+            ("t_wall_b".to_owned(), 42u32),
+            ("t_fallback".to_owned(), 43u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let parameterised = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["###".to_owned(), "###".to_owned()],
+        terrain: [(
+            '#',
+            Piece::Param {
+                name: "wall".to_owned(),
+                fallback: None,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        parameters: [(
+            "wall".to_owned(),
+            cdda_content::mapgen::MapgenParameter {
+                values: vec![("t_wall_a".to_owned(), 1), ("t_wall_b".to_owned(), 1)],
+            },
+        )]
+        .into_iter()
+        .collect(),
+        ..a_plain_mapgen()
+    };
+    // A second palette names a parameter it does **not** declare, so its fallback is what it must draw.
+    let mut with_fallback = parameterised.clone();
+    with_fallback.om_terrain = "fallback".to_owned();
+    with_fallback.rows = vec!["u".to_owned()];
+    with_fallback.parameters.clear();
+    with_fallback.terrain = [(
+        'u',
+        Piece::Param {
+            name: "not_declared".to_owned(),
+            fallback: Some("t_fallback".to_owned()),
+        },
+    )]
+    .into_iter()
+    .collect();
+    cdda_sim::mapgen_update::set_mapgens(
+        &mut world,
+        [
+            ("house".to_owned(), parameterised),
+            ("fallback".to_owned(), with_fallback),
+        ],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(107));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let drawn: Vec<Option<u32>> = (0..3)
+        .flat_map(|x| (0..2).map(move |y| (x, y)))
+        .map(|(x, y)| cdda_sim::square::terrain_at(&world, (x, y, 0)))
+        .collect();
+    assert_eq!(
+        drawn.iter().filter(|code| **code == Some(41)).count()
+            + drawn.iter().filter(|code| **code == Some(42)).count(),
+        6,
+        "**every square is a wall, and the wall type is one of the two the parameter declares: {drawn:?}**"
+    );
+    assert!(
+        drawn.iter().all(|code| *code == drawn[0]),
+        "**and it is the SAME wall type on every square, because the parameter is drawn once: {drawn:?}**"
+    );
+    // The undeclared parameter falls back, which is how a palette that names a parameter it does not declare still draws.
+    cdda_sim::mapgen_tile::generate(&mut world, "fallback", (5, 5, 0));
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (5, 5, 0)),
+        Some(43),
+        "**an undeclared parameter draws its fallback**"
     );
 }

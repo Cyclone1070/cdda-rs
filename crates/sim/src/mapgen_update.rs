@@ -90,7 +90,11 @@ pub fn write(
     // **The dice are taken once for the whole write**, because a layer that stopped mid-chunk would leave the generator half-spent - and a caller that held them would have to
     // hand them back for every square.
     let mut rolls = crate::singletons::take_rolls(world);
-    // **The rotation is drawn first**, because the reference draws it before it draws anything else (`mapgen.cpp:6072`) - and it is a dice roll, so where it comes in the
+    // **The parameters are drawn before the rotation**, because the reference draws every parameter once when it resolves the palette (`mapgen.cpp:440-470`, `:5176-5180`)
+    // and every symbol that names one reads that single value for the whole chunk - which is what makes a variant mapgen **coherent**: one wall type, not one per square.
+    let resolved = resolve_parameters(mapgen, rolls.as_mut());
+    let mapgen = &resolved;
+    // **The rotation is drawn next**, because the reference draws it before it draws anything else (`mapgen.cpp:6072`) - and it is a dice roll, so where it comes in the
     // stream is part of the mapgen's result.
     let turns = match rolls.as_mut() {
         Some(dice) if mapgen.rotation.1 > mapgen.rotation.0 => {
@@ -205,6 +209,7 @@ fn draw_one_square(
     if let Some(code) = mapgen
         .terrain
         .get(&symbol)
+        .and_then(cdda_content::mapgen::Piece::id)
         .and_then(|terrain| codes.get(terrain).copied())
     {
         crate::square::set_terrain(world, at, code);
@@ -213,6 +218,7 @@ fn draw_one_square(
     if let Some(code) = mapgen
         .furniture
         .get(&symbol)
+        .and_then(cdda_content::mapgen::Piece::id)
         .and_then(|furniture| furniture_codes.get(furniture).copied())
     {
         crate::square::set_furniture(world, at, code);
@@ -1126,6 +1132,61 @@ fn place_set_variables(
             },
         );
     }
+}
+
+/// Draws every parameter a mapgen declares **once**, and rewrites every symbol that names one to the id it drew.
+///
+/// Reference: `mapgen_palette::load` (the `parameters` member) and `mapgen_palette::resolve_parameters` (`mapgen.cpp:440-520`), which is called once per generation: each
+/// parameter takes one weighted value from its `default.distribution`, and every `{ "param": name }` in the symbol tables becomes that value. A symbol with no parameter and no
+/// fallback is dropped, which is the reference's behaviour too - a symbol that resolves to nothing draws nothing.
+fn resolve_parameters(
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    mut dice: Option<&mut cdda_core_types::rng::Rolls>,
+) -> cdda_content::mapgen::MapgenObject {
+    use cdda_content::mapgen::{MapgenObject, Piece};
+    // **The rewrite runs even when there is nothing to draw**, because a palette that declares no parameters may still name one - and then its fallback is the answer.
+    // An early return here looked like an optimisation and was a bug: the unresolved piece then drew nothing at all.
+    let mut args: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for (name, parameter) in &mapgen.parameters {
+        if parameter.values.is_empty() {
+            continue;
+        }
+        let drawn = match dice.as_deref_mut() {
+            Some(dice) => {
+                let list = cdda_core_types::weighted::WeightedList::from_entries(
+                    parameter.values.iter().cloned(),
+                );
+                list.pick(dice).cloned()
+            }
+            None => parameter.values.first().map(|(id, _)| id.clone()),
+        };
+        if let Some(drawn) = drawn {
+            args.insert(name.clone(), drawn);
+        }
+    }
+    let resolve = |piece: &Piece| match piece {
+        Piece::Id(id) => Some(Piece::Id(id.clone())),
+        Piece::Param { name, fallback } => args
+            .get(name)
+            .cloned()
+            .or_else(|| fallback.clone())
+            .map(Piece::Id),
+    };
+    let mut rewritten = MapgenObject {
+        terrain: mapgen
+            .terrain
+            .iter()
+            .filter_map(|(symbol, piece)| Some((*symbol, resolve(piece)?)))
+            .collect(),
+        furniture: mapgen
+            .furniture
+            .iter()
+            .filter_map(|(symbol, piece)| Some((*symbol, resolve(piece)?)))
+            .collect(),
+        ..mapgen.clone()
+    };
+    rewritten.parameters.clear();
+    rewritten
 }
 
 /// Fills a rectangle with what a group holds, at the entry's density.

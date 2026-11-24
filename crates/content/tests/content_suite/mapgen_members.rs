@@ -46,6 +46,7 @@ const READ: &[&str] = &[
     "set",
     "place_zones",
     "place_monsters",
+    "parameters",
     "rubble",
     "place_rubble",
     "place_nested",
@@ -85,7 +86,6 @@ const NAMED_GAPS: &[&str] = &[
     // Terrain and furniture that change into each other (`ter_furn_transform`), which is a loader of its own.
     "ter_furn_transforms",
     // A mapgen's own parameters and the size it is drawn at, which the overmap special supplies (P9).
-    "parameters",
     // Factions and the owner of a chunk are P9.
     "faction_owner",
     // A predecessor that only applies when the request asks for one (`expects_predecessor`), and its fallback.

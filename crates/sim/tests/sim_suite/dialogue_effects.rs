@@ -8,6 +8,7 @@
 
 use bevy_ecs::prelude::*;
 use cdda_content::dialogue::{AssignmentOp, read_assignment};
+use cdda_content::mapgen::Piece;
 use cdda_sim::dialogue_effects::{Applied, run_assignment};
 use cdda_sim::dialogue_values::{self, Value};
 
@@ -1321,9 +1322,12 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         rows: vec!["AB".to_owned()],
-        terrain: [('A', "t_rock".to_owned()), ('B', "t_rock_floor".to_owned())]
-            .into_iter()
-            .collect::<BTreeMap<char, String>>(),
+        terrain: [
+            ('A', Piece::Id("t_rock".to_owned())),
+            ('B', Piece::Id("t_rock_floor".to_owned())),
+        ]
+        .into_iter()
+        .collect::<BTreeMap<char, Piece>>(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -1360,6 +1364,7 @@ fn a_mapgen_update_writes_its_terrain_where_the_speaker_stands() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_wall_opens".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
@@ -1444,9 +1449,12 @@ fn a_wall_update_world() -> (World, bevy_ecs::prelude::Entity) {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         rows: vec!["AB".to_owned()],
-        terrain: [('A', "t_rock".to_owned()), ('B', "t_rock_floor".to_owned())]
-            .into_iter()
-            .collect::<BTreeMap<char, String>>(),
+        terrain: [
+            ('A', Piece::Id("t_rock".to_owned())),
+            ('B', Piece::Id("t_rock_floor".to_owned())),
+        ]
+        .into_iter()
+        .collect::<BTreeMap<char, Piece>>(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -1483,6 +1491,7 @@ fn a_wall_update_world() -> (World, bevy_ecs::prelude::Entity) {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_wall_opens".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
@@ -1623,6 +1632,7 @@ fn a_mapgen_update_may_place_fields_instead_of_terrain() {
             intensity: (1, 3),
             repeat: 6,
         }],
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("SCENARIO_SMOKE".to_owned(), mapgen)]);
 
@@ -1683,9 +1693,9 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         rows: vec!["A".to_owned()],
-        terrain: [('A', "t_floor".to_owned())]
+        terrain: [('A', Piece::Id("t_floor".to_owned()))]
             .into_iter()
-            .collect::<BTreeMap<char, String>>(),
+            .collect::<BTreeMap<char, Piece>>(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -1722,6 +1732,7 @@ fn a_mapgen_update_can_be_aimed_at_a_stored_square() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("open_the_wall".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
@@ -2003,9 +2014,9 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
         place_zones: Vec::new(),
         place_monsters: Vec::new(),
         rows: vec!["A".to_owned()],
-        terrain: [('A', "t_rock".to_owned())]
+        terrain: [('A', Piece::Id("t_rock".to_owned()))]
             .into_iter()
-            .collect::<BTreeMap<char, String>>(),
+            .collect::<BTreeMap<char, Piece>>(),
         furniture: BTreeMap::new(),
         traps: BTreeMap::new(),
         items: BTreeMap::new(),
@@ -2042,6 +2053,7 @@ fn an_om_terrain_aim_lands_on_the_nearest_tile_of_that_terrain() {
         fill_ter: None,
         predecessor_mapgen: None,
         fallback_predecessor_mapgen: None,
+        parameters: BTreeMap::new(),
     };
     cdda_sim::mapgen_update::set_mapgens(&mut world, [("lab_finale".to_owned(), mapgen)]);
     cdda_sim::mapgen_update::set_terrain_codes(
