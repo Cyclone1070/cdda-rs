@@ -159,6 +159,7 @@ pub fn write(
     spawn_by_density(world, mapgen, origin, &mut rolls);
     park_the_vehicles(world, mapgen, origin, &mut rolls);
     apply_the_transforms(world, mapgen, origin, &mut rolls);
+    write_the_graffiti(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -273,7 +274,7 @@ const DEFAULT_TOILET_CHARGES: i32 = 24;
 /// Strips the squares of every `remove_all` rectangle: furniture, items, traps and fields.
 ///
 /// Reference: `jmapgen_remove_all::apply` (`mapgen.cpp:4177-4205`): `furn_clear`, `i_clear`, `remove_trap`, `clear_fields` and `delete_graffiti` on **every** square of the
-/// rectangle. **Named gap**: the port has no graffiti to delete and no vehicle to uncache; both are named with the stores they belong to.
+/// rectangle. The reference also uncaches vehicles here, which the port has no cache for - named, and empty on purpose.
 fn remove_everything(
     world: &mut World,
     mapgen: &cdda_content::mapgen::MapgenObject,
@@ -292,6 +293,7 @@ fn remove_everything(
                 }
                 crate::square::remove_trap(world, at);
                 clear_fields(world, at);
+                crate::square::delete_graffiti(world, at);
             }
         }
     }
@@ -1134,6 +1136,45 @@ fn place_set_variables(
             },
         );
     }
+}
+
+/// Writes the graffiti a mapgen names.
+///
+/// Reference: `jmapgen_graffiti::apply` (`mapgen.cpp:2750-2776`): one rolled square, the **text** or a line drawn from the **snippet** category, then
+/// `apply_all_tags` expands the placeholders (`SNIPPET.expand`, the city tag) and `map::set_graffiti` writes it.
+///
+/// **Named gaps**: the tag expansion is partial - the city tag becomes the reference's own fallback, "illegible city name", because the port has no city to name, and the
+/// snippet placeholders (`<given_name>`, ...) are not expanded at all. Both are named here rather than silently written into the map.
+fn write_the_graffiti(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_graffiti {
+        let at = roll_a_square(rolls, entry.x, entry.y);
+        let square = (origin.0 + at.0, origin.1 + at.1, origin.2);
+        let drawn = if entry.snippet.is_empty() {
+            entry.text.clone()
+        } else {
+            crate::snippets::pick(world, &entry.snippet, rolls.as_mut())
+                .map(|line| line.text)
+                .unwrap_or_default()
+        };
+        if drawn.is_empty() {
+            continue;
+        }
+        crate::square::set_graffiti(world, square, &expand_graffiti_tags(&drawn));
+    }
+}
+
+/// Expands the placeholders a graffiti text may carry, to the extent the port can answer them.
+///
+/// Reference: `jmapgen_graffiti::apply_all_tags` (`mapgen.cpp:2777-2790`), which expands the snippet tags and then replaces the city tag with the nearest city's name - or, when
+/// the overmap has no city there, the literal `illegible city name`. The port has no city yet, so it writes that literal; the other tags are left as they are, which is why this
+/// is a partial rule and is named as one.
+fn expand_graffiti_tags(text: &str) -> String {
+    text.replace("<city_name>", "illegible city name")
 }
 
 /// Applies the terrain/furniture transforms a mapgen names.

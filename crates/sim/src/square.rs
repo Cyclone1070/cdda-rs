@@ -387,3 +387,58 @@ pub fn square_at(world: &World, square: (i32, i32, i32)) -> Option<Entity> {
         .copied()
         .find(|entity| world.get::<Square>(*entity).is_some())
 }
+
+/// The graffiti on a square: words somebody sprayed there, which the map keeps once each and a mapgen may write.
+///
+/// Reference: `map::set_graffiti` / `map::graffiti_at` (`map.cpp`), which keep one string per square in `maptile::graffiti` and let a later write **replace** it. The port
+/// keeps it as a component on the square's ground entity, so a square's graffiti lives with the square and dies with it, exactly like its terrain.
+#[derive(Debug, Clone, PartialEq, Eq, Component)]
+pub struct Graffiti(pub String);
+
+/// Writes graffiti on a square, replacing what was there.
+pub fn set_graffiti(world: &mut World, square: (i32, i32, i32), text: &str) {
+    let ground = entities_at(world, square)
+        .iter()
+        .copied()
+        .find(|entity| world.get::<Terrain>(*entity).is_some());
+    if let Some(entity) = ground {
+        world.entity_mut(entity).insert(Graffiti(text.to_owned()));
+        return;
+    }
+    // A square with no ground yet is created the way `set_terrain` creates one, with the blank terrain the world gives an undrawn square.
+    let entity = world
+        .spawn((
+            Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
+            Ground,
+            Graffiti(text.to_owned()),
+        ))
+        .id();
+    crate::singletons::index_mut(world).insert(entity, square);
+}
+
+/// The graffiti on a square, when it has any.
+#[must_use]
+pub fn graffiti_at(world: &World, square: (i32, i32, i32)) -> Option<String> {
+    entities_at(world, square).iter().find_map(|entity| {
+        world
+            .get::<Graffiti>(*entity)
+            .map(|graffiti| graffiti.0.clone())
+    })
+}
+
+/// Takes the graffiti off a square, answering whether there was any.
+pub fn delete_graffiti(world: &mut World, square: (i32, i32, i32)) -> bool {
+    let ground = entities_at(world, square)
+        .iter()
+        .copied()
+        .find(|entity| world.get::<Graffiti>(*entity).is_some());
+    let Some(entity) = ground else {
+        return false;
+    };
+    world.entity_mut(entity).remove::<Graffiti>();
+    true
+}

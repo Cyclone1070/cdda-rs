@@ -228,6 +228,8 @@ pub struct MapgenObject {
     /// The terrain/furniture transforms a mapgen applies over a rectangle (`jmapgen_ter_furn_transform`, `mapgen.cpp:3766-3791`): 45 entries, and how a map says "there is a
     /// window here, and it has been broken out" without naming the broken shape in its rows.
     pub place_ter_furn_transforms: Vec<AreaTransform>,
+    /// The graffiti a mapgen writes (`jmapgen_graffiti`, `mapgen.cpp:2738-2780`): 13 entries, each a piece of text or a snippet category the generation draws a line from.
+    pub place_graffiti: Vec<AreaGraffiti>,
     /// The vehicles a mapgen parks (`jmapgen_vehicle`, `mapgen.cpp:3180-3200`): 500 entries, and the only thing that fills a parking lot.
     pub place_vehicles: Vec<AreaVehicles>,
     /// The zones a mapgen records over a rectangle (`jmapgen_zone`, `mapgen.cpp:4044-4073`): 66 entries, and how a map says "this room is a workshop" or "do not
@@ -836,6 +838,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_zones: read_area_zones(inner.get("place_zones")),
                 place_monsters: read_area_monsters(inner.get("place_monsters")),
                 place_vehicles: read_area_vehicles(inner.get("place_vehicles")),
+                place_graffiti: read_area_graffiti(inner.get("place_graffiti")),
                 place_ter_furn_transforms: read_area_transforms(
                     inner.get("place_ter_furn_transforms"),
                 ),
@@ -1038,6 +1041,51 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One piece of graffiti a mapgen writes (`jmapgen_graffiti`, `mapgen.cpp:2738-2780`).
+///
+/// The data states either `text` or a `snippet` **category**: the reference draws a line out of the category at generation time, which is what makes a billboard say something
+/// different in every town.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaGraffiti {
+    /// The text to write, when the data gives one.
+    pub text: String,
+    /// The snippet category to draw from, when the data gives one instead.
+    pub snippet: String,
+    /// The columns it may land on.
+    pub x: (i32, i32),
+    /// The rows it may land on.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_graffiti` list.
+fn read_area_graffiti(list: Option<&cdda_json::Value>) -> Vec<AreaGraffiti> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let named = |name: &str| match one.get(name) {
+            Some(cdda_json::Value::Str(text)) => text.clone(),
+            _ => String::new(),
+        };
+        let (text, snippet) = (named("text"), named("snippet"));
+        // The reference throws when a graffiti entry names neither; the port drops it, because a drop is visible in a census and a panic in a loader is not.
+        if text.is_empty() && snippet.is_empty() {
+            continue;
+        }
+        placed.push(AreaGraffiti {
+            text,
+            snippet,
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One terrain/furniture transform over a rectangle (`jmapgen_ter_furn_transform`, `mapgen.cpp:3766-3791`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AreaTransform {

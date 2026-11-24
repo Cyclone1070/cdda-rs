@@ -40935,3 +40935,23 @@ rectangle one row tall. The rule now takes the ranges as they are and draws noth
   fixture now names two rows and the test checks both.
 
 The mutation transforms only the rectangle's near corner: columns 2 and 3 stay windows and the row assertion fails.
+
+## Words on a wall (round 324)
+
+`place_graffiti` - **13 entries** - was not read, and the port had no graffiti at all: `remove_all`'s `delete_graffiti` step was a named gap because there was nothing to
+delete. The frame is `jmapgen_graffiti::apply` (`mapgen.cpp:2750-2776`): one rolled square, the entry's **`text`** or a line drawn from its **`snippet`** category, the tags
+expanded, and `map::set_graffiti`.
+
+The port gained the thing the member writes: a `Graffiti` component on the square's ground entity, with `set_graffiti`, `graffiti_at` and `delete_graffiti` beside the terrain
+accessors. A square's words therefore live with the square and die with it, which is the same shape every other per-square fact has here.
+
+**The scrub closed a gap rather than adding one**: `remove_everything` now calls `delete_graffiti`, which is exactly what `jmapgen_remove_all::apply` (`:4177-4205`) does last.
+
+**The test taught the phase order the hard way.** Its third assertion generated a mapgen with both graffiti and a `remove_all` covering the same square and expected no
+graffiti - and got the graffiti, because `remove_all` is the **first** phase (`mapgen.h:88-97`) and runs before anything is written. A scrub can only take away what was
+already there, so the test now writes on a chunk that already carries the words and then scans it. The rule was right; the test's story about time was not.
+
+**Named gaps, in the writer's own comment**: the tag expansion is partial - the city tag becomes the reference's own fallback, "illegible city name", because the port has no
+city, and the snippet placeholders (`<given_name>`, ...) are not expanded at all.
+
+The mutation writes the snippet category's **name** instead of drawing a line from it: `billboard_ad_snippets` where the square should say `EAT AT JOE'S`.
