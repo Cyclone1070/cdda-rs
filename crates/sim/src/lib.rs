@@ -122,6 +122,7 @@ pub mod turn;
 pub mod vehicle_angle;
 pub mod vehicle_cargo;
 pub mod vehicle_damage;
+pub mod vehicle_groups;
 pub mod vehicle_mass;
 pub mod vehicle_spawn;
 pub mod vehicle_tow;

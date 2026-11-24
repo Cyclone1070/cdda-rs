@@ -225,6 +225,8 @@ pub struct MapgenObject {
     pub set_variables: Vec<SetVariable>,
     /// The **density** spawner (`jmapgen_monster_group`, `mapgen.cpp:3080-3100`): 388 entries, and the only way the data fills a military base or a lab with what lives there.
     pub place_monsters: Vec<AreaMonsters>,
+    /// The vehicles a mapgen parks (`jmapgen_vehicle`, `mapgen.cpp:3180-3200`): 500 entries, and the only thing that fills a parking lot.
+    pub place_vehicles: Vec<AreaVehicles>,
     /// The zones a mapgen records over a rectangle (`jmapgen_zone`, `mapgen.cpp:4044-4073`): 66 entries, and how a map says "this room is a workshop" or "do not
     /// investigate this area" before anything stands in it.
     pub place_zones: Vec<AreaZone>,
@@ -780,6 +782,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 set_variables: read_set_variables(inner.get("set")),
                 place_zones: read_area_zones(inner.get("place_zones")),
                 place_monsters: read_area_monsters(inner.get("place_monsters")),
+                place_vehicles: read_area_vehicles(inner.get("place_vehicles")),
                 rubble: read_rubble(inner.get("rubble")),
                 place_rubble: read_area_rubble(inner.get("place_rubble")),
                 place_nested: read_area_nested(inner.get("place_nested")),
@@ -979,6 +982,48 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One vehicle a mapgen parks (`jmapgen_vehicle`, `mapgen.cpp:3180-3200`).
+///
+/// The `vehicle` member names either a prototype or a **vehicle group** (`vehicle_group`, 111 mapgens use the group form), and the placement rule draws from the group when it is
+/// one; `chance` is the one-in-n chance the entry places anything at all, and `rotation` is the heading in degrees.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaVehicles {
+    /// The prototype or group named.
+    pub vehicle: String,
+    /// The columns it may land on.
+    pub x: (i32, i32),
+    /// The rows it may land on.
+    pub y: (i32, i32),
+    /// The one-in-n chance the entry places anything (`chance`, default 1).
+    pub chance: (i32, i32),
+    /// Its heading, in degrees (`rotation`, default 0).
+    pub rotation: (i32, i32),
+}
+
+/// Reads a mapgen's `place_vehicles` list.
+fn read_area_vehicles(list: Option<&cdda_json::Value>) -> Vec<AreaVehicles> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(vehicle)) = one.get("vehicle") else {
+            continue;
+        };
+        placed.push(AreaVehicles {
+            vehicle: vehicle.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+            chance: span(one.get("chance")),
+            rotation: span(one.get("rotation")),
+        });
+    }
+    placed
+}
+
 /// One density spawner entry: a group, a rectangle, and how thickly it fills it (`jmapgen_monster_group`, `mapgen.cpp:3080-3100`).
 ///
 /// The density is a **float in the data** and a whole number here, in thousandths, because the model compares exactly and a float does not: the data writes one or two

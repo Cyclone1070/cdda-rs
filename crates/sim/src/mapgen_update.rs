@@ -157,6 +157,7 @@ pub fn write(
     place_set_variables(world, mapgen, origin, &mut rolls);
     place_the_zones(world, mapgen, origin, &mut rolls);
     spawn_by_density(world, mapgen, origin, &mut rolls);
+    park_the_vehicles(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1130,6 +1131,57 @@ fn place_set_variables(
                 y: origin.1 + y,
                 z: origin.2,
             },
+        );
+    }
+}
+
+/// Parks the vehicles a mapgen places.
+///
+/// Reference: `jmapgen_vehicle::apply` (`mapgen.cpp:3180-3200`): `one_in( chance )`, then `map::add_vehicle( vgroup, pos, rotation, fuel, status, merge )`. The group member is a
+/// `vgroup_id`, so the draw goes through `VehicleGroup::pick` first and only then to a prototype; the port asks the group store whether the id is a group and falls back to the
+/// prototype table when it is not, which is the same distinction the reference's type system makes.
+///
+/// **Named gaps**: `fuel` (the reference places `fuel` units into a tank, `map::add_vehicle` with `veh_fuel`) and `status` (the light-damage pass) are not read yet; a vehicle
+/// placed here arrives undamaged and empty, and this note is where that is recorded.
+fn park_the_vehicles(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_vehicles {
+        let chance = match rolls.as_mut() {
+            Some(dice) if entry.chance.1 > entry.chance.0 => {
+                dice.rng(entry.chance.0, entry.chance.1)
+            }
+            _ => entry.chance.0,
+        };
+        let Some(dice) = rolls.as_mut() else {
+            continue;
+        };
+        if !dice.one_in(chance.max(1)) {
+            continue;
+        }
+        let x = dice.rng(entry.x.0, entry.x.1);
+        let y = dice.rng(entry.y.0, entry.y.1);
+        let rotation = if entry.rotation.1 > entry.rotation.0 {
+            dice.rng(entry.rotation.0, entry.rotation.1)
+        } else {
+            entry.rotation.0
+        };
+        let prototype = if crate::vehicle_groups::is_group(world, &entry.vehicle) {
+            let Some(picked) = crate::vehicle_groups::pick(world, &entry.vehicle, dice) else {
+                continue;
+            };
+            picked
+        } else {
+            entry.vehicle.clone()
+        };
+        crate::vehicles::spawn_facing(
+            world,
+            &prototype,
+            (origin.0 + x, origin.1 + y, origin.2),
+            f64::from(rotation),
         );
     }
 }

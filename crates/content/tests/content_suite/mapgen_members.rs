@@ -46,6 +46,7 @@ const READ: &[&str] = &[
     "set",
     "place_zones",
     "place_monsters",
+    "place_vehicles",
     "parameters",
     "rubble",
     "place_rubble",
@@ -70,7 +71,6 @@ const NAMED_GAPS: &[&str] = &[
     "place_computers",
     "place_graffiti",
     "place_corpses",
-    "place_vehicles",
     "place_variables",
     "place_ter_furn_transforms",
     // A spawn point: the monster group, its density and the map's spawn inventory, which is a subsystem of its own.

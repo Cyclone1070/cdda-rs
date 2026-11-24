@@ -40887,3 +40887,20 @@ carry, not a coincidence of the fallback.
 
 Still open in this area, named so it is not mistaken for done: a `mapping` bundle's `items` list needs the symbol table to become a list of placements, and `mapgen_value`'s
 **switch** form (a parameter whose value depends on the terrain, `mapgen.cpp:520-560`) is not read - only the flat `distribution` is.
+
+## A mapgen parks a vehicle (round 321)
+
+`place_vehicles` - **500 entries** - was not read, and the parking lots, garages and car dealerships of the world are exactly those entries: a port without it draws empty
+lots. The frame is `jmapgen_vehicle::apply` (`mapgen.cpp:3180-3200`): `one_in( chance )`, then `map::add_vehicle( vgroup, pos, rotation, fuel, status, merge )`.
+
+**The `vehicle` member is a group more often than not** - 111 mapgens name one, and `parkinglotbasic` and `oa_vg_wreck` are groups, not prototypes. So the round came with the
+missing data type: `vehicle_group` (`{ "vehicles": [ [ "car", 300 ], ... ] }`), loaded by `content::vehicle_groups` and stored as one singleton beside the monster groups. The
+writer asks the group store whether the id is a group and falls back to the prototype table when it is not - the same distinction the reference's types make, made by a lookup
+instead of by a type.
+
+**Named gaps**, recorded rather than implied: `fuel` (a placement may fill a tank) and `status` (the light-damage pass) are not read, so a vehicle placed here arrives undamaged
+and dry. Both are their own rules and both are named in the writer's doc comment where the next round will find them.
+
+The test pins the three things the rule can get wrong: the **prototype** lands on its square facing the heading the entry names (90 degrees), the **group** form draws out of
+the group and parks what it drew, and a one-in-fifty entry does **not** fire, so its square stays empty. The mutation removes the group branch: the group entry then names no
+prototype, nothing is parked, and the assertion that a vehicle stands on that square fails.

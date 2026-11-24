@@ -69,6 +69,7 @@ pub mod starting_kit;
 pub mod terrain;
 pub mod traps;
 pub mod use_actions;
+pub mod vehicle_groups;
 pub mod vehicles;
 pub mod vitamins;
 pub mod weakpoints;
