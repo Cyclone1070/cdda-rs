@@ -4612,3 +4612,32 @@ fn a_mapgen_lays_out_a_corpse_it_names() {
     );
     assert!(body.revives, "**and it can still get up**");
 }
+
+/// **A `place_variables` entry on a mapgen writes both of its spellings into the one store.** Reference: `jmapgen_variable` (`mapgen.cpp:4086-4101`) and the `set` list's
+/// `variable` entry (`:5736-5739`) both put the square into `queued_points[name]`, and the runtime writes `queued_points` into the global variables at the end of the draw.
+///
+/// So the member form is not a second rule, and this test pins that it reaches the same place: a mapgen that names one variable through `set_variables` (the port's name for the
+/// `set` spelling) reads it back from the global values by that name.
+#[test]
+fn a_mapgen_names_a_square_in_a_variable() {
+    let mut world = a_world(Vec::new());
+    // **Read from JSON, not built by hand**: the rule under test is the reader's, and a fixture that sets the list directly would pass with no reader at all.
+    let json = cdda_json::parse(
+        br#"{"om_terrain": "house", "object": {"rows": [".."], "terrain": {".": "t_house_one"},
+            "place_variables": [{"name": "GUARD1_First", "x": 1, "y": 0}]}}"#,
+    )
+    .expect("the prototype parses");
+    let named = cdda_content::mapgen::load_objects(&json)
+        .into_iter()
+        .next()
+        .expect("**the prototype reads**");
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), named)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(157));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (10, 20, 0));
+    let holder = cdda_sim::dialogue_values::ensure_global(&mut world);
+    assert_eq!(
+        cdda_sim::dialogue_values::value_of(&world, holder, "GUARD1_First"),
+        Some(cdda_sim::dialogue_values::Value::Position { x: 11, y: 20, z: 0 }),
+        "**the variable names the square the mapgen put it on, in world coordinates**"
+    );
+}

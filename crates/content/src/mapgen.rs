@@ -836,7 +836,12 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 rotation: span(inner.get("rotation")),
                 set_points: read_set_points(inner.get("set")),
                 set_radiation: read_set_radiation(inner.get("set")),
-                set_variables: read_set_variables(inner.get("set")),
+                // The reference writes both forms into the same `queued_points` (`mapgen.cpp:4098` and `:5737`): a `variable` entry of the `set` list and a `place_variables`
+                // entry with its own `name`. They are one rule with two spellings, so the port reads them into one list.
+                set_variables: read_set_variables(inner.get("set"))
+                    .into_iter()
+                    .chain(read_place_variables(inner.get("place_variables")))
+                    .collect(),
                 place_zones: read_area_zones(inner.get("place_zones")),
                 place_monsters: read_area_monsters(inner.get("place_monsters")),
                 place_vehicles: read_area_vehicles(inner.get("place_vehicles")),
@@ -1326,6 +1331,28 @@ pub struct SetVariable {
     pub x: (i32, i32),
     /// The rows it may land in.
     pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_variables` list, the member form of the `set` list's `variable` entry (`jmapgen_variable`, `mapgen.cpp:4086-4101`).
+fn read_place_variables(list: Option<&cdda_json::Value>) -> Vec<SetVariable> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(name)) = one.get("name") else {
+            continue;
+        };
+        placed.push(SetVariable {
+            name: name.clone(),
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
 }
 
 /// Reads the `variable` entries of a mapgen's `set` list.

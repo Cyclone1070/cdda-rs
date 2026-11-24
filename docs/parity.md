@@ -41029,3 +41029,21 @@ writer. It is named rather than silently ignored.
 The mutation dates every body today instead of `age` days back, and the test's `died_on` assertion fails.
 
 The members still unread are now `faction_owner` (150, needs factions), `place_npcs` (22, needs NPC class templates) and `place_variables`, plus the `burn` set point.
+
+## One rule with two spellings (round 329)
+
+`place_variables` - the last member of the mapgen family that was neither read nor blocked on a subsystem - is **not a new rule**: `jmapgen_variable` (`mapgen.cpp:4086-4101`)
+writes `queued_points[name] = absolute square`, which is exactly what the `set` list's `variable` entry writes (`:5736-5739`). The port has modelled that store since the
+variables round; the member merely spells it differently (`"place_variables": [{"name": ...}]` rather than `{"point": "variable", "id": ...}`).
+
+So the round is a reader that chains both spellings into the one list, and the note worth keeping is the shape: **the reference's own two spellings of one rule became the port's
+one list**, which is what "translate the rules, not the structure" means when the structure is a JSON member name.
+
+**The test was rewritten mid-round for a reason worth recording.** Its first version built the `MapgenObject` by hand with `set_variables` already filled, and it passed - but it
+would have passed with **no reader at all**, so the mutation could not fail it. The fixture now parses a prototype from JSON and reads it with `load_objects`, which puts the new
+reader on the path the test walks. A test that cannot see the change under test is not a test of it; the mutation is what makes that visible.
+
+The mutation drops the chain: the variable is never written, and the test's `value_of` assertion fails.
+
+**What is left of the mapgen family**: `faction_owner` (150 uses, needs factions), `place_npcs` (22, needs NPC class templates), and the `burn` set point. Everything else in the
+family is read.
