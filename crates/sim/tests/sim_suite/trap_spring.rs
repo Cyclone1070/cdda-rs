@@ -2970,3 +2970,73 @@ fn a_sinkhole_becomes_a_pit() {
         "**because the pit's own fall follows**: {lines:?}"
     );
 }
+
+/// **A goo puddle takes itself away, slimes the feet and sometimes eats at them.** Reference: `trapfunc::goo` (`trapfunc.cpp:851-897`): the trap is removed whether or not
+/// anything stands on it, a person is told they stepped in it, gets `slimed` at intensity six for two minutes, and one time in three takes five cut on each part touching the
+/// ground with a line naming them.
+///
+/// The test uses a fixed roll so the one-in-three lands, which is what makes the damage half deterministic; the slime half has no dice in it at all.
+#[test]
+fn a_goo_puddle_slimes_and_eats() {
+    let (mut world, who) = a_pit_for("goo");
+    world.entity_mut(who).insert(cdda_sim::creature::Body {
+        parts: vec![
+            a_part("foot_l", "foot"),
+            a_part("foot_r", "foot"),
+            a_part("leg_l", "leg"),
+        ],
+    });
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[
+            cdda_sim::effect_registry::bare("in_pit"),
+            cdda_sim::effect_registry::bare("slimed"),
+        ],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let hp_before = cdda_sim::creature::health_of(&world, who).unwrap_or(0);
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the goo is stepped in**"
+    );
+    assert!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)).is_none(),
+        "**and takes itself away, so it cannot spring twice**"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, who, "slimed"),
+        "**the feet are slimed**"
+    );
+    assert_eq!(
+        cdda_sim::creature::wound_on(&world, who, "foot_l"),
+        5,
+        "**and the acid eats each foot for five**"
+    );
+    assert_eq!(
+        cdda_sim::creature::wound_on(&world, who, "foot_r"),
+        5,
+        "**both of them**"
+    );
+    assert_eq!(
+        cdda_sim::creature::wound_on(&world, who, "leg_l"),
+        0,
+        "**and not the leg, which does not touch the ground**"
+    );
+    assert!(
+        cdda_sim::creature::health_of(&world, who).unwrap_or(0) < hp_before,
+        "**the acid cost hit points**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "You step in a puddle of thick goo."),
+        "**the goo is announced**: {lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.starts_with("The acidic goo eats away at your")),
+        "**and the burn with it**: {lines:?}"
+    );
+}

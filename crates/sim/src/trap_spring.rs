@@ -52,6 +52,7 @@ pub fn spring_with(
         Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
         Some("pit") => return pit(world, who, square),
         Some("sinkhole") => return sinkhole(world, who, square),
+        Some("goo") => return goo(world, who, square),
         Some("blade") => return blade(world, who),
         Some("snake") => return snake(world, square),
         Some("shadow") => return shadow(world, who, square),
@@ -1151,6 +1152,83 @@ fn tripwire(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
     if tripped > dexterity {
         #[allow(clippy::cast_precision_loss)]
         crate::creature::hurt(world, who, damage as f32);
+    }
+    true
+}
+
+/// **A goo puddle slimes feet and, sometimes, eats at them.**
+///
+/// Reference: `trapfunc::goo` (`trapfunc.cpp:851-897`). The trap is removed whether or not anything is standing on it; a person is told they stepped in it, gets `slimed` at
+/// intensity six for two minutes on the parts that touch the ground, and one time in three takes five cut on each of them with a line naming the parts. A monster keeps its
+/// footing but changes: anything that is not a blob loses fifteen speed and - unless it is a robot - **becomes a blob** with its hit points set to its speed; a blob gains
+/// fifteen speed instead, and also has its hit points set to its speed.
+///
+/// **Named gap**: the reference applies `slimed` **per ground-contact part** (`add_env_effect( effect_slimed, bp, ... )` in a loop). The port's effects are creature-scoped,
+/// so the slime is applied once to the creature. The acid damage *is* per part, because damage is dealt to a part here.
+fn goo(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    crate::square::remove_trap(world, square);
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You step in a puddle of thick goo.".to_owned()
+    } else {
+        format!("{} steps in a puddle of thick goo.", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    if let Some(kind) = world
+        .get::<crate::creature::CreatureKind>(who)
+        .map(|kind| kind.0)
+    {
+        let is_blob = crate::monster_registry::name_of(world, kind).as_deref() == Some("mon_blob");
+        let base = crate::creature::speed_of(world, who);
+        if is_blob {
+            crate::creature::set_speed(world, who, base + 15, 0);
+            crate::creature::set_health(world, who, base + 15);
+        } else {
+            crate::creature::set_speed(world, who, base - 15, 0);
+            // Reference: `if( !z->type->in_species( species_ROBOT ) )` - a machine is not melted into a blob.
+            if !crate::monster_registry::kind_in_species(world, kind, "ROBOT")
+                && let Some(blob) = crate::monster_registry::id_of(world, "mon_blob")
+            {
+                crate::creature::poly(world, who, blob);
+                crate::creature::set_health(world, who, base - 15);
+            }
+        }
+        return true;
+    }
+    if let Some(slimed) = crate::effect_registry::kind_named(world, "slimed") {
+        crate::applied_effects::add(
+            world,
+            who,
+            crate::effects::ActiveEffect::new(&slimed, 120, 6),
+        );
+    }
+    let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+        return true;
+    };
+    let acidic = rolls.one_in(3);
+    let parts = if acidic {
+        let mut found = Vec::new();
+        // The reference asks the feet, which is what `get_ground_contact_bodyparts()` is (`bodypart.cpp`): the parts touching the ground.
+        if let Some(body) = world.get::<crate::creature::Body>(who) {
+            for part in &body.parts {
+                if part.name == "foot_l" || part.name == "foot_r" {
+                    found.push(part.name.clone());
+                }
+            }
+        }
+        found
+    } else {
+        Vec::new()
+    };
+    crate::singletons::put_rolls(world, rolls);
+    if acidic {
+        for part in &parts {
+            crate::creature::wound(world, who, part, 5);
+            crate::creature::hurt(world, who, 5.0);
+        }
+        crate::messages::push(
+            world,
+            &format!("The acidic goo eats away at your {}!", parts.join(", ")),
+        );
     }
     true
 }

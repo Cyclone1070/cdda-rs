@@ -41124,3 +41124,18 @@ not asked, and falls where the reference might have let them climb out.
 
 The ledger moves to **123 of 125 traps answered, 2 unported** - `boobytrap` (an active item with a fuse) and `goo` (a monster-spawning field), both named with the subsystem they
 wait on.
+
+## The puddle that eats (round 334)
+
+`goo` was the second of the ledger's two "waiting on a subsystem" traps, and it was not waiting on much: `trapfunc::goo` (`trapfunc.cpp:851-897`) removes the trap whether or not
+anything stands on it, tells a person they stepped in it, applies `slimed` at intensity six for two minutes, and one time in three deals five **cut** to each part that touches
+the ground. A monster's half turned out to be portable too, and for a reason worth recording: the port already had `set_speed` and `poly` from the monster work, so the
+reference's "anything that is not a blob loses fifteen speed and becomes a blob, with its hit points set to its speed" - and the blob's own "+15 instead" - are three calls
+each, not a subsystem.
+
+**Named gap**: the reference applies `slimed` **per ground-contact part** in a loop. The port's effects are creature-scoped, so the slime lands once; the acid damage *is*
+per part, because damage is dealt to a part here. That asymmetry is worth noticing: the port can model a per-part wound and not a per-part effect, and the note says which.
+
+The mutation makes the one-in-three never land: the slime still goes on, the trap still goes away, and the wound assertions fail.
+
+The ledger moves to **124 of 125 traps answered** - only `boobytrap` left, and it really is waiting on a subsystem: an active item with a fuse.
