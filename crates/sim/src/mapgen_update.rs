@@ -1266,13 +1266,14 @@ fn damage_the_vehicle(
     // are each rolled for - and a "mint with no faults" vehicle (`status == 2`) clears all three after the rolls, which is why the rolls still happen.
     let (mut destroy_seats, mut destroy_controls, mut destroy_tank, mut destroy_engine) =
         (false, false, false, false);
+    let mut destroy_tires = false;
     if status == 1 {
         match dice.rng(1, 5) {
             1 => destroy_seats = true,
             2 => destroy_controls = true,
             3 => destroy_tank = true,
             4 => destroy_engine = true,
-            _ => {}
+            _ => destroy_tires = true,
         }
     }
     let _has_no_key = dice.one_in(3);
@@ -1327,6 +1328,61 @@ fn damage_the_vehicle(
     }
     if let Some(mut record) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
         record.parts = parts;
+    }
+    // **The tyres last**, because the reference destroys them *after* the part loop and asks the vehicle itself whether it can still drive (`vehicle.cpp:602-610`): while
+    // `valid_wheel_config` holds and fewer than a hundred tyres have gone, one wheel is picked from the wheel cache at random and broken. A vehicle with four wheels therefore
+    // loses three and keeps one - a single wheel is not a valid configuration - and the loop stops on the question rather than on a count.
+    if destroy_tires {
+        let mut tries = 0;
+        while tries < 100 && crate::vehicles::valid_wheel_config(world, vehicle) {
+            let Some(wheels) = world
+                .get::<crate::vehicles::Vehicle>(vehicle)
+                .map(|record| {
+                    record
+                        .parts
+                        .iter()
+                        .enumerate()
+                        // **A broken wheel is not in the cache.** The reference's `wheelcache` is rebuilt from the vehicle's live parts, so the same wheel cannot be picked
+                        // twice - and a filter that forgot the `broken` half picks the same one a hundred times, which is exactly what this loop did before the test saw it.
+                        .filter(|(index, part)| {
+                            !part.broken
+                                && crate::vehicles::part_spec(world, vehicle, *index)
+                                    .is_some_and(|spec| spec.flags.contains("WHEEL"))
+                        })
+                        .map(|(index, _)| index)
+                        .collect::<Vec<_>>()
+                })
+            else {
+                break;
+            };
+            if wheels.is_empty() {
+                break;
+            }
+            // The reference picks with `random_entry`, which is a draw over the cache's indices.
+            let Some(last) = wheels
+                .len()
+                .checked_sub(1)
+                .and_then(|last| i32::try_from(last).ok())
+            else {
+                break;
+            };
+            let pick = dice.rng(0, last);
+            let Some(index) = usize::try_from(pick)
+                .ok()
+                .and_then(|pick| wheels.get(pick).copied())
+            else {
+                break;
+            };
+            if let Some(mut record) = world.get_mut::<crate::vehicles::Vehicle>(vehicle)
+                && let Some(part) = record.parts.get_mut(index)
+            {
+                part.hp = 0;
+                part.broken = true;
+                part.charges = 0;
+                part.fuel.clear();
+            }
+            tries += 1;
+        }
     }
 }
 

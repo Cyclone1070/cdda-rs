@@ -41211,3 +41211,19 @@ The trap ledger closes at **125 of 125 answered**. The mutation drops nothing on
 The same round measured the other standing question - whether a mapgen symbol may take the **distribution** form directly - by walking all 845 mapgen files with a JSON parse
 rather than a grep: **zero** symbol-level distributions exist. The form is only ever used inside a parameter's `default`, which the port already reads, so the piece reader's
 named gap is hypothetical rather than a data gap.
+
+## Tyres go until the car cannot drive - and the test found a real bug (round 340)
+
+The tyres half of `init_state` (`vehicle.cpp:602-610`) is in: when the class draw lands on the tyres, a wheel is picked from the wheel cache at random and broken, and the loop
+asks `valid_wheel_config` after every one, up to a hundred.
+
+**The first version of the loop was wrong in a way only the test could show**: its wheel list was built from the parts' flags alone and did not exclude **broken** wheels, so
+with a fixed roll it picked the same wheel a hundred times - the vehicle kept one broken wheel, still answered "drivable", and the loop exited on its count. The test's first
+assertions caught it: 1 broken of 5, `valid` true afterwards. The narration the loop printed mid-debug (100 lines of "broke wheel 5") is what made it obvious, and the filter
+now excludes a broken part, with the reason in the comment.
+
+**The test then learned which half of the question stops the loop.** `valid_wheel_config` is `sufficient && balanced`, and the fixed-roll pick order leaves two wheels that are
+still enough to drive on but no longer sit around the weight - so the loop stopped on **balance**, not on running out of wheels. The test asserts both halves separately, because
+"the tyres were destroyed" is satisfied by a port that only asked whether any wheel remained.
+
+The mutation puts broken wheels back in the cache: the loop breaks one wheel a hundred times, `balanced` never answers false, and the assertion fails.

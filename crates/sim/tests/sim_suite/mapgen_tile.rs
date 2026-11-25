@@ -5268,3 +5268,103 @@ fn a_disabled_vehicle_loses_a_class_of_part() {
         }
     }
 }
+
+/// **A disabled vehicle's tyres are destroyed until it will not drive.** Reference: `vehicle::init_state` (`vehicle.cpp:602-610`): when the class draw lands on the tyres, the
+/// vehicle picks a wheel from its wheel cache at random and breaks it - and keeps doing that while `valid_wheel_config` still holds, up to a hundred times.
+///
+/// The loop is on a **question**, not a count, which is what this test pins: a four-wheeled car loses three wheels and keeps one, because one wheel is not a valid configuration
+/// (`sufficient_wheel_config`: one wheel is only enough when it is `STABLE` and the hull is a three-tile board). A port that destroyed all four, or exactly one, would satisfy
+/// "the tyres were destroyed" and be wrong.
+#[test]
+fn a_disabled_vehicles_tyres_go_until_it_cannot_drive() {
+    let mut world = a_world(Vec::new());
+    let part = |id: &str, flags: &[&str]| cdda_content::vehicles::PartSpec {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        durability: 400,
+        flags: flags.iter().map(|flag| (*flag).to_owned()).collect(),
+        ..cdda_content::vehicles::PartSpec::default()
+    };
+    let placement = |name: &str, x: i32, y: i32| cdda_content::vehicles::Placement {
+        part: name.to_owned(),
+        x,
+        y,
+        ..cdda_content::vehicles::Placement::default()
+    };
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![part("frame", &[]), part("wheel", &["WHEEL"])],
+            prototypes: vec![cdda_content::vehicles::Prototype {
+                id: "wreck".to_owned(),
+                name: "wreck".to_owned(),
+                // **Five wheels, one of them in the middle**, because the loop stops on `valid_wheel_config` - both halves of it. Four corner wheels would stop it on
+                // *balance* the moment one corner went (the remaining triangle puts the centre of mass on its edge), which would test the balance rule instead of the
+                // sufficiency the tyre loop is about. A centre wheel keeps the box around the centre of mass until only it is left.
+                parts: vec![
+                    placement("frame", 0, 0),
+                    placement("wheel", -1, -1),
+                    placement("wheel", 1, -1),
+                    placement("wheel", -1, 1),
+                    placement("wheel", 1, 1),
+                    placement("wheel", 0, 0),
+                ],
+                spawns: Vec::new(),
+            }],
+        },
+    );
+    let lot = MapgenObject {
+        om_terrain: "lot".to_owned(),
+        rows: vec!["...".to_owned(), "...".to_owned()],
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
+        place_vehicles: vec![cdda_content::mapgen::AreaVehicles {
+            vehicle: "wreck".to_owned(),
+            x: (1, 1),
+            y: (1, 1),
+            chance: (1, 1),
+            rotation: (0, 0),
+            fuel: 0,
+            status: 1,
+        }],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("lot".to_owned(), lot)]);
+    // The highest roll: the class draw is five, which is the tyres.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(1.0));
+    cdda_sim::mapgen_tile::generate(&mut world, "lot", (0, 0, 0));
+    let vehicle_entity = world
+        .query::<(Entity, &cdda_sim::vehicles::Vehicle)>()
+        .iter(&world)
+        .next()
+        .map(|(entity, _)| entity)
+        .expect("the vehicle entity");
+    let mut query = world.query::<&cdda_sim::vehicles::Vehicle>();
+    let vehicle = query.iter(&world).next().expect("the vehicle is placed");
+    let broken = vehicle
+        .parts
+        .iter()
+        .filter(|part| part.part == "wheel" && part.broken)
+        .count();
+    assert!(broken >= 1, "**the tyres were the class the draw picked**");
+    assert!(
+        broken < 5,
+        "**and not every wheel went, or the loop would be counting rather than asking**"
+    );
+    assert!(
+        !cdda_sim::vehicles::valid_wheel_config(&world, vehicle_entity),
+        "**the vehicle can no longer drive, which is what stopped the loop**"
+    );
+    // **Which half stopped it matters.** The reference's question is `sufficient && balanced`, and the loop stops on whichever fails first. Here the wheels left are
+    // still enough to drive on but no longer sit around the weight, so the balance half is the one that answered - and a port that only asked "are there wheels" would
+    // have taken all five.
+    assert!(
+        cdda_sim::vehicles::sufficient_wheel_config(&world, vehicle_entity),
+        "**enough wheels are left**"
+    );
+    assert!(
+        !cdda_sim::vehicles::balanced_wheel_config(&world, vehicle_entity),
+        "**but they no longer sit around the vehicle's weight, which is the half that stopped the loop**"
+    );
+}
