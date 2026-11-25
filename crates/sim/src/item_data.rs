@@ -68,6 +68,15 @@ pub fn install(
         })
         .collect();
     item_registry::set_item_types(world, &borrowed);
+    // **The stack size comes from the same records.** A kind that counts by charges says how many of them its own volume makes (`count_by_charges` and `stack_size`), which is
+    // the only way a tank's capacity in millilitres becomes a number of charges: a litre of gasoline is eight hundred, not a thousand, and the rule is
+    // `item::charges_per_volume`. Kinds that do not count by charges are left at one charge of themselves.
+    let stacks: std::collections::BTreeMap<String, i64> = kinds
+        .iter()
+        .filter(|kind| kind.count_by_charges && kind.stack_size > 1)
+        .map(|kind| (kind.id.clone(), i64::from(kind.stack_size)))
+        .collect();
+    item_registry::set_charge_stacks(world, &stacks);
     // The qualities come from the same records and are installed right after the ids exist: the reference keeps them on `itype` (`item_factory.cpp`), and a
     // world that loaded item data but not its qualities answers every requirement as if nothing had a quality.
     let mut held: Vec<(crate::ItemTypeId, Vec<(String, i32)>)> = Vec::new();

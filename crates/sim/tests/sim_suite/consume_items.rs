@@ -125,3 +125,51 @@ fn asking_for_nothing_takes_nothing_and_is_satisfied() {
         "nothing was disturbed"
     );
 }
+
+/// **How many charges of a thing fit in a volume.** Reference: `item::charges_per_volume` (`item.cpp:1391-1416`): a kind that counts by charges answers
+/// `volume * stack_size / the kind's own volume`, everything else answers `volume / the kind's volume`, and a kind with no volume answers `INFINITE_CHARGES`.
+///
+/// The arithmetic is worth pinning because the obvious shortcut is wrong: dividing the kind's volume by its stack size first gives **1 ml** per charge of gasoline
+/// (250 ml over 200 charges is 1.25, and integer millilitres truncate), and a litre would then answer a thousand charges instead of eight hundred. The rule keeps the
+/// multiplication first, which is what the reference does and what this test would catch.
+#[test]
+fn charges_per_volume_follows_the_stack_size() {
+    let mut world = bevy_ecs::prelude::World::new();
+    let kind = |id: &'static str, volume_ml: i64| cdda_sim::item_registry::Kind {
+        id,
+        volume_ml,
+        weight_g: 200,
+        pockets: &[],
+        thrown_damage: 0.0,
+        melee_bash: 0.0,
+        melee_cut: 0.0,
+        melee_stab: 0.0,
+        to_hit: 0,
+    };
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[kind("gasoline", 250), kind("rock", 250)],
+    );
+    let gasoline = cdda_sim::item_registry::id_of(&mut world, "gasoline").expect("the kind");
+    let rock = cdda_sim::item_registry::id_of(&mut world, "rock").expect("the kind");
+    // A rock is one charge of itself, so a litre holds four of them.
+    assert_eq!(
+        cdda_sim::item_registry::charges_per_volume(&world, rock, 1_000),
+        4,
+        "**a kind that does not count by charges holds volume divided by volume**"
+    );
+    cdda_sim::item_registry::set_charge_stacks(
+        &mut world,
+        &[("gasoline".to_owned(), 200)].into_iter().collect(),
+    );
+    assert_eq!(
+        cdda_sim::item_registry::charges_per_volume(&world, gasoline, 1_000),
+        800,
+        "**a litre of gasoline is eight hundred charges, not a thousand**"
+    );
+    assert_eq!(
+        cdda_sim::item_registry::charges_per_volume(&world, gasoline, 0),
+        0,
+        "**and an empty volume holds nothing**"
+    );
+}

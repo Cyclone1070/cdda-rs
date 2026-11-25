@@ -34,6 +34,14 @@ pub struct ItemTypes {
     /// measured against it, so a store that could not say how heavy a thing was could not tell you when you were
     /// overloaded.
     weights_g: Vec<i64>,
+    /// How many charges a kind's own volume makes, in registry order - the reference's `itype::stack_size` for a kind that
+    /// counts by charges, and 1 for everything else, which makes a single item one charge of itself.
+    ///
+    /// Reference: `item::charges_per_volume` (`item.cpp:1391-1416`) answers `vol * stack_size / type->volume` for a stack-able
+    /// kind and `vol / volume` for anything else. The two numbers are kept apart because the division is done on the volume the
+    /// caller asks about, not on a pre-divided "one charge is 1.25 ml" - integer millilitres would round that to 1 and a litre
+    /// would hold a thousand charges of gasoline instead of eight hundred.
+    charge_stacks: Vec<i64>,
     /// How much each kind can hold, in millilitres, in registry order.
     ///
     /// Reference: `item::get_total_capacity`, the sum of the item's pockets. It is what a worn thing adds to
@@ -241,6 +249,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut by_name = BTreeMap::new();
     let mut damage_limits: Vec<Option<i32>> = vec![None];
     let mut volumes_ml = vec![0];
+    let mut charge_stacks = vec![1];
     let mut weights_g = vec![0];
     let mut holds_ml = vec![0];
     let mut pockets: Vec<Pocket> = Vec::new();
@@ -259,6 +268,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         names.push(id.to_owned());
         #[allow(clippy::cast_possible_truncation)]
         volumes_ml.push(volume as i32);
+        charge_stacks.push(1);
         weights_g.push(weight);
         thrown_damage.push(each.thrown_damage);
         melee_bash.push(each.melee_bash);
@@ -281,6 +291,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         by_name,
         volumes_ml,
         weights_g,
+        charge_stacks,
         holds_ml,
         pockets,
         pocket_ranges,
@@ -291,6 +302,52 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         to_hit,
         damage_limits,
     });
+}
+
+/// How many charges a kind's own volume makes, by the data's own name for it.
+///
+/// Reference: `itype::stack_size` (`itype.h`), which only means something for a kind that counts by charges - a litre of
+/// gasoline is eight hundred charges because a charge of it is 1.25 ml, and a rock is one charge of itself. The item data
+/// carries the number on the type it read, and this is how it reaches the store: by name, because the registry's numbers are
+/// assigned in data order and a caller that computed a list would have to know that order.
+pub fn set_charge_stacks(world: &mut World, stacks: &std::collections::BTreeMap<String, i64>) {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    let Some(mut registry) = world.get_mut::<ItemTypes>(entity) else {
+        return;
+    };
+    for (name, stack) in stacks {
+        if let Some(number) = registry.by_name.get(name).copied()
+            && let Some(slot) = registry.charge_stacks.get_mut(number.0 as usize)
+        {
+            *slot = (*stack).max(1);
+        }
+    }
+}
+
+/// How many charges of a kind fit in a volume - the reference's `item::charges_per_volume` (`item.cpp:1391-1416`).
+///
+/// A kind that counts by charges answers `volume * stack_size / the kind's own volume`, so the arithmetic stays in whole
+/// millilitres for as long as possible; everything else answers `volume / the kind's volume`. A kind with no volume answers
+/// the reference's `INFINITE_CHARGES`.
+#[must_use]
+pub fn charges_per_volume(world: &World, kind: ItemTypeId, volume_ml: i64) -> i64 {
+    let Some(registry) = world
+        .try_query_filtered::<&ItemTypes, With<TheItemTypes>>()
+        .and_then(|mut query| query.iter(world).next().cloned())
+    else {
+        return 0;
+    };
+    let item_volume = registry.volume_of(kind);
+    if item_volume == 0 {
+        return i64::from(i32::MAX);
+    }
+    let stack = registry
+        .charge_stacks
+        .get(kind.0 as usize)
+        .copied()
+        .unwrap_or(1)
+        .max(1);
+    (volume_ml * stack / item_volume).min(i64::from(i32::MAX))
 }
 
 /// How much room a kind takes, in millilitres.
@@ -319,6 +376,13 @@ pub struct ItemNames {
     pub volumes_ml: Vec<i32>,
     /// What each kind weighs, in grams, in registry order.
     pub weights_g: Vec<i64>,
+    /// How many charges a kind's own volume makes, in registry order - the reference's `itype::stack_size` for a kind that
+    /// counts by charges, and 1 for everything else, which makes a single item one charge of itself.
+    ///
+    /// Reference: `item::charges_per_volume` (`item.cpp:1391-1416`) answers `vol * stack_size / type->volume` for a stack-able
+    /// kind and `vol / volume` for anything else. The two numbers are kept apart because the division is done on the volume the
+    /// caller asks about, not on a pre-divided "one charge is 1.25 ml" - integer millilitres would round that to 1 and a litre
+    /// would hold a thousand charges of gasoline instead of eight hundred.
     /// How much each kind can hold, in millilitres, in registry order.
     pub holds_ml: Vec<i32>,
     /// Every kind's pockets, one after another.

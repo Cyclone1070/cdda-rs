@@ -41184,3 +41184,14 @@ The mutation drops that condition and the security assertion fails.
 **Named gaps**: the tyre destruction is a loop over `valid_wheel_config` until the vehicle will not drive, and the reference's half-chance `smash( 0.5 )` for a disabled vehicle
 is the smash rule - both larger than this round and both named in the writer's comment. An engine that the reference would give a *fault* is simply broken here, because the port
 has no faults.
+
+## A litre of gasoline is eight hundred charges (round 338)
+
+The tank-capacity prerequisite is in: `charges_per_volume` (`item.cpp:1391-1416`) is read as the reference writes it - `volume * stack_size / the kind's own volume` for a
+kind that counts by charges, `volume / the kind's volume` otherwise, and `INFINITE_CHARGES` for a kind with no volume - and the stack size reaches the store from the item data
+it was read from (`count_by_charges` and `stack_size`, by name, because the registry's numbers are assigned in data order).
+
+**The arithmetic is the rule, and the obvious shortcut is wrong**: dividing the kind's volume by its stack size first gives 1 ml per charge of gasoline (250 ml over 200
+charges is 1.25, and integer millilitres truncate), so a litre would answer a thousand charges instead of eight hundred. The mutation does exactly that and the test fails.
+
+This is the prerequisite for filling a placed vehicle's tanks: `init_veh_fuel`'s fractions are all expressed as a share of `item_capacity( fuel )`, which is this number.
