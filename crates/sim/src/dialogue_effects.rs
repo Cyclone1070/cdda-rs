@@ -3508,6 +3508,21 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "flee" => {
             make_the_npc_flee(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "follow" => {
+            take_the_person_along(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "follow_only" => {
+            set_the_persons_attitude(world, speaker, listener, "follow")
+        }
+        Effect::LegacyStringEffect { name } if name == "stop_following" => {
+            stop_the_person_following(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "deny_follow" => {
+            the_person_was_asked_to_follow(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "insult_combat" => {
+            start_a_fight_with_the_person(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4074,5 +4089,93 @@ fn make_the_npc_flee(world: &mut World, speaker: Entity, listener: Option<Entity
         .map_or_else(String::new, |creature| creature.name.clone());
     crate::messages::push(world, &format!("{name} turns to flee!"));
     crate::npcs::set_attitude(world, npc, "flee");
+    Applied::Done
+}
+
+/// Sets the person's attitude towards the player, and answers whether there was a person to set it on.
+fn set_the_persons_attitude(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    attitude: &str,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    crate::npcs::set_attitude(world, npc, attitude);
+    Applied::Done
+}
+
+/// **`follow` takes the person along as an ally.** Reference: `talk_function::follow` (`npctalk_funcs.cpp:889-899`): the person joins the player's followers, their attitude
+/// becomes `NPCATT_FOLLOW`, and their faction becomes `your_followers`.
+///
+/// **Named gaps, both fields the port has nowhere to put**: the reference also hands the player the follower's cash (`p.cash`) and clears their custom profession, and the port
+/// has no money on a person and no profession. The ally relation itself is the port's `Ally` marker, which is what `is_player_ally` answers from.
+fn take_the_person_along(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    crate::npcs::make_ally(world, npc);
+    crate::npcs::set_attitude(world, npc, "follow");
+    Applied::Done
+}
+
+/// **`stop_following` tells a non-ally to stop.** Reference: `talk_function::stop_following` (`npctalk_funcs.cpp:974-985`): an ally is left alone - allies are sent to guard
+/// instead - and anyone else is told and their attitude becomes `NPCATT_NULL`.
+fn stop_the_person_following(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    if world.get::<crate::npcs::Ally>(npc).is_some() {
+        // Reference: `if( p.is_player_ally() ) { return; }` - a silent no-op, and the game says nothing.
+        return Applied::Done;
+    }
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::messages::push(world, &format!("{name} stops following."));
+    crate::npcs::set_attitude(world, npc, "null");
+    Applied::Done
+}
+
+/// **`deny_follow` remembers that the person was asked.** Reference: `talk_function::deny_follow` (`npctalk_funcs.cpp:906-909`): the person takes `asked_to_follow` for six
+/// hours - no message, no attitude change. The effect is what a later dialogue guard reads, so a person asked once will not be asked again today.
+fn the_person_was_asked_to_follow(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    if let Some(kind) = crate::effect_registry::kind_named(world, "asked_to_follow") {
+        crate::applied_effects::add(
+            world,
+            npc,
+            crate::effects::ActiveEffect::new(&kind, 3_600, 1),
+        );
+    }
+    Applied::Done
+}
+
+/// **`insult_combat` starts a fight.** Reference: `talk_function::insult_combat` (`npctalk_funcs.cpp:524-529`): the game says the player started it, the conversation ends, and
+/// the person's attitude becomes `NPCATT_KILL` - with **no sight test**, unlike `hostile`, which is why it is a separate rule rather than a spelling of the same one.
+fn start_a_fight_with_the_person(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::messages::push(world, &format!("You start a fight with {name}!"));
+    crate::npcs::set_attitude(world, npc, "kill");
     Applied::Done
 }

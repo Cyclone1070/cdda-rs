@@ -41265,3 +41265,19 @@ NPC's **attitude** at all, so `npcs` grew an `NpcAttitude` component (`"none"`, 
 kept: `hostile` announces only when the person can see the player (and not at all when they already want them dead), while `flee` announces unconditionally.
 
 The mutation removes the already-hostile early return, and the test's "a second call announces nothing" assertion fails.
+
+## Five more of the seventy-five (round 343)
+
+The legacy block's next five are in, all of them rules about the person's **attitude** and one about a memory: `follow` (`npctalk_funcs.cpp:889-899`) makes the person an
+**ally** and sets `NPCATT_FOLLOW`; `follow_only` (`:901-904`) sets the attitude without the alliance; `stop_following` (`:974-985`) tells anyone who is **not** an ally to stop
+and leaves an ally alone, because allies are sent to guard instead; `deny_follow` (`:906-909`) gives them `asked_to_follow` for six hours and changes nothing else; and
+`insult_combat` (`:524-529`) announces the fight and sets `NPCATT_KILL` with **no sight test**, which is the one thing separating it from `hostile`.
+
+The asymmetry is the test's point: the same effect says "Irina stops following." to a stranger and **nothing at all** to an ally, and the mutation removes the ally check and
+fails on exactly that line - a port that told allies to stop would quietly break every companion in the game.
+
+**Named gaps in `follow`**: the reference also hands the player the follower's cash and clears their custom profession, and the port has no money on a person and no profession.
+The ally relation is the port's `Ally` marker, which is what the reference's `is_player_ally` answers from.
+
+The block now stands at **7 of 75** ported - `hostile` (184 uses), `flee` (10), `follow` (46), `follow_only` (23), `stop_following` (14), `deny_follow` (14) and `insult_combat`
+(6) - and the ranked list in the round-342 note is the work order.

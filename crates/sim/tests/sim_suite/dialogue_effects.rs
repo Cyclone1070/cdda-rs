@@ -3569,3 +3569,156 @@ fn hostile_turns_the_person_once() {
         "**an effect aimed at nobody is refused rather than half-run**"
     );
 }
+
+/// **The follow family.** Reference: `talk_function::follow` (`npctalk_funcs.cpp:889-899`), `follow_only` (`:901-904`) and `stop_following` (`:974-985`). The three are one
+/// story about the same field: `follow` makes the person an ally **and** sets `NPCATT_FOLLOW`, `follow_only` sets the attitude without the alliance, and `stop_following` tells
+/// anyone who is **not** an ally to stop - an ally is left alone, because allies are sent to guard instead.
+///
+/// The test walks the story in order and pins the asymmetry: the same effect that says "Vlad stops following." for a stranger says **nothing** for an ally.
+#[test]
+fn the_person_comes_along_and_can_be_told_to_stop() {
+    let mut world = World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    // **`follow_only` sets the attitude and nothing else.**
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("follow_only")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**follow_only runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("follow"),
+        "**and the person follows**"
+    );
+    assert!(
+        world.get::<cdda_sim::npcs::Ally>(vlad).is_none(),
+        "**without becoming an ally**"
+    );
+    // **`follow` makes them an ally as well.**
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect("follow")),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**follow runs**"
+    );
+    assert!(
+        world.get::<cdda_sim::npcs::Ally>(vlad).is_some(),
+        "**and the person is one of the player's allies**"
+    );
+    // **An ally is not told to stop** - the reference returns before its message.
+    let before = cdda_sim::messages::lines(&world).len();
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("stop_following")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**stop_following runs**"
+    );
+    assert_eq!(
+        cdda_sim::messages::lines(&world).len(),
+        before,
+        "**but says nothing to an ally, and changes nothing**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("follow"),
+        "**whose attitude is untouched**"
+    );
+    // **A stranger is told.**
+    let stranger = cdda_sim::creature::spawn_creature(&mut world, "Irina", (2, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, stranger, "irina");
+    cdda_sim::npcs::set_attitude(&mut world, stranger, "follow");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(stranger),
+            &effect("stop_following")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**stop_following runs for a stranger too**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, stranger).as_deref(),
+        Some("null"),
+        "**and they stop**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "Irina stops following."),
+        "**with the line the reference gives them: {lines:?}**"
+    );
+}
+
+/// **A denied follow is remembered, and an insult is a fight.** Reference: `talk_function::deny_follow` (`npctalk_funcs.cpp:906-909`) gives the person `asked_to_follow` for
+/// **six hours** and changes nothing else; `talk_function::insult_combat` (`:524-529`) announces the fight and sets `NPCATT_KILL` with **no sight test**, which is the one
+/// thing that separates it from `hostile`.
+#[test]
+fn a_denied_follow_is_remembered_and_an_insult_starts_a_fight() {
+    let mut world = World::new();
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[cdda_sim::effect_registry::bare("asked_to_follow")],
+    );
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("deny_follow")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**deny_follow runs**"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, vlad, "asked_to_follow"),
+        "**the person remembers being asked**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("none"),
+        "**and their attitude is unchanged**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("insult_combat")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**insult_combat runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("kill"),
+        "**and the person fights**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "You start a fight with Vlad!"),
+        "**announced from the player's side, not the person's: {lines:?}**"
+    );
+}
