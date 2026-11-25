@@ -1239,6 +1239,46 @@ fn place_the_npcs(
     }
 }
 
+/// Gives a placed vehicle the damage and the fuel its placement asks for.
+///
+/// Reference: `vehicle::init_state`'s damage loop (`vehicle.cpp:513-537`): for anything but a mint vehicle (`status == 0`), each part rolls `dice( 4, 8 )` - four to thirty-two -
+/// and answers:
+///
+/// - eight or less: the part is **broken** (hit points zero);
+/// - eight to twenty: hit points are `( roll - 8 ) / 12` of its durability, so an abandoned car has parts somewhere between nothing and whole;
+/// - twenty or more: the part is whole.
+///
+/// **Named gaps, both of them whole branches of `init_state`**: the fuel fractions (`init_veh_fuel`) need a tank's capacity in charges, which needs an item's charge volume - the
+/// port's item kinds do not carry one yet - and the `status == 1` extras (a destroyed seat, controls, tank, engine or tyre, and the engine faults) need the part categories the
+/// reference reads from a part's flags. The `fuel` member is read and passed here so the gap is visible rather than implied.
+fn damage_the_vehicle(
+    world: &mut World,
+    vehicle: bevy_ecs::prelude::Entity,
+    status: i32,
+    fuel: i32,
+    dice: &mut cdda_core_types::rng::Rolls,
+) {
+    let _ = fuel;
+    if status == 0 {
+        return;
+    }
+    let Some(mut record) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) else {
+        return;
+    };
+    for part in &mut record.parts {
+        let roll = dice.dice(4, 8);
+        if roll <= 8 {
+            part.hp = 0;
+            part.broken = true;
+            part.charges = 0;
+            part.fuel.clear();
+        } else if roll < 20 {
+            let durability = part.hp.max(1);
+            part.hp = (roll - 8) * durability / 12;
+        }
+    }
+}
+
 /// Stamps the faction ownership a mapgen names on the squares it covers.
 ///
 /// Reference: `jmapgen_faction::apply` (`mapgen.cpp:2662-2670`): the entry's **ranges** are the rectangle (`x.val` to `x.valmax`), and the ownership lands on the items and the
@@ -1424,12 +1464,14 @@ fn park_the_vehicles(
         } else {
             entry.vehicle.clone()
         };
-        crate::vehicles::spawn_facing(
+        if let Some(placed) = crate::vehicles::spawn_facing(
             world,
             &prototype,
             (origin.0 + x, origin.1 + y, origin.2),
             f64::from(rotation),
-        );
+        ) {
+            damage_the_vehicle(world, placed, entry.status, entry.fuel, dice);
+        }
     }
 }
 

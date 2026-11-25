@@ -41155,3 +41155,18 @@ now `r##"..."##`; and the parameter was written as a bare `distribution` where t
 test that only checked the reader would have missed, which is why the test **draws** the switch and not just reads it.
 
 The mutation skips the case lookup and answers the switched value itself: the square becomes the chain fence (61) instead of its post (62).
+
+## A car that has been sitting there (round 336)
+
+A placed vehicle's `status` is read and applied. `vehicle::init_state`'s damage loop (`vehicle.cpp:513-537`) rolls `dice( 4, 8 )` per part: twenty or more is whole, eight or less is
+**broken** (hit points zero, contents emptied), and between them the part keeps `( roll - 8 ) / 12` of its durability. A mint vehicle (`status: 0`) skips the roll entirely.
+
+The member's **default is the rule**, not a convenience: the reference's `init_veh_status` defaults to `-1`, which is the light damage an abandoned car has. A reader that
+defaulted a missing member to zero would make every car in the world mint, so the test parks two cars from one mapgen - one that says `status: 0` and one that says nothing -
+and asks for both. **The first version of the test could not see the default**: it built the mapgen as a Rust literal, so the field was set by the fixture and the reader was never
+asked. The mutation passed, which is what a test that only covers the writer does. The test now also **reads a mapgen from JSON** with no `status` member and pins `-1`; the same
+mutation then fails with `left: 0, right: -1`.
+
+**Named gaps, both whole branches of `init_state`**: `fuel` is read and passed to the writer but not applied, because a tank's capacity is in **charges** and the port's item
+kinds do not carry a charge volume yet; and `status: 1`'s extras - a destroyed seat, controls, tank, engine or tyre, and the engine faults - need the part categories the
+reference reads from a part's flags. The `fuel` field travels with the entry so the gap is visible rather than implied.

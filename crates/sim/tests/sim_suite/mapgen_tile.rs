@@ -4209,6 +4209,8 @@ fn a_mapgen_parks_a_vehicle_where_it_says() {
                 y: (2, 2),
                 chance: (1, 1),
                 rotation: (90, 90),
+                fuel: -1,
+                status: -1,
             },
             cdda_content::mapgen::AreaVehicles {
                 vehicle: "hearses_only".to_owned(),
@@ -4216,6 +4218,8 @@ fn a_mapgen_parks_a_vehicle_where_it_says() {
                 y: (3, 3),
                 chance: (1, 1),
                 rotation: (0, 0),
+                fuel: -1,
+                status: -1,
             },
             // A one-in-fifty entry on a square of its own: with the seed below the roll does not land, and a placement that ignored the chance would show a vehicle there.
             cdda_content::mapgen::AreaVehicles {
@@ -4224,6 +4228,8 @@ fn a_mapgen_parks_a_vehicle_where_it_says() {
                 y: (7, 7),
                 chance: (50, 50),
                 rotation: (0, 0),
+                fuel: -1,
+                status: -1,
             },
         ],
         ..a_plain_mapgen()
@@ -5034,4 +5040,108 @@ fn a_switch_over_a_parameter_picks_the_id() {
         Some(62),
         "**the fence the parameter drew decides which post is put there**"
     );
+}
+
+/// **A parked vehicle starts as worn as the mapgen says.** Reference: `vehicle::init_state`'s damage loop (`vehicle.cpp:513-537`): a mint vehicle (`status == 0`) has every part
+/// at its durability; anything else rolls `dice( 4, 8 )` per part and is whole at twenty, broken at eight or less, and a fraction of its durability between.
+///
+/// The test parks two cars from one mapgen: one that names `status: 0`, and one that names nothing - and the reference's default for the member is **not** zero, it is `-1`,
+/// the light damage an abandoned car has. A reader that defaulted the missing member to zero would make every car in the world mint, which is why the test asks for both.
+#[test]
+fn a_parked_vehicle_is_worn_as_much_as_the_mapgen_says() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![cdda_content::vehicles::PartSpec {
+                id: "frame".to_owned(),
+                name: "frame".to_owned(),
+                durability: 400,
+                ..cdda_content::vehicles::PartSpec::default()
+            }],
+            prototypes: vec![("car".to_owned(), 90, 90), ("wreck".to_owned(), 91, 91)]
+                .into_iter()
+                .map(|(id, x, y)| cdda_content::vehicles::Prototype {
+                    id: id.clone(),
+                    name: id,
+                    parts: vec![cdda_content::vehicles::Placement {
+                        part: "frame".to_owned(),
+                        x,
+                        y,
+                        ..cdda_content::vehicles::Placement::default()
+                    }],
+                    spawns: Vec::new(),
+                })
+                .collect(),
+        },
+    );
+    let lot = MapgenObject {
+        om_terrain: "lot".to_owned(),
+        rows: vec!["....".to_owned(), "....".to_owned()],
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
+        place_vehicles: vec![
+            cdda_content::mapgen::AreaVehicles {
+                vehicle: "car".to_owned(),
+                x: (0, 0),
+                y: (0, 0),
+                chance: (1, 1),
+                rotation: (90, 90),
+                fuel: 100,
+                status: 0,
+            },
+            cdda_content::mapgen::AreaVehicles {
+                vehicle: "wreck".to_owned(),
+                x: (1, 1),
+                y: (1, 1),
+                chance: (1, 1),
+                rotation: (0, 0),
+                fuel: -1,
+                // **No `status` member at all**, so the reader's default is what is under test: the reference's `-1`.
+                status: -1,
+            },
+        ],
+        ..a_plain_mapgen()
+    };
+    // **The reader's default is the other half of the rule**, and the fixture above cannot see it: a `MapgenObject` literal sets the field, so only a JSON read can say what a
+    // missing `status` member becomes. The reference's `init_veh_status` defaults to `-1`, not to zero.
+    let json = cdda_json::parse(
+        br#"{"om_terrain": "lot", "object": {"rows": ["."], "place_vehicles": [
+            {"vehicle": "car", "x": 0, "y": 0, "chance": 100}]}}"#,
+    )
+    .expect("the prototype parses");
+    let read = cdda_content::mapgen::load_objects(&json)
+        .into_iter()
+        .next()
+        .expect("the prototype reads");
+    assert_eq!(
+        read.place_vehicles[0].status, -1,
+        "**a vehicle with no `status` member is worn, not mint**"
+    );
+    assert_eq!(
+        read.place_vehicles[0].fuel, -1,
+        "**and its tanks are at the reference's random level, not empty**"
+    );
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("lot".to_owned(), lot)]);
+    // A fixed roll of zero makes every dice lowest, so `dice( 4, 8 )` is four and every part of the wreck is **broken**.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    cdda_sim::mapgen_tile::generate(&mut world, "lot", (0, 0, 0));
+    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::vehicles::Vehicle)>();
+    let parked: Vec<(i32, i32)> = query.iter(&world).map(|(at, _)| (at.x, at.y)).collect();
+    assert_eq!(parked.len(), 2, "**both cars are parked**: {parked:?}");
+    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::vehicles::Vehicle)>();
+    for (at, vehicle) in query.iter(&world) {
+        let part = &vehicle.parts[0];
+        if at.x == 0 {
+            assert_eq!(part.hp, 400, "**the car that says `status: 0` is mint**");
+            assert!(!part.broken, "**and whole**");
+        } else {
+            assert_eq!(
+                part.hp, 0,
+                "**the car that says nothing is worn by the light damage the reference gives it**"
+            );
+            assert!(part.broken, "**which breaks the part**");
+        }
+    }
 }

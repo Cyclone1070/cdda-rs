@@ -1307,6 +1307,12 @@ pub struct AreaVehicles {
     pub chance: (i32, i32),
     /// Its heading, in degrees (`rotation`, default 0).
     pub rotation: (i32, i32),
+    /// How full its tanks start, as the reference's `init_veh_fuel`: `-1` asks for a random level, `0` for empty, `1`-`99` for that percentage, and `100` or more for full.
+    /// The reference's own default is `-1`, which the reader supplies when the data says nothing.
+    pub fuel: i32,
+    /// How damaged it starts, as the reference's `init_veh_status`: `0` is mint, `2` is mint with no faults, `1` is disabled, and anything else - the data's default - means
+    /// the light damage `vehicle::init_state` gives an abandoned car.
+    pub status: i32,
 }
 
 /// Reads a mapgen's `place_vehicles` list.
@@ -1328,6 +1334,16 @@ fn read_area_vehicles(list: Option<&cdda_json::Value>) -> Vec<AreaVehicles> {
             y: span(one.get("y")),
             chance: span(one.get("chance")),
             rotation: span(one.get("rotation")),
+            // **The reference's own defaults** (`jmapgen_vehicle`, `mapgen.cpp:3180-3220`): a vehicle with no `fuel` member starts at `-1` (random) and one with no `status`
+            // at `-1` (light damage). A zero here would silently make every placed car mint and empty.
+            fuel: match one.get("fuel") {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(-1),
+                _ => -1,
+            },
+            status: match one.get("status") {
+                Some(cdda_json::Value::Int(value)) => i32::try_from(*value).unwrap_or(-1),
+                _ => -1,
+            },
         });
     }
     placed
