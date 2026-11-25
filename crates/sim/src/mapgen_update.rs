@@ -162,6 +162,7 @@ pub fn write(
     write_the_graffiti(world, mapgen, origin, &mut rolls);
     place_the_corpses(world, mapgen, origin, &mut rolls);
     own_what_the_mapgen_names(world, mapgen, origin);
+    place_the_npcs(world, mapgen, origin, &mut rolls);
     place_loot(world, mapgen, origin, &mut rolls);
     // **The turn comes last**, after every phase (`mapgen.cpp:6096`): the chunk is rotated as a whole, so a rotated mapgen is not one whose layers disagree about where it stands.
     crate::mapgen_rotation::rotate_chunk(world, origin, turns);
@@ -1197,6 +1198,44 @@ fn burn_the_square(
 fn spawn_ash(world: &mut World, at: (i32, i32, i32), amount: i32) {
     if let Some(ash) = crate::item_registry::id_of(world, "ash") {
         crate::drop_item(world, (at.0, at.1), ash, amount);
+    }
+}
+
+/// Puts the people a mapgen names where it draws them.
+///
+/// Reference: `jmapgen_npc::apply` (`mapgen.cpp:2612-2630`): the entry names an `npc` **template** in its `class` member, the template names the `npc_class` that shapes the
+/// person, and `map::place_npc` makes them on a rolled square - with `add_trait` traits on top, an optional `unique_id`, and a `target` flag a mission reads.
+///
+/// **Named gaps, all of them what a class means**: the port makes a person and records the class's **name**; the class's stats, skills, clothing and weapons are template
+/// numbers the port has not read, and the reference's `unique_npc_exists` guard needs a registry of the living that the port keeps as the store's own entities.
+fn place_the_npcs(
+    world: &mut World,
+    mapgen: &cdda_content::mapgen::MapgenObject,
+    origin: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    for entry in &mapgen.place_npcs {
+        let (x, y) = roll_a_square(rolls, entry.x, entry.y);
+        if !in_bounds(mapgen, x, y) {
+            continue;
+        }
+        let square = (origin.0 + x, origin.1 + y, origin.2);
+        let made = crate::creature::spawn_creature(world, &entry.template, square);
+        let id = if entry.unique_id.is_empty() {
+            entry.template.clone()
+        } else {
+            entry.unique_id.clone()
+        };
+        crate::npcs::make_npc(world, made, &id);
+        world
+            .entity_mut(made)
+            .insert(crate::npcs::NpcClass(entry.template.clone()));
+        if entry.target {
+            world.entity_mut(made).insert(crate::npcs::ScenarioTarget);
+        }
+        for trait_name in &entry.add_trait {
+            crate::traits::add_trait(world, made, trait_name);
+        }
     }
 }
 

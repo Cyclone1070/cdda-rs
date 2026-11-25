@@ -27,6 +27,7 @@ fn a_mapgen(id: &str, terrain: &str, weight: i32) -> MapgenObject {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: id.to_owned(),
         rows: vec!["##".to_owned(), "##".to_owned()],
         terrain: [('#', Piece::Id(terrain.to_owned()))].into_iter().collect(),
@@ -170,6 +171,7 @@ fn a_mapgens_fill_terrain_covers_the_whole_chunk() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["#".to_owned()],
         terrain: [('#', Piece::Id("t_house_two".to_owned()))]
@@ -268,6 +270,7 @@ fn a_mapgens_furniture_lands_where_its_rows_say() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![".F.".to_owned()],
         terrain: [
@@ -354,6 +357,7 @@ fn a_mapgens_traps_are_set_where_its_rows_say() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "field".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
@@ -447,6 +451,7 @@ fn a_mapgens_items_land_on_the_square_its_rows_say() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["I.".to_owned()],
         terrain: [
@@ -569,6 +574,7 @@ fn a_mapgens_item_group_is_expanded_where_its_rows_say() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
@@ -668,6 +674,7 @@ fn a_mapgens_place_monster_spawns_its_pack() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -840,6 +847,7 @@ fn a_mapgens_place_monster_draws_from_a_group() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -940,6 +948,7 @@ fn a_mapgen_can_place_monsters_on_the_players_side() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -1042,6 +1051,7 @@ fn a_mapgens_toilet_is_furniture_with_water_in_it() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["T.".to_owned()],
         terrain: [
@@ -1154,6 +1164,7 @@ fn a_mapgens_liquid_is_poured_with_the_charges_the_data_asks_for() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["WG".to_owned()],
         terrain: [
@@ -1292,6 +1303,7 @@ fn a_mapgen_scatters_an_item_group_over_a_rectangle() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned(), "..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -1405,6 +1417,7 @@ fn a_mapgen_drops_loot_on_one_square_of_a_rectangle() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -1512,6 +1525,7 @@ fn a_sealed_item_is_furniture_with_something_inside_it() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["L.".to_owned()],
         terrain: [
@@ -1706,6 +1720,7 @@ fn a_sign_is_furniture_that_carries_words() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["S.".to_owned()],
         terrain: [
@@ -1831,6 +1846,7 @@ fn a_gas_pump_is_terrain_with_fuel_in_it() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["G.".to_owned()],
         terrain: [
@@ -1943,6 +1959,7 @@ fn a_nested_mapgen_is_drawn_shifted_by_its_marker() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["n...".to_owned(), "....".to_owned()],
         terrain: [
@@ -2055,6 +2072,7 @@ fn a_nested_chunk_stands_at_its_marker() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned(), ".n..".to_owned()],
         terrain: [
@@ -2164,6 +2182,7 @@ fn a_rectangle_is_a_field_of_candidates_and_repeat_is_how_many_land() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["...".to_owned(), "...".to_owned(), "...".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2284,6 +2303,7 @@ fn the_item_and_fields_symbol_maps_place_what_their_symbols_name() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["IF".to_owned()],
         terrain: [
@@ -2382,6 +2402,7 @@ fn a_terminal_is_furniture_and_a_record() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["C.".to_owned()],
         terrain: [
@@ -2507,6 +2528,7 @@ fn a_remove_all_strips_its_squares_before_anything_is_drawn() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2600,6 +2622,7 @@ fn a_monster_can_be_a_symbol() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["Z.".to_owned()],
         terrain: [
@@ -2705,6 +2728,7 @@ fn a_place_nested_entry_draws_a_small_chunk_at_its_marker() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec![".".repeat(24); 24],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2810,6 +2834,7 @@ fn a_rectangle_can_place_a_single_item_and_a_sign() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2915,6 +2940,7 @@ fn a_rectangle_can_place_a_liquid() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -2999,6 +3025,7 @@ fn a_rotated_mapgen_turns_its_whole_chunk_clockwise() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["AF.".to_owned(), "...".to_owned()],
         terrain: [
@@ -3113,6 +3140,7 @@ fn a_set_point_writes_the_layer_it_names() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3332,6 +3360,7 @@ fn a_set_radiation_entry_writes_a_dose() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3436,6 +3465,7 @@ fn rubble_is_furniture_and_debris() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["R..".to_owned()],
         terrain: [
@@ -3530,6 +3560,7 @@ fn a_set_variable_names_a_square_in_the_global_store() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3623,6 +3654,7 @@ fn a_set_removal_takes_away_what_it_names() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3736,6 +3768,7 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "field".to_owned(),
         rows: vec!["....".to_owned()],
         terrain: [('.', Piece::Id("t_grass".to_owned()))]
@@ -3752,6 +3785,7 @@ fn a_mapgen_with_a_fallback_predecessor_draws_it_below() {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: "house".to_owned(),
         rows: vec!["..~~".to_owned()],
         terrain: [('.', Piece::Id("t_house_one".to_owned()))]
@@ -3789,6 +3823,7 @@ fn a_plain_mapgen() -> MapgenObject {
         place_graffiti: Vec::new(),
         place_corpses: Vec::new(),
         faction_owner: Vec::new(),
+        place_npcs: Vec::new(),
         om_terrain: String::new(),
         rows: Vec::new(),
         terrain: BTreeMap::new(),
@@ -4887,4 +4922,60 @@ fn a_burn_set_point_leaves_ash() {
         })
         .count();
     assert!(heaps > 0, "**and there is ash on it**");
+}
+
+/// **A `place_npcs` entry puts a person of its class on the square, with the class, the unique id and the traits the entry names.** Reference:
+/// `jmapgen_npc::apply` (`mapgen.cpp:2612-2630`) - the template is made by `map::place_npc`, the entry's `add_trait` traits go on top, an optional `unique_id` picks the person
+/// out, and `target` marks them.
+///
+/// The class's **numbers** are a named gap (the port has no `npc_class` tables), so what the test can pin is what the port does keep: a person, their class's name, their id and
+/// their traits.
+#[test]
+fn a_mapgen_puts_a_person_where_it_says() {
+    let mut world = a_world(Vec::new());
+    let guard = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["..".to_owned()],
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
+        place_npcs: vec![cdda_content::mapgen::AreaNpc {
+            template: "test_talker".to_owned(),
+            target: false,
+            add_trait: vec!["LIGHTSTEP".to_owned()],
+            unique_id: "the_doctor".to_owned(),
+            x: (1, 1),
+            y: (0, 0),
+        }],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), guard)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(173));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    let people: Vec<bevy_ecs::prelude::Entity> = {
+        let mut query = world.query::<(bevy_ecs::prelude::Entity, &cdda_sim::npcs::Npc)>();
+        query.iter(&world).map(|(entity, _)| entity).collect()
+    };
+    assert_eq!(
+        people.len(),
+        1,
+        "**one person, on the square the entry names**"
+    );
+    let person = people[0];
+    assert_eq!(
+        cdda_sim::npcs::class_of(&world, person).as_deref(),
+        Some("test_talker"),
+        "**the class the entry named**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::npcs::Npc>(person)
+            .map(|npc| npc.unique_id.clone()),
+        Some("the_doctor".to_owned()),
+        "**and the unique id a later rule picks them out by**"
+    );
+    assert!(
+        cdda_sim::traits::has_trait(&world, person, "LIGHTSTEP"),
+        "**with the trait the entry added**"
+    );
 }

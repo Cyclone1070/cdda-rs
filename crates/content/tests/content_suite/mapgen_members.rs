@@ -52,6 +52,7 @@ const READ: &[&str] = &[
     "place_corpses",
     "place_variables",
     "faction_owner",
+    "place_npcs",
     "parameters",
     "mapping",
     "rubble",
@@ -99,7 +100,6 @@ const MORE_GAPS: &[&str] = &[
     "flags",
     // The single-item symbol map, whose group form (`items`) is read.
     // The rectangle form of `npcs`.
-    "place_npcs",
 ];
 
 /// Members that are **comments**, not placements: the data's own `//` keys.

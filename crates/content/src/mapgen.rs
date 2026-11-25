@@ -228,6 +228,9 @@ pub struct MapgenObject {
     /// The terrain/furniture transforms a mapgen applies over a rectangle (`jmapgen_ter_furn_transform`, `mapgen.cpp:3766-3791`): 45 entries, and how a map says "there is a
     /// window here, and it has been broken out" without naming the broken shape in its rows.
     pub place_ter_furn_transforms: Vec<AreaTransform>,
+    /// The people a mapgen puts where it draws them (`place_npcs`, `mapgen.cpp:5417`): 22 uses. Each names a **class** - the reference's `npc_class` - a square,
+    /// and optionally a unique id a later rule can pick the person out by.
+    pub place_npcs: Vec<AreaNpc>,
     /// Who owns what a mapgen draws (`faction_owner`, `mapgen.cpp:2650-2674`): 150 uses, the commonest member left. The rectangle is the entry's **ranges**, not a rolled
     /// corner - the reference walks `points_in_rectangle( x.val, y.val, x.valmax, y.valmax )`.
     pub faction_owner: Vec<AreaFaction>,
@@ -851,6 +854,7 @@ pub fn load_objects(value: &cdda_json::Value) -> Vec<MapgenObject> {
                 place_graffiti: read_area_graffiti(inner.get("place_graffiti")),
                 place_corpses: read_area_corpses(inner.get("place_corpses")),
                 faction_owner: read_area_factions(inner.get("faction_owner")),
+                place_npcs: read_area_npcs(inner.get("place_npcs")),
                 place_ter_furn_transforms: read_area_transforms(
                     inner.get("place_ter_furn_transforms"),
                 ),
@@ -1053,6 +1057,62 @@ pub fn resolve_rows(rows: &[String], terrain: &Object) -> Result<Vec<Vec<Option<
 /// looked like a different bug - a chunk that needed a fill, a palette that resolved to single letters, stairs that came out as plain floor - and all of them were this one direction.
 ///
 /// A symbol may carry several ids, or an id with a weight. The first id is what a draw needs: choosing between them is a roll the caller owns.
+/// One person a mapgen places (`jmapgen_npc`, `mapgen.cpp:2592-2650`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaNpc {
+    /// The template to make the person from - the reference's `npc` id, whose `class` then shapes them.
+    pub template: String,
+    /// Whether this person is the scenario's target (`target`), which a mission reads.
+    pub target: bool,
+    /// Traits the entry adds on top of the template's own (`add_trait`).
+    pub add_trait: Vec<String>,
+    /// The unique id a later rule picks the person out by, empty when the data gives none.
+    pub unique_id: String,
+    /// The columns it may land on.
+    pub x: (i32, i32),
+    /// The rows it may land on.
+    pub y: (i32, i32),
+}
+
+/// Reads a mapgen's `place_npcs` list.
+fn read_area_npcs(list: Option<&cdda_json::Value>) -> Vec<AreaNpc> {
+    let Some(cdda_json::Value::Array(entries)) = list else {
+        return Vec::new();
+    };
+    let mut placed = Vec::new();
+    for entry in entries {
+        let cdda_json::Value::Object(one) = entry else {
+            continue;
+        };
+        let Some(cdda_json::Value::Str(template)) = one.get("class") else {
+            continue;
+        };
+        let add_trait = match one.get("add_trait") {
+            Some(cdda_json::Value::Str(one_trait)) => vec![one_trait.clone()],
+            Some(cdda_json::Value::Array(names)) => names
+                .iter()
+                .filter_map(|name| match name {
+                    cdda_json::Value::Str(text) => Some(text.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        placed.push(AreaNpc {
+            template: template.clone(),
+            target: matches!(one.get("target"), Some(cdda_json::Value::Bool(true))),
+            add_trait,
+            unique_id: match one.get("unique_id") {
+                Some(cdda_json::Value::Str(id)) => id.clone(),
+                _ => String::new(),
+            },
+            x: span(one.get("x")),
+            y: span(one.get("y")),
+        });
+    }
+    placed
+}
+
 /// One faction ownership area (`jmapgen_faction`, `mapgen.cpp:2650-2674`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AreaFaction {

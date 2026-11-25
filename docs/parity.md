@@ -41090,3 +41090,21 @@ rule separately visible.
 
 **The set list is complete**: terrain, furniture, trap, trap_remove, creature_remove, item_remove, field_remove, radiation, bash, burn, variable. What remains of the mapgen family
 is `place_npcs`, which needs NPC class templates and is a phase of its own.
+
+## The last member: a person where the map says (round 332)
+
+`place_npcs` - 22 uses - was the last member of the mapgen family, and it closes it. The rule (`jmapgen_npc::apply`, `mapgen.cpp:2612-2630`) is three facts and a flag: the
+entry names an **`npc` template** in its `class` member, the template names the `npc_class` that shapes the person, and the person is made on a rolled square with the entry's
+`add_trait` traits, an optional `unique_id` a later rule picks them out by, and a `target` flag a mission reads.
+
+The port could make a person already - the dialogue spawn round gave it `spawn_creature` + `make_npc` + `traits::add_trait` - so the round is the member's reader, a `NpcClass`
+component carrying the class's **name**, a `ScenarioTarget` marker, and a writer that joins them.
+
+**Named gap, in the writer's comment, and it is the honest shape of the thing**: a class's *numbers* - stats, skills, clothing, weapons - are `npc_class` tables the port has not
+read, and the reference's `unique_npc_exists` guard needs a registry of the living that the store answers from its own entities. So the port makes a person and records what
+class they were made from; it does not yet roll them.
+
+The mutation drops the trait loop: the person is still made, still knows their class and their id, and the trait assertion fails.
+
+**The mapgen family is complete**: every member the data writes is read, and every one but the two blocked by a phase (`place_npcs`'s class numbers) is written. The census test
+`content_suite::mapgen_members` now has an **empty** named-gap list for the first time, which is the signal this family is done rather than the count of rounds spent on it.

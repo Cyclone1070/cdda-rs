@@ -78,3 +78,22 @@ pub fn npcs(world: &World) -> Vec<(Entity, (i32, i32, i32))> {
         .map(|(entity, _, at)| (entity, (at.x, at.y, at.z)))
         .collect()
 }
+
+/// Which class a person was made from.
+///
+/// Reference: `npc::myclass` (`npc.h`) and `npc_class` (`npc_class.h`) - the trade, the stats, the skills and the clothing a template rolls for a person. The port keeps the
+/// **name** of the class, because that is what a later rule replying to "what do you do" reads, and the class's numbers belong to the template tables the port has yet to read.
+#[derive(Component, Debug, Clone, PartialEq, Eq)]
+pub struct NpcClass(pub String);
+
+/// Which class a person was made from, when they were made from one.
+#[must_use]
+pub fn class_of(world: &World, creature: Entity) -> Option<String> {
+    world.get::<NpcClass>(creature).map(|class| class.0.clone())
+}
+
+/// Marks a person as the scenario's target, which a mission reads.
+///
+/// Reference: `jmapgen_npc::target` (`mapgen.cpp:2601`) hands the flag to `map::place_npc`, and the NPC carries it as `mission_util`'s target.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ScenarioTarget;
