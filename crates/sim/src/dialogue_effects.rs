@@ -3523,6 +3523,18 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "insult_combat" => {
             start_a_fight_with_the_person(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "stranger_neutral" => {
+            the_stranger_feels_less_threatened(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "npc_thankful" => {
+            the_person_is_thankful(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "wake_up" => {
+            wake_the_person_up(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "leave" => {
+            the_person_leaves(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4177,5 +4189,73 @@ fn start_a_fight_with_the_person(
         .map_or_else(String::new, |creature| creature.name.clone());
     crate::messages::push(world, &format!("You start a fight with {name}!"));
     crate::npcs::set_attitude(world, npc, "kill");
+    Applied::Done
+}
+
+/// **`stranger_neutral` calms a stranger.** Reference: `talk_function::stranger_neutral` (`npctalk_funcs.cpp:987-992`): the game says they feel less threatened and their
+/// attitude becomes `NPCATT_NULL`.
+///
+/// **Named gap**: the reference also switches the conversation to its "stranger, neutral" topic, which is the dialogue window's state and not the world's.
+fn the_stranger_feels_less_threatened(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::messages::push(world, &format!("{name} feels less threatened by you."));
+    crate::npcs::set_attitude(world, npc, "null");
+    Applied::Done
+}
+
+/// **`npc_thankful` ends a hostile attitude and cools the person down.** Reference: `talk_function::npc_thankful` (`npctalk_funcs.cpp:1340-1352`): one of five attitudes -
+/// mugging, waiting to leave, fleeing, killing, or fleeing for a while - becomes `NPCATT_NULL`, and the person's **aggression** drops by one, clamped.
+///
+/// **Named gaps, both fields the port does not have**: the personality's aggression (the port has no personality), and the conversation topic the reference then switches to.
+/// The attitude half is the half the world can see.
+fn the_person_is_thankful(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let attitude = crate::npcs::attitude_of(world, npc).unwrap_or_default();
+    if ["mug", "wait_for_leave", "flee", "kill", "flee_temp"].contains(&attitude.as_str()) {
+        crate::npcs::set_attitude(world, npc, "null");
+    }
+    Applied::Done
+}
+
+/// **`wake_up` wakes a sleeping person.** Reference: `talk_function::wake_up` (`npctalk_funcs.cpp:502-511`): the ally rule that allowed sleeping is overridden, and the four
+/// effects that put them under - `allow_sleep`, `lying_down`, `npc_suspend` and `sleep` - are removed. The reference's own `// TODO: Get mad at player for waking us up` is
+/// left as it is: there is no anger here either.
+///
+/// **Named gap**: the ally-rule override is part of the reference's NPC rules system, which the port does not have; the effects are the part that changes the world.
+fn wake_the_person_up(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    for effect in ["allow_sleep", "lying_down", "npc_suspend", "sleep"] {
+        crate::applied_effects::remove(world, npc, effect);
+    }
+    Applied::Done
+}
+
+/// **`leave` ends a companion's company.** Reference: `talk_function::leave` (`npctalk_funcs.cpp:953-968`): the game says the person leaves and they are taken off the
+/// player's followers.
+///
+/// **Named gaps**: the reference also gives the person a new "lone wolf" faction named after them, because factions are how it tracks who follows whom - the port's `Ally`
+/// marker is the whole relation, so removing it is the whole rule here.
+fn the_person_leaves(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::messages::push(world, &format!("{name} leaves."));
+    world.entity_mut(npc).remove::<crate::npcs::Ally>();
     Applied::Done
 }

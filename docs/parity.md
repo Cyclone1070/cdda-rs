@@ -41281,3 +41281,22 @@ The ally relation is the port's `Ally` marker, which is what the reference's `is
 
 The block now stands at **7 of 75** ported - `hostile` (184 uses), `flee` (10), `follow` (46), `follow_only` (23), `stop_following` (14), `deny_follow` (14) and `insult_combat`
 (6) - and the ranked list in the round-342 note is the work order.
+
+## Four small ones (round 344)
+
+Four more of the seventy-five, chosen because each is a rule about a person's state rather than a new subsystem:
+
+- `stranger_neutral` (`npctalk_funcs.cpp:987-992`) - the game says they feel less threatened and the attitude becomes `NPCATT_NULL`. The reference also switches the
+  conversation topic, which is dialogue-window state and named as such.
+- `npc_thankful` (`:1340-1352`) - **only five attitudes** calm down (mugging, waiting to leave, fleeing, killing, fleeing for a while); the personality's aggression also drops
+  by one, which the port has nowhere to put.
+- `wake_up` (`:502-511`) - removes `allow_sleep`, `lying_down`, `npc_suspend` and `sleep`, and nothing else; the ally-rule override is part of the reference's NPC rules.
+- `leave` (`:953-968`) - the game says they leave and they come off the player's followers; the reference's new "lone wolf" faction is how it spells that, and the port's
+  `Ally` marker is the whole relation.
+
+The test pins the conditional in `npc_thankful` (a `guard` is not calmed) and the **four** effects in `wake_up` (an unrelated effect survives), because those are the two rules
+whose whole content is a list. The mutation removes only `sleep` and the `lying_down` assertion fails.
+
+The block stands at **11 of 75**. The remaining big ones are all waiting on something the port does not model yet: `start_trade` (113 uses) on the trade window,
+`assign_mission`/`clear_mission`/`mission_success` (112 together) on the conversation's selected mission, `end_conversation` (24) and the barber pair on the dialogue topics, and
+`drop_weapon` (14) on a person carrying a weapon.

@@ -3722,3 +3722,118 @@ fn a_denied_follow_is_remembered_and_an_insult_starts_a_fight() {
         "**announced from the player's side, not the person's: {lines:?}**"
     );
 }
+
+/// **Four more legacy effects, one test.** Reference: `stranger_neutral` (`npctalk_funcs.cpp:987-992`), `npc_thankful` (`:1340-1352`), `wake_up` (`:502-511`) and `leave`
+/// (`:953-968`) - each a small rule about a person's state rather than a new subsystem.
+///
+/// The four are asserted together because they share one shape: find the person, change one thing, sometimes say one line. What is worth pinning is the **conditional** in
+/// `npc_thankful` - only five attitudes calm down, and a person who has none keeps none - and that `wake_up` removes *four* effects while leaving any other alone.
+#[test]
+fn four_small_legacy_effects() {
+    let mut world = World::new();
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[
+            cdda_sim::effect_registry::bare("sleep"),
+            cdda_sim::effect_registry::bare("lying_down"),
+            cdda_sim::effect_registry::bare("npc_suspend"),
+            cdda_sim::effect_registry::bare("allow_sleep"),
+            cdda_sim::effect_registry::bare("asked_to_follow"),
+        ],
+    );
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    // **A stranger is calmed.**
+    cdda_sim::npcs::set_attitude(&mut world, vlad, "kill");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("stranger_neutral")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**stranger_neutral runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("null"),
+        "**and the person stops wanting to fight**"
+    );
+    // **Thankful only calms five attitudes.**
+    cdda_sim::npcs::set_attitude(&mut world, vlad, "mug");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("npc_thankful")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**npc_thankful runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("null"),
+        "**and a mugger calms down**"
+    );
+    cdda_sim::npcs::set_attitude(&mut world, vlad, "guard");
+    cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect("npc_thankful"));
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("guard"),
+        "**but an attitude that is not one of the five is left alone**"
+    );
+    // **Waking removes the four sleep effects and nothing else.**
+    for name in [
+        "sleep",
+        "lying_down",
+        "npc_suspend",
+        "allow_sleep",
+        "asked_to_follow",
+    ] {
+        if let Some(kind) = cdda_sim::effect_registry::kind_named(&world, name) {
+            cdda_sim::applied_effects::add(
+                &mut world,
+                vlad,
+                cdda_sim::effects::ActiveEffect::new(&kind, 100, 1),
+            );
+        }
+    }
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect("wake_up")),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**wake_up runs**"
+    );
+    for name in ["sleep", "lying_down", "npc_suspend", "allow_sleep"] {
+        assert!(
+            !cdda_sim::applied_effects::has(&world, vlad, name),
+            "**{name} is gone**"
+        );
+    }
+    assert!(
+        cdda_sim::applied_effects::has(&world, vlad, "asked_to_follow"),
+        "**and an effect that has nothing to do with sleep stays**"
+    );
+    // **Leaving takes the person off the followers.**
+    cdda_sim::npcs::make_ally(&mut world, vlad);
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect("leave")),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**leave runs**"
+    );
+    assert!(
+        world.get::<cdda_sim::npcs::Ally>(vlad).is_none(),
+        "**and the person is no longer an ally**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "Vlad leaves."),
+        "**with the line the reference gives them: {lines:?}**"
+    );
+}
