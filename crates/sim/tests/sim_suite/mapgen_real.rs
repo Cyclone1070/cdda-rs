@@ -87,6 +87,9 @@ fn piece_id_or_fallback(piece: &Piece) -> Option<&str> {
     match piece {
         Piece::Id(id) => Some(id),
         Piece::Param { fallback, .. } => fallback.as_deref(),
+        // A switch names one of its cases, and every case is terrain the palette names - so the first case is a stand-in for "the mapgen named this square itself", which is
+        // what the test is asking. Choosing between them is the generation's job, not this helper's.
+        Piece::Switch { cases, .. } => cases.values().next().map(String::as_str),
     }
 }
 

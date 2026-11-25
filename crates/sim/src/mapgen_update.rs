@@ -1463,14 +1463,7 @@ fn resolve_parameters(
             args.insert(name.clone(), drawn);
         }
     }
-    let resolve = |piece: &Piece| match piece {
-        Piece::Id(id) => Some(Piece::Id(id.clone())),
-        Piece::Param { name, fallback } => args
-            .get(name)
-            .cloned()
-            .or_else(|| fallback.clone())
-            .map(Piece::Id),
-    };
+    let resolve = |piece: &Piece| resolve_piece(piece, &args);
     let mut rewritten = MapgenObject {
         terrain: mapgen
             .terrain
@@ -1486,6 +1479,30 @@ fn resolve_parameters(
     };
     rewritten.parameters.clear();
     rewritten
+}
+
+/// Resolves one piece against the values the generation drew.
+///
+/// **A switch is resolved after its own value is**: the inner piece resolves first - a parameter to the value it drew - and then that value picks the case. A value the switch
+/// does not name draws nothing, which is the reference's `make_null_helper` and not a fallback. The recursion is a named function rather than a closure because a closure
+/// cannot call itself, and a switch inside a switch is legal data.
+fn resolve_piece(
+    piece: &cdda_content::mapgen::Piece,
+    args: &std::collections::BTreeMap<String, String>,
+) -> Option<cdda_content::mapgen::Piece> {
+    use cdda_content::mapgen::Piece;
+    match piece {
+        Piece::Id(id) => Some(Piece::Id(id.clone())),
+        Piece::Param { name, fallback } => args
+            .get(name)
+            .cloned()
+            .or_else(|| fallback.clone())
+            .map(Piece::Id),
+        Piece::Switch { on, cases } => match resolve_piece(on, args)? {
+            Piece::Id(value) => cases.get(&value).cloned().map(Piece::Id),
+            _ => None,
+        },
+    }
 }
 
 /// Fills a rectangle with what a group holds, at the entry's density.

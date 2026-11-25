@@ -4979,3 +4979,59 @@ fn a_mapgen_puts_a_person_where_it_says() {
         "**with the trait the entry added**"
     );
 }
+
+/// **A symbol can name a switch over a parameter, and the drawn value picks the id.** Reference: `mapgen_value`'s `switch_source` (`mapgen.cpp:2096-2120`): the inner value is
+/// evaluated to a string, the string is looked up in `cases`, and a value the cases do not name draws **nothing** (the reference's `make_null_helper`).
+///
+/// The data uses this 49 times, always to draw several variants of the same building from one mapgen - a fence mapgen that puts posts where the fence is wire and nothing
+/// where it is a hedge. The test reads the form from JSON, then draws it twice with two different parameter values and checks that the square differs, which is the whole point
+/// of the form.
+#[test]
+fn a_switch_over_a_parameter_picks_the_id() {
+    // **The raw string needs two hashes**: the JSON contains `"#` (a row of wall symbols), which ends a `r#"..."#` literal early.
+    let json = cdda_json::parse(
+        br##"{"om_terrain": "house", "object": {
+            "rows": ["#"],
+            "terrain": {"#": {"switch": {"param": "fence_type"}, "cases": {
+                "t_chainfence": "t_chainfence_posts", "t_fence": "t_fence_post"}}},
+            "parameters": {"fence_type": {"default": {"distribution": ["t_chainfence"]}}}}} "##,
+    )
+    .expect("the prototype parses");
+    let read = cdda_content::mapgen::load_objects(&json)
+        .into_iter()
+        .next()
+        .expect("the prototype reads");
+    let piece = read.terrain.get(&'#').expect("the symbol");
+    let cdda_content::mapgen::Piece::Switch { cases, .. } = piece else {
+        panic!("**a switch is read as a switch, not as a parameter**");
+    };
+    assert_eq!(
+        cases.get("t_chainfence").map(String::as_str),
+        Some("t_chainfence_posts")
+    );
+    assert_eq!(
+        cases.get("t_fence").map(String::as_str),
+        Some("t_fence_post")
+    );
+    // **And it draws**: the parameter's single weighted value is the chain fence, so the square becomes the posts and not the fence.
+    let mut world = a_world(Vec::new());
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_chainfence".to_owned(), 61u32),
+            ("t_chainfence_posts".to_owned(), 62u32),
+            ("t_fence".to_owned(), 63u32),
+            ("t_fence_post".to_owned(), 64u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), read)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(179));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(62),
+        "**the fence the parameter drew decides which post is put there**"
+    );
+}

@@ -41139,3 +41139,19 @@ per part, because damage is dealt to a part here. That asymmetry is worth notici
 The mutation makes the one-in-three never land: the slime still goes on, the trap still goes away, and the wound assertions fail.
 
 The ledger moves to **124 of 125 traps answered** - only `boobytrap` left, and it really is waiting on a subsystem: an active item with a fuse.
+
+## A value that depends on another value (round 335)
+
+`mapgen_value`'s **switch** form - named as a gap since the palettes round - is read and resolved: `{"switch": <value>, "cases": {<value>: <id>}}` (`switch_source`,
+`mapgen.cpp:2096-2120`) evaluates the inner value, looks the answer up in the cases, and draws an id; a value the cases do not name draws **nothing**, which is the reference's
+`make_null_helper` and not a fallback. The data uses it **49 times**, always as a switch over a parameter - "if the fence is a wire fence, put a post here" - which is how one
+mapgen draws several variants of the same building.
+
+The port's `Piece` grew a third arm, and the resolving side is worth a note: the switch is resolved **after** its own value is, so `Piece::Switch` is walked by a named recursive
+function rather than a closure - a closure cannot call itself, and a switch inside a switch is legal data the reference would handle.
+
+**Two fixture mistakes, both caught by the test rather than by review**: a `r#"..."#` literal ended early because the JSON contains `"#` (a row of wall symbols) - the literal is
+now `r##"..."##`; and the parameter was written as a bare `distribution` where the reference nests it under `default`, so nothing was drawn at all. Both are the kind of thing a
+test that only checked the reader would have missed, which is why the test **draws** the switch and not just reads it.
+
+The mutation skips the case lookup and answers the switched value itself: the square becomes the chain fence (61) instead of its post (62).

@@ -130,6 +130,16 @@ pub enum Piece {
         /// The id to use when the parameter has no value.
         fallback: Option<String>,
     },
+    /// A **switch over another value** (`switch_source`, `mapgen.cpp:2096-2120`): the inner value is evaluated to a string, and the string picks the id out of `cases`.
+    ///
+    /// The data uses it 49 times, always as a switch over a **parameter** - "if the fence is a wire fence, put a post here" - which is how one mapgen draws several variants
+    /// of the same building without a mapgen per variant.
+    Switch {
+        /// The value being switched on.
+        on: Box<Piece>,
+        /// What each value of it becomes. A value the switch does not name answers nothing, which is the reference's `make_null_helper` and draws nothing.
+        cases: BTreeMap<String, String>,
+    },
 }
 
 impl Piece {
@@ -138,7 +148,8 @@ impl Piece {
     pub fn id(&self) -> Option<&str> {
         match self {
             Piece::Id(id) => Some(id),
-            Piece::Param { .. } => None,
+            // A switch names an id only once its value is known, which is at generation time and not here.
+            Piece::Param { .. } | Piece::Switch { .. } => None,
         }
     }
 }
@@ -296,11 +307,28 @@ fn read_piece_symbols(inner: &cdda_json::Object, key: &str) -> BTreeMap<char, Pi
     table
 }
 
-/// Reads one symbol's value: an id, or a parameter reference (`mapgen.cpp:470-520`).
+/// Reads one symbol's value: an id, a parameter reference, or a switch over one (`mapgen.cpp:2197-2222`).
 fn read_piece(value: &cdda_json::Value) -> Option<Piece> {
     match value {
         cdda_json::Value::Str(id) => Some(Piece::Id(id.clone())),
         cdda_json::Value::Object(entry) => {
+            // The three forms the reference accepts, in its own order: `param`, `distribution`, `switch`. The port reads the first and the third; a distribution over ids
+            // is named as the gap it is.
+            if let Some(switched) = entry.get("switch") {
+                let on = read_piece(switched)?;
+                let mut cases = BTreeMap::new();
+                if let Some(cdda_json::Value::Object(table)) = entry.get("cases") {
+                    for (case, mapped) in table.members() {
+                        if let cdda_json::Value::Str(id) = mapped {
+                            cases.insert(case.clone(), id.clone());
+                        }
+                    }
+                }
+                return Some(Piece::Switch {
+                    on: Box::new(on),
+                    cases,
+                });
+            }
             let name = match entry.get("param") {
                 Some(cdda_json::Value::Str(name)) => name.clone(),
                 _ => return None,
