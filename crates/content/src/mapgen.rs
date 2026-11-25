@@ -1567,6 +1567,8 @@ pub enum SetKind {
     Bash,
     /// Radiation on the square (`radiation`, `mapgen.cpp:5672-5675`), whose amount is the entry's `amount`.
     Radiation,
+    /// A fire on the square (`burn`, `mapgen.cpp:5702-5735`): a flammable square is bashed apart and may leave ash; a `FLAMMABLE_ASH` one becomes a heap of ash.
+    Burn,
 }
 
 /// The shape a `set` entry draws (`jmapgen_setmap`, `mapgen.cpp:5432-5480`).
@@ -1634,6 +1636,7 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             "creature_remove" => SetKind::CreatureRemove,
             "bash" => SetKind::Bash,
             "radiation" => SetKind::Radiation,
+            "burn" => SetKind::Burn,
             _ => continue,
         };
         // A removal names no id: that is what makes it a removal rather than a write.
@@ -1643,7 +1646,8 @@ fn read_set_points(list: Option<&cdda_json::Value>) -> Vec<SetPoint> {
             | SetKind::FieldRemove
             | SetKind::CreatureRemove
             | SetKind::Bash
-            | SetKind::Radiation => String::new(),
+            | SetKind::Radiation
+            | SetKind::Burn => String::new(),
             _ => match one.get("id") {
                 Some(cdda_json::Value::Str(id)) => id.clone(),
                 _ => continue,

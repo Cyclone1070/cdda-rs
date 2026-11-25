@@ -41067,3 +41067,26 @@ registry to ask, so it stamps every id as written. That is the one place this ru
 The mutation stamps the rectangle's first corner instead of the rectangle: one rock owned instead of four.
 
 **What is left**: `place_npcs` (22 uses, needs NPC class templates) and the `burn` set point. The family is otherwise complete.
+
+## A fire on a square (round 331)
+
+`burn` as a **set point** - 2 uses - closes the set list: the reference's operation table has twelve entries and the port now reads all twelve. The arm
+(`jmapgen_setmap::apply`, `mapgen.cpp:5702-5735`) splits on the square's **flags**, not on what stands there:
+
+- `FLAMMABLE` or `FLAMMABLE_HARD`: bash the square until it cannot be bashed any more, then on `one_in( 5 )` and when the ground is not liquid, leave one to ten ash.
+- `FLAMMABLE_ASH`: bash it the same way, then - unless the square is open air - put `f_ash` there and ten to a thousand ash.
+- neither: nothing.
+
+**The loop is the rule.** `while( m.is_bashable( target_pos ) )` runs more than once in ordinary data, because a wall's rubble carries a bash block of its own; the test's wall
+needs exactly two hits. The reference has no bound on that loop; the port caps it at a hundred, which is the only place the two can differ and it differs only for data that
+would hang the reference too.
+
+**Named gaps, both about items**: the reference goes on to burn every **flammable item** on the square and to turn it into its materials' burn products
+(`create_burnproducts`). The port has neither item flammability nor burn products, so it does the square and leaves the items. That is named in the writer's comment, not
+discovered later.
+
+The mutation skips the `f_ash` furniture: the square is still bashed and still gets its ash, and the test's furniture assertion fails - which is what makes the two halves of the
+rule separately visible.
+
+**The set list is complete**: terrain, furniture, trap, trap_remove, creature_remove, item_remove, field_remove, radiation, bash, burn, variable. What remains of the mapgen family
+is `place_npcs`, which needs NPC class templates and is a phase of its own.

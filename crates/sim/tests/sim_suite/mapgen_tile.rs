@@ -4768,3 +4768,123 @@ fn a_faction_owner_is_read_as_a_rectangle() {
         "**the range is the rectangle, not the corner a piece rolls**"
     );
 }
+
+/// **A `burn` set point bashes a flammable square apart and leaves ash; a `FLAMMABLE_ASH` one leaves a heap of it.** Reference:
+/// `jmapgen_setmap::apply`'s `JMAPGEN_SETMAP_BURN` arm (`mapgen.cpp:5702-5735`): a `FLAMMABLE`/`FLAMMABLE_HARD` square is bashed until it can be bashed no more and, on
+/// `one_in( 5 )`, leaves one to ten ash; a `FLAMMABLE_ASH` square is bashed the same way and then becomes `f_ash` with ten to a thousand ash - unless it is open air or liquid.
+///
+/// The test takes the ash-bearing half because it is the one with no dice in it: the outcome is the same on any seed, which is what makes the assertion a rule rather than a
+/// coincidence. The bash loop has to run **twice** here - the wall breaks into rubble that carries a bash block of its own - which is exactly why the reference loops.
+#[test]
+fn a_burn_set_point_leaves_ash() {
+    let mut world = a_world(Vec::new());
+    cdda_sim::mapgen_update::set_terrain_codes(
+        &mut world,
+        [
+            ("t_wall".to_owned(), 81u32),
+            ("t_wall_rubble".to_owned(), 82u32),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_wall".to_owned(), 81u32),
+            ("t_wall_rubble".to_owned(), 82u32),
+            ("t_open_air".to_owned(), 83u32),
+        ],
+    );
+    cdda_sim::furniture_types::set_types(&mut world, [("f_ash".to_owned(), 5u32)]);
+    let ash = {
+        let kind = cdda_sim::item_registry::Kind {
+            id: "ash",
+            volume_ml: 30,
+            weight_g: 10,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -2,
+        };
+        cdda_sim::item_registry::set_item_types(&mut world, &[kind]);
+        cdda_sim::item_registry::id_of(&mut world, "ash").expect("the ash kind")
+    };
+    let bash = |set: &str| cdda_content::mapdata::BashInfo {
+        str_min: 0,
+        str_max: 1,
+        str_min_blocked: 0,
+        str_max_blocked: 1,
+        str_min_supported: 0,
+        str_max_supported: 1,
+        destroy_only: false,
+        bash_below: false,
+        sound_vol: -1,
+        sound_fail_vol: -1,
+        set: set.to_owned(),
+        set_from_above: None,
+        drop_group: None,
+    };
+    let wall = |id: &str, flags: &[&str], bash: Option<cdda_content::mapdata::BashInfo>| {
+        cdda_content::mapdata::MapData {
+            kind: cdda_content::mapdata::MapDataKind::Terrain,
+            id: id.to_owned(),
+            name: id.to_owned(),
+            symbol: [35; 4],
+            color: [cdda_core_types::colors::NcColor::default(); 4],
+            move_cost: 0,
+            light: 0,
+            coverage: 0,
+            transparent: false,
+            examine: None,
+            heat_radiation: 0,
+            flags: flags.iter().map(|f| (*f).to_owned()).collect(),
+            bash,
+            roof: None,
+        }
+    };
+    cdda_sim::bash::set_data(
+        &mut world,
+        [
+            wall("t_wall", &["FLAMMABLE_ASH"], Some(bash("t_wall_rubble"))),
+            wall("t_wall_rubble", &[], Some(bash("t_wall_rubble"))),
+        ],
+    );
+    let burnt = MapgenObject {
+        om_terrain: "house".to_owned(),
+        rows: vec!["w".to_owned()],
+        terrain: [('w', Piece::Id("t_wall".to_owned()))]
+            .into_iter()
+            .collect(),
+        set_points: vec![cdda_content::mapgen::SetPoint {
+            kind: cdda_content::mapgen::SetKind::Burn,
+            shape: cdda_content::mapgen::SetShape::Point,
+            id: String::new(),
+            x: (0, 0),
+            y: (0, 0),
+            x2: (0, 0),
+            y2: (0, 0),
+            repeat: (1, 1),
+            amount: (0, 0),
+        }],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("house".to_owned(), burnt)]);
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(167));
+    cdda_sim::mapgen_tile::generate(&mut world, "house", (0, 0, 0));
+    assert_eq!(
+        cdda_sim::square::furniture_at(&world, (0, 0, 0)),
+        Some(5),
+        "**the burnt square is a heap of ash**"
+    );
+    let heaps = cdda_sim::items_at(&mut world, (0, 0))
+        .into_iter()
+        .filter(|item| {
+            world
+                .get::<cdda_sim::GroundItem>(*item)
+                .is_some_and(|item| item.kind == ash)
+        })
+        .count();
+    assert!(heaps > 0, "**and there is ash on it**");
+}

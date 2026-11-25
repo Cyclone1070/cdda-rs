@@ -1140,6 +1140,66 @@ fn place_set_variables(
     }
 }
 
+/// Burns one square the way a mapgen's `burn` set point does.
+///
+/// Reference: `jmapgen_setmap::apply`'s `JMAPGEN_SETMAP_BURN` arm (`mapgen.cpp:5702-5735`). The two halves are told apart by the square's **flags**, not by what is on it:
+/// `FLAMMABLE`/`FLAMMABLE_HARD` bash the square apart and, on `one_in( 5 )` and when the ground is not liquid, leave one to ten ash; `FLAMMABLE_ASH` bashes it apart too and
+/// then, unless the square is open air, puts `f_ash` there and ten to a thousand ash.
+///
+/// **Named gaps**, both of them about items rather than the square: the reference goes on to burn every **flammable item** on the square and to turn it into its materials'
+/// burn products (`create_burnproducts`), and the port has neither item flammability nor burn products. What the port does do is the square itself, which is what the member's
+/// two data uses turn on.
+fn burn_the_square(
+    world: &mut World,
+    at: (i32, i32, i32),
+    rolls: &mut Option<cdda_core_types::rng::Rolls>,
+) {
+    let Some(dice) = rolls.as_mut() else {
+        return;
+    };
+    let Some(facts) = crate::mapsquare::at(world, at) else {
+        return;
+    };
+    let flagged = |flag: &str| facts.has_flag(flag);
+    let liquid = flagged("LIQUID");
+    let ash_bearing = flagged("FLAMMABLE_ASH");
+    if !flagged("FLAMMABLE") && !flagged("FLAMMABLE_HARD") && !ash_bearing {
+        return;
+    }
+    // **One hit is not enough**: the reference loops while the square can still be bashed, because a wall's rubble may itself be bashable. The cap is the port's guard
+    // against data that would bash forever - the reference has none and would hang.
+    for _ in 0..100 {
+        let still_bashable = crate::mapsquare::at(world, at).is_some_and(|facts| facts.bashable());
+        if !still_bashable {
+            break;
+        }
+        crate::bash::bash_square_with_rolls(world, at, 9999, true, dice);
+    }
+    if ash_bearing {
+        if crate::square::terrain_at(world, at)
+            .and_then(|code| crate::terrain_types::name_of(world, code))
+            .as_deref()
+            != Some("t_open_air")
+        {
+            if let Some(code) = crate::furniture_types::code_of(world, "f_ash") {
+                crate::square::set_furniture(world, at, code);
+            }
+            if !liquid {
+                spawn_ash(world, at, dice.rng(10, 1000));
+            }
+        }
+    } else if dice.one_in(5) && !liquid {
+        spawn_ash(world, at, dice.rng(1, 10));
+    }
+}
+
+/// Drops a heap of ash on a square, when the world knows what ash is.
+fn spawn_ash(world: &mut World, at: (i32, i32, i32), amount: i32) {
+    if let Some(ash) = crate::item_registry::id_of(world, "ash") {
+        crate::drop_item(world, (at.0, at.1), ash, amount);
+    }
+}
+
 /// Stamps the faction ownership a mapgen names on the squares it covers.
 ///
 /// Reference: `jmapgen_faction::apply` (`mapgen.cpp:2662-2670`): the entry's **ranges** are the rectangle (`x.val` to `x.valmax`), and the ownership lands on the items and the
@@ -1594,6 +1654,9 @@ fn write_the_layer(
         cdda_content::mapgen::SetKind::CreatureRemove => kill_the_creature(world, at),
         // **A mapgen's bash is one hit at strength 9999, silent** (`mapgen.cpp:5696-5699`: `m.bash( target_pos, 9999, true )`), which is how the data draws a room that has
         // been broken open. The hit draws from the write's own stream, so where it lands in the sequence is part of the mapgen's result.
+        // **A mapgen's fire** (`mapgen.cpp:5702-5735`): a `FLAMMABLE` or `FLAMMABLE_HARD` square is bashed apart, one hit after another, and one time in five leaves a little
+        // ash; a `FLAMMABLE_ASH` square is bashed apart and becomes a furniture heap of ash with a great deal more. A square that is neither is left alone.
+        cdda_content::mapgen::SetKind::Burn => burn_the_square(world, at, rolls),
         cdda_content::mapgen::SetKind::Radiation => {
             let amount = match rolls.as_mut() {
                 Some(dice) if entry.amount.1 > entry.amount.0 => {
