@@ -41227,3 +41227,16 @@ still enough to drive on but no longer sit around the weight - so the loop stopp
 "the tyres were destroyed" is satisfied by a port that only asked whether any wheel remained.
 
 The mutation puts broken wheels back in the cache: the loop breaks one wheel a hundred times, `balanced` never answers false, and the assertion fails.
+
+## Every light has its own coin (round 341)
+
+The rest of `init_state`'s "provide some variety" pass is in (`vehicle.cpp:441-478`): for a vehicle that is not mint, each light class rolls its **own** coin - headlights and
+wide headlights one in twenty, a dome one in sixteen, an aisle light one in eight, a half-circle or circle light one in four, an atomic light one in two - a door on a part that
+opens is left open one time in four, and a **fridge, freezer or water purifier is switched on whatever the dice say**, because those three lines have no coin in them.
+
+That last clause is the test's sharpest assertion, and the reason the test runs the roll's two **extremes**: at zero every coin lands (lights on, doors open) and at one none
+does, so the fridge must still be on in both runs. A port that rolled the fridge like a light leaves it dark in the second run; the mutation does exactly that and fails.
+
+**Still not ported from `init_state`, and each for a stated reason**: the blood spatter (the port has no blood on parts), the locks and the immobiliser fault (no faults), the
+half-chance `smash(0.5 )` for a disabled vehicle (that is the whole smash rule), and the engine-left-running coin, which needs the reference's `engine_on` flag - the port
+derives an engine's state from its parts and has nowhere to put "the engine is running but nothing is asking it to".

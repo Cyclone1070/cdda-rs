@@ -5368,3 +5368,124 @@ fn a_disabled_vehicles_tyres_go_until_it_cannot_drive() {
         "**but they no longer sit around the vehicle's weight, which is the half that stopped the loop**"
     );
 }
+
+/// **A car that has been sitting there has its lights and doors rolled for.** Reference: `vehicle::init_state` (`vehicle.cpp:441-478`): for a vehicle that is not mint, every
+/// light class gets its own coin (headlights one in twenty, a dome one in sixteen, an aisle light one in eight, a half-circle or circle one in four, an atomic one in two), a
+/// door on a part that opens is left open one time in four, and a fridge, freezer or water purifier is switched **on** whatever the dice say.
+///
+/// The two runs use the extremes of the roll, which is what makes every coin answerable at once: at zero every coin lands and every light is on with every door open; at one
+/// none of them does - and the fridge is still on, because its line has no coin. That last pair is the point: a port that rolled the fridge like a light would leave it dark
+/// in the second run, and one that never rolled anything would light the first car and the second alike.
+#[test]
+fn a_parked_cars_lights_and_doors_are_rolled_for() {
+    fn parked_after(roll: f64) -> Vec<(String, bool, bool)> {
+        let mut world = a_world(Vec::new());
+        let part = |id: &str, flags: &[&str]| cdda_content::vehicles::PartSpec {
+            id: id.to_owned(),
+            name: id.to_owned(),
+            durability: 400,
+            flags: flags.iter().map(|flag| (*flag).to_owned()).collect(),
+            ..cdda_content::vehicles::PartSpec::default()
+        };
+        let parts = [
+            ("headlight", &["CONE_LIGHT"][..]),
+            ("dome", &["DOME_LIGHT"][..]),
+            ("door", &["OPENABLE"][..]),
+            ("fridge", &["FRIDGE"][..]),
+            ("frame", &[][..]),
+        ];
+        cdda_sim::vehicles::set_store(
+            &mut world,
+            cdda_content::vehicles::Vehicles {
+                parts: parts.iter().map(|(id, flags)| part(id, flags)).collect(),
+                prototypes: vec![cdda_content::vehicles::Prototype {
+                    id: "car".to_owned(),
+                    name: "car".to_owned(),
+                    parts: parts
+                        .iter()
+                        .enumerate()
+                        .map(|(index, (id, _))| cdda_content::vehicles::Placement {
+                            part: (*id).to_owned(),
+                            x: i32::try_from(index).unwrap_or(0),
+                            y: 0,
+                            ..cdda_content::vehicles::Placement::default()
+                        })
+                        .collect(),
+                    spawns: Vec::new(),
+                }],
+            },
+        );
+        let lot = MapgenObject {
+            om_terrain: "lot".to_owned(),
+            rows: vec!["....".to_owned()],
+            terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+                .into_iter()
+                .collect(),
+            place_vehicles: vec![cdda_content::mapgen::AreaVehicles {
+                vehicle: "car".to_owned(),
+                x: (1, 1),
+                y: (0, 0),
+                chance: (1, 1),
+                rotation: (0, 0),
+                fuel: 0,
+                // The light and door pass runs for a vehicle that is not mint, and `-1` is the reference's own default.
+                status: -1,
+            }],
+            ..a_plain_mapgen()
+        };
+        cdda_sim::mapgen_update::set_mapgens(&mut world, [("lot".to_owned(), lot)]);
+        cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(roll));
+        cdda_sim::mapgen_tile::generate(&mut world, "lot", (0, 0, 0));
+        let mut query = world.query::<&cdda_sim::vehicles::Vehicle>();
+        let vehicle = query.iter(&world).next().expect("the car is parked");
+        vehicle
+            .parts
+            .iter()
+            .map(|part| (part.part.clone(), part.enabled, part.open))
+            .collect()
+    }
+    let lit = parked_after(0.0);
+    let dark = parked_after(1.0);
+    let of = |parts: &[(String, bool, bool)], name: &str| {
+        parts
+            .iter()
+            .find(|(part, _, _)| part == name)
+            .map(|(_, enabled, open)| (*enabled, *open))
+            .expect("the part")
+    };
+    assert_eq!(
+        of(&lit, "headlight"),
+        (true, false),
+        "**at roll zero the headlights are on**"
+    );
+    assert_eq!(
+        of(&dark, "headlight"),
+        (false, false),
+        "**and at roll one they are off**"
+    );
+    assert_eq!(
+        of(&lit, "dome"),
+        (true, false),
+        "**the dome light answers its own coin**"
+    );
+    assert_eq!(
+        of(&dark, "dome"),
+        (false, false),
+        "**and goes out with it**"
+    );
+    assert_eq!(
+        of(&lit, "door"),
+        (true, true),
+        "**a door that opens is left open one time in four, and roll zero is one of them**"
+    );
+    assert_eq!(
+        of(&dark, "door"),
+        (true, false),
+        "**while at roll one it is shut - and a shut door is still an enabled part**"
+    );
+    assert!(of(&lit, "fridge").0, "**the fridge is switched on**");
+    assert!(
+        of(&dark, "fridge").0,
+        "**whatever the dice say, because its line has no coin**"
+    );
+}

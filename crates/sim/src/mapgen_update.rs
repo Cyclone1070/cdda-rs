@@ -1239,6 +1239,53 @@ fn place_the_npcs(
     }
 }
 
+/// Rolls the lights and the doors of a vehicle that is not mint.
+///
+/// Reference: `vehicle::init_state`'s "provide some variety" pass (`vehicle.cpp:441-478`): every light class gets its own coin - headlights and wide headlights one in twenty,
+/// a dome one in sixteen, an aisle light one in eight, a half-circle or circle one in four, an atomic one in two - a door on a part that opens is left open one time in four, and
+/// a fridge, freezer or water purifier is switched **on** whatever the dice say, because those three lines have no coin in them.
+fn set_the_lights_and_doors(
+    world: &mut World,
+    vehicle: bevy_ecs::prelude::Entity,
+    parts: &mut [crate::vehicles::VehiclePart],
+    dice: &mut cdda_core_types::rng::Rolls,
+) {
+    for index in 0..parts.len() {
+        let Some(flags) = crate::vehicles::part_spec(world, vehicle, index).map(|spec| spec.flags)
+        else {
+            continue;
+        };
+        let light = if flags.contains("CONE_LIGHT") || flags.contains("WIDE_CONE_LIGHT") {
+            Some(dice.one_in(20))
+        } else if flags.contains("DOME_LIGHT") {
+            Some(dice.one_in(16))
+        } else if flags.contains("AISLE_LIGHT") {
+            Some(dice.one_in(8))
+        } else if flags.contains("HALF_CIRCLE_LIGHT") || flags.contains("CIRCLE_LIGHT") {
+            Some(dice.one_in(4))
+        } else if flags.contains("ATOMIC_LIGHT") {
+            Some(dice.one_in(2))
+        } else {
+            None
+        };
+        let fridge = flags.contains("FRIDGE")
+            || flags.contains("FREEZER")
+            || flags.contains("WATER_PURIFIER");
+        let door = flags.contains("OPENABLE") && dice.one_in(4);
+        if let Some(part) = parts.get_mut(index) {
+            if let Some(on) = light {
+                part.enabled = on;
+            }
+            if fridge {
+                part.enabled = true;
+            }
+            if door {
+                part.open = true;
+            }
+        }
+    }
+}
+
 /// Gives a placed vehicle the damage and the fuel its placement asks for.
 ///
 /// Reference: `vehicle::init_state`'s damage loop (`vehicle.cpp:513-537`): for anything but a mint vehicle (`status == 0`), each part rolls `dice( 4, 8 )` - four to thirty-two -
@@ -1287,6 +1334,7 @@ fn damage_the_vehicle(
         return;
     };
     let mut parts = record.parts;
+    set_the_lights_and_doors(world, vehicle, &mut parts, dice);
     for (index, part) in parts.iter_mut().enumerate() {
         let flags = crate::vehicles::part_spec(world, vehicle, index)
             .map_or_else(std::collections::BTreeSet::new, |spec| spec.flags);
