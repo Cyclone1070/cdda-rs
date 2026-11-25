@@ -5145,3 +5145,126 @@ fn a_parked_vehicle_is_worn_as_much_as_the_mapgen_says() {
         }
     }
 }
+
+/// **A disabled vehicle has lost a class of part, and its alarm has usually wrecked the security system.** Reference: `vehicle::init_state` (`vehicle.cpp:378-440`, `:513-560`):
+/// `status: 1` draws `rng( 1, 5 )` and destroys one class - seats, controls, the tank, the engine or the tyres - then rolls the key, the alarm and an engine fault; a part that
+/// answers one of those is `set_hp( pt, 0 )`, so it is broken and empty. `status: 2` is "mint with no faults": the rolls happen, and then all three are cleared.
+///
+/// The test uses the **highest** fixed roll, which makes the class draw five (tyres, and the fixture has none) and both `one_in( 3 )` rolls false - so the only part the
+/// vehicle loses is its **security** system, through `destroyAlarm = !one_in( 3 )`. The mint vehicle beside it keeps the same security system whole, which is what the
+/// `status == 2` clearing does.
+#[test]
+fn a_disabled_vehicle_loses_a_class_of_part() {
+    let mut world = a_world(Vec::new());
+    let part = |id: &str, flags: &[&str]| cdda_content::vehicles::PartSpec {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        durability: 400,
+        flags: flags.iter().map(|flag| (*flag).to_owned()).collect(),
+        ..cdda_content::vehicles::PartSpec::default()
+    };
+    let placement = |name: &str, x: i32| cdda_content::vehicles::Placement {
+        part: name.to_owned(),
+        x,
+        y: 0,
+        ..cdda_content::vehicles::Placement::default()
+    };
+    let prototype = |id: &str, y: i32| cdda_content::vehicles::Prototype {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        parts: vec![
+            placement("frame", 0),
+            placement("seat", 1),
+            placement("controls", 2),
+            placement("security", 3),
+            placement("tank", 4),
+            placement("engine", 5),
+        ]
+        .into_iter()
+        .map(|mut placement| {
+            placement.y = y;
+            placement
+        })
+        .collect(),
+        spawns: Vec::new(),
+    };
+    cdda_sim::vehicles::set_store(
+        &mut world,
+        cdda_content::vehicles::Vehicles {
+            parts: vec![
+                part("frame", &[]),
+                part("seat", &["SEAT"]),
+                part("controls", &["CONTROLS"]),
+                part("security", &["SECURITY"]),
+                part("tank", &["FUEL_TANK"]),
+                part("engine", &["ENGINE"]),
+            ],
+            prototypes: vec![prototype("mintish", 0), prototype("disabled", 10)],
+        },
+    );
+    let lot = MapgenObject {
+        om_terrain: "lot".to_owned(),
+        rows: vec!["....".to_owned(), "....".to_owned()],
+        terrain: [('.', Piece::Id("t_house_one".to_owned()))]
+            .into_iter()
+            .collect(),
+        place_vehicles: vec![
+            cdda_content::mapgen::AreaVehicles {
+                vehicle: "mintish".to_owned(),
+                x: (0, 0),
+                y: (0, 0),
+                chance: (1, 1),
+                rotation: (0, 0),
+                fuel: 0,
+                status: 2,
+            },
+            cdda_content::mapgen::AreaVehicles {
+                vehicle: "disabled".to_owned(),
+                x: (1, 1),
+                y: (1, 1),
+                chance: (1, 1),
+                rotation: (0, 0),
+                fuel: 0,
+                status: 1,
+            },
+        ],
+        ..a_plain_mapgen()
+    };
+    cdda_sim::mapgen_update::set_mapgens(&mut world, [("lot".to_owned(), lot)]);
+    // The highest roll: the class draw is five (tyres), and both one-in-threes are false.
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(1.0));
+    cdda_sim::mapgen_tile::generate(&mut world, "lot", (0, 0, 0));
+    let mut query = world.query::<(&cdda_sim::Position, &cdda_sim::vehicles::Vehicle)>();
+    for (at, vehicle) in query.iter(&world) {
+        let by_name = |name: &str| {
+            vehicle
+                .parts
+                .iter()
+                .find(|part| part.part == name)
+                .map(|part| (part.hp, part.broken))
+                .expect("the part is on the vehicle")
+        };
+        if at.x == 1 {
+            assert_eq!(
+                by_name("security"),
+                (0, true),
+                "**the disabled vehicle's alarm wrecked its security system**"
+            );
+            for whole in ["frame", "seat", "controls", "tank", "engine"] {
+                assert_eq!(
+                    by_name(whole),
+                    (400, false),
+                    "**and nothing else, because the class drawn was the tyres: {whole}**"
+                );
+            }
+        } else {
+            for whole in ["frame", "seat", "controls", "security", "tank", "engine"] {
+                assert_eq!(
+                    by_name(whole),
+                    (400, false),
+                    "**the status-two vehicle clears the alarm roll and keeps everything: {whole}**"
+                );
+            }
+        }
+    }
+}

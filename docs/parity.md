@@ -41170,3 +41170,17 @@ mutation then fails with `left: 0, right: -1`.
 **Named gaps, both whole branches of `init_state`**: `fuel` is read and passed to the writer but not applied, because a tank's capacity is in **charges** and the port's item
 kinds do not carry a charge volume yet; and `status: 1`'s extras - a destroyed seat, controls, tank, engine or tyre, and the engine faults - need the part categories the
 reference reads from a part's flags. The `fuel` field travels with the entry so the gap is visible rather than implied.
+
+## What a disabled car has lost (round 337)
+
+`status: 1` is now read as the reference reads it (`vehicle.cpp:378-440`): the vehicle draws `rng( 1, 5 )` and loses one class of part - seats, controls, the tank, the engine or the
+tyres - then the key, the alarm and the engine are each rolled for, and a part that answers one of them is `set_hp( pt, 0 )`: broken and emptied. `status: 2` is "mint with no
+faults": the rolls still happen and then all three are cleared, which is why the test's mint vehicle keeps the same security system the disabled one loses.
+
+The test uses the **highest** fixed roll on purpose: the class draw is five (tyres, which the fixture has none of), both `one_in( 3 )` rolls are false, and the only part the
+disabled vehicle loses is its **security** system - through `destroyAlarm = !one_in( 3 )`, the rule that is easiest to miss because it destroys a part the player never chose.
+The mutation drops that condition and the security assertion fails.
+
+**Named gaps**: the tyre destruction is a loop over `valid_wheel_config` until the vehicle will not drive, and the reference's half-chance `smash( 0.5 )` for a disabled vehicle
+is the smash rule - both larger than this round and both named in the writer's comment. An engine that the reference would give a *fault* is simply broken here, because the port
+has no faults.

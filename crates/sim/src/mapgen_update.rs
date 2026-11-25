@@ -1262,12 +1262,36 @@ fn damage_the_vehicle(
     if status == 0 {
         return;
     }
-    let Some(mut record) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) else {
+    // **The destroy flags first**, in the reference's own draw order: the disabled vehicle loses one class of part (`rng( 1, 5 )`), then the key, the alarm and the engine
+    // are each rolled for - and a "mint with no faults" vehicle (`status == 2`) clears all three after the rolls, which is why the rolls still happen.
+    let (mut destroy_seats, mut destroy_controls, mut destroy_tank, mut destroy_engine) =
+        (false, false, false, false);
+    if status == 1 {
+        match dice.rng(1, 5) {
+            1 => destroy_seats = true,
+            2 => destroy_controls = true,
+            3 => destroy_tank = true,
+            4 => destroy_engine = true,
+            _ => {}
+        }
+    }
+    let _has_no_key = dice.one_in(3);
+    let destroy_alarm = !dice.one_in(3);
+    let destroy_engine = destroy_engine || dice.one_in(3);
+    if status == 2 {
+        // `veh_status` is 0 for the mint-with-no-faults state: the rolls above are drawn and thrown away (the reference clears all three flags), and the damage loop never runs.
+        return;
+    }
+    let Some(record) = world.get::<crate::vehicles::Vehicle>(vehicle).cloned() else {
         return;
     };
-    for part in &mut record.parts {
+    let mut parts = record.parts;
+    for (index, part) in parts.iter_mut().enumerate() {
+        let flags = crate::vehicles::part_spec(world, vehicle, index)
+            .map_or_else(std::collections::BTreeSet::new, |spec| spec.flags);
         let roll = dice.dice(4, 8);
         if roll <= 8 {
+            // Eight or less is `set_hp( pt, 0 )`: the part is broken, and a broken part is empty.
             part.hp = 0;
             part.broken = true;
             part.charges = 0;
@@ -1276,6 +1300,33 @@ fn damage_the_vehicle(
             let durability = part.hp.max(1);
             part.hp = (roll - 8) * durability / 12;
         }
+        // `set_hp( pt, 0 )`: broken, and - for a part that holds something - empty too.
+        let mut destroy = false;
+        if flags.contains("ENGINE") {
+            // **Named gap**: the reference sets an engine *fault* here when the part type has any; the port has no faults, so a doomed engine is simply broken.
+            destroy = destroy_engine;
+        } else if (destroy_seats && (flags.contains("SEAT") || flags.contains("SEATBELT")))
+            || (destroy_controls && (flags.contains("CONTROLS") || flags.contains("SECURITY")))
+            || (destroy_alarm && flags.contains("SECURITY"))
+        {
+            destroy = true;
+        }
+        if destroy_tank && (flags.contains("FUEL_TANK") || flags.contains("BATTERY")) {
+            destroy = true;
+        }
+        // Solar panels have a one-in-four chance of being destroyed - but never on a `status: 2` vehicle, which the early return above already guarantees.
+        if flags.contains("SOLAR_PANEL") && dice.one_in(4) {
+            destroy = true;
+        }
+        if destroy {
+            part.hp = 0;
+            part.broken = true;
+            part.charges = 0;
+            part.fuel.clear();
+        }
+    }
+    if let Some(mut record) = world.get_mut::<crate::vehicles::Vehicle>(vehicle) {
+        record.parts = parts;
     }
 }
 
