@@ -3837,3 +3837,75 @@ fn four_small_legacy_effects() {
         "**with the line the reference gives them: {lines:?}**"
     );
 }
+
+/// **`assign_mission` hands over the mission on the table, once.** Reference: `talk_function::assign_mission` (`npctalk_funcs.cpp:122-137`): the selected mission is assigned to
+/// the player and **moved** from the person's offered list to their assigned list, and a mission that is already assigned is refused rather than given twice.
+///
+/// The port has no talk window, so the "selected" mission is the first offer in id order - the choice a conversation with one option makes. This test pins the *moving*: after
+/// the effect the person offers nothing and the player has the mission, which a port that only accepted the mission would get wrong.
+#[test]
+fn the_mission_on_the_table_is_handed_over_once() {
+    let mut world = World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    // **Nothing on the table is nothing to assign.**
+    let effect = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "assign_mission".to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "**a person offering nothing cannot assign anything**"
+    );
+    cdda_sim::missions::offer(&mut world, vlad, "mission_a");
+    cdda_sim::missions::offer(&mut world, vlad, "mission_b");
+    assert_eq!(
+        cdda_sim::missions::offers(&world, vlad),
+        vec!["mission_a".to_owned(), "mission_b".to_owned()],
+        "**two missions are on offer**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the effect runs**"
+    );
+    assert_eq!(
+        cdda_sim::missions::active_missions(&world, avatar),
+        vec!["mission_a".to_owned()],
+        "**and the player has the first offer in id order**"
+    );
+    assert_eq!(
+        cdda_sim::missions::offers(&world, vlad),
+        vec!["mission_b".to_owned()],
+        "**while the person no longer offers it**"
+    );
+    // **Asking again hands over the next one**, because the first is gone from the table - which is what "moved, not copied" means.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the effect runs again**"
+    );
+    assert_eq!(
+        cdda_sim::missions::active_missions(&world, avatar),
+        vec!["mission_a".to_owned(), "mission_b".to_owned()],
+        "**and takes the second**"
+    );
+    assert!(
+        cdda_sim::missions::offers(&world, vlad).is_empty(),
+        "**leaving nothing on the table**"
+    );
+    // **A mission the player already has is refused quietly.** Reference: the early return after "is already assigned!".
+    cdda_sim::missions::offer(&mut world, vlad, "mission_a");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**asking for a mission the player already has answers**"
+    );
+    assert_eq!(
+        cdda_sim::missions::offers(&world, vlad),
+        vec!["mission_a".to_owned()],
+        "**but leaves it on the table, because it was not assigned twice**"
+    );
+}

@@ -3535,6 +3535,9 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "leave" => {
             the_person_leaves(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "assign_mission" => {
+            assign_the_mission_on_the_table(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4257,5 +4260,33 @@ fn the_person_leaves(world: &mut World, speaker: Entity, listener: Option<Entity
         .map_or_else(String::new, |creature| creature.name.clone());
     crate::messages::push(world, &format!("{name} leaves."));
     world.entity_mut(npc).remove::<crate::npcs::Ally>();
+    Applied::Done
+}
+
+/// **`assign_mission` hands the player the mission the person is offering.** Reference: `talk_function::assign_mission` (`npctalk_funcs.cpp:122-137`): the mission the
+/// conversation has selected is assigned to the player, moved from the person's offered list to their assigned list - and a mission that is **already assigned** is
+/// refused with a warning rather than given twice. The data uses this name **80 times**, more than any other legacy effect the port has left.
+///
+/// **The one divergence, and it is the conversation's, not the rule's**: the reference's "selected" mission is what the player picked in the talk window. The port has no
+/// talk window, so it takes the **first offer in id order** - the choice a conversation with one option makes - and says so in the line where it picks.
+fn assign_the_mission_on_the_table(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    // The port's "selected mission": the first offer in id order. A conversation with nothing on the table has nothing to assign.
+    let Some(mission) = crate::missions::offers(world, npc).first().cloned() else {
+        return Applied::CannotAnswer;
+    };
+    let holder = crate::missions::question_holder(world, speaker);
+    if crate::missions::has_mission(world, holder, &mission) {
+        // Reference: `else if( miss->is_assigned() ) { ... "is already assigned!" ... return; }` - the mission stays on both sides.
+        return Applied::Done;
+    }
+    crate::missions::accept(world, holder, &mission);
+    crate::missions::unoffer(world, npc, &mission);
     Applied::Done
 }

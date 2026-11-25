@@ -115,6 +115,17 @@ pub fn offer(world: &mut World, character: Entity, mission: &str) {
     });
 }
 
+/// Stops offering a mission, answering whether it was on offer.
+///
+/// Reference: `talk_function::assign_mission` (`npctalk_funcs.cpp:122-137`) erases the mission from `chatbin.missions` once it is taken, so an NPC does not offer the same
+/// mission twice.
+pub fn unoffer(world: &mut World, character: Entity, mission: &str) -> bool {
+    let Some(mut held) = world.get_mut::<Offers>(character) else {
+        return false;
+    };
+    held.kinds.remove(mission)
+}
+
 /// Every mission a character is offering, in id order.
 #[must_use]
 pub fn offers(world: &World, character: Entity) -> Vec<String> {

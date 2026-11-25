@@ -41300,3 +41300,22 @@ whose whole content is a list. The mutation removes only `sleep` and the `lying_
 The block stands at **11 of 75**. The remaining big ones are all waiting on something the port does not model yet: `start_trade` (113 uses) on the trade window,
 `assign_mission`/`clear_mission`/`mission_success` (112 together) on the conversation's selected mission, `end_conversation` (24) and the barber pair on the dialogue topics, and
 `drop_weapon` (14) on a person carrying a weapon.
+
+## The biggest single rule left: `assign_mission` (round 345)
+
+`assign_mission` is used **80 times** in the data - more than any other legacy effect the port had left. Reference: `talk_function::assign_mission`
+(`npctalk_funcs.cpp:122-137`): the mission the conversation has **selected** is assigned to the player and **moved** from the person's offered list to their assigned list, and a
+mission that is already assigned is refused with a warning rather than given twice.
+
+`missions` grew `unoffer`, because the move is the rule: a port that only accepted the mission would leave the person offering it forever. The test walks two offers and
+asserts both halves - the player gains `mission_a`, the person stops offering it, and a second call takes `mission_b` because the first is gone.
+
+**The one divergence is the conversation's, not the rule's**: the reference's "selected" mission is what the player picked in the talk window, and the port has no talk window,
+so it takes the **first offer in id order** - the choice a conversation with one option makes. That is stated in the line where it picks, and it is the only place in this rule
+where the port decides something the reference decided elsewhere.
+
+**The neighbour rules are still out, and it is the same missing store**: `clear_mission` (14 uses) needs the assigned list's selected mission *and* a mission's `followup` to
+offer next, and `mission_success` (18) needs `wrap_up` - the port has missions as **ids in a set**, with no mission type, so there is no follow-up and no wrap-up to run. Those
+two are the next mission work, and it is a content type, not an effect.
+
+The block stands at **12 of 75**.
