@@ -2926,3 +2926,47 @@ fn a_dissector_refuses_a_robot() {
         Some("tr_test".to_owned())
     );
 }
+
+/// **A sinkhole removes itself, turns its square into a pit, costs the turn, and then the pit is fallen into.** Reference: `trapfunc::sinkhole`
+/// (`trapfunc.cpp:1288-1339`): a tiny creature does not set it off; anyone else is told the sinkhole collapses ("The sinkhole collapses!"), the trap is **removed**, the ground
+/// becomes `t_pit`, the creature spends the turn's moves, and the ordinary `pit` fall follows.
+///
+/// The test pins all four, because they are four separate lines of the reference and a port that forgot the `remove_trap` would leave a trap that springs for ever - which is
+/// exactly the failure a player would meet and a census would not.
+#[test]
+fn a_sinkhole_becomes_a_pit() {
+    let (mut world, who) = a_pit_for("sinkhole");
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_pit".to_owned(), 91u32), ("t_floor".to_owned(), 92u32)],
+    );
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the sinkhole is set off**"
+    );
+    assert!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)).is_none(),
+        "**the trap is gone, so it cannot spring twice**"
+    );
+    assert_eq!(
+        cdda_sim::square::terrain_at(&world, (0, 0, 0)),
+        Some(91),
+        "**and the ground under it is a pit**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "The sinkhole collapses!"),
+        "**the collapse is announced**: {lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "You fall into the sinkhole!"),
+        "**and the fall with it**: {lines:?}"
+    );
+    assert!(
+        lines.iter().any(|line| line == "You fall in a pit!"),
+        "**because the pit's own fall follows**: {lines:?}"
+    );
+}

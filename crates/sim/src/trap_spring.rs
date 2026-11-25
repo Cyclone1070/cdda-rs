@@ -51,6 +51,7 @@ pub fn spring_with(
         Some("caltrops") => return sharp_ground(world, who, square, &Sharp::CALTROPS),
         Some("board") => return sharp_ground(world, who, square, &Sharp::BOARD),
         Some("pit") => return pit(world, who, square),
+        Some("sinkhole") => return sinkhole(world, who, square),
         Some("blade") => return blade(world, who),
         Some("snake") => return snake(world, square),
         Some("shadow") => return shadow(world, who, square),
@@ -1152,6 +1153,42 @@ fn tripwire(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
         crate::creature::hurt(world, who, damage as f32);
     }
     true
+}
+
+/// **A sinkhole swallows the square it was on and turns it into a pit.**
+///
+/// Reference: `trapfunc::sinkhole` (`trapfunc.cpp:1288-1339`): a tiny creature does not set it off; anyone else is told the sinkhole collapses, the trap is removed, the ground
+/// becomes `t_pit`, the creature loses its moves for the turn, and then it takes the ordinary `pit` fall.
+///
+/// **Named gap**: the reference first offers the character a **grapnel, a bullwhip or a rope** - `query_for_item` is a prompt - and gives them a strength-and-throw roll to pull
+/// themselves to safety. The port has no prompts, so it takes the branch the reference takes when the answer is "no": the creature falls in. A character carrying a rope is
+/// therefore not asked, and falls where the reference might have let them climb out.
+fn sinkhole(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let size = world
+        .get::<crate::creature::Creature>(who)
+        .map_or(crate::CreatureSize::Medium, |creature| creature.size);
+    if size == crate::CreatureSize::Tiny {
+        return false;
+    }
+    let collapses = if crate::missions::avatar(world) == Some(who) {
+        "The sinkhole collapses!".to_owned()
+    } else {
+        format!("A sinkhole under {} collapses!", name_of(world, who))
+    };
+    crate::messages::push(world, &collapses);
+    let falls = if crate::missions::avatar(world) == Some(who) {
+        "You fall into the sinkhole!".to_owned()
+    } else {
+        format!("{} falls into the sinkhole!", name_of(world, who))
+    };
+    crate::messages::push(world, &falls);
+    crate::square::remove_trap(world, square);
+    if let Some(code) = crate::terrain_types::code_of(world, "t_pit") {
+        crate::square::set_terrain(world, square, code);
+    }
+    let speed = crate::creature::speed_of(world, who);
+    crate::creature::spend_moves(world, who, f64::from(speed));
+    pit(world, who, square)
 }
 
 /// **A pit is a hole to fall into.**

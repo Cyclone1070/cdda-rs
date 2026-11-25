@@ -41108,3 +41108,19 @@ The mutation drops the trait loop: the person is still made, still knows their c
 
 **The mapgen family is complete**: every member the data writes is read, and every one but the two blocked by a phase (`place_npcs`'s class numbers) is written. The census test
 `content_suite::mapgen_members` now has an **empty** named-gap list for the first time, which is the signal this family is done rather than the count of rounds spent on it.
+
+## A hole that closes behind you (round 333)
+
+The trap ledger's last three were `boobytrap`, `goo` and `sinkhole`, each "waiting on a subsystem". The sinkhole's subsystem turn out to be smaller than it looked: the rule
+(`trapfunc::sinkhole`, `trapfunc.cpp:1288-1339`) is four lines and a fall - a tiny creature does not set it off, the trap is **removed**, the ground becomes `t_pit`, the
+creature spends the turn's moves, and then the ordinary `pit` action runs, which the port already had.
+
+Four separate lines is why the test pins all four: a port that forgot `remove_trap` leaves a trap that springs for ever - a bug a player meets in the first minute and a census
+never sees. The mutation removes the `remove_trap` and the test's "the trap is gone" assertion fails.
+
+**Named gap, in the action's comment**: the reference first offers a **grapnel, a bullwhip or a rope** - `query_for_item` is a prompt - and gives a strength-and-throw roll to pull
+the character to safety. The port has no prompts, so it takes the branch the reference takes when the answer is no: the character falls in. Someone carrying a rope is therefore
+not asked, and falls where the reference might have let them climb out.
+
+The ledger moves to **123 of 125 traps answered, 2 unported** - `boobytrap` (an active item with a fuse) and `goo` (a monster-spawning field), both named with the subsystem they
+wait on.
