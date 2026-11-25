@@ -3499,3 +3499,73 @@ fn the_temple_flood_rises_a_ring_a_step_and_stops_when_full() {
         );
     }
 }
+
+/// **`hostile` turns the person on the player, and does it once.** Reference: `talk_function::hostile` (`npctalk_funcs.cpp:931-944`): a person already trying to kill the player
+/// is left alone - no message, no change - and otherwise, **if they can see the player**, the game announces it and their attitude becomes `NPCATT_KILL`.
+///
+/// The three assertions are the three lines of the rule in order: the first call announces and changes the attitude, the second does **nothing** (which is what the reference's
+/// early return is for), and a call with nobody in the dialogue answers `CannotAnswer` rather than silently succeeding.
+#[test]
+fn hostile_turns_the_person_once() {
+    let mut world = World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let npc = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, npc, "vlad");
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, npc).as_deref(),
+        Some("none"),
+        "**a person starts with no attitude towards the player**"
+    );
+    let hostile = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "hostile".to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(npc), &hostile),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the effect runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, npc).as_deref(),
+        Some("kill"),
+        "**and the person now wants the player dead**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "Vlad turns hostile!"),
+        "**and says so, because they can see the player: {lines:?}**"
+    );
+    // **A second call says nothing**, which is the reference's early return and the reason its callers do not announce twice.
+    let before = cdda_sim::messages::lines(&world).len();
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(npc), &hostile),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**asking again still answers**"
+    );
+    assert_eq!(
+        cdda_sim::messages::lines(&world).len(),
+        before,
+        "**but announces nothing**"
+    );
+    // **`flee` is the other attitude, and its message has no sight test.** Reference: `talk_function::flee` (`npctalk_funcs.cpp:946-951`).
+    let flee = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "flee".to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(npc), &flee),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**flee runs too**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, npc).as_deref(),
+        Some("flee"),
+        "**and the person now runs**"
+    );
+    // **Nobody to talk to**: a listener that is not a person is no person, and the effect says so rather than answering done.
+    let rock = cdda_sim::creature::spawn_creature(&mut world, "a rock", (5, 5, 0));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(rock), &hostile),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "**an effect aimed at nobody is refused rather than half-run**"
+    );
+}

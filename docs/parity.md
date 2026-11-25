@@ -41240,3 +41240,28 @@ does, so the fridge must still be on in both runs. A port that rolled the fridge
 **Still not ported from `init_state`, and each for a stated reason**: the blood spatter (the port has no blood on parts), the locks and the immobiliser fault (no faults), the
 half-chance `smash(0.5 )` for a disabled vehicle (that is the whole smash rule), and the engine-left-running coin, which needs the reference's `engine_on` flag - the port
 derives an engine's state from its parts and has nowhere to put "the engine is running but nothing is asking it to".
+
+## The largest hole in the dialogue phase, measured (round 342)
+
+The legacy string effects - the `talk_function` names the reference dispatches from a bare string - were 84 names the port **read** and **refused at run**. This round measured how
+much that costs by counting each name in the data: **75 of the 84 are used**, and the top of the list is
+
+| Uses | Name |
+|---|---|
+| 184 | `hostile` |
+| 113 | `start_trade` |
+| 80 | `assign_mission` |
+| 46 | `follow` |
+| 24 | `end_conversation` |
+| 23 | `follow_only` |
+| 18 | `mission_success` |
+| 14 | `stop_following`, `deny_follow`, `drop_weapon`, `clear_mission` |
+| 10 | `flee` |
+
+So the dialogue phase's remaining work is not a scattering of small gaps: it is **one block of 75 rules**, and the list above is its work order.
+
+**Two are ported, the two that need only an attitude**: `hostile` (`npctalk_funcs.cpp:931-944`) and `flee` (`:946-951`). They are the first thing on the port that reads an
+NPC's **attitude** at all, so `npcs` grew an `NpcAttitude` component (`"none"`, `"kill"`, `"flee"`, ...) with `attitude_of` and `set_attitude`, and the reference's asymmetry is
+kept: `hostile` announces only when the person can see the player (and not at all when they already want them dead), while `flee` announces unconditionally.
+
+The mutation removes the already-hostile early return, and the test's "a second call announces nothing" assertion fails.

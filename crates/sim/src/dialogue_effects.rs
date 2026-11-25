@@ -3502,6 +3502,12 @@ fn run_store_effect(
             let _ = crate::weather::make_due(world);
             Applied::Done
         }
+        Effect::LegacyStringEffect { name } if name == "hostile" => {
+            turn_the_npc_hostile(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "flee" => {
+            make_the_npc_flee(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4009,5 +4015,64 @@ fn transform_line(
         let _ =
             crate::terrain_transform::apply_at(world, &named, (square[0], square[1], square[2]));
     }
+    Applied::Done
+}
+
+/// **The person the dialogue is with**, which is the listener when there is one and the speaker otherwise.
+///
+/// Reference: a legacy `talk_function` takes `npc &p` - the person being talked to - so a program that runs one from an NPC's own topic aims it at that NPC. The port asks the
+/// listener first because that is the person a conversation is with, and falls back to the speaker for a program that an NPC runs on itself.
+fn person_in_the_dialogue(
+    world: &World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Option<Entity> {
+    let listener = listener?;
+    if world.get::<crate::npcs::Npc>(listener).is_some() {
+        Some(listener)
+    } else if world.get::<crate::npcs::Npc>(speaker).is_some() {
+        Some(speaker)
+    } else {
+        None
+    }
+}
+
+/// **`hostile` makes the person turn on the player.** Reference: `talk_function::hostile` (`npctalk_funcs.cpp:931-944`): a person already trying to kill the player is left
+/// alone; otherwise, if they can see the player, the game announces that they turn hostile, and their attitude becomes `NPCATT_KILL`. The data uses the name **184 times**,
+/// more than any other legacy effect, which is why it is the first one ported.
+fn turn_the_npc_hostile(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    if crate::npcs::attitude_of(world, npc).as_deref() == Some("kill") {
+        // Reference: `if( p.get_attitude() == NPCATT_KILL ) { return; }` - nothing at all, not even the message.
+        return Applied::Done;
+    }
+    let sees = crate::missions::avatar(world).is_some_and(|avatar| {
+        world
+            .get::<crate::Position>(avatar)
+            .is_some_and(|at| crate::seeing::can_see_location(world, npc, (at.x, at.y)))
+    });
+    if sees {
+        let name = world
+            .get::<crate::creature::Creature>(npc)
+            .map_or_else(String::new, |creature| creature.name.clone());
+        crate::messages::push(world, &format!("{name} turns hostile!"));
+    }
+    crate::npcs::set_attitude(world, npc, "kill");
+    Applied::Done
+}
+
+/// **`flee` makes the person run.** Reference: `talk_function::flee` (`npctalk_funcs.cpp:946-951`): the game announces it and the attitude becomes `NPCATT_FLEE`, with no
+/// sight test - the message is unconditional there, which is the difference from `hostile` that this rule keeps.
+fn make_the_npc_flee(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::messages::push(world, &format!("{name} turns to flee!"));
+    crate::npcs::set_attitude(world, npc, "flee");
     Applied::Done
 }

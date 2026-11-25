@@ -22,6 +22,44 @@ pub fn make_npc(world: &mut World, creature: Entity, unique_id: &str) {
     });
 }
 
+/// What a person thinks of the player, as the reference's `npc_attitude` (`npc.h:74-95`).
+///
+/// The reference keeps the attitude on the `npc` and changes it through `npc::set_attitude` (`npc.cpp:1658-1700`), which also reacts to the change - stopping
+/// activities, dropping the current job. The port stores the id and leaves the reactions to the rules that read it; `"none"` is the reference's default.
+#[derive(Component, Debug, Clone, PartialEq, Eq)]
+pub struct NpcAttitude {
+    /// The attitude's id, as the reference spells it: `"none"`, `"kill"`, `"flee"`, `"follow"`, ...
+    pub id: String,
+}
+
+/// What a person thinks of the player, or `None` when the creature is not a person.
+#[must_use]
+pub fn attitude_of(world: &World, npc: Entity) -> Option<String> {
+    world.get::<Npc>(npc)?;
+    Some(
+        world
+            .get::<NpcAttitude>(npc)
+            .map_or_else(|| "none".to_owned(), |attitude| attitude.id.clone()),
+    )
+}
+
+/// Sets what a person thinks of the player, answering whether it changed.
+///
+/// Reference: `npc::set_attitude` (`npc.cpp:1658-1700`): the attitude is written and then the person reacts - an enemy stops what it was doing, a follower is told to
+/// follow. The port writes it and answers whether it was new, which is what the reference's own callers test before announcing anything.
+pub fn set_attitude(world: &mut World, npc: Entity, attitude: &str) -> bool {
+    if attitude_of(world, npc).as_deref() == Some(attitude) {
+        return false;
+    }
+    if world.get::<Npc>(npc).is_none() {
+        return false;
+    }
+    world.entity_mut(npc).insert(NpcAttitude {
+        id: attitude.to_owned(),
+    });
+    true
+}
+
 /// Whether a creature is a person.
 #[must_use]
 pub fn is_npc(world: &World, creature: Entity) -> bool {
