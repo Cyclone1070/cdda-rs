@@ -3040,3 +3040,56 @@ fn a_goo_puddle_slimes_and_eats() {
         "**and the burn with it**: {lines:?}"
     );
 }
+
+/// **A booby trap leaves a live grenade where it stood.** Reference: `trapfunc::boobytrap` (`trapfunc.cpp:834-849`): whoever set it off is told, a grenade is dropped on the
+/// square, and the trap is removed. The reference spells the grenade as its own item type - `grenade_act`, an **active** grenade - so the fuse is part of the item's identity
+/// rather than a field the trap writes, and the port places the same item.
+///
+/// **Named gap, on the processing side**: the reference counts active items down and explodes them; the port has no explosion timer for one yet, so the grenade lies live and
+/// silent. This test pins the trap's whole rule (message, item, removal) and says nothing about the fuse, which is why the assertion is about the item **on the square** rather
+/// than about a blast.
+#[test]
+fn a_booby_trap_leaves_a_live_grenade() {
+    let (mut world, who) = a_pit_for("boobytrap");
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "grenade_act",
+            volume_ml: 233,
+            weight_g: 408,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -2,
+        }],
+    );
+    assert!(
+        cdda_sim::trap_spring::spring_with(&mut world, who, (0, 0, 0), false),
+        "**the trap is set off**"
+    );
+    assert!(
+        cdda_sim::square::trap_at(&world, (0, 0, 0)).is_none(),
+        "**and it is gone, so it cannot spring twice**"
+    );
+    let grenade = cdda_sim::item_registry::id_of(&mut world, "grenade_act").expect("the kind");
+    let items = cdda_sim::items_at(&mut world, (0, 0));
+    assert_eq!(items.len(), 1, "**one grenade is on the square**");
+    let Some(&item) = items.first() else {
+        panic!("**the square has no item at all**");
+    };
+    let kind = world
+        .get::<cdda_sim::GroundItem>(item)
+        .map(|item| item.kind)
+        .expect("the item has a kind");
+    assert_eq!(
+        kind, grenade,
+        "**and it is the ACTIVE grenade, not a spent one**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "You trigger a booby trap!"),
+        "**the trap is announced**: {lines:?}"
+    );
+}

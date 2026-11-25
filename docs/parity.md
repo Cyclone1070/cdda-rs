@@ -41195,3 +41195,19 @@ it was read from (`count_by_charges` and `stack_size`, by name, because the regi
 charges is 1.25, and integer millilitres truncate), so a litre would answer a thousand charges instead of eight hundred. The mutation does exactly that and the test fails.
 
 This is the prerequisite for filling a placed vehicle's tanks: `init_veh_fuel`'s fractions are all expressed as a share of `item_capacity( fuel )`, which is this number.
+
+## The last trap, and it was three lines (round 339)
+
+`boobytrap` was the ledger's last unported trap, filed as "waiting on an active item with a fuse". The rule (`trapfunc::boobytrap`, `trapfunc.cpp:834-849`) is: tell whoever set it
+off, drop a **grenade** on the square, remove the trap. And the fuse is not a field the trap writes - the reference spells it as its own item type, `grenade_act`, "active
+grenade", so the port places that item and the trap's whole rule is done.
+
+**What is missing is the item's own life, not the trap's rule**: the reference counts active items down during item processing and explodes them, and the port has no explosion
+timer for one, so the placed grenade lies live and silent. That gap is named in the action's comment and in the test's doc, which asserts the item **on the square** and says
+nothing about a blast - a test that claimed a fuse it does not have would be the kind of lie this record exists to prevent.
+
+The trap ledger closes at **125 of 125 answered**. The mutation drops nothing on the square and the item assertion fails.
+
+The same round measured the other standing question - whether a mapgen symbol may take the **distribution** form directly - by walking all 845 mapgen files with a JSON parse
+rather than a grep: **zero** symbol-level distributions exist. The form is only ever used inside a parameter's `default`, which the port already reads, so the piece reader's
+named gap is hypothetical rather than a data gap.

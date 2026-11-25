@@ -53,6 +53,7 @@ pub fn spring_with(
         Some("pit") => return pit(world, who, square),
         Some("sinkhole") => return sinkhole(world, who, square),
         Some("goo") => return goo(world, who, square),
+        Some("boobytrap") => return boobytrap(world, who, square),
         Some("blade") => return blade(world, who),
         Some("snake") => return snake(world, square),
         Some("shadow") => return shadow(world, who, square),
@@ -1153,6 +1154,28 @@ fn tripwire(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
         #[allow(clippy::cast_precision_loss)]
         crate::creature::hurt(world, who, damage as f32);
     }
+    true
+}
+
+/// **A booby trap leaves a live grenade where it stood.**
+///
+/// Reference: `trapfunc::boobytrap` (`trapfunc.cpp:834-849`): whoever set it off is told, a **live grenade** is dropped on the square, and the trap is removed. The reference
+/// spells the grenade as its own item type - `grenade_act`, "active grenade" - so the fuse is the item's identity and not a field the trap sets: the port places the same item
+/// and needs no fuse machinery of its own.
+///
+/// **Named gap, on the processing side**: the reference's active item is counted down by the map's item processing and explodes; the port places the active grenade and has
+/// no explosion timer for it yet, so the grenade lies there live but silent. The trap's own rule - tell, drop, remove - is whole.
+fn boobytrap(world: &mut World, who: Entity, square: (i32, i32, i32)) -> bool {
+    let line = if crate::missions::avatar(world) == Some(who) {
+        "You trigger a booby trap!".to_owned()
+    } else {
+        format!("{} triggers a booby trap!", name_of(world, who))
+    };
+    crate::messages::push(world, &line);
+    if let Some(grenade) = crate::item_registry::id_of(world, "grenade_act") {
+        crate::drop_item(world, (square.0, square.1), grenade, 1);
+    }
+    crate::square::remove_trap(world, square);
     true
 }
 
