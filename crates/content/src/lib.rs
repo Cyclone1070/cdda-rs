@@ -56,6 +56,7 @@ pub mod monsters;
 pub mod morale_types;
 pub mod mutations;
 pub mod npc_classes;
+pub mod npc_templates;
 pub mod overmap;
 pub mod pockets;
 pub mod proficiencies;

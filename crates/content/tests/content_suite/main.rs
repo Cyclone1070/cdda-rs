@@ -124,6 +124,7 @@ mod monsters;
 mod mutation_categories;
 mod mutations;
 mod npc_classes;
+mod npc_templates;
 mod overmap;
 mod overmap_build;
 mod overmap_connections;

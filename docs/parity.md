@@ -41597,3 +41597,23 @@ once more than ten items are drawn and a one-in-a-hundred coin comes up. The tes
 (the port has no options registry yet), and a **strict** group's trust gate.
 
 The block is unchanged at **33 of 75**; `start_trade` is still waiting on its window, and its first step is now whole.
+
+## The people the data writes by hand (round 362)
+
+A mapgen's `place_npcs` names an **NPC template**, and a template names the `npc_class` that shapes the person (`npctalk`-era structure the port had never read). `npc_templates` is
+that loader:
+
+- `class`, `name_unique`, `name_suffix`, `gender`, `chat`, `faction`, `mission_offered` as the data writes them;
+- `attitude` and `mission` as **enum numbers** in the data, so the loader turns them into the enumerators' own names - `npc_attitude` (`npc.h:103-124`) and `npc_mission`
+  (`npc.h:169-183`) - rather than a word this port invented.
+
+The **legacy slots matter**: `SEER_Brigitte_LaCroix` writes `attitude: 7`, which is `NPCATT_LEGACY_6`, not "wait"; a port that renumbered the legacy slots (or skipped them) would
+give the seer an attitude with behaviour. The mutation that maps 7 to `"wait"` fails the test on exactly that assertion.
+
+The id gate reads the **raw data files** because the oracle's prototype artifact has no `npc` registry - it covers classes and types, not the hand-written people - and the first
+version of the test asked for a registry that is not there. Two readers of the same files, compared both ways, is the gate that remains.
+
+**Named gaps**: `age`, `height`, `personality` and the starting stats are template numbers the port's character creation does not read yet; they are left unread rather than
+guessed, and `place_the_npcs` still puts the template's id where the class belongs - the wiring is the next round's work.
+
+The block is unchanged at **33 of 75**.
