@@ -153,3 +153,44 @@ fn a_mission_is_offered_to_the_creature_being_talked_to() {
         "the talker offers nothing"
     );
 }
+
+/// **The mission store answers what a mission is.** The port's `Missions` component holds ids in a set; this registry holds the definitions those ids name, so a rule with an
+/// id - `clear_mission` with the mission it is clearing - can ask what it leads to. Reference: `mission_type::get` (`src/mission.h`, `mission.cpp`).
+///
+/// The lighthouse chain is the data's own: `MISSION_lighthouse_man_1` leads to `_2`, which leads to `_3`, and every link is stated in the data rather than in this test.
+#[test]
+fn the_mission_store_answers_what_a_mission_is_and_what_follows_it() {
+    let mut world = World::new();
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
+    let roots = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = roots.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::mission_types::load_paths(&paths).expect("the missions load");
+    cdda_sim::mission_types::set_mission_types(&mut world, loaded);
+    let kind = cdda_sim::mission_types::kind_named(&world, "MISSION_lighthouse_man_1")
+        .expect("the first lighthouse mission is in the store");
+    assert_eq!(
+        kind.id, "MISSION_lighthouse_man_1",
+        "**the store finds it by id**"
+    );
+    assert_eq!(
+        cdda_sim::mission_types::follow_up(&world, "MISSION_lighthouse_man_1").as_deref(),
+        Some("MISSION_lighthouse_man_2"),
+        "**and knows the mission that follows it**"
+    );
+    assert_eq!(
+        cdda_sim::mission_types::follow_up(&world, "MISSION_lighthouse_man_5"),
+        None,
+        "**the last link in the chain leads nowhere**"
+    );
+    assert_eq!(
+        cdda_sim::mission_types::kind_named(&world, "MISSION_no_such_thing"),
+        None,
+        "**and a mission the data does not define is nothing, not an error**"
+    );
+    let ids = cdda_sim::mission_types::ids(&world);
+    assert_eq!(ids.len(), 306, "**the store lists all 306 missions**");
+    let mut sorted = ids.clone();
+    sorted.sort();
+    assert_eq!(ids, sorted, "**in id order**");
+}

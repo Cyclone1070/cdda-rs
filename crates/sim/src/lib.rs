@@ -31,6 +31,7 @@ pub mod mapgen_tile;
 pub mod mapgen_update;
 pub mod memory;
 pub mod messages;
+pub mod mission_types;
 pub mod missions;
 pub mod morale;
 pub mod mutation_activation;

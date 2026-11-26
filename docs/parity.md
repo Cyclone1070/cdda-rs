@@ -41319,3 +41319,20 @@ offer next, and `mission_success` (18) needs `wrap_up` - the port has missions a
 two are the next mission work, and it is a content type, not an effect.
 
 The block stands at **12 of 75**.
+
+## The mission type, at last (round 346)
+
+`clear_mission` (14 uses) and `mission_success` (18) were blocked on the same missing thing: the port had missions as **ids in a set** - `Missions.active` and `Offers` - with no
+mission type at all, so there was no follow-up to offer and no `wrap_up` to run. This round builds the type.
+
+- `crates/content/src/mission_types.rs` reads the data's own `mission_definition` objects, the way mapgen is read: **306 missions with 306 unique ids**, sorted, first definition
+  winning. It reads the id, name, description, goal, difficulty, value, follow-up and origins.
+- **What it deliberately does not read**: `start`, `end` and `fail`. Those are **programs of effects**, and the port runs effects through one interpreter; reading them into a
+  second shape would be a second source of truth for what an effect is. The JSON keeps them, and the EOC runner is what will read them when a mission starts or ends.
+- `crates/sim/src/mission_types.rs` is the store, with `kind_named`, `follow_up` and `ids`.
+
+**The check that matters is the chain**: **141 of the 306 name a follow-up, and every one lands on a mission that exists** - which is exactly the property `clear_mission` depends
+on, because its rule is "offer the follow-up next". The data's lighthouse chain is the test's own: `MISSION_lighthouse_man_1` leads to `_2`, `_2` to `_3`, and `_5` leads
+nowhere, all stated in the data rather than in the test. The mutation makes `follow_up` answer nothing and the chain assertion fails.
+
+The three content tests count what they see (306, 141) so a loader that quietly stopped reading half the tree could not pass.

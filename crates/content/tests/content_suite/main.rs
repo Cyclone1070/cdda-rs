@@ -112,6 +112,7 @@ mod material_vitamins;
 mod materials;
 mod math_expr;
 mod melee_accuracy;
+mod mission_types;
 mod mod_graph;
 mod mods;
 mod monster_armour;

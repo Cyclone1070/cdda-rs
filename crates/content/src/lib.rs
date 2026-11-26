@@ -49,6 +49,7 @@ pub mod mapgen;
 pub mod martial_arts;
 pub mod materials;
 pub mod math_expr;
+pub mod mission_types;
 pub mod mods;
 pub mod monster_groups;
 pub mod monsters;
