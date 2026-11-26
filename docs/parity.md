@@ -41537,3 +41537,21 @@ created, which is not a rule the port has ported - and the `character_id()` the 
 The block stands at **33 of 75**. What remains in the legacy block is now dominated by **`start_trade` (113)** and by rules whose whole body is an activity or a UI window:
 `give_equipment` (5, needs the trade pricing), the barber pair (8, needs a mutation menu), `dismount` (3) and `find_mount` (3) (the port has no mounts), `reveal_stats` (3), the
 training pair (4), the bionic pair (4), and the `do_*` activity assignments.
+
+## A shopkeeper's class carries its shelf (round 359)
+
+The pre-window half of `start_trade` begins with what the shopkeeper **is**, so `npc_classes` grew the two fields the reference keeps on a class
+(`npc_class.cpp:218-268`):
+
+- `shopkeeper_item_group`, which the data writes either as an array of objects or as **one bare group id** - both forms load, because the reference's own loader
+  (`:252-261`) takes both and a port that only took the array would silently give a string-form shopkeeper no shelf at all;
+- `restock_interval`, a duration string like `"6 d"`, defaulting to **six days** (`npc_class.h:103`).
+
+Each group carries `group`, `trust`, `strict` and `rigid` - the flags that decide whether a group restocks at all (`can_restock`, `:204-207`) and whether it is drawn once or until
+the shop's value runs out.
+
+The test reads the real data: it counts the classes with a shelf, counts the rigid groups, asserts that a class with no interval says exactly **six days**, and pins the one class
+whose data **names** an interval - `NC_LUMBERJACK_MERCHANT`, `"1 day"` - at exactly 86,400. That last assertion is the whole test: the first version only checked the default and
+the mutation that reads a `"d"` as one second walked straight through it, because a defaulted class never reads the unit table at all (`left: 1`, `right: 86400`).
+
+The block is unchanged at **33 of 75**: this is the loader the `start_trade` rule will read, not the rule.

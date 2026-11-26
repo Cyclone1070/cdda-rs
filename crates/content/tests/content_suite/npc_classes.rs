@@ -86,3 +86,62 @@ fn a_class_carries_the_name_the_data_gives_it() {
         classes.len()
     );
 }
+
+/// **A shopkeeper's shelf is part of their class.** Reference: `npc_class::load` (`npc_class.cpp:252-268`): a class may name `shopkeeper_item_group`, either as an array of group
+/// objects (`group`, `trust`, `strict`, `rigid`) or as **one bare group id**, and a `restock_interval` that defaults to **six days** (`npc_class.h:103`).
+///
+/// The test loads the real data: at least one class must carry a shop, and the classes that do not must say **six days** rather than zero - a port that left the default out
+/// would make every non-shopkeeper restock instantly, and a port that read the string as seconds would make a six-day shop restock every six seconds.
+#[test]
+fn a_shopkeeper_class_carries_its_shelf_and_its_interval() {
+    let roots = [std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data/json")];
+    let roots: Vec<&std::path::Path> = roots.iter().map(std::path::PathBuf::as_path).collect();
+    let classes = cdda_content::npc_classes::load_paths(&roots).expect("the classes load");
+    assert!(
+        classes.len() > 20,
+        "the corpus has classes to read: {}",
+        classes.len()
+    );
+    let with_a_shop = classes
+        .iter()
+        .filter(|class| !class.shop_item_groups.is_empty())
+        .collect::<Vec<_>>();
+    assert!(
+        !with_a_shop.is_empty(),
+        "the data has at least one shopkeeper class"
+    );
+    let six_days = 6 * 24 * 60 * 60;
+    let defaulted = classes
+        .iter()
+        .filter(|class| class.restock_interval == six_days)
+        .count();
+    assert!(
+        defaulted > 0,
+        "a class that names no interval waits six days, and this corpus has a class that names none"
+    );
+    // **And a class that names one gets exactly what it names.** `NC_LUMBERJACK_MERCHANT` writes `"1 day"`, which is the case that separates a unit table from a default: a
+    // port that read the day as one second would leave every defaulted class right and this one six thousand times too fast.
+    let named = classes
+        .iter()
+        .find(|class| class.id == "NC_LUMBERJACK_MERCHANT")
+        .expect("the merchant class");
+    assert_eq!(
+        named.restock_interval,
+        24 * 60 * 60,
+        "**\"1 day\" is a day, not a second and not six**"
+    );
+    // **Every group names a group id**, and a rigid one is a fact the data states.
+    for class in &with_a_shop {
+        for group in &class.shop_item_groups {
+            assert!(!group.group.is_empty(), "**{} names its group**", class.id);
+        }
+    }
+    let rigid = with_a_shop
+        .iter()
+        .flat_map(|class| &class.shop_item_groups)
+        .filter(|group| group.rigid)
+        .count();
+    println!("classes with a shop: {}", with_a_shop.len());
+    println!("rigid groups: {rigid}");
+}

@@ -22,6 +22,27 @@ pub struct NpcClass {
     pub job_description: String,
     /// Whether the class is offered in the character creator's common list.
     pub common: bool,
+    /// The item groups a shopkeeper of this class restocks from - the reference's `shop_item_groups`.
+    pub shop_item_groups: Vec<ShopkeeperItemGroup>,
+    /// How long a shopkeeper of this class waits between restocks, in turns; **six days** when the data names none
+    /// (`npc_class.cpp:268`, `npc_class.h:103`).
+    pub restock_interval: i64,
+}
+
+/// One item group a shopkeeper restocks from.
+///
+/// Reference: `shopkeeper_item_group` (`npc_class.cpp:218-233`): a group id with a trust floor, a `strict` flag that makes the trust floor a **restock** condition rather than
+/// only a selling one, and a `rigid` flag that makes the group produce its items **once** instead of being drawn until the shop's value runs out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShopkeeperItemGroup {
+    /// The item group's id.
+    pub group: String,
+    /// The faction trust at which the group is available; zero means always.
+    pub trust: i32,
+    /// Whether the trust floor also gates restocking, not just selling.
+    pub strict: bool,
+    /// Whether the group is drawn once, whatever the shop can afford.
+    pub rigid: bool,
 }
 
 /// Loads every NPC class under `dirs`.
@@ -73,7 +94,72 @@ fn read_class(object: &Value) -> Option<NpcClass> {
             _ => String::new(),
         },
         common: matches!(fields.get("common"), Some(Value::Bool(true))),
+        shop_item_groups: read_shop_item_groups(fields.get("shopkeeper_item_group")),
+        restock_interval: read_turns(fields.get("restock_interval"), 6 * 24 * 60 * 60),
     })
+}
+
+/// The shopkeeper groups a class restocks from.
+///
+/// Reference: `npc_class::load` (`npc_class.cpp:252-261`) takes either an array of group objects or **a single group id written as a bare string**, which it reads as one group.
+fn read_shop_item_groups(value: Option<&Value>) -> Vec<ShopkeeperItemGroup> {
+    let Some(value) = value else {
+        return Vec::new();
+    };
+    match value {
+        Value::Str(group) => vec![ShopkeeperItemGroup {
+            group: group.clone(),
+            trust: 0,
+            strict: false,
+            rigid: false,
+        }],
+        Value::Array(groups) => groups
+            .iter()
+            .filter_map(|group| {
+                let Value::Object(fields) = group else {
+                    return None;
+                };
+                let Some(Value::Str(id)) = fields.get("group") else {
+                    return None;
+                };
+                Some(ShopkeeperItemGroup {
+                    group: id.clone(),
+                    trust: match fields.get("trust") {
+                        Some(Value::Int(trust)) => i32::try_from(*trust).unwrap_or(0),
+                        _ => 0,
+                    },
+                    strict: matches!(fields.get("strict"), Some(Value::Bool(true))),
+                    rigid: matches!(fields.get("rigid"), Some(Value::Bool(true))),
+                })
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// A duration the data writes as a string like `"6 d"`, in turns of one second.
+///
+/// Reference: `optional( jo, was_loaded, "restock_interval", restock_interval, 6_days )` (`npc_class.cpp:268`) - the value is read with `read_from_json_string`, whose units are
+/// the game's own (`d` days, `h` hours, `m` minutes, `s` seconds) and whose base unit here is the **turn**.
+fn read_turns(value: Option<&Value>, default: i64) -> i64 {
+    let Some(Value::Str(text)) = value else {
+        return default;
+    };
+    let mut parts = text.split_whitespace();
+    let (Some(number), Some(unit)) = (parts.next(), parts.next()) else {
+        return default;
+    };
+    let Ok(number) = number.parse::<i64>() else {
+        return default;
+    };
+    let seconds = match unit {
+        "d" | "day" | "days" => 24 * 60 * 60,
+        "h" | "hour" | "hours" => 60 * 60,
+        "m" | "minute" | "minutes" => 60,
+        "s" | "second" | "seconds" => 1,
+        _ => return default,
+    };
+    number * seconds
 }
 
 /// The name of a class, which the data writes either as a bare string or as a translated string object.
