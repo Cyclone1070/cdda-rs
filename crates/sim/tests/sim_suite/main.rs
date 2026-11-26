@@ -290,6 +290,7 @@ mod vehicle_damage;
 mod vehicle_falling;
 mod vehicle_mass;
 mod vehicle_ramps;
+mod vehicle_smash;
 mod vehicle_spawn;
 mod vehicle_tow;
 mod vehicles;

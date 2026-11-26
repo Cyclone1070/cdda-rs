@@ -41380,3 +41380,22 @@ personality.
 The block stands at **17 of 75**. What is left is concentrated in one place now: **`start_trade` (113), `drop_weapon` (14) and `give_equipment` (5) all need a person whose
 things can be seen and traded** - the port has `Inventory` on a person already, but no shop restock, no pricing rule and no NPC trade offer. That is the next subsystem, and it is
 138 of the remaining 58 uses.
+
+## `smash`, and the vehicle `init_state` had been leaving whole (round 350)
+
+`vehicle::smash` (`vehicle.cpp:908-948`) is the rule `init_state` calls on a disabled car - `smash( placed_on, 0.5 )` (`:616`) - and the port had never written it, so a wreck
+placed by mapgen was only ever damaged one part at a time. It is now the last step of [`damage_the_vehicle`], after the tyres, where the reference puts it.
+
+The rule asks two questions per part, **in its own order**:
+
+1. a square holding **more than one structure** is emptied outright, whatever the dice say;
+2. every other part is rolled for - one in a thousand per thousandth of `percent` - and when it loses it gives up `durability * rng_float( min, max )` of its hit points.
+
+Both branches have their own test, and the first pins its roll to **one** so that anything destroyed there was destroyed by the structure branch and nothing else - the mutation
+that makes the branch unreachable fails on exactly those assertions.
+
+`Smash` keeps the reference's own signature and defaults: `hp_min` 0.1, `hp_max` 1.2, `percent` 1.0, and `Smash::half()` is the 0.5 call `init_state` makes.
+
+**Named gaps, both fields the reference has and the port does not**: `ammo_unset` (the port clears `fuel` and `charges`, which is what its other damage rules do instead) and
+`part.precalc` - the reference measures the distance to the part's precalculated square and the port measures to its mount, the same square before rotation. `damage_size` is
+zero everywhere the port calls this, where the distance is not read at all.

@@ -1432,6 +1432,10 @@ fn damage_the_vehicle(
             tries += 1;
         }
     }
+    // **Half the parts are smashed last**, after the tyres, for a disabled vehicle and only on a coin - the reference's own order (`vehicle.cpp:613-617`).
+    if status == 1 && dice.one_in(2) {
+        crate::vehicle_smash::smash(world, vehicle, &crate::vehicle_smash::Smash::half(), dice);
+    }
 }
 
 /// Stamps the faction ownership a mapgen names on the squares it covers.
