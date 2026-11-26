@@ -41336,3 +41336,20 @@ on, because its rule is "offer the follow-up next". The data's lighthouse chain 
 nowhere, all stated in the data rather than in the test. The mutation makes `follow_up` answer nothing and the chain assertion fails.
 
 The three content tests count what they see (306, 141) so a loader that quietly stopped reading half the tree could not pass.
+
+## `clear_mission`, and the chain closes (round 347)
+
+`clear_mission` (`npctalk_funcs.cpp:178-202`) is the rule the mission type was built for: it takes the selected mission off the player and, **if the mission has a follow-up**, puts a
+new mission of that type back on the **person's** table - not straight into the player's hands. That last clause is the half a port that simply completed the mission would miss,
+and it is exactly what the 141-link chain in the data exists for.
+
+The test walks the data's lighthouse chain: clearing `MISSION_lighthouse_man_1` takes it off the player and leaves `MISSION_lighthouse_man_2` on the table; clearing
+`MISSION_lighthouse_man_5`, the chain's end, offers nothing. Clearing with nothing active answers `Done` and offers nothing, because the reference's warning there is a debug
+message rather than a game event.
+
+The mutation removes the follow-up offer and the "on the person's table" assertion fails - which is the difference between a chain that continues and one that dies at the first
+link.
+
+The block stands at **13 of 75**. `mission_success` (18) stays out for the same reason as before, now stated precisely: its reward half is `npc_opinion` and faction standing the
+port does not model, and its rule half is `mission::wrap_up`, which runs the mission's **`end` program** - the same programs the loader deliberately did not read. That is the
+next mission work, and it is the EOC runner's, not a mission effect's.

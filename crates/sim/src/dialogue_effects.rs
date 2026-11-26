@@ -3538,6 +3538,9 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "assign_mission" => {
             assign_the_mission_on_the_table(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "clear_mission" => {
+            clear_the_mission_on_the_table(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4288,5 +4291,37 @@ fn assign_the_mission_on_the_table(
     }
     crate::missions::accept(world, holder, &mission);
     crate::missions::unoffer(world, npc, &mission);
+    Applied::Done
+}
+
+/// **`clear_mission` takes a mission off the player and puts its follow-up on the table.** Reference: `talk_function::clear_mission` (`npctalk_funcs.cpp:178-202`): the selected
+/// mission is erased from the person's assigned list, and **if it has a follow-up**, a new mission of that type is added to what the person offers - which is how a chain of
+/// missions continues. A selected mission that is not in the assigned list is refused with a warning and nothing happens.
+///
+/// **The same divergence as `assign_mission`, stated once here**: the "selected" mission is what the player picked in the talk window, and the port has no talk window, so it takes
+/// the **first active mission in id order**.
+fn clear_the_mission_on_the_table(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let holder = crate::missions::question_holder(world, speaker);
+    // The port's "selected mission": the first active one in id order. Nothing active is nothing to clear, and the reference's warning is a debug message, not a game event.
+    let Some(mission) = crate::missions::active_missions(world, holder)
+        .first()
+        .cloned()
+    else {
+        return Applied::Done;
+    };
+    if !crate::missions::finish(world, holder, &mission) {
+        return Applied::Done;
+    }
+    // Reference: `if( miss->has_follow_up() ) { p.add_new_mission( reserve_new( ... ) ); }` - the follow-up goes back on the **person's** table, not straight to the player.
+    if let Some(next) = crate::mission_types::follow_up(world, &mission) {
+        crate::missions::offer(world, npc, &next);
+    }
     Applied::Done
 }

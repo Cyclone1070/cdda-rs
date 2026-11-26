@@ -3909,3 +3909,62 @@ fn the_mission_on_the_table_is_handed_over_once() {
         "**but leaves it on the table, because it was not assigned twice**"
     );
 }
+
+/// **`clear_mission` completes one and puts the next on the table.** Reference: `talk_function::clear_mission` (`npctalk_funcs.cpp:178-202`): the selected mission is erased
+/// from the assigned list, and **if it has a follow-up** a new mission of that type goes back on the person's table - which is how a chain of missions continues. A follow-up is
+/// offered to the **person**, not handed straight to the player, and that is the half a port that simply completed the mission would miss.
+#[test]
+fn clearing_a_mission_puts_its_follow_up_on_the_table() {
+    let mut world = World::new();
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
+    let roots = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = roots.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::mission_types::load_paths(&paths).expect("the missions load");
+    cdda_sim::mission_types::set_mission_types(&mut world, loaded);
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let effect = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "clear_mission".to_owned(),
+    };
+    // **With nothing active there is nothing to clear**, and it is not an error - the reference's warning is a debug message.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**clearing nothing answers**"
+    );
+    assert!(
+        cdda_sim::missions::offers(&world, vlad).is_empty(),
+        "**and offers nothing**"
+    );
+    // **The lighthouse chain, from the data**: the first mission leads to the second.
+    cdda_sim::missions::accept(&mut world, avatar, "MISSION_lighthouse_man_1");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**clearing a mission runs**"
+    );
+    assert!(
+        !cdda_sim::missions::has_mission(&world, avatar, "MISSION_lighthouse_man_1"),
+        "**and the mission is off the player**"
+    );
+    assert_eq!(
+        cdda_sim::missions::offers(&world, vlad),
+        vec!["MISSION_lighthouse_man_2".to_owned()],
+        "**while its follow-up is on the person's table, not the player's**"
+    );
+    // **The last link leads nowhere.** `MISSION_lighthouse_man_5` is the chain's end in the data, so clearing it offers nothing.
+    cdda_sim::missions::accept(&mut world, avatar, "MISSION_lighthouse_man_5");
+    cdda_sim::missions::unoffer(&mut world, vlad, "MISSION_lighthouse_man_2");
+    cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect);
+    assert!(
+        !cdda_sim::missions::has_mission(&world, avatar, "MISSION_lighthouse_man_5"),
+        "**the last mission is cleared too**"
+    );
+    assert!(
+        cdda_sim::missions::offers(&world, vlad).is_empty(),
+        "**and a chain's end offers nothing**"
+    );
+}
