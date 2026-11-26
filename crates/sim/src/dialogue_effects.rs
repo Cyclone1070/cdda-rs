@@ -3553,6 +3553,12 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "player_leaving" => {
             let_the_player_leave(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "drop_weapon" => {
+            the_person_drops_their_weapon(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "player_weapon_drop" => {
+            the_player_drops_their_weapon(world, speaker)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4398,5 +4404,34 @@ fn let_the_player_leave(world: &mut World, speaker: Entity, listener: Option<Ent
         return Applied::CannotAnswer;
     };
     crate::npcs::set_attitude(world, npc, "wait_for_leave");
+    Applied::Done
+}
+
+/// **`drop_weapon` makes the person put their weapon down.** Reference: `talk_function::drop_weapon` (`npctalk_funcs.cpp:1059-1066`): a hallucination has no weapon to
+/// drop and returns; anything else takes the weapon out of the person's hands and puts it on the square they stand on.
+///
+/// **Named gap**: a hallucination is a monster the port does not make - its `is_hallucination` is a flag on a creature it never spawns - so the check is not carried and the
+/// effect drops whatever is held. A person with nothing in hand answers `Done` and changes nothing, which is what the reference's `remove_weapon` on an empty hand does.
+fn the_person_drops_their_weapon(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dropping::put_down_what_is_held(world, npc);
+    Applied::Done
+}
+
+/// **`player_weapon_drop` makes the player put their own weapon down.** Reference: `talk_function::player_weapon_drop` (`npctalk_funcs.cpp:1082-1090`): the player's weapon
+/// is removed and dropped through the player's own drop path, which places it at the player's square - the reference's `drop_on_map` with `item_drop_reason::deliberate`.
+///
+/// The listener is not read: the effect acts on the **player**, whatever the person in the conversation is holding.
+fn the_player_drops_their_weapon(world: &mut World, speaker: Entity) -> Applied {
+    let Some(player) = crate::missions::avatar(world).or(Some(speaker)) else {
+        return Applied::CannotAnswer;
+    };
+    crate::dropping::put_down_what_is_held(world, player);
     Applied::Done
 }

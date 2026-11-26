@@ -66,6 +66,7 @@ pub mod dialogue_effects;
 pub mod dialogue_values;
 pub mod digest;
 pub mod dispersion;
+pub mod dropping;
 pub mod eating;
 pub mod effect_registry;
 pub mod effects;

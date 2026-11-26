@@ -62,6 +62,7 @@ mod dialogue_effects;
 mod dialogue_values;
 mod digest;
 mod dispersion;
+mod dropping;
 mod eating;
 mod effect_activated;
 mod effect_chances;

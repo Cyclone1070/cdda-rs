@@ -41399,3 +41399,15 @@ that makes the branch unreachable fails on exactly those assertions.
 **Named gaps, both fields the reference has and the port does not**: `ammo_unset` (the port clears `fuel` and `charges`, which is what its other damage rules do instead) and
 `part.precalc` - the reference measures the distance to the part's precalculated square and the port measures to its mount, the same square before rotation. `damage_size` is
 zero everywhere the port calls this, where the distance is not read at all.
+
+## Putting a thing down (round 351)
+
+The port could pick an item up and had no rule for putting one down: `pick_up` takes the item's `Position` away so it leaves the index, and the inverse - `drop_weapon`
+(`npctalk_funcs.cpp:1059-1066`, 14 uses) and `player_weapon_drop` (`:1082-1090`, 3) - was missing. `dropping::put_down_what_is_held` is that inverse, and it is three
+component changes with the index as the point: the thing stops being `Carried` and `WieldedBy`, gains a `Position`, and **goes back into the index**, because the index is the
+only place that says what is on a square. The mutation that drops the index insert fails on exactly that assertion - a thing in nobody's hands and on no floor.
+
+The two effects differ in **who** acts, and that is the whole difference between them: `drop_weapon` empties the person's hands (`is_hallucination` is a gap - the port never
+makes one), and `player_weapon_drop` empties the **player's** hands whoever the conversation is with. The test holds a weapon in both hands and checks each in turn.
+
+The block stands at **19 of 75**.
