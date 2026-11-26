@@ -41448,3 +41448,23 @@ charges a shave as a haircut passes any "did morale rise" check and fails this o
 **favourites**, a flag the port does not mark - everything carried is dropped, and the activity that would spread the drop over turns is the same missing activity system.
 
 The block stands at **24 of 75**.
+
+## Tending wounds (round 354)
+
+`give_aid` (`npctalk_funcs.cpp:712-733`, 3 uses) and `lesser_give_aid` (`:673-687`, 1) heal the **player's whole body**, part by part, and the two differ in three places at once:
+
+| | heals each part | clears | person is busy |
+|---|---|---|---|
+| `give_aid` | `5 * rng( 2, 5 )` | `bite`, `bleed`, `infected` | 120 minutes |
+| `lesser_give_aid` | `rng( 5, 15 )` | `bleed` only | 60 minutes |
+
+The port heals a part by lowering its `Wounds` entry - the same number with the sign the port stores - so the test can state the arithmetic without repeating a formula: at roll
+zero the full aid heals **ten** a part and the lesser **five**, and the **roll is inside the loop** because the reference draws once per part.
+
+The mutation turns the lesser aid into a full one, and the test fails on the bite that should have survived - which is the difference between a person who dresses a wound and one
+who cures an infection.
+
+**Named gaps**: the reference's `bite`, `bleed` and `infected` are **per body part** and the port's effects are per creature, so they are cleared once instead of once per part - a
+port limitation the rule inherits rather than chooses. The activity the reference assigns (`ACT_WAIT_NPC`) is the same missing activity system as the barber rules.
+
+The block stands at **26 of 75**.

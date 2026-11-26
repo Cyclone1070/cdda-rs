@@ -3574,6 +3574,12 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "buy_shave" => {
             a_decent_shave(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "give_aid" => {
+            tend_the_players_wounds(world, speaker, listener, true)
+        }
+        Effect::LegacyStringEffect { name } if name == "lesser_give_aid" => {
+            tend_the_players_wounds(world, speaker, listener, false)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4596,5 +4602,77 @@ fn a_decent_shave(world: &mut World, speaker: Entity, listener: Option<Entity>) 
         },
     );
     crate::messages::push(world, &format!("{name} gives you a decent shave\u{2026}"));
+    Applied::Done
+}
+
+/// **A person tends the player's wounds, part by part.** Reference: `talk_function::give_aid` (`npctalk_funcs.cpp:712-733`) heals **every main body part** by
+/// `5 * rng( 2, 5 )` and clears `bite`, `bleed` and `infected`; `lesser_give_aid` (`:673-687`) heals by `rng( 5, 15 )` and clears only `bleed`. Both then leave the person
+/// `currently_busy` - two hours for the full aid, one for the lesser - so nobody gets a second opinion out of them that afternoon.
+///
+/// **Named gaps, both of them model differences rather than missing lines.** The reference heals a **part**, and the port heals a part by lowering its [`crate::creature::Wounds`]
+/// entry, which is the same number with the sign the port stores. And the reference's `bite`, `bleed` and `infected` are **per body part**; the port's effects are per creature,
+/// so they are cleared once instead of once per part - a creature with an infected arm and a healthy leg cannot be half-cured here, which is the port's known effect model and not
+/// this rule's choice.
+fn tend_the_players_wounds(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    full: bool,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(player) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    let parts = world
+        .get::<crate::creature::Body>(player)
+        .map(|body| {
+            body.parts
+                .iter()
+                .map(|part| part.name.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    // **The dice belong to the turn**, so they are taken for the length of the draws and put back after - the pattern every rule that rolls without a caller's stream uses.
+    let mut rolls = crate::singletons::take_rolls(world).unwrap_or_else(|| {
+        let turn = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let seed = turn as u32;
+        cdda_core_types::rng::Rolls::new(seed)
+    });
+    for part in parts {
+        // The reference draws once per part, which is why the roll is inside the loop rather than before it.
+        let healed = if full {
+            5 * rolls.rng(2, 5)
+        } else {
+            rolls.rng(5, 15)
+        };
+        let hurt = crate::creature::wound_on(world, player, &part);
+        if hurt <= 0 {
+            continue;
+        }
+        let left = (hurt - healed).max(0);
+        if let Some(mut wounds) = world.get_mut::<crate::creature::Wounds>(player) {
+            wounds.0.insert(part, left);
+        }
+    }
+    if full {
+        for effect in ["bite", "bleed", "infected"] {
+            crate::applied_effects::remove(world, player, effect);
+        }
+    } else {
+        crate::applied_effects::remove(world, player, "bleed");
+    }
+    crate::singletons::put_rolls(world, rolls);
+    // Reference: `p.add_effect( effect_currently_busy, 120_minutes )` and `60_minutes` for the lesser.
+    if let Some(kind) = crate::effect_registry::kind_named(world, "currently_busy") {
+        let turns = if full { 120 * 60 } else { 60 * 60 };
+        crate::applied_effects::add(
+            world,
+            npc,
+            crate::effects::ActiveEffect::new(&kind, turns, 1),
+        );
+    }
     Applied::Done
 }

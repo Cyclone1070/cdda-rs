@@ -4349,3 +4349,102 @@ fn a_haircut_and_a_shave_are_morale_points_with_their_own_numbers() {
         "**with the acknowledgement the reference gives: {lines:?}**"
     );
 }
+
+/// **A person tends the player's wounds, part by part.** Reference: `talk_function::give_aid` (`npctalk_funcs.cpp:712-733`) heals **every** body part by `5 * rng( 2, 5 )` and
+/// clears `bite`, `bleed` and `infected`; `lesser_give_aid` (`:673-687`) heals by `rng( 5, 15 )` and clears only `bleed`.
+///
+/// The port heals a part by lowering its **wound**, which is the same number with the sign the port stores, so the test can state the arithmetic: at roll zero the full aid heals
+/// **ten** a part (5 × 2) and the lesser heals **five** a part. Two parts are hurt so a port that healed only the first would fail, and the effect cleared is different between the
+/// two so a port that used one list for both would fail too.
+#[test]
+fn a_person_tends_the_players_wounds_part_by_part() {
+    let mut world = World::new();
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[
+            cdda_sim::effect_registry::bare("bleed"),
+            cdda_sim::effect_registry::bare("bite"),
+            cdda_sim::effect_registry::bare("currently_busy"),
+        ],
+    );
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let part = |name: &str| cdda_sim::hit_location::BodyPart {
+        name: name.to_owned(),
+        ..cdda_sim::hit_location::BodyPart::default()
+    };
+    world.entity_mut(avatar).insert(cdda_sim::creature::Body {
+        parts: vec![part("arm_l"), part("arm_r")],
+    });
+    for name in ["arm_l", "arm_r"] {
+        cdda_sim::creature::wound(&mut world, avatar, name, 30);
+    }
+    for effect in ["bleed", "bite"] {
+        if let Some(kind) = cdda_sim::effect_registry::kind_named(&world, effect) {
+            cdda_sim::applied_effects::add(
+                &mut world,
+                avatar,
+                cdda_sim::effects::ActiveEffect::new(&kind, 100, 1),
+            );
+        }
+    }
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    // **The full aid heals ten a part and clears both effects.**
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect("give_aid")),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**give_aid runs**"
+    );
+    for name in ["arm_l", "arm_r"] {
+        assert_eq!(
+            cdda_sim::creature::wound_on(&world, avatar, name),
+            20,
+            "**{name} heals by ten: thirty less five times two**"
+        );
+    }
+    for effect in ["bleed", "bite"] {
+        assert!(
+            !cdda_sim::applied_effects::has(&world, avatar, effect),
+            "**{effect} is cleared by the full aid**"
+        );
+    }
+    assert!(
+        cdda_sim::applied_effects::has(&world, vlad, "currently_busy"),
+        "**and the person is busy for two hours**"
+    );
+    // **The lesser aid heals five a part and clears only bleeding.** `bite` comes back first so the difference is visible.
+    if let Some(kind) = cdda_sim::effect_registry::kind_named(&world, "bite") {
+        cdda_sim::applied_effects::add(
+            &mut world,
+            avatar,
+            cdda_sim::effects::ActiveEffect::new(&kind, 100, 1),
+        );
+    }
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("lesser_give_aid")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**lesser_give_aid runs**"
+    );
+    for name in ["arm_l", "arm_r"] {
+        assert_eq!(
+            cdda_sim::creature::wound_on(&world, avatar, name),
+            15,
+            "**{name} heals by five more**"
+        );
+    }
+    assert!(
+        cdda_sim::applied_effects::has(&world, avatar, "bite"),
+        "**but a bite is not the lesser aid's business**"
+    );
+}
