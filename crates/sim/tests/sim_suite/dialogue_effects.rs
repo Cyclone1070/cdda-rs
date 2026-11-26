@@ -4546,3 +4546,63 @@ fn a_pleasant_conversation_moves_the_opinion_once_and_leaves_morale() {
         "**but the opinion is not touched while the effect lasts**"
     );
 }
+
+/// **Finishing a mission earns favour, not money.** Reference: `talk_function::mission_success` (`npctalk_funcs.cpp:139-161`): the selected mission's value goes through
+/// `cash_to_favor` (`npctalk.cpp:641-648`), which is the **square root of the value in hundreds** - so a mission worth **100** is worth exactly **one** favour - and the person's
+/// opinion then gains `1 + favour / 5` of value and loses **one** anger, with the mission taken off the player's list.
+///
+/// The test uses a mission the data actually prices at 100 (`MISSION_meteorologist_1`), so the arithmetic is the data's and not the test's, and it asserts the **anger** as well
+/// as the value: a port that only rewarded would leave an angry person angry after a mission well done.
+#[test]
+fn finishing_a_mission_earns_favour_and_calms_the_person() {
+    let mut world = World::new();
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
+    let roots = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = roots.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::mission_types::load_paths(&paths).expect("the missions load");
+    cdda_sim::mission_types::set_mission_types(&mut world, loaded);
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    cdda_sim::npcs::set_opinion(
+        &mut world,
+        vlad,
+        cdda_sim::npcs::Opinion {
+            anger: 3,
+            ..cdda_sim::npcs::Opinion::default()
+        },
+    );
+    let effect = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "mission_success".to_owned(),
+    };
+    // **Nothing active is nothing to reward**, and it is not an error.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**finishing nothing answers**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::opinion_of(&world, vlad).map(|opinion| opinion.value),
+        Some(0),
+        "**and rewards nothing**"
+    );
+    cdda_sim::missions::accept(&mut world, avatar, "MISSION_meteorologist_1");
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**finishing the mission runs**"
+    );
+    assert!(
+        !cdda_sim::missions::has_mission(&world, avatar, "MISSION_meteorologist_1"),
+        "**and takes it off the player**"
+    );
+    let opinion = cdda_sim::npcs::opinion_of(&world, vlad).expect("Vlad has an opinion");
+    assert_eq!(
+        opinion.value, 1,
+        "**a mission worth a hundred is one favour, and 1 + 1/5 is still one**"
+    );
+    assert_eq!(opinion.anger, 2, "**and the anger goes down by one**");
+}

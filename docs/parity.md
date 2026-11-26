@@ -41490,3 +41490,18 @@ port cannot get through this test in either direction.
 activity's own name.
 
 The block stands at **27 of 75**. `Opinion` is also the missing half of `mission_success`, which is the next rule that needs it.
+
+## Finishing a mission earns favour (round 356)
+
+`mission_success` (18 uses) was the biggest rule left, and the opinion half of it is now in. Reference: `talk_function::mission_success`
+(`npctalk_funcs.cpp:139-161`) turns the mission's value into **favour** through `cash_to_favor` (`npctalk.cpp:641-648`), which is the **square root of the value in hundreds** -
+a mission worth 100 is one favour - and adds `1 + favour / 5` to the person's **value** of the player and **−1** to their **anger**, then wraps the mission up.
+
+The test uses a mission the data actually prices at **100** (`MISSION_meteorologist_1`), so the arithmetic is the data's rather than the test's, and it asserts the anger as well
+as the value: a port that only rewarded would leave an angry person angry after a mission well done. The mutation that drops the anger line fails on it.
+
+**Named gaps, both real and both stated**: the **faction standing** (`likes_u`, `respects_u`, `trusts_u`, `power`) has nowhere to go without factions; and `mission::wrap_up`'s
+**item half** - the goods a `MGOAL_FIND_ITEM` mission asked for, consumed on success - needs the mission type's item fields, which the loader deliberately does not read yet.
+Consuming them now would be inventing a quantity. The mission **is** taken off the player's list, which is the half `wrap_up` does first.
+
+The block stands at **28 of 75**.

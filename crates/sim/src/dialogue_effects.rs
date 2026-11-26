@@ -4755,6 +4755,49 @@ fn run_legacy_string_effect(
         "give_aid" => tend_the_players_wounds(world, speaker, listener, true),
         "lesser_give_aid" => tend_the_players_wounds(world, speaker, listener, false),
         "morale_chat_activity" => a_pleasant_conversation(world, speaker, listener),
+        "mission_success" => the_mission_is_done(world, speaker, listener),
         _ => Applied::CannotAnswer,
     }
+}
+
+/// **`mission_success` rewards the player for a mission they have finished.** Reference: `talk_function::mission_success` (`npctalk_funcs.cpp:139-161`): the selected mission's
+/// value is turned into **favour** by `cash_to_favor`, the person's opinion of the player gains `1 + favour / 5` of value and loses **one** anger, their faction's standing gains
+/// `min( 1 + favour / 10, 10 )`, and the mission is wrapped up.
+///
+/// `cash_to_favor` (`npctalk.cpp:641-648`) is the **square root of the mission's value in hundreds**: `roll_remainder( sqrt( cash / 100.0 ) )` - so a mission worth a hundred
+/// dollars is worth one favour, four hundred is two, and the fractional part is a coin rather than a rounding rule.
+///
+/// **Named gaps**: the faction's standing (the port has no factions, so `likes_u`, `respects_u`, `trusts_u` and `power` have nowhere to go) and `mission::wrap_up`'s **item
+/// half**, which consumes the goods a `MGOAL_FIND_ITEM` mission asked for - the port's mission type does not read the item fields yet, and consuming them would be inventing a
+/// quantity. The mission **is** taken off the player's list, which is the half `wrap_up` does first.
+fn the_mission_is_done(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(player) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    // The port's "selected mission": the first active one in id order, as `clear_mission` takes it.
+    let Some(mission) = crate::missions::active_missions(world, player)
+        .first()
+        .cloned()
+    else {
+        return Applied::Done;
+    };
+    let value = crate::mission_types::kind_named(world, &mission).map_or(0, |kind| kind.value);
+    let mut rolls = crate::singletons::take_rolls(world).unwrap_or_else(|| {
+        let turn = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let seed = turn as u32;
+        cdda_core_types::rng::Rolls::new(seed)
+    });
+    let favour = rolls.roll_remainder((f64::from(value) / 100.0).sqrt());
+    crate::singletons::put_rolls(world, rolls);
+    let mut opinion = crate::npcs::opinion_of(world, npc).unwrap_or_default();
+    opinion.value += 1 + favour / 5;
+    opinion.anger -= 1;
+    crate::npcs::set_opinion(world, npc, opinion);
+    // Reference: `miss->wrap_up()` sets the status to success and takes the mission off the player's list. The items it also consumes are the named gap above.
+    crate::missions::finish(world, player, &mission);
+    Applied::Done
 }
