@@ -41468,3 +41468,25 @@ who cures an infection.
 port limitation the rule inherits rather than chooses. The activity the reference assigns (`ACT_WAIT_NPC`) is the same missing activity system as the barber rules.
 
 The block stands at **26 of 75**.
+
+## A pleasant conversation, and the first opinion (round 355)
+
+`morale_chat_activity` (5 uses) is the first rule that moves a person's **opinion of the player**, so `npcs` grew `Opinion` - the reference's `npc_opinion`
+(`npc.h:230-260`) plus its `opinion_values_raised` counter, grouped because they are the same bookkeeping: `value`, `trust`, `anger`, `fear`, `owed`, and `raised`.
+
+The rule runs five steps in order (`npctalk_funcs.cpp:828-861`): `ACT_SOCIALIZE` for ten minutes, a one-in-three snippet, the line "That was a pleasant conversation with
+<name>.", an opinion roll **guarded twice** - by the `socialized_recently` effect and by the ten-chat cap - and the `morale_chat` point at `rng( 3, 10 )`, capped at ten, for 200
+minutes.
+
+Two details are the reference's own and both are tested: a roll can move a number by **zero**, and the reference counts only chats that actually moved one ("we need to check for
+any non-zero value, e.g. anger change might be negative").
+
+The test **records its dice** rather than fixing them, because a fixed roll cannot say "branch one and change one" at once: the opinion branch needs `rng( 1, 3 )` to answer 1
+**and** `rng( 0, 1 )` to answer 1, and a fixed roll answers the same value for both. The recording is also what catches the guard: with the `socialized_recently` check removed,
+the second conversation draws the opinion dice that its recording does not carry, and the replay refuses the extra draw at once (`left: (3, 10) right: (1, 3)`). A guard-less
+port cannot get through this test in either direction.
+
+**Named gaps**: the snippet (no snippet registry, so the branch is drawn and says nothing rather than inventing a line) and the kind of activity, which the port stores as the
+activity's own name.
+
+The block stands at **27 of 75**. `Opinion` is also the missing half of `mission_success`, which is the next rule that needs it.

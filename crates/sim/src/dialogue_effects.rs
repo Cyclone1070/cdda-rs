@@ -3502,85 +3502,10 @@ fn run_store_effect(
             let _ = crate::weather::make_due(world);
             Applied::Done
         }
-        Effect::LegacyStringEffect { name } if name == "hostile" => {
-            turn_the_npc_hostile(world, speaker, listener)
+
+        Effect::LegacyStringEffect { name } => {
+            run_legacy_string_effect(world, speaker, listener, name)
         }
-        Effect::LegacyStringEffect { name } if name == "flee" => {
-            make_the_npc_flee(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "follow" => {
-            take_the_person_along(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "follow_only" => {
-            set_the_persons_attitude(world, speaker, listener, "follow")
-        }
-        Effect::LegacyStringEffect { name } if name == "stop_following" => {
-            stop_the_person_following(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "deny_follow" => {
-            the_person_was_asked_to_follow(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "insult_combat" => {
-            start_a_fight_with_the_person(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "stranger_neutral" => {
-            the_stranger_feels_less_threatened(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "npc_thankful" => {
-            the_person_is_thankful(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "wake_up" => {
-            wake_the_person_up(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "leave" => {
-            the_person_leaves(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "assign_mission" => {
-            assign_the_mission_on_the_table(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "clear_mission" => {
-            clear_the_mission_on_the_table(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "end_conversation" => {
-            end_the_conversation(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "remove_stolen_status" => {
-            forgot_what_was_stolen(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "start_mugging" => {
-            start_mugging_the_player(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "player_leaving" => {
-            let_the_player_leave(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "drop_weapon" => {
-            the_person_drops_their_weapon(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "player_weapon_drop" => {
-            the_player_drops_their_weapon(world, speaker)
-        }
-        Effect::LegacyStringEffect { name } if name == "assign_guard" => {
-            guard_the_place(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "stop_guard" => {
-            stop_guarding_the_place(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "drop_items_in_place" => {
-            the_person_drops_their_burden(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "buy_haircut" => {
-            a_decent_haircut(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "buy_shave" => {
-            a_decent_shave(world, speaker, listener)
-        }
-        Effect::LegacyStringEffect { name } if name == "give_aid" => {
-            tend_the_players_wounds(world, speaker, listener, true)
-        }
-        Effect::LegacyStringEffect { name } if name == "lesser_give_aid" => {
-            tend_the_players_wounds(world, speaker, listener, false)
-        }
-        Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
         Effect::SellItem { .. } => sell_item(world, speaker, listener, effect),
@@ -4675,4 +4600,161 @@ fn tend_the_players_wounds(
         );
     }
     Applied::Done
+}
+
+/// **A pleasant conversation: an activity, a morale point, and sometimes a little more trust.** Reference: `talk_function::morale_chat_activity`
+/// (`npctalk_funcs.cpp:828-861`).
+///
+/// The rule has four parts, and they run in this order:
+///
+/// 1. the player starts `ACT_SOCIALIZE` for **ten minutes**;
+/// 2. one time in three the person says a line from the `npc_socialize` snippets;
+/// 3. the game says "That was a pleasant conversation with <name>.";
+/// 4. **unless the person has talked recently** (the `socialized_recently` effect) and unless ten chats have already moved a number, one of three things happens - a point of
+///    **trust**, a point of **value**, or a point off their **anger** if they have any - and the same effect stops the next chat for **six hours**;
+/// 5. the player gains `morale_chat`, `rng( 3, 10 )`, capped at 10, for 200 minutes, fading from two and a half.
+///
+/// **Named gap**: the snippet. The port has no snippet registry, so the branch is drawn and says nothing rather than inventing a line.
+fn a_pleasant_conversation(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(player) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    let mut rolls = crate::singletons::take_rolls(world).unwrap_or_else(|| {
+        let turn = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let seed = turn as u32;
+        cdda_core_types::rng::Rolls::new(seed)
+    });
+    // 1. **The socialize activity**, ten minutes of the player's time at a hundred moves a turn.
+    if let Some(mut doing) = world.get_mut::<crate::creature::Doing>(player) {
+        "ACT_SOCIALIZE".clone_into(&mut doing.activity);
+        doing.moves_left = 10 * 60 * 100;
+        doing.moves_total = doing.moves_left;
+    } else {
+        world.entity_mut(player).insert(crate::creature::Doing {
+            activity: "ACT_SOCIALIZE".to_owned(),
+            moves_left: 10 * 60 * 100,
+            basis: crate::creature::Basis::Time,
+            moves_total: 10 * 60 * 100,
+            subject: None,
+        });
+    }
+    // 2. **The snippet**, drawn even though the port has nowhere to put it: the reference's `if( one_in( 3 ) )` spends the die before the message either way.
+    let _snippet = rolls.one_in(3);
+    // 3. **The line**.
+    crate::messages::push(
+        world,
+        &format!("That was a pleasant conversation with {name}."),
+    );
+    // 4. **The opinion**, guarded by the effect and the ten-chat cap.
+    let socialized = crate::applied_effects::has(world, npc, "socialized_recently");
+    let raised = crate::npcs::opinion_of(world, npc).map_or(0, |opinion| opinion.raised);
+    if !socialized && raised <= 10 {
+        let mut opinion = crate::npcs::opinion_of(world, npc).unwrap_or_default();
+        let change = match rolls.rng(1, 3) {
+            1 => {
+                let change = rolls.rng(0, 1);
+                opinion.trust += change;
+                change
+            }
+            2 => {
+                let change = rolls.rng(0, 1);
+                opinion.value += change;
+                change
+            }
+            _ => {
+                if opinion.anger > 0 {
+                    let change = rolls.rng(-1, 0);
+                    opinion.anger += change;
+                    change
+                } else {
+                    0
+                }
+            }
+        };
+        // Reference: "we need to check for any non-zero value, e.g. anger change might be negative".
+        if change != 0 {
+            opinion.raised = opinion.raised.saturating_add(1);
+        }
+        crate::npcs::set_opinion(world, npc, opinion);
+        if let Some(kind) = crate::effect_registry::kind_named(world, "socialized_recently") {
+            // 6 hours.
+            crate::applied_effects::add(
+                world,
+                npc,
+                crate::effects::ActiveEffect::new(&kind, 6 * 60 * 60, 1),
+            );
+        }
+    }
+    // 5. **The morale point**: `rng( 3, 10 )`, capped at ten, 200 minutes, fading from two and a half.
+    let bonus = rolls.rng(3, 10);
+    crate::singletons::put_rolls(world, rolls);
+    crate::morale::add(
+        world,
+        player,
+        crate::morale::MoralePoint {
+            kind: "morale_chat".to_owned(),
+            bonus,
+            max_bonus: 10,
+            duration: 200 * 60,
+            decay_start: 150,
+            age: 0,
+            capped: false,
+        },
+    );
+    Applied::Done
+}
+
+/// **The legacy string effects** - the reference's `talk_function` names, dispatched from a bare string.
+///
+/// Reference: `talk_effect_t::parse_string_effect` (`npctalk.cpp:8157-8341`) holds a long table of `talk_function` names. The port honours the ones whose rules it has and
+/// answers `CannotAnswer` for the rest, so a program that names a rule the port has not written refuses rather than half-running.
+///
+/// The names lived as guards on one enormous match arm until the arm's own function crossed the line limit; a table of names is what this is, so it is a table.
+fn run_legacy_string_effect(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    name: &str,
+) -> Applied {
+    match name {
+        "hostile" => turn_the_npc_hostile(world, speaker, listener),
+        "flee" => make_the_npc_flee(world, speaker, listener),
+        "follow" => take_the_person_along(world, speaker, listener),
+        "follow_only" => set_the_persons_attitude(world, speaker, listener, "follow"),
+        "stop_following" => stop_the_person_following(world, speaker, listener),
+        "deny_follow" => the_person_was_asked_to_follow(world, speaker, listener),
+        "insult_combat" => start_a_fight_with_the_person(world, speaker, listener),
+        "stranger_neutral" => the_stranger_feels_less_threatened(world, speaker, listener),
+        "npc_thankful" => the_person_is_thankful(world, speaker, listener),
+        "wake_up" => wake_the_person_up(world, speaker, listener),
+        "leave" => the_person_leaves(world, speaker, listener),
+        "assign_mission" => assign_the_mission_on_the_table(world, speaker, listener),
+        "clear_mission" => clear_the_mission_on_the_table(world, speaker, listener),
+        "end_conversation" => end_the_conversation(world, speaker, listener),
+        "remove_stolen_status" => forgot_what_was_stolen(world, speaker, listener),
+        "start_mugging" => start_mugging_the_player(world, speaker, listener),
+        "player_leaving" => let_the_player_leave(world, speaker, listener),
+        "drop_weapon" => the_person_drops_their_weapon(world, speaker, listener),
+        "player_weapon_drop" => the_player_drops_their_weapon(world, speaker),
+        "assign_guard" => guard_the_place(world, speaker, listener),
+        "stop_guard" => stop_guarding_the_place(world, speaker, listener),
+        "drop_items_in_place" => the_person_drops_their_burden(world, speaker, listener),
+        "buy_haircut" => a_decent_haircut(world, speaker, listener),
+        "buy_shave" => a_decent_shave(world, speaker, listener),
+        "give_aid" => tend_the_players_wounds(world, speaker, listener, true),
+        "lesser_give_aid" => tend_the_players_wounds(world, speaker, listener, false),
+        "morale_chat_activity" => a_pleasant_conversation(world, speaker, listener),
+        _ => Applied::CannotAnswer,
+    }
 }

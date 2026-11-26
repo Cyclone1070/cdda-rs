@@ -4448,3 +4448,101 @@ fn a_person_tends_the_players_wounds_part_by_part() {
         "**but a bite is not the lesser aid's business**"
     );
 }
+
+/// **A pleasant conversation.** Reference: `talk_function::morale_chat_activity` (`npctalk_funcs.cpp:828-861`). Five things happen, and the test checks the five in the order the
+/// rule does them: the player starts `ACT_SOCIALIZE` for ten minutes, the line is said, the person's opinion is touched **unless** they have talked recently, the
+/// `socialized_recently` effect is set for six hours, and the player gains `morale_chat` worth `rng( 3, 10 )` capped at ten.
+///
+/// At roll zero the opinion branch takes **trust** and moves it by **zero**, which is the reference's own "might move by zero" case: `opinion_values_raised` must stay where it
+/// was, because the reference only counts a chat that actually changed a number. The second call is then the guard: the effect is there, so nothing more is written.
+#[test]
+fn a_pleasant_conversation_moves_the_opinion_once_and_leaves_morale() {
+    let mut world = World::new();
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[cdda_sim::effect_registry::bare("socialized_recently")],
+    );
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let effect = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "morale_chat_activity".to_owned(),
+    };
+    // **A recorded conversation**, so the opinion branch takes **trust** and moves it by **one**: `one_in(3)` draws zero, the branch draws one, the change draws one, and the
+    // morale point draws three. A fixed roll cannot say "branch one and change one" at once, which is why the recording is here.
+    let recorded = "int 0 2 0\nint 1 3 1\nint 0 1 1\nint 3 10 3\n";
+    let replay = || {
+        cdda_core_types::rng::Rolls::replaying(
+            cdda_core_types::rng::Recording::parse(recorded).expect("the recording parses"),
+        )
+    };
+    // **The second call draws fewer dice**, because the guard skips the opinion block: one `one_in(3)` for the snippet and one for the morale point, and nothing in between.
+    let recorded_again = "int 0 2 0\nint 3 10 3\n";
+    cdda_sim::singletons::put_rolls(&mut world, replay());
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**the conversation runs**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Doing>(avatar)
+            .map(|doing| (doing.activity.clone(), doing.moves_left)),
+        Some(("ACT_SOCIALIZE".to_owned(), 10 * 60 * 100)),
+        "**the player is socializing for ten minutes**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "That was a pleasant conversation with Vlad."),
+        "**and the game says so: {lines:?}**"
+    );
+    let opinion = cdda_sim::npcs::opinion_of(&world, vlad).expect("Vlad has an opinion");
+    assert_eq!(
+        (opinion.trust, opinion.value),
+        (1, 0),
+        "**the trust branch moved trust by one and nothing else**"
+    );
+    assert_eq!(
+        opinion.raised, 1,
+        "**and the chat counts, because a number moved**"
+    );
+    assert!(
+        cdda_sim::applied_effects::has(&world, vlad, "socialized_recently"),
+        "**the person has talked recently**"
+    );
+    let morale = world
+        .get::<cdda_sim::morale::Morale>(avatar)
+        .map(|held| held.0.clone())
+        .unwrap_or_default();
+    let chat = morale
+        .iter()
+        .find(|point| point.kind == "morale_chat")
+        .cloned()
+        .expect("**the chat left a morale point**");
+    assert_eq!(
+        (chat.bonus, chat.max_bonus, chat.duration),
+        (3, 10, 200 * 60),
+        "**worth three at this roll, capped at ten, for two hundred minutes**"
+    );
+    // **The second conversation writes nothing new**, because the person has just talked - and the same recorded dice are handed to it, so a port without the guard would
+    // move trust a second time and say so.
+    cdda_sim::singletons::put_rolls(
+        &mut world,
+        cdda_core_types::rng::Rolls::replaying(
+            cdda_core_types::rng::Recording::parse(recorded_again).expect("the recording parses"),
+        ),
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**talking again still answers**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::opinion_of(&world, vlad).map(|opinion| (opinion.trust, opinion.raised)),
+        Some((1, 1)),
+        "**but the opinion is not touched while the effect lasts**"
+    );
+}

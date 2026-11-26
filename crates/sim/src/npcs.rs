@@ -204,3 +204,41 @@ pub fn set_mission(world: &mut World, npc: Entity, mission: &str) -> bool {
     });
     true
 }
+
+/// What a person thinks of the player, in the reference's five numbers - `npc_opinion` (`npc.h:230-260`), the `op_of_u` member of every npc.
+///
+/// The reference keeps an opinion **per faction and per person**, and the person's own is the one dialogue rules read and write: `value` is how much they like the player,
+/// `trust` how much they believe them, `anger` how angry they are, `fear` how afraid, and `owed` how much the player owes them in the reference's money.
+///
+/// `raised` is the reference's `opinion_values_raised` (`npc.h`), which lives beside the opinion because it is the same bookkeeping: how many social chats have actually
+/// moved a number, which the chat rule caps at ten.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct Opinion {
+    /// How much they like the player.
+    pub value: i32,
+    /// How much they believe the player.
+    pub trust: i32,
+    /// How angry they are.
+    pub anger: i32,
+    /// How afraid they are.
+    pub fear: i32,
+    /// What the player owes them.
+    pub owed: i32,
+    /// How many conversations have moved one of those numbers, capped by the chat rule.
+    pub raised: u8,
+}
+
+/// What a person thinks of the player, or `None` when the creature is not a person.
+#[must_use]
+pub fn opinion_of(world: &World, npc: Entity) -> Option<Opinion> {
+    world.get::<Npc>(npc)?;
+    Some(world.get::<Opinion>(npc).cloned().unwrap_or_default())
+}
+
+/// Writes what a person thinks of the player.
+pub fn set_opinion(world: &mut World, npc: Entity, opinion: Opinion) {
+    if world.get::<Npc>(npc).is_none() {
+        return;
+    }
+    world.entity_mut(npc).insert(opinion);
+}
