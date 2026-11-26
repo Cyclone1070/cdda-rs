@@ -41353,3 +41353,14 @@ link.
 The block stands at **13 of 75**. `mission_success` (18) stays out for the same reason as before, now stated precisely: its reward half is `npc_opinion` and faction standing the
 port does not model, and its rule half is `mission::wrap_up`, which runs the mission's **`end` program** - the same programs the loader deliberately did not read. That is the
 next mission work, and it is the EOC runner's, not a mission effect's.
+
+## A person's first topic (round 348)
+
+`end_conversation` (24 uses) looked like it needed the dialogue window. It does not: what it writes is `chatbin.first_topic`, and that is the **person's own memory of which
+topic to open with**, not the window's state. So `npcs` grew `NpcChat { first_topic }` with `first_topic_of` and `set_first_topic`, and the rule is now whole: the game says
+"<name> starts ignoring you." and the topic becomes `TALK_DONE`.
+
+**That closed a gap an earlier round left open**: `insult_combat` (`npctalk_funcs.cpp:524-529`) sets `first_topic = "TALK_DONE"` *after* announcing the fight, and the round that
+ported it dropped that line because there was nowhere to put it. It is now written, and the test asserts both halves of the effect - the conversation over **and** the peace.
+
+The mutation removes the topic write and the "will not talk again" assertion fails.

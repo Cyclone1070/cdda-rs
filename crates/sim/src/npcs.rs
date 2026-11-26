@@ -135,3 +135,35 @@ pub fn class_of(world: &World, creature: Entity) -> Option<String> {
 /// Reference: `jmapgen_npc::target` (`mapgen.cpp:2601`) hands the flag to `map::place_npc`, and the NPC carries it as `mission_util`'s target.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ScenarioTarget;
+
+/// The topic a person starts a conversation with - the reference's `npc_chatbin::first_topic` (`npctalk.h`).
+///
+/// This is not the dialogue in progress; it is the person's own memory of which topic to open with, and the reference writes it from several rules: `end_conversation` sets
+/// `TALK_DONE`, `insult_combat` does the same, `leave` and `stranger_neutral` set the person's own neutral topic. A person with no component opens with nothing, which is the
+/// same as the reference's empty topic.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct NpcChat {
+    /// The topic id the conversation starts on.
+    pub first_topic: String,
+}
+
+/// Which topic a person starts a conversation with, or nothing when no rule has set one.
+#[must_use]
+pub fn first_topic_of(world: &World, npc: Entity) -> Option<String> {
+    world
+        .get::<NpcChat>(npc)
+        .map(|chat| chat.first_topic.clone())
+}
+
+/// Sets which topic a person starts a conversation with.
+///
+/// Reference: the field is written directly by the rules that change it, and nothing else reacts at the moment of writing.
+pub fn set_first_topic(world: &mut World, npc: Entity, topic: &str) {
+    if let Some(mut chat) = world.get_mut::<NpcChat>(npc) {
+        topic.clone_into(&mut chat.first_topic);
+        return;
+    }
+    world.entity_mut(npc).insert(NpcChat {
+        first_topic: topic.to_owned(),
+    });
+}

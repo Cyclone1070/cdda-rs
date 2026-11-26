@@ -3968,3 +3968,68 @@ fn clearing_a_mission_puts_its_follow_up_on_the_table() {
         "**and a chain's end offers nothing**"
     );
 }
+
+/// **`end_conversation` leaves the person ignoring you, and `insult_combat` ends the conversation too.** Reference: `talk_function::end_conversation`
+/// (`npctalk_funcs.cpp:518-522`) says "<name> starts ignoring you." and sets `chatbin.first_topic` to `TALK_DONE`; `talk_function::insult_combat` (`:524-529`) does the same
+/// thing **after** announcing the fight, which is a line the port was missing until the person had a first topic to write.
+///
+/// The component is the person's own memory of what to open with, not the dialogue window's state, which is why it can be ported without a window.
+#[test]
+fn ending_a_conversation_leaves_the_person_ignoring_you() {
+    let mut world = World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    assert_eq!(
+        cdda_sim::npcs::first_topic_of(&world, vlad),
+        None,
+        "**a person with no chat memory opens with nothing**"
+    );
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("end_conversation")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**end_conversation runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::first_topic_of(&world, vlad).as_deref(),
+        Some("TALK_DONE"),
+        "**and the person will not talk again**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "Vlad starts ignoring you."),
+        "**with the line the reference gives them: {lines:?}**"
+    );
+    // **The insult ends the conversation as well as the peace**, which is the line the port was missing.
+    let irina = cdda_sim::creature::spawn_creature(&mut world, "Irina", (2, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, irina, "irina");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(irina),
+            &effect("insult_combat")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**insult_combat runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::first_topic_of(&world, irina).as_deref(),
+        Some("TALK_DONE"),
+        "**and the conversation is over**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, irina).as_deref(),
+        Some("kill"),
+        "**along with the peace**"
+    );
+}

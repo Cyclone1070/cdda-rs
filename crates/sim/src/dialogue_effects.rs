@@ -3541,6 +3541,9 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "clear_mission" => {
             clear_the_mission_on_the_table(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "end_conversation" => {
+            end_the_conversation(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4194,6 +4197,8 @@ fn start_a_fight_with_the_person(
         .get::<crate::creature::Creature>(npc)
         .map_or_else(String::new, |creature| creature.name.clone());
     crate::messages::push(world, &format!("You start a fight with {name}!"));
+    // Reference: `p.chatbin.first_topic = "TALK_DONE";` - the conversation is over as well as the peace.
+    crate::npcs::set_first_topic(world, npc, "TALK_DONE");
     crate::npcs::set_attitude(world, npc, "kill");
     Applied::Done
 }
@@ -4323,5 +4328,21 @@ fn clear_the_mission_on_the_table(
     if let Some(next) = crate::mission_types::follow_up(world, &mission) {
         crate::missions::offer(world, npc, &next);
     }
+    Applied::Done
+}
+
+/// **`end_conversation` ends the conversation and the person stops listening.** Reference: `talk_function::end_conversation` (`npctalk_funcs.cpp:518-522`): the game says
+/// "<name> starts ignoring you." and the person's **first topic** becomes `TALK_DONE`, which is the reference's way of saying no topic is on offer any more.
+///
+/// The port has no dialogue window, but `first_topic` is the person's own memory rather than the window's state, so this is the whole rule.
+fn end_the_conversation(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::messages::push(world, &format!("{name} starts ignoring you."));
+    crate::npcs::set_first_topic(world, npc, "TALK_DONE");
     Applied::Done
 }
