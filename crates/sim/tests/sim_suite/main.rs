@@ -243,6 +243,7 @@ mod temperature;
 mod terrain_transparency;
 mod throwing;
 mod tool_quality;
+mod trade;
 mod traits;
 mod transform_apply;
 mod transform_can_use;

@@ -41634,3 +41634,23 @@ the attitude is `"legacy_6"`, the mission `"shopkeep"`, the topic `"TALK_BONE_SE
 nothing. The port's rule is to make somebody rather than nobody, and the test says so by construction: the fallback is a visible state, not a silent one.
 
 The block is unchanged at **33 of 75**; what this closes is a **port** gap in mapgen, not a legacy-block name.
+
+## The numbers a trade's price is moved by (round 364)
+
+`start_trade` (113 uses) cannot be ported without a **price**, and the price's non-faction half is two small rules with real numbers:
+
+- `price_adjustment( barter_skill )` (`skill.cpp:655-660`): `0.045 * skill² - 0.025 * skill + 1` on the skill **capped at five**, inverted when the difference favours the buyer.
+- `net_price_adjustment( buyer, seller )` (`npctrade.cpp:143-160`): `int_adj = 1 + 0.05 * min( 19, |Δint| )`, `soc_adj = price_adjustment( Δbarter )`, and the product - or the
+  ratio - depending on **who is the cleverer side**, negated and inverted when the **buyer** is the person, because the caller multiplies `1 + 0.25 * adjust` and a buyer's advantage
+  must move the price the other way.
+
+**The numbers are arguments, not fields.** The reference reads `int_cur` and `skill_speech` off two `Character`s; the port has no character stats yet, so the rules take a `Trader`
+each and are testable **before the stats exist**. When the stats arrive they fill the struct in; the rule does not change.
+
+The tests pin the curve's values, its **cap** (a difference of five and of fifty answer the same), its **inversion**, and the buyer's sign flip. The mutation that drops the `-1.0`
+fails on the person-seller case.
+
+**Named gaps**: the faction's price rules (`faction_price_rule`: `premium`, `markup`, `fixed_adj`), the NPC's own `value( item, price )` override, the container recursion of
+`_trading_price`, and `wants_to_sell`/`wants_to_buy` - all of which need the NPC rules and factions the port does not have.
+
+The block is unchanged at **33 of 75**: this is the first rule of the trade subsystem, not the rule that uses it.
