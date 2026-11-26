@@ -167,3 +167,40 @@ pub fn set_first_topic(world: &mut World, npc: Entity, topic: &str) {
         first_topic: topic.to_owned(),
     });
 }
+
+/// The job a person is doing - the reference's `npc_mission` (`npc.h:78-120`), which is `NPC_MISSION_NULL`, `NPC_MISSION_GUARD`, `NPC_MISSION_GUARD_ALLY` and the rest.
+///
+/// The reference keeps it on the `npc` beside the attitude, and the two move together: a guard is an ally told to stay, a non-ally told to stay is something else again.
+/// `"null"` is the reference's default, so a person with no component is a person with no job.
+#[derive(Component, Debug, Clone, Default, PartialEq, Eq)]
+pub struct NpcMission {
+    /// The job's id, as the reference spells it: `"null"`, `"guard"`, `"guard_ally"`, `"guard_ally_freeze"`, ...
+    pub id: String,
+}
+
+/// The job a person is doing, or `None` when the creature is not a person.
+#[must_use]
+pub fn mission_of(world: &World, npc: Entity) -> Option<String> {
+    world.get::<Npc>(npc)?;
+    Some(
+        world
+            .get::<NpcMission>(npc)
+            .map_or_else(|| "null".to_owned(), |mission| mission.id.clone()),
+    )
+}
+
+/// Gives a person a job, answering whether it changed.
+///
+/// Reference: `npc::set_mission` (`npc.h`) writes the member; the reference's callers then set the destination or the topic that goes with it.
+pub fn set_mission(world: &mut World, npc: Entity, mission: &str) -> bool {
+    if mission_of(world, npc).as_deref() == Some(mission) {
+        return false;
+    }
+    if world.get::<Npc>(npc).is_none() {
+        return false;
+    }
+    world.entity_mut(npc).insert(NpcMission {
+        id: mission.to_owned(),
+    });
+    true
+}

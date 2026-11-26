@@ -3559,6 +3559,12 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "player_weapon_drop" => {
             the_player_drops_their_weapon(world, speaker)
         }
+        Effect::LegacyStringEffect { name } if name == "assign_guard" => {
+            guard_the_place(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "stop_guard" => {
+            stop_guarding_the_place(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4433,5 +4439,48 @@ fn the_player_drops_their_weapon(world: &mut World, speaker: Entity) -> Applied 
         return Applied::CannotAnswer;
     };
     crate::dropping::put_down_what_is_held(world, player);
+    Applied::Done
+}
+
+/// **`assign_guard` tells a person to stay put.** Reference: `talk_function::assign_guard` (`npctalk_funcs.cpp:432-447`): a person who is **not** an ally is given the job
+/// `NPC_MISSION_GUARD` and a destination, and that is all. An **ally** is calmed to `NPCATT_NULL`, given `NPC_MISSION_GUARD_ALLY`, switched to their guard topic and given a
+/// destination - the difference being that an ally guarding is still following the player's orders.
+///
+/// **Named gaps**: the destination (`set_omt_destination`, which is an overmap position the port does not place), the topic the ally is switched to (`chatbin.talk_friend_guard`,
+/// which is a field of the NPC's own chat data), and `revert_after_activity` (the port has no activities). The job and the attitude are the half that changes the world here.
+fn guard_the_place(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    if world.get::<crate::npcs::Ally>(npc).is_none() {
+        crate::npcs::set_mission(world, npc, "guard");
+        return Applied::Done;
+    }
+    crate::npcs::set_attitude(world, npc, "null");
+    crate::npcs::set_mission(world, npc, "guard_ally");
+    Applied::Done
+}
+
+/// **`stop_guard` lets a person stop guarding.** Reference: `talk_function::stop_guard` (`npctalk_funcs.cpp:477-493`): a person who is not an ally is calmed to `NPCATT_NULL`
+/// and loses their job; an **ally** goes back to following - the attitude `NPCATT_FOLLOW` and the line "<name> begins to follow you." - and loses their job as well.
+fn stop_guarding_the_place(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    if world.get::<crate::npcs::Ally>(npc).is_none() {
+        crate::npcs::set_attitude(world, npc, "null");
+        crate::npcs::set_mission(world, npc, "null");
+        return Applied::Done;
+    }
+    crate::npcs::set_attitude(world, npc, "follow");
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::messages::push(world, &format!("{name} begins to follow you."));
+    crate::npcs::set_mission(world, npc, "null");
     Applied::Done
 }

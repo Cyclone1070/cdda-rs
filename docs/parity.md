@@ -41411,3 +41411,23 @@ The two effects differ in **who** acts, and that is the whole difference between
 makes one), and `player_weapon_drop` empties the **player's** hands whoever the conversation is with. The test holds a weapon in both hands and checks each in turn.
 
 The block stands at **19 of 75**.
+
+## Guards, and the first job a person has (round 352)
+
+`assign_guard` (7 uses) and `stop_guard` (5) are the first rules on the port that give a person a **job**, so `npcs` grew `NpcMission { id }` with `mission_of` and `set_mission`
+- `"null"` by default, exactly as the reference's `NPC_MISSION_NULL` is.
+
+Both rules branch on `is_player_ally` **first**, and the halves are not one rule with a different job name:
+
+| | stranger | ally |
+|---|---|---|
+| `assign_guard` | job `guard`, attitude untouched | attitude `null`, job `guard_ally` |
+| `stop_guard` | attitude `null`, job `null`, silent | attitude `follow`, job `null`, "<name> begins to follow you." |
+
+The test walks all four halves. The mutation kills the ally's return to following and the test fails on the attitude first - which is the half that matters, because an ally who
+stopped guarding and did not start following is a companion the player has lost.
+
+**Named gaps in `assign_guard`**: the destination (`set_omt_destination`, an overmap position the port does not place), the topic the ally is switched to
+(`chatbin.talk_friend_guard`, a field of the NPC's own chat data), and `revert_after_activity` (no activities). In `stop_guard`: the companion mission and the topic.
+
+The block stands at **21 of 75**.

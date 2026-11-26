@@ -4104,3 +4104,123 @@ fn three_attitude_rules() {
         "**and the person waits for the player to go**"
     );
 }
+
+/// **A guard is a job and an attitude, and allies and strangers get different ones.** Reference: `talk_function::assign_guard` (`npctalk_funcs.cpp:432-447`) and
+/// `talk_function::stop_guard` (`:477-493`). Both rules branch on `is_player_ally` **first**, and the two halves are not the same rule with a different job name: a stranger
+/// guarding is given `NPC_MISSION_GUARD` and left alone otherwise, while an ally guarding is calmed and given `NPC_MISSION_GUARD_ALLY`; a stranger told to stop is calmed and
+/// loses the job silently, while an ally is sent back to **following** with a line.
+///
+/// The test walks all four halves, because three of them are one line and the fourth is the one a port would forget: the ally's "begins to follow you."
+#[test]
+fn guarding_is_a_job_and_an_attitude() {
+    let mut world = World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let irina = cdda_sim::creature::spawn_creature(&mut world, "Irina", (2, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, irina, "irina");
+    cdda_sim::npcs::make_ally(&mut world, irina);
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::npcs::mission_of(&world, vlad).as_deref(),
+        Some("null"),
+        "**a person starts with no job**"
+    );
+    // **A stranger guarding** is given the job and nothing else.
+    cdda_sim::npcs::set_attitude(&mut world, vlad, "follow");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("assign_guard")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**assign_guard runs for a stranger**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::mission_of(&world, vlad).as_deref(),
+        Some("guard"),
+        "**and the stranger has a job**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("follow"),
+        "**while their attitude is left exactly as it was**"
+    );
+    // **An ally guarding** is calmed and given the ally job.
+    cdda_sim::npcs::set_attitude(&mut world, irina, "follow");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(irina),
+            &effect("assign_guard")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**assign_guard runs for an ally**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::mission_of(&world, irina).as_deref(),
+        Some("guard_ally"),
+        "**and the ally's job is the ally's guard**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, irina).as_deref(),
+        Some("null"),
+        "**with the attitude calmed**"
+    );
+    // **A stranger told to stop**: calmed, no job, no line.
+    let before = cdda_sim::messages::lines(&world).len();
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("stop_guard")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**stop_guard runs for a stranger**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::mission_of(&world, vlad).as_deref(),
+        Some("null"),
+        "**and the stranger has no job**"
+    );
+    assert_eq!(
+        cdda_sim::messages::lines(&world).len(),
+        before,
+        "**and says nothing**"
+    );
+    // **An ally told to stop** goes back to following, with the line.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(irina),
+            &effect("stop_guard")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**stop_guard runs for an ally**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::mission_of(&world, irina).as_deref(),
+        Some("null"),
+        "**and the ally has no job**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, irina).as_deref(),
+        Some("follow"),
+        "**but follows again**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "Irina begins to follow you."),
+        "**and says so: {lines:?}**"
+    );
+}
