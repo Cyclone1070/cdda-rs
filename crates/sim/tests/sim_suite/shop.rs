@@ -25,7 +25,7 @@ fn a_shop() -> World {
         }],
     );
     let mut groups = std::collections::BTreeMap::new();
-    for id in ["shop_rigid", "shop_other_rigid"] {
+    for id in ["shop_rigid", "shop_other_rigid", "shop_valued"] {
         groups.insert(
             id.to_owned(),
             cdda_content::item_group_draw::Definition {
@@ -41,6 +41,8 @@ fn a_shop() -> World {
         );
     }
     cdda_sim::item_groups::set_groups(&mut world, groups);
+    // **The valued group's item is priced when sold**, and its price is what the restock's loop spends: one item worth more than the shop's 75,000 cents ends the loop at once.
+    cdda_sim::item_registry::set_prices_post(&mut world, &[("test_rock".to_owned(), 80_000)]);
     let group = |id: &str, rigid: bool| cdda_content::npc_classes::ShopkeeperItemGroup {
         group: id.to_owned(),
         trust: 0,
@@ -62,6 +64,7 @@ fn a_shop() -> World {
         &mut world,
         vec![
             class("a_shopkeeper", vec![group("shop_rigid", true)], 6),
+            class("a_valued_shop", vec![group("shop_valued", false)], 6),
             class("no_shelf", Vec::new(), 6),
         ],
     );
@@ -129,5 +132,30 @@ fn a_shopkeeper_restocks_their_shelf_and_then_waits() {
     assert!(
         !cdda_sim::shop::shop_restock(&mut world, nobody),
         "**a class with no shelf is not a shopkeeper**"
+    );
+}
+
+/// **A valued group is drawn until the shop's value runs out.** Reference: `npc::shop_restock` (`npc.cpp:2149-2172`): `shop_value` starts at **75000** for a shop with no
+/// faction, every item drawn subtracts what it fetches when sold (`item::price( true )`, which reads `price_post`), and the loop ends when the value is spent.
+///
+/// The item here fetches **80,000 cents**, more than the whole budget, so a shop whose only group is valued draws it exactly **once** - and a port that ignored the price would
+/// loop until the ten-item coin, which this world's dice would not end before the recording did.
+#[test]
+fn a_valued_group_is_drawn_until_the_shop_value_is_spent() {
+    let mut world = a_shop();
+    let vlad = a_person(&mut world, "a_valued_shop");
+    cdda_sim::calendar::set_turn(&mut world, 1000);
+    assert!(
+        cdda_sim::shop::shop_restock(&mut world, vlad),
+        "**the valued shop restocks**"
+    );
+    let mut query = world.query::<&cdda_sim::creature::Carried>();
+    let stock = query
+        .iter(&world)
+        .filter(|carried| carried.0 == vlad)
+        .count();
+    assert_eq!(
+        stock, 1,
+        "**one item, because one of them spends the whole 75,000**"
     );
 }

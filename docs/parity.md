@@ -41577,3 +41577,23 @@ currency**; the **zones** the goods are distributed into; and a **strict** group
 the port can see it without zones.
 
 The block is unchanged at **33 of 75**: `start_trade` itself is still unanswered, and the pre-window steps it runs are now two-thirds written.
+
+## What a shop pays (round 361)
+
+The value half of `shop_restock` needed a number the port did not have: **what an item fetches when sold**. The reference's `item::price( true )` reads `itype::price_post`
+(`item.cpp:7187`) and works in **cents**, while the port's item type carried only `price` - what a shop **charges**. The two are different numbers, and the restock's loop
+subtracts the second (`npc.cpp:2168`), so using the first would empty a shop's budget at the wrong rate.
+
+- `content`: `ItemType` grew `price_post`, read with the same money reader as `price`.
+- `sim`: `ItemTypes` grew a `prices_post` column with `set_prices_post` and `price_post_of`. It is filled **by name** from the same content table rather than through `Kind`,
+  because a `Kind` is built by hand in eighty-five tests that have no shop in them - the column lives beside the other per-kind columns, so there is still one table.
+
+The valued-group loop is now in `shop::shop_restock`: `shop_value` starts at **75000** for a shop with no faction, each item subtracts what it fetches, and the loop also stops
+once more than ten items are drawn and a one-in-a-hundred coin comes up. The test's one item fetches **80,000**, more than the whole budget, so the shop draws it exactly
+**once**; the mutation that stops subtracting fails on the count.
+
+**Named gaps still standing**: the faction's **wealth and currency** (the 75,000 default is the no-faction case), the reference's **damage and charge scaling** of a price
+(`item.cpp:7188-7198`, which needs an item's damage level and stack size at spawn), the **zones** the goods go into, the **`ITEM_SPAWNRATE`** removal at the end of the loop
+(the port has no options registry yet), and a **strict** group's trust gate.
+
+The block is unchanged at **33 of 75**; `start_trade` is still waiting on its window, and its first step is now whole.

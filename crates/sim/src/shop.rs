@@ -58,12 +58,45 @@ pub fn shop_restock(world: &mut World, npc: Entity) -> bool {
         if group.strict {
             continue;
         }
-        // **A group is drawn once when it is rigid**, as the reference's `items_from` does (`:2137-2147`); the value groups' loop is the named gap, so a non-rigid group is drawn
-        // the same way here rather than looped over an invented price.
-        let Some(drawn) = crate::item_groups::draw(world, &group.group) else {
-            continue;
-        };
         let here = world.get::<crate::Position>(npc).copied();
+        let mut drawn = Vec::new();
+        if group.rigid {
+            // **A rigid group is drawn once**, whatever the shop can afford (`item_group::items_from`, `:2137-2147`).
+            if let Some(items) = crate::item_groups::draw(world, &group.group) {
+                drawn.extend(items);
+            }
+        } else {
+            // **A valued group is drawn until the shop's value runs out** (`:2149-2172`): `shop_value` starts at **75000** for a shop with no faction behind it, each item
+            // subtracts what it fetches when sold, and the loop also stops once more than ten items are drawn and a one-in-a-hundred coin comes up.
+            let mut shop_value: i64 = 75_000;
+            let mut count = 0;
+            while let Some(items) = crate::item_groups::draw(world, &group.group) {
+                let mut priced = 0;
+                for (id, made) in items {
+                    if made <= 0 {
+                        continue;
+                    }
+                    let Some(kind) = crate::item_registry::id_of(world, &id) else {
+                        continue;
+                    };
+                    priced += crate::item_registry::price_post_of(world, kind) * i64::from(made);
+                    drawn.push((id, made));
+                }
+                shop_value -= priced;
+                count += 1;
+                if shop_value <= 0 {
+                    break;
+                }
+                let Some(mut rolls) = crate::singletons::take_rolls(world) else {
+                    break;
+                };
+                let done = count > 10 && rolls.one_in(100);
+                crate::singletons::put_rolls(world, rolls);
+                if done {
+                    break;
+                }
+            }
+        }
         for (id, count) in drawn {
             if count <= 0 {
                 continue;

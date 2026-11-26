@@ -76,6 +76,11 @@ pub struct ItemType {
     pub integral_volume: i64,
     /// Price in cents.
     pub price: i64,
+    /// What a shop pays for it, in cents - the reference's `price_post` (`itype.h`), which is what `item::price( true )` uses.
+    ///
+    /// **A different number from [`Self::price`]**, and the difference is the whole point: `price` is what a shop **charges** a customer and `price_post` what it **pays**.
+    /// The shop restock's value loop (`npc.cpp:2168`) subtracts `price_post`, so a port that used `price` here would empty a shop's budget at the wrong rate.
+    pub price_post: i64,
     /// Category id, empty when the item states none.
     pub category: String,
     /// How strong a hand the thing wants, from the data's `min_strength` (`item::get_min_str`, `item.cpp:15673-15694`).
@@ -282,6 +287,7 @@ fn read_measures(item: &mut ItemType, object: &Object) -> Result<(), LoadError> 
         item.integral_volume = item.volume;
     }
     item.price = adjusted(object, "price", item.price, read_money, 1)?;
+    item.price_post = adjusted(object, "price_post", item.price_post, read_money, 1)?;
     Ok(())
 }
 
@@ -1418,6 +1424,7 @@ fn resolve(
         longest_side: UNSET_LENGTH,
         integral_volume: -1,
         price: 0,
+        price_post: 0,
         category: String::new(),
         min_strength: 0,
         weapon_category: Vec::new(),

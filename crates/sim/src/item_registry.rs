@@ -42,6 +42,11 @@ pub struct ItemTypes {
     /// caller asks about, not on a pre-divided "one charge is 1.25 ml" - integer millilitres would round that to 1 and a litre
     /// would hold a thousand charges of gasoline instead of eight hundred.
     charge_stacks: Vec<i64>,
+    /// What each kind fetches when **sold**, in cents, in registry order - the reference's `itype::price_post`, which is what `item::price( true )` reads.
+    ///
+    /// **A different number from what a shop charges**, and the shop restock's value loop (`npc.cpp:2168`) subtracts this one. Filled by
+    /// [`set_prices_post`] rather than by [`set_item_types`], because a [`Kind`] is built with the few measures a combat or carry rule needs and a price is not one of them.
+    prices_post: Vec<i64>,
     /// How much each kind can hold, in millilitres, in registry order.
     ///
     /// Reference: `item::get_total_capacity`, the sum of the item's pockets. It is what a worn thing adds to
@@ -99,6 +104,15 @@ impl ItemTypes {
         self.volumes_ml
             .get(kind.0 as usize)
             .map_or(0, |volume| i64::from(*volume))
+    }
+
+    /// What a kind fetches when sold, in cents.
+    ///
+    /// Reference: `itype::price_post`, read by `item::price( true )` (`item.cpp:7187`). Zero means the content never said, which is the same answer the reference gives for a
+    /// thing with no price.
+    #[must_use]
+    pub fn price_post_of(&self, kind: ItemTypeId) -> i64 {
+        self.prices_post.get(kind.0 as usize).copied().unwrap_or(0)
     }
 
     /// What a kind weighs, in grams.
@@ -251,6 +265,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut volumes_ml = vec![0];
     let mut charge_stacks = vec![1];
     let mut weights_g = vec![0];
+    let mut prices_post: Vec<i64> = vec![0];
     let mut holds_ml = vec![0];
     let mut pockets: Vec<Pocket> = Vec::new();
     let mut pocket_ranges: Vec<(u32, u32)> = vec![(0, 0)];
@@ -270,6 +285,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         volumes_ml.push(volume as i32);
         charge_stacks.push(1);
         weights_g.push(weight);
+        prices_post.push(0);
         thrown_damage.push(each.thrown_damage);
         melee_bash.push(each.melee_bash);
         melee_cut.push(each.melee_cut);
@@ -292,6 +308,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         volumes_ml,
         weights_g,
         charge_stacks,
+        prices_post,
         holds_ml,
         pockets,
         pocket_ranges,
@@ -348,6 +365,34 @@ pub fn charges_per_volume(world: &World, kind: ItemTypeId, volume_ml: i64) -> i6
         .unwrap_or(1)
         .max(1);
     (volume_ml * stack / item_volume).min(i64::from(i32::MAX))
+}
+
+/// Installs what each kind fetches when sold, in cents, by the id the data uses.
+///
+/// This is the one column a [`Kind`] does not carry, because a `Kind` is built by hand in a hundred tests that have no shop in them. The prices come from the same content
+/// types every other measure does, and they land in the same registry, so there is still one table and no second place to drift.
+pub fn set_prices_post(world: &mut World, prices: &[(String, i64)]) {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    let Some(mut held) = world.get_mut::<ItemTypes>(entity) else {
+        return;
+    };
+    for (id, cents) in prices {
+        let Some(kind) = held.by_name.get(id).copied() else {
+            continue;
+        };
+        if let Some(slot) = held.prices_post.get_mut(kind.0 as usize) {
+            *slot = *cents;
+        }
+    }
+}
+
+/// What a kind fetches when sold, in cents.
+#[must_use]
+pub fn price_post_of(world: &mut World, kind: ItemTypeId) -> i64 {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    world
+        .get::<ItemTypes>(entity)
+        .map_or(0, |types| types.price_post_of(kind))
 }
 
 /// How much room a kind takes, in millilitres.
