@@ -196,6 +196,7 @@ mod scent_terrain;
 mod set_fault;
 mod setters;
 mod shock_vent;
+mod shop;
 mod sight;
 mod singletons;
 mod skill_level;

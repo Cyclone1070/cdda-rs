@@ -41555,3 +41555,25 @@ whose data **names** an interval - `NC_LUMBERJACK_MERCHANT`, `"1 day"` - at exac
 the mutation that reads a `"d"` as one second walked straight through it, because a defaulted class never reads the unit table at all (`left: 1`, `right: 86400`).
 
 The block is unchanged at **33 of 75**: this is the loader the `start_trade` rule will read, not the rule.
+
+## A shopkeeper restocks their shelf (round 360)
+
+The first half of `start_trade`'s work is `npc::shop_restock` (`npc.cpp:2100-2189`), ported as `shop::shop_restock` with the reference's order:
+
+1. **the interval** - nothing until `restock_interval` has passed, *unless* there has never been a restock (the reference's `restock != calendar::turn_zero`);
+2. **who may restock** - an **ally** never shops, and a class with no shelf is not a shopkeeper;
+3. the restock time is written **before** the goods, as the reference does;
+4. every group that may restock is drawn.
+
+`npcs` grew `Shop { last_restock }` for the clock, and `npc_classes` a registry (`NpcClasses`, `set_classes`, `class_named`) so a rule can ask what a person's class says without
+holding the whole table.
+
+The test walks the interval to the turn: same turn waits, one turn short of six days waits, the six-day turn restocks - and it checks an **ally** and a **class with no shelf**
+both refuse. The mutation that deletes the interval gate fails on the first "same turn waits".
+
+**Named gaps, and they are the value half of the rule**: the **valued groups' loop** needs `item::price( true )`, which is `price_post` **in cents** with damage and charge
+scaling (`item.cpp:7178-7200`) - the port's item type carries `price` and not `price_post`, so subtracting a price here would be inventing a number; the faction's **wealth and
+currency**; the **zones** the goods are distributed into; and a **strict** group's trust gate, which needs factions. Rigid stock goes into the shopkeeper's hands, the one place
+the port can see it without zones.
+
+The block is unchanged at **33 of 75**: `start_trade` itself is still unanswered, and the pre-window steps it runs are now two-thirds written.
