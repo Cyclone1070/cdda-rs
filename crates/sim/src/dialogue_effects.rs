@@ -4794,6 +4794,7 @@ fn run_legacy_string_effect(
         "morale_chat_activity" => a_pleasant_conversation(world, speaker, listener),
         "mission_success" => the_mission_is_done(world, speaker, listener),
         "mission_failure" => the_mission_has_failed(world, speaker, listener),
+        "lead_to_safety" => walking_the_player_to_safety(world, speaker, listener),
         _ => Applied::CannotAnswer,
     }
 }
@@ -4862,4 +4863,27 @@ fn the_mission_has_failed(world: &mut World, speaker: Entity, listener: Option<E
     crate::npcs::set_opinion(world, npc, opinion);
     crate::missions::finish(world, player, &mission);
     Applied::Done
+}
+
+/// **`lead_to_safety` gives the player the reach-safety mission and the person the job of leading.** Reference: `talk_function::lead_to_safety`
+/// (`npctalk_funcs.cpp:1092-1099`): it reserves a **new instance** of `MISSION_REACH_SAFETY`, assigns it to the player, sets the person's goal to the mission's target, and sets their
+/// attitude to `NPCATT_LEAD`.
+///
+/// **Named gaps**: the person's **goal position** (`p.goal = mission->get_target()`) - the port has no NPC navigation goal, and the mission's target is chosen when the mission is
+/// created, which is not a rule the port has ported - and the `character_id()` the reference reserves the mission for, which in a single-player world is the player.
+fn walking_the_player_to_safety(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    // The person is asked for first so a creature that is not somebody refuses the rule before it can hand out a mission.
+    if person_in_the_dialogue(world, speaker, listener).is_none() {
+        return Applied::CannotAnswer;
+    }
+    let Some(player) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    crate::missions::accept(world, player, "MISSION_REACH_SAFETY");
+    // Reference: `p.set_attitude( NPCATT_LEAD )`, whose string is the enumerator's own name.
+    set_the_persons_attitude(world, speaker, listener, "lead")
 }

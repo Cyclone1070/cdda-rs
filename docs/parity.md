@@ -41521,3 +41521,19 @@ companion. That is the difference between "a person helps" and "a person helps t
 taking the mission off the player's list, because a failed mission is no longer theirs to do.
 
 The block stands at **32 of 75**.
+
+## Leading the player to safety (round 358)
+
+`lead_to_safety` (2 uses). Reference: `talk_function::lead_to_safety` (`npctalk_funcs.cpp:1092-1099`) reserves a **new instance** of `MISSION_REACH_SAFETY`, assigns it to the
+player, sets the person's goal to the mission's target, and sets their attitude to `NPCATT_LEAD`.
+
+The port accepts the mission from the data's own registry - the test loads `data/json/npcs/missiondef.json` and asserts on the id the data carries, so a port that made the id up
+would not pass - and sets the attitude to `"lead"`, the enumerator's own name. The mutation that leaves the person **following** instead of leading fails on the attitude, which is
+the observable half of the rule: the rest of it is navigation.
+
+**Named gaps**: the person's **goal position** (`p.goal = mission->get_target()`) - the port has no NPC navigation goal, and the mission's target is chosen when the mission is
+created, which is not a rule the port has ported - and the `character_id()` the reference reserves the mission for, which in a single-player world is the player.
+
+The block stands at **33 of 75**. What remains in the legacy block is now dominated by **`start_trade` (113)** and by rules whose whole body is an activity or a UI window:
+`give_equipment` (5, needs the trade pricing), the barber pair (8, needs a mutation menu), `dismount` (3) and `find_mount` (3) (the port has no mounts), `reveal_stats` (3), the
+training pair (4), the bionic pair (4), and the `do_*` activity assignments.

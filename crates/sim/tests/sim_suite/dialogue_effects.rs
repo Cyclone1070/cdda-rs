@@ -4708,3 +4708,41 @@ fn the_aid_reaches_the_companions_who_are_close_enough() {
         "**and the mission is no longer the player's**"
     );
 }
+
+/// **Leading the player to safety.** Reference: `talk_function::lead_to_safety` (`npctalk_funcs.cpp:1092-1099`): a **new** `MISSION_REACH_SAFETY` is assigned to the player and the
+/// person's attitude becomes `NPCATT_LEAD`.
+///
+/// The mission is one the data carries (`data/json/npcs/missiondef.json`), so the test loads the real registry: a port that accepted an id the data does not have would pass a test
+/// that made the id up, and this one would not.
+#[test]
+fn leading_the_player_to_safety_assigns_the_mission_and_the_lead() {
+    let mut world = World::new();
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
+    let roots = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = roots.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::mission_types::load_paths(&paths).expect("the missions load");
+    cdda_sim::mission_types::set_mission_types(&mut world, loaded);
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    cdda_sim::npcs::set_attitude(&mut world, vlad, "follow");
+    let effect = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "lead_to_safety".to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, avatar, Some(vlad), &effect),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**lead_to_safety runs**"
+    );
+    assert!(
+        cdda_sim::missions::has_mission(&world, avatar, "MISSION_REACH_SAFETY"),
+        "**the reach-safety mission is the player's**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("lead"),
+        "**and the person is leading, not following**"
+    );
+}
