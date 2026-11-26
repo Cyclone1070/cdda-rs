@@ -1220,16 +1220,48 @@ fn place_the_npcs(
             continue;
         }
         let square = (origin.0 + x, origin.1 + y, origin.2);
-        let made = crate::creature::spawn_creature(world, &entry.template, square);
+        // **The template says who the person is**: `npc::load_npc_template` (`npc.cpp:520-568`) copies the class, the name, the attitude, the mission and the first chat topic
+        // off the template. A template the world does not have leaves the person as the port used to make them - named by the entry and classed by nothing - which is visible
+        // in the store rather than guessed at.
+        let template = crate::npc_templates::template_named(world, &entry.template);
+        let named = template
+            .as_ref()
+            .map_or_else(|| entry.template.clone(), |found| found.name_unique.clone());
+        let made = crate::creature::spawn_creature(
+            world,
+            if named.is_empty() {
+                &entry.template
+            } else {
+                &named
+            },
+            square,
+        );
         let id = if entry.unique_id.is_empty() {
             entry.template.clone()
         } else {
             entry.unique_id.clone()
         };
         crate::npcs::make_npc(world, made, &id);
-        world
-            .entity_mut(made)
-            .insert(crate::npcs::NpcClass(entry.template.clone()));
+        if let Some(found) = &template {
+            if !found.class.is_empty() {
+                world
+                    .entity_mut(made)
+                    .insert(crate::npcs::NpcClass(found.class.clone()));
+            }
+            if !found.chat.is_empty() {
+                crate::npcs::set_first_topic(world, made, &found.chat);
+            }
+            if !found.attitude.is_empty() {
+                crate::npcs::set_attitude(world, made, &found.attitude);
+            }
+            if !found.mission.is_empty() {
+                crate::npcs::set_mission(world, made, &found.mission);
+            }
+        } else {
+            world
+                .entity_mut(made)
+                .insert(crate::npcs::NpcClass(entry.template.clone()));
+        }
         if entry.target {
             world.entity_mut(made).insert(crate::npcs::ScenarioTarget);
         }

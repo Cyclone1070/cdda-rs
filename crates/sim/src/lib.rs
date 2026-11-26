@@ -39,6 +39,7 @@ pub mod mutation_data;
 pub mod mutations;
 pub mod npc_classes;
 pub mod npc_opinion;
+pub mod npc_templates;
 pub mod npcs;
 pub mod outdoors;
 pub mod overmap;

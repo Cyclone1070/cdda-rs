@@ -170,6 +170,7 @@ mod mutations;
 mod needs;
 mod neighbour_order;
 mod no_corpse_quiet;
+mod npc_templates;
 mod npcs;
 mod numbers;
 mod overmap_reveal;

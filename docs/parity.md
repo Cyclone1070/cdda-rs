@@ -41617,3 +41617,20 @@ version of the test asked for a registry that is not there. Two readers of the s
 guessed, and `place_the_npcs` still puts the template's id where the class belongs - the wiring is the next round's work.
 
 The block is unchanged at **33 of 75**.
+
+## A placed person is made from their template (round 363)
+
+`place_the_npcs` named a person after the **template id** and classed them by nothing. The template loader landed last round; this is the join, following
+`npc::load_npc_template` (`npc.cpp:520-568`): the person takes the template's **class**, its **name** (`name_unique`), its **first chat topic**, its **attitude** and its **mission** -
+the last two being the enum numbers the loader turned into names.
+
+`npc_templates` is a sim registry (`NpcTemplates`, `set_templates`, `template_named`), the same shape as the class registry, so the mapgen step can ask for a template without
+holding the whole table.
+
+The test places `SEER_Brigitte_LaCroix` through a real mapgen and pins all five: the name is `"Brigitte LaCroix"` and not `"SEER_Brigitte_LaCroix"`, the class is `"NC_BONE_SEER"`,
+the attitude is `"legacy_6"`, the mission `"shopkeep"`, the topic `"TALK_BONE_SEER"`. The mutation that drops the attitude leaves the person at `"none"` and fails there.
+
+**Named gap that remains**: a template the world does not have still yields a person named by the entry and classed by the entry id - the reference would `debugmsg` and make
+nothing. The port's rule is to make somebody rather than nobody, and the test says so by construction: the fallback is a visible state, not a silent one.
+
+The block is unchanged at **33 of 75**; what this closes is a **port** gap in mapgen, not a legacy-block name.
