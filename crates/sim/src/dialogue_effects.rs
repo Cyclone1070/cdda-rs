@@ -3565,6 +3565,15 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "stop_guard" => {
             stop_guarding_the_place(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "drop_items_in_place" => {
+            the_person_drops_their_burden(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "buy_haircut" => {
+            a_decent_haircut(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "buy_shave" => {
+            a_decent_shave(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4482,5 +4491,110 @@ fn stop_guarding_the_place(
         .map_or_else(String::new, |creature| creature.name.clone());
     crate::messages::push(world, &format!("{name} begins to follow you."));
     crate::npcs::set_mission(world, npc, "null");
+    Applied::Done
+}
+
+/// **`drop_items_in_place` empties a person's pockets on the spot.** Reference: `talk_function::drop_items_in_place` (`npctalk_funcs.cpp:869-887`): every **carried** thing
+/// that is not a favourite and sits in a container the person wears is put on the ground as one activity, and the person says `<acknowledged>`; with nothing to drop they say
+/// "I don't have anything to drop off."
+///
+/// **Named gaps**: the favourite flag (the port does not mark favourites, so everything carried is dropped) and the activity wrapper (the port drops at once - `drop_activity_actor`
+/// exists to spread the drop over turns, which needs activities the port does not have).
+fn the_person_drops_their_burden(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let carried = {
+        let mut query = world.query::<(Entity, &crate::creature::Carried)>();
+        query
+            .iter(world)
+            .filter(|(_, carried)| carried.0 == npc)
+            .map(|(entity, _)| entity)
+            .collect::<Vec<_>>()
+    };
+    if carried.is_empty() {
+        crate::messages::push(world, "I don't have anything to drop off.");
+        return Applied::Done;
+    }
+    for item in carried {
+        // Whatever is in the person's hands is a carried thing too, and the reference drops it with the rest.
+        if let Some(at) = world.get::<crate::Position>(npc).copied() {
+            world.entity_mut(item).remove::<crate::creature::Carried>();
+            world
+                .entity_mut(item)
+                .remove::<crate::creature::WieldedBy>();
+            world.entity_mut(item).remove::<crate::creature::InPocket>();
+            world.entity_mut(item).insert(at);
+            crate::singletons::index_mut(world).insert(item, (at.x, at.y, at.z));
+        }
+    }
+    crate::messages::push(world, "<acknowledged>");
+    Applied::Done
+}
+
+/// **`buy_haircut` is a morale point and a line.** Reference: `talk_function::buy_haircut` (`npctalk_funcs.cpp:808-816`): the player gains `morale_haircut` at **5**, capped at
+/// 5, lasting **720 minutes** and fading from **3 minutes**, and the person says "<name> gives you a decent haircut…".
+///
+/// **Named gap**: `ACT_WAIT_NPC` (the reference spends twenty minutes of the player's time on the haircut, which needs activities).
+fn a_decent_haircut(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(player) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::morale::add(
+        world,
+        player,
+        crate::morale::MoralePoint {
+            kind: "morale_haircut".to_owned(),
+            bonus: 5,
+            max_bonus: 5,
+            // 720 minutes and 3 minutes, in turns of one second each.
+            duration: 720 * 60,
+            decay_start: 3 * 60,
+            age: 0,
+            capped: false,
+        },
+    );
+    crate::messages::push(world, &format!("{name} gives you a decent haircut\u{2026}"));
+    Applied::Done
+}
+
+/// **`buy_shave` is the same shape with different numbers.** Reference: `talk_function::buy_shave` (`npctalk_funcs.cpp:818-826`): `morale_shave` at **10**, capped at 10,
+/// lasting **360 minutes** and fading from **3 minutes**, and the line "<name> gives you a decent shave…".
+///
+/// **Named gap**: the same `ACT_WAIT_NPC`, five minutes of it.
+fn a_decent_shave(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(player) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::morale::add(
+        world,
+        player,
+        crate::morale::MoralePoint {
+            kind: "morale_shave".to_owned(),
+            bonus: 10,
+            max_bonus: 10,
+            duration: 360 * 60,
+            decay_start: 3 * 60,
+            age: 0,
+            capped: false,
+        },
+    );
+    crate::messages::push(world, &format!("{name} gives you a decent shave\u{2026}"));
     Applied::Done
 }

@@ -41431,3 +41431,20 @@ stopped guarding and did not start following is a companion the player has lost.
 (`chatbin.talk_friend_guard`, a field of the NPC's own chat data), and `revert_after_activity` (no activities). In `stop_guard`: the companion mission and the topic.
 
 The block stands at **21 of 75**.
+
+## Two prices and an emptied pocket (round 353)
+
+Three more, and they are the kind of rule that looks trivial until the numbers matter:
+
+- `buy_haircut` (`npctalk_funcs.cpp:808-816`): `morale_haircut` at **5**, capped at 5, lasting **720 minutes**, fading from **3**.
+- `buy_shave` (`:818-826`): `morale_shave` at **10**, capped at 10, lasting **360 minutes**, fading from **3**.
+- `drop_items_in_place` (`:869-887`): everything the person carries lands on their square, and they say `<acknowledged>`; with nothing to drop they say "I don't have anything to
+  drop off."
+
+The two barber rules are the same rule with different numbers, which is exactly why the test asserts **what the point says** and not just that morale went up: the mutation that
+charges a shave as a haircut passes any "did morale rise" check and fails this one.
+
+**Named gaps**: both barber rules spend the player's time through `ACT_WAIT_NPC` (twenty minutes and five), the port has no activities; and `drop_items_in_place` skips
+**favourites**, a flag the port does not mark - everything carried is dropped, and the activity that would spread the drop over turns is the same missing activity system.
+
+The block stands at **24 of 75**.

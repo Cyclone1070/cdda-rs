@@ -4224,3 +4224,128 @@ fn guarding_is_a_job_and_an_attitude() {
         "**and says so: {lines:?}**"
     );
 }
+
+/// **A barber's two prices, and a person emptying their pockets.** Reference: `talk_function::buy_haircut` (`npctalk_funcs.cpp:808-816`), `buy_shave` (`:818-826`) and
+/// `drop_items_in_place` (`:869-887`).
+///
+/// The two barber rules are the same rule with different numbers, and the numbers are the content: a haircut is worth **5** morale for **720 minutes**, a shave **10** for
+/// **360**. A port that swapped them would still pass a test that only asked "did morale go up", which is why this one asks what the point says.
+#[test]
+fn a_haircut_and_a_shave_are_morale_points_with_their_own_numbers() {
+    let mut world = World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("buy_haircut")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**a haircut runs**"
+    );
+    let points = world
+        .get::<cdda_sim::morale::Morale>(avatar)
+        .map(|held| held.0.clone())
+        .unwrap_or_default();
+    let haircut = points
+        .iter()
+        .find(|point| point.kind == "morale_haircut")
+        .cloned()
+        .expect("**the haircut left a morale point**");
+    assert_eq!(
+        (haircut.bonus, haircut.max_bonus),
+        (5, 5),
+        "**worth five, capped at five**"
+    );
+    assert_eq!(
+        (haircut.duration, haircut.decay_start),
+        (720 * 60, 3 * 60),
+        "**lasting twelve hours and fading from three minutes**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("buy_shave")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**a shave runs**"
+    );
+    let points = world
+        .get::<cdda_sim::morale::Morale>(avatar)
+        .map(|held| held.0.clone())
+        .unwrap_or_default();
+    let shave = points
+        .iter()
+        .find(|point| point.kind == "morale_shave")
+        .cloned()
+        .expect("**the shave left its own point**");
+    assert_eq!(
+        (shave.bonus, shave.max_bonus, shave.duration),
+        (10, 10, 360 * 60),
+        "**worth ten for six hours - a different point, not the same one twice**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.starts_with("Vlad gives you a decent shave")),
+        "**and the line is spoken: {lines:?}**"
+    );
+    // **A person with nothing carried says so.** Reference: the else branch of `drop_items_in_place`.
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("drop_items_in_place")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**drop_items_in_place runs with empty pockets**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "I don't have anything to drop off."),
+        "**and says the reference's line: {lines:?}**"
+    );
+    // **With something carried, it lands on the person's square.**
+    let rock = cdda_sim::drop_item(&mut world, (1, 0), cdda_sim::ItemTypeId(7), 1);
+    world.entity_mut(rock).remove::<cdda_sim::Position>();
+    world
+        .entity_mut(rock)
+        .insert(cdda_sim::creature::Carried(vlad));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("drop_items_in_place")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**and runs again**"
+    );
+    assert_eq!(
+        world.get::<cdda_sim::Position>(rock).map(|at| (at.x, at.y)),
+        Some((1, 0)),
+        "**dropping the rock where the person stands**"
+    );
+    assert!(
+        world.get::<cdda_sim::creature::Carried>(rock).is_none(),
+        "**and out of their hands**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines.iter().any(|line| line == "<acknowledged>"),
+        "**with the acknowledgement the reference gives: {lines:?}**"
+    );
+}
