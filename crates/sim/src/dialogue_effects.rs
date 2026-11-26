@@ -3544,6 +3544,15 @@ fn run_store_effect(
         Effect::LegacyStringEffect { name } if name == "end_conversation" => {
             end_the_conversation(world, speaker, listener)
         }
+        Effect::LegacyStringEffect { name } if name == "remove_stolen_status" => {
+            forgot_what_was_stolen(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "start_mugging" => {
+            start_mugging_the_player(world, speaker, listener)
+        }
+        Effect::LegacyStringEffect { name } if name == "player_leaving" => {
+            let_the_player_leave(world, speaker, listener)
+        }
         Effect::LegacyStringEffect { .. } => Applied::CannotAnswer,
         Effect::GiveAchievement { .. } => give_achievement(world, speaker, listener, effect),
         Effect::TriggerEvent { kind, args } => trigger_event(world, speaker, listener, kind, args),
@@ -4344,5 +4353,50 @@ fn end_the_conversation(world: &mut World, speaker: Entity, listener: Option<Ent
         .map_or_else(String::new, |creature| creature.name.clone());
     crate::messages::push(world, &format!("{name} starts ignoring you."));
     crate::npcs::set_first_topic(world, npc, "TALK_DONE");
+    Applied::Done
+}
+
+/// **`remove_stolen_status` forgets a theft and calms down.** Reference: `talk_function::remove_stolen_status` (`npctalk_funcs.cpp:1039-1045`): the person's
+/// `known_stolen_item` is cleared and their attitude becomes `NPCATT_NULL`.
+///
+/// **Named gap**: the port has no "known stolen item" - a person does not watch the player take things - so the attitude is the whole observable half of the rule here.
+fn forgot_what_was_stolen(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    crate::npcs::set_attitude(world, npc, "null");
+    Applied::Done
+}
+
+/// **`start_mugging` demands the player's things.** Reference: `talk_function::start_mugging` (`npctalk_funcs.cpp:1047-1051`): the attitude becomes `NPCATT_MUG` and the game
+/// warns the player that movement may cause an attack.
+fn start_mugging_the_player(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let name = world
+        .get::<crate::creature::Creature>(npc)
+        .map_or_else(String::new, |creature| creature.name.clone());
+    crate::npcs::set_attitude(world, npc, "mug");
+    crate::messages::push(
+        world,
+        &format!("Pause to stay still.  Any movement may cause {name} to attack."),
+    );
+    Applied::Done
+}
+
+/// **`player_leaving` lets the player walk away.** Reference: `talk_function::player_leaving` (`npctalk_funcs.cpp:1053-1057`): the attitude becomes `NPCATT_WAIT_FOR_LEAVE`
+/// and the person's **patience** is set to fifteen minus their aggression.
+///
+/// **Named gaps**: the port has no patience field and no personality to give it aggression, so the attitude is the half that exists here.
+fn let_the_player_leave(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    crate::npcs::set_attitude(world, npc, "wait_for_leave");
     Applied::Done
 }

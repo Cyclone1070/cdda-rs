@@ -4033,3 +4033,74 @@ fn ending_a_conversation_leaves_the_person_ignoring_you() {
         "**along with the peace**"
     );
 }
+
+/// **Three attitude rules, one test.** Reference: `talk_function::remove_stolen_status` (`npctalk_funcs.cpp:1039-1045`), `start_mugging` (`:1047-1051`) and `player_leaving`
+/// (`:1053-1057`) - each sets one attitude and, in two of the three, says one line.
+///
+/// What is worth pinning is that `start_mugging` says **`mug`, not `kill`**: a mugger is a person who wants your things and not yet your death, and the distinction is the
+/// whole point of the attitude list. The other two are asserted for the attitude they set and nothing more, because the fields the reference also writes - the known stolen item
+/// and the patience - are fields the port does not have, and a test should not pretend they are there.
+#[test]
+fn three_attitude_rules() {
+    let mut world = World::new();
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    cdda_sim::npcs::set_attitude(&mut world, vlad, "mug");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("remove_stolen_status")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**remove_stolen_status runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("null"),
+        "**and the person stops accusing the player**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("start_mugging")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**start_mugging runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("mug"),
+        "**and a mugger is a mugger, not a killer**"
+    );
+    let lines = cdda_sim::messages::lines(&world);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.starts_with("Pause to stay still.")),
+        "**with the warning the reference gives: {lines:?}**"
+    );
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("player_leaving")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**player_leaving runs**"
+    );
+    assert_eq!(
+        cdda_sim::npcs::attitude_of(&world, vlad).as_deref(),
+        Some("wait_for_leave"),
+        "**and the person waits for the player to go**"
+    );
+}

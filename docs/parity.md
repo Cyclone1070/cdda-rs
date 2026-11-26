@@ -41364,3 +41364,19 @@ topic to open with**, not the window's state. So `npcs` grew `NpcChat { first_to
 ported it dropped that line because there was nowhere to put it. It is now written, and the test asserts both halves of the effect - the conversation over **and** the peace.
 
 The mutation removes the topic write and the "will not talk again" assertion fails.
+
+## Three attitudes, and what they admit (round 349)
+
+`remove_stolen_status` (`npctalk_funcs.cpp:1039-1045`), `start_mugging` (`:1047-1051`) and `player_leaving` (`:1053-1057`) are the smallest legacy effects in the block, and they
+are worth their own note because of what they **do not** bring across.
+
+Each writes one attitude: `null`, `mug` and `wait_for_leave`. `start_mugging` also says its warning line, and the test pins that a mugger is **`mug`, not `kill`** - the
+distinction is the whole reason the attitude list exists, and the mutation that collapses it fails.
+
+The other two also write fields the port has no home for, and they are named rather than invented: `remove_stolen_status` clears a `known_stolen_item` the port does not track
+(a person does not watch the player take things), and `player_leaving` sets a patience of fifteen minus the person's aggression, where the port has neither a patience field nor a
+personality.
+
+The block stands at **17 of 75**. What is left is concentrated in one place now: **`start_trade` (113), `drop_weapon` (14) and `give_equipment` (5) all need a person whose
+things can be seen and traded** - the port has `Inventory` on a person already, but no shop restock, no pricing rule and no NPC trade offer. That is the next subsystem, and it is
+138 of the remaining 58 uses.
