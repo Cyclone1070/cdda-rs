@@ -41505,3 +41505,19 @@ as the value: a port that only rewarded would leave an angry person angry after 
 Consuming them now would be inventing a quantity. The mission **is** taken off the player's list, which is the half `wrap_up` does first.
 
 The block stands at **28 of 75**.
+
+## The aid that reaches the party, and a mission that fails (round 357)
+
+`give_all_aid` (2 uses), `lesser_give_all_aid` (1) and `mission_failure` (1).
+
+The "all" pair is the single pair **plus a second loop**: every companion within `PICKUP_RANGE` (`game_constants.h:44`, **six** squares) of the player gets the same healing and the
+same clearances, and the person is left busy longer - 240 minutes for the full aid and 120 for the lesser, against 120 and 60 for the single rules. The two are now one function
+with the numbers as parameters, plus `heal_a_body`, because the inner loop is identical arithmetic on a different body.
+
+The test places a companion at **three** squares and one at **nine**: the near one is healed, the far one is not, and the mutation that stretches the range to ten fails on the far
+companion. That is the difference between "a person helps" and "a person helps the party".
+
+`mission_failure` (`npctalk_funcs.cpp:163-176`) is the mirror of `mission_success`: **trust −1, value −1, anger +1**, and the mission fails. The port states the failure as
+taking the mission off the player's list, because a failed mission is no longer theirs to do.
+
+The block stands at **32 of 75**.

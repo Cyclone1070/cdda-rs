@@ -4606,3 +4606,105 @@ fn finishing_a_mission_earns_favour_and_calms_the_person() {
     );
     assert_eq!(opinion.anger, 2, "**and the anger goes down by one**");
 }
+
+/// **The aid that reaches the whole party, and the mission that fails.** Reference: `talk_function::give_all_aid` (`npctalk_funcs.cpp:735-762`) and
+/// `lesser_give_all_aid` (`:689-710`) do what the single rules do **and** heal every companion within `PICKUP_RANGE` (`game_constants.h:44`, **six** squares);
+/// `mission_failure` (`:163-176`) takes one trust and one value and gives one anger.
+///
+/// Two companions are placed, one at three squares and one at **nine**, so the range is a fact the test can see rather than an assumption: the near one is healed and the far
+/// one is not, which is the whole difference between "a person helps" and "a person helps the party".
+#[test]
+fn the_aid_reaches_the_companions_who_are_close_enough() {
+    let mut world = World::new();
+    cdda_sim::effect_registry::set_effect_types(
+        &mut world,
+        &[
+            cdda_sim::effect_registry::bare("currently_busy"),
+            cdda_sim::effect_registry::bare("bleed"),
+        ],
+    );
+    let avatar = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::missions::set_avatar(&mut world, avatar);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let part = |name: &str| cdda_sim::hit_location::BodyPart {
+        name: name.to_owned(),
+        ..cdda_sim::hit_location::BodyPart::default()
+    };
+    let mut wounded_companion = |name: &str, at: (i32, i32, i32)| {
+        let who = cdda_sim::creature::spawn_creature(&mut world, name, at);
+        cdda_sim::npcs::make_ally(&mut world, who);
+        world.entity_mut(who).insert(cdda_sim::creature::Body {
+            parts: vec![part("arm_l")],
+        });
+        cdda_sim::creature::wound(&mut world, who, "arm_l", 30);
+        who
+    };
+    let near = wounded_companion("Near", (3, 0, 0));
+    let far = wounded_companion("Far", (9, 0, 0));
+    world.entity_mut(avatar).insert(cdda_sim::creature::Body {
+        parts: vec![part("arm_l")],
+    });
+    cdda_sim::creature::wound(&mut world, avatar, "arm_l", 30);
+    let effect = |name: &str| cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: name.to_owned(),
+    };
+    cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::fixed(0.0));
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("give_all_aid")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**give_all_aid runs**"
+    );
+    assert_eq!(
+        cdda_sim::creature::wound_on(&world, avatar, "arm_l"),
+        20,
+        "**the player is healed first, by ten**"
+    );
+    assert_eq!(
+        cdda_sim::creature::wound_on(&world, near, "arm_l"),
+        20,
+        "**and so is the companion three squares away**"
+    );
+    assert_eq!(
+        cdda_sim::creature::wound_on(&world, far, "arm_l"),
+        30,
+        "**but not the one nine squares away**"
+    );
+    // **`mission_failure` moves three numbers and takes the mission.**
+    cdda_sim::npcs::set_opinion(
+        &mut world,
+        vlad,
+        cdda_sim::npcs::Opinion {
+            trust: 2,
+            value: 2,
+            anger: 0,
+            ..cdda_sim::npcs::Opinion::default()
+        },
+    );
+    cdda_sim::missions::accept(&mut world, avatar, "MISSION_somebody_needs_help");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(
+            &mut world,
+            avatar,
+            Some(vlad),
+            &effect("mission_failure")
+        ),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**mission_failure runs**"
+    );
+    let opinion = cdda_sim::npcs::opinion_of(&world, vlad).expect("Vlad has an opinion");
+    assert_eq!(
+        (opinion.trust, opinion.value, opinion.anger),
+        (1, 1, 1),
+        "**one trust and one value gone, one anger gained**"
+    );
+    assert!(
+        !cdda_sim::missions::has_mission(&world, avatar, "MISSION_somebody_needs_help"),
+        "**and the mission is no longer the player's**"
+    );
+}

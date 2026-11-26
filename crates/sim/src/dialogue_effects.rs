@@ -4543,6 +4543,8 @@ fn tend_the_players_wounds(
     speaker: Entity,
     listener: Option<Entity>,
     full: bool,
+    busy_minutes: i64,
+    allies: bool,
 ) -> Applied {
     let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
         return Applied::CannotAnswer;
@@ -4550,15 +4552,6 @@ fn tend_the_players_wounds(
     let Some(player) = crate::missions::avatar(world) else {
         return Applied::CannotAnswer;
     };
-    let parts = world
-        .get::<crate::creature::Body>(player)
-        .map(|body| {
-            body.parts
-                .iter()
-                .map(|part| part.name.clone())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
     // **The dice belong to the turn**, so they are taken for the length of the draws and put back after - the pattern every rule that rolls without a caller's stream uses.
     let mut rolls = crate::singletons::take_rolls(world).unwrap_or_else(|| {
         let turn = crate::calendar::of(world).map_or(0, |calendar| calendar.turn);
@@ -4566,40 +4559,79 @@ fn tend_the_players_wounds(
         let seed = turn as u32;
         cdda_core_types::rng::Rolls::new(seed)
     });
+    heal_a_body(world, player, full, &mut rolls);
+    // Reference: the "all" rules then do the same for **every companion within `PICKUP_RANGE`** of the player (`game_constants.h:44`, six squares), which is the same
+    // arithmetic on a different body.
+    if allies {
+        let here = world.get::<crate::Position>(player).copied();
+        let companions = {
+            let mut query = world.query::<(Entity, &crate::npcs::Ally, &crate::Position)>();
+            query
+                .iter(world)
+                .filter(|(_, _, at)| {
+                    here.is_none_or(|here| {
+                        crate::rl_dist([here.x, here.y, here.z], [at.x, at.y, at.z]) < 6
+                    })
+                })
+                .map(|(entity, _, _)| entity)
+                .collect::<Vec<_>>()
+        };
+        for companion in companions {
+            heal_a_body(world, companion, full, &mut rolls);
+        }
+    }
+    crate::singletons::put_rolls(world, rolls);
+    if let Some(kind) = crate::effect_registry::kind_named(world, "currently_busy") {
+        crate::applied_effects::add(
+            world,
+            npc,
+            crate::effects::ActiveEffect::new(&kind, busy_minutes * 60, 1),
+        );
+    }
+    Applied::Done
+}
+
+/// Heals every part of one body by the aid's amount and clears what the aid clears.
+///
+/// Reference: the inner loop of `give_aid` (`npctalk_funcs.cpp:715-727`) - `heal( bp, 5 * rng( 2, 5 ) )` for the full aid and `rng( 5, 15 )` for the lesser, with `bite`,
+/// `bleed` and `infected` cleared by the first and `bleed` alone by the second. The roll is **inside** the part loop because the reference draws once per part.
+fn heal_a_body(
+    world: &mut World,
+    creature: Entity,
+    full: bool,
+    rolls: &mut cdda_core_types::rng::Rolls,
+) {
+    let parts = world
+        .get::<crate::creature::Body>(creature)
+        .map(|body| {
+            body.parts
+                .iter()
+                .map(|part| part.name.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     for part in parts {
-        // The reference draws once per part, which is why the roll is inside the loop rather than before it.
         let healed = if full {
             5 * rolls.rng(2, 5)
         } else {
             rolls.rng(5, 15)
         };
-        let hurt = crate::creature::wound_on(world, player, &part);
+        let hurt = crate::creature::wound_on(world, creature, &part);
         if hurt <= 0 {
             continue;
         }
         let left = (hurt - healed).max(0);
-        if let Some(mut wounds) = world.get_mut::<crate::creature::Wounds>(player) {
+        if let Some(mut wounds) = world.get_mut::<crate::creature::Wounds>(creature) {
             wounds.0.insert(part, left);
         }
     }
     if full {
         for effect in ["bite", "bleed", "infected"] {
-            crate::applied_effects::remove(world, player, effect);
+            crate::applied_effects::remove(world, creature, effect);
         }
     } else {
-        crate::applied_effects::remove(world, player, "bleed");
+        crate::applied_effects::remove(world, creature, "bleed");
     }
-    crate::singletons::put_rolls(world, rolls);
-    // Reference: `p.add_effect( effect_currently_busy, 120_minutes )` and `60_minutes` for the lesser.
-    if let Some(kind) = crate::effect_registry::kind_named(world, "currently_busy") {
-        let turns = if full { 120 * 60 } else { 60 * 60 };
-        crate::applied_effects::add(
-            world,
-            npc,
-            crate::effects::ActiveEffect::new(&kind, turns, 1),
-        );
-    }
-    Applied::Done
 }
 
 /// **A pleasant conversation: an activity, a morale point, and sometimes a little more trust.** Reference: `talk_function::morale_chat_activity`
@@ -4752,10 +4784,16 @@ fn run_legacy_string_effect(
         "drop_items_in_place" => the_person_drops_their_burden(world, speaker, listener),
         "buy_haircut" => a_decent_haircut(world, speaker, listener),
         "buy_shave" => a_decent_shave(world, speaker, listener),
-        "give_aid" => tend_the_players_wounds(world, speaker, listener, true),
-        "lesser_give_aid" => tend_the_players_wounds(world, speaker, listener, false),
+        // Reference: the single rules leave the person busy for 120 and 60 minutes; the "all" rules heal every companion too and busy them for 240 and 120.
+        "give_aid" => tend_the_players_wounds(world, speaker, listener, true, 120, false),
+        "lesser_give_aid" => tend_the_players_wounds(world, speaker, listener, false, 60, false),
+        "give_all_aid" => tend_the_players_wounds(world, speaker, listener, true, 240, true),
+        "lesser_give_all_aid" => {
+            tend_the_players_wounds(world, speaker, listener, false, 120, true)
+        }
         "morale_chat_activity" => a_pleasant_conversation(world, speaker, listener),
         "mission_success" => the_mission_is_done(world, speaker, listener),
+        "mission_failure" => the_mission_has_failed(world, speaker, listener),
         _ => Applied::CannotAnswer,
     }
 }
@@ -4798,6 +4836,30 @@ fn the_mission_is_done(world: &mut World, speaker: Entity, listener: Option<Enti
     opinion.anger -= 1;
     crate::npcs::set_opinion(world, npc, opinion);
     // Reference: `miss->wrap_up()` sets the status to success and takes the mission off the player's list. The items it also consumes are the named gap above.
+    crate::missions::finish(world, player, &mission);
+    Applied::Done
+}
+
+/// **`mission_failure` is a mission's worth of disappointment.** Reference: `talk_function::mission_failure` (`npctalk_funcs.cpp:163-176`): `trust` and `value` each lose
+/// **one**, `anger` gains **one**, and the mission fails - which the port states as taking it off the player's list, because a failed mission is no longer theirs to do.
+fn the_mission_has_failed(world: &mut World, speaker: Entity, listener: Option<Entity>) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(player) = crate::missions::avatar(world) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(mission) = crate::missions::active_missions(world, player)
+        .first()
+        .cloned()
+    else {
+        return Applied::Done;
+    };
+    let mut opinion = crate::npcs::opinion_of(world, npc).unwrap_or_default();
+    opinion.trust -= 1;
+    opinion.value -= 1;
+    opinion.anger += 1;
+    crate::npcs::set_opinion(world, npc, opinion);
     crate::missions::finish(world, player, &mission);
     Applied::Done
 }
