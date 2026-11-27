@@ -441,8 +441,12 @@ def main() -> int:
     # Everything that reads **this** checkout runs here: formatting, the documents, the dead-rule sweep and the oracle
     # patch. They cost seconds, they need no target directory, and moving them to the build machine would only add a
     # round trip - the documents in particular read the reference sources, which a focused run no longer copies there.
-    if (not options.sync or options.fmt) and (options.all or options.fmt or fmt_check(changed) != 0):
-        if not options.fmt and options.all:
+    if not options.sync or options.fmt:
+        # A full run checks the whole workspace; a focused one checks the files that changed.
+        code = fmt_check(changed) if not options.all else subprocess.run(
+            ["cargo", "fmt", "--all", "--", "--check"], cwd=ROOT, check=False
+        ).returncode
+        if code != 0:
             failed.append("formatting")
     # **The document check is about the documents.** Its citations are line numbers into the reference, which the reference
     # does not change, so a change under `crates/` cannot break it - and it costs four seconds, which is a quarter of a
