@@ -41842,7 +41842,7 @@ The zone module already existed - a map's `ZONE_STOCKPILE`, a camp's stockpile, 
 **multiple-activity actor** asks, so this round added the manager's three, transcribed from `clzones.cpp`:
 
 - `covers` (`zone_data::has_inside`, `clzones.h:533-539`): both corners **inclusive**, the corners a pair rather than a direction, and one level only.
-- `square_dist` (`line.cpp:1234-1240`): `max( |dx|, |dy| )` - **not** the diagonal, and not the vertical. Three across and four up is four away, which is what decides whether a job
+- `square_dist` (`line.h:182-186`): `max( |dx|, |dy| )` - **not** the diagonal, and not the vertical. Three across and four up is four away, which is what decides whether a job
   can reach its work.
 - `zones_near` (`zone_manager::get_near`, `clzones.cpp:1172-1200`): the squares of the **enabled** zones of a kind and faction within the range, the bound inclusive, returned
   **sorted** - the reference walks and returns a hash set, and a rule whose answer depends on iteration order cannot be compared with itself.

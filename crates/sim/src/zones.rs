@@ -119,7 +119,7 @@ pub fn covers(near: (i32, i32), far: (i32, i32), level: i32, point: (i32, i32, i
 
 /// The distance zones are measured by: **the larger of the two axes**, not the diagonal.
 ///
-/// Reference: `square_dist( const tripoint &, const tripoint & )` (`line.cpp:1234-1240`), `max( |dx|, |dy| )`. The vertical axis is not in it.
+/// Reference: `square_dist( const tripoint &, const tripoint & )` (`line.h:182-186`), `max( |dx|, |dy| )`. The vertical axis is not in it.
 #[must_use]
 pub fn square_dist(a: (i32, i32, i32), b: (i32, i32, i32)) -> i32 {
     (a.0 - b.0).abs().max((a.1 - b.1).abs())
