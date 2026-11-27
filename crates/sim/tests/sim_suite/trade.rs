@@ -246,13 +246,19 @@ fn a_shop_refuses_what_its_untrusted_shelf_names() {
         cdda_sim::trade::wants_to_sell(&world, keeper, "pistol"),
         "**an ally hands over the pistol**"
     );
-    // **And buying falls to the price** for anyone who is not an ally.
+    // **And buying falls to the price** for anyone who is **not** an ally - which the same person is by now, so the price rules need somebody else to be asked about.
+    let other = cdda_sim::creature::spawn_creature(&mut world, "Vlad's brother", (2, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, other, "vlads_brother");
     assert!(
-        cdda_sim::trade::wants_to_buy(&world, keeper, 100),
+        cdda_sim::trade::wants_to_buy(&world, other, 100),
         "**a price above nothing is a yes**"
     );
     assert!(
-        !cdda_sim::trade::wants_to_buy(&world, keeper, -1),
+        !cdda_sim::trade::wants_to_buy(&world, other, -1),
         "**and a negative price is a no**"
+    );
+    assert!(
+        cdda_sim::trade::wants_to_buy(&world, keeper, -1),
+        "**but an ally buys even at a negative price, because an ally exchanges freely**"
     );
 }
