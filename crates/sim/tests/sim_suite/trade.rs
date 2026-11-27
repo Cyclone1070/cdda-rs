@@ -405,8 +405,10 @@ fn the_shop_pays_the_other_side_of_the_quarter() {
         .insert(cdda_sim::creature::Carried(shopper));
     let offers = cdda_sim::trade::buying(&mut world, shopper, keeper);
     assert_eq!(offers.len(), 1, "**the rock is offered to the shop**");
+    let offered = offers.first().map(|offer| offer.price);
     assert_eq!(
-        offers[0].price, 75,
+        offered,
+        Some(75),
         "**at 75 for a 100-cent item: the quarter, paid instead of charged**"
     );
 }
