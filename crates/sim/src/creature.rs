@@ -1548,6 +1548,10 @@ pub enum Basis {
     Time,
     /// Every move the creature has.
     Speed,
+    /// **Neither of the two**: the activity's moves are spent by whatever actor runs it, not by the activity. Reference: `based_on_type::NEITHER`
+    /// (`activity_type.h:23-30`), which the data gives to 44 of its 138 activities - every `ACT_MULTIPLE_*` among them, because a multiple activity's work is the jobs it finds,
+    /// not a fixed span of moves.
+    Neither,
 }
 
 /// Something a creature is doing that takes more than one turn.
@@ -1589,6 +1593,12 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
     let Some(doing) = world.get::<Doing>(creature).cloned() else {
         return false;
     };
+    // **A neither-based activity is not finished by spending.** Its moves are the work its actor does, so this rule must not take a hundred - nor take the creature's whole
+    // turn and call the job done at zero moves, which is what a multiple activity looks like the moment it starts (`moves_left = 0`) and would have ended every one of them on
+    // its first turn. Reference: `based_on_type::NEITHER` (`activity_type.h:44`), whose activities are ended by their actor (`set_to_null`), not by a counter.
+    if doing.basis == Basis::Neither {
+        return false;
+    }
     let moves = moves_left(world, creature).max(0);
     let spent = match doing.basis {
         Basis::Time => {
@@ -1602,6 +1612,9 @@ pub fn spend_a_turn_on(world: &mut World, creature: Entity) -> bool {
             spend_moves(world, creature, f64::from(moves));
             moves.min(doing.moves_left)
         }
+        // **Nothing comes off a neither-based activity here**, and that is the rule rather than an omission: its actor spends what the work costs as it does the work, so this
+        // function must not spend a second time. The activity is not finished by this call either - the actor's own answer clears it.
+        Basis::Neither => 0,
     };
     let left = doing.moves_left - spent;
     // A failure during a craft hands some of the work back, so the moves it returns have to leave this branch with the rest.

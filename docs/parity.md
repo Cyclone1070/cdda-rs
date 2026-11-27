@@ -41771,3 +41771,26 @@ loops locally, the full gate in CI, and the two never confused for one another.
 2. **CI is polled, never waited on.** It runs on a push in ten to twelve minutes and does not consume the machine that writes the next batch.
 
 `[profile.test] debug = 0` was measured too and is **not** a win (28.8 s against 29.0 s), so the profile is untouched.
+
+## An activity knows what its moves are counted in (round 371, batch 1 of the P6 opening)
+
+P6 is **activities**, and the first thing an activity needs is its own definition. The data defines **138** `activity_type` objects, and the fields the rules ask are: the verb the
+player is told, what the moves are counted in, whether it can be resumed, whether it is a **multiple** activity, and whether it roots the creature.
+
+- `content::activity_types` reads those five. **Two defaults are the reference's and both were nearly got wrong**: `can_resume` defaults to **true** (`activity_type.h:45`), which
+  59 of the 138 rely on, and `based_on` defaults to `speed` (`:44`).
+- `creature::Basis` gained its **third answer**, `Neither`: 44 of the 138 activities - every `ACT_MULTIPLE_*` among them - are counted in neither of the other two ways because
+  their **actor** spends the moves as it finds work.
+- `creature::spend_a_turn_on` returns early for a `Neither` activity. That guard is the whole rule: a multiple activity starts with `moves_left = 0`, so the counter's own
+  "nothing left means finished" would have ended every one of them on its first turn, before it found anything.
+- `sim::activity_types` is the registry (`set_activity_types`, `activity_named`, `basis_of`), and `basis_of` answers `None` for an id the data never defined rather than
+  guessing a basis.
+
+**Both mutations caught, in 27 and 34 seconds**: defaulting `can_resume` to false fails the loader test, and letting the counter end a neither activity fails
+`a_neither_activity_is_left_to_its_actor`.
+
+**Named gaps**: the rest of the definition is unread - `activity_level`, `refuel_fires`, `auto_needs`, `interruptable`, `ignored_distractions`, the completion EOCs - and no
+`ACT_MULTIPLE_*` **actor** is ported yet, so the port can say what a multiple activity is and not yet watch one find work.
+
+**And the process note that made this batch possible**: the two mutations above cost 27 and 34 seconds locally, against the 9-19 minutes a focused run took on the build host
+before the `-azc` sync fix. The batch was written, tested, mutated, linted and documented in one sitting because the loop is now fast enough to keep the discipline.

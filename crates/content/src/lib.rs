@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+pub mod activity_types;
 pub mod ammo;
 pub mod ammo_effects;
 pub mod anatomies;

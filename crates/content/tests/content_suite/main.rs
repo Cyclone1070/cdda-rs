@@ -17,6 +17,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
     attempt.wrapping_mul(2_654_435_761).wrapping_add(1)
 }
 
+mod activity_types;
 mod ammo_effect_registry;
 mod ammo_effects;
 mod ammo_rules;

@@ -19,6 +19,7 @@ pub fn spread_seed(attempt: u32) -> u32 {
 
 mod acid_vent;
 mod activities;
+mod activity_types;
 mod applied_effects;
 mod architecture;
 mod armour_by_type;
