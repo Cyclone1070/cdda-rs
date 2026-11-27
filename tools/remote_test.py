@@ -109,7 +109,12 @@ def sync() -> None:
     # `--no-times` matters: `-a` preserves modification times, and a machine whose clock is a little behind the server then delivers a "new" file
     # with an old timestamp, so cargo reuses the artifact it already has and the gate silently tests the previous round's code. Writing the time as
     # now for the files that actually changed costs nothing and removes a whole class of false green.
-    args = ["rsync", "-az", "--no-times", "--delete"]
+    #
+    # `-c` is what makes `--no-times` affordable. Without it rsync's quick check compares size and time, and a file stamped "now" by the last sync never
+    # matches its source, so **every** file is transferred and re-stamped **every** time - which makes cargo rebuild the whole workspace, and made a
+    # focused test take 9-19 minutes. With a checksum, an unchanged file is left alone (its stamp stands, its artifact stays fresh) and a changed one is
+    # still stamped "now" - both halves of the rule hold at once.
+    args = ["rsync", "-azc", "--no-times", "--delete"]
     # **The copy must notice a dead link as fast as a command does**: without `-e`, rsync's own ssh has no keepalives and a stalled transfer sits
     # there until the socket gives up - which is the shape of the hang this round's retry exists to prevent.
     args.extend(["-e", "ssh -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o ConnectTimeout=20"])
