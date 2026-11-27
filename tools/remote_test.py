@@ -22,6 +22,7 @@ Usage:
 
 import argparse
 import base64
+import re
 import os
 import pathlib
 import subprocess
@@ -32,7 +33,8 @@ REMOTE = "cyc@elitedesk"
 REMOTE_DIR = "cve-test"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# Everything the gates read, and nothing else. `references/Cataclysm-DDA` is 6 GB of checkout; only `data` is corpus.
+#: What a **focused** run needs: the code, its configuration, the tools and the documents. These are small - a change to
+#: the workspace copies in about a second - so every focused gate syncs them.
 SYNC = [
     "scenarios",
     "Cargo.toml",
@@ -41,15 +43,26 @@ SYNC = [
     # the old rules.
     "clippy.toml",
     "crates",
-    "corpus",
     "docs",
     "tools",
+    ".github",
+]
+
+#: What only a **full** run needs: the reference's data (read by the corpus gates), its sources and its documentation
+#: (read by the document check's citation counts), and the corpus itself. Together they are nearly 300 MB, and with
+#: `rsync -c` that is about ten seconds of hashing on every sync - a third of a focused gate's whole cost, spent asking
+#: a question whose answer has not changed since the reference was pinned. They are copied when a full run asks for
+#: them, when a changed path is inside them, or when the far side has never had them.
+BIG_SYNC = [
+    "corpus",
     "references/Cataclysm-DDA/data",
     # The document check counts the reference's sources and links into them, so the subset has to include them.
     "references/Cataclysm-DDA/src",
     "references/Cataclysm-DDA/doc",
-    ".github",
 ]
+
+#: A file on the build machine that says the big directories were copied at least once.
+BIG_STAMP = "cve-test/.big-sync-stamp"
 
 EXCLUDES = [
     "*.rs.bk",
@@ -97,7 +110,7 @@ def attempt(label: str, command: list[str], check: bool = True) -> bool:
     return False
 
 
-def sync() -> None:
+def sync(paths: list[str] | None = None) -> None:
     """Copies the workspace to the remote, deleting files that no longer exist here.
 
     `--delete` is safe because it only ever applies to the paths listed in SYNC, each of which is a directory the
@@ -120,7 +133,7 @@ def sync() -> None:
     args.extend(["-e", "ssh -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o ConnectTimeout=20"])
     for pattern in EXCLUDES:
         args.extend(["--exclude", pattern])
-    for path in SYNC:
+    for path in SYNC if paths is None else paths:
         source = ROOT / path
         if not source.exists():
             print(f"  skipping {path}: not here", flush=True)
@@ -142,6 +155,139 @@ def sync() -> None:
         attempt(f"copy {path}", [*args, source_arg, destination])
 
 
+
+# ---------------------------------------------------------------------------
+# What changed, and what that makes it worth running
+# ---------------------------------------------------------------------------
+
+
+def changed_paths() -> set[str]:
+    """Every path that differs from the pushed baseline, plus the working tree's own edits and untracked files.
+
+    **The baseline is `origin/main`**, not `HEAD`: a commit that has not been pushed is a change as far as the gate is
+    concerned, and CI will not see it until it is. A branch with no `origin/main` falls back to `HEAD`, so the check
+    still answers - with a smaller set - instead of failing.
+    """
+    found: set[str] = set()
+    for command in (
+        ["git", "diff", "--name-only", "origin/main...HEAD"],
+        ["git", "diff", "--name-only"],
+        ["git", "diff", "--name-only", "--cached"],
+        ["git", "ls-files", "--others", "--exclude-standard"],
+    ):
+        finished = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+        if finished.returncode != 0 and command[3] == "origin/main...HEAD":
+            finished = subprocess.run(
+                ["git", "diff", "--name-only", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
+            )
+        found.update(line.strip() for line in finished.stdout.splitlines() if line.strip())
+    return found
+
+
+def package_names() -> dict[str, tuple[str, set[str]]]:
+    """Each workspace package: its directory, its name, and the workspace packages it depends on."""
+    manifests = sorted((ROOT / "crates").glob("*/Cargo.toml"))
+    named: dict[str, str] = {}
+    texts: dict[str, str] = {}
+    for manifest in manifests:
+        text = manifest.read_text()
+        texts[manifest.parent.name] = text
+        for line in text.splitlines():
+            if line.startswith("name = "):
+                named[manifest.parent.name] = line.split("=", 1)[1].strip().strip('"')
+                break
+    known = set(named.values())
+    packages: dict[str, tuple[str, set[str]]] = {}
+    for directory, text in texts.items():
+        mine = named[directory]
+        dependencies = {
+            other
+            for other in known
+            if other != mine and re.search(rf"^{re.escape(other)}\s*=", text, re.MULTILINE)
+        }
+        packages[directory] = (mine, dependencies)
+    return packages
+
+
+def changed_packages() -> list[str]:
+    """The workspace packages a focused gate should build and test: what changed, and what depends on it.
+
+    A change to `cdda-content` changes what `cdda-sim` compiles against, so the packages that **depend** on a changed one are
+    included - their tests can fail from a change they did not make. The closure is computed from the manifests, once.
+    """
+    packages = package_names()
+    direct = {
+        path.split("/")[1]
+        for path in changed_paths()
+        if path.startswith("crates/") and len(path.split("/")) > 2 and path.split("/")[1] in packages
+    }
+    if not direct:
+        return []
+    selected = set(direct)
+    selected_names = {packages[directory][0] for directory in direct}
+    growing = True
+    while growing:
+        growing = False
+        for directory, (name, dependencies) in packages.items():
+            if directory in selected:
+                continue
+            if dependencies & selected_names:
+                selected.add(directory)
+                selected_names.add(name)
+                growing = True
+    return sorted(packages[directory][0] for directory in selected)
+
+
+
+#: The test modules that cost **minutes** each, measured on the build machine: `eoc_programs` holds two cases that take
+#: 462 s and 587 s on their own - they build a whole world before running a program - and the rest of the suite's 1,864
+#: cases finish in 94 s together. A focused gate skips them and says so; `--slow` puts them back, and CI always runs
+#: them, so they are covered without costing every edit ten minutes.
+SLOW_MODULES = ("eoc_programs",)
+
+
+def test_filters(changed: set[str]) -> list[str]:
+    """The test modules a change is likely to have touched.
+
+    A file `crates/sim/tests/sim_suite/foo.rs` is the `foo` module of that suite, and `crates/sim/src/foo.rs` is the `foo`
+    module of the library - and in this repository a rule's tests live in a module of the rule's name. The filter is a
+    **superset**, not a guess at one case: a wrong filter runs a few cases too many, never too few, because a change with
+    no recognisable module (a `Cargo.toml`, a helper shared by everything) falls back to the whole package.
+    """
+    filters = set()
+    for path in changed:
+        parts = path.split("/")
+        if len(parts) < 4 or parts[0] != "crates":
+            continue
+        if parts[2] != "src" and parts[2] != "tests" and len(parts) < 5:
+            continue
+        if not parts[-1].endswith(".rs"):
+            continue
+        name = parts[-1].removesuffix(".rs")
+        if name in ("lib", "main", "mod"):
+            continue
+        filters.add(name)
+    return sorted(filters)
+
+
+def nextest_expression(filters: list[str], slow: bool) -> str:
+    """A nextest filter expression: the touched modules, minus the slow ones unless they were asked for."""
+    parts = [f"test(/{'|'.join(filters)}/)" if filters else "all()"]
+    if not slow:
+        parts.extend(f"not test(/{module}/)" for module in SLOW_MODULES)
+    return " and ".join(parts)
+
+
+def big_sync_needed(changed: set[str]) -> bool:
+    """Whether the big directories have to be copied: never copied before, asked for, or a change inside them."""
+    if any(
+        path.startswith(("corpus/", "references/Cataclysm-DDA/data", "references/Cataclysm-DDA/src", "references/Cataclysm-DDA/doc"))
+        for path in changed
+    ):
+        return True
+    return ssh_quiet(f"test -f {BIG_STAMP}")[0] != 0
+
+
 def ssh_args() -> list[str]:
     """How to reach the build machine: with keepalives, so a dropped connection fails instead of hanging.
 
@@ -161,8 +307,11 @@ def ssh_args() -> list[str]:
 GATE_TIMEOUT = int(os.environ.get("GATE_TIMEOUT", "2400"))
 
 
-#: How long to wait between looks at a detached job, in seconds.
-POLL_SECONDS = float(os.environ.get("CVE_POLL_SECONDS", "20"))
+#: How long to wait between looks at a detached job, in seconds. The first look is short and the wait grows: a focused
+#: job is over in a second, and a gate that sleeps its way through twenty looks costs more than the work it is watching.
+#: A long job still sees a poll every couple of seconds, which is nothing against a build.
+POLL_SECONDS = float(os.environ.get("CVE_POLL_SECONDS", "0.3"))
+POLL_MAX_SECONDS = float(os.environ.get("CVE_POLL_MAX_SECONDS", "2.0"))
 
 
 def ssh_quiet(command: str, timeout: float = 120) -> tuple[int, str]:
@@ -210,8 +359,10 @@ def run(command: str, label: str, jobs: int) -> int:
     attempt(f"launch {label}", [*ssh_args(), launch])
     started = time.time()
     code = None
+    wait = POLL_SECONDS
     while time.time() - started < GATE_TIMEOUT:
-        time.sleep(POLL_SECONDS)
+        time.sleep(wait)
+        wait = min(wait * 2, POLL_MAX_SECONDS)
         answer, output = ssh_quiet(f"cat {code_file} 2>/dev/null")
         if answer == 0 and output.strip():
             try:
@@ -230,9 +381,31 @@ def run(command: str, label: str, jobs: int) -> int:
     return code
 
 
+
+def fmt_check(changed: set[str]) -> int:
+    """Checks formatting, over the files that changed when there are some.
+
+    `cargo fmt --all -- --check` is five seconds on this checkout because it walks every target; `rustfmt --check` over
+    the handful of files a round touched is a tenth of that. A change to a manifest or a new file falls back to the whole
+    workspace, because formatting rules can move with the edition and a file that is not in the tree yet is not formatted.
+    """
+    sources = sorted(path for path in changed if path.endswith(".rs") and (ROOT / path).exists())
+    manifests = [path for path in changed if path.endswith("Cargo.toml") or path.endswith("Cargo.lock")]
+    if manifests or not sources:
+        return subprocess.run(["cargo", "fmt", "--all", "--", "--check"], cwd=ROOT, check=False).returncode
+    if len(sources) > 40:
+        return subprocess.run(["cargo", "fmt", "--all", "--", "--check"], cwd=ROOT, check=False).returncode
+    return subprocess.run(
+        ["rustfmt", "--edition", "2024", "--check", *sources], cwd=ROOT, check=False
+    ).returncode
+
+
 def main() -> int:
     global REMOTE
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--changed", action="store_true", help="only the packages the working tree changed (the default)")
+    parser.add_argument("--all", action="store_true", help="the whole suite and the whole workspace's clippy")
+    parser.add_argument("--slow", action="store_true", help="include the modules that cost minutes (see SLOW_MODULES)")
     parser.add_argument("--tests", action="store_true", help="run the fast suite")
     parser.add_argument("--docs", action="store_true", help="run the document check")
     parser.add_argument("--clippy", action="store_true", help="run clippy")
@@ -244,12 +417,19 @@ def main() -> int:
     options = parser.parse_args()
     REMOTE = options.remote
 
-    everything = not (options.tests or options.docs or options.clippy or options.oracle
-                      or options.fmt or options.sync)
-    sync()
-    # `--sync` alone means "only sync". Combining it with a check used to return here and run nothing,
-    # which is how a run that looked green was a run that never happened.
-    if options.sync and everything:
+    named = options.tests or options.docs or options.clippy or options.oracle or options.fmt or options.sync
+    # **The default is the focused gate**, because it is the one a person runs dozens of times a day; `--all` is the one
+    # that runs before a push that matters. Everything named explicitly behaves as before, over the whole workspace.
+    focused = options.changed or (not options.all and not named)
+
+    changed = changed_paths()
+    packages = changed_packages() if focused else []
+    wants_big = options.all or (focused and ("cdda-content" in packages or big_sync_needed(changed)))
+
+    sync(SYNC + (BIG_SYNC if wants_big else []))
+    if wants_big:
+        subprocess.run([*ssh_args(), f"date > {BIG_STAMP}"], capture_output=True, check=False)
+    if options.sync and not named and not options.all and not options.changed:
         return 0
 
     jobs = options.jobs
@@ -257,50 +437,71 @@ def main() -> int:
         cores = subprocess.run([*ssh_args(), "nproc"], capture_output=True, text=True, check=True)
         jobs = max(1, min(6, int(cores.stdout.strip()) - 1))
 
-    failed = []
-    # Formatting runs here rather than on the build machine: `rustfmt` needs no target directory, and
-    # the CI runner checks the same thing - the first CI run failed on it because nothing local did.
-    if everything or options.fmt:
-        if subprocess.run(["cargo", "fmt", "--all", "--", "--check"]).returncode != 0:
+    failed: list[str] = []
+    # Everything that reads **this** checkout runs here: formatting, the documents, the dead-rule sweep and the oracle
+    # patch. They cost seconds, they need no target directory, and moving them to the build machine would only add a
+    # round trip - the documents in particular read the reference sources, which a focused run no longer copies there.
+    if (not options.sync or options.fmt) and (options.all or options.fmt or fmt_check(changed) != 0):
+        if not options.fmt and options.all:
             failed.append("formatting")
-    if everything or options.tests:
-        if run("python3 tools/test_fast.py --jobs {jobs}", "the fast suite", jobs) != 0:
-            failed.append("tests")
-    if everything or options.docs:
-        if run("python3 tools/check_docs.py", "the document check", jobs) != 0:
+    # **The document check is about the documents.** Its citations are line numbers into the reference, which the reference
+    # does not change, so a change under `crates/` cannot break it - and it costs four seconds, which is a quarter of a
+    # focused gate. It runs when a document changed, and on every full run.
+    wants_docs = options.all or options.docs or any(
+        path.startswith(("docs/", "references/", "tools/check_docs")) for path in changed
+    )
+    if (not options.sync or options.docs) and wants_docs:
+        if subprocess.run([sys.executable, "tools/check_docs.py"], capture_output=True).returncode != 0:
+            subprocess.run([sys.executable, "tools/check_docs.py"], check=False)
             failed.append("docs")
-        # **A rule with no caller is a rule nobody has proved works** - or a second copy of one that does. Round 1358's duplicate passed every test its original passed; the only signal was
-        # that nothing called it, so the gate that notices that now rides along with the docs check on every run.
+    # The dead-rule sweep reads the sources, so any code change can make a rule dead; it is under a second.
+    if (not options.sync or options.docs) and (options.all or options.docs or any(path.startswith("crates/") for path in changed)):
         if subprocess.run([sys.executable, "tools/check_dead_rules.py"], capture_output=True).returncode != 0:
             subprocess.run([sys.executable, "tools/check_dead_rules.py"], check=False)
             failed.append("dead rules")
-    # **The full run includes clippy.** It did not, and that cost a red CI: the complete gate reported green on a tree whose test target held an `items_after_statements`
-    # error, because the run had only asked for tests, docs and the oracle. A gate that is not the gate is worse than no gate - so `everything` means every job.
-    if options.clippy or everything:
-        # **Touch every crate root first, or cargo's cache eats the gate.** `cargo clippy -D warnings` only fails on diagnostics it *emits*, and a crate whose fingerprint has not changed is
-        # not re-checked - so a green run could mean "nothing was looked at". That is exactly what happened: the gate reported clean for many rounds while `crates/sim` held twenty-three
-        # deny-level lints, and a fresh checkout of the same tree failed instantly. The touch is cheap (a mtime) and forces the diagnostics to be re-emitted.
-        # **The touch has to happen on the build machine.** It was run here, against this checkout, while
-        # clippy ran over there - so the files cargo looked at kept their old mtimes and a cached clean
-        # result was reported for code that had just changed. Three rounds in a row reached CI with a
-        # lint the gate said was clean: `float_cmp` twice and `collapsible_if`.
-        # **Not a second sync here.** The gate syncs once before any job starts; a per-job sync runs concurrently with the other jobs' rsyncs and
-        # can leave the linter reading a half-copied tree - which is how a green run reached CI red twice. The single sync plus the touch below is
-        # what the gate needs.
-        run(
-            "find crates -name '*.rs' -exec touch {} +",
-            "touch every source file on the build machine",
-            jobs,
-        )
+    # **The oracle's patch check is twelve seconds**, and it can only change when the oracle or the reference does. On a
+    # focused run over the port's own code it is the single most expensive thing in the gate and answers a question
+    # nobody had.
+    wants_oracle = options.all or options.oracle or any(
+        path.startswith(("oracle/", "references/")) for path in changed
+    )
+    if (not options.sync or options.oracle) and wants_oracle:
+        if subprocess.run([sys.executable, "oracle/apply_harness_patches.py", "--verify"], capture_output=True).returncode != 0:
+            failed.append("oracle")
+
+    if options.all or options.tests:
+        # **The full suite is the whole workspace minus the slow modules.** `--slow` is what puts them back, and CI runs
+        # everything regardless: the focused gate is for the edit loop, this is for before a push, and neither is the
+        # place to spend ten minutes twice.
+        expression = nextest_expression([], options.slow)
+        if run(f"cargo nextest run --workspace -E '{expression}' --no-fail-fast", "the suite", jobs) != 0:
+            failed.append("tests")
+    elif focused:
+        if packages:
+            selector = " ".join(f"-p {name}" for name in packages)
+            filters = test_filters(changed)
+            expression = nextest_expression(filters, options.slow)
+            label = f"the tests of {', '.join(packages)}" + (f" matching {filters}" if filters else "")
+            if run(f"cargo nextest run {selector} -E '{expression}' --no-fail-fast", label, jobs) != 0:
+                failed.append("tests")
+        else:
+            print("\nnothing under crates/ changed: no tests to run", flush=True)
+
+    if options.all:
+        # **Touch every crate root first, or cargo's cache eats the gate.** `cargo clippy -D warnings` only fails on
+        # diagnostics it *emits*, and a crate whose fingerprint has not changed is not re-checked. A full run therefore
+        # forces the diagnostics out; a focused run does not need to, because the crates it looks at have just changed.
+        run("find crates -name '*.rs' -exec touch {} +", "touch every source file on the build machine", jobs)
         if run("cargo clippy --workspace --all-targets -- -D warnings", "clippy", jobs) != 0:
             failed.append("clippy")
-    # The gate that rotted for several rounds because it was the one command nobody typed (round 1200). It is cheap - it runs
-    # on this machine, against the pinned checkout - so it rides along with everything else.
-    if everything or options.oracle:
-        if subprocess.run([sys.executable, "oracle/apply_harness_patches.py", "--verify"]).returncode != 0:
-            failed.append("oracle")
-        else:
-            print("the oracle patch reproduces the working copy", flush=True)
+    elif options.clippy or focused:
+        if packages:
+            selector = " ".join(f"-p {name}" for name in packages)
+            if run(f"cargo clippy {selector} --all-targets -- -D warnings", "clippy of the changed packages", jobs) != 0:
+                failed.append("clippy")
+        elif options.clippy:
+            if run("cargo clippy --workspace --all-targets -- -D warnings", "clippy", jobs) != 0:
+                failed.append("clippy")
 
     print()
     if failed:

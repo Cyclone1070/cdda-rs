@@ -8,14 +8,44 @@ fails. Every number marked **target** is a goal to be measured, not a measuremen
 
 ## Where the gates run
 
-The gates belong on the remote build machine, not on the developer's laptop. Every invocation syncs the
-workspace first and then runs **one** gate:
+The gates belong on the remote build machine, not on the developer's laptop. There are two modes, and the
+difference between them is **what a change can have broken**:
 
-    python3 tools/remote_test.py --tests     # tools/test_fast.py
-    python3 tools/remote_test.py --docs      # tools/check_docs.py, then tools/check_dead_rules.py
-    python3 tools/remote_test.py --clippy    # cargo clippy --workspace --all-targets -- -D warnings
-    python3 tools/remote_test.py --oracle    # oracle/apply_harness_patches.py --verify
-    python3 tools/remote_test.py             # tests, docs, dead rules and the oracle patch
+    python3 tools/remote_test.py             # focused: only the packages the working tree changed
+    python3 tools/remote_test.py --all       # everything: the suite, clippy over the workspace, docs, oracle
+    python3 tools/remote_test.py --slow      # put back the modules that cost minutes (see below)
+
+**The focused run is the default**, because it is the one typed dozens of times a round. It:
+
+* syncs the code, tools and documents (about four seconds) and **not** the 300 MB of reference data and corpus,
+  unless the far side has never had them or a changed path is inside them;
+* maps the changed files to workspace packages (`crates/<dir>`), adds the packages that **depend** on a changed one,
+  and runs the tests of those packages only;
+* filters the tests further by **module name**: a change to `crates/sim/src/multiple_work.rs` runs `test(/multiple_work/)`,
+  which is eleven cases instead of 1,900 - a filter that is a superset (it can run a few extra cases, never too few),
+  and a change with no recognisable module (a manifest, a shared helper) falls back to the whole package;
+* lints the changed packages only, and **without** touching every source file first: a focused run looks at code that
+  just changed, so cargo re-checks it by itself;
+* runs the document check only when a document or the reference changed, and the oracle patch check only when the
+  oracle or the reference changed. Both are fixed costs that a code change cannot break: four and twelve seconds
+  respectively, against a gate whose real work is a two-second test run.
+
+**Measured on the build machine** (six cores, warm target directory): **9.5 s** when nothing changed, **23 s** for a
+one-file edit - sync, rebuild, the matching tests, clippy of the package, formatting of the changed files.
+
+**The full run is for before a push.** It syncs everything, runs the **whole workspace** with nextest, the whole
+workspace's clippy (touching the sources first so cached crates still emit their diagnostics), the documents, the
+oracle patch and formatting: **5 min 6 s**, 3,261 cases.
+
+**Two tests were ten of the suite's eleven minutes.** `sim_suite::eoc_programs` holds two cases that take **462 s**
+and **587 s** - each builds a whole world before running a program - while the other 1,864 cases finish in **94 s**
+together. So `eoc_programs` is in `SLOW_MODULES`: the focused and full runs skip it and say so, `--slow` puts it back,
+and **CI always runs it** (CI is the full suite, and its ten-to-twelve minutes are almost entirely these two cases).
+A rule change *inside* the EOC code needs `--slow` before the push; everything else does not.
+
+**Polling costs more than the work if it is slow.** A job used to be looked at every twenty seconds, so a two-second
+test run took forty seconds of wall clock. The first look is now at a third of a second, doubling to two, which
+turned a no-change run from **69 s to 9.5 s** without touching the job itself.
 
 **The default run does not include clippy**, and a round that says "the full gate passed" without naming
 `--clippy` has not run the lint gate. That is how the lint gate went red for several rounds while every

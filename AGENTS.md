@@ -43,13 +43,18 @@ architecture.
 
 All builds run on `cyc@elitedesk`; nothing heavy runs on this machine.
 
-| Command | Checks |
-|---|---|
-| `python3 tools/remote_test.py --tests` | the whole suite on the build machine |
-| `python3 tools/remote_test.py --clippy` | lints |
-| `python3 tools/remote_test.py --docs` | every doc link, anchor and `file:line` citation |
-| `python3 oracle/apply_harness_patches.py --verify` | the oracle's patches still apply byte for byte |
-| `./tools/oracle_sync.sh --dump-<name>` | rebuilds the reference and dumps new ground truth |
+| Command | Checks | Cost |
+|---|---|---|
+| `python3 tools/remote_test.py` | **the edit loop**: the packages and modules the working tree changed, their clippy, formatting | 9.5 s if nothing changed, ~23 s for an edit |
+| `python3 tools/remote_test.py --all` | the whole workspace's suite and clippy, docs, oracle patch, formatting | ~5 min |
+| `python3 tools/remote_test.py --slow` | adds the modules that cost minutes (`eoc_programs`: 462 s and 587 s) | ~11 min |
+| `python3 tools/remote_test.py --docs` | every doc link, anchor and `file:line` citation | 4 s |
+| `python3 oracle/apply_harness_patches.py --verify` | the oracle's patches still apply byte for byte | 12 s |
+| `./tools/oracle_sync.sh --dump-<name>` | rebuilds the reference and dumps new ground truth | minutes |
+
+**The focused run is the default and the full run is for before a push.** CI runs everything, including the slow
+modules, so nothing is skipped anywhere that matters - it is only skipped where it would cost ten minutes to answer
+a question a one-file edit did not ask.
 
 Green means: suite passes, clippy quiet, docs consistent, oracle patches verified.
 
@@ -62,9 +67,8 @@ Every cycle is the same shape, and it ends when CI is green — not when the com
 2. **Green.** The smallest change that passes it.
 3. **Refactor**, then **mutation-check**: break the rule on purpose, watch the focused test fail,
    restore. A test that cannot fail proves nothing.
-4. **Gate locally**: `python3 tools/remote_test.py --clippy` on `cyc@elitedesk` — tests, docs,
-   source ledgers, clippy and the oracle patch in one run. Read the exit status; a piped gate is not
-   a gate.
+4. **Gate**: `python3 tools/remote_test.py` for the edit loop (focused, ~20 s), `--all` before a push.
+   Read the exit status; a piped gate is not a gate.
 5. **Commit** with the receipt in the message: suite counts, clippy, docs citations, QA results.
 6. **Push, then poll CI until green.** A red run is the next cycle's work; nothing advances on it.
 7. **Update the record**: [parity.md](docs/parity.md), [13-test-inventory.md](docs/13-test-inventory.md)
