@@ -142,3 +142,65 @@ pub fn wants_to_buy(
     }
     price >= 0
 }
+
+/// One thing a shop offers, and what it asks for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Offer {
+    /// The item entity itself.
+    pub item: bevy_ecs::prelude::Entity,
+    /// What the shop asks, in cents.
+    pub price: i64,
+}
+
+/// What a shopkeeper is willing to sell, and for how much.
+///
+/// Reference: `npc_trading::init_selling` (`npctrade.cpp:117-141`): every item the shopkeeper carries is priced (`np.value( it )`), and the ones they are willing to sell become
+/// offers with their count. The **wielded** weapon joins the list only when the person exchanges freely (`will_exchange_items_freely`).
+///
+/// The port's prices come from [`price_for`], which is the reference's non-faction `adjusted_price`, and the willingness from [`wants_to_sell`]. Offers keep the order the
+/// carried list has, because that is the order the reference's `items_with` produces and a window shows.
+///
+/// **Named gaps**: the reference skips **liquids** (`!it.made_of( phase_id::LIQUID )`) and the port's item registry has no phase column to ask, so a carried liquid would be
+/// offered here; and `np.value( it )` is the NPC's own valuation, which the port replaces with the plain adjusted price.
+#[must_use]
+pub fn selling(
+    world: &mut bevy_ecs::prelude::World,
+    buyer: bevy_ecs::prelude::Entity,
+    seller: bevy_ecs::prelude::Entity,
+) -> Vec<Offer> {
+    let carried = {
+        let mut pairs: Vec<(bevy_ecs::prelude::Entity, crate::ItemTypeId)> = Vec::new();
+        let mut held = world.try_query::<(
+            bevy_ecs::prelude::Entity,
+            &crate::creature::Carried,
+            &crate::GroundItem,
+        )>();
+        let Some(mut query) = held.as_mut() else {
+            return Vec::new();
+        };
+        for (entity, carry, item) in query.iter(world) {
+            if carry.0 == seller {
+                pairs.push((entity, item.kind));
+            }
+        }
+        pairs
+    };
+    let mut offers = Vec::with_capacity(carried.len());
+    for (entity, kind) in carried {
+        let Some(name) = crate::item_registry::name_of(world, kind) else {
+            continue;
+        };
+        if !wants_to_sell(world, seller, &name) {
+            continue;
+        }
+        let price = price_for(world, buyer, seller, kind);
+        if price <= 0 {
+            continue;
+        }
+        offers.push(Offer {
+            item: entity,
+            price,
+        });
+    }
+    offers
+}

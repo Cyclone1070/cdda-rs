@@ -262,3 +262,114 @@ fn a_shop_refuses_what_its_untrusted_shelf_names() {
         "**but an ally buys even at a negative price, because an ally exchanges freely**"
     );
 }
+
+/// A world with three kinds, a shelf that trusts one group and not another, and a shopkeeper.
+fn a_shop_world() -> World {
+    let mut world = World::new();
+    let kind = |id: &'static str, volume: i64, weight: i64| cdda_sim::item_registry::Kind {
+        id,
+        volume_ml: volume,
+        weight_g: weight,
+        pockets: &[],
+        thrown_damage: 0.0,
+        melee_bash: 0.0,
+        melee_cut: 0.0,
+        melee_stab: 0.0,
+        to_hit: 0,
+    };
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            kind("test_rock", 250, 200),
+            kind("test_pistol", 500, 900),
+            kind("test_gem", 50, 10),
+        ],
+    );
+    cdda_sim::item_registry::set_prices_post(
+        &mut world,
+        &[
+            ("test_rock".to_owned(), 100),
+            ("test_pistol".to_owned(), 1000),
+            ("test_gem".to_owned(), 500),
+        ],
+    );
+    let item = |id: &str| cdda_content::item_group_draw::Entry::Item {
+        id: id.to_owned(),
+        probability: 100,
+        count: (1, 1),
+        event: None,
+    };
+    let mut definitions = std::collections::BTreeMap::new();
+    for (id, contents) in [("guns", item("test_pistol")), ("goods", item("test_rock"))] {
+        definitions.insert(
+            id.to_owned(),
+            cdda_content::item_group_draw::Definition {
+                id: id.to_owned(),
+                distribution: false,
+                entries: vec![contents],
+            },
+        );
+    }
+    cdda_sim::item_groups::set_groups(&mut world, definitions);
+    let group = |id: &str, strict: bool| cdda_content::npc_classes::ShopkeeperItemGroup {
+        group: id.to_owned(),
+        trust: 0,
+        strict,
+        rigid: true,
+    };
+    cdda_sim::npc_classes::set_classes(
+        &mut world,
+        vec![cdda_content::npc_classes::NpcClass {
+            id: "a_shopkeeper".to_owned(),
+            name: "shopkeeper".to_owned(),
+            job_description: String::new(),
+            common: true,
+            shop_item_groups: vec![group("guns", true), group("goods", false)],
+            restock_interval: 6 * 24 * 60 * 60,
+        }],
+    );
+    world
+}
+
+/// **What the shop is offering.** Reference: `npc_trading::init_selling` (`npctrade.cpp:117-141`): every item the shopkeeper carries is priced and offered when they are willing
+/// to sell it.
+///
+/// Three items are carried: a **rock** on the trusted shelf, a **pistol** on the untrusted one, and a **gem** nobody's shelf names. The offer list must be the rock and the gem -
+/// the pistol refused by the blacklist, the gem sold because a shelf that does not name an item does not refuse it; only an **untrusted** one does - and the rock's price must be
+/// the store's.
+#[test]
+fn the_shop_offers_what_it_will_sell_and_prices_it() {
+    let mut world = a_shop_world();
+    let keeper = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, keeper, "vlad");
+    world
+        .entity_mut(keeper)
+        .insert(cdda_sim::npcs::NpcClass("a_shopkeeper".to_owned()));
+    let shopper = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let mut stock = |name: &str| {
+        let kind = cdda_sim::item_registry::id_of(&mut world, name).expect("the kind");
+        let entity = cdda_sim::drop_item(&mut world, (1, 0), kind, 1);
+        world
+            .entity_mut(entity)
+            .insert(cdda_sim::creature::Carried(keeper));
+        entity
+    };
+    let rock = stock("test_rock");
+    let pistol = stock("test_pistol");
+    let gem = stock("test_gem");
+    let offers = cdda_sim::trade::selling(&mut world, shopper, keeper);
+    let offered = offers.iter().map(|offer| offer.item).collect::<Vec<_>>();
+    assert!(
+        !offered.contains(&pistol),
+        "**the blacklisted pistol is not offered**"
+    );
+    assert!(offered.contains(&gem), "**the unheard-of gem is**");
+    let rock_offer = offers
+        .iter()
+        .find(|offer| offer.item == rock)
+        .expect("**the rock is offered**");
+    assert_eq!(
+        rock_offer.price, 100,
+        "**at its sold price, because the two sides are evenly matched**"
+    );
+}
