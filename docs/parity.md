@@ -41968,3 +41968,13 @@ non-butchery job - and the new default test pins it.
 
 **Named gaps**: the tool checks (`has_quality( qual_BUTCHER, 1 )`, the big-corpse rack and saw requirement, `empathizes_with_species`), the `activity_var` that stops two people
 butchering the same body, and the terrain-flag gates for the other six activities.
+
+## Two people, one body (round 381)
+
+The reference skips a corpse that already carries `activity_var` (`activity_item_handling.cpp:1213`): a body somebody is working on is **not a work spot for anybody else**, and the
+second person looks elsewhere or ends. The port derives that rather than marking the item - a corpse is taken when some activity's `subject` is that corpse - so there is no flag to
+clear when a cut is cancelled, and no second source of truth.
+
+- `can_work_at` finds the corpse on the square and answers `false` while anybody's activity has it as its subject.
+- The tests pin both halves: a body being cut is not a spot, and **an untouched body beside it still is**, which is what makes the rule about *this* corpse rather than any corpse.
+  That second assertion is the one that caught the mutation "any butchering marks every corpse".

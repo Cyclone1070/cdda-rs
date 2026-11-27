@@ -699,3 +699,117 @@ fn an_unported_jobs_spots_are_not_gated_on_corpses() {
         "**and the spot itself is workable, because its real gate is not ported yet**"
     );
 }
+
+/// **Two people do not butcher the same body.** The reference skips a corpse that already carries `activity_var` (`activity_item_handling.cpp:1213`): a body somebody is working on is
+/// not a work spot for anybody else, and the second person looks elsewhere or ends.
+///
+/// The port does not add a flag to the corpse - the store already says who is working on what, in the activity's `subject` - so this is derived, and it cannot go stale.
+#[test]
+fn two_people_do_not_take_the_same_corpse() {
+    let mut world = World::new();
+    let first = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
+    cdda_sim::npcs::make_npc(&mut world, first, "vlad");
+    let second = cdda_sim::creature::spawn_creature(&mut world, "Igor", (2, 2, 0));
+    cdda_sim::npcs::make_npc(&mut world, second, "igor");
+    let corpse = world
+        .spawn((
+            cdda_sim::Position { x: 2, y: 2, z: 0 },
+            cdda_sim::CorpseOf {
+                kind: cdda_sim::MonsterKindId(1),
+                died_on: 0,
+                revives: false,
+                monster_volume_ml: 62_500,
+            },
+        ))
+        .id();
+    cdda_sim::zones::place(
+        &mut world,
+        (2, 2, 0),
+        (2, 2),
+        "LOOT_CORPSE",
+        "your_followers",
+        "the corpse",
+        "",
+    );
+    // **Nobody is working on it yet**, so it is a spot.
+    assert!(
+        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
+        "**an untouched corpse is work**"
+    );
+    // **The first person takes it.**
+    world.entity_mut(first).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    assert_eq!(
+        cdda_sim::multiple_work::work_a_turn(&mut world, first, "your_followers", (66, 66)),
+        cdda_sim::multiple_work::TurnOfWork::Started,
+        "**Vlad starts on it**"
+    );
+    // **Now it is Vlad's**: Igor sees no spot here, and his job ends because none is left.
+    assert!(
+        !cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
+        "**a body somebody is butchering is not a work spot**"
+    );
+    // **But only that body is taken.** A second corpse beside it is still work for Igor, which is what makes the rule "this corpse", not "any corpse" - and what a check that
+    // only asked whether *somebody* was butchering would get wrong.
+    world.spawn((
+        cdda_sim::Position { x: 3, y: 3, z: 0 },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 62_500,
+        },
+    ));
+    cdda_sim::zones::place(
+        &mut world,
+        (3, 3, 0),
+        (3, 3),
+        "LOOT_CORPSE",
+        "your_followers",
+        "another body",
+        "",
+    );
+    assert!(
+        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (3, 3, 0)),
+        "**an untouched body is work even while another one is being cut**"
+    );
+    world.entity_mut(second).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    // **Igor's job is not ended**: the second body is a spot, so it walks towards it - the same reason the reference does not cancel a job while any spot remains.
+    world.entity_mut(second).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    assert!(
+        cdda_sim::multiple_work::next_work_square(&mut world, second, "your_followers").is_some(),
+        "**Igor's job finds the other body**"
+    );
+    // **And when Vlad's cut is over, the body is work again** - the derivation is what makes that automatic.
+    world
+        .entity_mut(first)
+        .remove::<cdda_sim::creature::Doing>();
+    assert!(
+        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
+        "**with nobody on it, the corpse is a spot again**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Doing>(first)
+            .map(|doing| doing.subject),
+        None,
+        "**and the corpse was the subject of the cut that ended: {corpse:?}**"
+    );
+}

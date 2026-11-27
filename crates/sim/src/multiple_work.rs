@@ -111,13 +111,44 @@ pub fn can_work_at(
 ) -> bool {
     match activity {
         "ACT_MULTIPLE_BUTCHER" => {
-            let mut query = world.query::<(&crate::Position, &crate::CorpseOf)>();
-            query
-                .iter(world)
-                .any(|(place, _)| (place.x, place.y, place.z) == square)
+            let corpse = {
+                let mut query = world.query::<(
+                    bevy_ecs::prelude::Entity,
+                    &crate::Position,
+                    &crate::CorpseOf,
+                )>();
+                let mut found = None;
+                for (entity, place, _) in query.iter(world) {
+                    if (place.x, place.y, place.z) == square {
+                        found = Some(entity);
+                        break;
+                    }
+                }
+                let Some(corpse) = found else {
+                    return false;
+                };
+                corpse
+            };
+            // **A body somebody is already butchering is not a spot for anybody else.** Reference: `:1213` skips a corpse that carries `activity_var` - the marker the reference
+            // puts on an item somebody has taken for work. The port keeps no marker: the activity's own `subject` says who is working on what, so the answer is read from the store
+            // and cannot go stale when a cut is cancelled.
+            !somebody_is_working_on(world, corpse)
         }
         _ => true,
     }
+}
+
+/// Whether anybody's activity has this thing as its subject.
+///
+/// The reference keeps the same fact on the item as the `activity_var` string (`activity_item_handling.cpp:1213`), which has to be cleared wherever the work ends. The port derives
+/// it from `Doing::subject`, which is where the work already lives: one rule, one place to look, and nothing to clear.
+#[must_use]
+fn somebody_is_working_on(
+    world: &mut bevy_ecs::prelude::World,
+    thing: bevy_ecs::prelude::Entity,
+) -> bool {
+    let mut query = world.query::<&crate::creature::Doing>();
+    query.iter(world).any(|doing| doing.subject == Some(thing))
 }
 
 /// Whether a multiple job has looked and found nothing to do, and so ends.
