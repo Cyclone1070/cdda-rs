@@ -283,6 +283,7 @@ fn a_shop_world() -> World {
             kind("test_rock", 250, 200),
             kind("test_pistol", 500, 900),
             kind("test_gem", 50, 10),
+            kind("test_water", 250, 250),
         ],
     );
     cdda_sim::item_registry::set_prices_post(
@@ -291,8 +292,10 @@ fn a_shop_world() -> World {
             ("test_rock".to_owned(), 100),
             ("test_pistol".to_owned(), 1000),
             ("test_gem".to_owned(), 500),
+            ("test_water".to_owned(), 1),
         ],
     );
+    cdda_sim::item_registry::set_liquids(&mut world, &[("test_water".to_owned(), true)]);
     let item = |id: &str| cdda_content::item_group_draw::Entry::Item {
         id: id.to_owned(),
         probability: 100,
@@ -357,6 +360,7 @@ fn the_shop_offers_what_it_will_sell_and_prices_it() {
     let rock = stock("test_rock");
     let pistol = stock("test_pistol");
     let gem = stock("test_gem");
+    let water = stock("test_water");
     let offers = cdda_sim::trade::selling(&mut world, shopper, keeper);
     let offered = offers.iter().map(|offer| offer.item).collect::<Vec<_>>();
     assert!(
@@ -364,6 +368,10 @@ fn the_shop_offers_what_it_will_sell_and_prices_it() {
         "**the blacklisted pistol is not offered**"
     );
     assert!(offered.contains(&gem), "**the unheard-of gem is**");
+    assert!(
+        !offered.contains(&water),
+        "**and a liquid is never offered, whatever the shelf says**"
+    );
     let rock_offer = offers
         .iter()
         .find(|offer| offer.item == rock)

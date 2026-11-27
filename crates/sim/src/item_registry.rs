@@ -47,6 +47,10 @@ pub struct ItemTypes {
     /// **A different number from what a shop charges**, and the shop restock's value loop (`npc.cpp:2168`) subtracts this one. Filled by
     /// [`set_prices_post`] rather than by [`set_item_types`], because a [`Kind`] is built with the few measures a combat or carry rule needs and a price is not one of them.
     prices_post: Vec<i64>,
+    /// Whether each kind is a **liquid**, in registry order - the reference's `made_of( phase_id::LIQUID )`, which a trade refuses to offer and a spill rules on.
+    ///
+    /// Filled by [`set_liquids`] for the same reason the prices are: a [`Kind`] built by hand in a test has no phase, and a kind that a test never says is liquid is a solid.
+    liquids: Vec<bool>,
     /// How much each kind can hold, in millilitres, in registry order.
     ///
     /// Reference: `item::get_total_capacity`, the sum of the item's pockets. It is what a worn thing adds to
@@ -113,6 +117,12 @@ impl ItemTypes {
     #[must_use]
     pub fn price_post_of(&self, kind: ItemTypeId) -> i64 {
         self.prices_post.get(kind.0 as usize).copied().unwrap_or(0)
+    }
+
+    /// Whether a kind is a liquid.
+    #[must_use]
+    pub fn is_liquid_of(&self, kind: ItemTypeId) -> bool {
+        self.liquids.get(kind.0 as usize).copied().unwrap_or(false)
     }
 
     /// What a kind weighs, in grams.
@@ -266,6 +276,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
     let mut charge_stacks = vec![1];
     let mut weights_g = vec![0];
     let mut prices_post: Vec<i64> = vec![0];
+    let mut liquids: Vec<bool> = vec![false];
     let mut holds_ml = vec![0];
     let mut pockets: Vec<Pocket> = Vec::new();
     let mut pocket_ranges: Vec<(u32, u32)> = vec![(0, 0)];
@@ -286,6 +297,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         charge_stacks.push(1);
         weights_g.push(weight);
         prices_post.push(0);
+        liquids.push(false);
         thrown_damage.push(each.thrown_damage);
         melee_bash.push(each.melee_bash);
         melee_cut.push(each.melee_cut);
@@ -309,6 +321,7 @@ pub fn set_item_types(world: &mut World, kinds: &[Kind<'_>]) {
         weights_g,
         charge_stacks,
         prices_post,
+        liquids,
         holds_ml,
         pockets,
         pocket_ranges,
@@ -384,6 +397,38 @@ pub fn set_prices_post(world: &mut World, prices: &[(String, i64)]) {
             *slot = *cents;
         }
     }
+}
+
+/// Installs which kinds are liquids, by the id the data uses.
+///
+/// The same shape as [`set_prices_post`]: the column lives in the one registry, and a test that never calls this has no liquids rather than an unknown.
+pub fn set_liquids(world: &mut World, liquids: &[(String, bool)]) {
+    let entity = singletons::singleton::<ItemTypes, TheItemTypes>(world);
+    let Some(mut held) = world.get_mut::<ItemTypes>(entity) else {
+        return;
+    };
+    for (id, is_liquid) in liquids {
+        let Some(kind) = held.by_name.get(id).copied() else {
+            continue;
+        };
+        if let Some(slot) = held.liquids.get_mut(kind.0 as usize) {
+            *slot = *is_liquid;
+        }
+    }
+}
+
+/// Whether a kind is a liquid.
+#[must_use]
+pub fn is_liquid(world: &World, kind: ItemTypeId) -> bool {
+    world
+        .try_query_filtered::<&ItemTypes, With<TheItemTypes>>()
+        .and_then(|mut query| {
+            query
+                .iter(world)
+                .next()
+                .map(|types| types.is_liquid_of(kind))
+        })
+        .unwrap_or(false)
 }
 
 /// What a kind fetches when sold, in cents.

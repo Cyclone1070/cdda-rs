@@ -160,8 +160,8 @@ pub struct Offer {
 /// The port's prices come from [`price_for`], which is the reference's non-faction `adjusted_price`, and the willingness from [`wants_to_sell`]. Offers keep the order the
 /// carried list has, because that is the order the reference's `items_with` produces and a window shows.
 ///
-/// **Named gaps**: the reference skips **liquids** (`!it.made_of( phase_id::LIQUID )`) and the port's item registry has no phase column to ask, so a carried liquid would be
-/// offered here; and `np.value( it )` is the NPC's own valuation, which the port replaces with the plain adjusted price.
+/// **Named gaps**: `np.value( it )` is the NPC's own valuation, which the port replaces with the plain adjusted price, and the wielded weapon's free-exchange offer is not in the
+/// list.
 #[must_use]
 pub fn selling(
     world: &mut bevy_ecs::prelude::World,
@@ -187,6 +187,10 @@ pub fn selling(
     };
     let mut offers = Vec::with_capacity(carried.len());
     for (entity, kind) in carried {
+        // **A liquid is never offered**, which is the reference's `!it.made_of( phase_id::LIQUID )` filter on the carried list (`npctrade.cpp:120-122`).
+        if crate::item_registry::is_liquid(world, kind) {
+            continue;
+        }
         let Some(name) = crate::item_registry::name_of(world, kind) else {
             continue;
         };
