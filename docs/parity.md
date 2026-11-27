@@ -41835,3 +41835,26 @@ catch-all that answers a zone for everything.
 **Named gap, and it is most of the subsystem**: collecting the zones within view distance, sorting them, routing to one and doing the work are all steps of
 `generic_multi_activity_handler` (`activity_item_handling.cpp:3334+`) that need the **zone store** - zones as entities with a type, a faction and a square range - which the port
 does not have. The table is the piece of that handler that needs nothing.
+
+## Zones answer three questions (round 374)
+
+The zone module already existed - a map's `ZONE_STOCKPILE`, a camp's stockpile, a base's workshop - as entities with a rectangle. What it could not do is answer the questions the
+**multiple-activity actor** asks, so this round added the manager's three, transcribed from `clzones.cpp`:
+
+- `covers` (`zone_data::has_inside`, `clzones.h:533-539`): both corners **inclusive**, the corners a pair rather than a direction, and one level only.
+- `square_dist` (`line.cpp:1234-1240`): `max( |dx|, |dy| )` - **not** the diagonal, and not the vertical. Three across and four up is four away, which is what decides whether a job
+  can reach its work.
+- `zones_near` (`zone_manager::get_near`, `clzones.cpp:1172-1200`): the squares of the **enabled** zones of a kind and faction within the range, the bound inclusive, returned
+  **sorted** - the reference walks and returns a hash set, and a rule whose answer depends on iteration order cannot be compared with itself.
+- `zone_at` (`zone_manager::get_zone_at`, `clzones.cpp:1120-1145`): the newest zone covering a square, which is the reference's reverse walk without a list to reverse.
+
+`ZoneEnabled` is a component, and a zone without it is **on**, so the existing `place` and every hand-made zone stay visible without touching their callers.
+
+**Four mutations, all caught**: distance measured diagonally, the far edge excluded, another faction's zone answering, and a disabled zone still answering.
+
+**A mistake worth recording**: the first version of this file **overwrote** `crates/sim/src/zones.rs` instead of extending it, because it was written without reading what was there.
+The compiler caught it (`crate::zones::place` no longer existed in `mapgen_update`), the original was restored from `HEAD`, and the new rules went in **beside** the old ones. Reading
+before writing is a rule in this repo for this reason.
+
+**Named gaps**: vehicle-attached zones, the personal shift, the `invert` flag, the `LOOT_CUSTOM` item filter, and the reference's area cache - which the port deliberately does not
+have, because a cache of zones is the second source of truth the architecture forbids.

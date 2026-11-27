@@ -268,6 +268,7 @@ mod wield;
 mod wind_reach;
 mod worn_armour;
 mod wounds;
+mod zones;
 
 mod shot_rules;
 
