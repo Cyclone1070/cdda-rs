@@ -383,3 +383,30 @@ fn the_shop_offers_what_it_will_sell_and_prices_it() {
         "**a quarter over the sold price, because that is the shop's margin**"
     );
 }
+
+/// **What the shop will take off the player's hands.** Reference: `npc_trading::init_buying` (`npctrade.cpp:88-115`): every item the player carries is priced at what the person
+/// will **pay**, which is `adjusted_price` with the person as the buyer - and that is the same quarter as the selling list, on the other side of the counter.
+///
+/// With both sides evenly matched a shop asks **125** for a 100-cent item and pays **75** for one: the margin is the shop's, and it is symmetric. A port that used one price for
+/// both directions would sell at cost and buy at cost, and never notice until the money ran out.
+#[test]
+fn the_shop_pays_the_other_side_of_the_quarter() {
+    let mut world = a_shop_world();
+    let keeper = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, keeper, "vlad");
+    world
+        .entity_mut(keeper)
+        .insert(cdda_sim::npcs::NpcClass("a_shopkeeper".to_owned()));
+    let shopper = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let kind = cdda_sim::item_registry::id_of(&mut world, "test_rock").expect("the kind");
+    let rock = cdda_sim::drop_item(&mut world, (0, 0), kind, 1);
+    world
+        .entity_mut(rock)
+        .insert(cdda_sim::creature::Carried(shopper));
+    let offers = cdda_sim::trade::buying(&mut world, shopper, keeper);
+    assert_eq!(offers.len(), 1, "**the rock is offered to the shop**");
+    assert_eq!(
+        offers[0].price, 75,
+        "**at 75 for a 100-cent item: the quarter, paid instead of charged**"
+    );
+}

@@ -208,3 +208,53 @@ pub fn selling(
     }
     offers
 }
+
+/// What a shopkeeper is willing to take off the player's hands, and for how much.
+///
+/// Reference: `npc_trading::init_buying` (`npctrade.cpp:88-115`): every item the **player** carries is priced at what the person will pay (`npc.value( it )`, which is
+/// `adjusted_price` with the person as the **buyer**), and the ones they want become offers.
+///
+/// The two offer lists are the same rule with the sides swapped, and the price is where that shows: with both sides evenly matched a shop **asks 125** for a 100-cent item and
+/// **pays 75** for one - the same quarter, on the other side of the counter.
+///
+/// **Named gaps**: `np.value( it )`'s own valuation and `wants_to_buy`'s flags are the same gaps as the selling list; the reference's `with_contained` recursion into containers
+/// is not here either, because the port's carried list is flat.
+#[must_use]
+pub fn buying(
+    world: &mut bevy_ecs::prelude::World,
+    buyer: bevy_ecs::prelude::Entity,
+    seller: bevy_ecs::prelude::Entity,
+) -> Vec<Offer> {
+    let carried = {
+        let mut pairs: Vec<(bevy_ecs::prelude::Entity, crate::ItemTypeId)> = Vec::new();
+        let mut held = world.try_query::<(
+            bevy_ecs::prelude::Entity,
+            &crate::creature::Carried,
+            &crate::GroundItem,
+        )>();
+        let Some(query) = held.as_mut() else {
+            return Vec::new();
+        };
+        for (entity, carry, item) in query.iter(world) {
+            if carry.0 == buyer {
+                pairs.push((entity, item.kind));
+            }
+        }
+        pairs
+    };
+    let mut offers = Vec::with_capacity(carried.len());
+    for (entity, kind) in carried {
+        if crate::item_registry::is_liquid(world, kind) {
+            continue;
+        }
+        let price = price_for(world, seller, buyer, kind);
+        if !wants_to_buy(world, seller, price) {
+            continue;
+        }
+        offers.push(Offer {
+            item: entity,
+            price,
+        });
+    }
+    offers
+}
