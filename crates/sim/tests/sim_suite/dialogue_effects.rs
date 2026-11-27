@@ -4746,3 +4746,77 @@ fn leading_the_player_to_safety_assigns_the_mission_and_the_lead() {
         "**and the person is leading, not following**"
     );
 }
+
+/// **A person told to take a job on, takes it on.** Reference: `talk_function::do_butcher` and its eleven siblings (`npctalk_funcs.cpp:253-354`): each is one
+/// `p.assign_activity( ... )`, which replaces whatever the person was doing.
+///
+/// The definitions come from the data, because the effect refuses an activity the data does not define: `ACT_MULTIPLE_BUTCHER` is `based_on: neither` and `multi_activity: true`, so
+/// the `Doing` it creates is counted in **neither** way - and the second effect replaces the first, which is what `assign_activity` does.
+///
+/// **Named gap asserted rather than glossed**: the port has no `ACT_MULTIPLE_*` actor, so the test can only see the job being taken on. It does not pretend the butchering happens.
+#[test]
+fn a_person_told_to_take_a_job_on_takes_it_on() {
+    let mut world = World::new();
+    let reference = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../references/Cataclysm-DDA/data");
+    let roots = [reference.join("core"), reference.join("json")];
+    let paths: Vec<&std::path::Path> = roots.iter().map(std::path::PathBuf::as_path).collect();
+    let loaded = cdda_content::activity_types::load_paths(&paths).expect("the activities load");
+    cdda_sim::activity_types::set_activity_types(&mut world, loaded.kinds);
+    let player = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let butcher = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "do_butcher".to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, player, Some(vlad), &butcher),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**do_butcher runs**"
+    );
+    let doing = world
+        .get::<cdda_sim::creature::Doing>(vlad)
+        .cloned()
+        .expect("**the person has the job**");
+    assert_eq!(
+        doing.activity, "ACT_MULTIPLE_BUTCHER",
+        "**butchering, which is the job do_butcher names**"
+    );
+    assert_eq!(
+        doing.basis,
+        cdda_sim::creature::Basis::Neither,
+        "**counted in neither way, because the actor spends the moves**"
+    );
+    // **The repair job replaces the butchering**, because `assign_activity` replaces what the person was doing.
+    let repair = cdda_content::dialogue::Effect::LegacyStringEffect {
+        name: "do_vehicle_repair".to_owned(),
+    };
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut world, player, Some(vlad), &repair),
+        cdda_sim::dialogue_effects::Applied::Done,
+        "**do_vehicle_repair runs too**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Doing>(vlad)
+            .map(|doing| doing.activity.clone()),
+        Some("ACT_VEHICLE_REPAIR".to_owned()),
+        "**and the repair is what the person is doing now**"
+    );
+    // **An activity the data does not define is refused, not guessed**: a world that never loaded the definitions answers `CannotAnswer` and puts no job on anybody.
+    let mut bare_world = World::new();
+    let somebody = cdda_sim::creature::spawn_creature(&mut bare_world, "the survivor", (0, 0, 0));
+    let stranger = cdda_sim::creature::spawn_creature(&mut bare_world, "Vlad's brother", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut bare_world, stranger, "vlads_brother");
+    assert_eq!(
+        cdda_sim::dialogue_effects::run_effect(&mut bare_world, somebody, Some(stranger), &butcher),
+        cdda_sim::dialogue_effects::Applied::CannotAnswer,
+        "**a world without the definitions cannot answer**"
+    );
+    assert!(
+        bare_world
+            .get::<cdda_sim::creature::Doing>(stranger)
+            .is_none(),
+        "**and nothing was put on the person**"
+    );
+}

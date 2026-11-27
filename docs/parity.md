@@ -41798,3 +41798,22 @@ player is told, what the moves are counted in, whether it can be resumed, whethe
 
 **And the process note that made this batch possible**: the two mutations above cost 27 and 34 seconds locally, against the 9-19 minutes a focused run took on the build host
 before the `-azc` sync fix. The batch was written, tested, mutated, linted and documented in one sitting because the loop is now fast enough to keep the discipline.
+
+## Twelve jobs a person can be told to take on (round 372)
+
+`talk_function::do_*` (`npctalk_funcs.cpp:253-354`) is fifteen functions that look alike and are not: twelve are a single `p.assign_activity( ... )`, and three
+(`do_read`, `do_eread`, `do_craft`) first **choose** a book or a recipe through `do_npc_read`/`do_npc_craft`. The twelve are ported as one table; the three are named gaps.
+
+The effect's state is `Doing`, and its **basis comes from the data**, not from a guess: every one of the twelve is `based_on: neither` and `multi_activity: true` - a job that keeps
+looking for more work, so its own counter never ends it. A world with no activity definitions answers `CannotAnswer` rather than assigning a job with an invented basis, which is
+the behaviour the round-371 loader exists to make possible.
+
+**Named gap, stated loudly in the code and asserted in the test**: no `ACT_MULTIPLE_*` **actor** is ported, so the person given a job keeps it and stands there. The reference's
+person would start looking for work next turn. The test checks the state change it can see - the job taken on, and a second job replacing the first - and does not pretend the
+butchering happens.
+
+**Mutations caught**: `do_butcher` mapped to the chopping activity fails, and hard-coding the basis to `Time` instead of reading the definition fails.
+
+**The ledger, recounted**: `run_legacy_string_effect` now answers **44 of the 84** functions `npctalk_funcs.cpp` defines. Forty remain, and they are the ones with a reason:
+`start_trade` (113 uses, needs the trade window), the training family (a menu), the bionics pair (a menu and a practice), mounts and camps (subsystems the port has no counterpart
+for), `do_read`/`do_craft` (a choice), and small UI-shaped ones (`reveal_stats`, `pick_style`, `sort_loot`, `set_npc_pickup`).

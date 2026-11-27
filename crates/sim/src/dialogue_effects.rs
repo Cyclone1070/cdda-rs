@@ -4753,6 +4753,38 @@ fn a_pleasant_conversation(
 /// answers `CannotAnswer` for the rest, so a program that names a rule the port has not written refuses rather than half-running.
 ///
 /// The names lived as guards on one enormous match arm until the arm's own function crossed the line limit; a table of names is what this is, so it is a table.
+/// **The person takes a job on.** Reference: `talk_function::do_*` (`npctalk_funcs.cpp:253-354`): each is a single `p.assign_activity( ... )`, which clears whatever the person was doing
+/// and starts the new activity. Twelve of the fifteen are exactly that; `do_read`, `do_eread` and `do_craft` first choose a **book** or a **recipe** (`do_npc_read`, `do_npc_craft`)
+/// and are named gaps here.
+///
+/// The activity's definition decides what its moves are counted in, and every one of these twelve is `based_on: neither` and `multi_activity: true` in the data - it is a job that
+/// keeps looking for more work, so its own counter never ends it. **The definition is required**: an activity id the data does not define is answered `CannotAnswer` rather than
+/// assigned with a guessed basis.
+///
+/// **Named gap, and a loud one**: no `ACT_MULTIPLE_*` **actor** is ported yet, so a person given one of these jobs keeps it until something else replaces it. The reference's person
+/// would start looking for work on the next turn; this one stands there.
+fn the_person_takes_on(
+    world: &mut World,
+    speaker: Entity,
+    listener: Option<Entity>,
+    activity: &str,
+) -> Applied {
+    let Some(npc) = person_in_the_dialogue(world, speaker, listener) else {
+        return Applied::CannotAnswer;
+    };
+    let Some(basis) = crate::activity_types::basis_of(world, activity) else {
+        return Applied::CannotAnswer;
+    };
+    world.entity_mut(npc).insert(crate::creature::Doing {
+        activity: activity.to_owned(),
+        moves_left: 0,
+        basis,
+        moves_total: 0,
+        subject: None,
+    });
+    Applied::Done
+}
+
 fn run_legacy_string_effect(
     world: &mut World,
     speaker: Entity,
@@ -4792,6 +4824,25 @@ fn run_legacy_string_effect(
             tend_the_players_wounds(world, speaker, listener, false, 120, true)
         }
         "morale_chat_activity" => a_pleasant_conversation(world, speaker, listener),
+        // The twelve jobs a person can be told to take on. Reference: `talk_function::do_*` (`npctalk_funcs.cpp:253-354`), one line each.
+        "do_construction" => {
+            the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_CONSTRUCTION")
+        }
+        "do_mining" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_MINE"),
+        "do_mopping" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_MOP"),
+        "do_read_repeatedly" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_READ"),
+        "do_butcher" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_BUTCHER"),
+        "do_chop_plank" => {
+            the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_CHOP_PLANKS")
+        }
+        "do_vehicle_deconstruct" => {
+            the_person_takes_on(world, speaker, listener, "ACT_VEHICLE_DECONSTRUCTION")
+        }
+        "do_vehicle_repair" => the_person_takes_on(world, speaker, listener, "ACT_VEHICLE_REPAIR"),
+        "do_chop_trees" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_CHOP_TREES"),
+        "do_farming" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_FARM"),
+        "do_fishing" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_FISH"),
+        "do_disassembly" => the_person_takes_on(world, speaker, listener, "ACT_MULTIPLE_DIS"),
         "mission_success" => the_mission_is_done(world, speaker, listener),
         "mission_failure" => the_mission_has_failed(world, speaker, listener),
         "lead_to_safety" => walking_the_player_to_safety(world, speaker, listener),
