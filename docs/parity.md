@@ -41948,3 +41948,23 @@ reference's own `int prof_skin_penalty = penalty_small * ( 1 - skin_basic )` doe
 would be a lie about coverage.
 
 **Named gap**: `helpers`, the people adjacent to the corpse lending a hand. The port has no "helping" state on a creature, so the term is zero and the cut is the butcher's alone.
+
+## A spot that cannot be worked is skipped (round 380)
+
+`next_work_square` now filters the spots through `can_work_at`, which is the reference's `can_do_activity_there` **skip** rule (`activity_item_handling.cpp:3367-3420`): the handler
+walks the spots in distance order and passes over every one the activity's own check fails, so the person's nearest *workable* square is the one it walks to.
+
+- **Butchering is ported**: the spot must hold a corpse (`:1210-1215` collects `here.i_at( src_loc )`, `:1263-1264` answers `NO_ZONE` when there are none). A corpse zone with no
+  body in it is no longer work - the job passes it by, and if no spot is workable the job ends.
+- **Every other activity answers true**, because its real gate needs a rule the port lacks: mining wants `MINEABLE` terrain and a digging tool, fishing wants `FISHABLE` water and a
+  rod, mopping wants moppable ground and a mop, chopping wants a tree and an axe. Answering `false` would end every one of them on its first turn, which is why there is a test for
+  that default (`an_unported_jobs_spots_are_not_gated_on_corpses`).
+
+**Three tests had to change, and that is the rule working**: the distance test, the view-distance boundary test and the walk test all placed corpse zones with **no corpse** in them.
+Each now puts a body where it belongs, because a zone without one is no longer a work spot. A rule that only ever adds green is a rule nobody checked.
+
+**Three mutations caught**: no spot ever skipped, a corpse anywhere counting as a corpse here, and every job needing a corpse. The last one escaped the first time - no test used a
+non-butchery job - and the new default test pins it.
+
+**Named gaps**: the tool checks (`has_quality( qual_BUTCHER, 1 )`, the big-corpse rack and saw requirement, `empathizes_with_species`), the `activity_var` that stops two people
+butchering the same body, and the terrain-flag gates for the other six activities.

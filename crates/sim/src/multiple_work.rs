@@ -86,9 +86,38 @@ pub fn next_work_square(
         .get::<crate::Position>(npc)
         .map(|place| (place.x, place.y, place.z))?;
     let squares = crate::zones::zones_near(world, kind, faction, here, MAX_VIEW_DISTANCE);
+    // **A spot that cannot be worked is skipped**, which is the reference's `can_do_activity_there` gate (`activity_item_handling.cpp:3367-3420`): the handler walks the spots in
+    // distance order and passes over every one the activity's own check fails, so the person's nearest *workable* square is the one it walks to.
     squares
         .into_iter()
+        .filter(|square| can_work_at(world, &activity, *square))
         .min_by_key(|square| (crate::zones::square_dist(*square, here), *square))
+}
+
+/// Whether an activity can be done at a square at all.
+///
+/// Reference: the per-activity branch of `can_do_activity_there` (`activity_item_handling.cpp:1080-1300`), whose answer for each spot is one of "ok" or a failure that **skips
+/// that spot**. The ported case is butchering: the spot must hold a corpse
+/// (`:1210-1215` collects `here.i_at( src_loc )` for corpses, and `:1263-1264` answers `NO_ZONE` when there are none).
+///
+/// **Every other activity answers `true`**, because its gate needs a rule the port does not have yet: mining wants the terrain's `MINEABLE` flag and a digging tool, fishing wants
+/// `FISHABLE` water and a rod, mopping wants moppable ground and a mop, chopping wants a tree and an axe. Answering `true` keeps those jobs walking to their zones as they did
+/// before this rule existed; answering `false` would end every one of them on its first turn.
+#[must_use]
+pub fn can_work_at(
+    world: &mut bevy_ecs::prelude::World,
+    activity: &str,
+    square: (i32, i32, i32),
+) -> bool {
+    match activity {
+        "ACT_MULTIPLE_BUTCHER" => {
+            let mut query = world.query::<(&crate::Position, &crate::CorpseOf)>();
+            query
+                .iter(world)
+                .any(|(place, _)| (place.x, place.y, place.z) == square)
+        }
+        _ => true,
+    }
 }
 
 /// Whether a multiple job has looked and found nothing to do, and so ends.

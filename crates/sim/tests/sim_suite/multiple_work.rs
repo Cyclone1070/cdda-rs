@@ -92,6 +92,22 @@ fn a_job_takes_the_nearest_work_square_in_its_own_zone() {
         moves_total: 0,
         subject: None,
     });
+    // **Both zones hold a corpse**, because a zone without one is not work at all (see `can_work_at`) - and this test is about distance, not about the work being there.
+    for square in [(3, 0, 0), (10, 10, 0)] {
+        world.spawn((
+            cdda_sim::Position {
+                x: square.0,
+                y: square.1,
+                z: square.2,
+            },
+            cdda_sim::CorpseOf {
+                kind: cdda_sim::MonsterKindId(1),
+                died_on: 0,
+                revives: false,
+                monster_volume_ml: 62_500,
+            },
+        ));
+    }
     cdda_sim::zones::place(
         &mut world,
         (3, 0, 0),
@@ -164,6 +180,15 @@ fn a_job_with_no_work_in_reach_ends_and_says_why() {
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
     world.entity_mut(vlad).insert(butcher.clone());
+    world.spawn((
+        cdda_sim::Position { x: 60, y: 0, z: 0 },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 62_500,
+        },
+    ));
     cdda_sim::zones::place(
         &mut world,
         (60, 0, 0),
@@ -247,6 +272,15 @@ fn a_job_decides_a_step_and_the_turn_takes_it() {
         moves_total: 0,
         subject: None,
     });
+    world.spawn((
+        cdda_sim::Position { x: 4, y: 0, z: 0 },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 62_500,
+        },
+    ));
     cdda_sim::zones::place(
         &mut world,
         (4, 0, 0),
@@ -359,10 +393,11 @@ fn a_job_standing_on_a_corpse_starts_butchering_it() {
     );
 }
 
-/// **A work square with nothing on it is `Ready`, not work started.** The job is on its square, the zone is there, but there is no corpse: the person stands ready and the job
-/// stays a job - which is what stops the butchering branch from grabbing a body across the room.
+/// **A work square with no corpse in the zone is not work at all, and the job ends.** The reference's butcher branch does not merely refuse to start the cut on an empty square -
+/// `can_butcher_at` collects the corpses at the spot and answers `NO_ZONE` when there are none (`activity_item_handling.cpp:1210-1265`), which is a **failure for that spot**. With no
+/// other spot, the job has nothing to do and ends.
 #[test]
-fn a_job_on_an_empty_work_square_is_ready() {
+fn a_job_whose_zone_has_no_corpse_ends() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
@@ -373,7 +408,7 @@ fn a_job_on_an_empty_work_square_is_ready() {
         moves_total: 0,
         subject: None,
     });
-    // **A corpse three squares away is not the corpse here**, which is the whole point of the square check.
+    // **A corpse three squares away is not the corpse here**, and it is not in the zone either.
     world.spawn((
         cdda_sim::Position { x: 5, y: 5, z: 0 },
         cdda_sim::CorpseOf {
@@ -394,15 +429,63 @@ fn a_job_on_an_empty_work_square_is_ready() {
     );
     assert_eq!(
         cdda_sim::multiple_work::work_a_turn(&mut world, vlad, "your_followers", (66, 66)),
-        cdda_sim::multiple_work::TurnOfWork::Ready,
-        "**ready, because there is nothing here to butcher**"
+        cdda_sim::multiple_work::TurnOfWork::Ended,
+        "**the zone has no body in it, so there is nothing to do**"
+    );
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(vlad).is_none(),
+        "**and the job is over**"
+    );
+}
+
+/// **A job walks past a zone square it cannot work to reach one it can.** The near zone holds no corpse; the far zone holds one. The reference collects the spots, sorts them by
+/// distance and **skips** the ones `can_do_activity_there` fails (`activity_item_handling.cpp:3367-3420`), so the person's nearest *workable* square is in the far zone - and that is
+/// the square the job walks to.
+#[test]
+fn a_job_skips_a_zone_square_it_cannot_work() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    // **The near zone is empty.**
+    cdda_sim::zones::place(
+        &mut world,
+        (2, 0, 0),
+        (2, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "empty",
+        "",
+    );
+    // **The far zone has the body**, and it is farther than the empty square.
+    world.spawn((
+        cdda_sim::Position { x: 6, y: 0, z: 0 },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 62_500,
+        },
+    ));
+    cdda_sim::zones::place(
+        &mut world,
+        (6, 0, 0),
+        (6, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "with a body",
+        "",
     );
     assert_eq!(
-        world
-            .get::<cdda_sim::creature::Doing>(vlad)
-            .map(|doing| doing.activity.clone()),
-        Some("ACT_MULTIPLE_BUTCHER".to_owned()),
-        "**and the job is still the job**"
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**the workable square, not the nearest one**"
     );
 }
 
@@ -579,5 +662,40 @@ fn a_practised_butcher_cuts_faster() {
         cut_for(&["prof_butchering_advanced"]),
         378_000,
         "**advanced without basic: one of the two butchering terms is gone, so 1.4**"
+    );
+}
+
+/// **A job whose gate is not ported still finds its spots.** Mining is the example: its real gate wants the terrain's `MINEABLE` flag and a digging tool, neither of which the port
+/// has, so `can_work_at` answers `true` for it - and a mining zone with no corpse in it is still a mining spot. Answering `false` for the unported activities would end every one of
+/// them on its first turn, which is why this test exists.
+#[test]
+fn an_unported_jobs_spots_are_not_gated_on_corpses() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_MINE".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    cdda_sim::zones::place(
+        &mut world,
+        (3, 0, 0),
+        (3, 0),
+        "MINING",
+        "your_followers",
+        "a rock face",
+        "",
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((3, 0, 0)),
+        "**a mining spot needs no corpse**"
+    );
+    assert!(
+        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_MINE", (3, 0, 0)),
+        "**and the spot itself is workable, because its real gate is not ported yet**"
     );
 }
