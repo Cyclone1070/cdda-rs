@@ -162,6 +162,7 @@ mod weather;
 mod weather_conditions;
 mod weather_manager;
 mod weather_order;
+mod zone_types;
 mod zones;
 mod zones_probe;
 

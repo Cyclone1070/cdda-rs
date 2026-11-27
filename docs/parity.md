@@ -41817,3 +41817,21 @@ butchering happens.
 **The ledger, recounted**: `run_legacy_string_effect` now answers **44 of the 84** functions `npctalk_funcs.cpp` defines. Forty remain, and they are the ones with a reason:
 `start_trade` (113 uses, needs the trade window), the training family (a menu), the bionics pair (a menu and a practice), mounts and camps (subsystems the port has no counterpart
 for), `do_read`/`do_craft` (a choice), and small UI-shaped ones (`reveal_stats`, `pick_style`, `sort_loot`, `set_npc_pickup`).
+
+## Which zone a job works in (round 373)
+
+The first step of the `ACT_MULTIPLE_*` actor is not walking or working - it is **where to look**. Reference: `get_zone_for_act` (`activity_item_handling.cpp:2642-2688`), which maps
+eleven activities to eleven zone types and everything else to the **undefined** zone.
+
+- `content::zone_types` reads the **64** zone type definitions the data carries. The JSON tag is `LOOT_ZONE`, not `zone_type` - the game's historical name - so a loader that
+  looked for `zone_type` would read none of them, which is exactly the mistake the count asserts against.
+- `sim::multiple_work::zone_for_activity` is the table, transcribed line for line, with `None` for the reference's undefined zone.
+- `sim::multiple_work::zone_type_named` is the registry, so the table's answers can be checked against the data rather than trusted.
+
+**The test that matters is the second one**: it loads the real zone types and asserts that every zone id the table names exists. A typo in that table is a job that can never find
+work, and it fails in the suite rather than in a playthrough. The mutation that spells `MOPPING` as `MOPPINGG` is caught by it, along with a job sent to the wrong zone and a
+catch-all that answers a zone for everything.
+
+**Named gap, and it is most of the subsystem**: collecting the zones within view distance, sorting them, routing to one and doing the work are all steps of
+`generic_multi_activity_handler` (`activity_item_handling.cpp:3334+`) that need the **zone store** - zones as entities with a type, a faction and a square range - which the port
+does not have. The table is the piece of that handler that needs nothing.

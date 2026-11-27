@@ -35,6 +35,7 @@ pub mod messages;
 pub mod mission_types;
 pub mod missions;
 pub mod morale;
+pub mod multiple_work;
 pub mod mutation_activation;
 pub mod mutation_data;
 pub mod mutations;

@@ -78,6 +78,7 @@ pub mod vitamins;
 pub mod weakpoints;
 pub mod weapon_categories;
 pub mod weather;
+pub mod zone_types;
 pub mod zones;
 
 pub use rules::{id_member, null_prototype, registry_for};

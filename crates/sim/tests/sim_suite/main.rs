@@ -166,6 +166,7 @@ mod monster_strike_world;
 mod monster_turn;
 mod monster_world;
 mod morale;
+mod multiple_work;
 mod mutation_activation;
 mod mutations;
 mod needs;
