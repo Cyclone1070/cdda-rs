@@ -41903,3 +41903,19 @@ sits before `walk` for the reference's order, not for an observable difference.
 
 **Named gaps**: the work itself (`Ready`), the per-activity `can_do_activity_there` checks, the tool-fetch errand, "skip this spot and try the next" on a blocked route, and the
 faction, which the jobs stage passes as `your_followers` because no character carries one yet.
+
+## A job that has arrived does the work (round 377)
+
+`Ready` now means "standing where the work is, with nothing ported to do there", and a new `Started` means the work began. The first work ported is **butchering**, because it is
+the one whose finish the port already had (`finish_butchering`, `butcher_time_to_cut`, the harvest table): the job finds a **corpse on its own square**, and starts the `butcher`
+activity with that corpse as its subject and `butcher_time_to_cut` as its length.
+
+- The state the length is computed from: the corpse's size (monster table), the action the corpse carries (`Butchery`, full butchering by default), and the best cutting tool in
+  reach. **Practice and helpers are zero** - the port's proficiency terms are not wired to a character yet, and that is a named gap rather than a chosen simplification.
+- **Only butchering**: mining, mopping, chopping, farming, fishing and disassembly answer `Ready`, which reads as the gap it is.
+
+Three mutations caught: butchering with no subject, butchering that takes no time, and any corpse in the world being good enough. The last is why the empty-work-square test exists -
+without a corpse at distance five, a search that ignored the square would have passed.
+
+**Named gaps**: the per-activity `can_do_activity_there` checks for the other six jobs, the tool-fetch errand, practice and helpers in the cut's length, and the corpse's
+dress/quarter flags (always false here - a body that was field dressed on an earlier job would be cut as if it had not been).

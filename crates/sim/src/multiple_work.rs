@@ -135,8 +135,10 @@ pub enum TurnOfWork {
     NotAJob,
     /// The job looked, found no work in reach, and ended.
     Ended,
-    /// The creature stands on its work square, and the work itself is the port's named gap.
+    /// The creature stands on its work square, and the work there is one the port has not ported yet.
     Ready,
+    /// The creature stood on its work square, found the thing to work on, and **started the work**.
+    Started,
     /// The creature walked one step towards the work.
     Walking,
     /// There is no way through to the work: the reference's `reason.no_path` (`activity_item_handling.cpp:3380-3385`), which skips the spot rather than ending the job.
@@ -179,7 +181,10 @@ pub fn work_a_turn(
         return TurnOfWork::NotAJob;
     };
     if (place.x, place.y, place.z) == work {
-        return TurnOfWork::Ready;
+        return match start_the_work_here(world, npc, (place.x, place.y, place.z)) {
+            Some(()) => TurnOfWork::Started,
+            None => TurnOfWork::Ready,
+        };
     }
     // **The job decides the direction; the turn takes the step.** The reference's activity ends its turn with `set_destination` and lets the walk happen in the same creature
     // phase; the port writes a `WantsToStep`, which the walk stage of the turn consumes. Stepping here would move the creature before the turn's own step rules had a say.
@@ -192,4 +197,72 @@ pub fn work_a_turn(
         }
         None => TurnOfWork::NoPath,
     }
+}
+
+/// When a person is standing on their work square, finds the thing to work on and **starts that work**: one activity's worth of the reference's
+/// `can_do_activity_there` + activity assignment (`activity_item_handling.cpp`, the butchering branch).
+///
+/// Only butchering is ported, because it is the one activity whose finish the port already has (`creature::finish_butchering`, with `butcher_time_to_cut` and the harvest table
+/// behind it). The others - mining, mopping, chopping, farming, fishing, disassembly - answer `None`, which is [`TurnOfWork::Ready`]: standing where the work is, with nothing
+/// ported to do. That is a named gap and reads as one.
+///
+/// Reference: `butcher_time_to_cut( state )` gives the activity's length; the state is the corpse's size (from the monster table), the action the corpse carries (full butchering
+/// unless a `Butchery` says otherwise), and the best cutting tool in reach. **Practice and helpers are zero**, because the port's butchery proficiency terms are not wired to a
+/// character yet - a gap, not a chosen simplification.
+fn start_the_work_here(
+    world: &mut bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+    square: (i32, i32, i32),
+) -> Option<()> {
+    let corpse = {
+        let mut query = world.query::<(
+            bevy_ecs::prelude::Entity,
+            &crate::Position,
+            &crate::CorpseOf,
+        )>();
+        let mut found = None;
+        for (entity, place, _) in query.iter(world) {
+            if (place.x, place.y, place.z) == square {
+                found = Some(entity);
+                break;
+            }
+        }
+        found
+    };
+    let corpse = corpse?;
+    let action = world
+        .get::<crate::Butchery>(corpse)
+        .map_or(crate::ButcherAction::Full, |work| work.action);
+    let quality = if action == crate::ButcherAction::Dissect {
+        "CUT_FINE"
+    } else {
+        "BUTCHER"
+    };
+    let tool_factor = crate::creature::best_quality(world, npc, quality);
+    let size = world
+        .get::<crate::CorpseOf>(corpse)
+        .map_or(crate::CreatureSize::Medium, |body| {
+            crate::monster_registry::size_of(world, body.kind)
+        });
+    let moves = crate::butcher_time_to_cut(crate::ButcherState {
+        size,
+        action,
+        tool_factor,
+        field_dressed: false,
+        field_dress_failed: false,
+        quartered: false,
+        instant_bleed: false,
+        butchering_basic: 0.0,
+        butchering_advanced: 0.0,
+        skinning_basic: 0.0,
+        helpers: 0,
+    });
+    world.entity_mut(npc).insert(crate::creature::Doing {
+        activity: "butcher".to_owned(),
+        moves_left: moves,
+        basis: crate::creature::Basis::Time,
+        moves_total: moves,
+        subject: Some(corpse),
+    });
+    Some(())
 }

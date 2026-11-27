@@ -296,3 +296,112 @@ fn a_job_with_no_work_ends_in_the_turn() {
         "**the job is gone after one turn**"
     );
 }
+
+/// **A person standing on a corpse in a corpse zone starts butchering it.** This is the first job that does **work** rather than walking: `Ready` becomes the butchery activity,
+/// with the corpse as its subject, which is what the reference's `can_butcher_at` + `ACT_BUTCHER` do (`activity_item_handling.cpp`, the butchering branch).
+///
+/// The subject matters more than anything else here: a butchering activity with no subject, or with the wrong one, finishes over a person who is not standing on anything and hands
+/// out a harvest that never existed.
+#[test]
+fn a_job_standing_on_a_corpse_starts_butchering_it() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    let corpse = world
+        .spawn((
+            cdda_sim::Position { x: 2, y: 2, z: 0 },
+            cdda_sim::CorpseOf {
+                kind: cdda_sim::MonsterKindId(1),
+                died_on: 0,
+                revives: false,
+                monster_volume_ml: 62_500,
+            },
+        ))
+        .id();
+    cdda_sim::zones::place(
+        &mut world,
+        (2, 2, 0),
+        (2, 2),
+        "LOOT_CORPSE",
+        "your_followers",
+        "the corpse",
+        "",
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::work_a_turn(&mut world, vlad, "your_followers", (66, 66)),
+        cdda_sim::multiple_work::TurnOfWork::Started,
+        "**the job starts the work it is standing on**"
+    );
+    let doing = world
+        .get::<cdda_sim::creature::Doing>(vlad)
+        .expect("the person is doing something");
+    assert_eq!(
+        doing.activity, "butcher",
+        "**butchering, by the name the finisher answers to**"
+    );
+    assert_eq!(
+        doing.subject,
+        Some(corpse),
+        "**and the corpse is the subject, not the job's old activity**"
+    );
+    assert!(
+        doing.moves_left > 0 && doing.moves_left == doing.moves_total,
+        "**with the cut's own length: {} of {}**",
+        doing.moves_left,
+        doing.moves_total
+    );
+}
+
+/// **A work square with nothing on it is `Ready`, not work started.** The job is on its square, the zone is there, but there is no corpse: the person stands ready and the job
+/// stays a job - which is what stops the butchering branch from grabbing a body across the room.
+#[test]
+fn a_job_on_an_empty_work_square_is_ready() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    // **A corpse three squares away is not the corpse here**, which is the whole point of the square check.
+    world.spawn((
+        cdda_sim::Position { x: 5, y: 5, z: 0 },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 62_500,
+        },
+    ));
+    cdda_sim::zones::place(
+        &mut world,
+        (2, 2, 0),
+        (2, 2),
+        "LOOT_CORPSE",
+        "your_followers",
+        "the square",
+        "",
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::work_a_turn(&mut world, vlad, "your_followers", (66, 66)),
+        cdda_sim::multiple_work::TurnOfWork::Ready,
+        "**ready, because there is nothing here to butcher**"
+    );
+    assert_eq!(
+        world
+            .get::<cdda_sim::creature::Doing>(vlad)
+            .map(|doing| doing.activity.clone()),
+        Some("ACT_MULTIPLE_BUTCHER".to_owned()),
+        "**and the job is still the job**"
+    );
+}
