@@ -450,3 +450,46 @@ fn kept_at_rate(made: usize, spawn_rate: Option<f64>, rolls: &mut Rolls) -> usiz
     }
     kept
 }
+
+/// Whether a group can produce an item, directly or through a nested group.
+///
+/// Reference: `item_group::group_contains_item( group_id, type_id )` (`item_group.cpp:1048-1055`), which asks the group's spawn data `has_item` - and a **collection or
+/// distribution** answers for every entry it holds, recursing into the groups it names (`Item_group::has_item`, `item_group.cpp`, which walks the same tree `create` does).
+///
+/// **A group that names itself is not a crash.** The reference's data is a tree in practice, but a data error that made a cycle would recurse forever there; this walks a
+/// visited set, so a cycle answers "not found" instead of hanging the loader's caller.
+#[must_use]
+pub fn contains(definitions: &BTreeMap<String, Definition>, group: &str, item: &str) -> bool {
+    let mut visited = std::collections::BTreeSet::new();
+    contains_inner(definitions, group, item, &mut visited)
+}
+
+fn contains_inner(
+    definitions: &BTreeMap<String, Definition>,
+    group: &str,
+    item: &str,
+    visited: &mut std::collections::BTreeSet<String>,
+) -> bool {
+    if !visited.insert(group.to_owned()) {
+        return false;
+    }
+    let Some(definition) = definitions.get(group) else {
+        return false;
+    };
+    for entry in &definition.entries {
+        match entry {
+            Entry::Item { id, .. } => {
+                if id == item {
+                    return true;
+                }
+            }
+            Entry::Group { id, .. } => {
+                if contains_inner(definitions, id, item, visited) {
+                    return true;
+                }
+            }
+            Entry::Nothing { .. } => {}
+        }
+    }
+    false
+}

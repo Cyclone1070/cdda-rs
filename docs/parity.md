@@ -41672,3 +41672,20 @@ two would never answer 61, and the mutation that **truncates instead of rounding
 `wants_to_sell`/`wants_to_buy` - which the trade window's offer list will need.
 
 The block is unchanged at **33 of 75**: the price exists, the window that uses it does not.
+
+## What a shop will sell, and to whom (round 366)
+
+Two more decisions of the trade window, ported as rules:
+
+- `item_group_draw::contains` - `item_group::group_contains_item` (`item_group.cpp:1048-1055`): whether a group can produce an item, **through the tree** of nested groups. The
+  test builds a three-level tree and a group that names **itself**; the reference would recurse forever on that, and the port walks a visited set so a bad tree answers "not found"
+  instead of hanging.
+- `trade::wants_to_sell` (`npc.cpp:1981-2007`): an **ally** exchanges freely; a group the shopkeeper **cannot** sell from acts as a **blacklist** for the items it names - the
+  reference's inverted-looking test, and the reason a shop with a "we do not stock guns" group refuses guns rather than merely failing to stock them; otherwise the price decides.
+- `trade::wants_to_buy` (`npc.cpp:2014-2043`): an ally buys freely, a `DANGEROUS` item or an armed bomb is refused, and everything else the port can ask falls to the price.
+
+**Named gaps**: `wants_to_sell`'s flags (`TRADER_KEEP`, `TRADER_KEEP_EQUIPPED`), whether the item is worn or held by the shopkeeper (`sells_belongings`), and the contents check;
+`wants_to_buy`'s `TRADER_AVOID`, the `SQUEAMISH` filthy rule and the class **blacklist** (a content rule the loader does not read).
+
+**A note on this round's verification**: the build host (`cyc@elitedesk`) became unreachable partway through - `ssh` and `ping` time out - so the local gate could not run. The
+commit went out with **CI as the gate** instead, and the mutation check for these two rules is **pending the host's return**; it is the first thing the next round does.

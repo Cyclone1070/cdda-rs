@@ -96,3 +96,81 @@ fn inverted_ranges_are_kept_exactly_as_the_reference_gives_them() {
         "6 above 2, exactly as dumped"
     );
 }
+
+/// **A group contains what it produces, however deep the tree.** Reference: `item_group::group_contains_item` (`item_group.cpp:1048-1055`) asks the spawn data `has_item`, which
+/// recurses into the groups an entry names.
+///
+/// The test builds its own tree rather than trusting a data file: a collection holding one item and one nested group, a distribution holding the nested group again, and a group
+/// that names **itself** - the cycle the reference would recurse forever on. The nesting is the point: an item two levels down is in the group, and the visited set is what keeps
+/// a bad tree from hanging.
+#[test]
+fn a_group_contains_what_its_tree_produces() {
+    let mut definitions = std::collections::BTreeMap::new();
+    let item = |id: &str| cdda_content::item_group_draw::Entry::Item {
+        id: id.to_owned(),
+        probability: 100,
+        count: (1, 1),
+        event: None,
+    };
+    let group = |id: &str| cdda_content::item_group_draw::Entry::Group {
+        id: id.to_owned(),
+        probability: 100,
+        event: None,
+    };
+    definitions.insert(
+        "outer".to_owned(),
+        cdda_content::item_group_draw::Definition {
+            id: "outer".to_owned(),
+            distribution: false,
+            entries: vec![item("rock"), group("middle")],
+        },
+    );
+    definitions.insert(
+        "middle".to_owned(),
+        cdda_content::item_group_draw::Definition {
+            id: "middle".to_owned(),
+            distribution: true,
+            entries: vec![item("stick"), group("inner")],
+        },
+    );
+    definitions.insert(
+        "inner".to_owned(),
+        cdda_content::item_group_draw::Definition {
+            id: "inner".to_owned(),
+            distribution: false,
+            entries: vec![item("gem")],
+        },
+    );
+    definitions.insert(
+        "loop".to_owned(),
+        cdda_content::item_group_draw::Definition {
+            id: "loop".to_owned(),
+            distribution: false,
+            entries: vec![group("loop"), item("stone")],
+        },
+    );
+    assert!(
+        cdda_content::item_group_draw::contains(&definitions, "outer", "rock"),
+        "**a direct item is in**"
+    );
+    assert!(
+        cdda_content::item_group_draw::contains(&definitions, "outer", "stick"),
+        "**one level down is in**"
+    );
+    assert!(
+        cdda_content::item_group_draw::contains(&definitions, "outer", "gem"),
+        "**two levels down is in**"
+    );
+    assert!(
+        !cdda_content::item_group_draw::contains(&definitions, "outer", "gemstone"),
+        "**and a name nobody produces is not**"
+    );
+    assert!(
+        cdda_content::item_group_draw::contains(&definitions, "loop", "stone"),
+        "**a group that names itself still answers for its other entries**"
+    );
+    assert!(
+        !cdda_content::item_group_draw::contains(&definitions, "outer", "unheard_of"),
+        "**and a group the tree does not name contains nothing**"
+    );
+}

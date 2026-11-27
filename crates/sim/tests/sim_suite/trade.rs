@@ -170,3 +170,89 @@ fn a_shops_price_comes_from_the_store() {
         "**an NPC buying from a duller, worse-spoken person pays 61**"
     );
 }
+
+/// **What a shop will sell, and to whom.** Reference: `npc::wants_to_sell` (`npc.cpp:1981-2007`): an **ally** exchanges freely; a group the shopkeeper cannot sell from acts as a
+/// **blacklist** for the items it names - which is the reference's inverted-looking test, and the reason a shop with a "we do not stock guns" group refuses guns instead of merely
+/// failing to stock them; otherwise the price decides.
+///
+/// The blacklist is the case worth pinning: a shop whose `guns` group is **strict** (its trust floor unmet) refuses a pistol that is inside it, and sells a rock that is not.
+#[test]
+fn a_shop_refuses_what_its_untrusted_shelf_names() {
+    let mut world = World::new();
+    let mut definitions = std::collections::BTreeMap::new();
+    let item = |id: &str| cdda_content::item_group_draw::Entry::Item {
+        id: id.to_owned(),
+        probability: 100,
+        count: (1, 1),
+        event: None,
+    };
+    definitions.insert(
+        "guns".to_owned(),
+        cdda_content::item_group_draw::Definition {
+            id: "guns".to_owned(),
+            distribution: false,
+            entries: vec![item("pistol")],
+        },
+    );
+    definitions.insert(
+        "goods".to_owned(),
+        cdda_content::item_group_draw::Definition {
+            id: "goods".to_owned(),
+            distribution: false,
+            entries: vec![item("rock")],
+        },
+    );
+    cdda_sim::item_groups::set_groups(&mut world, definitions);
+    cdda_sim::npc_classes::set_classes(
+        &mut world,
+        vec![cdda_content::npc_classes::NpcClass {
+            id: "a_shopkeeper".to_owned(),
+            name: "shopkeeper".to_owned(),
+            job_description: String::new(),
+            common: true,
+            shop_item_groups: vec![
+                cdda_content::npc_classes::ShopkeeperItemGroup {
+                    group: "guns".to_owned(),
+                    trust: 0,
+                    strict: true,
+                    rigid: true,
+                },
+                cdda_content::npc_classes::ShopkeeperItemGroup {
+                    group: "goods".to_owned(),
+                    trust: 0,
+                    strict: false,
+                    rigid: true,
+                },
+            ],
+            restock_interval: 6 * 24 * 60 * 60,
+        }],
+    );
+    let keeper = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, keeper, "vlad");
+    world
+        .entity_mut(keeper)
+        .insert(cdda_sim::npcs::NpcClass("a_shopkeeper".to_owned()));
+    assert!(
+        !cdda_sim::trade::wants_to_sell(&world, keeper, "pistol"),
+        "**an untrusted shelf's pistol is refused**"
+    );
+    assert!(
+        cdda_sim::trade::wants_to_sell(&world, keeper, "rock"),
+        "**a trusted shelf's rock is sold**"
+    );
+    // **An ally gives freely**, whatever its class says.
+    cdda_sim::npcs::make_ally(&mut world, keeper);
+    assert!(
+        cdda_sim::trade::wants_to_sell(&world, keeper, "pistol"),
+        "**an ally hands over the pistol**"
+    );
+    // **And buying falls to the price** for anyone who is not an ally.
+    assert!(
+        cdda_sim::trade::wants_to_buy(&world, keeper, 100),
+        "**a price above nothing is a yes**"
+    );
+    assert!(
+        !cdda_sim::trade::wants_to_buy(&world, keeper, -1),
+        "**and a negative price is a no**"
+    );
+}

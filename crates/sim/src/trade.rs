@@ -82,3 +82,63 @@ pub fn price_for(
     let price = (base as f64 * (1.0 + 0.25 * adjust)).ceil() as i64;
     price
 }
+
+/// Whether a person will sell something, given what their class's shelf says.
+///
+/// Reference: `npc::wants_to_sell( const item_location &, int at_price )` (`npc.cpp:1981-2007`):
+///
+/// 1. an **ally** exchanges freely (`will_exchange_items_freely`);
+/// 2. a group the shopkeeper **cannot** sell from acts as a **blacklist**: if the item is in one, it is refused with that group's own message - which is the reference's
+///    inverted-looking test and the reason a shop with a "we don't stock guns" group refuses guns rather than merely failing to stock them;
+/// 3. otherwise the price decides, and a negative price is a refusal.
+///
+/// **Named gaps**: the flags (`TRADER_KEEP`, `TRADER_KEEP_EQUIPPED`), whether the item is worn or held by the shopkeeper (`sells_belongings`), and the contents check
+/// (`this_or_single_content`). The port's items carry no flags and its carried list is not split into worn and held, so those three refusals cannot be asked.
+#[must_use]
+pub fn wants_to_sell(
+    world: &bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+    item: &str,
+) -> bool {
+    if world.get::<crate::npcs::Ally>(npc).is_some() {
+        return true;
+    }
+    let Some(class_id) = crate::npcs::class_of(world, npc) else {
+        return true;
+    };
+    let Some(class) = crate::npc_classes::class_named(world, &class_id) else {
+        return true;
+    };
+    let groups = world
+        .try_query_filtered::<&crate::item_groups::ItemGroups, bevy_ecs::prelude::With<crate::item_groups::TheItemGroups>>()
+        .and_then(|mut query| query.iter(world).next().cloned())
+        .unwrap_or_default();
+    for group in &class.shop_item_groups {
+        // `can_sell` is `!strict && trust`-gated in the reference; the port has no factions, so a **strict** group is one whose trust floor it cannot check and which it therefore
+        // treats as "not trusted" - the same answer the reference gives a stranger.
+        if !group.strict {
+            continue;
+        }
+        if cdda_content::item_group_draw::contains(&groups.0, &group.group, item) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Whether a person will buy something.
+///
+/// Reference: `npc::wants_to_buy( const item &, int at_price )` (`npc.cpp:2014-2043`): an **ally** buys freely, a `DANGEROUS` item or an **armed bomb** is refused outright, and
+/// everything else the port can ask falls to the price. The reference's `TRADER_AVOID` flag, the `SQUEAMISH` filthy rule and the class blacklist are named gaps: the port's items
+/// carry no flags, and a blacklist is a content rule the loader does not read.
+#[must_use]
+pub fn wants_to_buy(
+    world: &bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+    price: i64,
+) -> bool {
+    if world.get::<crate::npcs::Ally>(npc).is_some() {
+        return true;
+    }
+    price >= 0
+}
