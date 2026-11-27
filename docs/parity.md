@@ -41704,3 +41704,21 @@ shop selling at cost.
 `np.value( it )` is the NPC's own valuation, replaced here by the plain adjusted price; and the wielded weapon's free-exchange offer is not in the list.
 
 **Verification note**: the build host was still unreachable this round, so CI is again the gate, and the mutation checks for rounds 366 and 367 stay **pending** until it returns.
+
+## A liquid is never offered, and the shop pays the other half of its quarter (round 368)
+
+Two pieces that finish the shape of the trade window's data:
+
+**The phase column.** The reference's selling list skips liquids (`!it.made_of( phase_id::LIQUID )`, `npctrade.cpp:120-122`), and the port's item registry had no phase to ask. `ItemTypes`
+grew a `liquids` column with `set_liquids` and `is_liquid`, filled **by name** from the content types the same way the prices are - a `Kind` built by hand in a test has no phase,
+and a kind no test calls liquid is a solid. `trade::selling` now skips them, and the shop test carries **water** to prove it: the gem nobody's shelf names is offered, the water is
+not, whatever the shelf says.
+
+**The other half of the counter.** `trade::buying` is `npc_trading::init_buying` (`npctrade.cpp:88-115`): every item the player carries is priced at what the person will **pay**,
+which is the same adjustment with the sides swapped. With both sides evenly matched a shop **asks 125** for a 100-cent item and **pays 75** for one - the margin is the shop's and
+it is symmetric. A port that used one price for both directions would sell at cost and buy at cost, and never notice until the money ran out.
+
+**Named gaps**: `np.value( it )`'s own valuation, `wants_to_buy`'s flags, and `init_buying`'s `with_contained` recursion (the port's carried list is flat).
+
+**Verification**: CI again, and it caught both of this round's mistakes - a slice index (`offers[0]`) that the workspace's lints refuse, and before that the earlier round's
+selling price. The build host is still unreachable, so the mutation checks for rounds 366-368 remain **pending**.
