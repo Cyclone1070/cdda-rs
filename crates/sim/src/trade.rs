@@ -258,3 +258,92 @@ pub fn buying(
     }
     offers
 }
+
+/// The most a person will let the player owe them, in cents.
+///
+/// Reference: `npc::max_credit_extended` (`npc.cpp:2050-2067`): an **ally** extends unlimited credit (`INT_MAX`), and everyone else's limit is
+/// `trust*50 + value*50 + fear*50 + anger*(-200)`, floored at zero.
+///
+/// **Named gap**: the reference adds `personality.altruism * 100`, and the port has no personality traits - a person is generous or not by this rule and by nothing else. The term is
+/// missing, not zeroed: a real person with altruism 40 would extend two thousand cents more.
+#[must_use]
+pub fn max_credit_extended(
+    world: &bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+) -> i64 {
+    if world.get::<crate::npcs::Ally>(npc).is_some() {
+        return i64::MAX;
+    }
+    let Some(opinion) = crate::npcs::opinion_of(world, npc) else {
+        return 0;
+    };
+    i64::from(opinion.trust) * 50
+        + i64::from(opinion.value) * 50
+        + i64::from(opinion.fear) * 50
+        + i64::from(opinion.anger) * -200
+}
+
+/// The most a person is willing to owe the player, in cents.
+///
+/// Reference: `npc::max_willing_to_owe` (`npc.cpp:2073-2097`): an ally owes anything, and everyone else's willingness is
+/// `credit_default (10000) + max(0,trust)*10000 + max(0,value)*10000 + max(0,fear)*10000 + anger*(-10000)`, floored at zero - the **default ten thousand** is what makes this
+/// rule much more generous than credit extended, which is the reference's own comment: the player carries the risk here.
+///
+/// **Named gap**: `personality.altruism`'s ten-thousand-per-point term, for the same reason as above.
+#[must_use]
+pub fn max_willing_to_owe(world: &bevy_ecs::prelude::World, npc: bevy_ecs::prelude::Entity) -> i64 {
+    if world.get::<crate::npcs::Ally>(npc).is_some() {
+        return i64::MAX;
+    }
+    let Some(opinion) = crate::npcs::opinion_of(world, npc) else {
+        return 0;
+    };
+    10_000
+        + i64::from(opinion.trust.max(0)) * 10_000
+        + i64::from(opinion.value.max(0)) * 10_000
+        + i64::from(opinion.fear.max(0)) * 10_000
+        + i64::from(opinion.anger) * -10_000
+}
+
+/// Whether a person will take the deal on the table.
+///
+/// Reference: `npc_trading::npc_will_accept_trade` (`npctrade.cpp:362-365`): an ally will, and anyone else takes it when `balance + max_credit_extended >= 0` - a negative balance
+/// being what the player owes, so the rule is "the debt is within what they will extend".
+#[must_use]
+pub fn will_accept_trade(
+    world: &bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+    balance: i64,
+) -> bool {
+    if world.get::<crate::npcs::Ally>(npc).is_some() {
+        return true;
+    }
+    let credit = max_credit_extended(world, npc);
+    balance.saturating_add(credit) >= 0
+}
+
+/// What the person will owe the player after this trade, in cents.
+///
+/// Reference: `npc_trading::calc_npc_owes_you` (`npctrade.cpp:257-274`):
+///
+/// 1. an **ally** holds no debts - the answer is zero, because friends do not hold debts against friends;
+/// 2. if the balance is going **up** past what they will owe, the debt is capped at the present debt or their willingness, whichever is **bigger** - which is why an old debt is
+///    never forgiven by a later trade;
+/// 3. otherwise the balance stands.
+#[must_use]
+pub fn calc_npc_owes_you(
+    world: &bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+    balance: i64,
+) -> i64 {
+    if world.get::<crate::npcs::Ally>(npc).is_some() {
+        return 0;
+    }
+    let owed = i64::from(crate::npcs::opinion_of(world, npc).map_or(0, |opinion| opinion.owed));
+    let willing = max_willing_to_owe(world, npc);
+    if balance > owed && balance > willing {
+        owed.max(willing)
+    } else {
+        balance
+    }
+}

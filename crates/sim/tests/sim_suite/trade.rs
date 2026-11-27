@@ -412,3 +412,94 @@ fn the_shop_pays_the_other_side_of_the_quarter() {
         "**at 75 for a 100-cent item: the quarter, paid instead of charged**"
     );
 }
+
+/// A person with the opinion the credit rules will be read against.
+fn a_person_who_thinks(
+    world: &mut World,
+    trust: i32,
+    value: i32,
+    owed: i32,
+) -> bevy_ecs::prelude::Entity {
+    let npc = cdda_sim::creature::spawn_creature(world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(world, npc, "vlad");
+    cdda_sim::npcs::set_opinion(
+        world,
+        npc,
+        cdda_sim::npcs::Opinion {
+            value,
+            trust,
+            anger: 0,
+            fear: 0,
+            owed,
+            raised: 0,
+        },
+    );
+    npc
+}
+
+/// **How far a person will carry the player, and what they will remember owing.** Reference: `npc::max_credit_extended` (`npc.cpp:2050-2067`) and
+/// `npc_trading::calc_npc_owes_you` (`npctrade.cpp:257-274`).
+///
+/// Trust 5 and value 3 is `250 + 150 = 400` of credit, so a balance of **-400** is accepted and **-401** is not - the debt is within what they will extend, and one cent past it is
+/// not. Their willingness to owe is the ten-thousand default plus five and three ten-thousands: **90,000**, so a 100,000 balance is capped there - unless the debt already stands
+/// higher, when the bigger number wins and the old debt is never forgiven by a later trade.
+#[test]
+fn a_persons_credit_is_their_opinion_of_the_player() {
+    let mut world = World::new();
+    let npc = a_person_who_thinks(&mut world, 5, 3, 0);
+    assert_eq!(
+        cdda_sim::trade::max_credit_extended(&world, npc),
+        400,
+        "**five trust and three value at fifty each**"
+    );
+    assert!(
+        cdda_sim::trade::will_accept_trade(&world, npc, -400),
+        "**a debt of exactly the credit is taken**"
+    );
+    assert!(
+        !cdda_sim::trade::will_accept_trade(&world, npc, -401),
+        "**and a cent past it is not**"
+    );
+    assert!(
+        cdda_sim::trade::will_accept_trade(&world, npc, 0),
+        "**a balance of nothing is always taken**"
+    );
+    assert_eq!(
+        cdda_sim::trade::max_willing_to_owe(&world, npc),
+        90_000,
+        "**the ten-thousand default, five and three more**"
+    );
+    assert_eq!(
+        cdda_sim::trade::calc_npc_owes_you(&world, npc, 100_000),
+        90_000,
+        "**a debt past their willingness is capped there**"
+    );
+    assert_eq!(
+        cdda_sim::trade::calc_npc_owes_you(&world, npc, 50_000),
+        50_000,
+        "**a debt within it stands**"
+    );
+    // **An old debt higher than their willingness is not forgiven**: 95,000 already owed and a 100,000 balance answers 95,000, the bigger of the two.
+    let older = a_person_who_thinks(&mut world, 5, 3, 95_000);
+    assert_eq!(
+        cdda_sim::trade::calc_npc_owes_you(&world, older, 100_000),
+        95_000,
+        "**the present debt wins when it is bigger**"
+    );
+    // **And an ally is not a debt**: unlimited credit, everything accepted, nothing owed.
+    cdda_sim::npcs::make_ally(&mut world, npc);
+    assert_eq!(
+        cdda_sim::trade::max_credit_extended(&world, npc),
+        i64::MAX,
+        "**an ally extends what they have**"
+    );
+    assert!(
+        cdda_sim::trade::will_accept_trade(&world, npc, i64::MIN / 2),
+        "**and takes any balance at all**"
+    );
+    assert_eq!(
+        cdda_sim::trade::calc_npc_owes_you(&world, npc, 100_000),
+        0,
+        "**friends do not hold debts against friends**"
+    );
+}
