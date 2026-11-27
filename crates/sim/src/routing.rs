@@ -119,5 +119,33 @@ pub fn walk_towards(
     }
 }
 
+/// The direction of the next step towards a target, without taking it.
+///
+/// This is the half of [`walk_towards`] that decides **which way**, kept apart from the half that pays for the step: a rule that only wants to say "go there" (the job stage of the
+/// turn, which must not move a creature before the walk stage has had its say) asks this, writes a [`crate::walk::WantsToStep`], and lets the turn take the step in its own place -
+/// the reference's own split between an activity deciding to walk (`set_destination`) and the walk happening.
+#[must_use]
+pub fn step_towards(
+    world: &World,
+    entity: bevy_ecs::prelude::Entity,
+    target: (i32, i32, i32),
+    bounds: (i32, i32),
+) -> Option<(i32, i32)> {
+    let position = world.get::<crate::Position>(entity)?;
+    let from = (position.x, position.y, position.z);
+    if from == target {
+        return None;
+    }
+    let path = route(world, (from.0, from.1), (target.0, target.1), bounds);
+    // The path runs from the destination back to the source, so the square to step into is the one just before the last.
+    let step = path
+        .len()
+        .checked_sub(2)
+        .and_then(|before| path.get(before))?;
+    let dx = (step.x - from.0).signum();
+    let dy = (step.y - from.1).signum();
+    Some((dx, dy))
+}
+
 /// The scorer's shape, for callers that want to name it.
 pub type WorldScorer<'a> = Scorer<'a>;

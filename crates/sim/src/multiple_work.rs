@@ -127,3 +127,69 @@ pub fn the_job_has_nothing_to_do(
     world.entity_mut(npc).remove::<crate::creature::Doing>();
     true
 }
+
+/// What spending a turn on a job did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurnOfWork {
+    /// The creature is not doing anything that works in a zone, so this rule has no opinion.
+    NotAJob,
+    /// The job looked, found no work in reach, and ended.
+    Ended,
+    /// The creature stands on its work square, and the work itself is the port's named gap.
+    Ready,
+    /// The creature walked one step towards the work.
+    Walking,
+    /// There is no way through to the work: the reference's `reason.no_path` (`activity_item_handling.cpp:3380-3385`), which skips the spot rather than ending the job.
+    NoPath,
+}
+
+/// Spends one turn of a job: look for work, end if there is none, walk towards it if there is, and stand ready when the creature has arrived.
+///
+/// Reference: `generic_multi_activity_handler` (`activity_item_handling.cpp:3334-3420`), which runs on every turn of the activity. Its steps, in order: collect the work spots
+/// (the zones of the activity's kind), sort them by distance, and for the nearest one that is **not** where the creature stands, route to it, set the destination and spend the
+/// creature's moves (`route_adjacent` + `set_moves( 0 )`, `:3380-3388`). A spot the creature is **on** is where the work happens.
+///
+/// The port's version walks the step itself through [`crate::routing::walk_towards`], which asks the routing for one step towards the target - the reference's own shape, since its
+/// NPCs re-route each turn rather than keeping a path.
+///
+/// **Named gaps**: the work itself when the creature has arrived (`Ready`), the per-activity `can_do_activity_there` checks, the tool-fetch errand, and the reference's
+/// "skip this spot and try the next" when one is unreachable - the port answers `NoPath` after the nearest spot rather than walking the rest of the list.
+pub fn work_a_turn(
+    world: &mut bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+    faction: &str,
+    bounds: (i32, i32),
+) -> TurnOfWork {
+    if the_job_has_nothing_to_do(world, npc, faction) {
+        return TurnOfWork::Ended;
+    }
+    let Some(activity) = world
+        .get::<crate::creature::Doing>(npc)
+        .map(|doing| doing.activity.clone())
+    else {
+        return TurnOfWork::NotAJob;
+    };
+    if zone_for_activity(&activity).is_none() {
+        return TurnOfWork::NotAJob;
+    }
+    let Some(work) = next_work_square(world, npc, faction) else {
+        return TurnOfWork::Ended;
+    };
+    let Some(place) = world.get::<crate::Position>(npc).copied() else {
+        return TurnOfWork::NotAJob;
+    };
+    if (place.x, place.y, place.z) == work {
+        return TurnOfWork::Ready;
+    }
+    // **The job decides the direction; the turn takes the step.** The reference's activity ends its turn with `set_destination` and lets the walk happen in the same creature
+    // phase; the port writes a `WantsToStep`, which the walk stage of the turn consumes. Stepping here would move the creature before the turn's own step rules had a say.
+    match crate::routing::step_towards(world, npc, work, bounds) {
+        Some((dx, dy)) => {
+            world
+                .entity_mut(npc)
+                .insert(crate::walk::WantsToStep { dx, dy });
+            TurnOfWork::Walking
+        }
+        None => TurnOfWork::NoPath,
+    }
+}

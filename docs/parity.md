@@ -41878,3 +41878,28 @@ port has no NPC act loop for a multiple activity to spend a turn in, which is th
 
 **The constant that was not pinned** is worth its own line, because it is the second time this week a test was green for the wrong reason: ordering, boundaries and defaults are where
 mutations hide.
+
+## A job spends its turn (round 376)
+
+The loop is closed: an NPC with a multiple job now **acts** every turn. `run_turn` gained a `jobs` stage, and `multiple_work::work_a_turn` is its whole rule
+(`generic_multi_activity_handler`, `activity_item_handling.cpp:3334-3420`):
+
+1. look for the work square (the zones of the job's kind, nearest first);
+2. none in reach - the job **ends**, with the reference's sentence;
+3. the creature is **on** the work square - `Ready`, and the work itself is the named gap;
+4. otherwise **decide the step** and leave a `WantsToStep`, which the turn's own walk stage takes.
+
+That last step is the design point: the job must not teleport the person, and must not move them before the turn's own step rules have had a say. The reference splits it the same
+way - an activity ends its turn with `set_destination`, and the walk happens later in the creature phase. `routing::step_towards` is the new half of `walk_towards`: it answers the
+**direction** without taking the step, so the two rules can be used apart.
+
+**The first version failed its own test and that is why the split exists.** It called `walk_towards` inside the job stage, which moved the person immediately; the schedule-level test
+then could not tell whether the walk stage had done anything, and the comment claiming "the step a job decides is the step this turn walks" was false. Splitting the decision from
+the step made the claim true and the test able to see it.
+
+**Three mutations caught**: the jobs stage removed from the turn, the step decided but not left for the walk stage, and the direction negated. A fourth - moving the `jobs` stage
+after `walk` - is **not** catchable while the job only writes an intent and the walk stage is the only thing that moves a creature, because the order then does not matter; the stage
+sits before `walk` for the reference's order, not for an observable difference.
+
+**Named gaps**: the work itself (`Ready`), the per-activity `can_do_activity_there` checks, the tool-fetch errand, "skip this spot and try the next" on a blocked route, and the
+faction, which the jobs stage passes as `your_followers` because no character carries one yet.

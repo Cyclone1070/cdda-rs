@@ -126,6 +126,9 @@ const STAGES: &[Stage] = &[
     ("fields", fields_stage, TurnStage::Fields),
     // **Steps happen before the monsters act**, and inside the creatures stage, because `do_turn.cpp`'s creature phase is where every creature spends its turn - a survivor's
     // step is not an environment stage of its own.
+    // **A job spends its turn before the steps are taken**, because the step a job decides is the step this turn walks: the reference's activity `do_turn` runs in the creature
+    // phase and ends with `set_moves( 0 )` when it decided to walk (`activity_item_handling.cpp:3380-3388`).
+    ("jobs", jobs_stage, TurnStage::Creatures),
     ("walk", walk_stage, TurnStage::Creatures),
     ("creatures", creatures_stage, TurnStage::Creatures),
     ("light", light_stage, TurnStage::Light),
@@ -381,6 +384,25 @@ fn digest_stage(world: &mut World) {
 fn sounds_stage(world: &mut World) {
     note(world, TurnStage::Sounds);
     crate::hearing::hear_sounds(world);
+}
+
+/// **The people with jobs spend their turn on them.** Every creature with a `Doing` whose activity works in a zone gets one turn of [`crate::multiple_work::work_a_turn`]: look
+/// for work, end if there is none, walk towards it if there is.
+///
+/// The faction is **the player's**, `your_followers`, because the reference asks `_fac_id( you )` (`activity_item_handling.cpp:162-166`) - the character's own faction - and the
+/// port has no faction per character yet. The NPCs whose jobs this runs are the player's followers, which is the case the reference's own dialogue creates.
+fn jobs_stage(world: &mut World) {
+    let workers: Vec<bevy_ecs::entity::Entity> = world
+        .iter_entities()
+        .filter(|entity| {
+            entity.get::<crate::npcs::Npc>().is_some()
+                && entity.get::<crate::creature::Doing>().is_some()
+        })
+        .map(|entity| entity.id())
+        .collect();
+    for worker in workers {
+        let _ = crate::multiple_work::work_a_turn(world, worker, "your_followers", (66, 66));
+    }
 }
 
 fn walk_stage(world: &mut World) {

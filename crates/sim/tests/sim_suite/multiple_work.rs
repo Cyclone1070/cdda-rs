@@ -211,3 +211,88 @@ fn a_job_with_no_work_in_reach_ends_and_says_why() {
         "**and the activity is still there**"
     );
 }
+
+/// **A job decides the step and the turn takes it.** A person told to butcher, a corpse zone four squares away: the job answers `Walking`, leaves a `WantsToStep` on the person
+/// rather than moving them, and the turn's own `take_steps` then takes exactly one step towards the corpse.
+///
+/// The step is the assertion that matters: it proves the job stage ran **before** the walk stage, which is the reference's order (an activity decides to walk; the walk happens in
+/// the same creature phase) and the thing a rule that moved the creature itself would not show.
+#[test]
+fn a_job_decides_a_step_and_the_turn_takes_it() {
+    let mut world = World::new();
+    let mut walkway = cdda_sim::terrain_table::TerrainTable::default();
+    walkway.insert(1, true);
+    walkway.insert_move_cost(1, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain: walkway,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
+    let mut level = cdda_core_types::level::Level::new();
+    for y in -10..=10 {
+        for x in -10..=10 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    cdda_sim::creature::set_moves(&mut world, vlad, 100);
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    cdda_sim::zones::place(
+        &mut world,
+        (4, 0, 0),
+        (4, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "the corpse",
+        "",
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::work_a_turn(&mut world, vlad, "your_followers", (66, 66)),
+        cdda_sim::multiple_work::TurnOfWork::Walking,
+        "**the job decides to walk**"
+    );
+    assert!(
+        world.get::<cdda_sim::walk::WantsToStep>(vlad).is_some(),
+        "**and leaves the step for the turn to take, rather than moving the person itself**"
+    );
+    cdda_sim::walk::take_steps(&mut world);
+    let moved = world.get::<cdda_sim::Position>(vlad).map(|place| place.x);
+    assert!(
+        moved.is_some_and(|x| x > 0),
+        "**the step was taken, one square towards the corpse: at {moved:?}**"
+    );
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(vlad).is_some(),
+        "**and the job is still the person's, because the corpse is still four squares away**"
+    );
+}
+
+/// **A job with no work ends within the turn it was told about.** The person takes a job, no zone exists, and `run_turn` leaves no job behind.
+#[test]
+fn a_job_with_no_work_ends_in_the_turn() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(vlad).is_none(),
+        "**the job is gone after one turn**"
+    );
+}
