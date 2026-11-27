@@ -52,6 +52,7 @@ pub mod run_cost;
 pub mod seeing;
 pub mod shop;
 pub mod snippets;
+pub mod stats;
 pub mod trade;
 pub mod transform;
 pub mod zones;

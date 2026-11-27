@@ -47,3 +47,38 @@ pub fn net_price_adjustment(buyer: Trader, seller: Trader) -> f64 {
     };
     if seller.is_npc { adjust } else { -1.0 / adjust }
 }
+
+/// What a creature is worth to a trade: its four numbers' relevant two, its barter skill, and whether it is a person.
+///
+/// Reference: the reference asks a `Character` for `int_cur` and `get_skill_level( skill_speech )` and an `npc` for its own kind. The port asks the store, which is where both
+/// already are - `stats` and `skills_of` - so no rule has to carry a copy of either.
+#[must_use]
+pub fn trader_for(world: &bevy_ecs::prelude::World, creature: bevy_ecs::prelude::Entity) -> Trader {
+    Trader {
+        intelligence: crate::stats::stats_of(world, creature).intelligence,
+        barter: crate::skills_of::level_of(world, creature, "speech"),
+        is_npc: world.get::<crate::npcs::Npc>(creature).is_some(),
+    }
+}
+
+/// What a shop asks for one of a kind.
+///
+/// Reference: the non-faction path of `npc_trading::adjusted_price` (`npctrade.cpp:191-202`): the item's **sold** price (`price_post`, in cents) is multiplied by
+/// `1 + 0.25 * net_price_adjustment( buyer, seller )` and rounded **up**. That is the whole rule the port has; the faction's price rules, the NPC's own `value()` override and
+/// the container recursion are named gaps.
+#[must_use]
+pub fn price_for(
+    world: &bevy_ecs::prelude::World,
+    buyer: bevy_ecs::prelude::Entity,
+    seller: bevy_ecs::prelude::Entity,
+    kind: crate::ItemTypeId,
+) -> i64 {
+    let base = world
+        .try_query_filtered::<&crate::item_registry::ItemTypes, bevy_ecs::prelude::With<crate::item_registry::TheItemTypes>>()
+        .and_then(|mut query| query.iter(world).next().map(|types| types.price_post_of(kind)))
+        .unwrap_or(0);
+    let adjust = net_price_adjustment(trader_for(world, buyer), trader_for(world, seller));
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    let price = (base as f64 * (1.0 + 0.25 * adjust)).ceil() as i64;
+    price
+}

@@ -41654,3 +41654,21 @@ fails on the person-seller case.
 `_trading_price`, and `wants_to_sell`/`wants_to_buy` - all of which need the NPC rules and factions the port does not have.
 
 The block is unchanged at **33 of 75**: this is the first rule of the trade subsystem, not the rule that uses it.
+
+## What a shop asks, from the store (round 365)
+
+The trade's price now comes out of the world. Three pieces:
+
+- `stats`: a creature's **four numbers** - strength, dexterity, intelligence, perception - as a component, the reference's `Character::int_cur` and its siblings. **The default is
+  eight**, which is `reset_stats`'s own answer, not zero: a creature nobody has given stats to is an ordinary person, and a rule that read zero would make every stranger a fool.
+- `trade::trader_for`: the two numbers a trade needs, read from the store - `stats_of` and `skills_of::level_of( "speech" )` - plus whether the creature is an NPC.
+- `trade::price_for`: the reference's non-faction `adjusted_price` (`npctrade.cpp:191-202`): the item's **sold** price times `1 + 0.25 * net_price_adjustment`, rounded **up**.
+
+The test's arithmetic is worth keeping: 100 cents to a survivor four points duller than the shopkeeper is **130**; three points of the shopkeeper's barter makes it **140**; and an
+NPC buying from a person who is **both** duller and worse-spoken pays **61**, because the two disadvantages compound through the reciprocal. A port that looked at only one of the
+two would never answer 61, and the mutation that **truncates instead of rounding up** fails on the first case.
+
+**Named gaps**: the faction's `faction_price_rule` (`premium`, `markup`, `fixed_adj`), the NPC's own `value( item, price )` override, `_trading_price`'s container recursion, and
+`wants_to_sell`/`wants_to_buy` - which the trade window's offer list will need.
+
+The block is unchanged at **33 of 75**: the price exists, the window that uses it does not.

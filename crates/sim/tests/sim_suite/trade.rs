@@ -4,6 +4,8 @@
 
 #![allow(clippy::expect_used)]
 
+use bevy_ecs::prelude::World;
+
 /// The barter curve, at the values a player can reach in one character: `0.045 * skill² - 0.025 * skill + 1` on the skill capped at five, reciprocal when it favours the buyer.
 ///
 /// The cap is the whole subtlety: a difference of **five** and a difference of **fifty** answer the same number, and the sign of the difference decides whether the value is
@@ -99,5 +101,72 @@ fn the_clever_side_moves_the_price_and_the_person_side_inverts_it() {
             cdda_sim::trade::price_adjustment(3)
         ),
         "**a seller three better at barter asks the curve's worth more**"
+    );
+}
+
+/// **What a shop asks, from the store.** Reference: the non-faction path of `npc_trading::adjusted_price` (`npctrade.cpp:191-202`): the item's sold price times
+/// `1 + 0.25 * net_price_adjustment( buyer, seller )`, rounded up.
+///
+/// The numbers are the test's: an item worth **100 cents** sold by a shopkeeper of intelligence **8** to a survivor of intelligence **4** is `1.2` of value from the adjustment,
+/// so `100 * 1.3 = 130`. Then the same shopkeeper with three points of barter asks the curve on top (`1.33`), and the shop's price goes to `100 * (1 + 0.25 * 1.596)` = **140**.
+/// A port that read `price` instead of `price_post`, or forgot the quarter, or truncated the ceil, lands on a different number in every one of those.
+#[test]
+fn a_shops_price_comes_from_the_store() {
+    let mut world = World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "test_rock",
+            volume_ml: 250,
+            weight_g: 200,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    cdda_sim::item_registry::set_prices_post(&mut world, &[("test_rock".to_owned(), 100)]);
+    let kind = cdda_sim::item_registry::id_of(&mut world, "test_rock").expect("the kind");
+    let shopper = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
+    cdda_sim::stats::set_stats(
+        &mut world,
+        shopper,
+        cdda_sim::stats::Stats {
+            intelligence: 4,
+            ..cdda_sim::stats::Stats::default()
+        },
+    );
+    let keeper = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (1, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, keeper, "vlad");
+    assert_eq!(
+        cdda_sim::trade::price_for(&world, shopper, keeper, kind),
+        130,
+        "**100 cents of value, a 1.2 adjustment, and the quarter: 130**"
+    );
+    cdda_sim::skills_of::set_level(&mut world, keeper, "speech", 3);
+    assert_eq!(
+        cdda_sim::trade::price_for(&world, shopper, keeper, kind),
+        140,
+        "**three points of barter on top: 1.596 times value, so 140 after the quarter and the ceil**"
+    );
+    // **The buyer's side inverts when the person is the seller**: the same adjustment, negated, so a person selling to an NPC asks less than value would suggest.
+    let seller = cdda_sim::creature::spawn_creature(&mut world, "the survivor selling", (2, 0, 0));
+    cdda_sim::stats::set_stats(
+        &mut world,
+        seller,
+        cdda_sim::stats::Stats {
+            intelligence: 4,
+            ..cdda_sim::stats::Stats::default()
+        },
+    );
+    // **Both of the person's disadvantages compound**: four points duller is `1.2` to the buyer's side, three points less barter inverts the curve to `0.7518`, and the person as
+    // seller negates and inverts the product - `-1 / (0.7518 / 1.2) = -1.596` - so `100 * (1 - 0.399)` rounds up to **61**. A port that only looked at intelligence would say
+    // 61 is impossible and one that only looked at barter would say 75; only the whole rule answers 61.
+    assert_eq!(
+        cdda_sim::trade::price_for(&world, keeper, seller, kind),
+        61,
+        "**an NPC buying from a duller, worse-spoken person pays 61**"
     );
 }
