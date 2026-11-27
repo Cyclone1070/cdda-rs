@@ -472,10 +472,11 @@ fn a_person_walks_to_the_corpse_and_starts_the_cut() {
         {
             walked = true;
         }
-        if let Some(doing) = world.get::<cdda_sim::creature::Doing>(vlad) {
-            if doing.activity == "butcher" {
-                cut = Some((doing.moves_left, doing.moves_total));
-            }
+        if let Some(doing) = world
+            .get::<cdda_sim::creature::Doing>(vlad)
+            .filter(|doing| doing.activity == "butcher")
+        {
+            cut = Some((doing.moves_left, doing.moves_total));
         }
     }
     assert!(walked, "**the person walked towards the corpse**");
