@@ -368,8 +368,10 @@ fn the_shop_offers_what_it_will_sell_and_prices_it() {
         .iter()
         .find(|offer| offer.item == rock)
         .expect("**the rock is offered**");
+    // **Evenly matched is 125, not 100**: `price_post` is what a shop **pays**, and the reference's `1 + 0.25 * adjust` with an adjustment of one is a shop's quarter on top of
+    // it. A port that gave away the margin at even odds would sell every item at cost.
     assert_eq!(
-        rock_offer.price, 100,
-        "**at its sold price, because the two sides are evenly matched**"
+        rock_offer.price, 125,
+        "**a quarter over the sold price, because that is the shop's margin**"
     );
 }

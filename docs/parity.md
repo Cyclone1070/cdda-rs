@@ -41689,3 +41689,18 @@ Two more decisions of the trade window, ported as rules:
 
 **A note on this round's verification**: the build host (`cyc@elitedesk`) became unreachable partway through - `ssh` and `ping` time out - so the local gate could not run. The
 commit went out with **CI as the gate** instead, and the mutation check for these two rules is **pending the host's return**; it is the first thing the next round does.
+
+## What the shop is offering (round 367)
+
+`trade::selling` is `npc_trading::init_selling` (`npctrade.cpp:117-141`): every item a shopkeeper carries is priced, and the ones they are willing to sell become offers, in the
+carried list's order - which is the order the reference's `items_with` produces and a window shows.
+
+The test carries **three** items so the offer list is a decision and not a count: a rock on the trusted shelf, a pistol on the **untrusted** one, and a gem nobody's shelf names.
+The pistol is refused, the gem is sold - a shelf that does not name an item does not refuse it, only an untrusted one does - and the rock is priced at **125**: `price_post` is what a
+shop **pays**, and `1 + 0.25 * adjust` with an adjustment of one is the shop's quarter on top of it. CI caught this round's first version asserting 100, which would have meant a
+shop selling at cost.
+
+**Named gaps**: the reference skips **liquids** (`!it.made_of( phase_id::LIQUID )`) and the port's item registry has no phase column to ask, so a carried liquid would be offered;
+`np.value( it )` is the NPC's own valuation, replaced here by the plain adjusted price; and the wielded weapon's free-exchange offer is not in the list.
+
+**Verification note**: the build host was still unreachable this round, so CI is again the gate, and the mutation checks for rounds 366 and 367 stay **pending** until it returns.
