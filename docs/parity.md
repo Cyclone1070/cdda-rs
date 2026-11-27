@@ -41858,3 +41858,23 @@ before writing is a rule in this repo for this reason.
 
 **Named gaps**: vehicle-attached zones, the personal shift, the `invert` flag, the `LOOT_CUSTOM` item filter, and the reference's area cache - which the port deliberately does not
 have, because a cache of zones is the second source of truth the architecture forbids.
+
+## A job looks for its work, and ends when there is none (round 375)
+
+The two steps that turn a job into work, from `generic_multi_activity_handler` (`activity_item_handling.cpp:3334-3505`):
+
+- `next_work_square`: the zones of the activity's kind, within `MAX_VIEW_DISTANCE`, and the **nearest square** of them - the reference's collect-then-sort-by-distance, with ties
+  broken by the square itself so the answer never depends on the store's order. `MAX_VIEW_DISTANCE` is `SEEX * HALF_MAPSIZE` = **60** (`map_scale_constants.h:11-27`).
+- `the_job_has_nothing_to_do`: an **empty** work-spot set ends the job, with the reference's own sentence - *"X failed to perform the ACT activity because no suitable locations were
+  found."* Crucially it applies **only to a job that works in a zone**: reading, crafting and socialising have no zone, and having no zone is not having no work.
+
+**The escape that taught the test**: the first version put the "out of reach" zone seventy squares away, and a mutation that shortened `MAX_VIEW_DISTANCE` from 60 to **6** passed it.
+The test now has the boundary itself - a zone exactly **60** squares away is work, **61** is not - and that mutation fails. Four mutations now bite: farthest square wins, any
+activity can end with no work, the constant shortened, and the wrong zone kind.
+
+**Named gaps**: routing to the work square (`route_adjacent`), doing the work, the per-activity `can_do_activity_there` checks, the tool-fetch errand (`ACT_FETCH_REQUIRED`), and the
+faction - the reference asks the character's own faction (`_fac_id`), and the port passes it in because no character carries one yet. And nothing calls these rules **yet**: the
+port has no NPC act loop for a multiple activity to spend a turn in, which is the next piece.
+
+**The constant that was not pinned** is worth its own line, because it is the second time this week a test was green for the wrong reason: ordering, boundaries and defaults are where
+mutations hide.

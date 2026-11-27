@@ -74,3 +74,140 @@ fn every_zone_the_table_names_is_in_the_data() {
         );
     }
 }
+
+/// **A job looks for its work in its own zones, and takes the nearest square.** Reference: `generic_multi_activity_handler` (`activity_item_handling.cpp:3344-3400`), which
+/// collects the zones of the activity's type and sorts them by distance.
+///
+/// Two corpse zones are in reach - one three squares away, one ten - so the answer is the near one's nearest square, not the far one's. The square is named exactly, because
+/// "somewhere in the right zone" would not catch a rule that sorted wrongly.
+#[test]
+fn a_job_takes_the_nearest_work_square_in_its_own_zone() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    cdda_sim::zones::place(
+        &mut world,
+        (3, 0, 0),
+        (4, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "near the corpse",
+        "",
+    );
+    cdda_sim::zones::place(
+        &mut world,
+        (10, 10, 0),
+        (11, 11),
+        "LOOT_CORPSE",
+        "your_followers",
+        "far corpse",
+        "",
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((3, 0, 0)),
+        "**the nearest square of the nearest zone**"
+    );
+}
+
+/// **A job with no work in reach ends itself, and says so.** Reference: the end of `generic_multi_activity_handler` (`activity_item_handling.cpp:3502-3505`): an **empty** work-spot
+/// set is the person's job being over, with a sentence saying why.
+///
+/// The three cases are the rule: no zone at all ends the job; a zone out of reach (beyond `MAX_VIEW_DISTANCE`) also ends it; and an activity that works **in no zone** -
+/// `ACT_SOCIALIZE` - is untouched, because having no zone is not having no work.
+#[test]
+fn a_job_with_no_work_in_reach_ends_and_says_why() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    let butcher = cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    };
+    world.entity_mut(vlad).insert(butcher.clone());
+    assert!(
+        cdda_sim::multiple_work::the_job_has_nothing_to_do(&mut world, vlad, "your_followers"),
+        "**no corpse zone anywhere is a job with nothing to do**"
+    );
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(vlad).is_none(),
+        "**and the job is over**"
+    );
+    // **A zone out of reach ends it too**: `MAX_VIEW_DISTANCE` is sixty, so a zone at seventy is no work.
+    world.entity_mut(vlad).insert(butcher.clone());
+    cdda_sim::zones::place(
+        &mut world,
+        (70, 0, 0),
+        (71, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "too far to see",
+        "",
+    );
+    assert!(
+        cdda_sim::multiple_work::the_job_has_nothing_to_do(&mut world, vlad, "your_followers"),
+        "**seventy squares away is out of view**"
+    );
+    // **The boundary is where the constant is**: a zone exactly sixty squares away is work, and one sixty-one away is not. Without this pair the constant is unpinned - the first
+    // version of this test used seventy and a mutation that shortened `MAX_VIEW_DISTANCE` from sixty to six passed it.
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(butcher.clone());
+    cdda_sim::zones::place(
+        &mut world,
+        (60, 0, 0),
+        (60, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "exactly at the edge of sight",
+        "",
+    );
+    assert!(
+        !cdda_sim::multiple_work::the_job_has_nothing_to_do(&mut world, vlad, "your_followers"),
+        "**sixty squares is still in view**"
+    );
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(butcher.clone());
+    cdda_sim::zones::place(
+        &mut world,
+        (61, 0, 0),
+        (61, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "one past the edge",
+        "",
+    );
+    assert!(
+        cdda_sim::multiple_work::the_job_has_nothing_to_do(&mut world, vlad, "your_followers"),
+        "**sixty-one is out of view**"
+    );
+    // **And an activity that works in no zone is not ended by having no zone**, which is the distinction the rule turns on.
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_SOCIALIZE".to_owned(),
+        moves_left: 5,
+        basis: cdda_sim::creature::Basis::Time,
+        moves_total: 5,
+        subject: None,
+    });
+    assert!(
+        !cdda_sim::multiple_work::the_job_has_nothing_to_do(&mut world, vlad, "your_followers"),
+        "**socialising needs no zone, so it is not ended**"
+    );
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(vlad).is_some(),
+        "**and the activity is still there**"
+    );
+}
