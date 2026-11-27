@@ -42006,3 +42006,22 @@ debugger - a failing test needs file, line and column, which line tables keep.
 **What it cost**: the census tests now depend on `mapgens_used` walking effect lists, so a **new nesting effect** that can hold a `MapgenUpdate` must be added to that walk or the
 install will miss it - the same shape as any rule that has to be told about a new variant. The built-world census parallelises with `available_parallelism` capped at 8: on a machine
 with one core it is as slow as it was, which is the honest cost of not owning the scheduler.
+
+## Three more activity gates, and the halves that cannot be answered (round 383)
+
+`can_work_at` now answers the **terrain** half of three `can_do_activity_there` branches:
+
+| Activity | The rule | Reference |
+|---|---|---|
+| `ACT_MULTIPLE_MINE` | the ground must carry `MINEABLE` | `activity_item_handling.cpp:1160-1163` |
+| `ACT_MULTIPLE_FISH` | the ground must carry `FISHABLE` | `:1188-1191` |
+| `ACT_MULTIPLE_CHOP_TREES` | `t_trunk`, `t_stump`, or the `TREE` flag | `:1198-1209` |
+
+Four tests, each mutation-checked by breaking the rule and watching it fail: pavement is mined and grass is not, water is fished and dirt is not, a tree is chopped and grass is not,
+and **a trunk is a chopping spot without the flag** - which is the term a rule that only asked `TFLAG_TREE` would get wrong.
+
+**What is deliberately missing, and said out loud**: every one of these branches has a second half that reads an item's qualities - a digging tool, a fishing rod, an axe - and the
+port has no item predicate layer yet. The terrain half is ported because a job sent to a square it cannot work is a person walking there all day; the tool half is left as `true`
+rather than guessed at. Moping, disassembly, construction and the vehicle branches still answer `true` for the same reason: furniture, items and vehicles are not square things yet.
+
+That is the shape of the remaining P6 work: **the gates are cheap, and what they cannot ask is the item model**.

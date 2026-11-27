@@ -674,7 +674,7 @@ fn an_unported_jobs_spots_are_not_gated_on_corpses() {
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
-        activity: "ACT_MULTIPLE_MINE".to_owned(),
+        activity: "ACT_MULTIPLE_MOP".to_owned(),
         moves_left: 0,
         basis: cdda_sim::creature::Basis::Neither,
         moves_total: 0,
@@ -684,18 +684,18 @@ fn an_unported_jobs_spots_are_not_gated_on_corpses() {
         &mut world,
         (3, 0, 0),
         (3, 0),
-        "MINING",
+        "MOPPING",
         "your_followers",
-        "a rock face",
+        "a spill",
         "",
     );
     assert_eq!(
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         Some((3, 0, 0)),
-        "**a mining spot needs no corpse**"
+        "**a mopping spot needs no corpse**"
     );
     assert!(
-        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_MINE", (3, 0, 0)),
+        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_MOP", (3, 0, 0)),
         "**and the spot itself is workable, because its real gate is not ported yet**"
     );
 }
@@ -811,5 +811,212 @@ fn two_people_do_not_take_the_same_corpse() {
             .map(|doing| doing.subject),
         None,
         "**and the corpse was the subject of the cut that ended: {corpse:?}**"
+    );
+}
+
+/// **A mining job skips ground that is not mineable.**
+///
+/// Reference: the mining branch of `can_do_activity_there` (`activity_item_handling.cpp:1160-1163`): a square without `TFLAG_MINEABLE` answers `NO_ZONE`, and the handler
+/// passes over it. **The tool half is not answered here** - the branch also wants a digging tool, and the port has no item to ask - so this pins the terrain rule alone: the
+/// pavement is worked, the grass beside it is not.
+#[test]
+fn a_mining_spot_whose_ground_is_not_mineable_is_skipped() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_grass".to_owned(), 1), ("t_concrete".to_owned(), 2)],
+    );
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [("t_concrete".to_owned(), vec!["MINEABLE".to_owned()])],
+    );
+    let grass = cdda_sim::terrain_types::code_of(&world, "t_grass").expect("grass is registered");
+    let concrete =
+        cdda_sim::terrain_types::code_of(&world, "t_concrete").expect("concrete is registered");
+    cdda_sim::square::set_terrain(&mut world, (2, 0, 0), grass);
+    cdda_sim::square::set_terrain(&mut world, (6, 0, 0), concrete);
+
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_MINE".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    // The near zone is grass and the far one is pavement: the near square is nearer, and still not the one walked to.
+    cdda_sim::zones::place(
+        &mut world,
+        (2, 0, 0),
+        (2, 0),
+        "MINING",
+        "your_followers",
+        "grass",
+        "",
+    );
+    cdda_sim::zones::place(
+        &mut world,
+        (6, 0, 0),
+        (6, 0),
+        "MINING",
+        "your_followers",
+        "pavement",
+        "",
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**the mineable square, not the nearest one**"
+    );
+}
+
+/// **A fishing job skips dry ground.**
+///
+/// Reference: the fishing branch of `can_do_activity_there` (`activity_item_handling.cpp:1188-1191`): a square without `TFLAG_FISHABLE` answers `NO_ZONE`. The rod is the
+/// other half of the branch and is not modelled, which is why this test is about the water only.
+#[test]
+fn a_fishing_spot_on_dry_ground_is_skipped() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_dirt".to_owned(), 1), ("t_water_sh".to_owned(), 2)],
+    );
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [("t_water_sh".to_owned(), vec!["FISHABLE".to_owned()])],
+    );
+    let dirt = cdda_sim::terrain_types::code_of(&world, "t_dirt").expect("dirt is registered");
+    let water =
+        cdda_sim::terrain_types::code_of(&world, "t_water_sh").expect("water is registered");
+    cdda_sim::square::set_terrain(&mut world, (2, 0, 0), dirt);
+    cdda_sim::square::set_terrain(&mut world, (6, 0, 0), water);
+
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_FISH".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    cdda_sim::zones::place(
+        &mut world,
+        (2, 0, 0),
+        (2, 0),
+        "FISHING_SPOT",
+        "your_followers",
+        "shore",
+        "",
+    );
+    cdda_sim::zones::place(
+        &mut world,
+        (6, 0, 0),
+        (6, 0),
+        "FISHING_SPOT",
+        "your_followers",
+        "water",
+        "",
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**the water, not the shore**"
+    );
+}
+
+/// **A chopping job wants a tree, or a trunk, or a stump.**
+///
+/// Reference: the chopping branch of `can_do_activity_there` (`activity_item_handling.cpp:1198-1209`): `ter( src_loc ) == t_trunk || == t_stump || has_flag( TFLAG_TREE )`,
+/// and anything else answers `NO_ZONE`. The axe is the branch's other half and is not modelled; the terrain rule stands on its own.
+#[test]
+fn a_chopping_job_only_works_a_tree() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [
+            ("t_grass".to_owned(), 1),
+            ("t_tree".to_owned(), 2),
+            ("t_trunk".to_owned(), 3),
+        ],
+    );
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [("t_tree".to_owned(), vec!["TREE".to_owned()])],
+    );
+    let grass = cdda_sim::terrain_types::code_of(&world, "t_grass").expect("grass is registered");
+    let tree = cdda_sim::terrain_types::code_of(&world, "t_tree").expect("tree is registered");
+    let trunk = cdda_sim::terrain_types::code_of(&world, "t_trunk").expect("trunk is registered");
+    cdda_sim::square::set_terrain(&mut world, (2, 0, 0), grass);
+    cdda_sim::square::set_terrain(&mut world, (6, 0, 0), tree);
+    cdda_sim::square::set_terrain(&mut world, (8, 0, 0), trunk);
+
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_CHOP_TREES".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    for (square, name) in [(2, "grass"), (6, "tree"), (8, "trunk")] {
+        cdda_sim::zones::place(
+            &mut world,
+            (square, 0, 0),
+            (square, 0),
+            "CHOP_TREES",
+            "your_followers",
+            name,
+            "",
+        );
+    }
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**the tree, not the grass before it**"
+    );
+}
+
+/// **A trunk is a chopping spot without the tree flag.**
+///
+/// Reference: `:1199` compares `ter( src_loc )` to `t_trunk` and `t_stump` **before** asking `TFLAG_TREE`, and neither id carries it. A rule that only asked the flag would find
+/// nothing to do here and stop at the grass.
+#[test]
+fn a_trunk_is_a_chopping_spot_without_the_tree_flag() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_grass".to_owned(), 1), ("t_trunk".to_owned(), 2)],
+    );
+    let grass = cdda_sim::terrain_types::code_of(&world, "t_grass").expect("grass is registered");
+    let trunk = cdda_sim::terrain_types::code_of(&world, "t_trunk").expect("trunk is registered");
+    cdda_sim::square::set_terrain(&mut world, (2, 0, 0), grass);
+    cdda_sim::square::set_terrain(&mut world, (6, 0, 0), trunk);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_CHOP_TREES".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    for (square, name) in [(2, "grass"), (6, "trunk")] {
+        cdda_sim::zones::place(
+            &mut world,
+            (square, 0, 0),
+            (square, 0),
+            "CHOP_TREES",
+            "your_followers",
+            name,
+            "",
+        );
+    }
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**the trunk, not the grass before it**"
     );
 }

@@ -100,9 +100,13 @@ pub fn next_work_square(
 /// that spot**. The ported case is butchering: the spot must hold a corpse
 /// (`:1210-1215` collects `here.i_at( src_loc )` for corpses, and `:1263-1264` answers `NO_ZONE` when there are none).
 ///
-/// **Every other activity answers `true`**, because its gate needs a rule the port does not have yet: mining wants the terrain's `MINEABLE` flag and a digging tool, fishing wants
-/// `FISHABLE` water and a rod, mopping wants moppable ground and a mop, chopping wants a tree and an axe. Answering `true` keeps those jobs walking to their zones as they did
-/// before this rule existed; answering `false` would end every one of them on its first turn.
+/// **Mining, fishing and chopping answer their terrain half.** Each of those branches has two halves - what the ground is, and what the worker is holding - and only the first can be
+/// asked: `has_quality( BUTCHER, 1 )`, a digging tool, a rod and an axe all read an item's qualities, which the port has no predicate for yet. The terrain half is ported because a
+/// job sent to a square it cannot possibly work is a person walking there all day, and that is a bug whether or not the tool half exists.
+///
+/// **The activities that need furniture, an item or a vehicle answer `true`**: mopping wants moppable ground and a mop, disassembly and construction want items, and the vehicle
+/// branches want a vehicle. Answering `true` keeps those jobs walking to their zones as they did before this rule existed; answering `false` would end every one of them on its first
+/// turn, which is a worse lie than the one it would be replacing.
 #[must_use]
 pub fn can_work_at(
     world: &mut bevy_ecs::prelude::World,
@@ -134,8 +138,36 @@ pub fn can_work_at(
             // and cannot go stale when a cut is cancelled.
             !somebody_is_working_on(world, corpse)
         }
+        // **Mining wants mineable ground.** Reference: `:1160-1163` fails a square without `TFLAG_MINEABLE`. The branch's other half - a digging tool in the worker's hands - is a
+        // question the port cannot ask yet, so the terrain is the whole of the answer here rather than half of it.
+        "ACT_MULTIPLE_MINE" => ground_has_flag(world, square, "MINEABLE"),
+        // **Fishing wants fishable water.** Reference: `:1188-1191`. The rod is the unanswerable half.
+        "ACT_MULTIPLE_FISH" => ground_has_flag(world, square, "FISHABLE"),
+        // **Chopping wants a tree, a trunk or a stump.** Reference: `:1198-1209` - the two ids are compared exactly and everything else needs the `TFLAG_TREE` flag. The axe is
+        // the branch's other half.
+        "ACT_MULTIPLE_CHOP_TREES" => {
+            let Some(code) = crate::square::terrain_at(world, square) else {
+                return false;
+            };
+            if crate::terrain_types::has_flag(world, code, "TREE") {
+                return true;
+            }
+            matches!(
+                crate::terrain_types::name_of(world, code).as_deref(),
+                Some("t_trunk" | "t_stump")
+            )
+        }
         _ => true,
     }
+}
+
+/// Whether the ground at a square carries a terrain flag.
+///
+/// Reference: `map::has_flag( ter_furn_flag, p )` (`map.cpp`), which the activity gates read for the one flag their rule is about. Furniture is not placed as a square thing in the
+/// port yet, so the answer is the terrain's alone and the doc says so rather than guessing what a furniture flag would add.
+fn ground_has_flag(world: &bevy_ecs::prelude::World, square: (i32, i32, i32), flag: &str) -> bool {
+    crate::square::terrain_at(world, square)
+        .is_some_and(|code| crate::terrain_types::has_flag(world, code, flag))
 }
 
 /// Whether anybody's activity has this thing as its subject.
