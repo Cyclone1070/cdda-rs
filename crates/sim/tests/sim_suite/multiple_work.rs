@@ -519,3 +519,65 @@ fn a_cut_whose_moves_run_out_finishes_in_that_turn() {
         "**the cut ran out and the activity is cleared**"
     );
 }
+
+/// **A practised butcher's cut is shorter, and by the reference's own proportion.** `butchery.cpp:452-470` turns the three practice terms into penalties (truncated to whole numbers) and
+/// then into a fraction of the cut: `0.4 * (1 + butch) + 0.4 * (1 + skin) + 0.2`, which is `1.8` with no practice, `1.0` with butchering-basic known, and `1.4` with
+/// butchering-advanced known but not basic.
+///
+/// The three numbers are pinned because each is a different combination of the terms: a cut that ignores practice would give `486,000` for all three, and one that only reads basic
+/// would give `270,000` where `378,000` is right.
+#[test]
+fn a_practised_butcher_cuts_faster() {
+    fn cut_for(proficiencies: &[&str]) -> i32 {
+        let mut world = World::new();
+        let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
+        cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+        for proficiency in proficiencies {
+            cdda_sim::proficiencies::learn(&mut world, vlad, proficiency);
+        }
+        world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+            activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+            moves_left: 0,
+            basis: cdda_sim::creature::Basis::Neither,
+            moves_total: 0,
+            subject: None,
+        });
+        world.spawn((
+            cdda_sim::Position { x: 2, y: 2, z: 0 },
+            cdda_sim::CorpseOf {
+                kind: cdda_sim::MonsterKindId(1),
+                died_on: 0,
+                revives: false,
+                monster_volume_ml: 62_500,
+            },
+        ));
+        cdda_sim::zones::place(
+            &mut world,
+            (2, 2, 0),
+            (2, 2),
+            "LOOT_CORPSE",
+            "your_followers",
+            "the corpse",
+            "",
+        );
+        cdda_sim::multiple_work::work_a_turn(&mut world, vlad, "your_followers", (66, 66));
+        world
+            .get::<cdda_sim::creature::Doing>(vlad)
+            .map_or(0, |doing| doing.moves_total)
+    }
+    assert_eq!(
+        cut_for(&[]),
+        486_000,
+        "**no practice: 450 * 100 * 6 * 1.8**"
+    );
+    assert_eq!(
+        cut_for(&["prof_butchering_basic"]),
+        270_000,
+        "**butchering-basic: the butchering penalty drops to nothing, so the fraction is 1.0**"
+    );
+    assert_eq!(
+        cut_for(&["prof_butchering_advanced"]),
+        378_000,
+        "**advanced without basic: one of the two butchering terms is gone, so 1.4**"
+    );
+}

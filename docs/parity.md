@@ -41934,3 +41934,17 @@ The proficiency factor is `1.8` **because the port has no character practice wir
 named gap, and when it closes this test's number becomes the character's own.
 
 Two mutations caught: a cut started with no length, and a time-based activity whose moves are never spent.
+
+## The cut's length reads the butcher's practice (round 379)
+
+The three proficiency terms of `butcher_time_to_cut` are wired to the character now: `prof_butchering_basic`, `prof_butchering_advanced` and `prof_skinning_basic`, through the same
+`practised_fraction` the finish already used. The cut a person starts is therefore the cut the reference would give them.
+
+Three lengths are pinned, one per combination: **486,000** with no practice (`1.8`), **270,000** with butchering-basic (`1.0`), **378,000** with advanced but not basic (`1.4`). Three
+mutations caught: basic ignored, advanced ignored, and the two butchering terms swapped.
+
+A detail worth keeping: the **skinning penalty truncates to zero for every practice value**. `( 0.5 * ( 1 - skin_basic ) ) as i32` is `0` for all of `[0, 1]`, which is what the
+reference's own `int prof_skin_penalty = penalty_small * ( 1 - skin_basic )` does. The term is ported, it just cannot move the number - so no test can pin it, and pretending one did
+would be a lie about coverage.
+
+**Named gap**: `helpers`, the people adjacent to the corpse lending a hand. The port has no "helping" state on a creature, so the term is zero and the cut is the butcher's alone.

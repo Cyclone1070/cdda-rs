@@ -207,8 +207,8 @@ pub fn work_a_turn(
 /// ported to do. That is a named gap and reads as one.
 ///
 /// Reference: `butcher_time_to_cut( state )` gives the activity's length; the state is the corpse's size (from the monster table), the action the corpse carries (full butchering
-/// unless a `Butchery` says otherwise), and the best cutting tool in reach. **Practice and helpers are zero**, because the port's butchery proficiency terms are not wired to a
-/// character yet - a gap, not a chosen simplification.
+/// unless a `Butchery` says otherwise), the best cutting tool in reach, and the butcher's **practice** in the three butchery proficiencies - the same terms the finish reads.
+/// **Helpers are zero**, because the port has no "helping" state on a creature - a gap, not a chosen simplification.
 fn start_the_work_here(
     world: &mut bevy_ecs::prelude::World,
     npc: bevy_ecs::prelude::Entity,
@@ -252,9 +252,15 @@ fn start_the_work_here(
         field_dress_failed: false,
         quartered: false,
         instant_bleed: false,
-        butchering_basic: 0.0,
-        butchering_advanced: 0.0,
-        skinning_basic: 0.0,
+        butchering_basic: crate::creature::practised_fraction(world, npc, "prof_butchering_basic"),
+        butchering_advanced: crate::creature::practised_fraction(
+            world,
+            npc,
+            "prof_butchering_advanced",
+        ),
+        skinning_basic: crate::creature::practised_fraction(world, npc, "prof_skinning_basic"),
+        // **No helpers yet**: the reference counts the people adjacent to the corpse who are helping (`butchery.cpp`'s helpers term). The port has no "helping" state on a
+        // creature, so the term is zero and the cut is the butcher's alone.
         helpers: 0,
     });
     world.entity_mut(npc).insert(crate::creature::Doing {
