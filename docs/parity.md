@@ -41722,3 +41722,52 @@ it is symmetric. A port that used one price for both directions would sell at co
 
 **Verification**: CI again, and it caught both of this round's mistakes - a slice index (`offers[0]`) that the workspace's lints refuse, and before that the earlier round's
 selling price. The build host is still unreachable, so the mutation checks for rounds 366-368 remain **pending**.
+
+## How far a person will carry the player (round 369)
+
+The trade window's second half is **trust**: what a person will let the player owe, and what they will remember owing. Four rules, all off the port's existing `Opinion`:
+
+- `max_credit_extended` (`npc.cpp:2050-2067`): `trust*50 + value*50 + fear*50 + anger*(-200)`, floored at zero; an ally extends unlimited.
+- `max_willing_to_owe` (`npc.cpp:2073-2097`): a **ten-thousand default** plus `max(0,x)*10000` for trust, value and fear, less anger at ten thousand a point. The default is why this rule is far
+  more generous than the credit it extends - the reference's own comment: the player carries the risk here.
+- `will_accept_trade` (`npctrade.cpp:362-365`): `balance + max_credit_extended >= 0`, a negative balance being what the player owes.
+- `calc_npc_owes_you` (`npctrade.cpp:257-274`): an ally owes nothing; a balance rising **past** their willingness is capped at **the bigger** of the present debt and that willingness -
+  so an old debt is never forgiven by a later trade; otherwise the balance stands.
+
+The test reads them off one opinion: trust 5 and value 3 is **400** of credit, so -400 is accepted and -401 is not; their willingness is **90,000**, so a 100,000 balance is capped,
+unless 95,000 already stands, when the bigger number wins.
+
+**Named gaps**: `personality.altruism` - a per-point hundred in the credit and ten thousand in the willingness - is missing because the port has no personality traits, and the term is
+**missing, not zeroed**: a real person with altruism 40 extends two thousand cents more. `update_npc_owed`'s `op_of_u.sold` bookkeeping is not ported either, since `Opinion` has no
+`sold` field yet.
+
+**Verification**: CI as the gate again (green, 11m52s); the build host remains unreachable, so the mutation checks for rounds 366-369 stay pending.
+
+## The process: what made a round slow, and what fixes it (round 370)
+
+Measured, not guessed, on the local machine (a 2018 i7 with 12 threads) and against the record of the remote one:
+
+| Step | local | `cyc@elitedesk` | CI |
+|---|---|---|---|
+| focused test, no source change | 5.6 s | - | - |
+| focused test, one file changed | 15.5 s (6.3 s lib + 9.2 s test crate and link) | **9-19 min** | - |
+| full sim suite (1,857 tests) | 16m25s | - | ~7 min |
+| full content suite (579) | 1m38s | - | ~1 min |
+| `clippy --workspace --all-targets` | 2m0s | - | - |
+| fmt + docs | 8.3 s | - | - |
+
+**The remote's 9-19 minutes were self-inflicted.** `tools/remote_test.py` synced with `rsync -az --no-times`: without a checksum, rsync's quick check compares size and time, and
+a file stamped "now" by the last sync never matches its source, so **every** file was transferred and re-stamped **every** time and cargo rebuilt the whole workspace. `-azc
+--no-times` keeps both halves of the rule: an unchanged file is found by content and left alone (its artifact stays fresh), a changed one is still stamped now (no false green from
+clock skew). That is the fix for every future remote round.
+
+**And the local machine is not the fast one for a full gate** - 16m25s for the sim suite against CI's ~7 - so the split that follows the numbers is: focused red/green/mutation
+loops locally, the full gate in CI, and the two never confused for one another.
+
+**Two process rules that fall out of the numbers:**
+
+1. **Two-pass batches.** Write four to six rules' tests first, run once (all red), implement, run once (all green), mutate once (all caught). Three compiles serve a whole batch
+   instead of one per rule, and the red-first and mutation checks are exactly as strict as before - they are the same checks, batched.
+2. **CI is polled, never waited on.** It runs on a push in ten to twelve minutes and does not consume the machine that writes the next batch.
+
+`[profile.test] debug = 0` was measured too and is **not** a win (28.8 s against 29.0 s), so the profile is untouched.
