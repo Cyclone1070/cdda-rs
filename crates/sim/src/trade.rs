@@ -175,7 +175,7 @@ pub fn selling(
             &crate::creature::Carried,
             &crate::GroundItem,
         )>();
-        let Some(mut query) = held.as_mut() else {
+        let Some(query) = held.as_mut() else {
             return Vec::new();
         };
         for (entity, carry, item) in query.iter(world) {
