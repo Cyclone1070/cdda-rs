@@ -41919,3 +41919,18 @@ without a corpse at distance five, a search that ignored the square would have p
 
 **Named gaps**: the per-activity `can_do_activity_there` checks for the other six jobs, the tool-fetch errand, practice and helpers in the cut's length, and the corpse's
 dress/quarter flags (always false here - a body that was field dressed on an earlier job would be cut as if it had not been).
+
+## The loop, and the number that proves it (round 378)
+
+A person now walks to a corpse zone, starts the cut, and the cut is the reference's own length. The test pins the **number**, because the length is where four separate rules meet:
+`450` (a medium body, `butchery.cpp:397-399`) `* 100` (`max( 25, 100 - factor )` with no tool, `:412-413`) `* 6` (full butchering of a body not field dressed, `:426-431`)
+`* 1.8` (no butchering-basic, butchering-advanced or skinning-basic practice, `:452-470`) `= 486,000` moves - **4,860 turns** at a hundred a turn.
+
+That number is not a bug. My first version of this test expected the loop to finish in forty turns, and it failed; checking `butchery.cpp` line by line showed the port was right and the
+expectation was wrong. The test now asserts the product and says what each factor is, and the finish has its own fast test (a cut handed a hundred moves runs out in one turn) so the
+suite does not spend thirty seconds of real turns waiting for a bare-handed butchery.
+
+The proficiency factor is `1.8` **because the port has no character practice wired in**: `butchering_basic`, `butchering_advanced` and `skinning_basic` are passed as zero. That is the
+named gap, and when it closes this test's number becomes the character's own.
+
+Two mutations caught: a cut started with no length, and a time-based activity whose moves are never spent.

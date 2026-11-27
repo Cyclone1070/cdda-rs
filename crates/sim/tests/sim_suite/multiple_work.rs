@@ -405,3 +405,116 @@ fn a_job_on_an_empty_work_square_is_ready() {
         "**and the job is still the job**"
     );
 }
+
+/// **The whole loop, over turns**: a person walks to the corpse, starts butchering it, and the cut is the reference's own length.
+///
+/// The last assertion is the number the reference's arithmetic produces for this state - `450` (a medium body) `* 100` (`max( 25, 100 - factor )` with no tool)
+/// `* 6` (full butchering, not field dressed) `* 1.8` (no butchering, advanced or skinning practice) `= 486,000` moves, which a time-based activity spends a hundred at a time.
+/// It is pinned because **every factor is a rule**: a cut that starts at the wrong length is a person stuck for hours, and that is exactly what the first version of this test found -
+/// it expected forty turns, and forty turns is not the reference's answer.
+///
+/// The finish is **not** waited for here: 4,860 turns of a real turn loop is thirty seconds of test for a rule that has its own test below.
+#[test]
+fn a_person_walks_to_the_corpse_and_starts_the_cut() {
+    let mut world = World::new();
+    let mut walkway = cdda_sim::terrain_table::TerrainTable::default();
+    walkway.insert(1, true);
+    walkway.insert_move_cost(1, 2);
+    cdda_sim::singletons::set_prototypes(
+        &mut world,
+        cdda_sim::Prototypes {
+            terrain: walkway,
+            furniture: cdda_sim::terrain_table::TerrainTable::default(),
+        },
+    );
+    let mut level = cdda_core_types::level::Level::new();
+    for y in -10..=10 {
+        for x in -10..=10 {
+            level.set_terrain(x, y, 1, 0);
+        }
+    }
+    cdda_sim::load_level(&mut world, &level);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    world.spawn((
+        cdda_sim::Position { x: 3, y: 0, z: 0 },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 62_500,
+        },
+    ));
+    cdda_sim::zones::place(
+        &mut world,
+        (3, 0, 0),
+        (3, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "the corpse",
+        "",
+    );
+    let mut walked = false;
+    let mut cut = None;
+    for _ in 0..12 {
+        cdda_sim::creature::set_moves(&mut world, vlad, 100);
+        cdda_sim::turn::run_turn(&mut world);
+        if world
+            .get::<cdda_sim::Position>(vlad)
+            .is_some_and(|place| place.x > 0)
+        {
+            walked = true;
+        }
+        if let Some(doing) = world.get::<cdda_sim::creature::Doing>(vlad) {
+            if doing.activity == "butcher" {
+                cut = Some((doing.moves_left, doing.moves_total));
+            }
+        }
+    }
+    assert!(walked, "**the person walked towards the corpse**");
+    let cut = cut.expect("**and started butchering it**");
+    assert_eq!(
+        cut.1, 486_000,
+        "**the cut is the reference's own length: 450 * 100 * 6 * 1.8**"
+    );
+}
+
+/// **A cut whose moves run out finishes in that turn.** The activity is handed a hundred moves and run out, so the finisher is called by the turn loop itself - which is the
+/// half of the pipeline the test above deliberately does not wait for.
+#[test]
+fn a_cut_whose_moves_run_out_finishes_in_that_turn() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    cdda_sim::creature::set_moves(&mut world, vlad, 100);
+    let corpse = world
+        .spawn((
+            cdda_sim::Position { x: 2, y: 2, z: 0 },
+            cdda_sim::CorpseOf {
+                kind: cdda_sim::MonsterKindId(1),
+                died_on: 0,
+                revives: false,
+                monster_volume_ml: 62_500,
+            },
+        ))
+        .id();
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "butcher".to_owned(),
+        moves_left: 100,
+        basis: cdda_sim::creature::Basis::Time,
+        moves_total: 100,
+        subject: Some(corpse),
+    });
+    cdda_sim::turn::run_turn(&mut world);
+    assert!(
+        world.get::<cdda_sim::creature::Doing>(vlad).is_none(),
+        "**the cut ran out and the activity is cleared**"
+    );
+}
