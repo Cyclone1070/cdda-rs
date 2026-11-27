@@ -41734,8 +41734,12 @@ The trade window's second half is **trust**: what a person will let the player o
 - `calc_npc_owes_you` (`npctrade.cpp:257-274`): an ally owes nothing; a balance rising **past** their willingness is capped at **the bigger** of the present debt and that willingness -
   so an old debt is never forgiven by a later trade; otherwise the balance stands.
 
-The test reads them off one opinion: trust 5 and value 3 is **400** of credit, so -400 is accepted and -401 is not; their willingness is **90,000**, so a 100,000 balance is capped,
-unless 95,000 already stands, when the bigger number wins.
+The test reads them off one opinion: trust 5, value 3 and **fear 2** is **500** of credit, so -500 is accepted and -501 is not; their willingness is **110,000**, so a 120,000 balance
+is capped, unless 115,000 already stands, when the bigger number wins. A second person is **angry**, because anger is the only term that subtracts.
+
+**The fear and anger terms are in the test because a mutation escaped without them.** The first version had fear at zero, and deleting the whole fear term from the credit rule passed
+it - a test that cannot see a term is not a test of that term. With every term non-zero, four mutations fail: no fear in the credit, no anger in the credit, no fear in the
+willingness, and the blacklist never asked.
 
 **Named gaps**: `personality.altruism` - a per-point hundred in the credit and ten thousand in the willingness - is missing because the port has no personality traits, and the term is
 **missing, not zeroed**: a real person with altruism 40 extends two thousand cents more. `update_npc_owed`'s `op_of_u.sold` bookkeeping is not ported either, since `Opinion` has no

@@ -418,6 +418,8 @@ fn a_person_who_thinks(
     world: &mut World,
     trust: i32,
     value: i32,
+    fear: i32,
+    anger: i32,
     owed: i32,
 ) -> bevy_ecs::prelude::Entity {
     let npc = cdda_sim::creature::spawn_creature(world, "Vlad", (1, 0, 0));
@@ -428,8 +430,8 @@ fn a_person_who_thinks(
         cdda_sim::npcs::Opinion {
             value,
             trust,
-            anger: 0,
-            fear: 0,
+            anger,
+            fear,
             owed,
             raised: 0,
         },
@@ -440,24 +442,27 @@ fn a_person_who_thinks(
 /// **How far a person will carry the player, and what they will remember owing.** Reference: `npc::max_credit_extended` (`npc.cpp:2050-2067`) and
 /// `npc_trading::calc_npc_owes_you` (`npctrade.cpp:257-274`).
 ///
-/// Trust 5 and value 3 is `250 + 150 = 400` of credit, so a balance of **-400** is accepted and **-401** is not - the debt is within what they will extend, and one cent past it is
-/// not. Their willingness to owe is the ten-thousand default plus five and three ten-thousands: **90,000**, so a 100,000 balance is capped there - unless the debt already stands
-/// higher, when the bigger number wins and the old debt is never forgiven by a later trade.
+/// **Every term of the sum is a non-zero number in this test**, and that is not decoration: the first version had fear at zero, and the mutation that deleted the whole fear term
+/// passed it. An opinion of trust 5, value 3 and fear 2 is `250 + 150 + 100 = 500` of credit, so a balance of **-500** is accepted and **-501** is not. Their willingness to owe
+/// is the ten-thousand default plus five, three and two ten-thousands: **110,000**, so a 120,000 balance is capped there - unless the debt already stands higher, when the bigger
+/// number wins and an old debt is never forgiven by a later trade.
+///
+/// The second person is **angry**, and anger is the only term that subtracts: one point of it is 200 off the credit and ten thousand off the willingness, so 300 and 100,000.
 #[test]
 fn a_persons_credit_is_their_opinion_of_the_player() {
     let mut world = World::new();
-    let npc = a_person_who_thinks(&mut world, 5, 3, 0);
+    let npc = a_person_who_thinks(&mut world, 5, 3, 2, 0, 0);
     assert_eq!(
         cdda_sim::trade::max_credit_extended(&world, npc),
-        400,
-        "**five trust and three value at fifty each**"
+        500,
+        "**five trust, three value and two fear at fifty each**"
     );
     assert!(
-        cdda_sim::trade::will_accept_trade(&world, npc, -400),
+        cdda_sim::trade::will_accept_trade(&world, npc, -500),
         "**a debt of exactly the credit is taken**"
     );
     assert!(
-        !cdda_sim::trade::will_accept_trade(&world, npc, -401),
+        !cdda_sim::trade::will_accept_trade(&world, npc, -501),
         "**and a cent past it is not**"
     );
     assert!(
@@ -466,12 +471,12 @@ fn a_persons_credit_is_their_opinion_of_the_player() {
     );
     assert_eq!(
         cdda_sim::trade::max_willing_to_owe(&world, npc),
-        90_000,
-        "**the ten-thousand default, five and three more**"
+        110_000,
+        "**the ten-thousand default, five, three and two more**"
     );
     assert_eq!(
-        cdda_sim::trade::calc_npc_owes_you(&world, npc, 100_000),
-        90_000,
+        cdda_sim::trade::calc_npc_owes_you(&world, npc, 120_000),
+        110_000,
         "**a debt past their willingness is capped there**"
     );
     assert_eq!(
@@ -479,12 +484,24 @@ fn a_persons_credit_is_their_opinion_of_the_player() {
         50_000,
         "**a debt within it stands**"
     );
-    // **An old debt higher than their willingness is not forgiven**: 95,000 already owed and a 100,000 balance answers 95,000, the bigger of the two.
-    let older = a_person_who_thinks(&mut world, 5, 3, 95_000);
+    // **An old debt higher than their willingness is not forgiven**: 115,000 already owed and a 120,000 balance answers 115,000, the bigger of the two.
+    let older = a_person_who_thinks(&mut world, 5, 3, 2, 0, 115_000);
     assert_eq!(
-        cdda_sim::trade::calc_npc_owes_you(&world, older, 100_000),
-        95_000,
+        cdda_sim::trade::calc_npc_owes_you(&world, older, 120_000),
+        115_000,
         "**the present debt wins when it is bigger**"
+    );
+    // **Anger is the term that subtracts**, at 200 a point of credit and ten thousand a point of willingness.
+    let angry = a_person_who_thinks(&mut world, 5, 3, 2, 1, 0);
+    assert_eq!(
+        cdda_sim::trade::max_credit_extended(&world, angry),
+        300,
+        "**one point of anger takes 200 off the 500**"
+    );
+    assert_eq!(
+        cdda_sim::trade::max_willing_to_owe(&world, angry),
+        100_000,
+        "**and ten thousand off the 110,000**"
     );
     // **And an ally is not a debt**: unlimited credit, everything accepted, nothing owed.
     cdda_sim::npcs::make_ally(&mut world, npc);
