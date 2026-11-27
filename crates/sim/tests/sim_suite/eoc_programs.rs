@@ -498,7 +498,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
         let mut world = World::new();
         let survivor = cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
         cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
-        census.install(&mut world);
+        census.install(&mut world, &mapgens_used(&program.effects));
         // "Ran" has to mean *ran and did something*: a program whose condition could not be read answers Done after doing nothing, which is a
         // false pass. The fingerprint is the cheapest thing that tells them apart - what exists, what was said, what was written down.
         let before = fingerprint(&world);
@@ -537,7 +537,7 @@ fn the_readable_programs_also_run_in_a_fresh_world() {
             let survivor =
                 cdda_sim::creature::spawn_creature(&mut world, "the survivor", (0, 0, 0));
             cdda_sim::singletons::put_rolls(&mut world, cdda_core_types::rng::Rolls::new(1));
-            census.install(&mut world);
+            census.install(&mut world, &mapgens_used(&program.effects));
             if eoc_registry::run_program(&mut world, survivor, None, &program.id, 0)
                 == Applied::Done
             {
@@ -632,9 +632,17 @@ struct Census {
 
 impl Census {
     /// Builds the world the game has, so a rule that asks for data finds it.
-    fn install(&self, world: &mut World) {
+    fn install(&self, world: &mut World, mapgens_wanted: &std::collections::BTreeSet<String>) {
         cdda_sim::eoc_registry::set_programs(world, &self.programs);
-        install_data(world, &self.mapgens, &self.codes, &self.fields);
+        // **Only the mapgens the program names are installed.** The data has 6,216 of them and cloning the lot costs 160 ms; a program that updates one names it, and a
+        // program that updates none gets none. The terrains and fields are always installed, because those are what the world is made of.
+        let wanted: Vec<(String, cdda_content::mapgen::MapgenObject)> = self
+            .mapgens
+            .iter()
+            .filter(|(id, _)| mapgens_wanted.contains(id))
+            .cloned()
+            .collect();
+        install_data(world, &wanted, &self.codes, &self.fields);
         install_snippets(world, &self.snippets);
         cdda_sim::monster_catalog::set_types(world, self.monsters.clone());
         cdda_sim::monster_groups::set_groups(world, self.groups.clone());
@@ -713,7 +721,11 @@ fn fingerprint(world: &World) -> (u32, usize, usize) {
 
 /// Builds the census world's data once, so every measured world and every blamed world is the same world.
 /// Every data file, parsed, for the loaders that pick their definitions out of the whole set rather than one file.
-fn collect_files(data: &std::path::Path) -> Vec<cdda_json::Value> {
+/// Every `jmath_function` in the data, as its own object.
+///
+/// The install used to be handed **every file in the data** and deep-walked all 150 MB of it looking for fifteen functions - 110 ms of the 285 ms a census world cost, paid
+/// 692 times. Collecting the objects once, up front, makes the install a registry build rather than a scan.
+fn collect_math_entries(data: &std::path::Path) -> Vec<cdda_json::Value> {
     let mut files = Vec::new();
     let mut stack = vec![data.to_path_buf()];
     while let Some(directory) = stack.pop() {
@@ -730,11 +742,77 @@ fn collect_files(data: &std::path::Path) -> Vec<cdda_json::Value> {
                 continue;
             }
             if let Some(value) = cdda_content::read_json(&path) {
-                files.push(std::sync::Arc::unwrap_or_clone(value));
+                collect_math_objects(&value, &mut files);
             }
         }
     }
     files
+}
+
+/// The update mapgens a program names, however deeply its effects nest them.
+///
+/// Installing **every** mapgen the data has (6,216 of them, 160 ms) for a program that names one is most of what a census world used to cost. An `if` inside an `if` inside a
+/// loop can still hold an update, so this walks every effect list the enum nests - `If`, the per-element loop and the switch's cases.
+fn mapgens_used(effects: &[cdda_content::dialogue::Effect]) -> std::collections::BTreeSet<String> {
+    let mut used = std::collections::BTreeSet::new();
+    collect_mapgen_uses(effects, &mut used);
+    used
+}
+
+fn collect_mapgen_uses(
+    effects: &[cdda_content::dialogue::Effect],
+    used: &mut std::collections::BTreeSet<String>,
+) {
+    for effect in effects {
+        match effect {
+            cdda_content::dialogue::Effect::MapgenUpdate { updates, .. } => {
+                for update in updates {
+                    if let cdda_content::dialogue::StringSource::Literal(id) = update {
+                        used.insert(id.clone());
+                    }
+                }
+            }
+            cdda_content::dialogue::Effect::If {
+                then, otherwise, ..
+            } => {
+                collect_mapgen_uses(then, used);
+                collect_mapgen_uses(otherwise, used);
+            }
+            cdda_content::dialogue::Effect::Switch { cases, .. } => {
+                for (_, effects) in cases {
+                    collect_mapgen_uses(effects, used);
+                }
+            }
+            cdda_content::dialogue::Effect::ForEach { effects, .. } => {
+                collect_mapgen_uses(effects, used);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Walks a parsed file and pushes every object whose `type` is `jmath_function`.
+fn collect_math_objects(value: &cdda_json::Value, found: &mut Vec<cdda_json::Value>) {
+    match value {
+        cdda_json::Value::Object(object) => {
+            if object.get("type").and_then(|kind| match kind {
+                cdda_json::Value::Str(name) => Some(name.as_str()),
+                _ => None,
+            }) == Some("jmath_function")
+            {
+                found.push(cdda_json::Value::Object(object.clone()));
+            }
+            for (_, member) in object.members() {
+                collect_math_objects(member, found);
+            }
+        }
+        cdda_json::Value::Array(entries) => {
+            for entry in entries {
+                collect_math_objects(entry, found);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Program>) -> Census {
@@ -758,7 +836,7 @@ fn census_world(data: &std::path::Path, programs: Vec<cdda_content::dialogue::Pr
     }
     let snippets = collect_snippets(data);
     let (monsters, groups) = install_monsters(data);
-    let files = collect_files(data);
+    let files = collect_math_entries(data);
     Census {
         programs,
         mapgens,
@@ -931,7 +1009,7 @@ fn refusal_of(
     let mut alone = World::new();
     let survivor = cdda_sim::creature::spawn_creature(&mut alone, "the survivor", (0, 0, 0));
     cdda_sim::singletons::put_rolls(&mut alone, cdda_core_types::rng::Rolls::new(1));
-    census.install(&mut alone);
+    census.install(&mut alone, &std::collections::BTreeSet::new());
     if cdda_sim::dialogue_effects::run_effect(&mut alone, survivor, None, effect)
         != Applied::CannotAnswer
     {
@@ -1575,40 +1653,64 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
 
     // One pass over the readable programs in a world that has something in it. The fresh-world census is the baseline, so the built world only has to
     // beat it - and saying how many more run is the whole point of the measurement.
+    // **One census for the blame, built once.** Every refusal used to clone the whole data - 6,216 mapgens and all - to build a `Census` identical to the last one.
+    let built_census = Census {
+        programs: readable.clone(),
+        mapgens: mapgens.clone(),
+        codes: codes.clone(),
+        fields: fields.clone(),
+        snippets: snippets.clone(),
+        monsters: Vec::new(),
+        groups: Vec::new(),
+        files: Vec::new(),
+        built: true,
+    };
+
+    // **The programs are independent, so they run in parallel.** Each one builds its own world; the data they share is read-only. This test was ten minutes of the suite
+    // because it built 692 worlds one after another - the work was never sequential, only the loop was.
+    let threads = std::thread::available_parallelism()
+        .map_or(1, std::num::NonZeroUsize::get)
+        .clamp(1, 8);
+    let chunk = readable.len().div_ceil(threads);
+    let shared = (&built_census, &mapgens, &codes, &fields, &snippets);
+    let counts: Vec<(usize, std::collections::BTreeMap<String, usize>)> =
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = readable
+                .chunks(chunk.max(1))
+                .map(|slice| {
+                    let (census, mapgens, codes, fields, snippets) = shared;
+                    scope.spawn(move || {
+                        let mut ran = 0usize;
+                        let mut refused: std::collections::BTreeMap<String, usize> =
+                            std::collections::BTreeMap::new();
+                        for program in slice {
+                            match carry_out_in_a_built_world(
+                                program, census, mapgens, codes, fields, snippets,
+                            ) {
+                                None => ran += 1,
+                                Some(blamed) => {
+                                    if std::env::var("CDDA_SHOW_REFUSED").is_ok() {
+                                        println!("REFUSED {} :: {blamed}", program.id);
+                                    }
+                                    *refused.entry(blamed).or_insert(0usize) += 1;
+                                }
+                            }
+                        }
+                        (ran, refused)
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap_or_default())
+                .collect()
+        });
     let mut ran = 0usize;
     let mut refused: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
-    for program in &readable {
-        let mut built = World::new();
-        let survivor = cdda_sim::creature::spawn_creature(&mut built, "the survivor", (12, 12, 0));
-        cdda_sim::singletons::put_rolls(&mut built, cdda_core_types::rng::Rolls::new(1));
-        cdda_sim::eoc_registry::set_programs(&mut built, &readable);
-        install_data(&mut built, &mapgens, &codes, &fields);
-        install_snippets(&mut built, &snippets);
-        build_a_world(&mut built, &mapgens, &codes);
-        if eoc_registry::run_program(&mut built, survivor, None, &program.id, 0) == Applied::Done {
-            ran += 1;
-        } else {
-            // The walk only needs the programs, because it looks a callee up by name; the other members are the world's data, which this world already has.
-            // **The blame runs in the same world the program ran in**, not a bare one: a census that installs data but not the world blamed every rule that reads the world,
-            // and that is the only reason `u_location_variable` headed this ranking. `built: true` is what makes the blame honest.
-            let with_world = Census {
-                programs: readable.clone(),
-                mapgens: mapgens.clone(),
-                codes: codes.clone(),
-                fields: fields.clone(),
-                snippets: snippets.clone(),
-                monsters: Vec::new(),
-                groups: Vec::new(),
-                files: Vec::new(),
-                built: true,
-            };
-            let blamed = first_refusing_effect(program, &with_world, 0)
-                .unwrap_or_else(|| "<no effect named>".to_owned());
-            // **The program's id beside its blame**, so a bucket can be opened instead of counted: a ranking says how many, and only the ids say which rules to read.
-            if std::env::var("CDDA_SHOW_REFUSED").is_ok() {
-                println!("REFUSED {} :: {blamed}", program.id);
-            }
-            *refused.entry(blamed).or_insert(0usize) += 1;
+    for (slice_ran, slice_refused) in counts {
+        ran += slice_ran;
+        for (rule, count) in slice_refused {
+            *refused.entry(rule).or_insert(0usize) += count;
         }
     }
     // **A refusal in a world that has terrain, an overmap and a player is a gap in the port**, where the fresh world's ranking is mostly a statement about the empty world.
@@ -1632,6 +1734,40 @@ fn a_built_world_runs_the_programs_the_fresh_one_could_not() {
 /// Gives a world the things a program acts on: terrain under the player, an overmap tile of every terrain the mapgens name, and queued answers.
 /// How far a search of the data's own can reach, in overmap tiles: `search_range` defaults to `OMAPX * 3` (`mission_util.cpp:429`).
 const REACH: i32 = 540;
+
+/// Runs one program in a fresh, fully built world, and answers `None` when it ran or the effect that refused it.
+///
+/// **The world is built whole.** `build_a_world` lays one overmap tile per mapgen so a search for any `om_terrain` finds one, and the census's pinned count is a statement
+/// about that whole world; filtering the tiles moved the count from 512 to 513, which is the world being different rather than a program that could not run before. The
+/// registry the program's own effects read is filtered to the update mapgens it names, because cloning all 6,216 of them to answer that costs 92 ms per program.
+fn carry_out_in_a_built_world(
+    program: &cdda_content::dialogue::Program,
+    census: &Census,
+    mapgens: &[(String, cdda_content::mapgen::MapgenObject)],
+    codes: &std::collections::BTreeMap<String, u32>,
+    fields: &[(String, u32)],
+    snippets: &[(String, cdda_content::snippets::Line)],
+) -> Option<String> {
+    let mut built = World::new();
+    let survivor = cdda_sim::creature::spawn_creature(&mut built, "the survivor", (12, 12, 0));
+    cdda_sim::singletons::put_rolls(&mut built, cdda_core_types::rng::Rolls::new(1));
+    cdda_sim::eoc_registry::set_programs(&mut built, &census.programs);
+    let wanted = mapgens_used(&program.effects);
+    let only: Vec<(String, cdda_content::mapgen::MapgenObject)> = mapgens
+        .iter()
+        .filter(|(id, _)| wanted.contains(id))
+        .cloned()
+        .collect();
+    install_data(&mut built, &only, codes, fields);
+    install_snippets(&mut built, snippets);
+    build_a_world(&mut built, mapgens, codes);
+    if eoc_registry::run_program(&mut built, survivor, None, &program.id, 0) == Applied::Done {
+        return None;
+    }
+    Some(
+        first_refusing_effect(program, census, 0).unwrap_or_else(|| "<no effect named>".to_owned()),
+    )
+}
 
 fn build_a_world(
     world: &mut World,

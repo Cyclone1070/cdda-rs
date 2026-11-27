@@ -37,9 +37,9 @@ one-file edit - sync, rebuild, the matching tests, clippy of the package, format
 workspace's clippy (touching the sources first so cached crates still emit their diagnostics), the documents, the
 oracle patch and formatting: **5 min 6 s**, 3,261 cases.
 
-**Two tests were ten of the suite's eleven minutes.** `sim_suite::eoc_programs` holds two cases that take **462 s**
-and **587 s** - each builds a whole world before running a program - while the other 1,864 cases finish in **94 s**
-together. So `eoc_programs` is in `SLOW_MODULES`: the focused and full runs skip it and say so, `--slow` puts it back,
+**Two tests were ten of the suite's eleven minutes** - and are now two of six. `sim_suite::eoc_programs` held two
+cases at **462 s** and **587 s**, each building a whole world before running a program; they are **30 s** and **138 s**
+after the fixes recorded in `parity.md` (round 382), while the other 1,864 cases finish in **94 s** together. So `eoc_programs` is in `SLOW_MODULES`: the focused and full runs skip it and say so, `--slow` puts it back,
 and **CI always runs it** (CI is the full suite, and its ten-to-twelve minutes are almost entirely these two cases).
 A rule change *inside* the EOC code needs `--slow` before the push; everything else does not.
 

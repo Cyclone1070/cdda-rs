@@ -41978,3 +41978,31 @@ clear when a cut is cancelled, and no second source of truth.
 - `can_work_at` finds the corpse on the square and answers `false` while anybody's activity has it as its subject.
 - The tests pin both halves: a body being cut is not a spot, and **an untouched body beside it still is**, which is what makes the rule about *this* corpse rather than any corpse.
   That second assertion is the one that caught the mutation "any butchering marks every corpse".
+
+## The census tests: 16 minutes to 2 (round 382)
+
+The two `eoc_programs` census tests were **981 s of the suite's 1,100** - 89% of the run - and they were slow for reasons that had nothing to do with what they test. Measured, then
+fixed:
+
+| | before | after |
+|---|---|---|
+| `the_readable_programs_also_run_in_a_fresh_world` | 394 s | **30 s** |
+| `a_built_world_runs_the_programs_the_fresh_one_could_not` | 587 s | **138 s** |
+| both together | 981 s | **168 s** |
+
+What each fix was, and why the rule was never in doubt:
+
+- **The install walked 150 MB of data to find fifteen functions.** `install_from_values` was handed every parsed file and deep-walked it looking for `jmath_function` objects -
+  110 ms of the 285 ms a census world cost, paid 692 times. The objects are now collected once, up front.
+- **The install cloned all 6,216 mapgens for every program.** Only a program that updates a mapgen needs any, and it names which: the census now installs **just those**, 160 ms →
+  3 ms. The built-world census keeps the **whole world** (its tiles are what a search finds; filtering them moved its pinned count from 512 to 513) and filters only the registry.
+- **The built-world census built 692 worlds one at a time.** They are independent and each owns its world, so they now run on `available_parallelism` threads: 587 s → 138 s
+  even with the whole world built every time.
+- **Every refusal cloned the entire data set** to build a `Census` identical to the last one; it is built once now and shared by reference.
+
+`[profile.dev] debug = "line-tables-only"` and `debug = false` for dependencies: full debuginfo went through every crate and every link, and nothing here is stepped through in a
+debugger - a failing test needs file, line and column, which line tables keep.
+
+**What it cost**: the census tests now depend on `mapgens_used` walking effect lists, so a **new nesting effect** that can hold a `MapgenUpdate` must be added to that walk or the
+install will miss it - the same shape as any rule that has to be told about a new variant. The built-world census parallelises with `available_parallelism` capped at 8: on a machine
+with one core it is as slow as it was, which is the honest cost of not owning the scheduler.

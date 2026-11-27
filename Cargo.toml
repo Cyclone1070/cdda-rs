@@ -20,6 +20,17 @@ expect_used = "deny"
 panic = "deny"
 indexing_slicing = "deny"
 
+# **Line tables, not full debug info.** The default dev profile carries `debug = 2` - full type and variable
+# information - through every crate including the dependencies, and every link then has to place it. This project's
+# tests fail with a message and a line, not with a debugger session, so what is kept is what a panic needs: file, line
+# and column. Measured on the build machine: the test binary is a fraction of the size and links faster.
+[profile.dev]
+debug = "line-tables-only"
+
+# Dependencies are not stepped through either, and they are the larger half of the target directory.
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
