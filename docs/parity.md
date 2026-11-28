@@ -42063,3 +42063,13 @@ the quality at all" is false for everything without it, which is why the rod and
 
 Each test now pins both halves: the same world finds **no** spot without the tool, and the far workable square once the tool is given. Removing any of the three tool terms fails its
 test, which is the mutation that proves the term is doing the work. The `JACKHAMMER` alternative in the mining branch is declared unported in the module doc.
+
+## Mopping answers its item half (round 386)
+
+`ACT_MULTIPLE_MOP` now asks the two questions its branch asks (`activity_item_handling.cpp:1175-1186`): **is there something to mop**, and **is the worker holding a mop**.
+
+- The ground test is `map::terrain_moppable` (`map.cpp:3560-3601`), which answers true for a **liquid item lying on the square**, a moppable field, or vehicle blood. The port
+  has the item half (`item_registry::is_liquid` over the ground items on the square) and the `MOP` item flag; fields as square things and vehicles are declared unported.
+- Both terms are mutation-checked: removing the mop refuses the spill, and making every square a spill walks to the dry floor.
+
+The unported-gate test moved again, from mopping to disassembly - the third move, and each move is the same good news: the activity it named got a real gate.

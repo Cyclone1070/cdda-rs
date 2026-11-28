@@ -105,8 +105,10 @@ pub fn next_work_square(
 /// `carried_has_quality` at the default level of zero for the rod and the axe. The `JACKHAMMER` alternative the mining branch allows is a use-with-ammo question the port cannot
 /// ask yet, and it is named here rather than guessed at.
 ///
-/// **The activities that need furniture, an item or a vehicle answer `true`**: mopping wants moppable ground and a mop, disassembly and construction want items, and the vehicle
-/// branches want a vehicle. Answering `true` keeps those jobs walking to their zones as they did before this rule existed; answering `false` would end every one of them on its first
+/// **Mopping answers its item half too**: a liquid item lying on the square, and a `MOP` flag in the worker's hands - the reference's `terrain_moppable` also counts moppable
+/// fields and vehicle blood, and the port places neither as a square thing yet.
+///
+/// **The activities that need furniture, an item or a vehicle answer `true`**: disassembly and construction want items, and the vehicle branches want a vehicle. Answering `true` keeps those jobs walking to their zones as they did before this rule existed; answering `false` would end every one of them on its first
 /// turn, which is a worse lie than the one it would be replacing.
 #[must_use]
 pub fn can_work_at(
@@ -168,8 +170,33 @@ pub fn can_work_at(
                 );
             has_tree && crate::creature::carried_has_quality(world, npc, "AXE", 0)
         }
+        // **Mopping wants a spill and a mop.** Reference: `:1175-1186` asks `terrain_moppable( src_loc )` and then `cache_has_item_with( json_flag_MOP )`. The ground test
+        // (`map.cpp:3560-3601`) answers true for a **liquid item lying on the square**, for a moppable field, and for vehicle blood; the port has the item half and the flag, and
+        // fields as square things and vehicles are declared unported rather than guessed at.
+        "ACT_MULTIPLE_MOP" => {
+            ground_has_liquid_item(world, square)
+                && crate::creature::carried_has_flag(world, npc, "MOP")
+        }
         _ => true,
     }
+}
+
+/// Whether a liquid item lies on a square.
+///
+/// Reference: the item half of `map::terrain_moppable` (`map.cpp:3563-3572`), which walks `i_at( p )` looking for something `made_of( phase_id::LIQUID )` - a spilled drink is
+/// mopped up by a mop, and the square it is on is the spot the activity walks to.
+fn ground_has_liquid_item(world: &mut bevy_ecs::prelude::World, square: (i32, i32, i32)) -> bool {
+    let spilled: Vec<crate::ItemTypeId> = {
+        let mut query = world.query::<(&crate::GroundItem, &crate::Position)>();
+        query
+            .iter(world)
+            .filter(|(_, at)| (at.x, at.y, at.z) == square)
+            .map(|(item, _)| item.kind)
+            .collect()
+    };
+    spilled
+        .into_iter()
+        .any(|kind| crate::item_registry::is_liquid(world, kind))
 }
 
 /// Whether the ground at a square carries a terrain flag.

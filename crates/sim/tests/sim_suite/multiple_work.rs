@@ -772,7 +772,7 @@ fn an_unported_jobs_spots_are_not_gated_on_corpses() {
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
-        activity: "ACT_MULTIPLE_MOP".to_owned(),
+        activity: "ACT_MULTIPLE_DIS".to_owned(),
         moves_left: 0,
         basis: cdda_sim::creature::Basis::Neither,
         moves_total: 0,
@@ -782,18 +782,18 @@ fn an_unported_jobs_spots_are_not_gated_on_corpses() {
         &mut world,
         (3, 0, 0),
         (3, 0),
-        "MOPPING",
+        "DISASSEMBLE",
         "your_followers",
-        "a spill",
+        "a wreck",
         "",
     );
     assert_eq!(
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         Some((3, 0, 0)),
-        "**a mopping spot needs no corpse**"
+        "**a disassembly spot needs no corpse**"
     );
     assert!(
-        cdda_sim::multiple_work::can_work_at(&mut world, vlad, "ACT_MULTIPLE_MOP", (3, 0, 0)),
+        cdda_sim::multiple_work::can_work_at(&mut world, vlad, "ACT_MULTIPLE_DIS", (3, 0, 0)),
         "**and the spot itself is workable, because its real gate is not ported yet**"
     );
 }
@@ -1190,5 +1190,102 @@ fn a_butcher_without_a_knife_finds_no_work() {
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         None,
         "**so the body is not a spot, and the job has nothing to walk to**"
+    );
+}
+
+/// **A mopping spot needs a spill, and a mop.**
+///
+/// Reference: `can_do_activity_there`'s mopping branch (`activity_item_handling.cpp:1175-1186`) asks `terrain_moppable( src_loc )` and then `cache_has_item_with( json_flag_MOP )`.
+/// `terrain_moppable` (`map.cpp:3560-3601`) answers true for a **liquid item lying on the square** - and for moppable fields and vehicle blood, which the port does not place as
+/// square things yet and which are declared unported here rather than guessed at.
+#[test]
+fn a_mopping_spot_needs_a_spill_and_a_mop() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(&mut world, [("t_floor".to_owned(), 1)]);
+    // **Both kinds in one registry**, because `set_item_types` replaces the table: a second call would forget the water the spill is made of.
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "water",
+                volume_ml: 250,
+                weight_g: 250,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "mop",
+                volume_ml: 1_000,
+                weight_g: 1_500,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+        ],
+    );
+    let water = cdda_sim::item_registry::id_of(&mut world, "water").expect("the water kind");
+    let mop = cdda_sim::item_registry::id_of(&mut world, "mop").expect("the mop kind");
+    cdda_sim::item_registry::set_liquids(&mut world, &[("water".to_owned(), true)]);
+    cdda_sim::item_registry::set_item_flags(&mut world, &[(mop, &["MOP"])]);
+    // **The spill is on the far square**, so the near one is dry and must be skipped.
+    world.spawn((
+        cdda_sim::GroundItem {
+            kind: water,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+        cdda_sim::Position { x: 6, y: 0, z: 0 },
+    ));
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_MOP".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    for (square, name) in [(2, "dry floor"), (6, "the spill")] {
+        cdda_sim::zones::place(
+            &mut world,
+            (square, 0, 0),
+            (square, 0),
+            "MOPPING",
+            "your_followers",
+            name,
+            "",
+        );
+    }
+    // **A spill without a mop is not a spot.**
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**spilled water is not enough without a mop**"
+    );
+    world.spawn((
+        cdda_sim::GroundItem {
+            kind: mop,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+        cdda_sim::creature::Carried(vlad),
+    ));
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**the spill, not the dry floor**"
     );
 }
