@@ -185,6 +185,40 @@ pub struct ItemFlags(
 #[derive(Debug, Clone, Copy, Default, Component)]
 pub struct TheItemFlags;
 
+/// The **use actions** each kind offers, by kind - the reference's `itype::use_methods`, which `itype::can_use` looks a name up in.
+///
+/// Reference: `itype::can_use( iuse_name )` (`itype.cpp:186-189`) is `get_use( iuse_name ) != nullptr`, a lookup in the map the factory filled from the `use_action` member. The
+/// mining gate is the reader that needed it: a jackhammer is recognised by its `JACKHAMMER` use action and not by a flag, and a `DIG_TOOL` flag alone cannot tell the two apart.
+#[derive(bevy_ecs::component::Component, Debug, Clone, Default)]
+pub struct ItemUseActions(
+    pub std::collections::BTreeMap<ItemTypeId, std::collections::BTreeSet<String>>,
+);
+
+/// Marks the entity holding the use-action table.
+#[derive(Debug, Clone, Copy, Default, bevy_ecs::component::Component)]
+pub struct TheItemUseActions;
+
+/// Installs the use actions each kind offers, replacing whatever was there.
+pub fn set_use_actions(world: &mut World, actions: &[(ItemTypeId, &[&str])]) {
+    let holder = singletons::singleton::<ItemUseActions, TheItemUseActions>(world);
+    let mut by_kind = std::collections::BTreeMap::new();
+    for (kind, names) in actions {
+        by_kind.insert(*kind, names.iter().map(|name| (*name).to_owned()).collect());
+    }
+    world.entity_mut(holder).insert(ItemUseActions(by_kind));
+}
+
+/// Whether a kind offers a use action by name.
+///
+/// Reference: `itype::can_use` (`itype.cpp:186-189`).
+#[must_use]
+pub fn can_use(world: &World, kind: ItemTypeId, method: &str) -> bool {
+    singletons::holder::<TheItemUseActions>(world)
+        .and_then(|holder| world.get::<ItemUseActions>(holder))
+        .and_then(|table| table.0.get(&kind))
+        .is_some_and(|names| names.contains(method))
+}
+
 /// Installs what flags each item kind carries.
 pub fn set_item_flags(world: &mut World, flags: &[(ItemTypeId, &[&str])]) {
     let holder = singletons::singleton::<ItemFlags, TheItemFlags>(world);

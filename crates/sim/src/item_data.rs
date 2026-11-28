@@ -124,4 +124,24 @@ pub fn install(
         ));
     }
     item_registry::install_kind_facts(world, &facts);
+    // **And the use actions**, which are a name lookup rather than a fact about the kind's numbers: `can_use( "JACKHAMMER" )` is how the reference tells a powered digging tool from
+    // a plain one, and a flag table cannot answer it.
+    let mut actions: Vec<(crate::ItemTypeId, Vec<&str>)> = Vec::new();
+    for kind in kinds {
+        let Some(number) = item_registry::id_of(world, &kind.id) else {
+            continue;
+        };
+        if kind.use_actions.is_empty() {
+            continue;
+        }
+        actions.push((
+            number,
+            kind.use_actions.keys().map(String::as_str).collect(),
+        ));
+    }
+    let action_slices: Vec<(crate::ItemTypeId, &[&str])> = actions
+        .iter()
+        .map(|(kind, names)| (*kind, names.as_slice()))
+        .collect();
+    item_registry::set_use_actions(world, &action_slices);
 }

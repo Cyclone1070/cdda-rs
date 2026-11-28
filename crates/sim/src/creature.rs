@@ -4950,6 +4950,48 @@ pub fn carried_has_flag(world: &mut World, creature: Entity, flag: &str) -> bool
 /// Every kind the creature is carrying, wearing, or wielding.
 ///
 /// The walk [`carried_has_quality`] and [`carried_has_flag`] share: the store's `Carried` and `WornBy` links, the reference's inventory list, and the kind the hands hold.
+/// Every item the creature carries, as its kind and its charges.
+///
+/// The walk [`carried_has_quality`] and [`carried_has_flag`] share: the store's `Carried` and `WornBy` links, the reference's inventory list, and the kind the hands hold. The
+/// charges are carried because a **powered** tool's charge is part of whether it works - a jackhammer with none is not a digging tool.
+#[must_use]
+pub fn carried_items(world: &mut World, creature: Entity) -> Vec<(crate::ItemTypeId, i32)> {
+    let mut held: Vec<Entity> = world
+        .get::<crate::Inventory>(creature)
+        .map_or_else(Vec::new, |inventory| inventory.items.clone());
+    {
+        let mut query = world.query::<(Entity, &Carried)>();
+        held.extend(
+            query
+                .iter(world)
+                .filter(|(_, carried)| carried.0 == creature)
+                .map(|(entity, _)| entity),
+        );
+    }
+    {
+        let mut query = world.query::<(Entity, &WornBy)>();
+        held.extend(
+            query
+                .iter(world)
+                .filter(|(_, worn)| worn.0 == creature)
+                .map(|(entity, _)| entity),
+        );
+    }
+    let mut items: Vec<(crate::ItemTypeId, i32)> = held
+        .into_iter()
+        .filter_map(|item| {
+            world
+                .get::<crate::GroundItem>(item)
+                .map(|item| (item.kind, item.charges))
+        })
+        .collect();
+    // **What the hands hold**, which the port names by kind rather than by entity: `Wielding` is `itype_id` in the reference too, and the kind is all a quality question needs.
+    if let Some(wielded) = world.get::<Wielding>(creature) {
+        items.push((wielded.0, 1));
+    }
+    items
+}
+
 fn carried_kinds(world: &mut World, creature: Entity) -> Vec<crate::ItemTypeId> {
     let mut held: Vec<Entity> = world
         .get::<crate::Inventory>(creature)

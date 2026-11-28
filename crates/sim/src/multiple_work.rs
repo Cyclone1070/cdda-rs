@@ -101,9 +101,8 @@ pub fn next_work_square(
 /// (`:1254`). Both are answered here, which is why the function takes the **person** as well as the spot - a gate that only knew the square could not ask the second.
 ///
 /// **Mining, fishing and chopping answer both halves.** Each branch asks what the ground is *and* what the worker is holding, and both are ported: the terrain by its flag
-/// (`MINEABLE`, `FISHABLE`, `TREE` or the two ids), the tool by `carried_has_flag( DIG_TOOL )` for mining - the reference asks for a **flag** there, not a quality - and by
-/// `carried_has_quality` at the default level of zero for the rod and the axe. The `JACKHAMMER` alternative the mining branch allows is a use-with-ammo question the port cannot
-/// ask yet, and it is named here rather than guessed at.
+/// (`MINEABLE`, `FISHABLE`, `TREE` or the two ids), the tool by a digging tool for mining - a `DIG_TOOL` flag that is not a jackhammer, or a jackhammer with a charge, which is the
+/// reference's two arms exactly - and by `carried_has_quality` at the default level of zero for the rod and the axe.
 ///
 /// **Mopping answers its item half too**: a liquid item lying on the square, and a `MOP` flag in the worker's hands - the reference's `terrain_moppable` also counts moppable
 /// fields and vehicle blood, and the port places neither as a square thing yet.
@@ -149,8 +148,7 @@ pub fn can_work_at(
         // **Mining wants mineable ground.** Reference: `:1160-1163` fails a square without `TFLAG_MINEABLE`. The branch's other half - a digging tool in the worker's hands - is a
         // question the port cannot ask yet, so the terrain is the whole of the answer here rather than half of it.
         "ACT_MULTIPLE_MINE" => {
-            ground_has_flag(world, square, "MINEABLE")
-                && crate::creature::carried_has_flag(world, npc, "DIG_TOOL")
+            ground_has_flag(world, square, "MINEABLE") && carried_digging_tool(world, npc)
         }
         // **Fishing wants fishable water.** Reference: `:1188-1191`. The rod is the unanswerable half.
         "ACT_MULTIPLE_FISH" => {
@@ -179,6 +177,26 @@ pub fn can_work_at(
         }
         _ => true,
     }
+}
+
+/// Whether the worker carries a digging tool that actually works.
+///
+/// Reference: `:1165-1171` is two arms - `itm.has_flag( DIG_TOOL ) && !itm.type->can_use( "JACKHAMMER" )`, or `itm.type->can_use( "JACKHAMMER" ) && itm.ammo_sufficient( &you )`.
+/// The exclusion is what makes the rule more than a flag: a jackhammer **has** `DIG_TOOL` in the data, and a flat one with no charge in it is not a digging tool. The charge test is
+/// `ammo_sufficient` at its default quantity of one (`item.cpp:11569-11582`), which for a powered tool is "at least one charge".
+fn carried_digging_tool(
+    world: &mut bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
+) -> bool {
+    crate::creature::carried_items(world, npc)
+        .into_iter()
+        .any(|(kind, charges)| {
+            if crate::item_registry::can_use(world, kind, "JACKHAMMER") {
+                charges >= 1
+            } else {
+                crate::item_registry::kind_has_flag(world, kind, "DIG_TOOL")
+            }
+        })
 }
 
 /// Whether a liquid item lies on a square.

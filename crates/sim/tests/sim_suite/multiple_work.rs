@@ -1289,3 +1289,85 @@ fn a_mopping_spot_needs_a_spill_and_a_mop() {
         "**the spill, not the dry floor**"
     );
 }
+
+/// **A jackhammer has to have the charge to run.**
+///
+/// Reference: the mining branch's second arm (`activity_item_handling.cpp:1165-1171`) is
+/// `itm.type->can_use( "JACKHAMMER" ) && itm.ammo_sufficient( &you )` - a powered tool that is out of charge is not a digging tool, and the first arm excludes it by name
+/// (`itm.has_flag( DIG_TOOL ) && !itm.type->can_use( "JACKHAMMER" )`). A jackhammer with nothing in it is the case a flag-only rule gets wrong, so it is the case that is pinned.
+#[test]
+fn a_jackhammer_needs_its_charges_to_mine() {
+    let mut world = World::new();
+    cdda_sim::terrain_types::set_types(
+        &mut world,
+        [("t_grass".to_owned(), 1), ("t_concrete".to_owned(), 2)],
+    );
+    cdda_sim::terrain_types::set_flags(
+        &mut world,
+        [("t_concrete".to_owned(), vec!["MINEABLE".to_owned()])],
+    );
+    let concrete =
+        cdda_sim::terrain_types::code_of(&world, "t_concrete").expect("concrete is registered");
+    cdda_sim::square::set_terrain(&mut world, (6, 0, 0), concrete);
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[cdda_sim::item_registry::Kind {
+            id: "jackhammer",
+            volume_ml: 2_000,
+            weight_g: 8_000,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 8.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: -2,
+        }],
+    );
+    let jack = cdda_sim::item_registry::id_of(&mut world, "jackhammer").expect("the kind");
+    cdda_sim::item_registry::set_item_flags(&mut world, &[(jack, &["DIG_TOOL"])]);
+    cdda_sim::item_registry::set_use_actions(&mut world, &[(jack, &["JACKHAMMER"])]);
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_MINE".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    cdda_sim::zones::place(
+        &mut world,
+        (6, 0, 0),
+        (6, 0),
+        "MINING",
+        "your_followers",
+        "concrete",
+        "",
+    );
+    let jack_entity = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: jack,
+                charges: 0,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::creature::Carried(vlad),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**a jackhammer with no charge is not a digging tool**"
+    );
+    if let Some(mut item) = world.get_mut::<cdda_sim::GroundItem>(jack_entity) {
+        item.charges = 1;
+    }
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**one charge and it is**"
+    );
+}

@@ -42073,3 +42073,24 @@ test, which is the mutation that proves the term is doing the work. The `JACKHAM
 - Both terms are mutation-checked: removing the mop refuses the spill, and making every square a spill walks to the dry floor.
 
 The unported-gate test moved again, from mopping to disassembly - the third move, and each move is the same good news: the activity it named got a real gate.
+
+## The jackhammer arm, and the use-action table (round 387)
+
+The mining gate's second arm is ported, so the branch is now whole (`activity_item_handling.cpp:1165-1171`):
+
+```
+carried_digging_tool = any carried item where
+    can_use( "JACKHAMMER" ) -> charges >= 1
+    otherwise               -> kind has DIG_TOOL
+```
+
+The exclusion is the rule: **a jackhammer carries `DIG_TOOL` in the data** (`data/json/items/tool/workshop.json`), so a flag-only rule would let a flat jackhammer mine, and the
+reference's `!itm.type->can_use( "JACKHAMMER" )` is what stops it. `ammo_sufficient` at its default quantity is one charge (`item.cpp:11569-11582`).
+
+Two pieces were missing and are now in the registry:
+
+- **`ItemUseActions`** - the reference's `itype::use_methods`, which `itype::can_use` (`itype.cpp:186-189`) looks a name up in. Installed from the data's `use_action` member by
+  `item_data`, so the jackhammer is recognised by what it does, not by a flag that four other tools also carry.
+- **`creature::carried_items`** - the carried walk now reports each item's kind **and charges**, because a powered tool's charge is part of whether it works.
+
+Both terms are mutation-checked: treating the jackhammer as a plain flag lets a dry one mine, and removing the charge test does the same.
