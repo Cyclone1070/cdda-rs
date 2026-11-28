@@ -1371,3 +1371,133 @@ fn a_jackhammer_needs_its_charges_to_mine() {
         "**one charge and it is**"
     );
 }
+
+/// **Chopping planks wants a log and an axe.**
+///
+/// Reference: `can_do_activity_there`'s plank branch (`activity_item_handling.cpp:1276-1291`) walks the square's items looking for `itype_log` and, on the first one, answers
+/// `NEEDS_CHOPPING` only when `has_quality( qual_AXE, 1 )` holds - a **level of one**, not the zero the tree branch asks, so a dado blade's lesser axe does not count.
+#[test]
+fn chopping_planks_wants_a_log_and_an_axe() {
+    let mut world = World::new();
+    cdda_sim::item_registry::set_item_types(
+        &mut world,
+        &[
+            cdda_sim::item_registry::Kind {
+                id: "log",
+                volume_ml: 1_000,
+                weight_g: 5_000,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 10.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: -2,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "hand_axe",
+                volume_ml: 500,
+                weight_g: 1_000,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+            cdda_sim::item_registry::Kind {
+                id: "dull_axe",
+                volume_ml: 500,
+                weight_g: 1_000,
+                pockets: &[],
+                thrown_damage: 0.0,
+                melee_bash: 0.0,
+                melee_cut: 0.0,
+                melee_stab: 0.0,
+                to_hit: 0,
+            },
+        ],
+    );
+    let log = cdda_sim::item_registry::id_of(&mut world, "log").expect("the log kind");
+    let axe = cdda_sim::item_registry::id_of(&mut world, "hand_axe").expect("the axe kind");
+    let dull = cdda_sim::item_registry::id_of(&mut world, "dull_axe").expect("the dull kind");
+    cdda_sim::item_registry::set_item_qualities(
+        &mut world,
+        &[
+            (axe, &[("AXE".to_owned(), 1)][..]),
+            (dull, &[("AXE".to_owned(), 0)][..]),
+        ],
+    );
+    // **The log is on the far square**, so the near one holds nothing to chop.
+    world.spawn((
+        cdda_sim::GroundItem {
+            kind: log,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+        cdda_sim::Position { x: 6, y: 0, z: 0 },
+    ));
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_CHOP_PLANKS".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    for (square, name) in [(2, "empty ground"), (6, "the log")] {
+        cdda_sim::zones::place(
+            &mut world,
+            (square, 0, 0),
+            (square, 0),
+            "LOOT_WOOD",
+            "your_followers",
+            name,
+            "",
+        );
+    }
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**a log is not a spot without an axe**"
+    );
+    let good_axe = world
+        .spawn((
+            cdda_sim::GroundItem {
+                kind: axe,
+                charges: 1,
+                age: 0,
+                burnt: 0,
+                damage: 0,
+                burn: None,
+            },
+            cdda_sim::creature::Carried(vlad),
+        ))
+        .id();
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        Some((6, 0, 0)),
+        "**the log, not the empty ground**"
+    );
+    // **And the level matters**: this branch asks for `AXE` **one**, where the tree branch asks the same quality at the default zero, so an axe at zero is not an axe here.
+    world.despawn(good_axe);
+    world.spawn((
+        cdda_sim::GroundItem {
+            kind: dull,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+        cdda_sim::creature::Carried(vlad),
+    ));
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**an axe at level zero does not chop planks**"
+    );
+}

@@ -107,6 +107,9 @@ pub fn next_work_square(
 /// **Mopping answers its item half too**: a liquid item lying on the square, and a `MOP` flag in the worker's hands - the reference's `terrain_moppable` also counts moppable
 /// fields and vehicle blood, and the port places neither as a square thing yet.
 ///
+/// **Chopping planks answers both halves too**: a log on the square (`:1276-1291` compares the kind exactly, because a plank or a stick is not a log) and `AXE` at level **one**,
+/// where the tree branch asks the same quality at zero - the two levels are the reference's own and are kept apart.
+///
 /// **The activities that need furniture, an item or a vehicle answer `true`**: disassembly and construction want items, and the vehicle branches want a vehicle. Answering `true` keeps those jobs walking to their zones as they did before this rule existed; answering `false` would end every one of them on its first
 /// turn, which is a worse lie than the one it would be replacing.
 #[must_use]
@@ -168,6 +171,12 @@ pub fn can_work_at(
                 );
             has_tree && crate::creature::carried_has_quality(world, npc, "AXE", 0)
         }
+        // **Chopping planks wants a log and an axe.** Reference: `:1276-1291` walks the square for `itype_log` and asks `has_quality( qual_AXE, 1 )` - the tree branch asks the same
+        // quality at the default **zero**, and this one at one, so the two are not the same rule and the port keeps both levels as the reference states them.
+        "ACT_MULTIPLE_CHOP_PLANKS" => {
+            ground_has_kind(world, square, "log")
+                && crate::creature::carried_has_quality(world, npc, "AXE", 1)
+        }
         // **Mopping wants a spill and a mop.** Reference: `:1175-1186` asks `terrain_moppable( src_loc )` and then `cache_has_item_with( json_flag_MOP )`. The ground test
         // (`map.cpp:3560-3601`) answers true for a **liquid item lying on the square**, for a moppable field, and for vehicle blood; the port has the item half and the flag, and
         // fields as square things and vehicles are declared unported rather than guessed at.
@@ -197,6 +206,23 @@ fn carried_digging_tool(
                 crate::item_registry::kind_has_flag(world, kind, "DIG_TOOL")
             }
         })
+}
+
+/// Whether a ground item of a named kind lies on a square.
+///
+/// Reference: the `i.typeId() == itype_log` comparison at `:1278` - a **kind** match, not a flag and not a category: a plank or a stick on the same square is not a log.
+fn ground_has_kind(
+    world: &mut bevy_ecs::prelude::World,
+    square: (i32, i32, i32),
+    name: &str,
+) -> bool {
+    let Some(wanted) = crate::item_registry::id_of(world, name) else {
+        return false;
+    };
+    let mut query = world.query::<(&crate::GroundItem, &crate::Position)>();
+    query
+        .iter(world)
+        .any(|(item, at)| (at.x, at.y, at.z) == square && item.kind == wanted)
 }
 
 /// Whether a liquid item lies on a square.

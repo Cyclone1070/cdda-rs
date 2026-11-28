@@ -42094,3 +42094,16 @@ Two pieces were missing and are now in the registry:
 - **`creature::carried_items`** - the carried walk now reports each item's kind **and charges**, because a powered tool's charge is part of whether it works.
 
 Both terms are mutation-checked: treating the jackhammer as a plain flag lets a dry one mine, and removing the charge test does the same.
+
+## Chopping planks, and two levels of one quality (round 388)
+
+`ACT_MULTIPLE_CHOP_PLANKS` now answers its branch (`activity_item_handling.cpp:1276-1291`): **a log on the square, and `AXE` at level one carried**.
+
+Two details the rule turns on, both pinned:
+
+- **The kind is compared exactly.** `i.typeId() == itype_log` (`:1278`) is not a flag and not a category: a plank or a stick on the same square is not a log, so the gate reads the
+  registry for the id `log` and compares it with every ground item's kind.
+- **The level is one, not zero.** The tree branch asks `has_quality( qual_AXE )` at the default zero; this one asks `has_quality( qual_AXE, 1 )`. An axe at level zero chops trees and does
+  not chop planks, which is the reference's own distinction and the case the test pins after the good axe is taken away.
+
+Both terms are mutation-checked: dropping the level to zero finds no spot with a level-zero axe, and dropping the log test walks to the empty square.
