@@ -6,6 +6,39 @@
 
 use bevy_ecs::prelude::World;
 
+/// Gives a person a butchering knife, because the gate asks what they are carrying.
+///
+/// Reference: `:1254` wants `has_quality( qual_BUTCHER, 1 )`. The knife is a real kind the data has, with the level the data gives it.
+fn give_a_knife(world: &mut World, npc: bevy_ecs::prelude::Entity) {
+    cdda_sim::item_registry::set_item_types(
+        world,
+        &[cdda_sim::item_registry::Kind {
+            id: "knife_butcher",
+            volume_ml: 250,
+            weight_g: 200,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 8.0,
+            melee_stab: 10.0,
+            to_hit: 1,
+        }],
+    );
+    let knife = cdda_sim::item_registry::id_of(world, "knife_butcher").expect("the knife kind");
+    cdda_sim::item_registry::set_item_qualities(world, &[(knife, &[("BUTCHER".to_owned(), 1)])]);
+    world.spawn((
+        cdda_sim::GroundItem {
+            kind: knife,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+        cdda_sim::creature::Carried(npc),
+    ));
+}
+
 /// **Eleven activities work in eleven zones.** Each line of the table is pinned, because a job sent to the wrong zone is a person walking to the wrong place all day - and the
 /// table is the only thing that decides where a multiple activity looks first.
 #[test]
@@ -85,6 +118,7 @@ fn a_job_takes_the_nearest_work_square_in_its_own_zone() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
         moves_left: 0,
@@ -143,6 +177,7 @@ fn a_job_with_no_work_in_reach_ends_and_says_why() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     let butcher = cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
         moves_left: 0,
@@ -179,6 +214,7 @@ fn a_job_with_no_work_in_reach_ends_and_says_why() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(butcher.clone());
     world.spawn((
         cdda_sim::Position { x: 60, y: 0, z: 0 },
@@ -205,6 +241,7 @@ fn a_job_with_no_work_in_reach_ends_and_says_why() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(butcher.clone());
     cdda_sim::zones::place(
         &mut world,
@@ -264,6 +301,7 @@ fn a_job_decides_a_step_and_the_turn_takes_it() {
     cdda_sim::load_level(&mut world, &level);
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     cdda_sim::creature::set_moves(&mut world, vlad, 100);
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
@@ -317,6 +355,7 @@ fn a_job_with_no_work_ends_in_the_turn() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
         moves_left: 0,
@@ -341,6 +380,7 @@ fn a_job_standing_on_a_corpse_starts_butchering_it() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
         moves_left: 0,
@@ -401,6 +441,7 @@ fn a_job_whose_zone_has_no_corpse_ends() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
         moves_left: 0,
@@ -446,6 +487,7 @@ fn a_job_skips_a_zone_square_it_cannot_work() {
     let mut world = World::new();
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
         moves_left: 0,
@@ -519,6 +561,7 @@ fn a_person_walks_to_the_corpse_and_starts_the_cut() {
     cdda_sim::load_level(&mut world, &level);
     let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
     cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    give_a_knife(&mut world, vlad);
     world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
         activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
         moves_left: 0,
@@ -564,9 +607,12 @@ fn a_person_walks_to_the_corpse_and_starts_the_cut() {
     }
     assert!(walked, "**the person walked towards the corpse**");
     let cut = cut.expect("**and started butchering it**");
+    // **The blade is a speed, not just a permission.** Reference: `butchery.cpp` scales the cut by `( 100 - tool_factor ) / 100`, which is what
+    // `butcher_time_to_cut` calls the tool's percentage; a BUTCHER level of one therefore takes one percent off. The base is 450 (a medium body) * 6 (a full butchery) * 1.8
+    // (the practice penalty the reference keeps as a factor), and the knife's percent comes off that.
     assert_eq!(
-        cut.1, 486_000,
-        "**the cut is the reference's own length: 450 * 100 * 6 * 1.8**"
+        cut.1, 481_140,
+        "**the cut is the reference's own length: 450 * 100 * 6 * 1.8, less the blade's one percent**"
     );
 }
 
@@ -615,6 +661,7 @@ fn a_practised_butcher_cuts_faster() {
         let mut world = World::new();
         let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
         cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+        give_a_knife(&mut world, vlad);
         for proficiency in proficiencies {
             cdda_sim::proficiencies::learn(&mut world, vlad, proficiency);
         }
@@ -648,19 +695,21 @@ fn a_practised_butcher_cuts_faster() {
             .get::<cdda_sim::creature::Doing>(vlad)
             .map_or(0, |doing| doing.moves_total)
     }
+    // Every figure is the reference's `450 * 100 * 6` less the blade's one percent, because the butcher carries a knife and `butcher_time_to_cut` scales by
+    // `( 100 - tool_factor )`: 486,000 -> 481,140, 270,000 -> 267,300, 378,000 -> 374,220.
     assert_eq!(
         cut_for(&[]),
-        486_000,
-        "**no practice: 450 * 100 * 6 * 1.8**"
+        481_140,
+        "**no practice: 450 * 100 * 6 * 1.8, less the blade's one percent**"
     );
     assert_eq!(
         cut_for(&["prof_butchering_basic"]),
-        270_000,
+        267_300,
         "**butchering-basic: the butchering penalty drops to nothing, so the fraction is 1.0**"
     );
     assert_eq!(
         cut_for(&["prof_butchering_advanced"]),
-        378_000,
+        374_220,
         "**advanced without basic: one of the two butchering terms is gone, so 1.4**"
     );
 }
@@ -695,7 +744,7 @@ fn an_unported_jobs_spots_are_not_gated_on_corpses() {
         "**a mopping spot needs no corpse**"
     );
     assert!(
-        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_MOP", (3, 0, 0)),
+        cdda_sim::multiple_work::can_work_at(&mut world, vlad, "ACT_MULTIPLE_MOP", (3, 0, 0)),
         "**and the spot itself is workable, because its real gate is not ported yet**"
     );
 }
@@ -709,8 +758,10 @@ fn two_people_do_not_take_the_same_corpse() {
     let mut world = World::new();
     let first = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (2, 2, 0));
     cdda_sim::npcs::make_npc(&mut world, first, "vlad");
+    give_a_knife(&mut world, first);
     let second = cdda_sim::creature::spawn_creature(&mut world, "Igor", (2, 2, 0));
     cdda_sim::npcs::make_npc(&mut world, second, "igor");
+    give_a_knife(&mut world, second);
     let corpse = world
         .spawn((
             cdda_sim::Position { x: 2, y: 2, z: 0 },
@@ -733,7 +784,7 @@ fn two_people_do_not_take_the_same_corpse() {
     );
     // **Nobody is working on it yet**, so it is a spot.
     assert!(
-        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
+        cdda_sim::multiple_work::can_work_at(&mut world, first, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
         "**an untouched corpse is work**"
     );
     // **The first person takes it.**
@@ -751,7 +802,7 @@ fn two_people_do_not_take_the_same_corpse() {
     );
     // **Now it is Vlad's**: Igor sees no spot here, and his job ends because none is left.
     assert!(
-        !cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
+        !cdda_sim::multiple_work::can_work_at(&mut world, first, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
         "**a body somebody is butchering is not a work spot**"
     );
     // **But only that body is taken.** A second corpse beside it is still work for Igor, which is what makes the rule "this corpse", not "any corpse" - and what a check that
@@ -775,7 +826,7 @@ fn two_people_do_not_take_the_same_corpse() {
         "",
     );
     assert!(
-        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (3, 3, 0)),
+        cdda_sim::multiple_work::can_work_at(&mut world, second, "ACT_MULTIPLE_BUTCHER", (3, 3, 0)),
         "**an untouched body is work even while another one is being cut**"
     );
     world.entity_mut(second).insert(cdda_sim::creature::Doing {
@@ -802,7 +853,7 @@ fn two_people_do_not_take_the_same_corpse() {
         .entity_mut(first)
         .remove::<cdda_sim::creature::Doing>();
     assert!(
-        cdda_sim::multiple_work::can_work_at(&mut world, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
+        cdda_sim::multiple_work::can_work_at(&mut world, first, "ACT_MULTIPLE_BUTCHER", (2, 2, 0)),
         "**with nobody on it, the corpse is a spot again**"
     );
     assert_eq!(
@@ -1018,5 +1069,51 @@ fn a_trunk_is_a_chopping_spot_without_the_tree_flag() {
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         Some((6, 0, 0)),
         "**the trunk, not the grass before it**"
+    );
+}
+
+/// **A butcher with no blade finds no work.**
+///
+/// Reference: `activity_item_handling.cpp:1254` - a spot where the corpses are but `has_quality( qual_BUTCHER, 1 )` fails answers `NEEDS_BUTCHERING` and is **skipped**. So a
+/// survivor carrying nothing walks past every body instead of starting a cut that could never finish. The knife is the difference and nothing else is: the same world with one
+/// given to them finds the spot, which is the sibling test's job.
+#[test]
+fn a_butcher_without_a_knife_finds_no_work() {
+    let mut world = World::new();
+    let vlad = cdda_sim::creature::spawn_creature(&mut world, "Vlad", (0, 0, 0));
+    cdda_sim::npcs::make_npc(&mut world, vlad, "vlad");
+    world.entity_mut(vlad).insert(cdda_sim::creature::Doing {
+        activity: "ACT_MULTIPLE_BUTCHER".to_owned(),
+        moves_left: 0,
+        basis: cdda_sim::creature::Basis::Neither,
+        moves_total: 0,
+        subject: None,
+    });
+    world.spawn((
+        cdda_sim::Position { x: 3, y: 0, z: 0 },
+        cdda_sim::CorpseOf {
+            kind: cdda_sim::MonsterKindId(1),
+            died_on: 0,
+            revives: false,
+            monster_volume_ml: 62_500,
+        },
+    ));
+    cdda_sim::zones::place(
+        &mut world,
+        (3, 0, 0),
+        (3, 0),
+        "LOOT_CORPSE",
+        "your_followers",
+        "the corpse",
+        "",
+    );
+    assert!(
+        !cdda_sim::multiple_work::can_work_at(&mut world, vlad, "ACT_MULTIPLE_BUTCHER", (3, 0, 0)),
+        "**bare hands are not a butchering tool**"
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**so the body is not a spot, and the job has nothing to walk to**"
     );
 }

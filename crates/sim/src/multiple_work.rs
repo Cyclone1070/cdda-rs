@@ -90,15 +90,15 @@ pub fn next_work_square(
     // distance order and passes over every one the activity's own check fails, so the person's nearest *workable* square is the one it walks to.
     squares
         .into_iter()
-        .filter(|square| can_work_at(world, &activity, *square))
+        .filter(|square| can_work_at(world, npc, &activity, *square))
         .min_by_key(|square| (crate::zones::square_dist(*square, here), *square))
 }
 
 /// Whether an activity can be done at a square at all.
 ///
 /// Reference: the per-activity branch of `can_do_activity_there` (`activity_item_handling.cpp:1080-1300`), whose answer for each spot is one of "ok" or a failure that **skips
-/// that spot**. The ported case is butchering: the spot must hold a corpse
-/// (`:1210-1215` collects `here.i_at( src_loc )` for corpses, and `:1263-1264` answers `NO_ZONE` when there are none).
+/// that spot**. The butchering branch asks two things: the spot must hold a corpse (`:1210-1215`, `:1263-1264`), and the worker must carry a blade that reaches `BUTCHER` one
+/// (`:1254`). Both are answered here, which is why the function takes the **person** as well as the spot - a gate that only knew the square could not ask the second.
 ///
 /// **Mining, fishing and chopping answer their terrain half.** Each of those branches has two halves - what the ground is, and what the worker is holding - and only the first can be
 /// asked: `has_quality( BUTCHER, 1 )`, a digging tool, a rod and an axe all read an item's qualities, which the port has no predicate for yet. The terrain half is ported because a
@@ -110,6 +110,7 @@ pub fn next_work_square(
 #[must_use]
 pub fn can_work_at(
     world: &mut bevy_ecs::prelude::World,
+    npc: bevy_ecs::prelude::Entity,
     activity: &str,
     square: (i32, i32, i32),
 ) -> bool {
@@ -136,7 +137,11 @@ pub fn can_work_at(
             // **A body somebody is already butchering is not a spot for anybody else.** Reference: `:1213` skips a corpse that carries `activity_var` - the marker the reference
             // puts on an item somebody has taken for work. The port keeps no marker: the activity's own `subject` says who is working on what, so the answer is read from the store
             // and cannot go stale when a cut is cancelled.
+            // **And the worker needs a blade.** Reference: `:1254` answers `NEEDS_BUTCHERING` only when `has_quality( qual_BUTCHER, 1 )` holds, and a spot that fails is skipped -
+            // so a person with no knife walks past every corpse rather than starting a cut that could never finish. The question is `has_quality`, not `max_quality`: a knife
+            // lying beside the body is reachable for the cut, but the gate is asked before anybody walks there, and the reference asks it about what is carried.
             !somebody_is_working_on(world, corpse)
+                && crate::creature::carried_has_quality(world, npc, "BUTCHER", 1)
         }
         // **Mining wants mineable ground.** Reference: `:1160-1163` fails a square without `TFLAG_MINEABLE`. The branch's other half - a digging tool in the worker's hands - is a
         // question the port cannot ask yet, so the terrain is the whole of the answer here rather than half of it.

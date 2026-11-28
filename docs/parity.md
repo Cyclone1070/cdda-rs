@@ -42025,3 +42025,22 @@ port has no item predicate layer yet. The terrain half is ported because a job s
 rather than guessed at. Moping, disassembly, construction and the vehicle branches still answer `true` for the same reason: furniture, items and vehicles are not square things yet.
 
 That is the shape of the remaining P6 work: **the gates are cheap, and what they cannot ask is the item model**.
+
+## A blade is a permission and a speed (round 384)
+
+The butchering gate now asks what the reference asks: **does this person carry a blade that reaches `BUTCHER` one** (`activity_item_handling.cpp:1254`). The port had the quality
+table but no question that read it about a *person* - `best_quality` reaches the ground within `PICKUP_RANGE`, which is `max_quality`'s rule and not this one - so
+`creature::carried_has_quality` was added: carried items, worn items, the inventory list, and what the hands hold by kind. The distinction is load-bearing, and the test says so:
+**a knife on the floor beside the body is not a knife in hand.**
+
+`can_work_at` now takes the person as well as the spot, because a gate that only knew the square could not ask the question at all.
+
+Two behaviours changed with it, and the old numbers were wrong because the knife was missing:
+
+- **The cut is a speed as well as a permission.** `butcher_time_to_cut` scales by `( 100 - tool_factor )`, so a medium body's 486,000 moves becomes **481,140** with a
+  `BUTCHER` 1 blade. `a_person_walks_to_the_corpse_and_starts_the_cut` and `a_practised_butcher_cuts_faster` pinned the tool-less figure; both now pin the reference's with the
+  blade (481,140 / 267,300 / 374,220).
+- **No knife, no work.** `a_butcher_without_a_knife_finds_no_work` is the red test for the gate; breaking the quality term makes it fail, which is the mutation that proves the term
+  is doing the work.
+
+Thirteen tests in `multiple_work` now hand their butcher a knife, because they were testing the corpse rule and the person in them was, correctly, not a butcher without one.

@@ -4935,6 +4935,62 @@ pub fn gibs_scattered(
 /// How far a survivor can reach without moving, in squares. Reference: `PICKUP_RANGE`, six (`game_constants.h`), which `max_quality( qual, PICKUP_RANGE )` uses.
 pub const PICKUP_RANGE: i32 = 6;
 
+/// Whether a creature **has** a quality at a level among what it carries.
+///
+/// Reference: `Character::has_quality( qual, level, qty )` (`visitable.cpp:197-210`), which visits the character's own items - wielded, worn, carried - and counts those whose
+/// `get_quality` reaches the level; `read_only_visitable::has_quality` (`:148-151`) is the same walk for anything else that can be visited. `qty` is one in every activity gate, so
+/// one item is enough.
+///
+/// **This is not [`best_quality`].** That one also reaches the ground within `PICKUP_RANGE`, because a survivor may use the knife beside a corpse; this one is the question
+/// `can_do_activity_there` asks before there is a corpse to stand on, and a tool across the room does not answer it. The distinction is the reference's own and it decides who
+/// walks to a spot at all.
+#[must_use]
+pub fn carried_has_quality(world: &mut World, creature: Entity, quality: &str, level: i32) -> bool {
+    let mut held: Vec<Entity> = world
+        .get::<crate::Inventory>(creature)
+        .map_or_else(Vec::new, |inventory| inventory.items.clone());
+    {
+        let mut query = world.query::<(Entity, &Carried)>();
+        held.extend(
+            query
+                .iter(world)
+                .filter(|(_, carried)| carried.0 == creature)
+                .map(|(entity, _)| entity),
+        );
+    }
+    {
+        let mut query = world.query::<(Entity, &WornBy)>();
+        held.extend(
+            query
+                .iter(world)
+                .filter(|(_, worn)| worn.0 == creature)
+                .map(|(entity, _)| entity),
+        );
+    }
+    for item in held {
+        let Some(kind) = world.get::<crate::GroundItem>(item).map(|item| item.kind) else {
+            continue;
+        };
+        if level_reached(world, kind, quality, level) {
+            return true;
+        }
+    }
+    // **What the hands hold**, which the port names by kind rather than by entity: `Wielding` is `itype_id` in the reference too, because a person wields one item and the
+    // quality belongs to the kind.
+    world
+        .get::<Wielding>(creature)
+        .is_some_and(|wielded| level_reached(world, wielded.0, quality, level))
+}
+
+/// Whether a kind's quality reaches a level.
+fn level_reached(world: &World, kind: crate::ItemTypeId, quality: &str, level: i32) -> bool {
+    crate::item_registry::qualities_of(world, kind)
+        .get(quality)
+        .is_some_and(|have| *have >= level)
+}
+
+/// The best quality a creature can reach, over what it carries and the ground within [`PICKUP_RANGE`].
+///
 /// A quality nothing has is **zero**, which is the reference's answer for an empty inventory (`INT_MIN` from the visit walks, and no `res` beats it), not a refusal.
 #[must_use]
 pub fn best_quality(world: &mut World, creature: Entity, quality: &str) -> i32 {
