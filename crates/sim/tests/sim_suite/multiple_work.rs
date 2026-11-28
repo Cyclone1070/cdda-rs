@@ -6,6 +6,55 @@
 
 use bevy_ecs::prelude::World;
 
+/// Gives a person a tool, because the activity gates ask what they carry.
+///
+/// Reference: the mining branch wants a `DIG_TOOL` **flag** (`:1165-1171`), fishing a `FISHING_ROD` quality and chopping an `AXE` (`:1191`, `:1201`) - both read with the
+/// default level of zero, which is "has the quality at all".
+fn give_tool(
+    world: &mut World,
+    npc: bevy_ecs::prelude::Entity,
+    id: &str,
+    flags: &[&str],
+    qualities: &[(&str, i32)],
+) {
+    cdda_sim::item_registry::set_item_types(
+        world,
+        &[cdda_sim::item_registry::Kind {
+            id,
+            volume_ml: 500,
+            weight_g: 1_000,
+            pockets: &[],
+            thrown_damage: 0.0,
+            melee_bash: 0.0,
+            melee_cut: 0.0,
+            melee_stab: 0.0,
+            to_hit: 0,
+        }],
+    );
+    let kind = cdda_sim::item_registry::id_of(world, id).expect("the tool kind");
+    if !flags.is_empty() {
+        cdda_sim::item_registry::set_item_flags(world, &[(kind, flags)]);
+    }
+    if !qualities.is_empty() {
+        let held: Vec<(String, i32)> = qualities
+            .iter()
+            .map(|(name, level)| ((*name).to_owned(), *level))
+            .collect();
+        cdda_sim::item_registry::set_item_qualities(world, &[(kind, &held)]);
+    }
+    world.spawn((
+        cdda_sim::GroundItem {
+            kind,
+            charges: 1,
+            age: 0,
+            burnt: 0,
+            damage: 0,
+            burn: None,
+        },
+        cdda_sim::creature::Carried(npc),
+    ));
+}
+
 /// Gives a person a butchering knife, because the gate asks what they are carrying.
 ///
 /// Reference: `:1254` wants `has_quality( qual_BUTCHER, 1 )`. The knife is a real kind the data has, with the level the data gives it.
@@ -915,6 +964,13 @@ fn a_mining_spot_whose_ground_is_not_mineable_is_skipped() {
         "pavement",
         "",
     );
+    // **No digging tool, no spot**, which is the branch's other half (`:1165-1171`).
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**mineable ground is not enough without a tool**"
+    );
+    give_tool(&mut world, vlad, "pickaxe", &["DIG_TOOL"], &[]);
     assert_eq!(
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         Some((6, 0, 0)),
@@ -972,6 +1028,18 @@ fn a_fishing_spot_on_dry_ground_is_skipped() {
     );
     assert_eq!(
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**water is not enough without a rod**"
+    );
+    give_tool(
+        &mut world,
+        vlad,
+        "fishing_rod_basic",
+        &[],
+        &[("FISHING_ROD", 1)],
+    );
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         Some((6, 0, 0)),
         "**the water, not the shore**"
     );
@@ -1025,6 +1093,12 @@ fn a_chopping_job_only_works_a_tree() {
     }
     assert_eq!(
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
+        None,
+        "**a tree is not enough without an axe**"
+    );
+    give_tool(&mut world, vlad, "hand_axe", &[], &[("AXE", 1)]);
+    assert_eq!(
+        cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         Some((6, 0, 0)),
         "**the tree, not the grass before it**"
     );
@@ -1065,6 +1139,7 @@ fn a_trunk_is_a_chopping_spot_without_the_tree_flag() {
             "",
         );
     }
+    give_tool(&mut world, vlad, "hand_axe", &[], &[("AXE", 1)]);
     assert_eq!(
         cdda_sim::multiple_work::next_work_square(&mut world, vlad, "your_followers"),
         Some((6, 0, 0)),

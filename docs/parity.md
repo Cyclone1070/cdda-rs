@@ -42044,3 +42044,22 @@ Two behaviours changed with it, and the old numbers were wrong because the knife
   is doing the work.
 
 Thirteen tests in `multiple_work` now hand their butcher a knife, because they were testing the corpse rule and the person in them was, correctly, not a butcher without one.
+
+## The tool halves of the three gates (round 385)
+
+`can_work_at` now answers the second half of mining, fishing and chopping, so all three rules are whole:
+
+| Activity | The ground | The tool |
+|---|---|---|
+| `ACT_MULTIPLE_MINE` | `MINEABLE` | a **flag**, `DIG_TOOL` (`:1165-1171`) |
+| `ACT_MULTIPLE_FISH` | `FISHABLE` | `FISHING_ROD` at the default level of zero (`:1191`) |
+| `ACT_MULTIPLE_CHOP_TREES` | `TREE`, `t_trunk`, `t_stump` | `AXE` at the default level of zero (`:1201`) |
+
+`creature::carried_has_flag` was added for the mining half, and the walk the two questions share (inventory list, `Carried`, `WornBy`, the wielded kind) was pulled into one function so
+a quality and a flag can never disagree about what "carried" means.
+
+**The default level is a rule, not a formality**: `has_quality( qual )` in the reference is level **zero**, and `get_quality` answers `INT_MIN` for a quality an item lacks - so "has
+the quality at all" is false for everything without it, which is why the rod and axe calls pass zero and still refuse a bare-handed worker.
+
+Each test now pins both halves: the same world finds **no** spot without the tool, and the far workable square once the tool is given. Removing any of the three tool terms fails its
+test, which is the mutation that proves the term is doing the work. The `JACKHAMMER` alternative in the mining branch is declared unported in the module doc.

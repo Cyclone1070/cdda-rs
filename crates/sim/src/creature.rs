@@ -4935,17 +4935,22 @@ pub fn gibs_scattered(
 /// How far a survivor can reach without moving, in squares. Reference: `PICKUP_RANGE`, six (`game_constants.h`), which `max_quality( qual, PICKUP_RANGE )` uses.
 pub const PICKUP_RANGE: i32 = 6;
 
-/// Whether a creature **has** a quality at a level among what it carries.
+/// Whether a creature carries an item whose **kind** has a flag.
 ///
-/// Reference: `Character::has_quality( qual, level, qty )` (`visitable.cpp:197-210`), which visits the character's own items - wielded, worn, carried - and counts those whose
-/// `get_quality` reaches the level; `read_only_visitable::has_quality` (`:148-151`) is the same walk for anything else that can be visited. `qty` is one in every activity gate, so
-/// one item is enough.
-///
-/// **This is not [`best_quality`].** That one also reaches the ground within `PICKUP_RANGE`, because a survivor may use the knife beside a corpse; this one is the question
-/// `can_do_activity_there` asks before there is a corpse to stand on, and a tool across the room does not answer it. The distinction is the reference's own and it decides who
-/// walks to a spot at all.
+/// Reference: `Character::has_flagged_item( flag_id )` (`visitable.cpp`), which is `items_with` over the character's own items and answers whether any of them carries the flag.
+/// The mining branch of `can_do_activity_there` (`activity_item_handling.cpp:1165-1171`) is the case that needs it: a digging tool is a **flag**, not a quality, and the `JACKHAMMER`
+/// half of that branch is a use-with-ammo question the port cannot ask yet.
 #[must_use]
-pub fn carried_has_quality(world: &mut World, creature: Entity, quality: &str, level: i32) -> bool {
+pub fn carried_has_flag(world: &mut World, creature: Entity, flag: &str) -> bool {
+    carried_kinds(world, creature)
+        .into_iter()
+        .any(|kind| crate::item_registry::kind_has_flag(world, kind, flag))
+}
+
+/// Every kind the creature is carrying, wearing, or wielding.
+///
+/// The walk [`carried_has_quality`] and [`carried_has_flag`] share: the store's `Carried` and `WornBy` links, the reference's inventory list, and the kind the hands hold.
+fn carried_kinds(world: &mut World, creature: Entity) -> Vec<crate::ItemTypeId> {
     let mut held: Vec<Entity> = world
         .get::<crate::Inventory>(creature)
         .map_or_else(Vec::new, |inventory| inventory.items.clone());
@@ -4967,19 +4972,32 @@ pub fn carried_has_quality(world: &mut World, creature: Entity, quality: &str, l
                 .map(|(entity, _)| entity),
         );
     }
-    for item in held {
-        let Some(kind) = world.get::<crate::GroundItem>(item).map(|item| item.kind) else {
-            continue;
-        };
-        if level_reached(world, kind, quality, level) {
-            return true;
-        }
-    }
+    let mut kinds: Vec<crate::ItemTypeId> = held
+        .into_iter()
+        .filter_map(|item| world.get::<crate::GroundItem>(item).map(|item| item.kind))
+        .collect();
     // **What the hands hold**, which the port names by kind rather than by entity: `Wielding` is `itype_id` in the reference too, because a person wields one item and the
     // quality belongs to the kind.
-    world
-        .get::<Wielding>(creature)
-        .is_some_and(|wielded| level_reached(world, wielded.0, quality, level))
+    if let Some(wielded) = world.get::<Wielding>(creature) {
+        kinds.push(wielded.0);
+    }
+    kinds
+}
+
+/// Whether a creature **has** a quality at a level among what it carries.
+///
+/// Reference: `Character::has_quality( qual, level, qty )` (`visitable.cpp:197-210`), which visits the character's own items - wielded, worn, carried - and counts those whose
+/// `get_quality` reaches the level; `read_only_visitable::has_quality` (`:148-151`) is the same walk for anything else that can be visited. `qty` is one in every activity gate, so
+/// one item is enough.
+///
+/// **This is not [`best_quality`].** That one also reaches the ground within `PICKUP_RANGE`, because a survivor may use the knife beside a corpse; this one is the question
+/// `can_do_activity_there` asks before there is a corpse to stand on, and a tool across the room does not answer it. The distinction is the reference's own and it decides who
+/// walks to a spot at all.
+#[must_use]
+pub fn carried_has_quality(world: &mut World, creature: Entity, quality: &str, level: i32) -> bool {
+    carried_kinds(world, creature)
+        .into_iter()
+        .any(|kind| level_reached(world, kind, quality, level))
 }
 
 /// Whether a kind's quality reaches a level.

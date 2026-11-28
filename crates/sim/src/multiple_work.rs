@@ -100,9 +100,10 @@ pub fn next_work_square(
 /// that spot**. The butchering branch asks two things: the spot must hold a corpse (`:1210-1215`, `:1263-1264`), and the worker must carry a blade that reaches `BUTCHER` one
 /// (`:1254`). Both are answered here, which is why the function takes the **person** as well as the spot - a gate that only knew the square could not ask the second.
 ///
-/// **Mining, fishing and chopping answer their terrain half.** Each of those branches has two halves - what the ground is, and what the worker is holding - and only the first can be
-/// asked: `has_quality( BUTCHER, 1 )`, a digging tool, a rod and an axe all read an item's qualities, which the port has no predicate for yet. The terrain half is ported because a
-/// job sent to a square it cannot possibly work is a person walking there all day, and that is a bug whether or not the tool half exists.
+/// **Mining, fishing and chopping answer both halves.** Each branch asks what the ground is *and* what the worker is holding, and both are ported: the terrain by its flag
+/// (`MINEABLE`, `FISHABLE`, `TREE` or the two ids), the tool by `carried_has_flag( DIG_TOOL )` for mining - the reference asks for a **flag** there, not a quality - and by
+/// `carried_has_quality` at the default level of zero for the rod and the axe. The `JACKHAMMER` alternative the mining branch allows is a use-with-ammo question the port cannot
+/// ask yet, and it is named here rather than guessed at.
 ///
 /// **The activities that need furniture, an item or a vehicle answer `true`**: mopping wants moppable ground and a mop, disassembly and construction want items, and the vehicle
 /// branches want a vehicle. Answering `true` keeps those jobs walking to their zones as they did before this rule existed; answering `false` would end every one of them on its first
@@ -145,22 +146,27 @@ pub fn can_work_at(
         }
         // **Mining wants mineable ground.** Reference: `:1160-1163` fails a square without `TFLAG_MINEABLE`. The branch's other half - a digging tool in the worker's hands - is a
         // question the port cannot ask yet, so the terrain is the whole of the answer here rather than half of it.
-        "ACT_MULTIPLE_MINE" => ground_has_flag(world, square, "MINEABLE"),
+        "ACT_MULTIPLE_MINE" => {
+            ground_has_flag(world, square, "MINEABLE")
+                && crate::creature::carried_has_flag(world, npc, "DIG_TOOL")
+        }
         // **Fishing wants fishable water.** Reference: `:1188-1191`. The rod is the unanswerable half.
-        "ACT_MULTIPLE_FISH" => ground_has_flag(world, square, "FISHABLE"),
+        "ACT_MULTIPLE_FISH" => {
+            ground_has_flag(world, square, "FISHABLE")
+                && crate::creature::carried_has_quality(world, npc, "FISHING_ROD", 0)
+        }
         // **Chopping wants a tree, a trunk or a stump.** Reference: `:1198-1209` - the two ids are compared exactly and everything else needs the `TFLAG_TREE` flag. The axe is
         // the branch's other half.
         "ACT_MULTIPLE_CHOP_TREES" => {
             let Some(code) = crate::square::terrain_at(world, square) else {
                 return false;
             };
-            if crate::terrain_types::has_flag(world, code, "TREE") {
-                return true;
-            }
-            matches!(
-                crate::terrain_types::name_of(world, code).as_deref(),
-                Some("t_trunk" | "t_stump")
-            )
+            let has_tree = crate::terrain_types::has_flag(world, code, "TREE")
+                || matches!(
+                    crate::terrain_types::name_of(world, code).as_deref(),
+                    Some("t_trunk" | "t_stump")
+                );
+            has_tree && crate::creature::carried_has_quality(world, npc, "AXE", 0)
         }
         _ => true,
     }
